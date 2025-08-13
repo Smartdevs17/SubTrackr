@@ -3,8 +3,8 @@ import { Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { HomeScreen } from '../screens/HomeScreen';
-import { AddSubscriptionScreen } from '../screens/AddSubscriptionScreen';
+import HomeScreen from '../screens/HomeScreen';
+import AddSubscriptionScreen from '../screens/AddSubscriptionScreen';
 import { colors } from '../utils/constants';
 import { RootStackParamList, TabParamList } from './types';
 

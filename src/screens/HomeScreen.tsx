@@ -18,7 +18,7 @@ import { formatCurrency } from '../utils/formatting';
 import { getUpcomingSubscriptions } from '../utils/dummyData';
 import { Subscription } from '../types/subscription';
 
-export const HomeScreen: React.FC = () => {
+const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
   const { 
     subscriptions, 
@@ -336,3 +336,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+
+export default HomeScreen;

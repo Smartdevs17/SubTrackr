@@ -18,7 +18,7 @@ import { useSubscriptionStore } from '../store';
 import { Button } from '../components/common/Button';
 import { formatCurrency } from '../utils/formatting';
 
-export const AddSubscriptionScreen: React.FC = () => {
+const AddSubscriptionScreen: React.FC = () => {
   const navigation = useNavigation();
   const { addSubscription, isLoading } = useSubscriptionStore();
   
@@ -429,3 +429,5 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
 });
+
+export default AddSubscriptionScreen;
