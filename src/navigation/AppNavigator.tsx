@@ -1,19 +1,26 @@
 import React from 'react';
+import { Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createStackNavigator } from '@react-navigation/stack';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { HomeScreen } from '../screens/HomeScreen';
 import { AddSubscriptionScreen } from '../screens/AddSubscriptionScreen';
 import { colors } from '../utils/constants';
+import { RootStackParamList, TabParamList } from './types';
 
-const Tab = createBottomTabNavigator();
-const Stack = createStackNavigator();
+const Tab = createBottomTabNavigator<TabParamList>();
+const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const HomeStack = () => (
   <Stack.Navigator>
     <Stack.Screen 
       name="Home" 
       component={HomeScreen}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen 
+      name="AddSubscription" 
+      component={AddSubscriptionScreen}
       options={{ headerShown: false }}
     />
   </Stack.Navigator>
@@ -38,8 +45,7 @@ const TabNavigator = () => (
       options={{
         tabBarLabel: 'Home',
         tabBarIcon: ({ color, size }) => (
-          // Placeholder for icon
-          <div style={{ width: size, height: size, backgroundColor: color }} />
+          <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>🏠</Text>
         ),
       }}
     />
@@ -49,8 +55,7 @@ const TabNavigator = () => (
       options={{
         tabBarLabel: 'Add',
         tabBarIcon: ({ color, size }) => (
-          // Placeholder for icon
-          <div style={{ width: size, height: size, backgroundColor: color }} />
+          <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>➕</Text>
         ),
       }}
     />

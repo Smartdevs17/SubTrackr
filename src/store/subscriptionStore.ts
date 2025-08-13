@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { Subscription, SubscriptionFormData, SubscriptionStats } from '../types/subscription';
+import { Subscription, SubscriptionFormData, SubscriptionStats, SubscriptionCategory } from '../types/subscription';
+import { dummySubscriptions } from '../utils/dummyData';
 
 interface SubscriptionState {
   subscriptions: Subscription[];
@@ -17,7 +18,7 @@ interface SubscriptionState {
 }
 
 export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
-  subscriptions: [],
+  subscriptions: dummySubscriptions, // Initialize with dummy data
   stats: {
     totalActive: 0,
     totalMonthlySpend: 0,
@@ -129,6 +130,20 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
 
   calculateStats: () => {
     const { subscriptions } = get();
+    
+    // Safety check: ensure subscriptions is an array
+    if (!subscriptions || !Array.isArray(subscriptions)) {
+      set({
+        stats: {
+          totalActive: 0,
+          totalMonthlySpend: 0,
+          totalYearlySpend: 0,
+          categoryBreakdown: {} as Record<SubscriptionCategory, number>,
+        },
+      });
+      return;
+    }
+    
     const activeSubs = subscriptions.filter(sub => sub.isActive);
     
     const totalMonthlySpend = activeSubs.reduce((total, sub) => {

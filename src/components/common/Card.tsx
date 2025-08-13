@@ -15,10 +15,25 @@ export const Card: React.FC<CardProps> = ({
   variant = 'default',
   padding = 'medium',
 }) => {
+  const getPaddingStyle = () => {
+    switch (padding) {
+      case 'none':
+        return styles.paddingNone;
+      case 'small':
+        return styles.paddingSmall;
+      case 'medium':
+        return styles.paddingMedium;
+      case 'large':
+        return styles.paddingLarge;
+      default:
+        return styles.paddingMedium;
+    }
+  };
+
   const cardStyle = [
     styles.card,
     styles[variant],
-    styles[`padding${padding.charAt(0).toUpperCase() + padding.slice(1)}`],
+    getPaddingStyle(),
     style,
   ];
 
