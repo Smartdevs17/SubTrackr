@@ -36,6 +36,11 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
+# Build outputs
+builds/
+android/
+ios/
+
 .DS_Store
 .env 
 
