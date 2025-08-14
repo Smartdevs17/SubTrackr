@@ -12,14 +12,17 @@ import {
   Platform
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../navigation/types';
 import { colors, spacing, typography, borderRadius, shadows } from '../utils/constants';
 import { SubscriptionCategory, BillingCycle, SubscriptionFormData } from '../types/subscription';
 import { useSubscriptionStore } from '../store';
+import walletServiceManager from '../services/walletService';
 import { Button } from '../components/common/Button';
 import { formatCurrency } from '../utils/formatting';
 
 const AddSubscriptionScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { addSubscription, isLoading } = useSubscriptionStore();
   
   const [formData, setFormData] = useState<SubscriptionFormData>({
@@ -65,11 +68,26 @@ const AddSubscriptionScreen: React.FC = () => {
 
     try {
       await addSubscription(formData);
-      Alert.alert(
-        'Success', 
-        'Subscription added successfully!',
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
-      );
+      
+      if (formData.isCryptoEnabled) {
+        Alert.alert(
+          'Success!', 
+          'Subscription added successfully! Would you like to set up crypto payments now?',
+          [
+            { text: 'Later', onPress: () => navigation.goBack() },
+            { 
+              text: 'Setup Crypto', 
+              onPress: () => navigation.navigate('CryptoPayment', { subscriptionId: 'new' })
+            },
+          ]
+        );
+      } else {
+        Alert.alert(
+          'Success', 
+          'Subscription added successfully!',
+          [{ text: 'OK', onPress: () => navigation.goBack() }]
+        );
+      }
     } catch (error) {
       Alert.alert('Error', 'Failed to add subscription. Please try again.');
     }

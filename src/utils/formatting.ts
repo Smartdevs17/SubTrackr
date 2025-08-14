@@ -7,6 +7,23 @@ export const formatCurrency = (amount: number, currency: string = 'USD'): string
   }).format(amount);
 };
 
+export const formatCurrencyCompact = (amount: number, currency: string = 'USD'): string => {
+  if (amount >= 1000) {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency,
+      notation: 'compact',
+      maximumFractionDigits: 1,
+    }).format(amount);
+  }
+  
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: 2,
+  }).format(amount);
+};
+
 export const formatCryptoAmount = (amount: number, decimals: number = 18): string => {
   return amount.toFixed(decimals);
 };

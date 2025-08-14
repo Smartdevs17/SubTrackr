@@ -1,29 +1,44 @@
 {
   "expo": {
     "name": "SubTrackr",
-    "slug": "SubTrackr",
+    "slug": "subtrackr",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "icon": "./assets/subtrackr-icon.png",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/subtrackr-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#1a1a1a"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.subtrackr.app",
+      "icon": "./assets/subtrackr-icon.png"
     },
     "android": {
+      "package": "com.subtrackr.app",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/subtrackr-icon.png",
+        "backgroundColor": "#1a1a1a"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "icon": "./assets/subtrackr-icon.png"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
-    }
+      "favicon": "./assets/subtrackr-icon.png",
+      "name": "SubTrackr - Subscription Management with Crypto Payments",
+      "description": "Manage your subscriptions with Web3 crypto payments"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "your-project-id"
+      }
+    },
+    "owner": "subtrackr",
+    "description": "Subscription Management with Crypto Payments",
+    "keywords": ["subscription", "crypto", "web3", "blockchain", "payments"],
+    "primaryColor": "#6366f1"
   }
 }

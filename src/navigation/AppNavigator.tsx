@@ -5,6 +5,8 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import HomeScreen from '../screens/HomeScreen';
 import AddSubscriptionScreen from '../screens/AddSubscriptionScreen';
+import WalletConnectScreen from '../screens/WalletConnectScreen';
+import CryptoPaymentScreen from '../screens/CryptoPaymentScreen';
 import { colors } from '../utils/constants';
 import { RootStackParamList, TabParamList } from './types';
 
@@ -21,6 +23,16 @@ const HomeStack = () => (
     <Stack.Screen 
       name="AddSubscription" 
       component={AddSubscriptionScreen}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen 
+      name="WalletConnect" 
+      component={WalletConnectScreen}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen 
+      name="CryptoPayment" 
+      component={CryptoPaymentScreen}
       options={{ headerShown: false }}
     />
   </Stack.Navigator>
@@ -56,6 +68,16 @@ const TabNavigator = () => (
         tabBarLabel: 'Add',
         tabBarIcon: ({ color, size }) => (
           <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>➕</Text>
+        ),
+      }}
+    />
+    <Tab.Screen
+      name="WalletTab"
+      component={WalletConnectScreen}
+      options={{
+        tabBarLabel: 'Wallet',
+        tabBarIcon: ({ color, size }) => (
+          <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>🔗</Text>
         ),
       }}
     />
