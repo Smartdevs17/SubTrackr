@@ -1,206 +1,110 @@
-# 📱 SubTrackr - Web3 Subscription Manager
+# SubTrackr - On-Chain Subscription Management on Stellar
 
-> **The future of subscription management is here.** Track, manage, and pay for your subscriptions using both traditional methods and cutting-edge Web3 technology.
+SubTrackr is a mobile application for managing recurring payments and subscriptions powered by Soroban smart contracts on the Stellar network. Merchants create subscription plans, users authorize recurring XLM or token payments, and smart contracts handle automated billing cycles.
 
-[![React Native](https://img.shields.io/badge/React%20Native-0.72-blue.svg)](https://reactnative.dev/)
-[![Expo](https://img.shields.io/badge/Expo-49-black.svg)](https://expo.dev/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.1-blue.svg)](https://www.typescriptlang.org/)
-[![WalletConnect](https://img.shields.io/badge/WalletConnect-v2-orange.svg)](https://walletconnect.com/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+## The Problem
 
-## 🌟 What is SubTrackr?
+- Average person manages 12+ subscriptions with no unified view
+- No native on-chain solution for recurring payments on Stellar
+- Missed payments lead to service interruptions and late fees
+- No easy way to pay for services with crypto on a recurring basis
 
-SubTrackr is a **revolutionary subscription management app** that bridges the gap between traditional Web2 services and the emerging Web3 ecosystem. Never forget a payment, never overspend, and never miss out on the benefits of crypto payments.
+## Features
 
-### 🔥 The Problem We Solve
+**Subscription Management**
+- Track all subscriptions (Web2 and Web3 services) in one place
+- Smart categorization by type (streaming, productivity, infrastructure, etc.)
+- Quick-add presets for popular services or manual entry
+- Bulk actions: pause, cancel, or modify multiple subscriptions
 
-- **😤 Subscription Chaos**: Average person has 12+ subscriptions scattered across apps
-- **💸 Money Drain**: $273/month spent on forgotten subscriptions 
-- **🚫 Web3 Barrier**: No easy way to pay for services with crypto
-- **📊 Poor Visibility**: No unified view of spending across platforms
-- **⏰ Missed Payments**: Late fees and service interruptions
+**On-Chain Recurring Payments**
+- Authorize recurring XLM and Stellar token payments via Soroban contracts
+- Automatic billing cycle execution with configurable intervals
+- Multi-token support (XLM, USDC on Stellar, custom Stellar assets)
+- Transparent on-chain payment history
 
-### ✨ Our Solution
+**Smart Notifications**
+- Billing reminders with advance warnings before charges
+- Price change alerts and spending insights
+- AI-powered savings suggestions
 
-SubTrackr provides a **unified dashboard** where you can:
-- Track ALL subscriptions (Netflix, Spotify, Web3 services, etc.)
-- Pay with **crypto streaming** (set it and forget it)
-- Get **smart notifications** before charges
-- See **real-time analytics** of your spending
-- **Cancel or modify** subscriptions instantly
+**Wallet Integration**
+- Native Freighter wallet connection for Stellar transactions
+- Social login support via Web3Auth
+- Real-time balance and transaction monitoring
 
----
+## Architecture
 
-## 🚀 Key Features
+```
+SubTrackr/
+├── src/              # React Native mobile app (Expo)
+│   ├── screens/      # App screens
+│   ├── components/   # Reusable UI components
+│   ├── services/     # Wallet and API services
+│   ├── store/        # Zustand state management
+│   └── hooks/        # Custom React hooks
+├── contracts/        # Soroban smart contracts (Rust)
+│   └── src/          # Subscription management contract
+```
 
-### 📋 **Subscription Management**
-- ✅ **Universal Tracking** - Web2 and Web3 services in one place
-- ✅ **Smart Categorization** - Auto-organize by type (streaming, productivity, etc.)
-- ✅ **Quick Add** - Popular service presets or manual entry
-- ✅ **Bulk Actions** - Pause, cancel, or modify multiple subscriptions
+## Tech Stack
 
-### 🔔 **Smart Notifications**
-- ✅ **Billing Reminders** - 3-day advance warning system
-- ✅ **Price Change Alerts** - Know when costs increase
-- ✅ **Usage Insights** - See which services you actually use
-- ✅ **Savings Suggestions** - AI-powered recommendations
+| Layer | Technology |
+|---|---|
+| Mobile App | React Native, Expo, TypeScript |
+| State | Zustand |
+| Wallet | Freighter Wallet, Stellar SDK |
+| Auth | Web3Auth (social login) |
+| Smart Contracts | Soroban (Rust) on Stellar |
+| Payments | XLM, Stellar tokens |
 
-### 💰 **Web3 Payment Innovation**
-- ✅ **Crypto Streaming** - Continuous payments via Superfluid/Sablier
-- ✅ **Multi-Token Support** - Pay with ETH, USDC, MATIC, and more
-- ✅ **WalletConnect Integration** - Connect any Web3 wallet securely
-- ✅ **Gas Optimization** - Smart transaction batching
+## Getting Started
 
-### 📊 **Analytics & Insights**
-- ✅ **Spending Dashboard** - Monthly/yearly breakdowns
-- ✅ **Category Analysis** - See where your money goes
-- ✅ **Trend Tracking** - Spending patterns over time
-- ✅ **ROI Calculator** - Value per dollar spent
+### Prerequisites
 
----
+- Node.js 20+
+- Expo CLI
+- Rust + Soroban CLI (for contract development)
+- [Freighter Wallet](https://freighter.app/)
 
-## 🎯 Target Audience
+### Mobile App
 
-### 👨‍💼 **Primary Users**
-- **Digital Professionals** (25-45) managing 8+ subscriptions
-- **Crypto Enthusiasts** wanting to pay with digital assets
-- **Budget-Conscious Individuals** seeking spending control
-- **Early Adopters** embracing Web3 technology
-
-### 🏢 **Secondary Markets**
-- **Small Businesses** tracking software subscriptions
-- **Families** managing shared entertainment services
-- **Students** optimizing educational tool costs
-- **Remote Workers** with productivity app subscriptions
-
----
-
-## 🏗️ Technical Architecture
-
-### **Frontend**
-- **React Native** with TypeScript for cross-platform mobile
-- **Expo** for rapid development and deployment
-- **Zustand** for lightweight state management
-- **React Navigation** for seamless screen transitions
-
-### **Web3 Integration**
-- **WalletConnect v2** for universal wallet support
-- **Superfluid Protocol** for continuous payment streams
-- **Sablier** for scheduled streaming payments
-- **Ethers.js** for blockchain interactions
-
-### **Backend Services**
-- **Firebase/Supabase** for user data and authentication
-- **Push Notifications** via Expo for billing reminders
-- **Analytics** tracking for user insights
-- **API Integrations** with popular subscription services
-
----
-
-## 🚀 Getting Started
-
-### **Quick Start**
 ```bash
-# Clone and setup
-git clone https://github.com/Smartdevs17/subtrackr.git
-cd subtrackr
 npm install
-
-# Start development
 npx expo start
 ```
 
-### **Prerequisites**
-- Node.js 16+ and npm
-- Expo CLI installed globally
-- iOS Simulator or Android emulator
-- WalletConnect Project ID (free)
+### Smart Contracts
 
----
+```bash
+cd contracts
+cargo build --target wasm32-unknown-unknown --release
+soroban contract deploy --wasm target/wasm32-unknown-unknown/release/subtrackr.wasm --network testnet
+```
 
-## 🗺️ Roadmap
+### Environment Variables
 
-### **Phase 1: Core MVP** *(4-6 weeks)*
-- [x] Basic subscription tracking
-- [x] Add/edit/delete subscriptions  
-- [x] Push notifications
-- [x] Simple analytics dashboard
+| Variable | Description |
+|---|---|
+| `STELLAR_NETWORK` | `testnet` or `public` |
+| `CONTRACT_ID` | Deployed Soroban subscription contract ID |
+| `WEB3AUTH_CLIENT_ID` | Web3Auth client ID for social login |
 
-### **Phase 2: Web3 Integration** *(6-8 weeks)*
-- [x] WalletConnect integration
-- [x] Crypto payment setup
-- [x] Superfluid streaming
-- [ ] Multi-chain support
+## Contributing
 
-### **Phase 3: Advanced Features** *(8-10 weeks)*
-- [ ] AI spending insights
-- [ ] Group/family subscriptions
-- [ ] NFT loyalty badges
-- [ ] Advanced analytics
+We welcome contributions! SubTrackr participates in the **Stellar Wave Program** via [Drips](https://www.drips.network/). Contributors can earn points and rewards by picking up issues labeled **`Stellar Wave`**.
 
-### **Phase 4: Ecosystem** *(12+ weeks)*
-- [ ] API for third-party integrations
-- [ ] Browser extension
-- [ ] Partnership integrations
-- [ ] Enterprise features
+Types of contributions we're looking for:
 
----
+- **Soroban contract features** — billing cycle logic, grace periods, merchant management
+- **Mobile UI/UX** — new screens, improved flows, accessibility
+- **Wallet integration** — Freighter deep linking, transaction signing
+- **Testing** — unit tests, integration tests, contract tests
+- **Documentation** — setup guides, architecture docs, API references
+- **Notification system** — push notifications, billing alerts
 
-## 💡 Unique Value Propositions
+Look for issues tagged `good first issue` or `Stellar Wave` to get started.
 
-### **🌉 Bridge Web2 & Web3**
-First app to seamlessly integrate traditional and crypto payments
+## License
 
-### **🔄 Streaming Payments**
-Set up crypto streams once, never worry about payments again
-
-### **🤖 AI-Powered Insights**
-Smart recommendations based on usage patterns and spending habits
-
-### **🛡️ Privacy-First**
-Your data stays yours - no selling to advertisers
-
-### **⚡ Gas Efficiency**
-Batched transactions and optimized smart contract interactions
-
----
-
-## 🤝 Contributing
-
-We welcome contributions! See our [Contributing Guide](CONTRIBUTING.md) for details.
-
-### **Development Process**
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests and documentation
-5. Submit a pull request
-
----
-
-## 📄 License
-
-MIT License - see [LICENSE](LICENSE) file for details.
-
----
-
-## 🆘 Support & Community
-
-- **📧 Email**: support@subtrackr.app
-- **💬 Discord**: [Join our community](https://discord.gg/subtrackr)
-- **🐛 Issues**: [GitHub Issues](https://github.com/Smartdevs17/subtrackr/issues)
-- **📚 Docs**: [Documentation](https://docs.subtrackr.app)
-
----
-
-## 🏆 Recognition
-
-- 🥇 **Best Mobile dApp** - ETHGlobal Hackathon 2025
-- 🌟 **Featured App** - Expo Showcase
-- 🚀 **Rising Star** - Product Hunt #3 Product of the Day
-
----
-
-**Built with ❤️ for the future of subscription management**
-
-*SubTrackr - Where Web2 meets Web3, and chaos becomes control.*
+MIT

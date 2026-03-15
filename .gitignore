@@ -42,5 +42,11 @@ android/
 ios/
 
 .DS_Store
-.env 
+.env
 
+# IDE / Tools
+.claude/
+
+# Build artifacts
+build_errors*.txt
+*.log
