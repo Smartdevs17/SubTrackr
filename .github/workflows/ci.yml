@@ -1,0 +1,215 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, dev, develop]
+  pull_request:
+    branches: [main, dev, develop]
+
+env:
+  NODE_VERSION: '20'
+  RUST_VERSION: '1.77'
+
+jobs:
+  # ─────────────────────────────────────────────────────────
+  # TypeScript / React Native Checks
+  # ─────────────────────────────────────────────────────────
+  typescript-lint:
+    name: TypeScript Lint & Format
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Check formatting (Prettier)
+        run: npm run format:check
+
+      - name: Run ESLint
+        run: npm run lint
+
+  typescript-typecheck:
+    name: TypeScript Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Run TypeScript type check
+        run: npm run typecheck
+
+  typescript-tests:
+    name: TypeScript Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Run tests
+        run: npm test
+
+  typescript-build:
+    name: TypeScript Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Run Expo export
+        run: npm run build
+        env:
+          EXPO_NO_TELEMETRY: 1
+
+  # ─────────────────────────────────────────────────────────
+  # Rust / Soroban Smart Contract Checks
+  # ─────────────────────────────────────────────────────────
+  rust-format:
+    name: Rust Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          version: ${{ env.RUST_VERSION }}
+          components: rustfmt
+
+      - name: Check Rust formatting
+        run: cd contracts && cargo fmt --check
+
+  rust-clippy:
+    name: Rust Clippy Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          version: ${{ env.RUST_VERSION }}
+          components: clippy
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './contracts -> target'
+
+      - name: Run Clippy
+        working-directory: ./contracts
+        run: cargo clippy --all-targets -- -D warnings
+
+  rust-tests:
+    name: Rust Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          version: ${{ env.RUST_VERSION }}
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './contracts -> target'
+
+      - name: Run Rust tests
+        working-directory: ./contracts
+        run: cargo test --verbose
+
+  rust-build:
+    name: Rust Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          version: ${{ env.RUST_VERSION }}
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './contracts -> target'
+
+      - name: Build Rust contracts
+        working-directory: ./contracts
+        run: cargo build --release
+
+  # ─────────────────────────────────────────────────────────
+  # Merge Protection (only on PRs)
+  # ─────────────────────────────────────────────────────────
+  merge-protection:
+    name: Merge Protection Check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    needs: [typescript-lint, typescript-typecheck, typescript-tests, typescript-build, rust-format, rust-clippy, rust-tests, rust-build]
+    steps:
+      - name: All checks passed
+        run: echo "All quality gates passed!"
+
+  # ─────────────────────────────────────────────────────────
+  # Full CI Summary (runs after all jobs)
+  # ─────────────────────────────────────────────────────────
+  ci-success:
+    name: CI Complete
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [typescript-lint, typescript-typecheck, typescript-tests, typescript-build, rust-format, rust-clippy, rust-tests, rust-build]
+    steps:
+      - name: Check for failures
+        run: |
+          if [ "${{ needs.typescript-lint.result }}" != "success" ] || \
+             [ "${{ needs.typescript-typecheck.result }}" != "success" ] || \
+             [ "${{ needs.typescript-tests.result }}" != "success" ] || \
+             [ "${{ needs.typescript-build.result }}" != "success" ] || \
+             [ "${{ needs.rust-format.result }}" != "success" ] || \
+             [ "${{ needs.rust-clippy.result }}" != "success" ] || \
+             [ "${{ needs.rust-tests.result }}" != "success" ] || \
+             [ "${{ needs.rust-build.result }}" != "success" ]; then
+            echo "One or more CI checks failed"
+            exit 1
+          fi
+          echo "All CI checks passed successfully!"
