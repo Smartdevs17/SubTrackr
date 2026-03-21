@@ -8,7 +8,7 @@ on:
 
 env:
   NODE_VERSION: '20'
-  RUST_VERSION: '1.77'
+  RUST_VERSION: '1.80'
 
 jobs:
   # ─────────────────────────────────────────────────────────
@@ -108,7 +108,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
         with:
-          version: ${{ env.RUST_VERSION }}
+          toolchain: ${{ env.RUST_VERSION }}
           components: rustfmt
 
       - name: Check Rust formatting
@@ -124,7 +124,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
         with:
-          version: ${{ env.RUST_VERSION }}
+          toolchain: ${{ env.RUST_VERSION }}
           components: clippy
 
       - name: Cache Rust dependencies
@@ -146,7 +146,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
         with:
-          version: ${{ env.RUST_VERSION }}
+          toolchain: ${{ env.RUST_VERSION }}
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -167,7 +167,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
         with:
-          version: ${{ env.RUST_VERSION }}
+          toolchain: ${{ env.RUST_VERSION }}
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -185,7 +185,17 @@ jobs:
     name: Merge Protection Check
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
-    needs: [typescript-lint, typescript-typecheck, typescript-tests, typescript-build, rust-format, rust-clippy, rust-tests, rust-build]
+    needs:
+      [
+        typescript-lint,
+        typescript-typecheck,
+        typescript-tests,
+        typescript-build,
+        rust-format,
+        rust-clippy,
+        rust-tests,
+        rust-build,
+      ]
     steps:
       - name: All checks passed
         run: echo "All quality gates passed!"
@@ -197,7 +207,17 @@ jobs:
     name: CI Complete
     runs-on: ubuntu-latest
     if: always()
-    needs: [typescript-lint, typescript-typecheck, typescript-tests, typescript-build, rust-format, rust-clippy, rust-tests, rust-build]
+    needs:
+      [
+        typescript-lint,
+        typescript-typecheck,
+        typescript-tests,
+        typescript-build,
+        rust-format,
+        rust-clippy,
+        rust-tests,
+        rust-build,
+      ]
     steps:
       - name: Check for failures
         run: |

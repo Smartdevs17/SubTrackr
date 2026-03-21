@@ -16,3 +16,5 @@ builds/
 .env
 .DS_Store
 coverage/
+contracts/target/
+contracts/test_snapshots/
