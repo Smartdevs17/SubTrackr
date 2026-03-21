@@ -15,23 +15,19 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const HomeStack = () => (
   <Stack.Navigator>
-    <Stack.Screen 
-      name="Home" 
-      component={HomeScreen}
-      options={{ headerShown: false }}
-    />
-    <Stack.Screen 
-      name="AddSubscription" 
+    <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
+    <Stack.Screen
+      name="AddSubscription"
       component={AddSubscriptionScreen}
       options={{ headerShown: false }}
     />
-    <Stack.Screen 
-      name="WalletConnect" 
+    <Stack.Screen
+      name="WalletConnect"
       component={WalletConnectScreen}
       options={{ headerShown: false }}
     />
-    <Stack.Screen 
-      name="CryptoPayment" 
+    <Stack.Screen
+      name="CryptoPayment"
       component={CryptoPaymentScreen}
       options={{ headerShown: false }}
     />
@@ -49,8 +45,7 @@ const TabNavigator = () => (
       tabBarActiveTintColor: colors.primary,
       tabBarInactiveTintColor: colors.textSecondary,
       headerShown: false,
-    }}
-  >
+    }}>
     <Tab.Screen
       name="HomeTab"
       component={HomeStack}

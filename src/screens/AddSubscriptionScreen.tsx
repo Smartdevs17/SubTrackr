@@ -1,30 +1,28 @@
 import React, { useState } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  SafeAreaView, 
-  ScrollView, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  SafeAreaView,
+  ScrollView,
   TextInput,
   TouchableOpacity,
   Alert,
   KeyboardAvoidingView,
-  Platform
+  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
-import { colors, spacing, typography, borderRadius, shadows } from '../utils/constants';
+import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { SubscriptionCategory, BillingCycle, SubscriptionFormData } from '../types/subscription';
 import { useSubscriptionStore } from '../store';
-import walletServiceManager from '../services/walletService';
 import { Button } from '../components/common/Button';
-import { formatCurrency } from '../utils/formatting';
 
 const AddSubscriptionScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { addSubscription, isLoading } = useSubscriptionStore();
-  
+
   const [formData, setFormData] = useState<SubscriptionFormData>({
     name: '',
     description: '',
@@ -37,22 +35,29 @@ const AddSubscriptionScreen: React.FC = () => {
     cryptoToken: undefined,
     cryptoAmount: undefined,
   });
-  
-  const [selectedCategory, setSelectedCategory] = useState<SubscriptionCategory>(SubscriptionCategory.OTHER);
-  const [selectedBillingCycle, setSelectedBillingCycle] = useState<BillingCycle>(BillingCycle.MONTHLY);
+
+  const [selectedCategory, setSelectedCategory] = useState<SubscriptionCategory>(
+    SubscriptionCategory.OTHER
+  );
+  const [selectedBillingCycle, setSelectedBillingCycle] = useState<BillingCycle>(
+    BillingCycle.MONTHLY
+  );
 
   const handleCategorySelect = (category: SubscriptionCategory) => {
     setSelectedCategory(category);
-    setFormData(prev => ({ ...prev, category }));
+    setFormData((prev) => ({ ...prev, category }));
   };
 
   const handleBillingCycleSelect = (cycle: BillingCycle) => {
     setSelectedBillingCycle(cycle);
-    setFormData(prev => ({ ...prev, billingCycle: cycle }));
+    setFormData((prev) => ({ ...prev, billingCycle: cycle }));
   };
 
-  const handleInputChange = (field: keyof SubscriptionFormData, value: string | number | boolean) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+  const handleInputChange = (
+    field: keyof SubscriptionFormData,
+    value: string | number | boolean
+  ) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleSubmit = async () => {
@@ -60,7 +65,7 @@ const AddSubscriptionScreen: React.FC = () => {
       Alert.alert('Error', 'Please enter a subscription name');
       return;
     }
-    
+
     if (formData.price <= 0) {
       Alert.alert('Error', 'Please enter a valid price');
       return;
@@ -68,25 +73,23 @@ const AddSubscriptionScreen: React.FC = () => {
 
     try {
       await addSubscription(formData);
-      
+
       if (formData.isCryptoEnabled) {
         Alert.alert(
-          'Success!', 
+          'Success!',
           'Subscription added successfully! Would you like to set up crypto payments now?',
           [
             { text: 'Later', onPress: () => navigation.goBack() },
-            { 
-              text: 'Setup Crypto', 
-              onPress: () => navigation.navigate('CryptoPayment', { subscriptionId: 'new' })
+            {
+              text: 'Setup Crypto',
+              onPress: () => navigation.navigate('CryptoPayment', { subscriptionId: 'new' }),
             },
           ]
         );
       } else {
-        Alert.alert(
-          'Success', 
-          'Subscription added successfully!',
-          [{ text: 'OK', onPress: () => navigation.goBack() }]
-        );
+        Alert.alert('Success', 'Subscription added successfully!', [
+          { text: 'OK', onPress: () => navigation.goBack() },
+        ]);
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to add subscription. Please try again.');
@@ -94,15 +97,15 @@ const AddSubscriptionScreen: React.FC = () => {
   };
 
   const handleCancel = () => {
-    if (formData.name.trim() || (formData.description && formData.description.trim()) || formData.price > 0) {
-      Alert.alert(
-        'Discard Changes',
-        'Are you sure you want to discard your changes?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Discard', style: 'destructive', onPress: () => navigation.goBack() },
-        ]
-      );
+    if (
+      formData.name.trim() ||
+      (formData.description && formData.description.trim()) ||
+      formData.price > 0
+    ) {
+      Alert.alert('Discard Changes', 'Are you sure you want to discard your changes?', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Discard', style: 'destructive', onPress: () => navigation.goBack() },
+      ]);
     } else {
       navigation.goBack();
     }
@@ -110,10 +113,9 @@ const AddSubscriptionScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         style={styles.keyboardAvoidingView}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView style={styles.scrollView}>
           <View style={styles.header}>
             <View style={styles.headerContent}>
@@ -125,7 +127,7 @@ const AddSubscriptionScreen: React.FC = () => {
             </View>
             <Text style={styles.subtitle}>Track your new subscription</Text>
           </View>
-          
+
           <View style={styles.form}>
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Basic Information</Text>
@@ -140,7 +142,7 @@ const AddSubscriptionScreen: React.FC = () => {
                   autoFocus
                 />
               </View>
-              
+
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Description (Optional)</Text>
                 <TextInput
@@ -155,7 +157,7 @@ const AddSubscriptionScreen: React.FC = () => {
                 />
               </View>
             </View>
-            
+
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Category</Text>
               <View style={styles.categoryGrid}>
@@ -164,21 +166,21 @@ const AddSubscriptionScreen: React.FC = () => {
                     key={category}
                     style={[
                       styles.categoryItem,
-                      selectedCategory === category && styles.categoryItemSelected
+                      selectedCategory === category && styles.categoryItemSelected,
                     ]}
-                    onPress={() => handleCategorySelect(category)}
-                  >
-                    <Text style={[
-                      styles.categoryText,
-                      selectedCategory === category && styles.categoryTextSelected
-                    ]}>
+                    onPress={() => handleCategorySelect(category)}>
+                    <Text
+                      style={[
+                        styles.categoryText,
+                        selectedCategory === category && styles.categoryTextSelected,
+                      ]}>
                       {category.charAt(0).toUpperCase() + category.slice(1)}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
             </View>
-            
+
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Billing Details</Text>
               <View style={styles.inputGroup}>
@@ -198,7 +200,7 @@ const AddSubscriptionScreen: React.FC = () => {
                   />
                 </View>
               </View>
-              
+
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Billing Cycle</Text>
                 <View style={styles.billingCycleContainer}>
@@ -207,14 +209,14 @@ const AddSubscriptionScreen: React.FC = () => {
                       key={cycle}
                       style={[
                         styles.billingCycleItem,
-                        selectedBillingCycle === cycle && styles.billingCycleItemSelected
+                        selectedBillingCycle === cycle && styles.billingCycleItemSelected,
                       ]}
-                      onPress={() => handleBillingCycleSelect(cycle)}
-                    >
-                      <Text style={[
-                        styles.billingCycleText,
-                        selectedBillingCycle === cycle && styles.billingCycleTextSelected
-                      ]}>
+                      onPress={() => handleBillingCycleSelect(cycle)}>
+                      <Text
+                        style={[
+                          styles.billingCycleText,
+                          selectedBillingCycle === cycle && styles.billingCycleTextSelected,
+                        ]}>
                         {cycle.charAt(0).toUpperCase() + cycle.slice(1)}
                       </Text>
                     </TouchableOpacity>
@@ -222,22 +224,24 @@ const AddSubscriptionScreen: React.FC = () => {
                 </View>
               </View>
             </View>
-            
+
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Crypto Options</Text>
               <View style={styles.cryptoOption}>
                 <TouchableOpacity
                   style={styles.cryptoToggle}
-                  onPress={() => handleInputChange('isCryptoEnabled', !formData.isCryptoEnabled)}
-                >
-                  <View style={[
-                    styles.toggleSwitch,
-                    formData.isCryptoEnabled && styles.toggleSwitchActive
-                  ]}>
-                    <View style={[
-                      styles.toggleKnob,
-                      formData.isCryptoEnabled && styles.toggleKnobActive
-                    ]} />
+                  onPress={() => handleInputChange('isCryptoEnabled', !formData.isCryptoEnabled)}>
+                  <View
+                    style={[
+                      styles.toggleSwitch,
+                      formData.isCryptoEnabled && styles.toggleSwitchActive,
+                    ]}>
+                    <View
+                      style={[
+                        styles.toggleKnob,
+                        formData.isCryptoEnabled && styles.toggleKnobActive,
+                      ]}
+                    />
                   </View>
                 </TouchableOpacity>
                 <Text style={styles.cryptoLabel}>Enable crypto payments</Text>
@@ -245,7 +249,7 @@ const AddSubscriptionScreen: React.FC = () => {
             </View>
           </View>
         </ScrollView>
-        
+
         <View style={styles.footer}>
           <Button
             title="Add Subscription"

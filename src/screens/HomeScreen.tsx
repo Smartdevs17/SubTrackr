@@ -1,42 +1,40 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  ScrollView, 
-  SafeAreaView, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  SafeAreaView,
   RefreshControl,
   TouchableOpacity,
   Alert,
   Modal,
   TextInput,
-  Switch
+  Switch,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { colors, spacing, typography, borderRadius, shadows } from '../utils/constants';
 import { useSubscriptionStore } from '../store';
-import walletServiceManager from '../services/walletService';
 import { SubscriptionCard } from '../components/subscription/SubscriptionCard';
 import { FloatingActionButton } from '../components/common/FloatingActionButton';
-import { formatCurrency, formatCurrencyCompact } from '../utils/formatting';
+import { formatCurrencyCompact } from '../utils/formatting';
 import { getUpcomingSubscriptions } from '../utils/dummyData';
 import { Subscription, SubscriptionCategory, BillingCycle } from '../types/subscription';
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
-  const { 
-    subscriptions, 
-    stats, 
-    isLoading, 
+  const {
+    subscriptions,
+    stats,
     error,
     fetchSubscriptions,
     calculateStats,
-    toggleSubscriptionStatus 
+    toggleSubscriptionStatus,
   } = useSubscriptionStore();
-  
+
   const [refreshing, setRefreshing] = useState(false);
   const [upcomingSubscriptions, setUpcomingSubscriptions] = useState<Subscription[]>([]);
-  
+
   // Filter state
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -71,11 +69,9 @@ const HomeScreen: React.FC = () => {
 
   const handleSubscriptionPress = (subscription: Subscription) => {
     // TODO: Navigate to subscription detail screen
-    Alert.alert(
-      'Subscription Details',
-      `Viewing details for ${subscription.name}`,
-      [{ text: 'OK' }]
-    );
+    Alert.alert('Subscription Details', `Viewing details for ${subscription.name}`, [
+      { text: 'OK' },
+    ]);
   };
 
   const handleToggleStatus = async (id: string) => {
@@ -93,18 +89,14 @@ const HomeScreen: React.FC = () => {
 
   // Filter helper functions
   const toggleCategory = (category: SubscriptionCategory) => {
-    setSelectedCategories(prev => 
-      prev.includes(category) 
-        ? prev.filter(c => c !== category)
-        : [...prev, category]
+    setSelectedCategories((prev) =>
+      prev.includes(category) ? prev.filter((c) => c !== category) : [...prev, category]
     );
   };
 
   const toggleBillingCycle = (cycle: BillingCycle) => {
-    setSelectedBillingCycles(prev => 
-      prev.includes(cycle) 
-        ? prev.filter(c => c !== cycle)
-        : [...prev, cycle]
+    setSelectedBillingCycles((prev) =>
+      prev.includes(cycle) ? prev.filter((c) => c !== cycle) : [...prev, cycle]
     );
   };
 
@@ -136,44 +128,43 @@ const HomeScreen: React.FC = () => {
   // Filter and sort subscriptions
   const filteredAndSortedSubscriptions = useMemo(() => {
     let filtered = subscriptions || [];
-    
+
     // Search filter
     if (searchQuery.trim()) {
-      filtered = filtered.filter(sub => 
-        sub.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (sub.description && sub.description.toLowerCase().includes(searchQuery.toLowerCase()))
+      filtered = filtered.filter(
+        (sub) =>
+          sub.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (sub.description && sub.description.toLowerCase().includes(searchQuery.toLowerCase()))
       );
     }
-    
+
     // Category filter
     if (selectedCategories.length > 0) {
-      filtered = filtered.filter(sub => selectedCategories.includes(sub.category));
+      filtered = filtered.filter((sub) => selectedCategories.includes(sub.category));
     }
-    
+
     // Billing cycle filter
     if (selectedBillingCycles.length > 0) {
-      filtered = filtered.filter(sub => selectedBillingCycles.includes(sub.billingCycle));
+      filtered = filtered.filter((sub) => selectedBillingCycles.includes(sub.billingCycle));
     }
-    
+
     // Price range filter
-    filtered = filtered.filter(sub => 
-      sub.price >= priceRange.min && sub.price <= priceRange.max
-    );
-    
+    filtered = filtered.filter((sub) => sub.price >= priceRange.min && sub.price <= priceRange.max);
+
     // Active status filter
     if (showActiveOnly) {
-      filtered = filtered.filter(sub => sub.isActive);
+      filtered = filtered.filter((sub) => sub.isActive);
     }
-    
+
     // Crypto filter
     if (showCryptoOnly) {
-      filtered = filtered.filter(sub => sub.isCryptoEnabled);
+      filtered = filtered.filter((sub) => sub.isCryptoEnabled);
     }
-    
+
     // Sort subscriptions
     filtered.sort((a, b) => {
       let comparison = 0;
-      
+
       switch (sortBy) {
         case 'name':
           comparison = a.name.localeCompare(b.name);
@@ -182,35 +173,36 @@ const HomeScreen: React.FC = () => {
           comparison = a.price - b.price;
           break;
         case 'nextBilling':
-          comparison = new Date(a.nextBillingDate).getTime() - new Date(b.nextBillingDate).getTime();
+          comparison =
+            new Date(a.nextBillingDate).getTime() - new Date(b.nextBillingDate).getTime();
           break;
         case 'category':
           comparison = a.category.localeCompare(b.category);
           break;
       }
-      
+
       return sortOrder === 'asc' ? comparison : -comparison;
     });
-    
+
     return filtered;
   }, [
-    subscriptions, 
-    searchQuery, 
-    selectedCategories, 
-    selectedBillingCycles, 
-    priceRange, 
-    showActiveOnly, 
-    showCryptoOnly, 
-    sortBy, 
-    sortOrder
+    subscriptions,
+    searchQuery,
+    selectedCategories,
+    selectedBillingCycles,
+    priceRange,
+    showActiveOnly,
+    showCryptoOnly,
+    sortBy,
+    sortOrder,
   ]);
 
-  const activeSubscriptions = filteredAndSortedSubscriptions.filter(sub => sub.isActive);
+  const activeSubscriptions = filteredAndSortedSubscriptions.filter((sub) => sub.isActive);
   const hasSubscriptions = activeSubscriptions.length > 0;
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         refreshControl={
           <RefreshControl
@@ -219,13 +211,12 @@ const HomeScreen: React.FC = () => {
             tintColor={colors.primary}
             colors={[colors.primary]}
           />
-        }
-      >
+        }>
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>SubTrackr</Text>
           <Text style={styles.subtitle}>Manage your subscriptions</Text>
-          
+
           {/* Search and Filter Bar */}
           <View style={styles.searchFilterBar}>
             <View style={styles.searchContainer}>
@@ -243,11 +234,10 @@ const HomeScreen: React.FC = () => {
                 </TouchableOpacity>
               )}
             </View>
-            
-            <TouchableOpacity 
+
+            <TouchableOpacity
               style={[styles.filterButton, hasActiveFilters && styles.filterButtonActive]}
-              onPress={() => setShowFilterModal(true)}
-            >
+              onPress={() => setShowFilterModal(true)}>
               <Text style={styles.filterIcon}>🔧</Text>
               {hasActiveFilters && (
                 <View style={styles.filterBadge}>
@@ -257,7 +247,7 @@ const HomeScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
         </View>
-        
+
         {/* Stats Cards */}
         <View style={styles.statsContainer}>
           <View style={styles.statCard}>
@@ -277,13 +267,14 @@ const HomeScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
         </View>
-        
+
         {/* Upcoming Billing Section */}
         {upcomingSubscriptions && upcomingSubscriptions.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Upcoming Billing</Text>
             <Text style={styles.sectionSubtitle}>
-              {upcomingSubscriptions.length} subscription{upcomingSubscriptions.length !== 1 ? 's' : ''} due this week
+              {upcomingSubscriptions.length} subscription
+              {upcomingSubscriptions.length !== 1 ? 's' : ''} due this week
             </Text>
             <View style={styles.upcomingContainer}>
               {upcomingSubscriptions.slice(0, 3).map((subscription) => (
@@ -299,7 +290,7 @@ const HomeScreen: React.FC = () => {
             </View>
           </View>
         )}
-        
+
         {/* Subscriptions List */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -312,22 +303,24 @@ const HomeScreen: React.FC = () => {
                   </Text>
                 )}
                 <Text style={styles.subscriptionCount}>
-                  {activeSubscriptions.length} subscription{activeSubscriptions.length !== 1 ? 's' : ''}
+                  {activeSubscriptions.length} subscription
+                  {activeSubscriptions.length !== 1 ? 's' : ''}
                 </Text>
               </View>
             )}
           </View>
-          
+
           {hasSubscriptions ? (
             <View style={styles.subscriptionsList}>
-              {activeSubscriptions && activeSubscriptions.map((subscription) => (
-                <SubscriptionCard
-                  key={subscription.id}
-                  subscription={subscription}
-                  onPress={handleSubscriptionPress}
-                  onToggleStatus={handleToggleStatus}
-                />
-              ))}
+              {activeSubscriptions &&
+                activeSubscriptions.map((subscription) => (
+                  <SubscriptionCard
+                    key={subscription.id}
+                    subscription={subscription}
+                    onPress={handleSubscriptionPress}
+                    onToggleStatus={handleToggleStatus}
+                  />
+                ))}
             </View>
           ) : (
             <View style={styles.emptyState}>
@@ -336,16 +329,13 @@ const HomeScreen: React.FC = () => {
               <Text style={styles.emptySubtext}>
                 Add your first subscription to start tracking your spending
               </Text>
-              <TouchableOpacity 
-                style={styles.addFirstButton}
-                onPress={handleAddSubscription}
-              >
+              <TouchableOpacity style={styles.addFirstButton} onPress={handleAddSubscription}>
                 <Text style={styles.addFirstButtonText}>Add Subscription</Text>
               </TouchableOpacity>
             </View>
           )}
         </View>
-        
+
         {/* Error Display */}
         {error && (
           <View style={styles.errorContainer}>
@@ -353,14 +343,10 @@ const HomeScreen: React.FC = () => {
           </View>
         )}
       </ScrollView>
-      
+
       {/* Floating Action Button */}
       {hasSubscriptions && (
-        <FloatingActionButton
-          onPress={handleAddSubscription}
-          icon="+"
-          size="large"
-        />
+        <FloatingActionButton onPress={handleAddSubscription} icon="+" size="large" />
       )}
 
       {/* Filter Modal */}
@@ -368,8 +354,7 @@ const HomeScreen: React.FC = () => {
         visible={showFilterModal}
         animationType="slide"
         presentationStyle="pageSheet"
-        onRequestClose={() => setShowFilterModal(false)}
-      >
+        onRequestClose={() => setShowFilterModal(false)}>
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Filter & Sort</Text>
@@ -388,14 +373,14 @@ const HomeScreen: React.FC = () => {
                     key={category}
                     style={[
                       styles.categoryChip,
-                      selectedCategories.includes(category) && styles.categoryChipSelected
+                      selectedCategories.includes(category) && styles.categoryChipSelected,
                     ]}
-                    onPress={() => toggleCategory(category)}
-                  >
-                    <Text style={[
-                      styles.categoryChipText,
-                      selectedCategories.includes(category) && styles.categoryChipTextSelected
-                    ]}>
+                    onPress={() => toggleCategory(category)}>
+                    <Text
+                      style={[
+                        styles.categoryChipText,
+                        selectedCategories.includes(category) && styles.categoryChipTextSelected,
+                      ]}>
                       {category.charAt(0).toUpperCase() + category.slice(1)}
                     </Text>
                   </TouchableOpacity>
@@ -412,14 +397,15 @@ const HomeScreen: React.FC = () => {
                     key={cycle}
                     style={[
                       styles.billingCycleChip,
-                      selectedBillingCycles.includes(cycle) && styles.billingCycleChipSelected
+                      selectedBillingCycles.includes(cycle) && styles.billingCycleChipSelected,
                     ]}
-                    onPress={() => toggleBillingCycle(cycle)}
-                  >
-                    <Text style={[
-                      styles.billingCycleChipText,
-                      selectedBillingCycles.includes(cycle) && styles.billingCycleChipTextSelected
-                    ]}>
+                    onPress={() => toggleBillingCycle(cycle)}>
+                    <Text
+                      style={[
+                        styles.billingCycleChipText,
+                        selectedBillingCycles.includes(cycle) &&
+                          styles.billingCycleChipTextSelected,
+                      ]}>
                       {cycle.charAt(0).toUpperCase() + cycle.slice(1)}
                     </Text>
                   </TouchableOpacity>
@@ -437,7 +423,9 @@ const HomeScreen: React.FC = () => {
                   placeholderTextColor={colors.textSecondary}
                   keyboardType="numeric"
                   value={priceRange.min.toString()}
-                  onChangeText={(text) => setPriceRange(prev => ({ ...prev, min: parseFloat(text) || 0 }))}
+                  onChangeText={(text) =>
+                    setPriceRange((prev) => ({ ...prev, min: parseFloat(text) || 0 }))
+                  }
                 />
                 <Text style={styles.priceRangeSeparator}>to</Text>
                 <TextInput
@@ -446,7 +434,9 @@ const HomeScreen: React.FC = () => {
                   placeholderTextColor={colors.textSecondary}
                   keyboardType="numeric"
                   value={priceRange.max.toString()}
-                  onChangeText={(text) => setPriceRange(prev => ({ ...prev, max: parseFloat(text) || 1000 }))}
+                  onChangeText={(text) =>
+                    setPriceRange((prev) => ({ ...prev, max: parseFloat(text) || 1000 }))
+                  }
                 />
               </View>
             </View>
@@ -484,17 +474,16 @@ const HomeScreen: React.FC = () => {
                     {(['name', 'price', 'nextBilling', 'category'] as const).map((field) => (
                       <TouchableOpacity
                         key={field}
-                        style={[
-                          styles.sortButton,
-                          sortBy === field && styles.sortButtonSelected
-                        ]}
-                        onPress={() => setSortBy(field)}
-                      >
-                        <Text style={[
-                          styles.sortButtonText,
-                          sortBy === field && styles.sortButtonTextSelected
-                        ]}>
-                          {field === 'nextBilling' ? 'Next Billing' : field.charAt(0).toUpperCase() + field.slice(1)}
+                        style={[styles.sortButton, sortBy === field && styles.sortButtonSelected]}
+                        onPress={() => setSortBy(field)}>
+                        <Text
+                          style={[
+                            styles.sortButtonText,
+                            sortBy === field && styles.sortButtonTextSelected,
+                          ]}>
+                          {field === 'nextBilling'
+                            ? 'Next Billing'
+                            : field.charAt(0).toUpperCase() + field.slice(1)}
                         </Text>
                       </TouchableOpacity>
                     ))}
@@ -504,33 +493,27 @@ const HomeScreen: React.FC = () => {
                   <Text style={styles.sortLabel}>Order:</Text>
                   <View style={styles.sortButtons}>
                     <TouchableOpacity
-                      style={[
-                        styles.sortButton,
-                        sortOrder === 'asc' && styles.sortButtonSelected
-                      ]}
-                      onPress={() => setSortOrder('asc')}
-                    >
-                      <Text style={[
-                        styles.sortButtonText,
-                        sortOrder === 'asc' && styles.sortButtonTextSelected
-                      ]}>
+                      style={[styles.sortButton, sortOrder === 'asc' && styles.sortButtonSelected]}
+                      onPress={() => setSortOrder('asc')}>
+                      <Text
+                        style={[
+                          styles.sortButtonText,
+                          sortOrder === 'asc' && styles.sortButtonTextSelected,
+                        ]}>
                         ↑ Ascending
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={[
-                        styles.sortButton,
-                        sortOrder === 'desc' && styles.sortButtonSelected
-                      ]}
-                      onPress={() => setSortOrder('desc')}
-                    >
-                      <Text style={[
-                        styles.sortButtonText,
-                        sortOrder === 'desc' && styles.sortButtonTextSelected
-                      ]}>
+                      style={[styles.sortButton, sortOrder === 'desc' && styles.sortButtonSelected]}
+                      onPress={() => setSortOrder('desc')}>
+                      <Text
+                        style={[
+                          styles.sortButtonText,
+                          sortOrder === 'desc' && styles.sortButtonTextSelected,
+                        ]}>
                         ↓ Descending
                       </Text>
-                      </TouchableOpacity>
+                    </TouchableOpacity>
                   </View>
                 </View>
               </View>
@@ -542,7 +525,9 @@ const HomeScreen: React.FC = () => {
             <TouchableOpacity style={styles.clearFiltersButton} onPress={clearAllFilters}>
               <Text style={styles.clearFiltersButtonText}>Clear All Filters</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.applyFiltersButton} onPress={() => setShowFilterModal(false)}>
+            <TouchableOpacity
+              style={styles.applyFiltersButton}
+              onPress={() => setShowFilterModal(false)}>
               <Text style={styles.applyFiltersButtonText}>Apply Filters</Text>
             </TouchableOpacity>
           </View>

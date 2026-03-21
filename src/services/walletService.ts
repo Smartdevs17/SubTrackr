@@ -1,6 +1,4 @@
 import { ethers } from 'ethers';
-import { useAppKit } from '@reown/appkit-ethers-react-native';
-import { SFError } from '@superfluid-finance/sdk-core';
 
 export interface WalletConnection {
   address: string;
@@ -39,7 +37,7 @@ export interface GasEstimate {
 export class WalletServiceManager {
   private static instance: WalletServiceManager;
   private connection: WalletConnection | null = null;
-  private listeners: Array<(connection: WalletConnection | null) => void> = [];
+  private listeners: ((connection: WalletConnection | null) => void)[] = [];
 
   static getInstance(): WalletServiceManager {
     if (!WalletServiceManager.instance) {
@@ -78,7 +76,7 @@ export class WalletServiceManager {
   }
 
   private notifyListeners(): void {
-    this.listeners.forEach(listener => listener(this.connection));
+    this.listeners.forEach((listener) => listener(this.connection));
   }
 
   async disconnectWallet(): Promise<void> {
@@ -100,7 +98,7 @@ export class WalletServiceManager {
       // Get native token balance (ETH, MATIC, etc.)
       const nativeBalance = await provider.getBalance(address);
       const nativeSymbol = this.getNativeSymbol(chainId);
-      
+
       balances.push({
         symbol: nativeSymbol,
         name: this.getNativeName(chainId),
@@ -117,7 +115,7 @@ export class WalletServiceManager {
           ['function balanceOf(address) view returns (uint256)'],
           provider
         );
-        
+
         try {
           const usdcBalance = await usdcContract.balanceOf(address);
           balances.push({
@@ -151,7 +149,7 @@ export class WalletServiceManager {
       const gasLimit = ethers.BigNumber.from('21000'); // Standard ETH transfer
 
       const estimatedCost = gasPrice.mul(gasLimit);
-      
+
       return {
         gasLimit: gasLimit.toString(),
         gasPrice: ethers.utils.formatUnits(gasPrice, 'gwei'),
@@ -173,10 +171,10 @@ export class WalletServiceManager {
       // This is a simplified implementation
       // In production, you'd use the full Superfluid SDK
       console.log('Creating Superfluid stream:', { token, flowRate, recipient, chainId });
-      
+
       // Simulate stream creation
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
       return `stream_${Date.now()}`;
     } catch (error) {
       console.error('Failed to create Superfluid stream:', error);
@@ -195,11 +193,18 @@ export class WalletServiceManager {
     try {
       // This is a simplified implementation
       // In production, you'd use the full Sablier SDK
-      console.log('Creating Sablier stream:', { token, amount, startTime, stopTime, recipient, chainId });
-      
+      console.log('Creating Sablier stream:', {
+        token,
+        amount,
+        startTime,
+        stopTime,
+        recipient,
+        chainId,
+      });
+
       // Simulate stream creation
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
       return `sablier_${Date.now()}`;
     } catch (error) {
       console.error('Failed to create Sablier stream:', error);
