@@ -1,0 +1,198 @@
+﻿[
+  {
+    "filePath": "C:\\Users\\Aayush\\.gemini\\antigravity\\scratch\\SubTrackr\\src\\services\\walletService.ts",
+    "messages": [
+      {
+        "ruleId": "@typescript-eslint/no-explicit-any",
+        "severity": 1,
+        "message": "Unexpected any. Specify a different type.",
+        "line": 222,
+        "column": 28,
+        "nodeType": "TSAnyKeyword",
+        "messageId": "unexpectedAny",
+        "endLine": 222,
+        "endColumn": 31,
+        "suggestions": [
+          {
+            "messageId": "suggestUnknown",
+            "fix": { "range": [6590, 6593], "text": "unknown" },
+            "desc": "Use `unknown` instead, this will force you to explicitly, and safely assert the type is correct."
+          },
+          {
+            "messageId": "suggestNever",
+            "fix": { "range": [6590, 6593], "text": "never" },
+            "desc": "Use `never` instead, this is useful when instantiating generic type parameters that you don't need to know the type of."
+          }
+        ]
+      },
+      {
+        "ruleId": "prettier/prettier",
+        "severity": 2,
+        "message": "Delete `┬╖┬╖┬╖┬╖┬╖┬╖`",
+        "line": 224,
+        "column": 1,
+        "nodeType": null,
+        "messageId": "delete",
+        "endLine": 224,
+        "endColumn": 7,
+        "fix": { "range": [6660, 6666], "text": "" }
+      },
+      {
+        "ruleId": "prettier/prettier",
+        "severity": 2,
+        "message": "Replace `err?.code┬╖===┬╖'ACTION_REJECTED'┬╖||┬╖err?.message?.includes('user┬╖rejected')┬╖||┬╖err?.message?.includes('rejected')` with `ΓÅÄ┬╖┬╖┬╖┬╖┬╖┬╖┬╖┬╖err?.code┬╖===┬╖'ACTION_REJECTED'┬╖||ΓÅÄ┬╖┬╖┬╖┬╖┬╖┬╖┬╖┬╖err?.message?.includes('user┬╖rejected')┬╖||ΓÅÄ┬╖┬╖┬╖┬╖┬╖┬╖┬╖┬╖err?.message?.includes('rejected')ΓÅÄ┬╖┬╖┬╖┬╖┬╖┬╖`",
+        "line": 226,
+        "column": 11,
+        "nodeType": null,
+        "messageId": "replace",
+        "endLine": 226,
+        "endColumn": 123,
+        "fix": {
+          "range": [6736, 6848],
+          "text": "\n        err?.code === 'ACTION_REJECTED' ||\n        err?.message?.includes('user rejected') ||\n        err?.message?.includes('rejected')\n      "
+        }
+      },
+      {
+        "ruleId": "prettier/prettier",
+        "severity": 2,
+        "message": "Delete `┬╖┬╖┬╖┬╖┬╖┬╖`",
+        "line": 229,
+        "column": 1,
+        "nodeType": null,
+        "messageId": "delete",
+        "endLine": 229,
+        "endColumn": 7,
+        "fix": { "range": [6925, 6931], "text": "" }
+      }
+    ],
+    "suppressedMessages": [
+      {
+        "ruleId": "no-console",
+        "severity": 1,
+        "message": "Unexpected console statement.",
+        "line": 53,
+        "column": 7,
+        "nodeType": "MemberExpression",
+        "messageId": "unexpected",
+        "endLine": 53,
+        "endColumn": 18,
+        "suggestions": [
+          {
+            "messageId": "removeConsole",
+            "data": { "propertyName": "log" },
+            "fix": { "range": [1306, 1367], "text": "" },
+            "desc": "Remove the console.log()."
+          }
+        ],
+        "suppressions": [{ "kind": "directive", "justification": "" }]
+      },
+      {
+        "ruleId": "no-console",
+        "severity": 1,
+        "message": "Unexpected console statement.",
+        "line": 88,
+        "column": 7,
+        "nodeType": "MemberExpression",
+        "messageId": "unexpected",
+        "endLine": 88,
+        "endColumn": 18,
+        "suggestions": [
+          {
+            "messageId": "removeConsole",
+            "data": { "propertyName": "log" },
+            "fix": { "range": [2255, 2290], "text": "" },
+            "desc": "Remove the console.log()."
+          }
+        ],
+        "suppressions": [{ "kind": "directive", "justification": "" }]
+      },
+      {
+        "ruleId": "no-console",
+        "severity": 1,
+        "message": "Unexpected console statement.",
+        "line": 131,
+        "column": 11,
+        "nodeType": "MemberExpression",
+        "messageId": "unexpected",
+        "endLine": 131,
+        "endColumn": 22,
+        "suggestions": [
+          {
+            "messageId": "removeConsole",
+            "data": { "propertyName": "log" },
+            "fix": { "range": [3701, 3749], "text": "" },
+            "desc": "Remove the console.log()."
+          }
+        ],
+        "suppressions": [{ "kind": "directive", "justification": "" }]
+      },
+      {
+        "ruleId": "no-console",
+        "severity": 1,
+        "message": "Unexpected console statement.",
+        "line": 177,
+        "column": 7,
+        "nodeType": "MemberExpression",
+        "messageId": "unexpected",
+        "endLine": 177,
+        "endColumn": 18,
+        "suggestions": [
+          {
+            "messageId": "removeConsole",
+            "data": { "propertyName": "log" },
+            "fix": { "range": [4880, 4964], "text": "" },
+            "desc": "Remove the console.log()."
+          }
+        ],
+        "suppressions": [{ "kind": "directive", "justification": "" }]
+      },
+      {
+        "ruleId": "no-console",
+        "severity": 1,
+        "message": "Unexpected console statement.",
+        "line": 214,
+        "column": 7,
+        "nodeType": "MemberExpression",
+        "messageId": "unexpected",
+        "endLine": 214,
+        "endColumn": 18,
+        "suggestions": [
+          {
+            "messageId": "removeConsole",
+            "data": { "propertyName": "log" },
+            "fix": { "range": [6319, 6379], "text": "" },
+            "desc": "Remove the console.log()."
+          }
+        ],
+        "suppressions": [{ "kind": "directive", "justification": "" }]
+      },
+      {
+        "ruleId": "no-console",
+        "severity": 1,
+        "message": "Unexpected console statement.",
+        "line": 250,
+        "column": 7,
+        "nodeType": "MemberExpression",
+        "messageId": "unexpected",
+        "endLine": 250,
+        "endColumn": 18,
+        "suggestions": [
+          {
+            "messageId": "removeConsole",
+            "data": { "propertyName": "log" },
+            "fix": { "range": [7500, 7655], "text": "" },
+            "desc": "Remove the console.log()."
+          }
+        ],
+        "suppressions": [{ "kind": "directive", "justification": "" }]
+      }
+    ],
+    "errorCount": 3,
+    "fatalErrorCount": 0,
+    "warningCount": 1,
+    "fixableErrorCount": 3,
+    "fixableWarningCount": 0,
+    "source": "/* eslint-disable no-console */\nimport { ethers } from 'ethers';\nimport { SFError, Framework } from '@superfluid-finance/sdk-core';\n\nexport interface WalletConnection {\n  address: string;\n  chainId: number;\n  isConnected: boolean;\n  provider?: ethers.providers.Web3Provider;\n}\n\nexport interface TokenBalance {\n  symbol: string;\n  name: string;\n  address: string;\n  balance: string;\n  decimals: number;\n  logoURI?: string;\n}\n\nexport interface StreamSetup {\n  token: string;\n  amount: number;\n  flowRate: string;\n  startDate: Date;\n  endDate?: Date;\n  protocol: 'superfluid' | 'sablier';\n}\n\nexport interface GasEstimate {\n  gasLimit: string;\n  gasPrice: string;\n  estimatedCost: string;\n}\n\n// This is a hook-based service that needs to be used within React components\n// For the service layer, we'll create a different approach\n\nexport class WalletServiceManager {\n  private static instance: WalletServiceManager;\n  private connection: WalletConnection | null = null;\n  private listeners: ((connection: WalletConnection | null) => void)[] = [];\n\n  static getInstance(): WalletServiceManager {\n    if (!WalletServiceManager.instance) {\n      WalletServiceManager.instance = new WalletServiceManager();\n    }\n    return WalletServiceManager.instance;\n  }\n\n  async initialize(): Promise<void> {\n    try {\n      console.log('WalletServiceManager initialized successfully');\n    } catch (error) {\n      console.error('Failed to initialize WalletServiceManager:', error);\n      throw error;\n    }\n  }\n\n  setConnection(connection: WalletConnection | null): void {\n    this.connection = connection;\n    this.notifyListeners();\n  }\n\n  getConnection(): WalletConnection | null {\n    return this.connection;\n  }\n\n  addListener(listener: (connection: WalletConnection | null) => void): void {\n    this.listeners.push(listener);\n  }\n\n  removeListener(listener: (connection: WalletConnection | null) => void): void {\n    const index = this.listeners.indexOf(listener);\n    if (index > -1) {\n      this.listeners.splice(index, 1);\n    }\n  }\n\n  private notifyListeners(): void {\n    this.listeners.forEach((listener) => listener(this.connection));\n  }\n\n  async disconnectWallet(): Promise<void> {\n    try {\n      this.connection = null;\n      this.notifyListeners();\n      console.log('Wallet disconnected');\n    } catch (error) {\n      console.error('Failed to disconnect wallet:', error);\n      throw error;\n    }\n  }\n\n  async getTokenBalances(address: string, chainId: number): Promise<TokenBalance[]> {\n    try {\n      const provider = this.getProvider(chainId);\n      const balances: TokenBalance[] = [];\n\n      // Get native token balance (ETH, MATIC, etc.)\n      const nativeBalance = await provider.getBalance(address);\n      const nativeSymbol = this.getNativeSymbol(chainId);\n\n      balances.push({\n        symbol: nativeSymbol,\n        name: this.getNativeName(chainId),\n        address: '0x0000000000000000000000000000000000000000',\n        balance: ethers.utils.formatEther(nativeBalance),\n        decimals: 18,\n      });\n\n      // Get USDC balance if on supported chains\n      if (chainId === 1 || chainId === 137 || chainId === 42161) {\n        const usdcAddress = this.getUSDCAddress(chainId);\n        const usdcContract = new ethers.Contract(\n          usdcAddress,\n          ['function balanceOf(address) view returns (uint256)'],\n          provider\n        );\n\n        try {\n          const usdcBalance = await usdcContract.balanceOf(address);\n          balances.push({\n            symbol: 'USDC',\n            name: 'USD Coin',\n            address: usdcAddress,\n            balance: ethers.utils.formatUnits(usdcBalance, 6),\n            decimals: 6,\n          });\n        } catch (error) {\n          console.log('USDC not available on this chain');\n        }\n      }\n\n      return balances;\n    } catch (error) {\n      console.error('Failed to get token balances:', error);\n      throw error;\n    }\n  }\n\n  async estimateGas(\n    from: string,\n    to: string,\n    value: string,\n    chainId: number\n  ): Promise<GasEstimate> {\n    try {\n      const provider = this.getProvider(chainId);\n      const gasPrice = await provider.getGasPrice();\n      const gasLimit = ethers.BigNumber.from('21000'); // Standard ETH transfer\n\n      const estimatedCost = gasPrice.mul(gasLimit);\n\n      return {\n        gasLimit: gasLimit.toString(),\n        gasPrice: ethers.utils.formatUnits(gasPrice, 'gwei'),\n        estimatedCost: ethers.utils.formatEther(estimatedCost),\n      };\n    } catch (error) {\n      console.error('Failed to estimate gas:', error);\n      throw error;\n    }\n  }\n\n  async createSuperfluidStream(\n    token: string,\n    flowRate: string, // actually the amount passed from UI\n    recipient: string,\n    chainId: number\n  ): Promise<string> {\n    try {\n      if (!this.connection || !this.connection.provider) {\n        throw new Error('Wallet not connected');\n      }\n\n      console.log('Creating Superfluid stream:', { token, flowRate, recipient, chainId });\n\n      const provider = this.connection.provider;\n      const signer = provider.getSigner();\n\n      // Constraints: Requires real RPC endpoint configuration\n      const rpcProvider = this.getProvider(chainId);\n\n      // Initialize Superfluid Framework\n      const sf = await Framework.create({\n        chainId,\n        provider: rpcProvider,\n      });\n\n      // Load Super Token\n      let superToken;\n      try {\n        const superTokenSymbol = token === 'MATIC' && chainId === 137 ? 'MATICx' : `${token}x`;\n        superToken = await sf.loadSuperToken(superTokenSymbol);\n      } catch (e) {\n        console.error('Failed loading token symbol, trying fallback', e);\n        throw new Error(`Super Token for ${token} not found on this network`);\n      }\n\n      // Calculate flowRate in wei per second for a 30 day cycle\n      const parsedAmount = ethers.utils.parseEther(flowRate.toString());\n      const weiPerSecond = parsedAmount.div(2592000); // 30 * 24 * 60 * 60\n\n      const createFlowOperation = superToken.createFlow({\n        sender: await signer.getAddress(),\n        receiver: recipient,\n        flowRate: weiPerSecond.toString(),\n      });\n\n      // Constraints: Gas estimation before transaction\n      // Execute transaction (this throws early if gas estimation fails)\n      const txnResponse = await createFlowOperation.exec(signer);\n      console.log(`Stream creation tx sent: ${txnResponse.hash}`);\n\n      // Wait for confirmation\n      await txnResponse.wait();\n\n      // Constraints: Return real transaction hash and stream ID\n      return txnResponse.hash;\n    } catch (error) {\n      const err = error as any;\n      console.error('Failed to create Superfluid stream:', err);\n      \n      // Constraints: Handle user rejection of transaction\n      if (err?.code === 'ACTION_REJECTED' || err?.message?.includes('user rejected') || err?.message?.includes('rejected')) {\n        throw new Error('Transaction was rejected by the user');\n      }\n      \n      // Constraints: Proper error handling for failed stream creation\n      if (err instanceof SFError || err?.message?.includes('Superfluid')) {\n        throw new Error(`Superfluid Error: ${err.message || 'Stream creation failed'}`);\n      }\n\n      throw err;\n    }\n  }\n\n  async createSablierStream(\n    token: string,\n    amount: string,\n    startTime: number,\n    stopTime: number,\n    recipient: string,\n    chainId: number\n  ): Promise<string> {\n    try {\n      // This is a simplified implementation\n      // In production, you'd use the full Sablier SDK\n      console.log('Creating Sablier stream:', {\n        token,\n        amount,\n        startTime,\n        stopTime,\n        recipient,\n        chainId,\n      });\n\n      // Simulate stream creation\n      await new Promise((resolve) => setTimeout(resolve, 2000));\n\n      return `sablier_${Date.now()}`;\n    } catch (error) {\n      console.error('Failed to create Sablier stream:', error);\n      throw error;\n    }\n  }\n\n  private getProvider(chainId: number): ethers.providers.JsonRpcProvider {\n    const rpcUrls: Record<number, string> = {\n      1: 'https://ethereum.publicnode.com',\n      137: 'https://polygon-rpc.com',\n      42161: 'https://arb1.arbitrum.io/rpc',\n    };\n\n    const rpcUrl = rpcUrls[chainId];\n    if (!rpcUrl) {\n      throw new Error(`Unsupported chain ID: ${chainId}`);\n    }\n\n    return new ethers.providers.JsonRpcProvider(rpcUrl);\n  }\n\n  private getNativeSymbol(chainId: number): string {\n    const symbols: Record<number, string> = {\n      1: 'ETH',\n      137: 'MATIC',\n      42161: 'ETH',\n    };\n    return symbols[chainId] || 'ETH';\n  }\n\n  private getNativeName(chainId: number): string {\n    const names: Record<number, string> = {\n      1: 'Ethereum',\n      137: 'Polygon',\n      42161: 'Arbitrum',\n    };\n    return names[chainId] || 'Ethereum';\n  }\n\n  private getUSDCAddress(chainId: number): string {\n    const addresses: Record<number, string> = {\n      1: '0xA0b86a33E6441b8b4b8b8b8b8b8b8b8b8b8b8b8', // Ethereum USDC\n      137: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174', // Polygon USDC\n      42161: '0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8', // Arbitrum USDC\n    };\n    return addresses[chainId] || '';\n  }\n\n  isConnected(): boolean {\n    return this.connection?.isConnected || false;\n  }\n}\n\n// Export singleton instance\nexport const walletServiceManager = WalletServiceManager.getInstance();\nexport default walletServiceManager;\n",
+    "usedDeprecatedRules": []
+  }
+]

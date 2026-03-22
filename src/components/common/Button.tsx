@@ -41,8 +41,7 @@ export const Button: React.FC<ButtonProps> = ({
       style={buttonStyle}
       onPress={onPress}
       disabled={disabled || loading}
-      activeOpacity={0.8}
-    >
+      activeOpacity={0.8}>
       {loading ? (
         <ActivityIndicator
           color={variant === 'outline' ? colors.primary : colors.text}
@@ -62,7 +61,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexDirection: 'row',
   },
-  
+
   // Variants
   primary: {
     backgroundColor: colors.primary,
@@ -78,7 +77,7 @@ const styles = StyleSheet.create({
   crypto: {
     backgroundColor: colors.accent,
   },
-  
+
   // Sizes
   small: {
     paddingVertical: spacing.sm,
@@ -95,7 +94,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     minHeight: 56,
   },
-  
+
   // States
   disabled: {
     opacity: 0.5,
@@ -103,7 +102,7 @@ const styles = StyleSheet.create({
   fullWidth: {
     width: '100%',
   },
-  
+
   // Text styles
   text: {
     fontWeight: '600',
@@ -120,7 +119,7 @@ const styles = StyleSheet.create({
   cryptoText: {
     color: colors.text,
   },
-  
+
   smallText: {
     ...typography.caption,
   },
@@ -130,7 +129,7 @@ const styles = StyleSheet.create({
   largeText: {
     ...typography.h3,
   },
-  
+
   disabledText: {
     opacity: 0.7,
   },

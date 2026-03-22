@@ -1,0 +1,13 @@
+﻿
+C:\Users\Aayush\.gemini\antigravity\scratch\SubTrackr\src\services\walletService.ts
+    2:10  error    'useAppKit' is defined but never used     @typescript-eslint/no-unused-vars
+   53:7   warning  Unexpected console statement              no-console
+   88:7   warning  Unexpected console statement              no-console
+  131:11  warning  Unexpected console statement              no-console
+  177:7   warning  Unexpected console statement              no-console
+  214:7   warning  Unexpected console statement              no-console
+  221:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  253:7   warning  Unexpected console statement              no-console
+
+Γ£û 8 problems (1 error, 7 warnings)
+

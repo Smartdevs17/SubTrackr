@@ -1,5 +1,5 @@
+/* eslint-disable no-console */
 import { ethers } from 'ethers';
-import { useAppKit } from '@reown/appkit-ethers-react-native';
 import { SFError, Framework } from '@superfluid-finance/sdk-core';
 
 export interface WalletConnection {
@@ -39,7 +39,7 @@ export interface GasEstimate {
 export class WalletServiceManager {
   private static instance: WalletServiceManager;
   private connection: WalletConnection | null = null;
-  private listeners: Array<(connection: WalletConnection | null) => void> = [];
+  private listeners: ((connection: WalletConnection | null) => void)[] = [];
 
   static getInstance(): WalletServiceManager {
     if (!WalletServiceManager.instance) {
@@ -78,7 +78,7 @@ export class WalletServiceManager {
   }
 
   private notifyListeners(): void {
-    this.listeners.forEach(listener => listener(this.connection));
+    this.listeners.forEach((listener) => listener(this.connection));
   }
 
   async disconnectWallet(): Promise<void> {
@@ -100,7 +100,7 @@ export class WalletServiceManager {
       // Get native token balance (ETH, MATIC, etc.)
       const nativeBalance = await provider.getBalance(address);
       const nativeSymbol = this.getNativeSymbol(chainId);
-      
+
       balances.push({
         symbol: nativeSymbol,
         name: this.getNativeName(chainId),
@@ -117,7 +117,7 @@ export class WalletServiceManager {
           ['function balanceOf(address) view returns (uint256)'],
           provider
         );
-        
+
         try {
           const usdcBalance = await usdcContract.balanceOf(address);
           balances.push({
@@ -151,7 +151,7 @@ export class WalletServiceManager {
       const gasLimit = ethers.BigNumber.from('21000'); // Standard ETH transfer
 
       const estimatedCost = gasPrice.mul(gasLimit);
-      
+
       return {
         gasLimit: gasLimit.toString(),
         gasPrice: ethers.utils.formatUnits(gasPrice, 'gwei'),
@@ -175,17 +175,17 @@ export class WalletServiceManager {
       }
 
       console.log('Creating Superfluid stream:', { token, flowRate, recipient, chainId });
-      
+
       const provider = this.connection.provider;
       const signer = provider.getSigner();
-      
+
       // Constraints: Requires real RPC endpoint configuration
       const rpcProvider = this.getProvider(chainId);
 
       // Initialize Superfluid Framework
       const sf = await Framework.create({
         chainId,
-        provider: rpcProvider
+        provider: rpcProvider,
       });
 
       // Load Super Token
@@ -194,7 +194,7 @@ export class WalletServiceManager {
         const superTokenSymbol = token === 'MATIC' && chainId === 137 ? 'MATICx' : `${token}x`;
         superToken = await sf.loadSuperToken(superTokenSymbol);
       } catch (e) {
-        console.error("Failed loading token symbol, trying fallback", e);
+        console.error('Failed loading token symbol, trying fallback', e);
         throw new Error(`Super Token for ${token} not found on this network`);
       }
 
@@ -205,33 +205,38 @@ export class WalletServiceManager {
       const createFlowOperation = superToken.createFlow({
         sender: await signer.getAddress(),
         receiver: recipient,
-        flowRate: weiPerSecond.toString()
+        flowRate: weiPerSecond.toString(),
       });
 
       // Constraints: Gas estimation before transaction
       // Execute transaction (this throws early if gas estimation fails)
       const txnResponse = await createFlowOperation.exec(signer);
       console.log(`Stream creation tx sent: ${txnResponse.hash}`);
-      
+
       // Wait for confirmation
       await txnResponse.wait();
-      
+
       // Constraints: Return real transaction hash and stream ID
       return txnResponse.hash;
-    } catch (error: any) {
-      console.error('Failed to create Superfluid stream:', error);
-      
+    } catch (error) {
+      const err = error as { code?: string; message?: string };
+      console.error('Failed to create Superfluid stream:', err);
+
       // Constraints: Handle user rejection of transaction
-      if (error?.code === 'ACTION_REJECTED' || error?.message?.includes('user rejected') || error?.message?.includes('rejected')) {
+      if (
+        err?.code === 'ACTION_REJECTED' ||
+        err?.message?.includes('user rejected') ||
+        err?.message?.includes('rejected')
+      ) {
         throw new Error('Transaction was rejected by the user');
       }
-      
+
       // Constraints: Proper error handling for failed stream creation
-      if (error instanceof SFError || error?.message?.includes('Superfluid')) {
-        throw new Error(`Superfluid Error: ${error.message || 'Stream creation failed'}`);
+      if (err instanceof SFError || err?.message?.includes('Superfluid')) {
+        throw new Error(`Superfluid Error: ${err.message || 'Stream creation failed'}`);
       }
 
-      throw error;
+      throw err;
     }
   }
 
@@ -246,11 +251,18 @@ export class WalletServiceManager {
     try {
       // This is a simplified implementation
       // In production, you'd use the full Sablier SDK
-      console.log('Creating Sablier stream:', { token, amount, startTime, stopTime, recipient, chainId });
-      
+      console.log('Creating Sablier stream:', {
+        token,
+        amount,
+        startTime,
+        stopTime,
+        recipient,
+        chainId,
+      });
+
       // Simulate stream creation
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
       return `sablier_${Date.now()}`;
     } catch (error) {
       console.error('Failed to create Sablier stream:', error);

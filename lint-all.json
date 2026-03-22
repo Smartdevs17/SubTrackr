@@ -1,0 +1,663 @@
+﻿[
+  {
+    "filePath": "C:\\Users\\Aayush\\.gemini\\antigravity\\scratch\\SubTrackr\\App.tsx",
+    "messages": [],
+    "suppressedMessages": [],
+    "errorCount": 0,
+    "fatalErrorCount": 0,
+    "warningCount": 0,
+    "fixableErrorCount": 0,
+    "fixableWarningCount": 0,
+    "usedDeprecatedRules": []
+  },
+  {
+    "filePath": "C:\\Users\\Aayush\\.gemini\\antigravity\\scratch\\SubTrackr\\index.ts",
+    "messages": [],
+    "suppressedMessages": [],
+    "errorCount": 0,
+    "fatalErrorCount": 0,
+    "warningCount": 0,
+    "fixableErrorCount": 0,
+    "fixableWarningCount": 0,
+    "usedDeprecatedRules": []
+  },
+  {
+    "filePath": "C:\\Users\\Aayush\\.gemini\\antigravity\\scratch\\SubTrackr\\src\\components\\common\\Button.tsx",
+    "messages": [],
+    "suppressedMessages": [],
+    "errorCount": 0,
+    "fatalErrorCount": 0,
+    "warningCount": 0,
+    "fixableErrorCount": 0,
+    "fixableWarningCount": 0,
+    "usedDeprecatedRules": []
+  },
+  {
+    "filePath": "C:\\Users\\Aayush\\.gemini\\antigravity\\scratch\\SubTrackr\\src\\components\\common\\Card.tsx",
+    "messages": [],
+    "suppressedMessages": [],
+    "errorCount": 0,
+    "fatalErrorCount": 0,
+    "warningCount": 0,
+    "fixableErrorCount": 0,
+    "fixableWarningCount": 0,
+    "usedDeprecatedRules": []
+  },
+  {
+    "filePath": "C:\\Users\\Aayush\\.gemini\\antigravity\\scratch\\SubTrackr\\src\\components\\common\\FloatingActionButton.tsx",
+    "messages": [],
+    "suppressedMessages": [],
+    "errorCount": 0,
+    "fatalErrorCount": 0,
+    "warningCount": 0,
+    "fixableErrorCount": 0,
+    "fixableWarningCount": 0,
+    "usedDeprecatedRules": []
+  },
+  {
+    "filePath": "C:\\Users\\Aayush\\.gemini\\antigravity\\scratch\\SubTrackr\\src\\components\\subscription\\SubscriptionCard.tsx",
+    "messages": [],
+    "suppressedMessages": [],
+    "errorCount": 0,
+    "fatalErrorCount": 0,
+    "warningCount": 0,
+    "fixableErrorCount": 0,
+    "fixableWarningCount": 0,
+    "usedDeprecatedRules": []
+  },
+  {
+    "filePath": "C:\\Users\\Aayush\\.gemini\\antigravity\\scratch\\SubTrackr\\src\\navigation\\AppNavigator.tsx",
+    "messages": [],
+    "suppressedMessages": [],
+    "errorCount": 0,
+    "fatalErrorCount": 0,
+    "warningCount": 0,
+    "fixableErrorCount": 0,
+    "fixableWarningCount": 0,
+    "usedDeprecatedRules": []
+  },
+  {
+    "filePath": "C:\\Users\\Aayush\\.gemini\\antigravity\\scratch\\SubTrackr\\src\\navigation\\types.ts",
+    "messages": [],
+    "suppressedMessages": [],
+    "errorCount": 0,
+    "fatalErrorCount": 0,
+    "warningCount": 0,
+    "fixableErrorCount": 0,
+    "fixableWarningCount": 0,
+    "usedDeprecatedRules": []
+  },
+  {
+    "filePath": "C:\\Users\\Aayush\\.gemini\\antigravity\\scratch\\SubTrackr\\src\\screens\\AddSubscriptionScreen.tsx",
+    "messages": [
+      {
+        "ruleId": "@typescript-eslint/no-unused-vars",
+        "severity": 2,
+        "message": "'shadows' is defined but never used.",
+        "line": 17,
+        "column": 53,
+        "nodeType": null,
+        "messageId": "unusedVar",
+        "endLine": 17,
+        "endColumn": 60
+      },
+      {
+        "ruleId": "@typescript-eslint/no-unused-vars",
+        "severity": 2,
+        "message": "'walletServiceManager' is defined but never used.",
+        "line": 20,
+        "column": 8,
+        "nodeType": null,
+        "messageId": "unusedVar",
+        "endLine": 20,
+        "endColumn": 28
+      },
+      {
+        "ruleId": "@typescript-eslint/no-unused-vars",
+        "severity": 2,
+        "message": "'formatCurrency' is defined but never used.",
+        "line": 22,
+        "column": 10,
+        "nodeType": null,
+        "messageId": "unusedVar",
+        "endLine": 22,
+        "endColumn": 24
+      }
+    ],
+    "suppressedMessages": [],
+    "errorCount": 3,
+    "fatalErrorCount": 0,
+    "warningCount": 0,
+    "fixableErrorCount": 0,
+    "fixableWarningCount": 0,
+    "source": "import React, { useState } from 'react';\nimport {\n  View,\n  Text,\n  StyleSheet,\n  SafeAreaView,\n  ScrollView,\n  TextInput,\n  TouchableOpacity,\n  Alert,\n  KeyboardAvoidingView,\n  Platform,\n} from 'react-native';\nimport { useNavigation } from '@react-navigation/native';\nimport { NativeStackNavigationProp } from '@react-navigation/native-stack';\nimport { RootStackParamList } from '../navigation/types';\nimport { colors, spacing, typography, borderRadius, shadows } from '../utils/constants';\nimport { SubscriptionCategory, BillingCycle, SubscriptionFormData } from '../types/subscription';\nimport { useSubscriptionStore } from '../store';\nimport walletServiceManager from '../services/walletService';\nimport { Button } from '../components/common/Button';\nimport { formatCurrency } from '../utils/formatting';\n\nconst AddSubscriptionScreen: React.FC = () => {\n  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();\n  const { addSubscription, isLoading } = useSubscriptionStore();\n\n  const [formData, setFormData] = useState<SubscriptionFormData>({\n    name: '',\n    description: '',\n    category: SubscriptionCategory.OTHER,\n    price: 0,\n    currency: 'USD',\n    billingCycle: BillingCycle.MONTHLY,\n    nextBillingDate: new Date(),\n    isCryptoEnabled: false,\n    cryptoToken: undefined,\n    cryptoAmount: undefined,\n  });\n\n  const [selectedCategory, setSelectedCategory] = useState<SubscriptionCategory>(\n    SubscriptionCategory.OTHER\n  );\n  const [selectedBillingCycle, setSelectedBillingCycle] = useState<BillingCycle>(\n    BillingCycle.MONTHLY\n  );\n\n  const handleCategorySelect = (category: SubscriptionCategory) => {\n    setSelectedCategory(category);\n    setFormData((prev) => ({ ...prev, category }));\n  };\n\n  const handleBillingCycleSelect = (cycle: BillingCycle) => {\n    setSelectedBillingCycle(cycle);\n    setFormData((prev) => ({ ...prev, billingCycle: cycle }));\n  };\n\n  const handleInputChange = (\n    field: keyof SubscriptionFormData,\n    value: string | number | boolean\n  ) => {\n    setFormData((prev) => ({ ...prev, [field]: value }));\n  };\n\n  const handleSubmit = async () => {\n    if (!formData.name.trim()) {\n      Alert.alert('Error', 'Please enter a subscription name');\n      return;\n    }\n\n    if (formData.price <= 0) {\n      Alert.alert('Error', 'Please enter a valid price');\n      return;\n    }\n\n    try {\n      await addSubscription(formData);\n\n      if (formData.isCryptoEnabled) {\n        Alert.alert(\n          'Success!',\n          'Subscription added successfully! Would you like to set up crypto payments now?',\n          [\n            { text: 'Later', onPress: () => navigation.goBack() },\n            {\n              text: 'Setup Crypto',\n              onPress: () => navigation.navigate('CryptoPayment', { subscriptionId: 'new' }),\n            },\n          ]\n        );\n      } else {\n        Alert.alert('Success', 'Subscription added successfully!', [\n          { text: 'OK', onPress: () => navigation.goBack() },\n        ]);\n      }\n    } catch (error) {\n      Alert.alert('Error', 'Failed to add subscription. Please try again.');\n    }\n  };\n\n  const handleCancel = () => {\n    if (\n      formData.name.trim() ||\n      (formData.description && formData.description.trim()) ||\n      formData.price > 0\n    ) {\n      Alert.alert('Discard Changes', 'Are you sure you want to discard your changes?', [\n        { text: 'Cancel', style: 'cancel' },\n        { text: 'Discard', style: 'destructive', onPress: () => navigation.goBack() },\n      ]);\n    } else {\n      navigation.goBack();\n    }\n  };\n\n  return (\n    <SafeAreaView style={styles.container}>\n      <KeyboardAvoidingView\n        style={styles.keyboardAvoidingView}\n        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>\n        <ScrollView style={styles.scrollView}>\n          <View style={styles.header}>\n            <View style={styles.headerContent}>\n              <TouchableOpacity onPress={handleCancel} style={styles.cancelButton}>\n                <Text style={styles.cancelText}>Cancel</Text>\n              </TouchableOpacity>\n              <Text style={styles.title}>Add Subscription</Text>\n              <View style={styles.placeholderButton} />\n            </View>\n            <Text style={styles.subtitle}>Track your new subscription</Text>\n          </View>\n\n          <View style={styles.form}>\n            <View style={styles.section}>\n              <Text style={styles.sectionTitle}>Basic Information</Text>\n              <View style={styles.inputGroup}>\n                <Text style={styles.label}>Name *</Text>\n                <TextInput\n                  style={styles.textInput}\n                  value={formData.name}\n                  onChangeText={(text) => handleInputChange('name', text)}\n                  placeholder=\"Enter subscription name\"\n                  placeholderTextColor={colors.textSecondary}\n                  autoFocus\n                />\n              </View>\n\n              <View style={styles.inputGroup}>\n                <Text style={styles.label}>Description (Optional)</Text>\n                <TextInput\n                  style={[styles.textInput, styles.textArea]}\n                  value={formData.description}\n                  onChangeText={(text) => handleInputChange('description', text)}\n                  placeholder=\"Enter description\"\n                  placeholderTextColor={colors.textSecondary}\n                  multiline\n                  numberOfLines={3}\n                  textAlignVertical=\"top\"\n                />\n              </View>\n            </View>\n\n            <View style={styles.section}>\n              <Text style={styles.sectionTitle}>Category</Text>\n              <View style={styles.categoryGrid}>\n                {Object.values(SubscriptionCategory).map((category) => (\n                  <TouchableOpacity\n                    key={category}\n                    style={[\n                      styles.categoryItem,\n                      selectedCategory === category && styles.categoryItemSelected,\n                    ]}\n                    onPress={() => handleCategorySelect(category)}>\n                    <Text\n                      style={[\n                        styles.categoryText,\n                        selectedCategory === category && styles.categoryTextSelected,\n                      ]}>\n                      {category.charAt(0).toUpperCase() + category.slice(1)}\n                    </Text>\n                  </TouchableOpacity>\n                ))}\n              </View>\n            </View>\n\n            <View style={styles.section}>\n              <Text style={styles.sectionTitle}>Billing Details</Text>\n              <View style={styles.inputGroup}>\n                <Text style={styles.label}>Price *</Text>\n                <View style={styles.priceInputContainer}>\n                  <Text style={styles.currencySymbol}>$</Text>\n                  <TextInput\n                    style={styles.priceInput}\n                    value={formData.price > 0 ? formData.price.toString() : ''}\n                    onChangeText={(text) => {\n                      const numValue = parseFloat(text) || 0;\n                      handleInputChange('price', numValue);\n                    }}\n                    placeholder=\"0.00\"\n                    placeholderTextColor={colors.textSecondary}\n                    keyboardType=\"decimal-pad\"\n                  />\n                </View>\n              </View>\n\n              <View style={styles.inputGroup}>\n                <Text style={styles.label}>Billing Cycle</Text>\n                <View style={styles.billingCycleContainer}>\n                  {Object.values(BillingCycle).map((cycle) => (\n                    <TouchableOpacity\n                      key={cycle}\n                      style={[\n                        styles.billingCycleItem,\n                        selectedBillingCycle === cycle && styles.billingCycleItemSelected,\n                      ]}\n                      onPress={() => handleBillingCycleSelect(cycle)}>\n                      <Text\n                        style={[\n                          styles.billingCycleText,\n                          selectedBillingCycle === cycle && styles.billingCycleTextSelected,\n                        ]}>\n                        {cycle.charAt(0).toUpperCase() + cycle.slice(1)}\n                      </Text>\n                    </TouchableOpacity>\n                  ))}\n                </View>\n              </View>\n            </View>\n\n            <View style={styles.section}>\n              <Text style={styles.sectionTitle}>Crypto Options</Text>\n              <View style={styles.cryptoOption}>\n                <TouchableOpacity\n                  style={styles.cryptoToggle}\n                  onPress={() => handleInputChange('isCryptoEnabled', !formData.isCryptoEnabled)}>\n                  <View\n                    style={[\n                      styles.toggleSwitch,\n                      formData.isCryptoEnabled && styles.toggleSwitchActive,\n                    ]}>\n                    <View\n                      style={[\n                        styles.toggleKnob,\n                        formData.isCryptoEnabled && styles.toggleKnobActive,\n                      ]}\n                    />\n                  </View>\n                </TouchableOpacity>\n                <Text style={styles.cryptoLabel}>Enable crypto payments</Text>\n              </View>\n            </View>\n          </View>\n        </ScrollView>\n\n        <View style={styles.footer}>\n          <Button\n            title=\"Add Subscription\"\n            onPress={handleSubmit}\n            loading={isLoading}\n            fullWidth\n            size=\"large\"\n          />\n        </View>\n      </KeyboardAvoidingView>\n    </SafeAreaView>\n  );\n};\n\nconst styles = StyleSheet.create({\n  container: {\n    flex: 1,\n    backgroundColor: colors.background,\n  },\n  keyboardAvoidingView: {\n    flex: 1,\n  },\n  scrollView: {\n    flex: 1,\n  },\n  header: {\n    padding: spacing.lg,\n    paddingBottom: spacing.md,\n  },\n  headerContent: {\n    flexDirection: 'row',\n    justifyContent: 'space-between',\n    alignItems: 'center',\n    marginBottom: spacing.xs,\n  },\n  cancelButton: {\n    padding: spacing.sm,\n  },\n  cancelText: {\n    ...typography.body,\n    color: colors.primary,\n    fontWeight: '500',\n  },\n  placeholderButton: {\n    width: 60,\n  },\n  title: {\n    ...typography.h1,\n    color: colors.text,\n    textAlign: 'center',\n  },\n  subtitle: {\n    ...typography.body,\n    color: colors.textSecondary,\n    textAlign: 'center',\n  },\n  form: {\n    padding: spacing.lg,\n    paddingTop: 0,\n  },\n  section: {\n    marginBottom: spacing.xl,\n  },\n  sectionTitle: {\n    ...typography.h3,\n    color: colors.text,\n    marginBottom: spacing.md,\n  },\n  inputGroup: {\n    marginBottom: spacing.md,\n  },\n  label: {\n    ...typography.body,\n    color: colors.text,\n    marginBottom: spacing.xs,\n    fontWeight: '500',\n  },\n  textInput: {\n    backgroundColor: colors.surface,\n    padding: spacing.md,\n    borderRadius: borderRadius.md,\n    borderWidth: 1,\n    borderColor: colors.border,\n    color: colors.text,\n    ...typography.body,\n  },\n  textArea: {\n    height: 80,\n    textAlignVertical: 'top',\n  },\n  priceInputContainer: {\n    flexDirection: 'row',\n    alignItems: 'center',\n    backgroundColor: colors.surface,\n    borderRadius: borderRadius.md,\n    borderWidth: 1,\n    borderColor: colors.border,\n    paddingHorizontal: spacing.md,\n  },\n  currencySymbol: {\n    ...typography.h3,\n    color: colors.textSecondary,\n    marginRight: spacing.sm,\n  },\n  priceInput: {\n    flex: 1,\n    paddingVertical: spacing.md,\n    color: colors.text,\n    ...typography.h3,\n    fontWeight: '600',\n  },\n  categoryGrid: {\n    flexDirection: 'row',\n    flexWrap: 'wrap',\n    gap: spacing.sm,\n  },\n  categoryItem: {\n    paddingHorizontal: spacing.md,\n    paddingVertical: spacing.sm,\n    borderRadius: borderRadius.full,\n    backgroundColor: colors.surface,\n    borderWidth: 1,\n    borderColor: colors.border,\n  },\n  categoryItemSelected: {\n    backgroundColor: colors.primary,\n    borderColor: colors.primary,\n  },\n  categoryText: {\n    ...typography.caption,\n    color: colors.text,\n  },\n  categoryTextSelected: {\n    color: colors.text,\n    fontWeight: '600',\n  },\n  billingCycleContainer: {\n    flexDirection: 'row',\n    gap: spacing.sm,\n  },\n  billingCycleItem: {\n    flex: 1,\n    paddingVertical: spacing.sm,\n    paddingHorizontal: spacing.md,\n    borderRadius: borderRadius.md,\n    backgroundColor: colors.surface,\n    borderWidth: 1,\n    borderColor: colors.border,\n    alignItems: 'center',\n  },\n  billingCycleItemSelected: {\n    backgroundColor: colors.primary,\n    borderColor: colors.primary,\n  },\n  billingCycleText: {\n    ...typography.caption,\n    color: colors.text,\n  },\n  billingCycleTextSelected: {\n    color: colors.text,\n    fontWeight: '600',\n  },\n  cryptoOption: {\n    flexDirection: 'row',\n    alignItems: 'center',\n    gap: spacing.md,\n  },\n  cryptoToggle: {\n    padding: spacing.xs,\n  },\n  toggleSwitch: {\n    width: 50,\n    height: 28,\n    backgroundColor: colors.border,\n    borderRadius: borderRadius.full,\n    padding: 2,\n  },\n  toggleSwitchActive: {\n    backgroundColor: colors.primary,\n  },\n  toggleKnob: {\n    width: 24,\n    height: 24,\n    backgroundColor: colors.text,\n    borderRadius: borderRadius.full,\n  },\n  toggleKnobActive: {\n    transform: [{ translateX: 22 }],\n  },\n  cryptoLabel: {\n    ...typography.body,\n    color: colors.text,\n  },\n  footer: {\n    padding: spacing.lg,\n    paddingTop: spacing.md,\n    borderTopWidth: 1,\n    borderTopColor: colors.border,\n    backgroundColor: colors.background,\n  },\n});\n\nexport default AddSubscriptionScreen;\n",
+    "usedDeprecatedRules": []
+  },
+  {
+    "filePath": "C:\\Users\\Aayush\\.gemini\\antigravity\\scratch\\SubTrackr\\src\\screens\\CryptoPaymentScreen.tsx",
+    "messages": [
+      {
+        "ruleId": "@typescript-eslint/no-unused-vars",
+        "severity": 2,
+        "message": "'ActivityIndicator' is defined but never used.",
+        "line": 11,
+        "column": 3,
+        "nodeType": null,
+        "messageId": "unusedVar",
+        "endLine": 11,
+        "endColumn": 20
+      },
+      {
+        "ruleId": "@typescript-eslint/no-unused-vars",
+        "severity": 2,
+        "message": "'shadows' is defined but never used.",
+        "line": 16,
+        "column": 53,
+        "nodeType": null,
+        "messageId": "unusedVar",
+        "endLine": 16,
+        "endColumn": 60
+      },
+      {
+        "ruleId": "no-console",
+        "severity": 1,
+        "message": "Unexpected console statement.",
+        "line": 33,
+        "column": 7,
+        "nodeType": "MemberExpression",
+        "messageId": "unexpected",
+        "endLine": 33,
+        "endColumn": 18,
+        "suggestions": [
+          {
+            "messageId": "removeConsole",
+            "data": { "propertyName": "log" },
+            "fix": { "range": [936, 1016], "text": "" },
+            "desc": "Remove the console.log()."
+          }
+        ]
+      },
+      {
+        "ruleId": "@typescript-eslint/no-unused-vars",
+        "severity": 2,
+        "message": "'isEstimatingGas' is assigned a value but never used.",
+        "line": 43,
+        "column": 10,
+        "nodeType": null,
+        "messageId": "unusedVar",
+        "endLine": 43,
+        "endColumn": 25
+      },
+      {
+        "ruleId": "@typescript-eslint/no-explicit-any",
+        "severity": 1,
+        "message": "Unexpected any. Specify a different type.",
+        "line": 46,
+        "column": 48,
+        "nodeType": "TSAnyKeyword",
+        "messageId": "unexpectedAny",
+        "endLine": 46,
+        "endColumn": 51,
+        "suggestions": [
+          {
+            "messageId": "suggestUnknown",
+            "fix": { "range": [1661, 1664], "text": "unknown" },
+            "desc": "Use `unknown` instead, this will force you to explicitly, and safely assert the type is correct."
+          },
+          {
+            "messageId": "suggestNever",
+            "fix": { "range": [1661, 1664], "text": "never" },
+            "desc": "Use `never` instead, this is useful when instantiating generic type parameters that you don't need to know the type of."
+          }
+        ]
+      },
+      {
+        "ruleId": "react-hooks/exhaustive-deps",
+        "severity": 1,
+        "message": "React Hook useEffect has a missing dependency: 'loadWalletData'. Either include it or remove the dependency array.",
+        "line": 50,
+        "column": 6,
+        "nodeType": "ArrayExpression",
+        "endLine": 50,
+        "endColumn": 8,
+        "suggestions": [
+          {
+            "desc": "Update the dependencies array to be: [loadWalletData]",
+            "fix": { "range": [1721, 1723], "text": "[loadWalletData]" }
+          }
+        ]
+      },
+      {
+        "ruleId": "react-hooks/exhaustive-deps",
+        "severity": 1,
+        "message": "React Hook useEffect has a missing dependency: 'estimateGas'. Either include it or remove the dependency array.",
+        "line": 56,
+        "column": 6,
+        "nodeType": "ArrayExpression",
+        "endLine": 56,
+        "endColumn": 44,
+        "suggestions": [
+          {
+            "desc": "Update the dependencies array to be: [amount, recipientAddress, connection, estimateGas]",
+            "fix": {
+              "range": [1831, 1869],
+              "text": "[amount, recipientAddress, connection, estimateGas]"
+            }
+          }
+        ]
+      },
+      {
+        "ruleId": "@typescript-eslint/no-unused-vars",
+        "severity": 2,
+        "message": "'getProtocolDescription' is assigned a value but never used.",
+        "line": 173,
+        "column": 9,
+        "nodeType": null,
+        "messageId": "unusedVar",
+        "endLine": 173,
+        "endColumn": 31
+      },
+      {
+        "ruleId": "@typescript-eslint/no-unused-vars",
+        "severity": 2,
+        "message": "'getProtocolIcon' is assigned a value but never used.",
+        "line": 181,
+        "column": 9,
+        "nodeType": null,
+        "messageId": "unusedVar",
+        "endLine": 181,
+        "endColumn": 24
+      }
+    ],
+    "suppressedMessages": [],
+    "errorCount": 5,
+    "fatalErrorCount": 0,
+    "warningCount": 4,
+    "fixableErrorCount": 0,
+    "fixableWarningCount": 0,
+    "source": "import React, { useState, useEffect } from 'react';\nimport {\n  View,\n  Text,\n  StyleSheet,\n  SafeAreaView,\n  ScrollView,\n  TextInput,\n  TouchableOpacity,\n  Alert,\n  ActivityIndicator,\n  KeyboardAvoidingView,\n  Platform,\n} from 'react-native';\nimport { useNavigation, useRoute } from '@react-navigation/native';\nimport { colors, spacing, typography, borderRadius, shadows } from '../utils/constants';\nimport { Button } from '../components/common/Button';\nimport { Card } from '../components/common/Card';\nimport walletServiceManager, { TokenBalance, GasEstimate } from '../services/walletService';\n\ninterface RouteParams {\n  subscriptionId?: string;\n}\n\nconst CryptoPaymentScreen: React.FC = () => {\n  const navigation = useNavigation();\n  const route = useRoute();\n  const { subscriptionId } = (route.params as RouteParams) || {};\n\n  // Handle case when no subscriptionId is provided\n  useEffect(() => {\n    if (!subscriptionId) {\n      console.log('No subscriptionId provided, proceeding with general crypto setup');\n    }\n  }, [subscriptionId]);\n\n  const [selectedToken, setSelectedToken] = useState<string>('ETH');\n  const [amount, setAmount] = useState<string>('');\n  const [recipientAddress, setRecipientAddress] = useState<string>('');\n  const [selectedProtocol, setSelectedProtocol] = useState<'superfluid' | 'sablier'>('superfluid');\n  const [gasEstimate, setGasEstimate] = useState<GasEstimate | null>(null);\n  const [isLoading, setIsLoading] = useState(false);\n  const [isEstimatingGas, setIsEstimatingGas] = useState(false);\n\n  const [availableTokens, setAvailableTokens] = useState<TokenBalance[]>([]);\n  const [connection, setConnection] = useState<any>(null);\n\n  useEffect(() => {\n    loadWalletData();\n  }, []);\n\n  useEffect(() => {\n    if (amount && recipientAddress && connection) {\n      estimateGas();\n    }\n  }, [amount, recipientAddress, connection]);\n\n  const loadWalletData = async () => {\n    try {\n      const conn = walletServiceManager.getConnection();\n      if (!conn) {\n        Alert.alert('Error', 'Please connect a wallet first');\n        navigation.goBack();\n        return;\n      }\n\n      setConnection(conn);\n      const balances = await walletServiceManager.getTokenBalances(conn.address, conn.chainId);\n      setAvailableTokens(balances);\n\n      // Set default recipient to connected wallet address\n      setRecipientAddress(conn.address);\n    } catch (error) {\n      console.error('Failed to load wallet data:', error);\n      Alert.alert('Error', 'Failed to load wallet data');\n    }\n  };\n\n  const estimateGas = async () => {\n    if (!connection || !amount || !recipientAddress) return;\n\n    try {\n      setIsEstimatingGas(true);\n      const estimate = await walletServiceManager.estimateGas(\n        connection.address,\n        recipientAddress,\n        amount,\n        connection.chainId\n      );\n      setGasEstimate(estimate);\n    } catch (error) {\n      console.error('Failed to estimate gas:', error);\n    } finally {\n      setIsEstimatingGas(false);\n    }\n  };\n\n  const handleTokenSelect = (tokenSymbol: string) => {\n    setSelectedToken(tokenSymbol);\n  };\n\n  const handleProtocolSelect = (protocol: 'superfluid' | 'sablier') => {\n    setSelectedProtocol(protocol);\n  };\n\n  const validateForm = (): boolean => {\n    if (!amount || parseFloat(amount) <= 0) {\n      Alert.alert('Error', 'Please enter a valid amount');\n      return false;\n    }\n\n    if (!recipientAddress || recipientAddress.length !== 42) {\n      Alert.alert('Error', 'Please enter a valid recipient address');\n      return false;\n    }\n\n    if (!selectedToken) {\n      Alert.alert('Error', 'Please select a token');\n      return false;\n    }\n\n    return true;\n  };\n\n  const handleCreateStream = async () => {\n    if (!validateForm()) return;\n\n    try {\n      setIsLoading(true);\n      let streamId: string;\n\n      if (selectedProtocol === 'superfluid') {\n        streamId = await walletServiceManager.createSuperfluidStream(\n          selectedToken,\n          amount,\n          recipientAddress,\n          connection.chainId\n        );\n      } else {\n        const startTime = Math.floor(Date.now() / 1000);\n        const stopTime = startTime + 30 * 24 * 60 * 60; // 30 days from now\n        streamId = await walletServiceManager.createSablierStream(\n          selectedToken,\n          amount,\n          startTime,\n          stopTime,\n          recipientAddress,\n          connection.chainId\n        );\n      }\n\n      Alert.alert('Success!', `Stream created successfully!\\nStream ID: ${streamId}`, [\n        { text: 'OK', onPress: () => navigation.goBack() },\n      ]);\n    } catch (error) {\n      console.error('Failed to create stream:', error);\n      Alert.alert('Error', 'Failed to create stream. Please try again.');\n    } finally {\n      setIsLoading(false);\n    }\n  };\n\n  const getTokenIcon = (symbol: string): string => {\n    const icons: Record<string, string> = {\n      ETH: '≡ƒö╖',\n      MATIC: '≡ƒƒú',\n      USDC: '≡ƒÆÖ',\n      ARB: '≡ƒö╡',\n    };\n    return icons[symbol] || '≡ƒ¬Ö';\n  };\n\n  const getProtocolDescription = (protocol: 'superfluid' | 'sablier'): string => {\n    const descriptions = {\n      superfluid: 'Continuous streaming payments with real-time settlement',\n      sablier: 'Scheduled payments with time-locked streams',\n    };\n    return descriptions[protocol];\n  };\n\n  const getProtocolIcon = (protocol: 'superfluid' | 'sablier'): string => {\n    return protocol === 'superfluid' ? '≡ƒîè' : 'ΓÅ░';\n  };\n\n  return (\n    <SafeAreaView style={styles.container}>\n      <KeyboardAvoidingView\n        style={styles.keyboardAvoidingView}\n        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>\n        <ScrollView style={styles.scrollView}>\n          <View style={styles.header}>\n            <Text style={styles.title}>\n              {subscriptionId ? 'Crypto Payment Setup' : 'Crypto Payment Configuration'}\n            </Text>\n            <Text style={styles.subtitle}>\n              {subscriptionId\n                ? 'Configure streaming payments for this subscription'\n                : 'Set up crypto payment streams for your subscriptions'}\n            </Text>\n          </View>\n\n          {/* Token Selection */}\n          <Card variant=\"elevated\" padding=\"large\">\n            <Text style={styles.sectionTitle}>Select Payment Token</Text>\n            <View style={styles.tokenGrid}>\n              {availableTokens.map((token, index) => (\n                <TouchableOpacity\n                  key={index}\n                  style={[\n                    styles.tokenOption,\n                    selectedToken === token.symbol && styles.tokenOptionSelected,\n                  ]}\n                  onPress={() => handleTokenSelect(token.symbol)}>\n                  <Text style={styles.tokenIcon}>{getTokenIcon(token.symbol)}</Text>\n                  <Text style={styles.tokenSymbol}>{token.symbol}</Text>\n                  <Text style={styles.tokenBalance}>{parseFloat(token.balance).toFixed(4)}</Text>\n                </TouchableOpacity>\n              ))}\n            </View>\n          </Card>\n\n          {/* Payment Amount */}\n          <Card variant=\"elevated\" padding=\"large\">\n            <Text style={styles.sectionTitle}>Payment Amount</Text>\n            <View style={styles.amountInput}>\n              <Text style={styles.currencySymbol}>{selectedToken}</Text>\n              <TextInput\n                style={styles.amountTextInput}\n                value={amount}\n                onChangeText={setAmount}\n                placeholder=\"0.00\"\n                placeholderTextColor={colors.textSecondary}\n                keyboardType=\"decimal-pad\"\n              />\n            </View>\n            <Text style={styles.amountDescription}>Amount to stream per payment cycle</Text>\n          </Card>\n\n          {/* Recipient Address */}\n          <Card variant=\"elevated\" padding=\"large\">\n            <Text style={styles.sectionTitle}>Recipient Address</Text>\n            <TextInput\n              style={styles.addressInput}\n              value={recipientAddress}\n              onChangeText={setRecipientAddress}\n              placeholder=\"0x...\"\n              placeholderTextColor={colors.textSecondary}\n              autoCapitalize=\"none\"\n              autoCorrect={false}\n            />\n            <Text style={styles.addressDescription}>\n              The address that will receive the payments\n            </Text>\n          </Card>\n\n          {/* Protocol Selection */}\n          <Card variant=\"elevated\" padding=\"large\">\n            <Text style={styles.sectionTitle}>Payment Protocol</Text>\n            <View style={styles.protocolOptions}>\n              <TouchableOpacity\n                style={[\n                  styles.protocolOption,\n                  selectedProtocol === 'superfluid' && styles.protocolOptionSelected,\n                ]}\n                onPress={() => handleProtocolSelect('superfluid')}>\n                <Text style={styles.protocolIcon}>≡ƒîè</Text>\n                <Text style={styles.protocolName}>Superfluid</Text>\n                <Text style={styles.protocolDescription}>Continuous streaming payments</Text>\n              </TouchableOpacity>\n\n              <TouchableOpacity\n                style={[\n                  styles.protocolOption,\n                  selectedProtocol === 'sablier' && styles.protocolOptionSelected,\n                ]}\n                onPress={() => handleProtocolSelect('sablier')}>\n                <Text style={styles.protocolIcon}>ΓÅ░</Text>\n                <Text style={styles.protocolName}>Sablier</Text>\n                <Text style={styles.protocolDescription}>Time-locked payment streams</Text>\n              </TouchableOpacity>\n            </View>\n          </Card>\n\n          {/* Gas Estimation */}\n          {gasEstimate && (\n            <Card variant=\"elevated\" padding=\"large\">\n              <Text style={styles.sectionTitle}>Gas Estimation</Text>\n              <View style={styles.gasInfo}>\n                <View style={styles.gasRow}>\n                  <Text style={styles.gasLabel}>Gas Limit:</Text>\n                  <Text style={styles.gasValue}>{gasEstimate.gasLimit}</Text>\n                </View>\n                <View style={styles.gasRow}>\n                  <Text style={styles.gasLabel}>Gas Price:</Text>\n                  <Text style={styles.gasValue}>{gasEstimate.gasPrice} Gwei</Text>\n                </View>\n                <View style={styles.gasRow}>\n                  <Text style={styles.gasLabel}>Estimated Cost:</Text>\n                  <Text style={styles.gasValue}>\n                    {parseFloat(gasEstimate.estimatedCost).toFixed(6)} {selectedToken}\n                  </Text>\n                </View>\n              </View>\n            </Card>\n          )}\n\n          {/* Create Stream Button */}\n          <View style={styles.footer}>\n            <Button\n              title={isLoading ? 'Creating Stream...' : 'Create Payment Stream'}\n              onPress={handleCreateStream}\n              loading={isLoading}\n              variant=\"crypto\"\n              fullWidth\n              size=\"large\"\n            />\n          </View>\n        </ScrollView>\n      </KeyboardAvoidingView>\n    </SafeAreaView>\n  );\n};\n\nconst styles = StyleSheet.create({\n  container: {\n    flex: 1,\n    backgroundColor: colors.background,\n  },\n  keyboardAvoidingView: {\n    flex: 1,\n  },\n  scrollView: {\n    flex: 1,\n  },\n  header: {\n    padding: spacing.lg,\n    paddingBottom: spacing.md,\n  },\n  title: {\n    ...typography.h1,\n    color: colors.text,\n    marginBottom: spacing.xs,\n  },\n  subtitle: {\n    ...typography.body,\n    color: colors.textSecondary,\n  },\n  sectionTitle: {\n    ...typography.h3,\n    color: colors.text,\n    marginBottom: spacing.md,\n  },\n  tokenGrid: {\n    flexDirection: 'row',\n    flexWrap: 'wrap',\n    gap: spacing.sm,\n  },\n  tokenOption: {\n    flex: 1,\n    minWidth: 100,\n    alignItems: 'center',\n    padding: spacing.md,\n    backgroundColor: colors.surface,\n    borderRadius: borderRadius.md,\n    borderWidth: 1,\n    borderColor: colors.border,\n  },\n  tokenOptionSelected: {\n    backgroundColor: colors.primary,\n    borderColor: colors.primary,\n  },\n  tokenIcon: {\n    fontSize: 24,\n    marginBottom: spacing.xs,\n  },\n  tokenSymbol: {\n    ...typography.body,\n    color: colors.text,\n    fontWeight: '600',\n    marginBottom: spacing.xs,\n  },\n  tokenBalance: {\n    ...typography.caption,\n    color: colors.textSecondary,\n  },\n  amountInput: {\n    flexDirection: 'row',\n    alignItems: 'center',\n    backgroundColor: colors.surface,\n    borderRadius: borderRadius.md,\n    borderWidth: 1,\n    borderColor: colors.border,\n    paddingHorizontal: spacing.md,\n    marginBottom: spacing.sm,\n  },\n  currencySymbol: {\n    ...typography.h2,\n    color: colors.textSecondary,\n    marginRight: spacing.sm,\n  },\n  amountTextInput: {\n    flex: 1,\n    paddingVertical: spacing.md,\n    color: colors.text,\n    ...typography.h2,\n    fontWeight: '600',\n  },\n  amountDescription: {\n    ...typography.caption,\n    color: colors.textSecondary,\n  },\n  addressInput: {\n    backgroundColor: colors.surface,\n    padding: spacing.md,\n    borderRadius: borderRadius.md,\n    borderWidth: 1,\n    borderColor: colors.border,\n    color: colors.text,\n    ...typography.body,\n    fontFamily: 'monospace',\n    marginBottom: spacing.sm,\n  },\n  addressDescription: {\n    ...typography.caption,\n    color: colors.textSecondary,\n  },\n  protocolOptions: {\n    gap: spacing.md,\n  },\n  protocolOption: {\n    padding: spacing.md,\n    backgroundColor: colors.surface,\n    borderRadius: borderRadius.md,\n    borderWidth: 1,\n    borderColor: colors.border,\n  },\n  protocolOptionSelected: {\n    backgroundColor: colors.accent,\n    borderColor: colors.accent,\n  },\n  protocolIcon: {\n    fontSize: 24,\n    marginBottom: spacing.xs,\n  },\n  protocolName: {\n    ...typography.body,\n    color: colors.text,\n    fontWeight: '600',\n    marginBottom: spacing.xs,\n  },\n  protocolDescription: {\n    ...typography.caption,\n    color: colors.textSecondary,\n  },\n  gasInfo: {\n    gap: spacing.sm,\n  },\n  gasRow: {\n    flexDirection: 'row',\n    justifyContent: 'space-between',\n    alignItems: 'center',\n  },\n  gasLabel: {\n    ...typography.body,\n    color: colors.textSecondary,\n  },\n  gasValue: {\n    ...typography.body,\n    color: colors.text,\n    fontWeight: '600',\n  },\n  footer: {\n    padding: spacing.lg,\n    paddingTop: spacing.md,\n    borderTopWidth: 1,\n    borderTopColor: colors.border,\n    backgroundColor: colors.background,\n  },\n});\n\nexport default CryptoPaymentScreen;\n",
+    "usedDeprecatedRules": []
+  },
+  {
+    "filePath": "C:\\Users\\Aayush\\.gemini\\antigravity\\scratch\\SubTrackr\\src\\screens\\HomeScreen.tsx",
+    "messages": [
+      {
+        "ruleId": "@typescript-eslint/no-unused-vars",
+        "severity": 2,
+        "message": "'walletServiceManager' is defined but never used.",
+        "line": 18,
+        "column": 8,
+        "nodeType": null,
+        "messageId": "unusedVar",
+        "endLine": 18,
+        "endColumn": 28
+      },
+      {
+        "ruleId": "@typescript-eslint/no-unused-vars",
+        "severity": 2,
+        "message": "'formatCurrency' is defined but never used.",
+        "line": 21,
+        "column": 10,
+        "nodeType": null,
+        "messageId": "unusedVar",
+        "endLine": 21,
+        "endColumn": 24
+      },
+      {
+        "ruleId": "@typescript-eslint/no-unused-vars",
+        "severity": 2,
+        "message": "'isLoading' is assigned a value but never used.",
+        "line": 30,
+        "column": 5,
+        "nodeType": null,
+        "messageId": "unusedVar",
+        "endLine": 30,
+        "endColumn": 14
+      }
+    ],
+    "suppressedMessages": [],
+    "errorCount": 3,
+    "fatalErrorCount": 0,
+    "warningCount": 0,
+    "fixableErrorCount": 0,
+    "fixableWarningCount": 0,
+    "source": "import React, { useEffect, useState, useMemo } from 'react';\nimport {\n  View,\n  Text,\n  StyleSheet,\n  ScrollView,\n  SafeAreaView,\n  RefreshControl,\n  TouchableOpacity,\n  Alert,\n  Modal,\n  TextInput,\n  Switch,\n} from 'react-native';\nimport { useNavigation } from '@react-navigation/native';\nimport { colors, spacing, typography, borderRadius, shadows } from '../utils/constants';\nimport { useSubscriptionStore } from '../store';\nimport walletServiceManager from '../services/walletService';\nimport { SubscriptionCard } from '../components/subscription/SubscriptionCard';\nimport { FloatingActionButton } from '../components/common/FloatingActionButton';\nimport { formatCurrency, formatCurrencyCompact } from '../utils/formatting';\nimport { getUpcomingSubscriptions } from '../utils/dummyData';\nimport { Subscription, SubscriptionCategory, BillingCycle } from '../types/subscription';\n\nconst HomeScreen: React.FC = () => {\n  const navigation = useNavigation();\n  const {\n    subscriptions,\n    stats,\n    isLoading,\n    error,\n    fetchSubscriptions,\n    calculateStats,\n    toggleSubscriptionStatus,\n  } = useSubscriptionStore();\n\n  const [refreshing, setRefreshing] = useState(false);\n  const [upcomingSubscriptions, setUpcomingSubscriptions] = useState<Subscription[]>([]);\n\n  // Filter state\n  const [showFilterModal, setShowFilterModal] = useState(false);\n  const [searchQuery, setSearchQuery] = useState('');\n  const [selectedCategories, setSelectedCategories] = useState<SubscriptionCategory[]>([]);\n  const [selectedBillingCycles, setSelectedBillingCycles] = useState<BillingCycle[]>([]);\n  const [priceRange, setPriceRange] = useState({ min: 0, max: 1000 });\n  const [showActiveOnly, setShowActiveOnly] = useState(true);\n  const [showCryptoOnly, setShowCryptoOnly] = useState(false);\n  const [sortBy, setSortBy] = useState<'name' | 'price' | 'nextBilling' | 'category'>('name');\n  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');\n\n  useEffect(() => {\n    // Calculate stats when component mounts\n    calculateStats();\n    // Set up upcoming subscriptions\n    if (subscriptions && Array.isArray(subscriptions)) {\n      setUpcomingSubscriptions(getUpcomingSubscriptions(subscriptions));\n    }\n  }, [subscriptions, calculateStats]);\n\n  const onRefresh = async () => {\n    setRefreshing(true);\n    try {\n      await fetchSubscriptions();\n      setUpcomingSubscriptions(getUpcomingSubscriptions(subscriptions));\n    } catch (error) {\n      console.error('Failed to refresh:', error);\n    } finally {\n      setRefreshing(false);\n    }\n  };\n\n  const handleSubscriptionPress = (subscription: Subscription) => {\n    // TODO: Navigate to subscription detail screen\n    Alert.alert('Subscription Details', `Viewing details for ${subscription.name}`, [\n      { text: 'OK' },\n    ]);\n  };\n\n  const handleToggleStatus = async (id: string) => {\n    try {\n      await toggleSubscriptionStatus(id);\n      setUpcomingSubscriptions(getUpcomingSubscriptions(subscriptions));\n    } catch (error) {\n      console.error('Failed to toggle subscription status:', error);\n    }\n  };\n\n  const handleAddSubscription = () => {\n    navigation.navigate('AddSubscription' as never);\n  };\n\n  // Filter helper functions\n  const toggleCategory = (category: SubscriptionCategory) => {\n    setSelectedCategories((prev) =>\n      prev.includes(category) ? prev.filter((c) => c !== category) : [...prev, category]\n    );\n  };\n\n  const toggleBillingCycle = (cycle: BillingCycle) => {\n    setSelectedBillingCycles((prev) =>\n      prev.includes(cycle) ? prev.filter((c) => c !== cycle) : [...prev, cycle]\n    );\n  };\n\n  const clearAllFilters = () => {\n    setSearchQuery('');\n    setSelectedCategories([]);\n    setSelectedBillingCycles([]);\n    setPriceRange({ min: 0, max: 1000 });\n    setShowActiveOnly(true);\n    setShowCryptoOnly(false);\n    setSortBy('name');\n    setSortOrder('asc');\n  };\n\n  const getActiveFilterCount = () => {\n    let count = 0;\n    if (searchQuery.trim()) count++;\n    if (selectedCategories.length > 0) count++;\n    if (selectedBillingCycles.length > 0) count++;\n    if (priceRange.min > 0 || priceRange.max < 1000) count++;\n    if (!showActiveOnly) count++;\n    if (showCryptoOnly) count++;\n    if (sortBy !== 'name' || sortOrder !== 'asc') count++;\n    return count;\n  };\n\n  const hasActiveFilters = getActiveFilterCount() > 0;\n\n  // Filter and sort subscriptions\n  const filteredAndSortedSubscriptions = useMemo(() => {\n    let filtered = subscriptions || [];\n\n    // Search filter\n    if (searchQuery.trim()) {\n      filtered = filtered.filter(\n        (sub) =>\n          sub.name.toLowerCase().includes(searchQuery.toLowerCase()) ||\n          (sub.description && sub.description.toLowerCase().includes(searchQuery.toLowerCase()))\n      );\n    }\n\n    // Category filter\n    if (selectedCategories.length > 0) {\n      filtered = filtered.filter((sub) => selectedCategories.includes(sub.category));\n    }\n\n    // Billing cycle filter\n    if (selectedBillingCycles.length > 0) {\n      filtered = filtered.filter((sub) => selectedBillingCycles.includes(sub.billingCycle));\n    }\n\n    // Price range filter\n    filtered = filtered.filter((sub) => sub.price >= priceRange.min && sub.price <= priceRange.max);\n\n    // Active status filter\n    if (showActiveOnly) {\n      filtered = filtered.filter((sub) => sub.isActive);\n    }\n\n    // Crypto filter\n    if (showCryptoOnly) {\n      filtered = filtered.filter((sub) => sub.isCryptoEnabled);\n    }\n\n    // Sort subscriptions\n    filtered.sort((a, b) => {\n      let comparison = 0;\n\n      switch (sortBy) {\n        case 'name':\n          comparison = a.name.localeCompare(b.name);\n          break;\n        case 'price':\n          comparison = a.price - b.price;\n          break;\n        case 'nextBilling':\n          comparison =\n            new Date(a.nextBillingDate).getTime() - new Date(b.nextBillingDate).getTime();\n          break;\n        case 'category':\n          comparison = a.category.localeCompare(b.category);\n          break;\n      }\n\n      return sortOrder === 'asc' ? comparison : -comparison;\n    });\n\n    return filtered;\n  }, [\n    subscriptions,\n    searchQuery,\n    selectedCategories,\n    selectedBillingCycles,\n    priceRange,\n    showActiveOnly,\n    showCryptoOnly,\n    sortBy,\n    sortOrder,\n  ]);\n\n  const activeSubscriptions = filteredAndSortedSubscriptions.filter((sub) => sub.isActive);\n  const hasSubscriptions = activeSubscriptions.length > 0;\n\n  return (\n    <SafeAreaView style={styles.container}>\n      <ScrollView\n        style={styles.scrollView}\n        refreshControl={\n          <RefreshControl\n            refreshing={refreshing}\n            onRefresh={onRefresh}\n            tintColor={colors.primary}\n            colors={[colors.primary]}\n          />\n        }>\n        {/* Header */}\n        <View style={styles.header}>\n          <Text style={styles.title}>SubTrackr</Text>\n          <Text style={styles.subtitle}>Manage your subscriptions</Text>\n\n          {/* Search and Filter Bar */}\n          <View style={styles.searchFilterBar}>\n            <View style={styles.searchContainer}>\n              <Text style={styles.searchIcon}>≡ƒöì</Text>\n              <TextInput\n                style={styles.searchInput}\n                placeholder=\"Search subscriptions...\"\n                placeholderTextColor={colors.textSecondary}\n                value={searchQuery}\n                onChangeText={setSearchQuery}\n              />\n              {searchQuery.length > 0 && (\n                <TouchableOpacity onPress={() => setSearchQuery('')}>\n                  <Text style={styles.clearSearchIcon}>Γ£ò</Text>\n                </TouchableOpacity>\n              )}\n            </View>\n\n            <TouchableOpacity\n              style={[styles.filterButton, hasActiveFilters && styles.filterButtonActive]}\n              onPress={() => setShowFilterModal(true)}>\n              <Text style={styles.filterIcon}>≡ƒöº</Text>\n              {hasActiveFilters && (\n                <View style={styles.filterBadge}>\n                  <Text style={styles.filterBadgeText}>{getActiveFilterCount()}</Text>\n                </View>\n              )}\n            </TouchableOpacity>\n          </View>\n        </View>\n\n        {/* Stats Cards */}\n        <View style={styles.statsContainer}>\n          <View style={styles.statCard}>\n            <Text style={styles.statLabel}>Total Monthly</Text>\n            <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>\n              {formatCurrencyCompact(stats.totalMonthlySpend)}\n            </Text>\n          </View>\n          <View style={styles.statCard}>\n            <Text style={styles.statLabel}>Active Subs</Text>\n            <Text style={styles.statValue}>{stats.totalActive}</Text>\n          </View>\n          <View style={styles.statCard}>\n            <TouchableOpacity onPress={() => navigation.navigate('WalletConnect' as never)}>\n              <Text style={styles.statLabel}>Wallet</Text>\n              <Text style={styles.statValue}>≡ƒöù</Text>\n            </TouchableOpacity>\n          </View>\n        </View>\n\n        {/* Upcoming Billing Section */}\n        {upcomingSubscriptions && upcomingSubscriptions.length > 0 && (\n          <View style={styles.section}>\n            <Text style={styles.sectionTitle}>Upcoming Billing</Text>\n            <Text style={styles.sectionSubtitle}>\n              {upcomingSubscriptions.length} subscription\n              {upcomingSubscriptions.length !== 1 ? 's' : ''} due this week\n            </Text>\n            <View style={styles.upcomingContainer}>\n              {upcomingSubscriptions.slice(0, 3).map((subscription) => (\n                <View key={subscription.id} style={styles.upcomingItem}>\n                  <Text style={styles.upcomingName} numberOfLines={1}>\n                    {subscription.name}\n                  </Text>\n                  <Text style={styles.upcomingDate}>\n                    {new Date(subscription.nextBillingDate).toLocaleDateString()}\n                  </Text>\n                </View>\n              ))}\n            </View>\n          </View>\n        )}\n\n        {/* Subscriptions List */}\n        <View style={styles.section}>\n          <View style={styles.sectionHeader}>\n            <Text style={styles.sectionTitle}>Your Subscriptions</Text>\n            {hasSubscriptions && (\n              <View style={styles.sectionHeaderRight}>\n                {hasActiveFilters && (\n                  <Text style={styles.activeFiltersText}>\n                    {filteredAndSortedSubscriptions.length} of {subscriptions?.length || 0}\n                  </Text>\n                )}\n                <Text style={styles.subscriptionCount}>\n                  {activeSubscriptions.length} subscription\n                  {activeSubscriptions.length !== 1 ? 's' : ''}\n                </Text>\n              </View>\n            )}\n          </View>\n\n          {hasSubscriptions ? (\n            <View style={styles.subscriptionsList}>\n              {activeSubscriptions &&\n                activeSubscriptions.map((subscription) => (\n                  <SubscriptionCard\n                    key={subscription.id}\n                    subscription={subscription}\n                    onPress={handleSubscriptionPress}\n                    onToggleStatus={handleToggleStatus}\n                  />\n                ))}\n            </View>\n          ) : (\n            <View style={styles.emptyState}>\n              <Text style={styles.emptyIcon}>≡ƒô▒</Text>\n              <Text style={styles.emptyText}>No subscriptions yet</Text>\n              <Text style={styles.emptySubtext}>\n                Add your first subscription to start tracking your spending\n              </Text>\n              <TouchableOpacity style={styles.addFirstButton} onPress={handleAddSubscription}>\n                <Text style={styles.addFirstButtonText}>Add Subscription</Text>\n              </TouchableOpacity>\n            </View>\n          )}\n        </View>\n\n        {/* Error Display */}\n        {error && (\n          <View style={styles.errorContainer}>\n            <Text style={styles.errorText}>Error: {error}</Text>\n          </View>\n        )}\n      </ScrollView>\n\n      {/* Floating Action Button */}\n      {hasSubscriptions && (\n        <FloatingActionButton onPress={handleAddSubscription} icon=\"+\" size=\"large\" />\n      )}\n\n      {/* Filter Modal */}\n      <Modal\n        visible={showFilterModal}\n        animationType=\"slide\"\n        presentationStyle=\"pageSheet\"\n        onRequestClose={() => setShowFilterModal(false)}>\n        <SafeAreaView style={styles.modalContainer}>\n          <View style={styles.modalHeader}>\n            <Text style={styles.modalTitle}>Filter & Sort</Text>\n            <TouchableOpacity onPress={() => setShowFilterModal(false)}>\n              <Text style={styles.closeButton}>Γ£ò</Text>\n            </TouchableOpacity>\n          </View>\n\n          <ScrollView style={styles.modalContent}>\n            {/* Categories */}\n            <View style={styles.filterSection}>\n              <Text style={styles.filterSectionTitle}>Categories</Text>\n              <View style={styles.categoryGrid}>\n                {Object.values(SubscriptionCategory).map((category) => (\n                  <TouchableOpacity\n                    key={category}\n                    style={[\n                      styles.categoryChip,\n                      selectedCategories.includes(category) && styles.categoryChipSelected,\n                    ]}\n                    onPress={() => toggleCategory(category)}>\n                    <Text\n                      style={[\n                        styles.categoryChipText,\n                        selectedCategories.includes(category) && styles.categoryChipTextSelected,\n                      ]}>\n                      {category.charAt(0).toUpperCase() + category.slice(1)}\n                    </Text>\n                  </TouchableOpacity>\n                ))}\n              </View>\n            </View>\n\n            {/* Billing Cycles */}\n            <View style={styles.filterSection}>\n              <Text style={styles.filterSectionTitle}>Billing Cycles</Text>\n              <View style={styles.billingCycleGrid}>\n                {Object.values(BillingCycle).map((cycle) => (\n                  <TouchableOpacity\n                    key={cycle}\n                    style={[\n                      styles.billingCycleChip,\n                      selectedBillingCycles.includes(cycle) && styles.billingCycleChipSelected,\n                    ]}\n                    onPress={() => toggleBillingCycle(cycle)}>\n                    <Text\n                      style={[\n                        styles.billingCycleChipText,\n                        selectedBillingCycles.includes(cycle) &&\n                          styles.billingCycleChipTextSelected,\n                      ]}>\n                      {cycle.charAt(0).toUpperCase() + cycle.slice(1)}\n                    </Text>\n                  </TouchableOpacity>\n                ))}\n              </View>\n            </View>\n\n            {/* Price Range */}\n            <View style={styles.filterSection}>\n              <Text style={styles.filterSectionTitle}>Price Range</Text>\n              <View style={styles.priceRangeContainer}>\n                <TextInput\n                  style={styles.priceInput}\n                  placeholder=\"Min\"\n                  placeholderTextColor={colors.textSecondary}\n                  keyboardType=\"numeric\"\n                  value={priceRange.min.toString()}\n                  onChangeText={(text) =>\n                    setPriceRange((prev) => ({ ...prev, min: parseFloat(text) || 0 }))\n                  }\n                />\n                <Text style={styles.priceRangeSeparator}>to</Text>\n                <TextInput\n                  style={styles.priceInput}\n                  placeholder=\"Max\"\n                  placeholderTextColor={colors.textSecondary}\n                  keyboardType=\"numeric\"\n                  value={priceRange.max.toString()}\n                  onChangeText={(text) =>\n                    setPriceRange((prev) => ({ ...prev, max: parseFloat(text) || 1000 }))\n                  }\n                />\n              </View>\n            </View>\n\n            {/* Toggle Options */}\n            <View style={styles.filterSection}>\n              <Text style={styles.filterSectionTitle}>Options</Text>\n              <View style={styles.toggleContainer}>\n                <Text style={styles.toggleLabel}>Active Only</Text>\n                <Switch\n                  value={showActiveOnly}\n                  onValueChange={setShowActiveOnly}\n                  trackColor={{ false: colors.border, true: colors.primary }}\n                  thumbColor={colors.text}\n                />\n              </View>\n              <View style={styles.toggleContainer}>\n                <Text style={styles.toggleLabel}>Crypto Only</Text>\n                <Switch\n                  value={showCryptoOnly}\n                  onValueChange={setShowCryptoOnly}\n                  trackColor={{ false: colors.border, true: colors.primary }}\n                  thumbColor={colors.text}\n                />\n              </View>\n            </View>\n\n            {/* Sort Options */}\n            <View style={styles.filterSection}>\n              <Text style={styles.filterSectionTitle}>Sort By</Text>\n              <View style={styles.sortContainer}>\n                <View style={styles.sortRow}>\n                  <Text style={styles.sortLabel}>Field:</Text>\n                  <View style={styles.sortButtons}>\n                    {(['name', 'price', 'nextBilling', 'category'] as const).map((field) => (\n                      <TouchableOpacity\n                        key={field}\n                        style={[styles.sortButton, sortBy === field && styles.sortButtonSelected]}\n                        onPress={() => setSortBy(field)}>\n                        <Text\n                          style={[\n                            styles.sortButtonText,\n                            sortBy === field && styles.sortButtonTextSelected,\n                          ]}>\n                          {field === 'nextBilling'\n                            ? 'Next Billing'\n                            : field.charAt(0).toUpperCase() + field.slice(1)}\n                        </Text>\n                      </TouchableOpacity>\n                    ))}\n                  </View>\n                </View>\n                <View style={styles.sortRow}>\n                  <Text style={styles.sortLabel}>Order:</Text>\n                  <View style={styles.sortButtons}>\n                    <TouchableOpacity\n                      style={[styles.sortButton, sortOrder === 'asc' && styles.sortButtonSelected]}\n                      onPress={() => setSortOrder('asc')}>\n                      <Text\n                        style={[\n                          styles.sortButtonText,\n                          sortOrder === 'asc' && styles.sortButtonTextSelected,\n                        ]}>\n                        Γåæ Ascending\n                      </Text>\n                    </TouchableOpacity>\n                    <TouchableOpacity\n                      style={[styles.sortButton, sortOrder === 'desc' && styles.sortButtonSelected]}\n                      onPress={() => setSortOrder('desc')}>\n                      <Text\n                        style={[\n                          styles.sortButtonText,\n                          sortOrder === 'desc' && styles.sortButtonTextSelected,\n                        ]}>\n                        Γåô Descending\n                      </Text>\n                    </TouchableOpacity>\n                  </View>\n                </View>\n              </View>\n            </View>\n          </ScrollView>\n\n          {/* Modal Footer */}\n          <View style={styles.modalFooter}>\n            <TouchableOpacity style={styles.clearFiltersButton} onPress={clearAllFilters}>\n              <Text style={styles.clearFiltersButtonText}>Clear All Filters</Text>\n            </TouchableOpacity>\n            <TouchableOpacity\n              style={styles.applyFiltersButton}\n              onPress={() => setShowFilterModal(false)}>\n              <Text style={styles.applyFiltersButtonText}>Apply Filters</Text>\n            </TouchableOpacity>\n          </View>\n        </SafeAreaView>\n      </Modal>\n    </SafeAreaView>\n  );\n};\n\nconst styles = StyleSheet.create({\n  container: {\n    flex: 1,\n    backgroundColor: colors.background,\n  },\n  scrollView: {\n    flex: 1,\n  },\n  header: {\n    padding: spacing.lg,\n    paddingBottom: spacing.md,\n  },\n  title: {\n    ...typography.h1,\n    color: colors.text,\n    marginBottom: spacing.xs,\n  },\n  subtitle: {\n    ...typography.body,\n    color: colors.textSecondary,\n  },\n  searchFilterBar: {\n    flexDirection: 'row',\n    alignItems: 'center',\n    marginTop: spacing.md,\n    gap: spacing.sm,\n  },\n  searchContainer: {\n    flex: 1,\n    flexDirection: 'row',\n    alignItems: 'center',\n    backgroundColor: colors.surface,\n    borderRadius: borderRadius.md,\n    paddingHorizontal: spacing.md,\n    paddingVertical: spacing.sm,\n    borderWidth: 1,\n    borderColor: colors.border,\n  },\n  searchIcon: {\n    fontSize: 16,\n    marginRight: spacing.sm,\n    color: colors.textSecondary,\n  },\n  searchInput: {\n    flex: 1,\n    color: colors.text,\n    ...typography.body,\n  },\n  clearSearchIcon: {\n    fontSize: 16,\n    color: colors.textSecondary,\n    padding: spacing.xs,\n  },\n  filterButton: {\n    backgroundColor: colors.surface,\n    borderRadius: borderRadius.md,\n    padding: spacing.md,\n    borderWidth: 1,\n    borderColor: colors.border,\n    alignItems: 'center',\n    justifyContent: 'center',\n    position: 'relative',\n  },\n  filterButtonActive: {\n    backgroundColor: colors.primary,\n    borderColor: colors.primary,\n  },\n  filterIcon: {\n    fontSize: 18,\n    color: colors.text,\n  },\n  filterBadge: {\n    position: 'absolute',\n    top: -5,\n    right: -5,\n    backgroundColor: colors.error,\n    borderRadius: borderRadius.full,\n    minWidth: 20,\n    height: 20,\n    alignItems: 'center',\n    justifyContent: 'center',\n    paddingHorizontal: spacing.xs,\n  },\n  filterBadgeText: {\n    ...typography.caption,\n    color: colors.text,\n    fontWeight: '600',\n    fontSize: 10,\n  },\n  // Modal styles\n  modalContainer: {\n    flex: 1,\n    backgroundColor: colors.background,\n  },\n  modalHeader: {\n    flexDirection: 'row',\n    justifyContent: 'space-between',\n    alignItems: 'center',\n    padding: spacing.lg,\n    borderBottomWidth: 1,\n    borderBottomColor: colors.border,\n  },\n  modalTitle: {\n    ...typography.h2,\n    color: colors.text,\n  },\n  closeButton: {\n    fontSize: 24,\n    color: colors.textSecondary,\n    padding: spacing.sm,\n  },\n  modalContent: {\n    flex: 1,\n    padding: spacing.lg,\n  },\n  filterSection: {\n    marginBottom: spacing.xl,\n  },\n  filterSectionTitle: {\n    ...typography.h3,\n    color: colors.text,\n    marginBottom: spacing.md,\n  },\n  categoryGrid: {\n    flexDirection: 'row',\n    flexWrap: 'wrap',\n    gap: spacing.sm,\n  },\n  categoryChip: {\n    backgroundColor: colors.surface,\n    borderRadius: borderRadius.full,\n    paddingHorizontal: spacing.md,\n    paddingVertical: spacing.sm,\n    borderWidth: 1,\n    borderColor: colors.border,\n  },\n  categoryChipSelected: {\n    backgroundColor: colors.primary,\n    borderColor: colors.primary,\n  },\n  categoryChipText: {\n    ...typography.body,\n    color: colors.text,\n  },\n  categoryChipTextSelected: {\n    color: colors.text,\n    fontWeight: '600',\n  },\n  billingCycleGrid: {\n    flexDirection: 'row',\n    flexWrap: 'wrap',\n    gap: spacing.sm,\n  },\n  billingCycleChip: {\n    backgroundColor: colors.surface,\n    borderRadius: borderRadius.full,\n    paddingHorizontal: spacing.md,\n    paddingVertical: spacing.sm,\n    borderWidth: 1,\n    borderColor: colors.border,\n  },\n  billingCycleChipSelected: {\n    backgroundColor: colors.primary,\n    borderColor: colors.primary,\n  },\n  billingCycleChipText: {\n    ...typography.body,\n    color: colors.text,\n  },\n  billingCycleChipTextSelected: {\n    color: colors.text,\n    fontWeight: '600',\n  },\n  priceRangeContainer: {\n    flexDirection: 'row',\n    alignItems: 'center',\n    gap: spacing.md,\n  },\n  priceInput: {\n    flex: 1,\n    backgroundColor: colors.surface,\n    borderRadius: borderRadius.md,\n    padding: spacing.md,\n    borderWidth: 1,\n    borderColor: colors.border,\n    color: colors.text,\n    ...typography.body,\n  },\n  priceRangeSeparator: {\n    ...typography.body,\n    color: colors.textSecondary,\n  },\n  toggleContainer: {\n    flexDirection: 'row',\n    justifyContent: 'space-between',\n    alignItems: 'center',\n    paddingVertical: spacing.sm,\n  },\n  toggleLabel: {\n    ...typography.body,\n    color: colors.text,\n  },\n  sortContainer: {\n    gap: spacing.md,\n  },\n  sortRow: {\n    flexDirection: 'row',\n    alignItems: 'center',\n    gap: spacing.md,\n  },\n  sortLabel: {\n    ...typography.body,\n    color: colors.text,\n    minWidth: 80,\n  },\n  sortButtons: {\n    flexDirection: 'row',\n    gap: spacing.sm,\n  },\n  sortButton: {\n    backgroundColor: colors.surface,\n    borderRadius: borderRadius.md,\n    paddingHorizontal: spacing.md,\n    paddingVertical: spacing.sm,\n    borderWidth: 1,\n    borderColor: colors.border,\n  },\n  sortButtonSelected: {\n    backgroundColor: colors.primary,\n    borderColor: colors.primary,\n  },\n  sortButtonText: {\n    ...typography.body,\n    color: colors.text,\n  },\n  sortButtonTextSelected: {\n    color: colors.text,\n    fontWeight: '600',\n  },\n  modalFooter: {\n    flexDirection: 'row',\n    gap: spacing.md,\n    padding: spacing.lg,\n    borderTopWidth: 1,\n    borderTopColor: colors.border,\n  },\n  clearFiltersButton: {\n    flex: 1,\n    backgroundColor: colors.surface,\n    borderRadius: borderRadius.md,\n    padding: spacing.md,\n    alignItems: 'center',\n    borderWidth: 1,\n    borderColor: colors.border,\n  },\n  clearFiltersButtonText: {\n    ...typography.body,\n    color: colors.text,\n    fontWeight: '600',\n  },\n  applyFiltersButton: {\n    flex: 1,\n    backgroundColor: colors.primary,\n    borderRadius: borderRadius.md,\n    padding: spacing.md,\n    alignItems: 'center',\n  },\n  applyFiltersButtonText: {\n    ...typography.body,\n    color: colors.text,\n    fontWeight: '600',\n  },\n  statsContainer: {\n    flexDirection: 'row',\n    paddingHorizontal: spacing.lg,\n    marginBottom: spacing.lg,\n    gap: spacing.md,\n    flexWrap: 'wrap',\n  },\n  statCard: {\n    flex: 1,\n    minWidth: 100,\n    backgroundColor: colors.surface,\n    padding: spacing.md,\n    borderRadius: borderRadius.lg,\n    alignItems: 'center',\n    justifyContent: 'center',\n    minHeight: 80,\n    ...shadows.sm,\n  },\n  statLabel: {\n    ...typography.caption,\n    color: colors.textSecondary,\n    marginBottom: spacing.xs,\n    textAlign: 'center',\n  },\n  statValue: {\n    fontSize: 18,\n    fontWeight: 'bold' as const,\n    color: colors.text,\n    textAlign: 'center',\n    lineHeight: 22,\n    minHeight: 22,\n  },\n  section: {\n    padding: spacing.lg,\n    paddingTop: 0,\n  },\n  sectionHeader: {\n    flexDirection: 'row',\n    justifyContent: 'space-between',\n    alignItems: 'center',\n    marginBottom: spacing.md,\n  },\n  sectionHeaderRight: {\n    alignItems: 'flex-end',\n  },\n  activeFiltersText: {\n    ...typography.caption,\n    color: colors.primary,\n    fontWeight: '600',\n    marginBottom: spacing.xs,\n  },\n  subscriptionCount: {\n    ...typography.body,\n    color: colors.textSecondary,\n  },\n  sectionTitle: {\n    ...typography.h3,\n    color: colors.text,\n  },\n  sectionSubtitle: {\n    ...typography.caption,\n    color: colors.textSecondary,\n    marginBottom: spacing.md,\n  },\n  filterText: {\n    ...typography.caption,\n    color: colors.primary,\n    fontWeight: '500',\n  },\n  upcomingContainer: {\n    backgroundColor: colors.surface,\n    borderRadius: borderRadius.lg,\n    padding: spacing.md,\n    marginBottom: spacing.lg,\n    ...shadows.sm,\n  },\n  upcomingItem: {\n    flexDirection: 'row',\n    justifyContent: 'space-between',\n    alignItems: 'center',\n    paddingVertical: spacing.sm,\n    borderBottomWidth: 1,\n    borderBottomColor: colors.border,\n  },\n  upcomingName: {\n    ...typography.body,\n    color: colors.text,\n    flex: 1,\n  },\n  upcomingDate: {\n    ...typography.caption,\n    color: colors.accent,\n    fontWeight: '600',\n  },\n  subscriptionsList: {\n    marginBottom: spacing.lg,\n  },\n  emptyState: {\n    alignItems: 'center',\n    paddingVertical: spacing.xl,\n    paddingHorizontal: spacing.lg,\n  },\n  emptyIcon: {\n    fontSize: 48,\n    marginBottom: spacing.md,\n  },\n  emptyText: {\n    ...typography.h3,\n    color: colors.text,\n    marginBottom: spacing.xs,\n    textAlign: 'center',\n  },\n  emptySubtext: {\n    ...typography.body,\n    color: colors.textSecondary,\n    textAlign: 'center',\n    marginBottom: spacing.lg,\n    lineHeight: 22,\n  },\n  addFirstButton: {\n    backgroundColor: colors.primary,\n    paddingVertical: spacing.md,\n    paddingHorizontal: spacing.lg,\n    borderRadius: borderRadius.md,\n  },\n  addFirstButtonText: {\n    ...typography.body,\n    color: colors.text,\n    fontWeight: '600',\n  },\n  errorContainer: {\n    backgroundColor: colors.error,\n    padding: spacing.md,\n    margin: spacing.lg,\n    borderRadius: borderRadius.md,\n    alignItems: 'center',\n  },\n  errorText: {\n    ...typography.body,\n    color: colors.text,\n    textAlign: 'center',\n  },\n});\n\nexport default HomeScreen;\n",
+    "usedDeprecatedRules": []
+  },
+  {
+    "filePath": "C:\\Users\\Aayush\\.gemini\\antigravity\\scratch\\SubTrackr\\src\\screens\\WalletConnectScreen.tsx",
+    "messages": [
+      {
+        "ruleId": "no-console",
+        "severity": 1,
+        "message": "Unexpected console statement.",
+        "line": 34,
+        "column": 5,
+        "nodeType": "MemberExpression",
+        "messageId": "unexpected",
+        "endLine": 34,
+        "endColumn": 16,
+        "suggestions": [
+          {
+            "messageId": "removeConsole",
+            "data": { "propertyName": "log" },
+            "fix": { "range": [1262, 1310], "text": "" },
+            "desc": "Remove the console.log()."
+          }
+        ]
+      },
+      {
+        "ruleId": "react-hooks/exhaustive-deps",
+        "severity": 1,
+        "message": "React Hook useEffect has a missing dependency: 'loadTokenBalances'. Either include it or remove the dependency array.",
+        "line": 41,
+        "column": 6,
+        "nodeType": "ArrayExpression",
+        "endLine": 41,
+        "endColumn": 18,
+        "suggestions": [
+          {
+            "desc": "Update the dependencies array to be: [connection, loadTokenBalances]",
+            "fix": { "range": [1402, 1414], "text": "[connection, loadTokenBalances]" }
+          }
+        ]
+      },
+      {
+        "ruleId": "no-console",
+        "severity": 1,
+        "message": "Unexpected console statement.",
+        "line": 46,
+        "column": 7,
+        "nodeType": "MemberExpression",
+        "messageId": "unexpected",
+        "endLine": 46,
+        "endColumn": 18,
+        "suggestions": [
+          {
+            "messageId": "removeConsole",
+            "data": { "propertyName": "log" },
+            "fix": { "range": [1529, 1571], "text": "" },
+            "desc": "Remove the console.log()."
+          }
+        ]
+      }
+    ],
+    "suppressedMessages": [],
+    "errorCount": 0,
+    "fatalErrorCount": 0,
+    "warningCount": 3,
+    "fixableErrorCount": 0,
+    "fixableWarningCount": 0,
+    "source": "import React, { useState, useEffect } from 'react';\nimport {\n  View,\n  Text,\n  StyleSheet,\n  SafeAreaView,\n  ScrollView,\n  TouchableOpacity,\n  Alert,\n  ActivityIndicator,\n} from 'react-native';\nimport { useNavigation } from '@react-navigation/native';\nimport { colors, spacing, typography, borderRadius, shadows } from '../utils/constants';\nimport { Button } from '../components/common/Button';\nimport { Card } from '../components/common/Card';\nimport { useAppKit } from '@reown/appkit-ethers-react-native';\nimport walletServiceManager, { WalletConnection, TokenBalance } from '../services/walletService';\n\nconst WalletConnectScreen: React.FC = () => {\n  const navigation = useNavigation();\n  const { open } = useAppKit();\n  const [isConnecting, setIsConnecting] = useState(false);\n  const [connection, setConnection] = useState<WalletConnection | null>(null);\n  const [tokenBalances, setTokenBalances] = useState<TokenBalance[]>([]);\n  const [isLoadingBalances, setIsLoadingBalances] = useState(false);\n\n  useEffect(() => {\n    initializeWalletService();\n  }, []);\n\n  // For now, we'll use a mock connection until we implement the full AppKit integration\n  useEffect(() => {\n    // This will be updated when we implement the full AppKit connection tracking\n    console.log('Wallet connection status updated');\n  }, []);\n\n  useEffect(() => {\n    if (connection) {\n      loadTokenBalances();\n    }\n  }, [connection]);\n\n  const initializeWalletService = async () => {\n    try {\n      await walletServiceManager.initialize();\n      console.log('Wallet service initialized');\n    } catch (error) {\n      console.error('Failed to initialize wallet service:', error);\n      Alert.alert('Error', 'Failed to initialize wallet service');\n    }\n  };\n\n  const handleConnectWallet = async () => {\n    try {\n      setIsConnecting(true);\n      open(); // Open the Reown AppKit modal\n\n      // For demo purposes, simulate a connection after a delay\n      setTimeout(() => {\n        const mockConnection: WalletConnection = {\n          address: '0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6',\n          chainId: 1,\n          isConnected: true,\n        };\n        setConnection(mockConnection);\n        walletServiceManager.setConnection(mockConnection);\n        setIsConnecting(false);\n      }, 3000);\n    } catch (error) {\n      console.error('Failed to open wallet modal:', error);\n      Alert.alert('Error', 'Failed to open wallet modal. Please try again.');\n      setIsConnecting(false);\n    }\n  };\n\n  const handleDisconnectWallet = async () => {\n    try {\n      await walletServiceManager.disconnectWallet();\n      setConnection(null);\n      setTokenBalances([]);\n      Alert.alert('Success', 'Wallet disconnected successfully!');\n    } catch (error) {\n      console.error('Failed to disconnect wallet:', error);\n      Alert.alert('Error', 'Failed to disconnect wallet');\n    }\n  };\n\n  const loadTokenBalances = async () => {\n    if (!connection) return;\n\n    try {\n      setIsLoadingBalances(true);\n      const balances = await walletServiceManager.getTokenBalances(\n        connection.address,\n        connection.chainId\n      );\n      setTokenBalances(balances);\n    } catch (error) {\n      console.error('Failed to load token balances:', error);\n      Alert.alert('Error', 'Failed to load token balances');\n    } finally {\n      setIsLoadingBalances(false);\n    }\n  };\n\n  const handleRefreshBalances = () => {\n    loadTokenBalances();\n  };\n\n  const handleSetupCryptoPayments = () => {\n    if (connection) {\n      navigation.navigate('CryptoPayment' as never);\n    } else {\n      Alert.alert('Error', 'Please connect a wallet first');\n    }\n  };\n\n  const formatAddress = (address: string): string => {\n    return `${address.slice(0, 6)}...${address.slice(-4)}`;\n  };\n\n  const getChainName = (chainId: number): string => {\n    const chains: Record<number, string> = {\n      1: 'Ethereum',\n      137: 'Polygon',\n      42161: 'Arbitrum',\n    };\n    return chains[chainId] || `Chain ${chainId}`;\n  };\n\n  const getChainColor = (chainId: number): string => {\n    const chainColors: Record<number, string> = {\n      1: '#627EEA', // Ethereum blue\n      137: '#8247E5', // Polygon purple\n      42161: '#28A0F0', // Arbitrum blue\n    };\n    return chainColors[chainId] || colors.primary;\n  };\n\n  const getChainDescription = (chainId: number): string => {\n    const descriptions: Record<number, string> = {\n      1: 'Mainnet - High security, higher fees',\n      137: 'Polygon - Fast & cheap transactions',\n      42161: 'Arbitrum - L2 scaling solution',\n    };\n    return descriptions[chainId] || 'Blockchain network';\n  };\n\n  const getTokenIcon = (symbol: string): string => {\n    const icons: Record<string, string> = {\n      ETH: '≡ƒö╖',\n      MATIC: '≡ƒƒú',\n      USDC: '≡ƒÆÖ',\n      ARB: '≡ƒö╡',\n    };\n    return icons[symbol] || '≡ƒ¬Ö';\n  };\n\n  const getTokenPrice = (symbol: string): number => {\n    const prices: Record<string, number> = {\n      ETH: 3500,\n      MATIC: 0.8,\n      USDC: 1.0,\n      ARB: 1.2,\n    };\n    return prices[symbol] || 1.0;\n  };\n\n  return (\n    <SafeAreaView style={styles.container}>\n      <ScrollView style={styles.scrollView}>\n        <View style={styles.header}>\n          <Text style={styles.title}>Connect Wallet</Text>\n          <Text style={styles.subtitle}>Connect your Web3 wallet to enable crypto payments</Text>\n        </View>\n\n        {!connection ? (\n          <View style={styles.connectSection}>\n            <Card variant=\"elevated\" padding=\"large\">\n              <View style={styles.connectHeader}>\n                <Text style={styles.connectIcon}>≡ƒöù</Text>\n                <Text style={styles.sectionTitle}>Connect Your Wallet</Text>\n                <Text style={styles.sectionDescription}>\n                  Choose from popular wallets like MetaMask, Trust Wallet, Rainbow, or Coinbase\n                  Wallet\n                </Text>\n              </View>\n\n              <View style={styles.walletOptions}>\n                <View style={styles.walletOption}>\n                  <View style={styles.walletIconContainer}>\n                    <Text style={styles.walletIcon}>≡ƒªè</Text>\n                  </View>\n                  <Text style={styles.walletName}>MetaMask</Text>\n                  <Text style={styles.walletDescription}>Most Popular</Text>\n                </View>\n                <View style={styles.walletOption}>\n                  <View style={styles.walletIconContainer}>\n                    <Text style={styles.walletIcon}>≡ƒ¢í∩╕Å</Text>\n                  </View>\n                  <Text style={styles.walletName}>Trust Wallet</Text>\n                  <Text style={styles.walletDescription}>Mobile First</Text>\n                </View>\n                <View style={styles.walletOption}>\n                  <View style={styles.walletIconContainer}>\n                    <Text style={styles.walletIcon}>≡ƒîê</Text>\n                  </View>\n                  <Text style={styles.walletName}>Rainbow</Text>\n                  <Text style={styles.walletDescription}>Beautiful UI</Text>\n                </View>\n                <View style={styles.walletOption}>\n                  <View style={styles.walletIconContainer}>\n                    <Text style={styles.walletIcon}>≡ƒ¬Ö</Text>\n                  </View>\n                  <Text style={styles.walletName}>Coinbase</Text>\n                  <Text style={styles.walletDescription}>Exchange Wallet</Text>\n                </View>\n              </View>\n\n              <View style={styles.connectButtonContainer}>\n                <Button\n                  title={isConnecting ? 'Connecting...' : 'Connect Wallet'}\n                  onPress={handleConnectWallet}\n                  loading={isConnecting}\n                  fullWidth\n                  size=\"large\"\n                  variant=\"crypto\"\n                />\n                <Text style={styles.connectNote}>Tap to open wallet selection modal</Text>\n              </View>\n            </Card>\n          </View>\n        ) : (\n          <View style={styles.connectedSection}>\n            {/* Connection Status */}\n            <Card variant=\"elevated\" padding=\"large\">\n              <View style={styles.connectionHeader}>\n                <View style={styles.connectionStatus}>\n                  <View style={[styles.statusIndicator, { backgroundColor: colors.success }]} />\n                  <Text style={styles.statusText}>Connected</Text>\n                  <Text style={styles.connectionTime}>Just now</Text>\n                </View>\n                <TouchableOpacity style={styles.disconnectButton} onPress={handleDisconnectWallet}>\n                  <Text style={styles.disconnectIcon}>ΓÅ╣∩╕Å</Text>\n                  <Text style={styles.disconnectText}>Disconnect</Text>\n                </TouchableOpacity>\n              </View>\n\n              <View style={styles.walletInfo}>\n                <View style={styles.addressContainer}>\n                  <Text style={styles.addressLabel}>Wallet Address</Text>\n                  <TouchableOpacity style={styles.addressCopyButton}>\n                    <Text style={styles.copyIcon}>≡ƒôï</Text>\n                  </TouchableOpacity>\n                </View>\n                <Text style={styles.addressText}>{formatAddress(connection.address)}</Text>\n\n                <View style={styles.chainInfo}>\n                  <View\n                    style={[\n                      styles.chainBadge,\n                      { backgroundColor: getChainColor(connection.chainId) },\n                    ]}>\n                    <Text style={styles.chainIcon}>≡ƒöù</Text>\n                    <Text style={styles.chainText}>{getChainName(connection.chainId)}</Text>\n                  </View>\n                  <Text style={styles.chainDescription}>\n                    {getChainDescription(connection.chainId)}\n                  </Text>\n                </View>\n              </View>\n            </Card>\n\n            {/* Token Balances */}\n            <Card variant=\"elevated\" padding=\"large\">\n              <View style={styles.balancesHeader}>\n                <View style={styles.balancesTitleContainer}>\n                  <Text style={styles.balancesIcon}>≡ƒÆ░</Text>\n                  <Text style={styles.sectionTitle}>Token Balances</Text>\n                </View>\n                <TouchableOpacity style={styles.refreshButton} onPress={handleRefreshBalances}>\n                  <Text style={styles.refreshIcon}>≡ƒöä</Text>\n                  <Text style={styles.refreshText}>Refresh</Text>\n                </TouchableOpacity>\n              </View>\n\n              {isLoadingBalances ? (\n                <View style={styles.loadingContainer}>\n                  <ActivityIndicator size=\"large\" color={colors.primary} />\n                  <Text style={styles.loadingText}>Loading balances...</Text>\n                </View>\n              ) : (\n                <View style={styles.balancesList}>\n                  {tokenBalances.map((token, index) => (\n                    <View key={index} style={styles.balanceItem}>\n                      <View style={styles.tokenInfo}>\n                        <View style={styles.tokenIconContainer}>\n                          <Text style={styles.tokenIcon}>{getTokenIcon(token.symbol)}</Text>\n                        </View>\n                        <View style={styles.tokenDetails}>\n                          <Text style={styles.tokenSymbol}>{token.symbol}</Text>\n                          <Text style={styles.tokenName}>{token.name}</Text>\n                        </View>\n                      </View>\n                      <View style={styles.balanceInfo}>\n                        <Text style={styles.tokenBalance}>\n                          {parseFloat(token.balance).toFixed(4)}\n                        </Text>\n                        <Text style={styles.tokenValue}>\n                          Γëê ${(parseFloat(token.balance) * getTokenPrice(token.symbol)).toFixed(2)}\n                        </Text>\n                      </View>\n                    </View>\n                  ))}\n                </View>\n              )}\n            </Card>\n\n            {/* Crypto Payment Setup */}\n            <Card variant=\"elevated\" padding=\"large\">\n              <View style={styles.cryptoHeader}>\n                <Text style={styles.cryptoIcon}>≡ƒîè</Text>\n                <Text style={styles.sectionTitle}>Crypto Payments</Text>\n                <Text style={styles.sectionDescription}>\n                  Set up streaming payments using Superfluid or Sablier protocols\n                </Text>\n              </View>\n\n              <View style={styles.protocolInfo}>\n                <View style={styles.protocolItem}>\n                  <Text style={styles.protocolIcon}>≡ƒîè</Text>\n                  <Text style={styles.protocolName}>Superfluid</Text>\n                  <Text style={styles.protocolDesc}>Continuous streaming</Text>\n                </View>\n                <View style={styles.protocolItem}>\n                  <Text style={styles.protocolIcon}>ΓÅ░</Text>\n                  <Text style={styles.protocolName}>Sablier</Text>\n                  <Text style={styles.protocolDesc}>Time-locked streams</Text>\n                </View>\n              </View>\n\n              <Button\n                title=\"Setup Crypto Payments\"\n                onPress={handleSetupCryptoPayments}\n                variant=\"crypto\"\n                fullWidth\n                size=\"large\"\n              />\n            </Card>\n          </View>\n        )}\n\n        {/* Connection Status */}\n        {!connection && (\n          <Card variant=\"elevated\" padding=\"large\">\n            <View style={styles.readyHeader}>\n              <Text style={styles.readyIcon}>≡ƒöù</Text>\n              <Text style={styles.sectionTitle}>Ready to Connect</Text>\n              <Text style={styles.sectionDescription}>\n                Tap the connect button to open your wallet and connect to SubTrackr\n              </Text>\n            </View>\n          </Card>\n        )}\n      </ScrollView>\n    </SafeAreaView>\n  );\n};\n\nconst styles = StyleSheet.create({\n  container: {\n    flex: 1,\n    backgroundColor: colors.background,\n  },\n  scrollView: {\n    flex: 1,\n  },\n  header: {\n    padding: spacing.lg,\n    paddingBottom: spacing.md,\n  },\n  title: {\n    ...typography.h1,\n    color: colors.text,\n    marginBottom: spacing.xs,\n  },\n  subtitle: {\n    ...typography.body,\n    color: colors.textSecondary,\n  },\n  connectSection: {\n    padding: spacing.lg,\n    paddingTop: 0,\n  },\n  connectedSection: {\n    padding: spacing.lg,\n    paddingTop: 0,\n  },\n  sectionTitle: {\n    ...typography.h3,\n    color: colors.text,\n    marginBottom: spacing.sm,\n  },\n  sectionDescription: {\n    ...typography.body,\n    color: colors.textSecondary,\n    marginBottom: spacing.lg,\n    lineHeight: 22,\n  },\n  connectHeader: {\n    alignItems: 'center',\n    marginBottom: spacing.lg,\n  },\n  connectIcon: {\n    fontSize: 48,\n    marginBottom: spacing.sm,\n  },\n  walletOptions: {\n    flexDirection: 'row',\n    flexWrap: 'wrap',\n    justifyContent: 'space-around',\n    marginBottom: spacing.lg,\n    gap: spacing.md,\n  },\n  walletOption: {\n    alignItems: 'center',\n    minWidth: 80,\n  },\n  walletIconContainer: {\n    width: 60,\n    height: 60,\n    borderRadius: borderRadius.full,\n    backgroundColor: colors.surface,\n    alignItems: 'center',\n    justifyContent: 'center',\n    marginBottom: spacing.sm,\n    ...shadows.sm,\n  },\n  walletIcon: {\n    fontSize: 28,\n  },\n  walletName: {\n    ...typography.caption,\n    color: colors.text,\n    textAlign: 'center',\n    fontWeight: '600',\n    marginBottom: spacing.xs,\n  },\n  walletDescription: {\n    ...typography.caption,\n    color: colors.textSecondary,\n    textAlign: 'center',\n    fontSize: 10,\n  },\n  connectButtonContainer: {\n    marginTop: spacing.md,\n    alignItems: 'center',\n  },\n  connectNote: {\n    ...typography.caption,\n    color: colors.textSecondary,\n    textAlign: 'center',\n    marginTop: spacing.sm,\n    fontStyle: 'italic',\n  },\n  connectionHeader: {\n    flexDirection: 'row',\n    justifyContent: 'space-between',\n    alignItems: 'center',\n    marginBottom: spacing.md,\n  },\n  connectionStatus: {\n    flexDirection: 'row',\n    alignItems: 'center',\n  },\n  statusIndicator: {\n    width: 12,\n    height: 12,\n    borderRadius: borderRadius.full,\n    marginRight: spacing.sm,\n  },\n  statusText: {\n    ...typography.body,\n    color: colors.text,\n    fontWeight: '600',\n  },\n  connectionTime: {\n    ...typography.caption,\n    color: colors.textSecondary,\n    marginLeft: spacing.sm,\n  },\n  disconnectButton: {\n    flexDirection: 'row',\n    alignItems: 'center',\n    padding: spacing.sm,\n    backgroundColor: colors.error,\n    borderRadius: borderRadius.md,\n  },\n  disconnectIcon: {\n    fontSize: 16,\n    marginRight: spacing.xs,\n  },\n  disconnectText: {\n    ...typography.caption,\n    color: colors.text,\n    fontWeight: '600',\n  },\n  walletInfo: {\n    marginBottom: spacing.md,\n  },\n  addressContainer: {\n    flexDirection: 'row',\n    justifyContent: 'space-between',\n    alignItems: 'center',\n    marginBottom: spacing.xs,\n  },\n  addressLabel: {\n    ...typography.caption,\n    color: colors.textSecondary,\n  },\n  addressCopyButton: {\n    padding: spacing.xs,\n    backgroundColor: colors.surface,\n    borderRadius: borderRadius.sm,\n  },\n  copyIcon: {\n    fontSize: 16,\n    color: colors.textSecondary,\n  },\n  addressText: {\n    ...typography.h3,\n    color: colors.text,\n    fontFamily: 'monospace',\n    marginBottom: spacing.md,\n  },\n  chainInfo: {\n    alignItems: 'flex-start',\n  },\n  chainBadge: {\n    flexDirection: 'row',\n    alignItems: 'center',\n    paddingHorizontal: spacing.md,\n    paddingVertical: spacing.sm,\n    borderRadius: borderRadius.full,\n    marginBottom: spacing.xs,\n  },\n  chainIcon: {\n    fontSize: 16,\n    marginRight: spacing.xs,\n  },\n  chainText: {\n    ...typography.caption,\n    color: colors.text,\n    fontWeight: '600',\n  },\n  chainDescription: {\n    ...typography.caption,\n    color: colors.textSecondary,\n    marginLeft: spacing.md,\n  },\n  balancesHeader: {\n    flexDirection: 'row',\n    justifyContent: 'space-between',\n    alignItems: 'center',\n    marginBottom: spacing.md,\n  },\n  balancesTitleContainer: {\n    flexDirection: 'row',\n    alignItems: 'center',\n  },\n  balancesIcon: {\n    fontSize: 24,\n    marginRight: spacing.sm,\n  },\n  refreshButton: {\n    flexDirection: 'row',\n    alignItems: 'center',\n    padding: spacing.sm,\n    backgroundColor: colors.primary,\n    borderRadius: borderRadius.md,\n  },\n  refreshIcon: {\n    fontSize: 16,\n    marginRight: spacing.xs,\n  },\n  refreshText: {\n    ...typography.caption,\n    color: colors.text,\n    fontWeight: '600',\n  },\n  loadingContainer: {\n    alignItems: 'center',\n    paddingVertical: spacing.lg,\n  },\n  loadingText: {\n    ...typography.body,\n    color: colors.textSecondary,\n    marginTop: spacing.md,\n  },\n  balancesList: {\n    gap: spacing.sm,\n  },\n  balanceItem: {\n    flexDirection: 'row',\n    justifyContent: 'space-between',\n    alignItems: 'center',\n    paddingVertical: spacing.sm,\n    paddingHorizontal: spacing.md,\n    backgroundColor: colors.background,\n    borderRadius: borderRadius.md,\n    marginBottom: spacing.xs,\n  },\n  tokenInfo: {\n    flex: 1,\n    flexDirection: 'row',\n    alignItems: 'center',\n  },\n  tokenIconContainer: {\n    width: 40,\n    height: 40,\n    borderRadius: borderRadius.full,\n    backgroundColor: colors.surface,\n    alignItems: 'center',\n    justifyContent: 'center',\n    marginRight: spacing.sm,\n    ...shadows.sm,\n  },\n  tokenIcon: {\n    fontSize: 20,\n  },\n  tokenDetails: {\n    flex: 1,\n  },\n  tokenSymbol: {\n    ...typography.body,\n    color: colors.text,\n    fontWeight: '600',\n    marginBottom: spacing.xs,\n  },\n  tokenName: {\n    ...typography.caption,\n    color: colors.textSecondary,\n  },\n  balanceInfo: {\n    alignItems: 'flex-end',\n  },\n  tokenBalance: {\n    ...typography.body,\n    color: colors.text,\n    fontWeight: '600',\n    marginBottom: spacing.xs,\n  },\n  tokenValue: {\n    ...typography.caption,\n    color: colors.textSecondary,\n  },\n  setupButton: {\n    marginTop: spacing.md,\n  },\n  cryptoHeader: {\n    alignItems: 'center',\n    marginBottom: spacing.lg,\n  },\n  cryptoIcon: {\n    fontSize: 48,\n    marginBottom: spacing.sm,\n  },\n  protocolInfo: {\n    flexDirection: 'row',\n    justifyContent: 'space-around',\n    marginBottom: spacing.lg,\n    gap: spacing.md,\n  },\n  protocolItem: {\n    alignItems: 'center',\n    flex: 1,\n  },\n  protocolIcon: {\n    fontSize: 24,\n    marginBottom: spacing.xs,\n  },\n  protocolName: {\n    ...typography.caption,\n    color: colors.text,\n    fontWeight: '600',\n    marginBottom: spacing.xs,\n  },\n  protocolDesc: {\n    ...typography.caption,\n    color: colors.textSecondary,\n    textAlign: 'center',\n    fontSize: 10,\n  },\n  readyHeader: {\n    alignItems: 'center',\n  },\n  readyIcon: {\n    fontSize: 48,\n    marginBottom: spacing.sm,\n  },\n});\n\nexport default WalletConnectScreen;\n",
+    "usedDeprecatedRules": []
+  },
+  {
+    "filePath": "C:\\Users\\Aayush\\.gemini\\antigravity\\scratch\\SubTrackr\\src\\services\\walletService.ts",
+    "messages": [],
+    "suppressedMessages": [
+      {
+        "ruleId": "no-console",
+        "severity": 1,
+        "message": "Unexpected console statement.",
+        "line": 53,
+        "column": 7,
+        "nodeType": "MemberExpression",
+        "messageId": "unexpected",
+        "endLine": 53,
+        "endColumn": 18,
+        "suggestions": [
+          {
+            "messageId": "removeConsole",
+            "data": { "propertyName": "log" },
+            "fix": { "range": [1306, 1367], "text": "" },
+            "desc": "Remove the console.log()."
+          }
+        ],
+        "suppressions": [{ "kind": "directive", "justification": "" }]
+      },
+      {
+        "ruleId": "no-console",
+        "severity": 1,
+        "message": "Unexpected console statement.",
+        "line": 88,
+        "column": 7,
+        "nodeType": "MemberExpression",
+        "messageId": "unexpected",
+        "endLine": 88,
+        "endColumn": 18,
+        "suggestions": [
+          {
+            "messageId": "removeConsole",
+            "data": { "propertyName": "log" },
+            "fix": { "range": [2255, 2290], "text": "" },
+            "desc": "Remove the console.log()."
+          }
+        ],
+        "suppressions": [{ "kind": "directive", "justification": "" }]
+      },
+      {
+        "ruleId": "no-console",
+        "severity": 1,
+        "message": "Unexpected console statement.",
+        "line": 131,
+        "column": 11,
+        "nodeType": "MemberExpression",
+        "messageId": "unexpected",
+        "endLine": 131,
+        "endColumn": 22,
+        "suggestions": [
+          {
+            "messageId": "removeConsole",
+            "data": { "propertyName": "log" },
+            "fix": { "range": [3701, 3749], "text": "" },
+            "desc": "Remove the console.log()."
+          }
+        ],
+        "suppressions": [{ "kind": "directive", "justification": "" }]
+      },
+      {
+        "ruleId": "no-console",
+        "severity": 1,
+        "message": "Unexpected console statement.",
+        "line": 177,
+        "column": 7,
+        "nodeType": "MemberExpression",
+        "messageId": "unexpected",
+        "endLine": 177,
+        "endColumn": 18,
+        "suggestions": [
+          {
+            "messageId": "removeConsole",
+            "data": { "propertyName": "log" },
+            "fix": { "range": [4880, 4964], "text": "" },
+            "desc": "Remove the console.log()."
+          }
+        ],
+        "suppressions": [{ "kind": "directive", "justification": "" }]
+      },
+      {
+        "ruleId": "no-console",
+        "severity": 1,
+        "message": "Unexpected console statement.",
+        "line": 214,
+        "column": 7,
+        "nodeType": "MemberExpression",
+        "messageId": "unexpected",
+        "endLine": 214,
+        "endColumn": 18,
+        "suggestions": [
+          {
+            "messageId": "removeConsole",
+            "data": { "propertyName": "log" },
+            "fix": { "range": [6319, 6379], "text": "" },
+            "desc": "Remove the console.log()."
+          }
+        ],
+        "suppressions": [{ "kind": "directive", "justification": "" }]
+      },
+      {
+        "ruleId": "no-console",
+        "severity": 1,
+        "message": "Unexpected console statement.",
+        "line": 254,
+        "column": 7,
+        "nodeType": "MemberExpression",
+        "messageId": "unexpected",
+        "endLine": 254,
+        "endColumn": 18,
+        "suggestions": [
+          {
+            "messageId": "removeConsole",
+            "data": { "propertyName": "log" },
+            "fix": { "range": [7552, 7707], "text": "" },
+            "desc": "Remove the console.log()."
+          }
+        ],
+        "suppressions": [{ "kind": "directive", "justification": "" }]
+      }
+    ],
+    "errorCount": 0,
+    "fatalErrorCount": 0,
+    "warningCount": 0,
+    "fixableErrorCount": 0,
+    "fixableWarningCount": 0,
+    "usedDeprecatedRules": []
+  },
+  {
+    "filePath": "C:\\Users\\Aayush\\.gemini\\antigravity\\scratch\\SubTrackr\\src\\store\\index.ts",
+    "messages": [],
+    "suppressedMessages": [],
+    "errorCount": 0,
+    "fatalErrorCount": 0,
+    "warningCount": 0,
+    "fixableErrorCount": 0,
+    "fixableWarningCount": 0,
+    "usedDeprecatedRules": []
+  },
+  {
+    "filePath": "C:\\Users\\Aayush\\.gemini\\antigravity\\scratch\\SubTrackr\\src\\store\\subscriptionStore.ts",
+    "messages": [],
+    "suppressedMessages": [],
+    "errorCount": 0,
+    "fatalErrorCount": 0,
+    "warningCount": 0,
+    "fixableErrorCount": 0,
+    "fixableWarningCount": 0,
+    "usedDeprecatedRules": []
+  },
+  {
+    "filePath": "C:\\Users\\Aayush\\.gemini\\antigravity\\scratch\\SubTrackr\\src\\store\\walletStore.ts",
+    "messages": [
+      {
+        "ruleId": "@typescript-eslint/no-unused-vars",
+        "severity": 2,
+        "message": "'TokenBalance' is defined but never used.",
+        "line": 2,
+        "column": 18,
+        "nodeType": null,
+        "messageId": "unusedVar",
+        "endLine": 2,
+        "endColumn": 30
+      }
+    ],
+    "suppressedMessages": [],
+    "errorCount": 1,
+    "fatalErrorCount": 0,
+    "warningCount": 0,
+    "fixableErrorCount": 0,
+    "fixableWarningCount": 0,
+    "source": "import { create } from 'zustand';\nimport { Wallet, TokenBalance, CryptoStream, StreamSetup } from '../types/wallet';\n\ninterface WalletState {\n  wallet: Wallet | null;\n  cryptoStreams: CryptoStream[];\n  isLoading: boolean;\n  error: string | null;\n\n  // Actions\n  connectWallet: () => Promise<void>;\n  disconnectWallet: () => void;\n  updateBalance: () => Promise<void>;\n  createCryptoStream: (setup: StreamSetup) => Promise<void>;\n  cancelCryptoStream: (streamId: string) => Promise<void>;\n  fetchCryptoStreams: () => Promise<void>;\n}\n\nexport const useWalletStore = create<WalletState>((set, get) => ({\n  wallet: null,\n  cryptoStreams: [],\n  isLoading: false,\n  error: null,\n\n  connectWallet: async () => {\n    set({ isLoading: true, error: null });\n    try {\n      // TODO: Implement actual wallet connection\n      // For now, simulate connection\n      await new Promise((resolve) => setTimeout(resolve, 1000));\n\n      const mockWallet: Wallet = {\n        address: '0x1234...5678',\n        chainId: 1,\n        isConnected: true,\n        balance: '0.5',\n        tokens: [\n          {\n            symbol: 'ETH',\n            name: 'Ethereum',\n            address: '0x0000000000000000000000000000000000000000',\n            balance: '0.5',\n            decimals: 18,\n          },\n          {\n            symbol: 'USDC',\n            name: 'USD Coin',\n            address: '0xA0b86a33E6441b8b4b8b8b8b8b8b8b8b8b8b8b8',\n            balance: '1000',\n            decimals: 6,\n          },\n        ],\n      };\n\n      set({ wallet: mockWallet, isLoading: false });\n    } catch (error) {\n      set({\n        error: error instanceof Error ? error.message : 'Failed to connect wallet',\n        isLoading: false,\n      });\n    }\n  },\n\n  disconnectWallet: () => {\n    set({ wallet: null, cryptoStreams: [] });\n  },\n\n  updateBalance: async () => {\n    const { wallet } = get();\n    if (!wallet) return;\n\n    set({ isLoading: true, error: null });\n    try {\n      // TODO: Implement actual balance update\n      await new Promise((resolve) => setTimeout(resolve, 500));\n      set({ isLoading: false });\n    } catch (error) {\n      set({\n        error: error instanceof Error ? error.message : 'Failed to update balance',\n        isLoading: false,\n      });\n    }\n  },\n\n  createCryptoStream: async (setup: StreamSetup) => {\n    set({ isLoading: true, error: null });\n    try {\n      // TODO: Implement actual stream creation\n      await new Promise((resolve) => setTimeout(resolve, 2000));\n\n      const newStream: CryptoStream = {\n        id: Date.now().toString(),\n        subscriptionId: 'temp', // This should come from the subscription\n        ...setup,\n        isActive: true,\n        streamId: `stream_${Date.now()}`,\n      };\n\n      set((state) => ({\n        cryptoStreams: [...state.cryptoStreams, newStream],\n        isLoading: false,\n      }));\n    } catch (error) {\n      set({\n        error: error instanceof Error ? error.message : 'Failed to create crypto stream',\n        isLoading: false,\n      });\n    }\n  },\n\n  cancelCryptoStream: async (streamId: string) => {\n    set({ isLoading: true, error: null });\n    try {\n      // TODO: Implement actual stream cancellation\n      await new Promise((resolve) => setTimeout(resolve, 1000));\n\n      set((state) => ({\n        cryptoStreams: state.cryptoStreams.map((stream) =>\n          stream.id === streamId ? { ...stream, isActive: false } : stream\n        ),\n        isLoading: false,\n      }));\n    } catch (error) {\n      set({\n        error: error instanceof Error ? error.message : 'Failed to cancel crypto stream',\n        isLoading: false,\n      });\n    }\n  },\n\n  fetchCryptoStreams: async () => {\n    set({ isLoading: true, error: null });\n    try {\n      // TODO: Implement actual API call\n      await new Promise((resolve) => setTimeout(resolve, 1000));\n      set({ isLoading: false });\n    } catch (error) {\n      set({\n        error: error instanceof Error ? error.message : 'Failed to fetch crypto streams',\n        isLoading: false,\n      });\n    }\n  },\n}));\n",
+    "usedDeprecatedRules": []
+  },
+  {
+    "filePath": "C:\\Users\\Aayush\\.gemini\\antigravity\\scratch\\SubTrackr\\src\\types\\api.ts",
+    "messages": [
+      {
+        "ruleId": "@typescript-eslint/no-explicit-any",
+        "severity": 1,
+        "message": "Unexpected any. Specify a different type.",
+        "line": 49,
+        "column": 13,
+        "nodeType": "TSAnyKeyword",
+        "messageId": "unexpectedAny",
+        "endLine": 49,
+        "endColumn": 16,
+        "suggestions": [
+          {
+            "messageId": "suggestUnknown",
+            "fix": { "range": [908, 911], "text": "unknown" },
+            "desc": "Use `unknown` instead, this will force you to explicitly, and safely assert the type is correct."
+          },
+          {
+            "messageId": "suggestNever",
+            "fix": { "range": [908, 911], "text": "never" },
+            "desc": "Use `never` instead, this is useful when instantiating generic type parameters that you don't need to know the type of."
+          }
+        ]
+      }
+    ],
+    "suppressedMessages": [],
+    "errorCount": 0,
+    "fatalErrorCount": 0,
+    "warningCount": 1,
+    "fixableErrorCount": 0,
+    "fixableWarningCount": 0,
+    "source": "export interface ApiResponse<T> {\n  success: boolean;\n  data?: T;\n  error?: string;\n  message?: string;\n}\n\nexport interface PaginatedResponse<T> {\n  data: T[];\n  total: number;\n  page: number;\n  limit: number;\n  hasNext: boolean;\n  hasPrev: boolean;\n}\n\nexport interface NotificationPreferences {\n  pushEnabled: boolean;\n  emailEnabled: boolean;\n  billingReminders: boolean;\n  cryptoUpdates: boolean;\n  spendingAlerts: boolean;\n}\n\nexport interface UserProfile {\n  id: string;\n  email: string;\n  name: string;\n  avatar?: string;\n  preferences: NotificationPreferences;\n  createdAt: Date;\n  updatedAt: Date;\n}\n\nexport interface AppSettings {\n  theme: 'light' | 'dark' | 'system';\n  currency: string;\n  language: string;\n  notifications: NotificationPreferences;\n  privacy: {\n    dataSharing: boolean;\n    analytics: boolean;\n  };\n}\n\nexport interface ErrorState {\n  message: string;\n  code?: string;\n  details?: any;\n  timestamp: Date;\n}\n\nexport interface LoadingState {\n  isLoading: boolean;\n  message?: string;\n  progress?: number;\n}\n",
+    "usedDeprecatedRules": []
+  },
+  {
+    "filePath": "C:\\Users\\Aayush\\.gemini\\antigravity\\scratch\\SubTrackr\\src\\types\\subscription.ts",
+    "messages": [],
+    "suppressedMessages": [],
+    "errorCount": 0,
+    "fatalErrorCount": 0,
+    "warningCount": 0,
+    "fixableErrorCount": 0,
+    "fixableWarningCount": 0,
+    "usedDeprecatedRules": []
+  },
+  {
+    "filePath": "C:\\Users\\Aayush\\.gemini\\antigravity\\scratch\\SubTrackr\\src\\types\\wallet.ts",
+    "messages": [],
+    "suppressedMessages": [],
+    "errorCount": 0,
+    "fatalErrorCount": 0,
+    "warningCount": 0,
+    "fixableErrorCount": 0,
+    "fixableWarningCount": 0,
+    "usedDeprecatedRules": []
+  },
+  {
+    "filePath": "C:\\Users\\Aayush\\.gemini\\antigravity\\scratch\\SubTrackr\\src\\utils\\constants.ts",
+    "messages": [],
+    "suppressedMessages": [],
+    "errorCount": 0,
+    "fatalErrorCount": 0,
+    "warningCount": 0,
+    "fixableErrorCount": 0,
+    "fixableWarningCount": 0,
+    "usedDeprecatedRules": []
+  },
+  {
+    "filePath": "C:\\Users\\Aayush\\.gemini\\antigravity\\scratch\\SubTrackr\\src\\utils\\dummyData.ts",
+    "messages": [],
+    "suppressedMessages": [],
+    "errorCount": 0,
+    "fatalErrorCount": 0,
+    "warningCount": 0,
+    "fixableErrorCount": 0,
+    "fixableWarningCount": 0,
+    "usedDeprecatedRules": []
+  },
+  {
+    "filePath": "C:\\Users\\Aayush\\.gemini\\antigravity\\scratch\\SubTrackr\\src\\utils\\formatting.ts",
+    "messages": [],
+    "suppressedMessages": [],
+    "errorCount": 0,
+    "fatalErrorCount": 0,
+    "warningCount": 0,
+    "fixableErrorCount": 0,
+    "fixableWarningCount": 0,
+    "usedDeprecatedRules": []
+  }
+]

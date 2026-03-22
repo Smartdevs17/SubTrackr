@@ -54,7 +54,7 @@ const WalletConnectScreen: React.FC = () => {
     try {
       setIsConnecting(true);
       open(); // Open the Reown AppKit modal
-      
+
       // For demo purposes, simulate a connection after a delay
       setTimeout(() => {
         const mockConnection: WalletConnection = {
@@ -87,7 +87,7 @@ const WalletConnectScreen: React.FC = () => {
 
   const loadTokenBalances = async () => {
     if (!connection) return;
-    
+
     try {
       setIsLoadingBalances(true);
       const balances = await walletServiceManager.getTokenBalances(
@@ -171,9 +171,7 @@ const WalletConnectScreen: React.FC = () => {
       <ScrollView style={styles.scrollView}>
         <View style={styles.header}>
           <Text style={styles.title}>Connect Wallet</Text>
-          <Text style={styles.subtitle}>
-            Connect your Web3 wallet to enable crypto payments
-          </Text>
+          <Text style={styles.subtitle}>Connect your Web3 wallet to enable crypto payments</Text>
         </View>
 
         {!connection ? (
@@ -183,10 +181,11 @@ const WalletConnectScreen: React.FC = () => {
                 <Text style={styles.connectIcon}>🔗</Text>
                 <Text style={styles.sectionTitle}>Connect Your Wallet</Text>
                 <Text style={styles.sectionDescription}>
-                  Choose from popular wallets like MetaMask, Trust Wallet, Rainbow, or Coinbase Wallet
+                  Choose from popular wallets like MetaMask, Trust Wallet, Rainbow, or Coinbase
+                  Wallet
                 </Text>
               </View>
-              
+
               <View style={styles.walletOptions}>
                 <View style={styles.walletOption}>
                   <View style={styles.walletIconContainer}>
@@ -227,9 +226,7 @@ const WalletConnectScreen: React.FC = () => {
                   size="large"
                   variant="crypto"
                 />
-                <Text style={styles.connectNote}>
-                  Tap to open wallet selection modal
-                </Text>
+                <Text style={styles.connectNote}>Tap to open wallet selection modal</Text>
               </View>
             </Card>
           </View>
@@ -243,10 +240,7 @@ const WalletConnectScreen: React.FC = () => {
                   <Text style={styles.statusText}>Connected</Text>
                   <Text style={styles.connectionTime}>Just now</Text>
                 </View>
-                <TouchableOpacity 
-                  style={styles.disconnectButton}
-                  onPress={handleDisconnectWallet}
-                >
+                <TouchableOpacity style={styles.disconnectButton} onPress={handleDisconnectWallet}>
                   <Text style={styles.disconnectIcon}>⏹️</Text>
                   <Text style={styles.disconnectText}>Disconnect</Text>
                 </TouchableOpacity>
@@ -260,9 +254,13 @@ const WalletConnectScreen: React.FC = () => {
                   </TouchableOpacity>
                 </View>
                 <Text style={styles.addressText}>{formatAddress(connection.address)}</Text>
-                
+
                 <View style={styles.chainInfo}>
-                  <View style={[styles.chainBadge, { backgroundColor: getChainColor(connection.chainId) }]}>
+                  <View
+                    style={[
+                      styles.chainBadge,
+                      { backgroundColor: getChainColor(connection.chainId) },
+                    ]}>
                     <Text style={styles.chainIcon}>🔗</Text>
                     <Text style={styles.chainText}>{getChainName(connection.chainId)}</Text>
                   </View>
@@ -280,10 +278,7 @@ const WalletConnectScreen: React.FC = () => {
                   <Text style={styles.balancesIcon}>💰</Text>
                   <Text style={styles.sectionTitle}>Token Balances</Text>
                 </View>
-                <TouchableOpacity 
-                  style={styles.refreshButton}
-                  onPress={handleRefreshBalances}
-                >
+                <TouchableOpacity style={styles.refreshButton} onPress={handleRefreshBalances}>
                   <Text style={styles.refreshIcon}>🔄</Text>
                   <Text style={styles.refreshText}>Refresh</Text>
                 </TouchableOpacity>
@@ -330,7 +325,7 @@ const WalletConnectScreen: React.FC = () => {
                   Set up streaming payments using Superfluid or Sablier protocols
                 </Text>
               </View>
-              
+
               <View style={styles.protocolInfo}>
                 <View style={styles.protocolItem}>
                   <Text style={styles.protocolIcon}>🌊</Text>
@@ -343,7 +338,7 @@ const WalletConnectScreen: React.FC = () => {
                   <Text style={styles.protocolDesc}>Time-locked streams</Text>
                 </View>
               </View>
-              
+
               <Button
                 title="Setup Crypto Payments"
                 onPress={handleSetupCryptoPayments}
@@ -703,7 +698,6 @@ const styles = StyleSheet.create({
     fontSize: 48,
     marginBottom: spacing.sm,
   },
-
 });
 
 export default WalletConnectScreen;

@@ -1,12 +1,12 @@
 import { create } from 'zustand';
-import { Wallet, TokenBalance, CryptoStream, StreamSetup } from '../types/wallet';
+import { Wallet, CryptoStream, StreamSetup } from '../types/wallet';
 
 interface WalletState {
   wallet: Wallet | null;
   cryptoStreams: CryptoStream[];
   isLoading: boolean;
   error: string | null;
-  
+
   // Actions
   connectWallet: () => Promise<void>;
   disconnectWallet: () => void;
@@ -27,8 +27,8 @@ export const useWalletStore = create<WalletState>((set, get) => ({
     try {
       // TODO: Implement actual wallet connection
       // For now, simulate connection
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
       const mockWallet: Wallet = {
         address: '0x1234...5678',
         chainId: 1,
@@ -51,12 +51,12 @@ export const useWalletStore = create<WalletState>((set, get) => ({
           },
         ],
       };
-      
+
       set({ wallet: mockWallet, isLoading: false });
     } catch (error) {
-      set({ 
+      set({
         error: error instanceof Error ? error.message : 'Failed to connect wallet',
-        isLoading: false 
+        isLoading: false,
       });
     }
   },
@@ -68,16 +68,16 @@ export const useWalletStore = create<WalletState>((set, get) => ({
   updateBalance: async () => {
     const { wallet } = get();
     if (!wallet) return;
-    
+
     set({ isLoading: true, error: null });
     try {
       // TODO: Implement actual balance update
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
       set({ isLoading: false });
     } catch (error) {
-      set({ 
+      set({
         error: error instanceof Error ? error.message : 'Failed to update balance',
-        isLoading: false 
+        isLoading: false,
       });
     }
   },
@@ -86,8 +86,8 @@ export const useWalletStore = create<WalletState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       // TODO: Implement actual stream creation
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
       const newStream: CryptoStream = {
         id: Date.now().toString(),
         subscriptionId: 'temp', // This should come from the subscription
@@ -95,15 +95,15 @@ export const useWalletStore = create<WalletState>((set, get) => ({
         isActive: true,
         streamId: `stream_${Date.now()}`,
       };
-      
+
       set((state) => ({
         cryptoStreams: [...state.cryptoStreams, newStream],
         isLoading: false,
       }));
     } catch (error) {
-      set({ 
+      set({
         error: error instanceof Error ? error.message : 'Failed to create crypto stream',
-        isLoading: false 
+        isLoading: false,
       });
     }
   },
@@ -112,20 +112,18 @@ export const useWalletStore = create<WalletState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       // TODO: Implement actual stream cancellation
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
       set((state) => ({
         cryptoStreams: state.cryptoStreams.map((stream) =>
-          stream.id === streamId
-            ? { ...stream, isActive: false }
-            : stream
+          stream.id === streamId ? { ...stream, isActive: false } : stream
         ),
         isLoading: false,
       }));
     } catch (error) {
-      set({ 
+      set({
         error: error instanceof Error ? error.message : 'Failed to cancel crypto stream',
-        isLoading: false 
+        isLoading: false,
       });
     }
   },
@@ -134,12 +132,12 @@ export const useWalletStore = create<WalletState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       // TODO: Implement actual API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       set({ isLoading: false });
     } catch (error) {
-      set({ 
+      set({
         error: error instanceof Error ? error.message : 'Failed to fetch crypto streams',
-        isLoading: false 
+        isLoading: false,
       });
     }
   },

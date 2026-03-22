@@ -1,5 +1,10 @@
 import { create } from 'zustand';
-import { Subscription, SubscriptionFormData, SubscriptionStats, SubscriptionCategory } from '../types/subscription';
+import {
+  Subscription,
+  SubscriptionFormData,
+  SubscriptionStats,
+  SubscriptionCategory,
+} from '../types/subscription';
 import { dummySubscriptions } from '../utils/dummyData';
 
 interface SubscriptionState {
@@ -7,7 +12,7 @@ interface SubscriptionState {
   stats: SubscriptionStats;
   isLoading: boolean;
   error: string | null;
-  
+
   // Actions
   addSubscription: (data: SubscriptionFormData) => Promise<void>;
   updateSubscription: (id: string, data: Partial<Subscription>) => Promise<void>;
@@ -38,17 +43,17 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      
+
       set((state) => ({
         subscriptions: [...state.subscriptions, newSubscription],
         isLoading: false,
       }));
-      
+
       get().calculateStats();
     } catch (error) {
-      set({ 
+      set({
         error: error instanceof Error ? error.message : 'Failed to add subscription',
-        isLoading: false 
+        isLoading: false,
       });
     }
   },
@@ -58,18 +63,16 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
     try {
       set((state) => ({
         subscriptions: state.subscriptions.map((sub) =>
-          sub.id === id
-            ? { ...sub, ...data, updatedAt: new Date() }
-            : sub
+          sub.id === id ? { ...sub, ...data, updatedAt: new Date() } : sub
         ),
         isLoading: false,
       }));
-      
+
       get().calculateStats();
     } catch (error) {
-      set({ 
+      set({
         error: error instanceof Error ? error.message : 'Failed to update subscription',
-        isLoading: false 
+        isLoading: false,
       });
     }
   },
@@ -81,12 +84,12 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
         subscriptions: state.subscriptions.filter((sub) => sub.id !== id),
         isLoading: false,
       }));
-      
+
       get().calculateStats();
     } catch (error) {
-      set({ 
+      set({
         error: error instanceof Error ? error.message : 'Failed to delete subscription',
-        isLoading: false 
+        isLoading: false,
       });
     }
   },
@@ -96,18 +99,16 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
     try {
       set((state) => ({
         subscriptions: state.subscriptions.map((sub) =>
-          sub.id === id
-            ? { ...sub, isActive: !sub.isActive, updatedAt: new Date() }
-            : sub
+          sub.id === id ? { ...sub, isActive: !sub.isActive, updatedAt: new Date() } : sub
         ),
         isLoading: false,
       }));
-      
+
       get().calculateStats();
     } catch (error) {
-      set({ 
+      set({
         error: error instanceof Error ? error.message : 'Failed to toggle subscription',
-        isLoading: false 
+        isLoading: false,
       });
     }
   },
@@ -117,20 +118,20 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
     try {
       // TODO: Implement API call
       // For now, just simulate loading
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       set({ isLoading: false });
       get().calculateStats();
     } catch (error) {
-      set({ 
+      set({
         error: error instanceof Error ? error.message : 'Failed to fetch subscriptions',
-        isLoading: false 
+        isLoading: false,
       });
     }
   },
 
   calculateStats: () => {
     const { subscriptions } = get();
-    
+
     // Safety check: ensure subscriptions is an array
     if (!subscriptions || !Array.isArray(subscriptions)) {
       set({
@@ -143,27 +144,30 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
       });
       return;
     }
-    
-    const activeSubs = subscriptions.filter(sub => sub.isActive);
-    
+
+    const activeSubs = subscriptions.filter((sub) => sub.isActive);
+
     const totalMonthlySpend = activeSubs.reduce((total, sub) => {
       if (sub.billingCycle === 'monthly') return total + sub.price;
-      if (sub.billingCycle === 'yearly') return total + (sub.price / 12);
-      if (sub.billingCycle === 'weekly') return total + (sub.price * 4);
+      if (sub.billingCycle === 'yearly') return total + sub.price / 12;
+      if (sub.billingCycle === 'weekly') return total + sub.price * 4;
       return total + sub.price;
     }, 0);
 
     const totalYearlySpend = activeSubs.reduce((total, sub) => {
       if (sub.billingCycle === 'yearly') return total + sub.price;
-      if (sub.billingCycle === 'monthly') return total + (sub.price * 12);
-      if (sub.billingCycle === 'weekly') return total + (sub.price * 52);
-      return total + (sub.price * 12);
+      if (sub.billingCycle === 'monthly') return total + sub.price * 12;
+      if (sub.billingCycle === 'weekly') return total + sub.price * 52;
+      return total + sub.price * 12;
     }, 0);
 
-    const categoryBreakdown = activeSubs.reduce((acc, sub) => {
-      acc[sub.category] = (acc[sub.category] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
+    const categoryBreakdown = activeSubs.reduce(
+      (acc, sub) => {
+        acc[sub.category] = (acc[sub.category] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>
+    );
 
     set({
       stats: {

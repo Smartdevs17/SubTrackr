@@ -12,23 +12,27 @@ SubTrackr is a mobile application for managing recurring payments and subscripti
 ## Features
 
 **Subscription Management**
+
 - Track all subscriptions (Web2 and Web3 services) in one place
 - Smart categorization by type (streaming, productivity, infrastructure, etc.)
 - Quick-add presets for popular services or manual entry
 - Bulk actions: pause, cancel, or modify multiple subscriptions
 
 **On-Chain Recurring Payments**
+
 - Authorize recurring XLM and Stellar token payments via Soroban contracts
 - Automatic billing cycle execution with configurable intervals
 - Multi-token support (XLM, USDC on Stellar, custom Stellar assets)
 - Transparent on-chain payment history
 
 **Smart Notifications**
+
 - Billing reminders with advance warnings before charges
 - Price change alerts and spending insights
 - AI-powered savings suggestions
 
 **Wallet Integration**
+
 - Native Freighter wallet connection for Stellar transactions
 - Social login support via Web3Auth
 - Real-time balance and transaction monitoring
@@ -49,14 +53,14 @@ SubTrackr/
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| Mobile App | React Native, Expo, TypeScript |
-| State | Zustand |
-| Wallet | Freighter Wallet, Stellar SDK |
-| Auth | Web3Auth (social login) |
-| Smart Contracts | Soroban (Rust) on Stellar |
-| Payments | XLM, Stellar tokens |
+| Layer           | Technology                     |
+| --------------- | ------------------------------ |
+| Mobile App      | React Native, Expo, TypeScript |
+| State           | Zustand                        |
+| Wallet          | Freighter Wallet, Stellar SDK  |
+| Auth            | Web3Auth (social login)        |
+| Smart Contracts | Soroban (Rust) on Stellar      |
+| Payments        | XLM, Stellar tokens            |
 
 ## Getting Started
 
@@ -84,11 +88,11 @@ soroban contract deploy --wasm target/wasm32-unknown-unknown/release/subtrackr.w
 
 ### Environment Variables
 
-| Variable | Description |
-|---|---|
-| `STELLAR_NETWORK` | `testnet` or `public` |
-| `CONTRACT_ID` | Deployed Soroban subscription contract ID |
-| `WEB3AUTH_CLIENT_ID` | Web3Auth client ID for social login |
+| Variable             | Description                               |
+| -------------------- | ----------------------------------------- |
+| `STELLAR_NETWORK`    | `testnet` or `public`                     |
+| `CONTRACT_ID`        | Deployed Soroban subscription contract ID |
+| `WEB3AUTH_CLIENT_ID` | Web3Auth client ID for social login       |
 
 ## Contributing
 
