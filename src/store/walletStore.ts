@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+﻿import { create } from 'zustand';
 import { Wallet, TokenBalance, CryptoStream, StreamSetup } from '../types/wallet';
 
 interface WalletState {
@@ -45,7 +45,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
           {
             symbol: 'USDC',
             name: 'USD Coin',
-            address: '0xA0b86a33E6441b8b4b8b8b8b8b8b8b8b8b8b8b8',
+            address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
             balance: '1000',
             decimals: 6,
           },
@@ -144,3 +144,4 @@ export const useWalletStore = create<WalletState>((set, get) => ({
     }
   },
 }));
+

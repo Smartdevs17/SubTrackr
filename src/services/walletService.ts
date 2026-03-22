@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+﻿import { ethers } from 'ethers';
 import { useAppKit } from '@reown/appkit-ethers-react-native';
 import { SFError } from '@superfluid-finance/sdk-core';
 
@@ -242,7 +242,7 @@ export class WalletServiceManager {
 
   private getUSDCAddress(chainId: number): string {
     const addresses: Record<number, string> = {
-      1: '0xA0b86a33E6441b8b4b8b8b8b8b8b8b8b8b8b8b8', // Ethereum USDC
+      1: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', // Ethereum USDC
       137: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174', // Polygon USDC
       42161: '0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8', // Arbitrum USDC
     };
@@ -257,3 +257,4 @@ export class WalletServiceManager {
 // Export singleton instance
 export const walletServiceManager = WalletServiceManager.getInstance();
 export default walletServiceManager;
+
