@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { useNavigation } from '@react-navigation/native';
 import { colors, spacing, typography, borderRadius, shadows } from '../utils/constants';
 import { Button } from '../components/common/Button';
@@ -255,7 +256,19 @@ const WalletConnectScreen: React.FC = () => {
               <View style={styles.walletInfo}>
                 <View style={styles.addressContainer}>
                   <Text style={styles.addressLabel}>Wallet Address</Text>
-                  <TouchableOpacity style={styles.addressCopyButton}>
+                  <TouchableOpacity 
+                    style={styles.addressCopyButton}
+                    onPress={async () => {
+                      if (connection?.address) {
+                        try {
+                          await Clipboard.setStringAsync(connection.address);
+                          Alert.alert('Copied!', 'Wallet address copied to clipboard');
+                        } catch (error) {
+                          Alert.alert('Error', 'Failed to copy address to clipboard');
+                        }
+                      }
+                    }}
+                  >
                     <Text style={styles.copyIcon}>📋</Text>
                   </TouchableOpacity>
                 </View>
