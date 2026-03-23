@@ -13,14 +13,15 @@ import { useNavigation } from '@react-navigation/native';
 import { colors, spacing, typography, borderRadius, shadows } from '../utils/constants';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
-import { useAppKit, useAppKitAccount } from '@reown/appkit-ethers-react-native';
+import { useAppKit, useAppKitAccount, useAppKitProvider } from '@reown/appkit-ethers-react-native';
 import walletServiceManager, { WalletConnection, TokenBalance } from '../services/walletService';
 import { useWalletStore } from '../store';
 
 const WalletConnectScreen: React.FC = () => {
   const navigation = useNavigation();
   const { open } = useAppKit();
-  const { address, isConnected } = useAppKitAccount();
+  const { address, isConnected, chainId } = useAppKitAccount();
+  const { walletProvider } = useAppKitProvider();
   const { connectWallet, disconnect } = useWalletStore();
 
   const [isConnecting, setIsConnecting] = useState(false);
@@ -33,21 +34,23 @@ const WalletConnectScreen: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (isConnected && address) {
+    if (isConnected && address && walletProvider) {
       const realConnection: WalletConnection = {
-        address: address,
-        chainId: 1,
+        address,
+        chainId: chainId ?? 1,
         isConnected: true,
+        eip1193Provider: walletProvider as unknown as WalletConnection['eip1193Provider'],
       };
       setConnection(realConnection);
       walletServiceManager.setConnection(realConnection);
       connectWallet();
       loadTokenBalances();
-    } else if (!isConnected && connection) {
+    } else if (!isConnected) {
+      void walletServiceManager.disconnectWallet();
       setConnection(null);
       setTokenBalances([]);
     }
-  }, [isConnected, address]);
+  }, [isConnected, address, chainId, walletProvider]);
 
   useEffect(() => {
     if (connection) {

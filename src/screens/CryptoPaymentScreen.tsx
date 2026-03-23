@@ -25,7 +25,7 @@ interface RouteParams {
 const CryptoPaymentScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const { subscriptionId } = route.params as RouteParams || {};
+  const { subscriptionId } = (route.params as RouteParams) || {};
 
   // Handle case when no subscriptionId is provided
   useEffect(() => {
@@ -53,7 +53,7 @@ const CryptoPaymentScreen: React.FC = () => {
     if (amount && recipientAddress && connection) {
       estimateGas();
     }
-  }, [amount, recipientAddress, connection]);
+  }, [amount, recipientAddress, connection, selectedProtocol, selectedToken]);
 
   const loadWalletData = async () => {
     try {
@@ -67,7 +67,7 @@ const CryptoPaymentScreen: React.FC = () => {
       setConnection(conn);
       const balances = await walletServiceManager.getTokenBalances(conn.address, conn.chainId);
       setAvailableTokens(balances);
-      
+
       // Set default recipient to connected wallet address
       setRecipientAddress(conn.address);
     } catch (error) {
@@ -81,15 +81,26 @@ const CryptoPaymentScreen: React.FC = () => {
 
     try {
       setIsEstimatingGas(true);
-      const estimate = await walletServiceManager.estimateGas(
-        connection.address,
-        recipientAddress,
-        amount,
-        connection.chainId
-      );
-      setGasEstimate(estimate);
+      if (selectedProtocol === 'superfluid') {
+        const estimate = await walletServiceManager.estimateSuperfluidCreateFlow(
+          selectedToken,
+          amount,
+          recipientAddress,
+          connection.chainId
+        );
+        setGasEstimate(estimate);
+      } else {
+        const estimate = await walletServiceManager.estimateGas(
+          connection.address,
+          recipientAddress,
+          amount,
+          connection.chainId
+        );
+        setGasEstimate(estimate);
+      }
     } catch (error) {
       console.error('Failed to estimate gas:', error);
+      setGasEstimate(null);
     } finally {
       setIsEstimatingGas(false);
     }
@@ -128,17 +139,20 @@ const CryptoPaymentScreen: React.FC = () => {
     try {
       setIsLoading(true);
       let streamId: string;
+      let txHash: string | undefined;
 
       if (selectedProtocol === 'superfluid') {
-        streamId = await walletServiceManager.createSuperfluidStream(
+        const result = await walletServiceManager.createSuperfluidStream(
           selectedToken,
           amount,
           recipientAddress,
           connection.chainId
         );
+        streamId = result.streamId;
+        txHash = result.txHash;
       } else {
         const startTime = Math.floor(Date.now() / 1000);
-        const stopTime = startTime + (30 * 24 * 60 * 60); // 30 days from now
+        const stopTime = startTime + 30 * 24 * 60 * 60; // 30 days from now
         streamId = await walletServiceManager.createSablierStream(
           selectedToken,
           amount,
@@ -149,14 +163,17 @@ const CryptoPaymentScreen: React.FC = () => {
         );
       }
 
-      Alert.alert(
-        'Success!',
-        `Stream created successfully!\nStream ID: ${streamId}`,
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
-      );
+      const successBody =
+        selectedProtocol === 'superfluid' && txHash
+          ? `Stream created on-chain.\n\nTx hash:\n${txHash}\n\nStream ID (subgraph):\n${streamId}\n\nQuery the Superfluid subgraph using sender, receiver, and super token.`
+          : `Stream created successfully!\nStream ID: ${streamId}`;
+
+      Alert.alert('Success!', successBody, [{ text: 'OK', onPress: () => navigation.goBack() }]);
     } catch (error) {
       console.error('Failed to create stream:', error);
-      Alert.alert('Error', 'Failed to create stream. Please try again.');
+      const message =
+        error instanceof Error ? error.message : 'Failed to create stream. Please try again.';
+      Alert.alert('Error', message);
     } finally {
       setIsLoading(false);
     }
@@ -188,18 +205,16 @@ const CryptoPaymentScreen: React.FC = () => {
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
         style={styles.keyboardAvoidingView}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView style={styles.scrollView}>
           <View style={styles.header}>
             <Text style={styles.title}>
               {subscriptionId ? 'Crypto Payment Setup' : 'Crypto Payment Configuration'}
             </Text>
             <Text style={styles.subtitle}>
-              {subscriptionId 
+              {subscriptionId
                 ? 'Configure streaming payments for this subscription'
-                : 'Set up crypto payment streams for your subscriptions'
-              }
+                : 'Set up crypto payment streams for your subscriptions'}
             </Text>
           </View>
 
@@ -214,13 +229,10 @@ const CryptoPaymentScreen: React.FC = () => {
                     styles.tokenOption,
                     selectedToken === token.symbol && styles.tokenOptionSelected,
                   ]}
-                  onPress={() => handleTokenSelect(token.symbol)}
-                >
+                  onPress={() => handleTokenSelect(token.symbol)}>
                   <Text style={styles.tokenIcon}>{getTokenIcon(token.symbol)}</Text>
                   <Text style={styles.tokenSymbol}>{token.symbol}</Text>
-                  <Text style={styles.tokenBalance}>
-                    {parseFloat(token.balance).toFixed(4)}
-                  </Text>
+                  <Text style={styles.tokenBalance}>{parseFloat(token.balance).toFixed(4)}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -240,9 +252,7 @@ const CryptoPaymentScreen: React.FC = () => {
                 keyboardType="decimal-pad"
               />
             </View>
-            <Text style={styles.amountDescription}>
-              Amount to stream per payment cycle
-            </Text>
+            <Text style={styles.amountDescription}>Amount to stream per payment cycle</Text>
           </Card>
 
           {/* Recipient Address */}
@@ -271,13 +281,10 @@ const CryptoPaymentScreen: React.FC = () => {
                   styles.protocolOption,
                   selectedProtocol === 'superfluid' && styles.protocolOptionSelected,
                 ]}
-                onPress={() => handleProtocolSelect('superfluid')}
-              >
+                onPress={() => handleProtocolSelect('superfluid')}>
                 <Text style={styles.protocolIcon}>🌊</Text>
                 <Text style={styles.protocolName}>Superfluid</Text>
-                <Text style={styles.protocolDescription}>
-                  Continuous streaming payments
-                </Text>
+                <Text style={styles.protocolDescription}>Continuous streaming payments</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -285,13 +292,10 @@ const CryptoPaymentScreen: React.FC = () => {
                   styles.protocolOption,
                   selectedProtocol === 'sablier' && styles.protocolOptionSelected,
                 ]}
-                onPress={() => handleProtocolSelect('sablier')}
-              >
+                onPress={() => handleProtocolSelect('sablier')}>
                 <Text style={styles.protocolIcon}>⏰</Text>
                 <Text style={styles.protocolName}>Sablier</Text>
-                <Text style={styles.protocolDescription}>
-                  Time-locked payment streams
-                </Text>
+                <Text style={styles.protocolDescription}>Time-locked payment streams</Text>
               </TouchableOpacity>
             </View>
           </Card>
