@@ -1,6 +1,7 @@
 import React from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { AppNavigator } from './src/navigation/AppNavigator';
+import { useNotifications } from './src/hooks/useNotifications';
 
 // Import WalletConnect compatibility layer
 import '@walletconnect/react-native-compat';
@@ -61,10 +62,16 @@ createAppKit({
   enableAnalytics: true,
 });
 
+function NotificationBootstrap() {
+  useNotifications();
+  return null;
+}
+
 export default function App() {
   return (
     <>
       <StatusBar style="light" />
+      <NotificationBootstrap />
       <AppNavigator />
       <AppKit />
     </>

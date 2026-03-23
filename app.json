@@ -39,6 +39,15 @@
     "owner": "subtrackr",
     "description": "Subscription Management with Crypto Payments",
     "keywords": ["subscription", "crypto", "web3", "blockchain", "payments"],
-    "primaryColor": "#6366f1"
+    "primaryColor": "#6366f1",
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "sounds": [],
+          "enableBackgroundRemoteNotifications": false
+        }
+      ]
+    ]
   }
 }

@@ -1,3 +1,5 @@
+import { NavigatorScreenParams } from '@react-navigation/native';
+
 export type RootStackParamList = {
   Home: undefined;
   AddSubscription: undefined;
@@ -9,7 +11,7 @@ export type RootStackParamList = {
 };
 
 export type TabParamList = {
-  HomeTab: undefined;
+  HomeTab: NavigatorScreenParams<RootStackParamList> | undefined;
   AddTab: undefined;
   WalletTab: undefined;
   AnalyticsTab: undefined;
