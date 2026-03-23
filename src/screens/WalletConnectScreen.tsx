@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Clipboard,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { colors, spacing, typography, borderRadius, shadows } from '../utils/constants';
@@ -82,6 +83,13 @@ const WalletConnectScreen: React.FC = () => {
     } catch (error) {
       console.error('Failed to disconnect wallet:', error);
       Alert.alert('Error', 'Failed to disconnect wallet');
+    }
+  };
+
+  const handleCopyAddress = () => {
+    if (connection?.address) {
+      Clipboard.setString(connection.address);
+      Alert.alert('Success', 'Wallet address copied to clipboard');
     }
   };
 
@@ -255,7 +263,13 @@ const WalletConnectScreen: React.FC = () => {
               <View style={styles.walletInfo}>
                 <View style={styles.addressContainer}>
                   <Text style={styles.addressLabel}>Wallet Address</Text>
-                  <TouchableOpacity style={styles.addressCopyButton}>
+                  <TouchableOpacity 
+                    style={styles.addressCopyButton}
+                    onPress={handleCopyAddress}
+                    accessibilityRole="button"
+                    accessibilityLabel="Copy wallet address"
+                    accessibilityHint="Copies the connected wallet address to your clipboard"
+                  >
                     <Text style={styles.copyIcon}>📋</Text>
                   </TouchableOpacity>
                 </View>
