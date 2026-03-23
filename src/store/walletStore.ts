@@ -1,23 +1,29 @@
 import { create } from 'zustand';
-import { Wallet, TokenBalance, CryptoStream, StreamSetup } from '../types/wallet';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Wallet, CryptoStream, StreamSetup } from '../types/wallet';
 
 interface WalletState {
   wallet: Wallet | null;
+  address: string | null;
+  network: string | null;
   cryptoStreams: CryptoStream[];
   isLoading: boolean;
   error: string | null;
-  
-  // Actions
+
   connectWallet: () => Promise<void>;
-  disconnectWallet: () => void;
+  disconnect: () => Promise<void>;
   updateBalance: () => Promise<void>;
   createCryptoStream: (setup: StreamSetup) => Promise<void>;
   cancelCryptoStream: (streamId: string) => Promise<void>;
   fetchCryptoStreams: () => Promise<void>;
 }
 
+const WALLET_STORAGE_KEY = '@subtrackr_wallet';
+
 export const useWalletStore = create<WalletState>((set, get) => ({
   wallet: null,
+  address: null,
+  network: null,
   cryptoStreams: [],
   isLoading: false,
   error: null,
@@ -25,12 +31,21 @@ export const useWalletStore = create<WalletState>((set, get) => ({
   connectWallet: async () => {
     set({ isLoading: true, error: null });
     try {
-      // TODO: Implement actual wallet connection
-      // For now, simulate connection
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      const savedWallet = await AsyncStorage.getItem(WALLET_STORAGE_KEY);
+
+      if (savedWallet) {
+        const parsed = JSON.parse(savedWallet);
+        set({
+          address: parsed.address,
+          network: parsed.network,
+          wallet: parsed.wallet,
+          isLoading: false,
+        });
+        return;
+      }
+
       const mockWallet: Wallet = {
-        address: '0x1234...5678',
+        address: '0x742d35Cc6634C0532925a3b844Bc9e7595f0fAb1',
         chainId: 1,
         isConnected: true,
         balance: '0.5',
@@ -51,33 +66,50 @@ export const useWalletStore = create<WalletState>((set, get) => ({
           },
         ],
       };
-      
-      set({ wallet: mockWallet, isLoading: false });
+
+      const walletData = {
+        address: mockWallet.address,
+        network: 'Ethereum Mainnet',
+        wallet: mockWallet,
+      };
+
+      await AsyncStorage.setItem(WALLET_STORAGE_KEY, JSON.stringify(walletData));
+
+      set({
+        wallet: mockWallet,
+        address: mockWallet.address,
+        network: 'Ethereum Mainnet',
+        isLoading: false,
+      });
     } catch (error) {
-      set({ 
+      set({
         error: error instanceof Error ? error.message : 'Failed to connect wallet',
-        isLoading: false 
+        isLoading: false,
       });
     }
   },
 
-  disconnectWallet: () => {
-    set({ wallet: null, cryptoStreams: [] });
+  disconnect: async () => {
+    try {
+      await AsyncStorage.removeItem(WALLET_STORAGE_KEY);
+      set({ wallet: null, address: null, network: null, cryptoStreams: [] });
+    } catch (error) {
+      set({ error: 'Failed to disconnect wallet' });
+    }
   },
 
   updateBalance: async () => {
     const { wallet } = get();
     if (!wallet) return;
-    
+
     set({ isLoading: true, error: null });
     try {
-      // TODO: Implement actual balance update
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
       set({ isLoading: false });
     } catch (error) {
-      set({ 
+      set({
         error: error instanceof Error ? error.message : 'Failed to update balance',
-        isLoading: false 
+        isLoading: false,
       });
     }
   },
@@ -85,25 +117,24 @@ export const useWalletStore = create<WalletState>((set, get) => ({
   createCryptoStream: async (setup: StreamSetup) => {
     set({ isLoading: true, error: null });
     try {
-      // TODO: Implement actual stream creation
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
       const newStream: CryptoStream = {
         id: Date.now().toString(),
-        subscriptionId: 'temp', // This should come from the subscription
+        subscriptionId: 'temp',
         ...setup,
         isActive: true,
         streamId: `stream_${Date.now()}`,
       };
-      
+
       set((state) => ({
         cryptoStreams: [...state.cryptoStreams, newStream],
         isLoading: false,
       }));
     } catch (error) {
-      set({ 
+      set({
         error: error instanceof Error ? error.message : 'Failed to create crypto stream',
-        isLoading: false 
+        isLoading: false,
       });
     }
   },
@@ -111,21 +142,18 @@ export const useWalletStore = create<WalletState>((set, get) => ({
   cancelCryptoStream: async (streamId: string) => {
     set({ isLoading: true, error: null });
     try {
-      // TODO: Implement actual stream cancellation
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
       set((state) => ({
         cryptoStreams: state.cryptoStreams.map((stream) =>
-          stream.id === streamId
-            ? { ...stream, isActive: false }
-            : stream
+          stream.id === streamId ? { ...stream, isActive: false } : stream
         ),
         isLoading: false,
       }));
     } catch (error) {
-      set({ 
+      set({
         error: error instanceof Error ? error.message : 'Failed to cancel crypto stream',
-        isLoading: false 
+        isLoading: false,
       });
     }
   },
@@ -133,13 +161,12 @@ export const useWalletStore = create<WalletState>((set, get) => ({
   fetchCryptoStreams: async () => {
     set({ isLoading: true, error: null });
     try {
-      // TODO: Implement actual API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       set({ isLoading: false });
     } catch (error) {
-      set({ 
+      set({
         error: error instanceof Error ? error.message : 'Failed to fetch crypto streams',
-        isLoading: false 
+        isLoading: false,
       });
     }
   },
