@@ -16,3 +16,5 @@ builds/
 .env
 .DS_Store
 coverage/
+# TypeChain output (generated; do not reformat to avoid churn)
+src/contracts/types/

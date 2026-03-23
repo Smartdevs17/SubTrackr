@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
-import { useAppKit } from '@reown/appkit-ethers-react-native';
-import { SFError } from '@superfluid-finance/sdk-core';
+
+import { ERC20__factory, getContractAddress } from '../contracts';
 
 export interface WalletConnection {
   address: string;
@@ -78,7 +78,7 @@ export class WalletServiceManager {
   }
 
   private notifyListeners(): void {
-    this.listeners.forEach(listener => listener(this.connection));
+    this.listeners.forEach((listener) => listener(this.connection));
   }
 
   async disconnectWallet(): Promise<void> {
@@ -100,7 +100,7 @@ export class WalletServiceManager {
       // Get native token balance (ETH, MATIC, etc.)
       const nativeBalance = await provider.getBalance(address);
       const nativeSymbol = this.getNativeSymbol(chainId);
-      
+
       balances.push({
         symbol: nativeSymbol,
         name: this.getNativeName(chainId),
@@ -111,13 +111,12 @@ export class WalletServiceManager {
 
       // Get USDC balance if on supported chains
       if (chainId === 1 || chainId === 137 || chainId === 42161) {
-        const usdcAddress = this.getUSDCAddress(chainId);
-        const usdcContract = new ethers.Contract(
-          usdcAddress,
-          ['function balanceOf(address) view returns (uint256)'],
-          provider
-        );
-        
+        const usdcAddress = getContractAddress(chainId, 'usdc');
+        if (!usdcAddress) {
+          return balances;
+        }
+        const usdcContract = ERC20__factory.connect(usdcAddress, provider);
+
         try {
           const usdcBalance = await usdcContract.balanceOf(address);
           balances.push({
@@ -151,7 +150,7 @@ export class WalletServiceManager {
       const gasLimit = ethers.BigNumber.from('21000'); // Standard ETH transfer
 
       const estimatedCost = gasPrice.mul(gasLimit);
-      
+
       return {
         gasLimit: gasLimit.toString(),
         gasPrice: ethers.utils.formatUnits(gasPrice, 'gwei'),
@@ -173,10 +172,10 @@ export class WalletServiceManager {
       // This is a simplified implementation
       // In production, you'd use the full Superfluid SDK
       console.log('Creating Superfluid stream:', { token, flowRate, recipient, chainId });
-      
+
       // Simulate stream creation
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
       return `stream_${Date.now()}`;
     } catch (error) {
       console.error('Failed to create Superfluid stream:', error);
@@ -195,11 +194,18 @@ export class WalletServiceManager {
     try {
       // This is a simplified implementation
       // In production, you'd use the full Sablier SDK
-      console.log('Creating Sablier stream:', { token, amount, startTime, stopTime, recipient, chainId });
-      
+      console.log('Creating Sablier stream:', {
+        token,
+        amount,
+        startTime,
+        stopTime,
+        recipient,
+        chainId,
+      });
+
       // Simulate stream creation
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
       return `sablier_${Date.now()}`;
     } catch (error) {
       console.error('Failed to create Sablier stream:', error);
@@ -238,15 +244,6 @@ export class WalletServiceManager {
       42161: 'Arbitrum',
     };
     return names[chainId] || 'Ethereum';
-  }
-
-  private getUSDCAddress(chainId: number): string {
-    const addresses: Record<number, string> = {
-      1: '0xA0b86a33E6441b8b4b8b8b8b8b8b8b8b8b8b8b8', // Ethereum USDC
-      137: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174', // Polygon USDC
-      42161: '0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8', // Arbitrum USDC
-    };
-    return addresses[chainId] || '';
   }
 
   isConnected(): boolean {
