@@ -70,6 +70,9 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
       style={[styles.container, isUpcoming() && styles.upcomingContainer]}
       onPress={() => onPress(subscription)}
       activeOpacity={0.8}
+      accessibilityRole="button"
+      accessibilityLabel={`${subscription.name} subscription, ${formatCategory(subscription.category)}, ${formatCurrency(subscription.price, subscription.currency)} per ${formatBillingCycle(subscription.billingCycle)}`}
+      accessibilityHint="Tap to view subscription details"
     >
       <View style={styles.header}>
         <View style={styles.iconContainer}>
@@ -85,10 +88,21 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
           </Text>
         </View>
         
-        <View style={styles.statusContainer}>
-          <View style={[styles.statusIndicator, { backgroundColor: getStatusColor(subscription.isActive) }]} />
+        <View 
+          style={styles.statusContainer}
+          accessibilityLabel={`Status: ${subscription.isActive ? 'Active' : 'Paused'}${subscription.isCryptoEnabled ? ', Crypto enabled' : ''}`}
+        >
+          <View 
+            style={[styles.statusIndicator, { backgroundColor: getStatusColor(subscription.isActive) }]} 
+            accessibilityRole="image"
+            accessibilityLabel={subscription.isActive ? 'Active indicator' : 'Paused indicator'}
+          />
           {subscription.isCryptoEnabled && (
-            <View style={styles.cryptoBadge}>
+            <View 
+              style={styles.cryptoBadge}
+              accessibilityRole="image"
+              accessibilityLabel="Crypto payment enabled"
+            >
               <Text style={styles.cryptoText}>₿</Text>
             </View>
           )}
@@ -124,6 +138,9 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
           style={styles.toggleButton}
           onPress={handleToggleStatus}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={`${subscription.isActive ? 'Pause' : 'Activate'} ${subscription.name}`}
+          accessibilityHint={`Toggles the status of ${subscription.name}`}
         >
           <Text style={styles.toggleText}>
             {subscription.isActive ? 'Pause' : 'Activate'}
