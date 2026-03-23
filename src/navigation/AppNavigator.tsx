@@ -8,6 +8,7 @@ import AddSubscriptionScreen from '../screens/AddSubscriptionScreen';
 import WalletConnectScreen from '../screens/WalletConnectScreen';
 import CryptoPaymentScreen from '../screens/CryptoPaymentScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import AnalyticsScreen from '../screens/AnalyticsScreen';
 import { colors } from '../utils/constants';
 import { RootStackParamList, TabParamList } from './types';
 
@@ -84,6 +85,16 @@ const TabNavigator = () => (
         tabBarLabel: 'Settings',
         tabBarIcon: ({ color, size }) => (
           <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>⚙️</Text>
+        ),
+      }}
+    />
+    <Tab.Screen
+      name="AnalyticsTab"
+      component={AnalyticsScreen}
+      options={{
+        tabBarLabel: 'Analytics',
+        tabBarIcon: ({ color, size }) => (
+          <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>📊</Text>
         ),
       }}
     />
