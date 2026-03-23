@@ -7,6 +7,9 @@ import HomeScreen from '../screens/HomeScreen';
 import AddSubscriptionScreen from '../screens/AddSubscriptionScreen';
 import WalletConnectScreen from '../screens/WalletConnectScreen';
 import CryptoPaymentScreen from '../screens/CryptoPaymentScreen';
+import SubscriptionDetailScreen from '../screens/SubscriptionDetailScreen';
+import AnalyticsScreen from '../screens/AnalyticsScreen';
+import SettingsScreen from '../screens/SettingsScreen';
 import { colors } from '../utils/constants';
 import { RootStackParamList, TabParamList } from './types';
 
@@ -15,23 +18,24 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const HomeStack = () => (
   <Stack.Navigator>
-    <Stack.Screen 
-      name="Home" 
-      component={HomeScreen}
-      options={{ headerShown: false }}
-    />
-    <Stack.Screen 
-      name="AddSubscription" 
+    <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
+    <Stack.Screen
+      name="AddSubscription"
       component={AddSubscriptionScreen}
       options={{ headerShown: false }}
     />
-    <Stack.Screen 
-      name="WalletConnect" 
+    <Stack.Screen
+      name="SubscriptionDetail"
+      component={SubscriptionDetailScreen}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="WalletConnect"
       component={WalletConnectScreen}
       options={{ headerShown: false }}
     />
-    <Stack.Screen 
-      name="CryptoPayment" 
+    <Stack.Screen
+      name="CryptoPayment"
       component={CryptoPaymentScreen}
       options={{ headerShown: false }}
     />
@@ -49,8 +53,7 @@ const TabNavigator = () => (
       tabBarActiveTintColor: colors.primary,
       tabBarInactiveTintColor: colors.textSecondary,
       headerShown: false,
-    }}
-  >
+    }}>
     <Tab.Screen
       name="HomeTab"
       component={HomeStack}
@@ -78,6 +81,26 @@ const TabNavigator = () => (
         tabBarLabel: 'Wallet',
         tabBarIcon: ({ color, size }) => (
           <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>🔗</Text>
+        ),
+      }}
+    />
+    <Tab.Screen
+      name="AnalyticsTab"
+      component={AnalyticsScreen}
+      options={{
+        tabBarLabel: 'Analytics',
+        tabBarIcon: ({ color, size }) => (
+          <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>📊</Text>
+        ),
+      }}
+    />
+    <Tab.Screen
+      name="SettingsTab"
+      component={SettingsScreen}
+      options={{
+        tabBarLabel: 'Settings',
+        tabBarIcon: ({ color, size }) => (
+          <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>⚙️</Text>
         ),
       }}
     />

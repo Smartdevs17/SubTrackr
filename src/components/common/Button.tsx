@@ -1,15 +1,23 @@
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import {
+  TouchableOpacity,
+  Text,
+  StyleSheet,
+  ActivityIndicator,
+  StyleProp,
+  ViewStyle,
+} from 'react-native';
 import { colors, spacing, typography, borderRadius } from '../../utils/constants';
 
 export interface ButtonProps {
   title: string;
   onPress: () => void;
-  variant?: 'primary' | 'secondary' | 'outline' | 'crypto';
+  variant?: 'primary' | 'secondary' | 'outline' | 'crypto' | 'danger';
   size?: 'small' | 'medium' | 'large';
   disabled?: boolean;
   loading?: boolean;
   fullWidth?: boolean;
+  style?: StyleProp<ViewStyle>;
 }
 
 export const Button: React.FC<ButtonProps> = ({
@@ -20,6 +28,7 @@ export const Button: React.FC<ButtonProps> = ({
   disabled = false,
   loading = false,
   fullWidth = false,
+  style,
 }) => {
   const buttonStyle = [
     styles.button,
@@ -27,6 +36,7 @@ export const Button: React.FC<ButtonProps> = ({
     styles[size],
     fullWidth && styles.fullWidth,
     disabled && styles.disabled,
+    style,
   ];
 
   const textStyle = [
@@ -41,8 +51,7 @@ export const Button: React.FC<ButtonProps> = ({
       style={buttonStyle}
       onPress={onPress}
       disabled={disabled || loading}
-      activeOpacity={0.8}
-    >
+      activeOpacity={0.8}>
       {loading ? (
         <ActivityIndicator
           color={variant === 'outline' ? colors.primary : colors.text}
@@ -62,7 +71,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexDirection: 'row',
   },
-  
+
   // Variants
   primary: {
     backgroundColor: colors.primary,
@@ -78,7 +87,10 @@ const styles = StyleSheet.create({
   crypto: {
     backgroundColor: colors.accent,
   },
-  
+  danger: {
+    backgroundColor: colors.error,
+  },
+
   // Sizes
   small: {
     paddingVertical: spacing.sm,
@@ -95,7 +107,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     minHeight: 56,
   },
-  
+
   // States
   disabled: {
     opacity: 0.5,
@@ -103,7 +115,7 @@ const styles = StyleSheet.create({
   fullWidth: {
     width: '100%',
   },
-  
+
   // Text styles
   text: {
     fontWeight: '600',
@@ -120,7 +132,10 @@ const styles = StyleSheet.create({
   cryptoText: {
     color: colors.text,
   },
-  
+  dangerText: {
+    color: colors.text,
+  },
+
   smallText: {
     ...typography.caption,
   },
@@ -130,7 +145,7 @@ const styles = StyleSheet.create({
   largeText: {
     ...typography.h3,
   },
-  
+
   disabledText: {
     opacity: 0.7,
   },
