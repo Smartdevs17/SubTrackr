@@ -13,12 +13,16 @@ import { useNavigation } from '@react-navigation/native';
 import { colors, spacing, typography, borderRadius, shadows } from '../utils/constants';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
-import { useAppKit } from '@reown/appkit-ethers-react-native';
+import { useAppKit, useAppKitAccount } from '@reown/appkit-ethers-react-native';
 import walletServiceManager, { WalletConnection, TokenBalance } from '../services/walletService';
+import { useWalletStore } from '../store';
 
 const WalletConnectScreen: React.FC = () => {
   const navigation = useNavigation();
   const { open } = useAppKit();
+  const { address, isConnected } = useAppKitAccount();
+  const { connectWallet, disconnect } = useWalletStore();
+
   const [isConnecting, setIsConnecting] = useState(false);
   const [connection, setConnection] = useState<WalletConnection | null>(null);
   const [tokenBalances, setTokenBalances] = useState<TokenBalance[]>([]);
@@ -28,11 +32,22 @@ const WalletConnectScreen: React.FC = () => {
     initializeWalletService();
   }, []);
 
-  // For now, we'll use a mock connection until we implement the full AppKit integration
   useEffect(() => {
-    // This will be updated when we implement the full AppKit connection tracking
-    console.log('Wallet connection status updated');
-  }, []);
+    if (isConnected && address) {
+      const realConnection: WalletConnection = {
+        address: address,
+        chainId: 1,
+        isConnected: true,
+      };
+      setConnection(realConnection);
+      walletServiceManager.setConnection(realConnection);
+      connectWallet();
+      loadTokenBalances();
+    } else if (!isConnected && connection) {
+      setConnection(null);
+      setTokenBalances([]);
+    }
+  }, [isConnected, address]);
 
   useEffect(() => {
     if (connection) {
@@ -43,7 +58,6 @@ const WalletConnectScreen: React.FC = () => {
   const initializeWalletService = async () => {
     try {
       await walletServiceManager.initialize();
-      console.log('Wallet service initialized');
     } catch (error) {
       console.error('Failed to initialize wallet service:', error);
       Alert.alert('Error', 'Failed to initialize wallet service');
@@ -53,19 +67,7 @@ const WalletConnectScreen: React.FC = () => {
   const handleConnectWallet = async () => {
     try {
       setIsConnecting(true);
-      open(); // Open the Reown AppKit modal
-      
-      // For demo purposes, simulate a connection after a delay
-      setTimeout(() => {
-        const mockConnection: WalletConnection = {
-          address: '0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6',
-          chainId: 1,
-          isConnected: true,
-        };
-        setConnection(mockConnection);
-        walletServiceManager.setConnection(mockConnection);
-        setIsConnecting(false);
-      }, 3000);
+      open();
     } catch (error) {
       console.error('Failed to open wallet modal:', error);
       Alert.alert('Error', 'Failed to open wallet modal. Please try again.');
@@ -76,6 +78,7 @@ const WalletConnectScreen: React.FC = () => {
   const handleDisconnectWallet = async () => {
     try {
       await walletServiceManager.disconnectWallet();
+      await disconnect();
       setConnection(null);
       setTokenBalances([]);
       Alert.alert('Success', 'Wallet disconnected successfully!');
@@ -87,7 +90,7 @@ const WalletConnectScreen: React.FC = () => {
 
   const loadTokenBalances = async () => {
     if (!connection) return;
-    
+
     try {
       setIsLoadingBalances(true);
       const balances = await walletServiceManager.getTokenBalances(
@@ -171,9 +174,7 @@ const WalletConnectScreen: React.FC = () => {
       <ScrollView style={styles.scrollView}>
         <View style={styles.header}>
           <Text style={styles.title}>Connect Wallet</Text>
-          <Text style={styles.subtitle}>
-            Connect your Web3 wallet to enable crypto payments
-          </Text>
+          <Text style={styles.subtitle}>Connect your Web3 wallet to enable crypto payments</Text>
         </View>
 
         {!connection ? (
@@ -183,10 +184,11 @@ const WalletConnectScreen: React.FC = () => {
                 <Text style={styles.connectIcon}>🔗</Text>
                 <Text style={styles.sectionTitle}>Connect Your Wallet</Text>
                 <Text style={styles.sectionDescription}>
-                  Choose from popular wallets like MetaMask, Trust Wallet, Rainbow, or Coinbase Wallet
+                  Choose from popular wallets like MetaMask, Trust Wallet, Rainbow, or Coinbase
+                  Wallet
                 </Text>
               </View>
-              
+
               <View style={styles.walletOptions}>
                 <View style={styles.walletOption}>
                   <View style={styles.walletIconContainer}>
@@ -227,9 +229,7 @@ const WalletConnectScreen: React.FC = () => {
                   size="large"
                   variant="crypto"
                 />
-                <Text style={styles.connectNote}>
-                  Tap to open wallet selection modal
-                </Text>
+                <Text style={styles.connectNote}>Tap to open wallet selection modal</Text>
               </View>
             </Card>
           </View>
@@ -243,10 +243,7 @@ const WalletConnectScreen: React.FC = () => {
                   <Text style={styles.statusText}>Connected</Text>
                   <Text style={styles.connectionTime}>Just now</Text>
                 </View>
-                <TouchableOpacity 
-                  style={styles.disconnectButton}
-                  onPress={handleDisconnectWallet}
-                >
+                <TouchableOpacity style={styles.disconnectButton} onPress={handleDisconnectWallet}>
                   <Text style={styles.disconnectIcon}>⏹️</Text>
                   <Text style={styles.disconnectText}>Disconnect</Text>
                 </TouchableOpacity>
@@ -260,9 +257,13 @@ const WalletConnectScreen: React.FC = () => {
                   </TouchableOpacity>
                 </View>
                 <Text style={styles.addressText}>{formatAddress(connection.address)}</Text>
-                
+
                 <View style={styles.chainInfo}>
-                  <View style={[styles.chainBadge, { backgroundColor: getChainColor(connection.chainId) }]}>
+                  <View
+                    style={[
+                      styles.chainBadge,
+                      { backgroundColor: getChainColor(connection.chainId) },
+                    ]}>
                     <Text style={styles.chainIcon}>🔗</Text>
                     <Text style={styles.chainText}>{getChainName(connection.chainId)}</Text>
                   </View>
@@ -280,10 +281,7 @@ const WalletConnectScreen: React.FC = () => {
                   <Text style={styles.balancesIcon}>💰</Text>
                   <Text style={styles.sectionTitle}>Token Balances</Text>
                 </View>
-                <TouchableOpacity 
-                  style={styles.refreshButton}
-                  onPress={handleRefreshBalances}
-                >
+                <TouchableOpacity style={styles.refreshButton} onPress={handleRefreshBalances}>
                   <Text style={styles.refreshIcon}>🔄</Text>
                   <Text style={styles.refreshText}>Refresh</Text>
                 </TouchableOpacity>
@@ -330,7 +328,7 @@ const WalletConnectScreen: React.FC = () => {
                   Set up streaming payments using Superfluid or Sablier protocols
                 </Text>
               </View>
-              
+
               <View style={styles.protocolInfo}>
                 <View style={styles.protocolItem}>
                   <Text style={styles.protocolIcon}>🌊</Text>
@@ -343,7 +341,7 @@ const WalletConnectScreen: React.FC = () => {
                   <Text style={styles.protocolDesc}>Time-locked streams</Text>
                 </View>
               </View>
-              
+
               <Button
                 title="Setup Crypto Payments"
                 onPress={handleSetupCryptoPayments}
@@ -703,7 +701,6 @@ const styles = StyleSheet.create({
     fontSize: 48,
     marginBottom: spacing.sm,
   },
-
 });
 
 export default WalletConnectScreen;
