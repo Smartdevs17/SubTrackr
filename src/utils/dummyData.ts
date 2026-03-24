@@ -50,7 +50,7 @@ export const dummySubscriptions: Subscription[] = [
     name: 'Notion Pro',
     description: 'Advanced note-taking and collaboration platform',
     category: SubscriptionCategory.PRODUCTIVITY,
-    price: 8.00,
+    price: 8.0,
     currency: 'USD',
     billingCycle: BillingCycle.MONTHLY,
     nextBillingDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
@@ -96,7 +96,7 @@ export const dummySubscriptions: Subscription[] = [
     name: 'Coursera Plus',
     description: 'Unlimited access to online courses and certificates',
     category: SubscriptionCategory.EDUCATION,
-    price: 399.00,
+    price: 399.0,
     currency: 'USD',
     billingCycle: BillingCycle.YEARLY,
     nextBillingDate: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000), // 45 days from now
@@ -155,13 +155,13 @@ export const getUpcomingSubscriptions = (subscriptions: Subscription[]): Subscri
   if (!subscriptions || !Array.isArray(subscriptions)) {
     return [];
   }
-  
+
   const today = new Date();
   const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
-  
+
   return subscriptions
-    .filter(sub => sub.isActive)
-    .filter(sub => {
+    .filter((sub) => sub.isActive)
+    .filter((sub) => {
       const billingDate = new Date(sub.nextBillingDate);
       return billingDate >= today && billingDate <= nextWeek;
     })
@@ -172,12 +172,12 @@ export const getTotalMonthlySpending = (subscriptions: Subscription[]): number =
   if (!subscriptions || !Array.isArray(subscriptions)) {
     return 0;
   }
-  
+
   return subscriptions
-    .filter(sub => sub.isActive)
+    .filter((sub) => sub.isActive)
     .reduce((total, sub) => {
       let monthlyAmount = sub.price;
-      
+
       switch (sub.billingCycle) {
         case BillingCycle.YEARLY:
           monthlyAmount = sub.price / 12;
@@ -192,7 +192,7 @@ export const getTotalMonthlySpending = (subscriptions: Subscription[]): number =
         default:
           monthlyAmount = sub.price;
       }
-      
+
       return total + monthlyAmount;
     }, 0);
 };

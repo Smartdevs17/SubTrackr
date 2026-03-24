@@ -6,10 +6,10 @@ use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, String, Ve
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
 pub enum Interval {
-    Weekly,      // 604800s
-    Monthly,     // 2592000s (30 days)
-    Quarterly,   // 7776000s (90 days)
-    Yearly,      // 31536000s (365 days)
+    Weekly,    // 604800s
+    Monthly,   // 2592000s (30 days)
+    Quarterly, // 7776000s (90 days)
+    Yearly,    // 31536000s (365 days)
 }
 
 impl Interval {
@@ -39,8 +39,8 @@ pub struct Plan {
     pub id: u64,
     pub merchant: Address,
     pub name: String,
-    pub price: i128,           // price per interval in stroops (XLM smallest unit)
-    pub token: Address,        // token address (native XLM or Stellar asset)
+    pub price: i128,    // price per interval in stroops (XLM smallest unit)
+    pub token: Address, // token address (native XLM or Stellar asset)
     pub interval: Interval,
     pub active: bool,
     pub subscriber_count: u32,
@@ -120,12 +120,8 @@ impl SubTrackrContract {
             created_at: env.ledger().timestamp(),
         };
 
-        env.storage()
-            .persistent()
-            .set(&DataKey::Plan(count), &plan);
-        env.storage()
-            .instance()
-            .set(&DataKey::PlanCount, &count);
+        env.storage().persistent().set(&DataKey::Plan(count), &plan);
+        env.storage().instance().set(&DataKey::PlanCount, &count);
 
         // Track merchant's plans
         let mut merchant_plans: Vec<u64> = env
@@ -171,7 +167,10 @@ impl SubTrackrContract {
             .get(&DataKey::Plan(plan_id))
             .expect("Plan not found");
         assert!(plan.active, "Plan is not active");
-        assert!(plan.merchant != subscriber, "Merchant cannot self-subscribe");
+        assert!(
+            plan.merchant != subscriber,
+            "Merchant cannot self-subscribe"
+        );
 
         let user_subs: Vec<u64> = env
             .storage()
@@ -248,13 +247,9 @@ impl SubTrackrContract {
             .get(&DataKey::Subscription(subscription_id))
             .expect("Subscription not found");
 
+        assert!(sub.subscriber == subscriber, "Only subscriber can cancel");
         assert!(
-            sub.subscriber == subscriber,
-            "Only subscriber can cancel"
-        );
-        assert!(
-            sub.status == SubscriptionStatus::Active
-                || sub.status == SubscriptionStatus::Paused,
+            sub.status == SubscriptionStatus::Active || sub.status == SubscriptionStatus::Paused,
             "Subscription not active"
         );
 
@@ -427,7 +422,15 @@ mod test {
     use soroban_sdk::testutils::{Address as _, Ledger};
     use soroban_sdk::Env;
 
-    fn setup(env: &Env) -> (SubTrackrContractClient<'_>, Address, Address, Address, Address) {
+    fn setup(
+        env: &Env,
+    ) -> (
+        SubTrackrContractClient<'_>,
+        Address,
+        Address,
+        Address,
+        Address,
+    ) {
         let contract_id = env.register_contract(None, SubTrackrContract);
         let client = SubTrackrContractClient::new(env, &contract_id);
 
@@ -453,7 +456,7 @@ mod test {
     fn test_create_plan_and_subscribe() {
         let env = Env::default();
         let contract_id = env.register_contract(None, SubTrackrContract);
-        let client = SubTrackrContract::new(&env, &contract_id);
+        let client = SubTrackrContractClient::new(&env, &contract_id);
 
         let admin = Address::generate(&env);
         let merchant = Address::generate(&env);
@@ -590,7 +593,10 @@ mod test {
         client.resume_subscription(&subscriber, &sub_id);
         let resumed = client.get_subscription(&sub_id);
         assert_eq!(resumed.status, SubscriptionStatus::Active);
-        assert_eq!(resumed.next_charge_at, env.ledger().timestamp() + Interval::Monthly.seconds());
+        assert_eq!(
+            resumed.next_charge_at,
+            env.ledger().timestamp() + Interval::Monthly.seconds()
+        );
         assert!(resumed.next_charge_at > initial.next_charge_at);
     }
 }

@@ -1,17 +1,17 @@
 // SubTrackr Design System Constants
 
 export const colors = {
-  primary: '#6366f1',      // Indigo
-  secondary: '#8b5cf6',    // Purple
-  accent: '#06b6d4',       // Cyan
-  success: '#10b981',      // Emerald
-  warning: '#f59e0b',      // Amber
-  error: '#ef4444',        // Red
-  background: '#0f172a',   // Dark slate
-  surface: '#1e293b',      // Slate 800
-  text: '#f8fafc',         // Slate 50
+  primary: '#6366f1', // Indigo
+  secondary: '#8b5cf6', // Purple
+  accent: '#06b6d4', // Cyan
+  success: '#10b981', // Emerald
+  warning: '#f59e0b', // Amber
+  error: '#ef4444', // Red
+  background: '#0f172a', // Dark slate
+  surface: '#1e293b', // Slate 800
+  text: '#f8fafc', // Slate 50
   textSecondary: '#cbd5e1', // Slate 300
-  border: '#334155',       // Slate 600
+  border: '#334155', // Slate 600
   overlay: 'rgba(15, 23, 42, 0.8)', // Background with opacity
 };
 
