@@ -42,6 +42,7 @@
     "expo": "~53.0.20",
     "expo-application": "~6.1.5",
     "expo-status-bar": "~2.2.3",
+    "graphql": "^16.13.1",
     "react": "19.0.0",
     "react-native": "0.79.5",
     "react-native-gesture-handler": "~2.24.0",

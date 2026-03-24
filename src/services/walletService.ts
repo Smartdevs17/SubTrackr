@@ -1,12 +1,16 @@
 import { ethers } from 'ethers';
+import { Framework, SFError } from '@superfluid-finance/sdk-core';
 
 import { ERC20__factory, getContractAddress } from '../contracts';
+import { getEvmRpcUrl } from '../config/evm';
 
 export interface WalletConnection {
   address: string;
   chainId: number;
   isConnected: boolean;
   provider?: ethers.providers.Web3Provider;
+  /** EIP-1193 provider from WalletConnect / AppKit — required for signing Superfluid txs */
+  eip1193Provider?: ethers.providers.ExternalProvider;
 }
 
 export interface TokenBalance {
@@ -31,6 +35,50 @@ export interface GasEstimate {
   gasLimit: string;
   gasPrice: string;
   estimatedCost: string;
+}
+
+/** Result after an on-chain Superfluid CFA stream is created */
+export interface SuperfluidStreamResult {
+  txHash: string;
+  /** Correlates with Superfluid subgraph queries (filter by sender, receiver, token) */
+  streamId: string;
+}
+
+const SECONDS_PER_MONTH = 30 * 24 * 60 * 60;
+
+function isUserRejectedError(error: unknown): boolean {
+  if (error == null || typeof error !== 'object') return false;
+  const e = error as { code?: number | string; message?: string };
+  if (e.code === 4001 || e.code === 'ACTION_REJECTED') return true;
+  const msg = typeof e.message === 'string' ? e.message.toLowerCase() : '';
+  return msg.includes('user rejected') || msg.includes('user denied');
+}
+
+function superTokenResolverSymbol(chainId: number, tokenSymbol: string): string {
+  const s = tokenSymbol.toUpperCase();
+  if (s === 'USDC' || s === 'USDC.E') return 'USDCx';
+  if (s === 'MATIC') return 'MATICx';
+  if (s === 'ETH') {
+    if (chainId === 137) return 'MATICx';
+    return 'ETHx';
+  }
+  if (s === 'ARB') {
+    throw new Error(
+      'ARB is not supported as a Superfluid super token on this flow. Use ETH for native streaming on Arbitrum.'
+    );
+  }
+  if (s.endsWith('X')) return s;
+  return `${s}x`;
+}
+
+function formatSuperfluidError(error: unknown): string {
+  if (error instanceof SFError) {
+    return error.message;
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return 'Superfluid stream creation failed';
 }
 
 // This is a hook-based service that needs to be used within React components
@@ -126,7 +174,7 @@ export class WalletServiceManager {
             balance: ethers.utils.formatUnits(usdcBalance, 6),
             decimals: 6,
           });
-        } catch (error) {
+        } catch {
           console.log('USDC not available on this chain');
         }
       }
@@ -162,24 +210,142 @@ export class WalletServiceManager {
     }
   }
 
-  async createSuperfluidStream(
-    token: string,
-    flowRate: string,
+  private getWalletSigner(): ethers.Signer {
+    const conn = this.connection;
+    if (!conn?.eip1193Provider) {
+      throw new Error('Wallet is not connected or does not expose a signing provider.');
+    }
+    const web3Provider = new ethers.providers.Web3Provider(conn.eip1193Provider);
+    return web3Provider.getSigner();
+  }
+
+  private async buildSuperfluidCreateFlowContext(
+    tokenSymbol: string,
+    amountPerMonth: string,
+    recipient: string,
+    chainId: number,
+    signer: ethers.Signer
+  ) {
+    const sf = await Framework.create({
+      chainId,
+      provider: signer.provider!,
+    });
+
+    const resolverSymbol = superTokenResolverSymbol(chainId, tokenSymbol);
+    const superToken = await sf.loadSuperToken(resolverSymbol);
+    const decimals = await superToken.contract.decimals();
+
+    const amountBn = ethers.utils.parseUnits(amountPerMonth, decimals);
+    const flowRate = amountBn.div(SECONDS_PER_MONTH);
+    if (flowRate.lte(0)) {
+      throw new Error(
+        'Monthly amount is too small to stream (flow rate rounds to zero per second). Increase the amount.'
+      );
+    }
+
+    const sender = await signer.getAddress();
+    const receiver = ethers.utils.getAddress(recipient);
+
+    if (sender.toLowerCase() === receiver.toLowerCase()) {
+      throw new Error('Recipient must be a different address than your connected wallet.');
+    }
+
+    const createOp = sf.cfaV1.createFlow({
+      superToken: superToken.address,
+      sender,
+      receiver,
+      flowRate: flowRate.toString(),
+    });
+
+    return { createOp, superTokenAddress: superToken.address, sender, receiver, flowRate };
+  }
+
+  /**
+   * Estimates gas for creating a CFA stream (monthly amount → per-second flow rate).
+   * Call while the wallet is on `chainId`.
+   */
+  async estimateSuperfluidCreateFlow(
+    tokenSymbol: string,
+    amountPerMonth: string,
     recipient: string,
     chainId: number
-  ): Promise<string> {
+  ): Promise<GasEstimate> {
+    const signer = this.getWalletSigner();
+    const network = await signer.provider!.getNetwork();
+    if (network.chainId !== chainId) {
+      throw new Error(
+        `Wallet network (${network.chainId}) does not match selected chain (${chainId}). Switch network in your wallet.`
+      );
+    }
+
+    const { createOp } = await this.buildSuperfluidCreateFlowContext(
+      tokenSymbol,
+      amountPerMonth,
+      recipient,
+      chainId,
+      signer
+    );
+
+    const populated = await createOp.getPopulatedTransactionRequest(signer, 1.2);
+    const gasLimit = populated.gasLimit;
+    if (!gasLimit) {
+      throw new Error('Could not estimate gas for Superfluid createFlow');
+    }
+
+    const gasPrice = await signer.provider!.getGasPrice();
+    const estimatedCostWei = gasPrice.mul(gasLimit);
+
+    return {
+      gasLimit: gasLimit.toString(),
+      gasPrice: ethers.utils.formatUnits(gasPrice, 'gwei'),
+      estimatedCost: ethers.utils.formatEther(estimatedCostWei),
+    };
+  }
+
+  async createSuperfluidStream(
+    tokenSymbol: string,
+    amountPerMonth: string,
+    recipient: string,
+    chainId: number
+  ): Promise<SuperfluidStreamResult> {
+    const signer = this.getWalletSigner();
+
     try {
-      // This is a simplified implementation
-      // In production, you'd use the full Superfluid SDK
-      console.log('Creating Superfluid stream:', { token, flowRate, recipient, chainId });
+      const network = await signer.provider!.getNetwork();
+      if (network.chainId !== chainId) {
+        throw new Error(
+          `Wallet network (${network.chainId}) does not match selected chain (${chainId}). Switch network in your wallet.`
+        );
+      }
 
-      // Simulate stream creation
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      const { createOp, superTokenAddress, sender, receiver } =
+        await this.buildSuperfluidCreateFlowContext(
+          tokenSymbol,
+          amountPerMonth,
+          recipient,
+          chainId,
+          signer
+        );
 
-      return `stream_${Date.now()}`;
+      const txResponse = await createOp.exec(signer);
+      const receipt = await txResponse.wait();
+
+      if (!receipt?.transactionHash) {
+        throw new Error('Transaction mined without a hash');
+      }
+
+      const streamId = `${superTokenAddress.toLowerCase()}:${sender.toLowerCase()}:${receiver.toLowerCase()}`;
+
+      return {
+        txHash: receipt.transactionHash,
+        streamId,
+      };
     } catch (error) {
+      if (isUserRejectedError(error)) {
+        throw new Error('Transaction was rejected in your wallet.');
+      }
       console.error('Failed to create Superfluid stream:', error);
-      throw error;
+      throw new Error(formatSuperfluidError(error));
     }
   }
 
@@ -214,18 +380,7 @@ export class WalletServiceManager {
   }
 
   private getProvider(chainId: number): ethers.providers.JsonRpcProvider {
-    const rpcUrls: Record<number, string> = {
-      1: 'https://ethereum.publicnode.com',
-      137: 'https://polygon-rpc.com',
-      42161: 'https://arb1.arbitrum.io/rpc',
-    };
-
-    const rpcUrl = rpcUrls[chainId];
-    if (!rpcUrl) {
-      throw new Error(`Unsupported chain ID: ${chainId}`);
-    }
-
-    return new ethers.providers.JsonRpcProvider(rpcUrl);
+    return new ethers.providers.JsonRpcProvider(getEvmRpcUrl(chainId));
   }
 
   private getNativeSymbol(chainId: number): string {
