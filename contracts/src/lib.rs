@@ -59,6 +59,7 @@ pub struct Subscription {
     pub last_charged_at: u64,
     pub next_charge_at: u64,
     pub total_paid: i128,
+    pub refund_requested_amount: i128,
 }
 
 #[contracttype]
@@ -209,6 +210,7 @@ impl SubTrackrContract {
             last_charged_at: now,
             next_charge_at: now + plan.interval.seconds(),
             total_paid: 0,
+            refund_requested_amount: 0,
         };
 
         env.storage()
@@ -370,6 +372,108 @@ impl SubTrackrContract {
             .set(&DataKey::Subscription(subscription_id), &sub);
     }
 
+    /// Request a refund for a subscription (can only be called by the subscriber)
+    pub fn request_refund(env: Env, subscription_id: u64, amount: i128) {
+        let mut sub: Subscription = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Subscription(subscription_id))
+            .expect("Subscription not found");
+
+        sub.subscriber.require_auth();
+
+        assert!(amount > 0, "Refund amount must be positive");
+        assert!(
+            amount <= sub.total_paid,
+            "Refund amount cannot exceed total paid"
+        );
+
+        sub.refund_requested_amount = amount;
+
+        env.storage()
+            .persistent()
+            .set(&DataKey::Subscription(subscription_id), &sub);
+
+        // Publish event
+        env.events().publish(
+            (String::from_str(&env, "refund_requested"), subscription_id),
+            (sub.subscriber.clone(), amount),
+        );
+    }
+
+    /// Approve a refund (can only be called by the admin)
+    pub fn approve_refund(env: Env, subscription_id: u64) {
+        let mut sub: Subscription = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Subscription(subscription_id))
+            .expect("Subscription not found");
+
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .expect("Admin not set");
+        admin.require_auth();
+
+        let amount = sub.refund_requested_amount;
+        assert!(amount > 0, "No pending refund request");
+
+        let _plan: Plan = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Plan(sub.plan_id))
+            .expect("Plan not found");
+
+        // TODO: Execute actual token transfer from merchant back to subscriber
+        // token::Client::new(&env, &plan.token).transfer(
+        //     &plan.merchant, &sub.subscriber, &amount
+        // );
+
+        sub.total_paid -= amount;
+        sub.refund_requested_amount = 0;
+
+        env.storage()
+            .persistent()
+            .set(&DataKey::Subscription(subscription_id), &sub);
+
+        // Publish event
+        env.events().publish(
+            (String::from_str(&env, "refund_approved"), subscription_id),
+            (sub.subscriber.clone(), amount),
+        );
+    }
+
+    /// Reject a refund (can only be called by the admin)
+    pub fn reject_refund(env: Env, subscription_id: u64) {
+        let mut sub: Subscription = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Subscription(subscription_id))
+            .expect("Subscription not found");
+
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .expect("Admin not set");
+        admin.require_auth();
+
+        assert!(sub.refund_requested_amount > 0, "No pending refund request");
+
+        sub.refund_requested_amount = 0;
+
+        env.storage()
+            .persistent()
+            .set(&DataKey::Subscription(subscription_id), &sub);
+
+        // Publish event
+        env.events().publish(
+            (String::from_str(&env, "refund_rejected"), subscription_id),
+            sub.subscriber.clone(),
+        );
+    }
+
     // ── Queries ──
 
     /// Get plan details
@@ -453,7 +557,7 @@ mod test {
     fn test_create_plan_and_subscribe() {
         let env = Env::default();
         let contract_id = env.register_contract(None, SubTrackrContract);
-        let client = SubTrackrContract::new(&env, &contract_id);
+        let client = SubTrackrContractClient::new(&env, &contract_id);
 
         let admin = Address::generate(&env);
         let merchant = Address::generate(&env);
@@ -592,5 +696,30 @@ mod test {
         assert_eq!(resumed.status, SubscriptionStatus::Active);
         assert_eq!(resumed.next_charge_at, env.ledger().timestamp() + Interval::Monthly.seconds());
         assert!(resumed.next_charge_at > initial.next_charge_at);
+    }
+
+    #[test]
+    fn test_refund_flow() {
+        let env = Env::default();
+        let (client, _admin, _merchant, subscriber, _token) = setup(&env);
+        let sub_id = client.subscribe(&subscriber, &1);
+
+        // Charge the subscription at month 1
+        env.ledger().set_timestamp(86_400 * 31);
+        client.charge_subscription(&sub_id);
+
+        let sub = client.get_subscription(&sub_id);
+        assert_eq!(sub.total_paid, 500);
+
+        // Request refund
+        client.request_refund(&sub_id, &200);
+        let sub = client.get_subscription(&sub_id);
+        assert_eq!(sub.refund_requested_amount, 200);
+
+        // Approve refund
+        client.approve_refund(&sub_id);
+        let sub = client.get_subscription(&sub_id);
+        assert_eq!(sub.total_paid, 300);
+        assert_eq!(sub.refund_requested_amount, 0);
     }
 }
