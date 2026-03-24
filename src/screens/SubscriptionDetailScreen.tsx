@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Switch,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -27,8 +28,14 @@ const SubscriptionDetailScreen: React.FC = () => {
   const route = useRoute<SubscriptionDetailRouteProp>();
   const { id } = route.params;
 
-  const { subscriptions, toggleSubscriptionStatus, deleteSubscription, isLoading } =
-    useSubscriptionStore();
+  const {
+    subscriptions,
+    toggleSubscriptionStatus,
+    deleteSubscription,
+    updateSubscription,
+    recordBillingOutcome,
+    isLoading,
+  } = useSubscriptionStore();
 
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
@@ -180,6 +187,38 @@ const SubscriptionDetailScreen: React.FC = () => {
                 day: 'numeric',
               })}
             </Text>
+          </View>
+        </Card>
+
+        {/* Notifications */}
+        <Card style={styles.statusCard}>
+          <Text style={styles.sectionTitle}>Billing notifications</Text>
+          <Text style={styles.notificationSubtext}>
+            Renewal reminders (1 day before, or 1 hour if due sooner) and charge alerts
+          </Text>
+          <View style={styles.switchRow}>
+            <Text style={styles.switchLabel}>Enabled for this subscription</Text>
+            <Switch
+              value={subscription.notificationsEnabled !== false}
+              onValueChange={(value) =>
+                updateSubscription(subscription.id, { notificationsEnabled: value })
+              }
+              trackColor={{ false: colors.border, true: colors.primary }}
+              thumbColor={colors.text}
+            />
+          </View>
+          <Text style={styles.simulateSectionTitle}>Test charge alerts (local only)</Text>
+          <View style={styles.simulateRow}>
+            <TouchableOpacity
+              onPress={() => void recordBillingOutcome(subscription.id, 'success')}
+              style={styles.simulateLink}>
+              <Text style={styles.simulateLinkText}>Simulate successful charge</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => void recordBillingOutcome(subscription.id, 'failed')}
+              style={styles.simulateLink}>
+              <Text style={styles.simulateLinkTextDanger}>Simulate failed charge</Text>
+            </TouchableOpacity>
           </View>
         </Card>
 
@@ -385,6 +424,48 @@ const styles = StyleSheet.create({
   statusCard: {
     marginHorizontal: spacing.lg,
     marginBottom: spacing.md,
+  },
+  notificationSubtext: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginBottom: spacing.md,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+  },
+  switchLabel: {
+    ...typography.body,
+    color: colors.text,
+    flex: 1,
+    marginRight: spacing.md,
+  },
+  simulateSectionTitle: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  simulateRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.md,
+  },
+  simulateLink: {
+    paddingVertical: spacing.xs,
+  },
+  simulateLinkText: {
+    ...typography.caption,
+    color: colors.accent,
+    textDecorationLine: 'underline',
+  },
+  simulateLinkTextDanger: {
+    ...typography.caption,
+    color: colors.error,
+    textDecorationLine: 'underline',
   },
   statusRow: {
     flexDirection: 'row',

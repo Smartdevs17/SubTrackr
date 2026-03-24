@@ -41,6 +41,7 @@
     "ethers": "^5.8.0",
     "expo": "~53.0.20",
     "expo-application": "~6.1.5",
+    "expo-notifications": "^0.31.5",
     "expo-status-bar": "~2.2.3",
     "graphql": "^16.13.1",
     "react": "19.0.0",

@@ -8,6 +8,8 @@ export interface Subscription {
   billingCycle: BillingCycle;
   nextBillingDate: Date;
   isActive: boolean;
+  /** When false, skip renewal reminders and charge alerts for this subscription */
+  notificationsEnabled?: boolean;
   isCryptoEnabled: boolean;
   cryptoStreamId?: string;
   cryptoToken?: string;
@@ -42,6 +44,7 @@ export interface SubscriptionFormData {
   currency: string;
   billingCycle: BillingCycle;
   nextBillingDate: Date;
+  notificationsEnabled?: boolean;
   isCryptoEnabled: boolean;
   cryptoToken?: string;
   cryptoAmount?: number;
