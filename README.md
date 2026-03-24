@@ -45,6 +45,7 @@ SubTrackr/
 │   └── hooks/        # Custom React hooks
 ├── contracts/        # Soroban smart contracts (Rust)
 │   └── src/          # Subscription management contract
+├── stellarlend/      # Optional local clone of the lending protocol (separate Git repo; see below)
 ```
 
 ## Tech Stack
