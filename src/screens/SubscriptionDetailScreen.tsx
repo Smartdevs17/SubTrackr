@@ -280,6 +280,46 @@ const SubscriptionDetailScreen: React.FC = () => {
           </Card>
         )}
 
+        {/* Gas Tracking Section */}
+        <Card style={styles.statusCard}>
+          <Text style={styles.sectionTitle}>Gas Budget Tracking</Text>
+          <View style={styles.priceRow}>
+            <View style={styles.priceItem}>
+              <Text style={styles.priceLabel}>Avg Gas Cost</Text>
+              <Text style={styles.priceValue}>
+                {subscription.chargeCount && subscription.chargeCount > 0
+                  ? (subscription.totalGasSpent! / subscription.chargeCount).toFixed(4)
+                  : '0.0000'}{' '}
+                XLM
+              </Text>
+            </View>
+            <View style={styles.priceItem}>
+              <Text style={styles.priceLabel}>Total Gas Spent</Text>
+              <Text style={styles.priceValue}>
+                {subscription.totalGasSpent?.toFixed(4) || '0.0000'} XLM
+              </Text>
+            </View>
+          </View>
+          
+          <View style={styles.nextBillingRow}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={styles.priceLabel}>Gas Budget per Charge</Text>
+              <Text style={[styles.priceValue, { fontSize: 16 }]}>
+                {subscription.gasBudget?.toFixed(4) || '0.0500'} XLM
+              </Text>
+            </View>
+          </View>
+
+          {subscription.lastGasCost && subscription.chargeCount && subscription.chargeCount > 1 && 
+           subscription.lastGasCost > (subscription.totalGasSpent! / subscription.chargeCount) * 1.5 && (
+            <View style={[styles.statusBadge, styles.statusInactive, { marginTop: spacing.md, backgroundColor: colors.error + '20' }]}>
+              <Text style={[styles.statusText, { color: colors.error }]}>
+                ⚠️ Gas cost spike detected! ({subscription.lastGasCost.toFixed(4)} XLM)
+              </Text>
+            </View>
+          )}
+        </Card>
+
         {/* Actions */}
         <View style={styles.actionsContainer}>
           <Button

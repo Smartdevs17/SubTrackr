@@ -140,9 +140,19 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
 
     if (outcome === 'success') {
       const next = advanceBillingDate(new Date(sub.nextBillingDate), sub.billingCycle);
+      const simulatedGas = 0.01 + Math.random() * 0.005; // Simulate 0.01 - 0.015 XLM gas
+      
       set((state) => ({
         subscriptions: state.subscriptions.map((s) =>
-          s.id === id ? { ...s, nextBillingDate: next, updatedAt: new Date() } : s
+          s.id === id ? { 
+            ...s, 
+            nextBillingDate: next, 
+            updatedAt: new Date(),
+            totalGasSpent: (s.totalGasSpent || 0) + simulatedGas,
+            chargeCount: (s.chargeCount || 0) + 1,
+            lastGasCost: simulatedGas,
+            gasBudget: s.gasBudget || 0.05 // Default budget if not set
+          } : s
         ),
       }));
       get().calculateStats();
@@ -207,12 +217,15 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
       {} as Record<string, number>
     );
 
+    const totalGasSpent = activeSubs.reduce((total, sub) => total + (sub.totalGasSpent || 0), 0);
+    
     set({
       stats: {
         totalActive: activeSubs.length,
         totalMonthlySpend,
         totalYearlySpend,
         categoryBreakdown,
+        totalGasSpent,
       },
     });
   },

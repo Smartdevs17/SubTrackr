@@ -59,6 +59,8 @@ pub struct Subscription {
     pub last_charged_at: u64,
     pub next_charge_at: u64,
     pub total_paid: i128,
+    pub total_gas_spent: u64,
+    pub charge_count: u32,
 }
 
 #[contracttype]
@@ -209,6 +211,8 @@ impl SubTrackrContract {
             last_charged_at: now,
             next_charge_at: now + plan.interval.seconds(),
             total_paid: 0,
+            total_gas_spent: 0,
+            charge_count: 0,
         };
 
         env.storage()
@@ -364,10 +368,18 @@ impl SubTrackrContract {
         sub.last_charged_at = now;
         sub.next_charge_at = now + plan.interval.seconds();
         sub.total_paid += plan.price;
+        sub.total_gas_spent += 100_000; // Simulated gas cost (0.01 XLM)
+        sub.charge_count += 1;
 
         env.storage()
             .persistent()
             .set(&DataKey::Subscription(subscription_id), &sub);
+
+        // Publish event
+        env.events().publish(
+            (String::from_str(&env, "subscription_charged"), subscription_id),
+            (sub.subscriber.clone(), plan.price, 100_000u64, now),
+        );
     }
 
     // ── Queries ──
@@ -453,7 +465,7 @@ mod test {
     fn test_create_plan_and_subscribe() {
         let env = Env::default();
         let contract_id = env.register_contract(None, SubTrackrContract);
-        let client = SubTrackrContract::new(&env, &contract_id);
+        let client = SubTrackrContractClient::new(&env, &contract_id);
 
         let admin = Address::generate(&env);
         let merchant = Address::generate(&env);

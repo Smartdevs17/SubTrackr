@@ -14,6 +14,10 @@ export interface Subscription {
   cryptoStreamId?: string;
   cryptoToken?: string;
   cryptoAmount?: number;
+  gasBudget?: number;
+  totalGasSpent?: number;
+  chargeCount?: number;
+  lastGasCost?: number;
   createdAt: Date;
   updatedAt: Date;
 }
