@@ -18,6 +18,9 @@ export interface ButtonProps {
   loading?: boolean;
   fullWidth?: boolean;
   style?: StyleProp<ViewStyle>;
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
+  accessibilitySelected?: boolean;
 }
 
 export const Button: React.FC<ButtonProps> = ({
@@ -29,6 +32,9 @@ export const Button: React.FC<ButtonProps> = ({
   loading = false,
   fullWidth = false,
   style,
+  accessibilityLabel,
+  accessibilityHint,
+  accessibilitySelected = false,
 }) => {
   const buttonStyle = [
     styles.button,
@@ -51,7 +57,15 @@ export const Button: React.FC<ButtonProps> = ({
       style={buttonStyle}
       onPress={onPress}
       disabled={disabled || loading}
-      activeOpacity={0.8}>
+      activeOpacity={0.8}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? title}
+      accessibilityHint={accessibilityHint}
+      accessibilityState={{
+        disabled: disabled || loading,
+        busy: loading,
+        selected: accessibilitySelected,
+      }}>
       {loading ? (
         <ActivityIndicator
           color={variant === 'outline' ? colors.primary : colors.text}

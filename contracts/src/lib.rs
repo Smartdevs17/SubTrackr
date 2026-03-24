@@ -171,6 +171,25 @@ impl SubTrackrContract {
             .get(&DataKey::Plan(plan_id))
             .expect("Plan not found");
         assert!(plan.active, "Plan is not active");
+        assert!(plan.merchant != subscriber, "Merchant cannot self-subscribe");
+
+        let user_subs: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&DataKey::UserSubscriptions(subscriber.clone()))
+            .unwrap_or(Vec::new(&env));
+        for sub_id in user_subs.iter() {
+            let existing_sub: Subscription = env
+                .storage()
+                .persistent()
+                .get(&DataKey::Subscription(sub_id))
+                .expect("Subscription not found");
+            if existing_sub.plan_id == plan_id
+                && existing_sub.status != SubscriptionStatus::Cancelled
+            {
+                panic!("Already subscribed to this plan");
+            }
+        }
 
         let mut sub_count: u64 = env
             .storage()
@@ -405,8 +424,30 @@ impl SubTrackrContract {
 #[cfg(test)]
 mod test {
     use super::*;
-    use soroban_sdk::testutils::Address as _;
+    use soroban_sdk::testutils::{Address as _, Ledger};
     use soroban_sdk::Env;
+
+    fn setup(env: &Env) -> (SubTrackrContractClient<'_>, Address, Address, Address, Address) {
+        let contract_id = env.register_contract(None, SubTrackrContract);
+        let client = SubTrackrContractClient::new(env, &contract_id);
+
+        let admin = Address::generate(env);
+        let merchant = Address::generate(env);
+        let subscriber = Address::generate(env);
+        let token = Address::generate(env);
+
+        env.mock_all_auths();
+        client.initialize(&admin);
+        client.create_plan(
+            &merchant,
+            &String::from_str(env, "Basic"),
+            &500_i128,
+            &token,
+            &Interval::Monthly,
+        );
+
+        (client, admin, merchant, subscriber, token)
+    }
 
     #[test]
     fn test_create_plan_and_subscribe() {
@@ -452,24 +493,7 @@ mod test {
     #[test]
     fn test_cancel_subscription() {
         let env = Env::default();
-        let contract_id = env.register_contract(None, SubTrackrContract);
-        let client = SubTrackrContract::new(&env, &contract_id);
-
-        let admin = Address::generate(&env);
-        let merchant = Address::generate(&env);
-        let subscriber = Address::generate(&env);
-        let token = Address::generate(&env);
-
-        env.mock_all_auths();
-
-        client.initialize(&admin);
-        client.create_plan(
-            &merchant,
-            &String::from_str(&env, "Basic"),
-            &500_i128,
-            &token,
-            &Interval::Monthly,
-        );
+        let (client, _admin, _merchant, subscriber, _token) = setup(&env);
         client.subscribe(&subscriber, &1);
 
         client.cancel_subscription(&subscriber, &1);
@@ -479,5 +503,94 @@ mod test {
 
         let plan = client.get_plan(&1);
         assert_eq!(plan.subscriber_count, 0);
+    }
+
+    #[test]
+    #[should_panic(expected = "Payment not yet due")]
+    fn test_charge_subscription_not_due() {
+        let env = Env::default();
+        let (client, _admin, _merchant, subscriber, _token) = setup(&env);
+        client.subscribe(&subscriber, &1);
+
+        client.charge_subscription(&1);
+    }
+
+    #[test]
+    #[should_panic(expected = "Already subscribed to this plan")]
+    fn test_double_subscribe() {
+        let env = Env::default();
+        let (client, _admin, _merchant, subscriber, _token) = setup(&env);
+        client.subscribe(&subscriber, &1);
+
+        client.subscribe(&subscriber, &1);
+    }
+
+    #[test]
+    fn test_plan_deactivation_existing_subscribers_unaffected() {
+        let env = Env::default();
+        let (client, _admin, merchant, subscriber, _token) = setup(&env);
+        let sub_id = client.subscribe(&subscriber, &1);
+
+        client.deactivate_plan(&merchant, &1);
+        let plan = client.get_plan(&1);
+        assert!(!plan.active);
+
+        // Existing subscriber can still keep/operate subscription lifecycle.
+        client.pause_subscription(&subscriber, &sub_id);
+        let paused = client.get_subscription(&sub_id);
+        assert_eq!(paused.status, SubscriptionStatus::Paused);
+    }
+
+    #[test]
+    #[should_panic(expected = "Subscription not active")]
+    fn test_charge_paused_subscription() {
+        let env = Env::default();
+        let (client, _admin, _merchant, subscriber, _token) = setup(&env);
+        client.subscribe(&subscriber, &1);
+        client.pause_subscription(&subscriber, &1);
+
+        client.charge_subscription(&1);
+    }
+
+    #[test]
+    #[should_panic(expected = "Merchant cannot self-subscribe")]
+    fn test_merchant_cannot_subscribe() {
+        let env = Env::default();
+        let (client, _admin, merchant, _subscriber, _token) = setup(&env);
+
+        client.subscribe(&merchant, &1);
+    }
+
+    #[test]
+    #[should_panic(expected = "Only subscriber can cancel")]
+    fn test_non_subscriber_cannot_cancel() {
+        let env = Env::default();
+        let (client, _admin, _merchant, subscriber, _token) = setup(&env);
+        let attacker = Address::generate(&env);
+        client.subscribe(&subscriber, &1);
+
+        client.cancel_subscription(&attacker, &1);
+    }
+
+    #[test]
+    fn test_pause_and_resume() {
+        let env = Env::default();
+        let (client, _admin, _merchant, subscriber, _token) = setup(&env);
+        let sub_id = client.subscribe(&subscriber, &1);
+        let initial = client.get_subscription(&sub_id);
+
+        client.pause_subscription(&subscriber, &sub_id);
+        let paused = client.get_subscription(&sub_id);
+        assert_eq!(paused.status, SubscriptionStatus::Paused);
+
+        env.ledger().with_mut(|li| {
+            li.timestamp += 86_400;
+        });
+
+        client.resume_subscription(&subscriber, &sub_id);
+        let resumed = client.get_subscription(&sub_id);
+        assert_eq!(resumed.status, SubscriptionStatus::Active);
+        assert_eq!(resumed.next_charge_at, env.ledger().timestamp() + Interval::Monthly.seconds());
+        assert!(resumed.next_charge_at > initial.next_charge_at);
     }
 }
