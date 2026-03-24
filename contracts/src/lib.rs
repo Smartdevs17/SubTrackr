@@ -337,11 +337,6 @@ impl SubTrackrContract {
             .get(&DataKey::Plan(sub.plan_id))
             .expect("Plan not found");
 
-        // TODO: Execute actual token transfer from subscriber to merchant
-        // token::Client::new(&env, &plan.token).transfer(
-        //     &sub.subscriber, &plan.merchant, &plan.price
-        // );
-
         sub.last_charged_at = now;
         sub.next_charge_at = now + plan.interval.seconds();
         sub.total_paid += plan.price;
@@ -349,6 +344,11 @@ impl SubTrackrContract {
         env.storage()
             .persistent()
             .set(&DataKey::Subscription(subscription_id), &sub);
+
+        // TODO: Execute actual token transfer from subscriber to merchant
+        // token::Client::new(&env, &plan.token).transfer(
+        //     &sub.subscriber, &plan.merchant, &plan.price
+        // );
     }
 
     // ── Queries ──
