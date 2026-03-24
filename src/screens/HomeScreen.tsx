@@ -24,6 +24,9 @@ import { getUpcomingSubscriptions } from '../utils/dummyData';
 import { Subscription, SubscriptionCategory, BillingCycle } from '../types/subscription';
 import { RootStackParamList } from '../navigation/types';
 
+// Home Components
+import { StatsCard } from '../components/home/StatsCard';
+
 type HomeNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const HomeScreen: React.FC = () => {
@@ -252,24 +255,11 @@ const HomeScreen: React.FC = () => {
         </View>
 
         {/* Stats Cards */}
-        <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <Text style={styles.statLabel}>Total Monthly</Text>
-            <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>
-              {formatCurrencyCompact(stats.totalMonthlySpend)}
-            </Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statLabel}>Active Subs</Text>
-            <Text style={styles.statValue}>{stats.totalActive}</Text>
-          </View>
-          <View style={styles.statCard}>
-            <TouchableOpacity onPress={() => navigation.navigate('WalletConnect' as never)}>
-              <Text style={styles.statLabel}>Wallet</Text>
-              <Text style={styles.statValue}>🔗</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+       <StatsCard 
+          totalMonthlySpend={stats.totalMonthlySpend}
+          totalActive={stats.totalActive}
+          onWalletPress={() => navigation.navigate('WalletConnect' as never)}
+        />
 
         {/* Upcoming Billing Section */}
         {upcomingSubscriptions && upcomingSubscriptions.length > 0 && (
@@ -811,38 +801,6 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.text,
     fontWeight: '600',
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.lg,
-    gap: spacing.md,
-    flexWrap: 'wrap',
-  },
-  statCard: {
-    flex: 1,
-    minWidth: 100,
-    backgroundColor: colors.surface,
-    padding: spacing.md,
-    borderRadius: borderRadius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 80,
-    ...shadows.sm,
-  },
-  statLabel: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginBottom: spacing.xs,
-    textAlign: 'center',
-  },
-  statValue: {
-    fontSize: 18,
-    fontWeight: 'bold' as const,
-    color: colors.text,
-    textAlign: 'center',
-    lineHeight: 22,
-    minHeight: 22,
   },
   section: {
     padding: spacing.lg,
