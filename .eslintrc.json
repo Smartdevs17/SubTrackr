@@ -19,5 +19,5 @@
     "@typescript-eslint/no-explicit-any": "warn",
     "no-console": ["warn", { "allow": ["warn", "error"] }]
   },
-  "ignorePatterns": ["node_modules/", "dist/", "android/", "ios/", ".expo/"]
+  "ignorePatterns": ["node_modules/", "dist/", "android/", "ios/", ".expo/", "src/contracts/types/"]
 }

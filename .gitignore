@@ -46,6 +46,8 @@ ios/
 
 # IDE / Tools
 .claude/
+_typechain_tmp/
+_tc_verify/
 
 # Build artifacts
 build_errors*.txt
