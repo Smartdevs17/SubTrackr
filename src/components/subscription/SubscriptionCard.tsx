@@ -2,7 +2,12 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { colors, spacing, typography, borderRadius, shadows } from '../../utils/constants';
 import { Subscription, SubscriptionCategory } from '../../types/subscription';
-import { formatCurrency, formatCategory, formatBillingCycle, formatRelativeDate } from '../../utils/formatting';
+import {
+  formatCurrency,
+  formatCategory,
+  formatBillingCycle,
+  formatRelativeDate,
+} from '../../utils/formatting';
 
 export interface SubscriptionCardProps {
   subscription: Subscription;
@@ -69,13 +74,12 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
     <TouchableOpacity
       style={[styles.container, isUpcoming() && styles.upcomingContainer]}
       onPress={() => onPress(subscription)}
-      activeOpacity={0.8}
-    >
+      activeOpacity={0.8}>
       <View style={styles.header}>
         <View style={styles.iconContainer}>
           <Text style={styles.icon}>{getCategoryIcon(subscription.category)}</Text>
         </View>
-        
+
         <View style={styles.titleContainer}>
           <Text style={styles.name} numberOfLines={1}>
             {subscription.name}
@@ -84,9 +88,14 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
             {formatCategory(subscription.category)}
           </Text>
         </View>
-        
+
         <View style={styles.statusContainer}>
-          <View style={[styles.statusIndicator, { backgroundColor: getStatusColor(subscription.isActive) }]} />
+          <View
+            style={[
+              styles.statusIndicator,
+              { backgroundColor: getStatusColor(subscription.isActive) },
+            ]}
+          />
           {subscription.isCryptoEnabled && (
             <View style={styles.cryptoBadge}>
               <Text style={styles.cryptoText}>₿</Text>
@@ -94,17 +103,21 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
           )}
         </View>
       </View>
-      
+
       <View style={styles.details}>
         <View style={styles.priceContainer}>
           <Text style={styles.price}>
             {formatCurrency(subscription.price, subscription.currency)}
           </Text>
-          <Text style={[styles.billingCycle, { color: getBillingCycleColor(subscription.billingCycle) }]}>
+          <Text
+            style={[
+              styles.billingCycle,
+              { color: getBillingCycleColor(subscription.billingCycle) },
+            ]}>
             /{formatBillingCycle(subscription.billingCycle)}
           </Text>
         </View>
-        
+
         <View style={styles.billingInfo}>
           <Text style={styles.billingLabel}>Next billing:</Text>
           <Text style={[styles.billingDate, isUpcoming() && styles.upcomingDate]}>
@@ -112,22 +125,19 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
           </Text>
         </View>
       </View>
-      
+
       {subscription.description && (
         <Text style={styles.description} numberOfLines={2}>
           {subscription.description}
         </Text>
       )}
-      
+
       {onToggleStatus && (
         <TouchableOpacity
           style={styles.toggleButton}
           onPress={handleToggleStatus}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.toggleText}>
-            {subscription.isActive ? 'Pause' : 'Activate'}
-          </Text>
+          activeOpacity={0.7}>
+          <Text style={styles.toggleText}>{subscription.isActive ? 'Pause' : 'Activate'}</Text>
         </TouchableOpacity>
       )}
     </TouchableOpacity>

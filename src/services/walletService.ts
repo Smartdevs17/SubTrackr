@@ -87,7 +87,7 @@ function formatSuperfluidError(error: unknown): string {
 export class WalletServiceManager {
   private static instance: WalletServiceManager;
   private connection: WalletConnection | null = null;
-  private listeners: Array<(connection: WalletConnection | null) => void> = [];
+  private listeners: ((connection: WalletConnection | null) => void)[] = [];
 
   static getInstance(): WalletServiceManager {
     if (!WalletServiceManager.instance) {

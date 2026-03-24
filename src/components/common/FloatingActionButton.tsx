@@ -21,11 +21,7 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
   accessibilityLabel,
   accessibilityHint,
 }) => {
-  const buttonStyle = [
-    styles.button,
-    styles[size],
-    style,
-  ];
+  const buttonStyle = [styles.button, styles[size], style];
 
   return (
     <TouchableOpacity
@@ -34,16 +30,9 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
       activeOpacity={0.8}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? title ?? 'Add item'}
-      accessibilityHint={accessibilityHint ?? 'Activates the primary action'}
-    >
-      <Text style={[styles.icon, styles[`${size}Icon`]]}>
-        {icon}
-      </Text>
-      {title && (
-        <Text style={[styles.title, styles[`${size}Title`]]}>
-          {title}
-        </Text>
-      )}
+      accessibilityHint={accessibilityHint ?? 'Activates the primary action'}>
+      <Text style={[styles.icon, styles[`${size}Icon`]]}>{icon}</Text>
+      {title && <Text style={[styles.title, styles[`${size}Title`]]}>{title}</Text>}
     </TouchableOpacity>
   );
 };
@@ -57,7 +46,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     ...shadows.lg,
   },
-  
+
   // Sizes
   small: {
     width: 48,
@@ -77,7 +66,7 @@ const styles = StyleSheet.create({
     bottom: spacing.lg,
     right: spacing.lg,
   },
-  
+
   // Icon styles
   icon: {
     color: colors.text,
@@ -92,7 +81,7 @@ const styles = StyleSheet.create({
   largeIcon: {
     fontSize: 28,
   },
-  
+
   // Title styles
   title: {
     color: colors.text,
