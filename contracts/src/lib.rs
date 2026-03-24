@@ -323,6 +323,8 @@ impl SubTrackrContract {
             .get(&DataKey::Subscription(subscription_id))
             .expect("Subscription not found");
 
+        sub.subscriber.require_auth();
+
         assert!(
             sub.status == SubscriptionStatus::Active,
             "Subscription not active"
