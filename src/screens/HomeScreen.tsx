@@ -28,6 +28,7 @@ import { RootStackParamList } from '../navigation/types';
 import { StatsCard } from '../components/home/StatsCard';
 import { FilterBar } from '../components/home/FilterBar';
 import { FilterModal } from '../components/home/FilterModal';
+import { SubscriptionList } from '../components/home/SubscriptionList';
 
 type HomeNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -243,72 +244,18 @@ const HomeScreen: React.FC = () => {
         />
 
         {/* Upcoming Billing Section */}
-        {upcomingSubscriptions && upcomingSubscriptions.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Upcoming Billing</Text>
-            <Text style={styles.sectionSubtitle}>
-              {upcomingSubscriptions.length} subscription
-              {upcomingSubscriptions.length !== 1 ? 's' : ''} due this week
-            </Text>
-            <View style={styles.upcomingContainer}>
-              {upcomingSubscriptions.slice(0, 3).map((subscription) => (
-                <View key={subscription.id} style={styles.upcomingItem}>
-                  <Text style={styles.upcomingName} numberOfLines={1}>
-                    {subscription.name}
-                  </Text>
-                  <Text style={styles.upcomingDate}>
-                    {new Date(subscription.nextBillingDate).toLocaleDateString()}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        )}
-
-        {/* Subscriptions List */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Your Subscriptions</Text>
-            {hasSubscriptions && (
-              <View style={styles.sectionHeaderRight}>
-                {hasActiveFilters && (
-                  <Text style={styles.activeFiltersText}>
-                    {filteredAndSortedSubscriptions.length} of {subscriptions?.length || 0}
-                  </Text>
-                )}
-                <Text style={styles.subscriptionCount}>
-                  {activeSubscriptions.length} subscription
-                  {activeSubscriptions.length !== 1 ? 's' : ''}
-                </Text>
-              </View>
-            )}
-          </View>
-
-          {hasSubscriptions ? (
-            <View style={styles.subscriptionsList}>
-              {activeSubscriptions &&
-                activeSubscriptions.map((subscription) => (
-                  <SubscriptionCard
-                    key={subscription.id}
-                    subscription={subscription}
-                    onPress={handleSubscriptionPress}
-                    onToggleStatus={handleToggleStatus}
-                  />
-                ))}
-            </View>
-          ) : (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyIcon}>📱</Text>
-              <Text style={styles.emptyText}>No subscriptions yet</Text>
-              <Text style={styles.emptySubtext}>
-                Add your first subscription to start tracking your spending
-              </Text>
-              <TouchableOpacity style={styles.addFirstButton} onPress={handleAddSubscription}>
-                <Text style={styles.addFirstButtonText}>Add Subscription</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
+       <SubscriptionList
+          subscriptions={subscriptions}
+          activeSubscriptions={activeSubscriptions}
+          upcomingSubscriptions={upcomingSubscriptions}
+          hasSubscriptions={hasSubscriptions}
+          hasActiveFilters={hasActiveFilters}
+          filteredCount={filteredAndSortedSubscriptions.length}
+          totalCount={subscriptions?.length || 0}
+          onSubscriptionPress={handleSubscriptionPress}
+          onToggleStatus={handleToggleStatus}
+          onAddFirstPress={handleAddSubscription}
+        />
 
         {/* Error Display */}
         {error && (
@@ -367,104 +314,6 @@ const styles = StyleSheet.create({
   subtitle: {
     ...typography.body,
     color: colors.textSecondary,
-  },
-  section: {
-    padding: spacing.lg,
-    paddingTop: 0,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  sectionHeaderRight: {
-    alignItems: 'flex-end',
-  },
-  activeFiltersText: {
-    ...typography.caption,
-    color: colors.primary,
-    fontWeight: '600',
-    marginBottom: spacing.xs,
-  },
-  subscriptionCount: {
-    ...typography.body,
-    color: colors.textSecondary,
-  },
-  sectionTitle: {
-    ...typography.h3,
-    color: colors.text,
-  },
-  sectionSubtitle: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginBottom: spacing.md,
-  },
-  filterText: {
-    ...typography.caption,
-    color: colors.primary,
-    fontWeight: '500',
-  },
-  upcomingContainer: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.lg,
-    ...shadows.sm,
-  },
-  upcomingItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  upcomingName: {
-    ...typography.body,
-    color: colors.text,
-    flex: 1,
-  },
-  upcomingDate: {
-    ...typography.caption,
-    color: colors.accent,
-    fontWeight: '600',
-  },
-  subscriptionsList: {
-    marginBottom: spacing.lg,
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: spacing.xl,
-    paddingHorizontal: spacing.lg,
-  },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: spacing.md,
-  },
-  emptyText: {
-    ...typography.h3,
-    color: colors.text,
-    marginBottom: spacing.xs,
-    textAlign: 'center',
-  },
-  emptySubtext: {
-    ...typography.body,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: spacing.lg,
-    lineHeight: 22,
-  },
-  addFirstButton: {
-    backgroundColor: colors.primary,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    borderRadius: borderRadius.md,
-  },
-  addFirstButtonText: {
-    ...typography.body,
-    color: colors.text,
-    fontWeight: '600',
   },
   errorContainer: {
     backgroundColor: colors.error,
