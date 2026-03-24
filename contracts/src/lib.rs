@@ -1,6 +1,6 @@
 #![no_std]
 
-use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, String, Vec};
+use soroban_sdk::{contract, contractimpl, contracttype, token, Address, Env, String, Vec};
 
 /// Billing interval in seconds
 #[contracttype]
@@ -337,10 +337,10 @@ impl SubTrackrContract {
             .get(&DataKey::Plan(sub.plan_id))
             .expect("Plan not found");
 
-        // TODO: Execute actual token transfer from subscriber to merchant
-        // token::Client::new(&env, &plan.token).transfer(
-        //     &sub.subscriber, &plan.merchant, &plan.price
-        // );
+        // Execute actual token transfer from subscriber to merchant
+        token::Client::new(&env, &plan.token).transfer(
+            &sub.subscriber, &plan.merchant, &plan.price
+        );
 
         sub.last_charged_at = now;
         sub.next_charge_at = now + plan.interval.seconds();
