@@ -3,9 +3,10 @@
 ## 🚨 **ERROR IDENTIFIED:**
 
 Your APK is showing this error on physical device:
+
 ```
-"Unable to load script. Make sure you're either running Metro 
-(run 'npx react-native start') or that your bundle 
+"Unable to load script. Make sure you're either running Metro
+(run 'npx react-native start') or that your bundle
 'index.android.bundle' is packaged correctly for release."
 ```
 
@@ -14,6 +15,7 @@ Your APK is showing this error on physical device:
 The **debug APK** you built is missing the JavaScript bundle (`index.android.bundle`) that contains your app's code.
 
 ### **Why This Happens:**
+
 - **Debug builds** expect Metro bundler to be running on your computer
 - **Release builds** need JS code bundled inside the APK
 - **Physical device testing** requires bundled JS code
@@ -21,6 +23,7 @@ The **debug APK** you built is missing the JavaScript bundle (`index.android.bun
 ## 🛠️ **SOLUTION: Build Release APK with Bundled JS**
 
 ### **Option 1: Use Release Build Script (Recommended)**
+
 ```bash
 # Make executable and run
 chmod +x build-release.sh
@@ -28,6 +31,7 @@ chmod +x build-release.sh
 ```
 
 ### **Option 2: Manual Fix**
+
 ```bash
 # Step 1: Ensure clean prebuild
 npx expo prebuild --platform android --clean
@@ -57,12 +61,14 @@ cp android/app/build/outputs/apk/release/*.apk builds/subtrackr-release.apk
 ## 📱 **WHAT YOU'LL GET:**
 
 ### **Release APK Features:**
+
 - ✅ **Bundled JavaScript**: All your app code is inside the APK
 - ✅ **Offline Working**: No need for Metro bundler
 - ✅ **Physical Device Ready**: Works on any Android device
 - ✅ **Hackathon Ready**: Professional, distributable APK
 
 ### **Expected Output:**
+
 ```
 📱 Release APK Details:
    Name: subtrackr-release.apk
@@ -75,11 +81,13 @@ cp android/app/build/outputs/apk/release/*.apk builds/subtrackr-release.apk
 ## 🔧 **DIFFERENCE BETWEEN BUILD TYPES:**
 
 ### **Debug Build (What You Had):**
+
 - ❌ **No JS Bundle**: Expects Metro bundler
 - ❌ **Development Only**: Won't work on physical devices
 - ❌ **Requires Computer**: Needs development server running
 
 ### **Release Build (What You Need):**
+
 - ✅ **JS Bundle Included**: All code packaged inside APK
 - ✅ **Production Ready**: Works on any device
 - ✅ **Standalone**: No external dependencies
@@ -87,12 +95,14 @@ cp android/app/build/outputs/apk/release/*.apk builds/subtrackr-release.apk
 ## 🚀 **AFTER BUILDING RELEASE APK:**
 
 ### **Installation Steps:**
+
 1. **Transfer APK**: Copy `builds/subtrackr-release.apk` to your device
 2. **Enable Unknown Sources**: Allow installation from unknown sources
 3. **Install APK**: Tap the APK file to install
 4. **Launch App**: App should work without any errors
 
 ### **Testing Checklist:**
+
 - [ ] **Installation**: APK installs without errors
 - [ ] **Launch**: App opens without red box errors
 - [ ] **Navigation**: All screens work properly
@@ -102,11 +112,13 @@ cp android/app/build/outputs/apk/release/*.apk builds/subtrackr-release.apk
 ## 🎯 **HACKATHON IMPACT:**
 
 ### **Professional Quality:**
+
 - **Working APK**: Judges can actually test your app
 - **No Errors**: Clean, professional user experience
 - **Offline Capable**: Demonstrates production readiness
 
 ### **Technical Excellence:**
+
 - **Build System**: Shows understanding of React Native builds
 - **Problem Solving**: Demonstrates ability to resolve complex issues
 - **User Experience**: Judges get working app, not error screens
@@ -114,6 +126,7 @@ cp android/app/build/outputs/apk/release/*.apk builds/subtrackr-release.apk
 ## 🆘 **TROUBLESHOOTING:**
 
 ### **If Bundle Command Fails:**
+
 ```bash
 # Check if react-native CLI is available
 npx react-native --version
@@ -123,6 +136,7 @@ npm install -g @react-native-community/cli
 ```
 
 ### **If Release Build Fails:**
+
 ```bash
 # Check Android build tools
 cd android
@@ -134,6 +148,7 @@ cd ..
 ```
 
 ### **If APK Still Shows Errors:**
+
 ```bash
 # Verify bundle was created
 ls -la android/app/src/main/assets/
@@ -144,6 +159,7 @@ ls -la android/app/src/main/assets/
 ## 🎉 **SUCCESS GUARANTEED!**
 
 After building the release APK:
+
 - ✅ **No More Red Box Errors**
 - ✅ **App Works on Physical Device**
 - ✅ **Ready for Hackathon Submission**
@@ -152,11 +168,13 @@ After building the release APK:
 ## 🚀 **READY TO FIX!**
 
 ### **Quick Fix Command:**
+
 ```bash
 ./build-release.sh
 ```
 
 ### **Manual Fix Commands:**
+
 ```bash
 npx expo prebuild --platform android --clean
 mkdir -p android/app/src/main/assets
