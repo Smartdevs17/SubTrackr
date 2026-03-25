@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, SafeAreaView, RefreshControl } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { CompositeNavigationProp, useNavigation } from '@react-navigation/native';
+import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { useSubscriptionStore } from '../store';
 import { getUpcomingSubscriptions } from '../utils/dummyData';
 import { Subscription } from '../types/subscription';
-import { RootStackParamList } from '../navigation/types';
+import { RootStackParamList, TabParamList } from '../navigation/types';
 
 // Components
 import { FloatingActionButton } from '../components/common/FloatingActionButton';
@@ -17,7 +18,10 @@ import { FilterModal } from '../components/home/FilterModal';
 import { StatsCard } from '../components/home/StatsCard';
 import { SubscriptionList } from '../components/home/SubscriptionList';
 
-type HomeNavigationProp = NativeStackNavigationProp<RootStackParamList>;
+type HomeNavigationProp = CompositeNavigationProp<
+  NativeStackNavigationProp<RootStackParamList>,
+  BottomTabNavigationProp<TabParamList>
+>;
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation<HomeNavigationProp>();
@@ -65,7 +69,7 @@ const HomeScreen: React.FC = () => {
         <StatsCard 
           totalMonthlySpend={stats.totalMonthlySpend} 
           totalActive={stats.totalActive} 
-          onWalletPress={() => navigation.navigate('WalletConnect' as never)} 
+          onWalletPress={() => navigation.navigate('WalletConnect')} 
         />
 
         <SubscriptionList 
@@ -78,12 +82,12 @@ const HomeScreen: React.FC = () => {
           totalCount={subscriptions.length}
           onSubscriptionPress={(sub) => navigation.navigate('SubscriptionDetail', { id: sub.id })}
           onToggleStatus={handleToggleStatus}
-          onAddFirstPress={() => navigation.navigate('AddSubscription' as never)}
+          onAddFirstPress={() => navigation.navigate('AddSubscription')}
         />
       </ScrollView>
 
       {subscriptions.length > 0 && (
-        <FloatingActionButton onPress={() => navigation.navigate('AddSubscription' as never)} icon="+" size="large" />
+        <FloatingActionButton onPress={() => navigation.navigate('AddSubscription')} icon="+" size="large" />
       )}
 
       <FilterModal 

@@ -10,7 +10,10 @@ import {
   ActivityIndicator,
   Platform,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { CompositeNavigationProp, useNavigation } from '@react-navigation/native';
+import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList, TabParamList } from '../navigation/types';
 import { colors, spacing, typography, borderRadius, shadows } from '../utils/constants';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
@@ -20,8 +23,13 @@ import { useWalletStore } from '../store';
 
 import * as Clipboard from 'expo-clipboard';
 
+type WalletConnectNavigationProp = CompositeNavigationProp<
+  NativeStackNavigationProp<RootStackParamList>,
+  BottomTabNavigationProp<TabParamList>
+>;
+
 const WalletConnectScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<WalletConnectNavigationProp>();
   const { open } = useAppKit();
   const { address, isConnected, chainId } = useAppKitAccount();
   const { walletProvider } = useAppKitProvider();
@@ -136,7 +144,7 @@ const WalletConnectScreen: React.FC = () => {
 
   const handleSetupCryptoPayments = () => {
     if (connection) {
-      navigation.navigate('CryptoPayment' as never);
+      navigation.navigate('HomeTab', { screen: 'CryptoPayment', params: {} });
     } else {
       Alert.alert('Error', 'Please connect a wallet first');
     }

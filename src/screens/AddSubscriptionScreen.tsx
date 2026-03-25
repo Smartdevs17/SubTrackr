@@ -11,9 +11,10 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { CompositeNavigationProp, useNavigation } from '@react-navigation/native';
+import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../navigation/types';
+import { RootStackParamList, TabParamList } from '../navigation/types';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { SubscriptionCategory, BillingCycle, SubscriptionFormData } from '../types/subscription';
 import { useSubscriptionStore } from '../store';
@@ -21,8 +22,13 @@ import { Button } from '../components/common/Button';
 import { formatCurrency } from '../utils/formatting';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 
+type AddSubscriptionNavigationProp = CompositeNavigationProp<
+  NativeStackNavigationProp<RootStackParamList>,
+  BottomTabNavigationProp<TabParamList>
+>;
+
 const AddSubscriptionScreen: React.FC = () => {
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const navigation = useNavigation<AddSubscriptionNavigationProp>();
   const { addSubscription, isLoading } = useSubscriptionStore();
 
   const [formData, setFormData] = useState<SubscriptionFormData>({
@@ -116,7 +122,11 @@ const AddSubscriptionScreen: React.FC = () => {
             { text: 'Later', onPress: () => navigation.goBack() },
             {
               text: 'Setup Crypto',
-              onPress: () => navigation.navigate('CryptoPayment', { subscriptionId: 'new' }),
+              onPress: () =>
+                navigation.navigate('HomeTab', {
+                  screen: 'CryptoPayment',
+                  params: { subscriptionId: 'new' },
+                }),
             },
           ]
         );
