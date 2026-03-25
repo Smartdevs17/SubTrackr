@@ -1,6 +1,6 @@
 #![no_std]
 
-use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, String, Vec};
+use soroban_sdk::{contract, contractimpl, contracttype, token, Address, Env, String, Vec};
 
 /// Billing interval in seconds
 #[contracttype]
@@ -355,6 +355,13 @@ impl SubTrackrContract {
             .get(&DataKey::Plan(sub.plan_id))
             .expect("Plan not found");
 
+        // Execute actual token transfer from subscriber to merchant
+        token::Client::new(&env, &plan.token).transfer(
+            &sub.subscriber,
+            &plan.merchant,
+            &plan.price,
+        );
+
         sub.last_charged_at = now;
         sub.next_charge_at = now + plan.interval.seconds();
         sub.total_paid += plan.price;
@@ -528,6 +535,14 @@ mod test {
     use soroban_sdk::testutils::{Address as _, Ledger};
     use soroban_sdk::Env;
 
+    #[contract]
+    pub struct MockToken;
+
+    #[contractimpl]
+    impl MockToken {
+        pub fn transfer(_env: Env, _from: Address, _to: Address, _amount: i128) {}
+    }
+
     fn setup(
         env: &Env,
     ) -> (
@@ -543,7 +558,7 @@ mod test {
         let admin = Address::generate(env);
         let merchant = Address::generate(env);
         let subscriber = Address::generate(env);
-        let token = Address::generate(env);
+        let token = env.register_contract(None, MockToken);
 
         env.mock_all_auths();
         client.initialize(&admin);
