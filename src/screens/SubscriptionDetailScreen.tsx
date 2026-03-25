@@ -12,10 +12,10 @@ import {
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { colors, spacing, typography, borderRadius, shadows } from '../utils/constants';
+import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { useSubscriptionStore } from '../store';
-import { formatCurrency, formatCurrencyCompact } from '../utils/formatting';
-import { Subscription, SubscriptionCategory, BillingCycle } from '../types/subscription';
+import { formatCurrency } from '../utils/formatting';
+import { Subscription, SubscriptionCategory } from '../types/subscription';
 import { RootStackParamList } from '../navigation/types';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
@@ -34,7 +34,6 @@ const SubscriptionDetailScreen: React.FC = () => {
     deleteSubscription,
     updateSubscription,
     recordBillingOutcome,
-    isLoading,
   } = useSubscriptionStore();
 
   const [subscription, setSubscription] = useState<Subscription | null>(null);

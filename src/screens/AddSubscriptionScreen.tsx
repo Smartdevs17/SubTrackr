@@ -14,10 +14,9 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
-import { colors, spacing, typography, borderRadius, shadows } from '../utils/constants';
+import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { SubscriptionCategory, BillingCycle, SubscriptionFormData } from '../types/subscription';
 import { useSubscriptionStore } from '../store';
-import walletServiceManager from '../services/walletService';
 import { Button } from '../components/common/Button';
 import { formatCurrency } from '../utils/formatting';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
