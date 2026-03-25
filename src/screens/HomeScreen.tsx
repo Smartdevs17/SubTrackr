@@ -7,7 +7,6 @@ import {
   SafeAreaView,
   RefreshControl,
   TouchableOpacity,
-  Alert,
   Modal,
   TextInput,
   Switch,
@@ -16,10 +15,9 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { colors, spacing, typography, borderRadius, shadows } from '../utils/constants';
 import { useSubscriptionStore } from '../store';
-import walletServiceManager from '../services/walletService';
 import { SubscriptionCard } from '../components/subscription/SubscriptionCard';
 import { FloatingActionButton } from '../components/common/FloatingActionButton';
-import { formatCurrency, formatCurrencyCompact } from '../utils/formatting';
+import { formatCurrencyCompact } from '../utils/formatting';
 import { getUpcomingSubscriptions } from '../utils/dummyData';
 import { Subscription, SubscriptionCategory, BillingCycle } from '../types/subscription';
 import { RootStackParamList } from '../navigation/types';
@@ -31,7 +29,6 @@ const HomeScreen: React.FC = () => {
   const {
     subscriptions,
     stats,
-    isLoading,
     error,
     fetchSubscriptions,
     calculateStats,

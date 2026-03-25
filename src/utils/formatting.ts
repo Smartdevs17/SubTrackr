@@ -16,7 +16,7 @@ export const formatCurrencyCompact = (amount: number, currency: string = 'USD'):
       maximumFractionDigits: 1,
     }).format(amount);
   }
-  
+
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency,
@@ -45,13 +45,13 @@ export const formatRelativeDate = (date: Date): string => {
   const now = new Date();
   const diffInMs = now.getTime() - date.getTime();
   const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
-  
+
   if (diffInDays === 0) return 'Today';
   if (diffInDays === 1) return 'Yesterday';
   if (diffInDays === -1) return 'Tomorrow';
   if (diffInDays > 0) return `${diffInDays} days ago`;
   if (diffInDays < 0) return `In ${Math.abs(diffInDays)} days`;
-  
+
   return formatDate(date);
 };
 
@@ -67,11 +67,11 @@ export const formatFlowRate = (flowRate: string, token: string = 'ETH'): string 
   // Convert flow rate from wei per second to human readable
   const flowRateNum = parseFloat(flowRate);
   if (isNaN(flowRateNum)) return '0';
-  
+
   // Assuming flow rate is in wei per second
   const daily = flowRateNum * 86400; // seconds in a day
   const monthly = daily * 30; // approximate days in a month
-  
+
   if (monthly >= 1e18) {
     return `${(monthly / 1e18).toFixed(4)} ${token}/month`;
   } else if (daily >= 1e18) {

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Wallet, TokenBalance, CryptoStream, StreamSetup } from '../types/wallet';
+import { Wallet, CryptoStream, StreamSetup } from '../types/wallet';
 
 interface WalletState {
   wallet: Wallet | null;
