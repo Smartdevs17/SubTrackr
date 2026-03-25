@@ -15,8 +15,11 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
-import walletServiceManager, { TokenBalance, GasEstimate } from '../services/walletService';
-import { ethers } from 'ethers';
+import walletServiceManager, { 
+  TokenBalance, 
+  GasEstimate, 
+  WalletConnection 
+} from '../services/walletService';
 
 interface RouteParams {
   subscriptionId?: string;
@@ -42,7 +45,7 @@ const CryptoPaymentScreen: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   const [availableTokens, setAvailableTokens] = useState<TokenBalance[]>([]);
-  const [connection, setConnection] = useState<any>(null);
+  const [connection, setConnection] = useState<WalletConnection | null>(null); 
 
   useEffect(() => {
     loadWalletData();
@@ -54,10 +57,15 @@ const CryptoPaymentScreen: React.FC = () => {
     }
   }, [amount, recipientAddress, connection, selectedProtocol, selectedToken]);
 
+  // Internal validation for type narrowing
+  const isWalletConnected = (conn: WalletConnection | null): conn is WalletConnection => {
+    return conn !== null && conn.isConnected;
+  };
+
   const loadWalletData = async () => {
     try {
       const conn = walletServiceManager.getConnection();
-      if (!conn) {
+      if (!conn || !conn.isConnected) {
         Alert.alert('Error', 'Please connect a wallet first');
         navigation.goBack();
         return;
@@ -76,7 +84,7 @@ const CryptoPaymentScreen: React.FC = () => {
   };
 
   const estimateGas = async () => {
-    if (!connection || !amount || !recipientAddress) return;
+    if (!isWalletConnected(connection) || !amount || !recipientAddress) return;
 
     try {
       if (selectedProtocol === 'superfluid') {
@@ -131,6 +139,11 @@ const CryptoPaymentScreen: React.FC = () => {
 
   const handleCreateStream = async () => {
     if (!validateForm()) return;
+    
+    if (!isWalletConnected(connection)) {
+      Alert.alert('Error', 'Wallet not connected');
+      return;
+    }
 
     try {
       setIsLoading(true);
@@ -308,7 +321,7 @@ const CryptoPaymentScreen: React.FC = () => {
           )}
 
           {/* Create Stream Button */}
-          <View style={styles.footer}>
+          <div style={styles.footer}>
             <Button
               title={isLoading ? 'Creating Stream...' : 'Create Payment Stream'}
               onPress={handleCreateStream}
@@ -317,7 +330,7 @@ const CryptoPaymentScreen: React.FC = () => {
               fullWidth
               size="large"
             />
-          </View>
+          </div>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
