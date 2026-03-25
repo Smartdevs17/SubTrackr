@@ -84,7 +84,7 @@ const HomeScreen: React.FC = () => {
   };
 
   const handleAddSubscription = () => {
-    navigation.navigate('AddSubscription' as never);
+    navigation.navigate('AddSubscription');
   };
 
   // Filter helper functions
@@ -261,7 +261,7 @@ const HomeScreen: React.FC = () => {
             <Text style={styles.statValue}>{stats.totalActive}</Text>
           </View>
           <View style={styles.statCard}>
-            <TouchableOpacity onPress={() => navigation.navigate('WalletConnect' as never)}>
+            <TouchableOpacity onPress={() => navigation.navigate('WalletConnect')}>
               <Text style={styles.statLabel}>Wallet</Text>
               <Text style={styles.statValue}>🔗</Text>
             </TouchableOpacity>

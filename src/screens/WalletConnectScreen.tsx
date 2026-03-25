@@ -16,9 +16,13 @@ import { Card } from '../components/common/Card';
 import { useAppKit, useAppKitAccount, useAppKitProvider } from '@reown/appkit-ethers-react-native';
 import walletServiceManager, { WalletConnection, TokenBalance } from '../services/walletService';
 import { useWalletStore } from '../store';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../navigation/types';
+
+type WalletConnectNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const WalletConnectScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<WalletConnectNavigationProp>();
   const { open } = useAppKit();
   const { address, isConnected, chainId } = useAppKitAccount();
   const { walletProvider } = useAppKitProvider();
@@ -115,7 +119,7 @@ const WalletConnectScreen: React.FC = () => {
 
   const handleSetupCryptoPayments = () => {
     if (connection) {
-      navigation.navigate('CryptoPayment' as never);
+      navigation.navigate('CryptoPayment');
     } else {
       Alert.alert('Error', 'Please connect a wallet first');
     }
