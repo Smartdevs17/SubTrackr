@@ -110,6 +110,28 @@ Types of contributions we're looking for:
 
 Look for issues tagged `good first issue` or `Stellar Wave` to get started.
 
+## Automated Releases
+
+SubTrackr uses `semantic-release` with Conventional Commits to automate versioning, changelog generation, GitHub Releases, and npm publishing.
+
+- Commit format: use Conventional Commits (for example, `feat:`, `fix:`, `chore:`)
+- CI enforcement: pull requests run commit lint checks in GitHub Actions
+- Release trigger: when the `CI/CD Pipeline` workflow succeeds on `main`, the `Release` workflow runs `semantic-release`
+- Generated artifacts:
+  - `CHANGELOG.md` is updated automatically
+  - GitHub Release is created with generated notes
+  - npm package is published from `package.json`
+
+Required repository secrets:
+
+- `NPM_TOKEN` with publish access to the npm package
+
+Run locally in dry mode:
+
+```bash
+npm run release:dry-run
+```
+
 ## License
 
 MIT
