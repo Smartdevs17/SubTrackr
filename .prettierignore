@@ -18,3 +18,8 @@ builds/
 coverage/
 # TypeChain output (generated; do not reformat to avoid churn)
 src/contracts/types/
+# Rust build artifacts (local/generated)
+contracts/target/
+# Backup/fixed package snapshots
+package-fixed.json
+package.json.backup
