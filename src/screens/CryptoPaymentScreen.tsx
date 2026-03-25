@@ -16,6 +16,7 @@ import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
 import walletServiceManager, { TokenBalance, GasEstimate } from '../services/walletService';
+import { ethers } from 'ethers';
 
 interface RouteParams {
   subscriptionId?: string;
@@ -115,8 +116,8 @@ const CryptoPaymentScreen: React.FC = () => {
       return false;
     }
 
-    if (!recipientAddress || recipientAddress.length !== 42) {
-      Alert.alert('Error', 'Please enter a valid recipient address');
+    if (!recipientAddress || !ethers.utils.isAddress(recipientAddress)) {
+      Alert.alert('Error', 'Please enter a valid Ethereum address');
       return false;
     }
 
