@@ -30,12 +30,7 @@ export const Card: React.FC<CardProps> = ({
     }
   };
 
-  const cardStyle = [
-    styles.card,
-    styles[variant],
-    getPaddingStyle(),
-    style,
-  ];
+  const cardStyle = [styles.card, styles[variant], getPaddingStyle(), style];
 
   return <View style={cardStyle}>{children}</View>;
 };
@@ -45,7 +40,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
   },
-  
+
   // Variants
   default: {
     borderWidth: 1,
@@ -58,7 +53,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.border,
   },
-  
+
   // Padding variants
   paddingNone: {},
   paddingSmall: {

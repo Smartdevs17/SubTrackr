@@ -1,0 +1,22 @@
+﻿[
+    {
+        "number":  15,
+        "title":  "≡ƒº¬ Add Jest tests for formatting utilities",
+        "body":  "## Problem\nNo tests exist for formatting utilities, risking incorrect display of currency, dates, and other values.\n\n## Context\nFormatting errors could cause users to see wrong prices or dates.\n\n## Proposed Solution\nCreate tests for all formatting functions:\n1. `formatCurrency` - various currencies, decimals\n2. `formatRelativeDate` - past, future, edge cases\n3. `formatBillingCycle` - all cycle types\n4. `formatCategory` - all category types\n\n## Acceptance Criteria\n- [ ] All exported functions tested\n- [ ] Edge cases covered (zero, negative, null)\n- [ ] Different locale considerations\n- [ ] All tests pass\n\n## Technical Notes\n**File:** `src/utils/__tests__/formatting.test.ts` (new)\n**Current:** `src/utils/formatting.ts`\n\n## Constraints\n- Test both positive and negative scenarios\n- Test boundary conditions"
+    },
+    {
+        "number":  32,
+        "title":  "≡ƒöº Remove unsafe any types from API details",
+        "body":  "## Problem\ndetails?: any in api.ts loses type safety for API responses.\n\n## Context\nAPI responses are parsed without type checking, risking runtime errors.\n\n## Proposed Solution\nDefine proper API types:\n1. Create response interfaces for each endpoint\n2. Replace any with specific types\n3. Add JSON schema validation\n4. Consider using zod for runtime validation\n\n## Acceptance Criteria\n- [ ] All API types properly defined\n- [ ] Response parsing type-safe\n- [ ] IDE autocomplete for API data\n- [ ] Build passes without errors\n\n## Technical Notes\n**File:** src/types/api.ts:49\n**Type:** SubscriptionAPIResponse\n\n## Constraints\n- Handle nullable fields\n- Version API responses if needed\n- Document unknown fields"
+    },
+    {
+        "number":  33,
+        "title":  "≡ƒöº Remove unsafe type casts from HomeScreen",
+        "body":  "## Problem\nMultiple as never casts bypass TypeScript safety in HomeScreen.\n\n## Context\nType casts are code smells indicating type design problems.\n\n## Proposed Solution\nFix type issues properly:\n1. Identify all as never usages\n2. Determine correct type for each\n3. Update type definitions if needed\n4. Remove unnecessary casts\n\n## Acceptance Criteria\n- [ ] All as never casts removed\n- [ ] Proper types defined\n- [ ] TypeScript strict mode passes\n- [ ] Runtime behavior unchanged\n\n## Technical Notes\n**Files:** \n- src/screens/HomeScreen.tsx\n- src/screens/WalletConnectScreen.tsx\n\n## Constraints\n- Some casts may be necessary\n- Document why if kept\n- Test thoroughly after changes"
+    },
+    {
+        "number":  35,
+        "title":  "≡ƒöì Add proper Ethereum address validation",
+        "body":  "## Problem\nAddress validation only checks length, not format or checksum.\n\n## Context\nInvalid addresses can be entered, leading to failed transactions.\n\n## Proposed Solution\nImplement proper validation:\n1. Check for 0x prefix\n2. Validate hex characters\n3. Verify checksum (EIP-55 for mainnet)\n4. Show error for invalid addresses\n\n## Acceptance Criteria\n- [ ] Valid addresses accepted\n- [ ] Invalid format rejected with message\n- [ ] Checksum validation for mainnet\n- [ ] Test with various address formats\n\n## Technical Notes\n**File:** src/screens/CryptoPaymentScreen.tsx:107\n**Functions:** Add address validation utility\n\n## Constraints\n- Must handle testnet addresses\n- Consider mixed case addresses\n- Performance for real-time validation"
+    }
+]
