@@ -358,22 +358,67 @@ export class WalletServiceManager {
     chainId: number
   ): Promise<string> {
     try {
-      // This is a simplified implementation
-      // In production, you'd use the full Sablier SDK
-      console.log('Creating Sablier stream:', {
-        token,
-        amount,
-        startTime,
-        stopTime,
-        recipient,
-        chainId,
-      });
+      const signer = this.getWalletSigner();
+      const network = await signer.provider!.getNetwork();
+      if (network.chainId !== chainId) {
+        throw new Error(
+          `Wallet network (${network.chainId}) does not match selected chain (${chainId}). Switch network in your wallet.`
+        );
+      }
 
-      // Simulate stream creation
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // 1. Get Token Decimals & Parse Amount
+      const erc20Abi = [
+        "function decimals() view returns (uint8)",
+        "function approve(address spender, uint256 amount) returns (bool)"
+      ];
+      const erc20 = new ethers.Contract(token, erc20Abi, signer);
+      const decimals = await erc20.decimals();
+      const amountBn = ethers.utils.parseUnits(amount, decimals);
 
-      return `sablier_${Date.now()}`;
+      // Sablier V2 LockupLinear is consistently deployed at this address across major EVM networks
+      const SABLIER_V2_LOCKUP_LINEAR = '0xAFb979d9afAd1aD27C5eFf4E27226E3AB9e5dCC9';
+
+      // 2. Approve Token Spending
+      const txApprove = await erc20.approve(SABLIER_V2_LOCKUP_LINEAR, amountBn);
+      await txApprove.wait();
+
+      // 3. Create the Sablier Stream
+      const abi = [
+        "function createWithDurations(tuple(address sender, address recipient, uint128 totalAmount, address asset, bool cancelable, bool transferable, tuple(uint40 cliff, uint40 total) durations, address broker) params) external returns (uint256 streamId)"
+      ];
+      
+      const sablierContract = new ethers.Contract(SABLIER_V2_LOCKUP_LINEAR, abi, signer);
+      const sender = await signer.getAddress();
+      
+      // Calculate duration in seconds
+      const totalDuration = Math.floor((stopTime - startTime) / 1000); 
+
+      const params = {
+        sender: sender,
+        recipient: recipient,
+        totalAmount: amountBn,
+        asset: token,
+        cancelable: true,
+        transferable: true,
+        durations: {
+          cliff: 0,
+          total: totalDuration
+        },
+        broker: ethers.constants.AddressZero
+      };
+
+      const txCreate = await sablierContract.createWithDurations(params);
+      const receipt = await txCreate.wait();
+
+      if (!receipt?.transactionHash) {
+        throw new Error('Transaction mined without a hash');
+      }
+
+      return receipt.transactionHash;
     } catch (error) {
+      if (isUserRejectedError(error)) {
+        throw new Error('Transaction was rejected in your wallet.');
+      }
       console.error('Failed to create Sablier stream:', error);
       throw error;
     }
