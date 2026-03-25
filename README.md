@@ -65,35 +65,121 @@ SubTrackr/
 
 ## Getting Started
 
-### Prerequisites
+### 1. Clone the Repository
 
-- Node.js 20+
-- Expo CLI
-- Rust + Soroban CLI (for contract development)
-- [Freighter Wallet](https://freighter.app/)
-
-### Mobile App
-
+First, clone the repository to your local machine:
 ```bash
+git clone https://github.com/Smartdevs17/SubTrackr.git
+cd SubTrackr
+```
+
+### 2. Install Prerequisites
+
+#### Required for all development:
+- **Node.js 20+**: We recommend using [nvm](https://github.com/nvm-sh/nvm) to manage Node.js versions:
+  ```bash
+  # Install nvm (if not already installed)
+  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+  
+  # Install and use Node.js 20
+  nvm install 20
+  nvm use 20
+  ```
+- **Expo CLI**: Install the Expo command line tools globally:
+  ```bash
+  npm install -g expo-cli
+  ```
+- **Freighter Wallet**: Install the [Freighter Wallet](https://freighter.app/) browser extension for Stellar transaction signing.
+
+#### Required only for smart contract development:
+- **Rust**: Install Rust and the WASM target:
+  ```bash
+  # Install Rust (if not already installed)
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+  
+  # Add WASM target
+  rustup target add wasm32-unknown-unknown
+  ```
+- **Soroban CLI**: Install the Soroban command line tools:
+  ```bash
+  cargo install --locked soroban-cli
+  ```
+
+### 3. Configure Environment Variables
+
+Create a `.env` file in the root directory of the project:
+```bash
+cp .env.example .env
+```
+
+> **Note**: If `.env.example` doesn't exist, create a new `.env` file with the following variables:
+
+| Variable             | Description                               | Example Value                              |
+| -------------------- | ----------------------------------------- | ------------------------------------------ |
+| `STELLAR_NETWORK`    | `testnet` or `public` Stellar network     | `testnet`                                  |
+| `CONTRACT_ID`        | Deployed Soroban subscription contract ID | `CB64...` (your deployed contract address) |
+| `WEB3AUTH_CLIENT_ID` | Web3Auth client ID for social login       | Get one from [Web3Auth Dashboard](https://dashboard.web3auth.io/) |
+
+### 4. Run the Mobile App
+
+Install dependencies and start the Expo development server:
+```bash
+# Install dependencies
 npm install
+
+# Start Expo dev server
 npx expo start
 ```
 
-### Smart Contracts
+You can then run the app on:
+- **iOS Simulator**: Press `i` in the Expo terminal
+- **Android Emulator**: Press `a` in the Expo terminal
+- **Physical Device**: Scan the QR code with the Expo Go app (iOS/Android)
 
+### 5. (Optional) Deploy Smart Contracts
+
+If you want to work on the smart contracts:
 ```bash
+# Navigate to contracts directory
 cd contracts
+
+# Build the contract
 cargo build --target wasm32-unknown-unknown --release
+
+# Deploy to Stellar testnet
 soroban contract deploy --wasm target/wasm32-unknown-unknown/release/subtrackr.wasm --network testnet
 ```
 
-### Environment Variables
+### 6. Run Tests
 
-| Variable             | Description                               |
-| -------------------- | ----------------------------------------- |
-| `STELLAR_NETWORK`    | `testnet` or `public`                     |
-| `CONTRACT_ID`        | Deployed Soroban subscription contract ID |
-| `WEB3AUTH_CLIENT_ID` | Web3Auth client ID for social login       |
+Run the test suite to ensure everything is working correctly:
+```bash
+# Run unit tests
+npm test
+
+# Run lint checks
+npm run lint
+```
+
+### Troubleshooting
+
+<details>
+<summary>Expo server won't start</summary>
+- Ensure no other process is using port 8081: `lsof -i :8081 | kill -9 <PID>`
+- Clear Expo cache: `npx expo start --clear`
+</details>
+
+<details>
+<summary>Smart contract build fails</summary>
+- Ensure you have the WASM target installed: `rustup target add wasm32-unknown-unknown`
+- Update Soroban CLI to the latest version: `cargo install --locked soroban-cli --force`
+</details>
+
+<details>
+<summary>Wallet connection issues</summary>
+- Ensure Freighter Wallet is installed and unlocked
+- Make sure you're connected to the same Stellar network as the app (testnet/public)
+</details>
 
 ## Contributing
 
