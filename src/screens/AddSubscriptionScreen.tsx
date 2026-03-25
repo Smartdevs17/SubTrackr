@@ -14,12 +14,12 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
-import { colors, spacing, typography, borderRadius, shadows } from '../utils/constants';
+import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { SubscriptionCategory, BillingCycle, SubscriptionFormData } from '../types/subscription';
 import { useSubscriptionStore } from '../store';
-import walletServiceManager from '../services/walletService';
 import { Button } from '../components/common/Button';
 import { formatCurrency } from '../utils/formatting';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 
 const AddSubscriptionScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -46,6 +46,10 @@ const AddSubscriptionScreen: React.FC = () => {
     BillingCycle.MONTHLY
   );
 
+  // Date Picker States
+  const [showPicker, setShowPicker] = useState(false);
+  const [pickerMode, setPickerMode] = useState<'date' | 'time'>('date');
+
   const handleCategorySelect = (category: SubscriptionCategory) => {
     setSelectedCategory(category);
     setFormData((prev) => ({ ...prev, category }));
@@ -58,9 +62,36 @@ const AddSubscriptionScreen: React.FC = () => {
 
   const handleInputChange = (
     field: keyof SubscriptionFormData,
-    value: string | number | boolean
+    value: string | number | boolean | Date
   ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const onDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (event.type === 'dismissed') {
+      setShowPicker(false);
+      return;
+    }
+
+    if (selectedDate) {
+      handleInputChange('nextBillingDate', selectedDate);
+      
+      if (Platform.OS === 'android' && pickerMode === 'date') {
+        setShowPicker(false);
+        setTimeout(() => {
+          setPickerMode('time');
+          setShowPicker(true);
+        }, 100);
+      } else if (Platform.OS === 'android' && pickerMode === 'time') {
+        setShowPicker(false);
+        setPickerMode('date');
+      }
+    }
+  };
+
+  const showPickerHandler = () => {
+    setPickerMode('date');
+    setShowPicker(true);
   };
 
   const handleSubmit = async () => {
@@ -202,6 +233,32 @@ const AddSubscriptionScreen: React.FC = () => {
                     keyboardType="decimal-pad"
                   />
                 </View>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Next Billing Date *</Text>
+                <TouchableOpacity 
+                  style={styles.datePickerButton} 
+                  onPress={showPickerHandler}
+                >
+                  <Text style={styles.datePickerText}>
+                    {formData.nextBillingDate.toLocaleString([], {
+                      dateStyle: 'medium',
+                      timeStyle: 'short',
+                    })}
+                  </Text>
+                </TouchableOpacity>
+
+                {showPicker && (
+                  <DateTimePicker
+                    value={formData.nextBillingDate}
+                    mode={pickerMode}
+                    is24Hour={true}
+                    display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                    onChange={onDateChange}
+                    minimumDate={new Date()}
+                  />
+                )}
               </View>
 
               <View style={styles.inputGroup}>
@@ -396,6 +453,19 @@ const styles = StyleSheet.create({
     color: colors.text,
     ...typography.h3,
     fontWeight: '600',
+  },
+  // Date picker styling
+  datePickerButton: {
+    backgroundColor: colors.surface,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    justifyContent: 'center',
+  },
+  datePickerText: {
+    ...typography.body,
+    color: colors.text,
   },
   categoryGrid: {
     flexDirection: 'row',

@@ -8,12 +8,11 @@ import {
   TextInput,
   TouchableOpacity,
   Alert,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { colors, spacing, typography, borderRadius, shadows } from '../utils/constants';
+import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
 import walletServiceManager, { 
@@ -44,7 +43,6 @@ const CryptoPaymentScreen: React.FC = () => {
   const [selectedProtocol, setSelectedProtocol] = useState<'superfluid' | 'sablier'>('superfluid');
   const [gasEstimate, setGasEstimate] = useState<GasEstimate | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isEstimatingGas, setIsEstimatingGas] = useState(false);
 
   const [availableTokens, setAvailableTokens] = useState<TokenBalance[]>([]);
   const [connection, setConnection] = useState<WalletConnection | null>(null); 
@@ -89,7 +87,6 @@ const CryptoPaymentScreen: React.FC = () => {
     if (!isWalletConnected(connection) || !amount || !recipientAddress) return;
 
     try {
-      setIsEstimatingGas(true);
       if (selectedProtocol === 'superfluid') {
         const estimate = await walletServiceManager.estimateSuperfluidCreateFlow(
           selectedToken,
@@ -110,8 +107,6 @@ const CryptoPaymentScreen: React.FC = () => {
     } catch (error) {
       console.error('Failed to estimate gas:', error);
       setGasEstimate(null);
-    } finally {
-      setIsEstimatingGas(false);
     }
   };
 
@@ -129,8 +124,8 @@ const CryptoPaymentScreen: React.FC = () => {
       return false;
     }
 
-    if (!recipientAddress || recipientAddress.length !== 42) {
-      Alert.alert('Error', 'Please enter a valid recipient address');
+    if (!recipientAddress || !ethers.utils.isAddress(recipientAddress)) {
+      Alert.alert('Error', 'Please enter a valid Ethereum address');
       return false;
     }
 
@@ -201,18 +196,6 @@ const CryptoPaymentScreen: React.FC = () => {
       ARB: '🔵',
     };
     return icons[symbol] || '🪙';
-  };
-
-  const getProtocolDescription = (protocol: 'superfluid' | 'sablier'): string => {
-    const descriptions = {
-      superfluid: 'Continuous streaming payments with real-time settlement',
-      sablier: 'Scheduled payments with time-locked streams',
-    };
-    return descriptions[protocol];
-  };
-
-  const getProtocolIcon = (protocol: 'superfluid' | 'sablier'): string => {
-    return protocol === 'superfluid' ? '🌊' : '⏰';
   };
 
   return (
