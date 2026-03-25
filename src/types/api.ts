@@ -46,7 +46,7 @@ export interface AppSettings {
 export interface ErrorState {
   message: string;
   code?: string;
-  details?: any;
+  details?: Record<string, unknown>;
   timestamp: Date;
 }
 
