@@ -15,10 +15,10 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
-import walletServiceManager, { 
-  TokenBalance, 
-  GasEstimate, 
-  WalletConnection 
+import walletServiceManager, {
+  TokenBalance,
+  GasEstimate,
+  WalletConnection,
 } from '../services/walletService';
 
 interface RouteParams {
@@ -45,7 +45,7 @@ const CryptoPaymentScreen: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   const [availableTokens, setAvailableTokens] = useState<TokenBalance[]>([]);
-  const [connection, setConnection] = useState<WalletConnection | null>(null); 
+  const [connection, setConnection] = useState<WalletConnection | null>(null);
 
   useEffect(() => {
     loadWalletData();
@@ -139,7 +139,7 @@ const CryptoPaymentScreen: React.FC = () => {
 
   const handleCreateStream = async () => {
     if (!validateForm()) return;
-    
+
     if (!isWalletConnected(connection)) {
       Alert.alert('Error', 'Wallet not connected');
       return;

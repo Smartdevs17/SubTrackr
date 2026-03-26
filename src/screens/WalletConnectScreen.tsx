@@ -121,7 +121,7 @@ const WalletConnectScreen: React.FC = () => {
     if (connection?.address) {
       try {
         await Clipboard.setStringAsync(connection.address);
-        
+
         if (Platform.OS === 'android') {
           Alert.alert('Copied', 'Address copied to clipboard');
         } else {

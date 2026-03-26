@@ -15,35 +15,54 @@ export const useSubscriptionFilters = (subscriptions: Subscription[]) => {
     let filtered = subscriptions || [];
 
     if (searchQuery.trim()) {
-      filtered = filtered.filter(sub => 
-        sub.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        sub.description?.toLowerCase().includes(searchQuery.toLowerCase())
+      filtered = filtered.filter(
+        (sub) =>
+          sub.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          sub.description?.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
     if (selectedCategories.length > 0) {
-      filtered = filtered.filter(sub => selectedCategories.includes(sub.category));
+      filtered = filtered.filter((sub) => selectedCategories.includes(sub.category));
     }
 
     if (selectedBillingCycles.length > 0) {
-      filtered = filtered.filter(sub => selectedBillingCycles.includes(sub.billingCycle));
+      filtered = filtered.filter((sub) => selectedBillingCycles.includes(sub.billingCycle));
     }
 
-    filtered = filtered.filter(sub => sub.price >= priceRange.min && sub.price <= priceRange.max);
-    if (showActiveOnly) filtered = filtered.filter(sub => sub.isActive);
-    if (showCryptoOnly) filtered = filtered.filter(sub => sub.isCryptoEnabled);
+    filtered = filtered.filter((sub) => sub.price >= priceRange.min && sub.price <= priceRange.max);
+    if (showActiveOnly) filtered = filtered.filter((sub) => sub.isActive);
+    if (showCryptoOnly) filtered = filtered.filter((sub) => sub.isCryptoEnabled);
 
     return [...filtered].sort((a, b) => {
       let comp = 0;
       switch (sortBy) {
-        case 'name': comp = a.name.localeCompare(b.name); break;
-        case 'price': comp = a.price - b.price; break;
-        case 'nextBilling': comp = new Date(a.nextBillingDate).getTime() - new Date(b.nextBillingDate).getTime(); break;
-        case 'category': comp = a.category.localeCompare(b.category); break;
+        case 'name':
+          comp = a.name.localeCompare(b.name);
+          break;
+        case 'price':
+          comp = a.price - b.price;
+          break;
+        case 'nextBilling':
+          comp = new Date(a.nextBillingDate).getTime() - new Date(b.nextBillingDate).getTime();
+          break;
+        case 'category':
+          comp = a.category.localeCompare(b.category);
+          break;
       }
       return sortOrder === 'asc' ? comp : -comp;
     });
-  }, [subscriptions, searchQuery, selectedCategories, selectedBillingCycles, priceRange, showActiveOnly, showCryptoOnly, sortBy, sortOrder]);
+  }, [
+    subscriptions,
+    searchQuery,
+    selectedCategories,
+    selectedBillingCycles,
+    priceRange,
+    showActiveOnly,
+    showCryptoOnly,
+    sortBy,
+    sortOrder,
+  ]);
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
@@ -55,18 +74,35 @@ export const useSubscriptionFilters = (subscriptions: Subscription[]) => {
     if (showCryptoOnly) count++;
     if (sortBy !== 'name' || sortOrder !== 'asc') count++;
     return count;
-  }, [searchQuery, selectedCategories, selectedBillingCycles, priceRange, showActiveOnly, showCryptoOnly, sortBy, sortOrder]);
+  }, [
+    searchQuery,
+    selectedCategories,
+    selectedBillingCycles,
+    priceRange,
+    showActiveOnly,
+    showCryptoOnly,
+    sortBy,
+    sortOrder,
+  ]);
 
   return {
     filters: {
-      searchQuery, setSearchQuery,
-      selectedCategories, setSelectedCategories,
-      selectedBillingCycles, setSelectedBillingCycles,
-      priceRange, setPriceRange,
-      showActiveOnly, setShowActiveOnly,
-      showCryptoOnly, setShowCryptoOnly,
-      sortBy, setSortBy,
-      sortOrder, setSortOrder,
+      searchQuery,
+      setSearchQuery,
+      selectedCategories,
+      setSelectedCategories,
+      selectedBillingCycles,
+      setSelectedBillingCycles,
+      priceRange,
+      setPriceRange,
+      showActiveOnly,
+      setShowActiveOnly,
+      showCryptoOnly,
+      setShowCryptoOnly,
+      sortBy,
+      setSortBy,
+      sortOrder,
+      setSortOrder,
     },
     filteredAndSorted,
     activeFilterCount,
@@ -80,6 +116,6 @@ export const useSubscriptionFilters = (subscriptions: Subscription[]) => {
       setShowCryptoOnly(false);
       setSortBy('name');
       setSortOrder('asc');
-    }
+    },
   };
 };
