@@ -21,14 +21,8 @@ type HomeNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation<HomeNavigationProp>();
-  const {
-    subscriptions,
-    stats,
-    error,
-    fetchSubscriptions,
-    calculateStats,
-    toggleSubscriptionStatus,
-  } = useSubscriptionStore();
+  const { subscriptions, stats, fetchSubscriptions, calculateStats, toggleSubscriptionStatus } =
+    useSubscriptionStore();
   const [refreshing, setRefreshing] = useState(false);
   const [upcomingSubscriptions, setUpcomingSubscriptions] = useState<Subscription[]>([]);
 
