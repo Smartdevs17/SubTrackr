@@ -9,18 +9,12 @@ import {
   TextInput,
   TouchableOpacity,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
 } from 'react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
-import walletServiceManager, {
-  TokenBalance,
-  GasEstimate,
-  WalletConnection,
-} from '../services/walletService';
+import walletServiceManager, { GasEstimate, WalletConnection } from '../services/walletService';
 
 interface RouteParams {
   subscriptionId?: string;
