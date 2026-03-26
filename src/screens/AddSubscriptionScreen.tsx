@@ -29,6 +29,7 @@ const AddSubscriptionScreen: React.FC = () => {
     description: '',
     category: SubscriptionCategory.OTHER,
     price: 0,
+    priceError: '',
     currency: 'USD',
     billingCycle: BillingCycle.MONTHLY,
     nextBillingDate: new Date(),
@@ -99,8 +100,8 @@ const AddSubscriptionScreen: React.FC = () => {
       return;
     }
 
-    if (formData.price <= 0) {
-      Alert.alert('Error', 'Please enter a valid price');
+    if (formData.priceError || !formData.price || formData.price <= 0 || Number.isNaN(formData.price)) {
+      Alert.alert('Error', formData.priceError || 'Please enter a valid price');
       return;
     }
 
@@ -149,7 +150,7 @@ const AddSubscriptionScreen: React.FC = () => {
       <KeyboardAvoidingView
         style={styles.keyboardAvoidingView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <ScrollView style={styles.scrollView}>
+        <ScrollView style={styles.scrollView} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
             <View style={styles.headerContent}>
               <TouchableOpacity onPress={handleCancel} style={styles.cancelButton}>
