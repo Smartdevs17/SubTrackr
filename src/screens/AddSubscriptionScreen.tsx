@@ -18,7 +18,6 @@ import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { SubscriptionCategory, BillingCycle, SubscriptionFormData } from '../types/subscription';
 import { useSubscriptionStore } from '../store';
 import { Button } from '../components/common/Button';
-import { formatCurrency } from '../utils/formatting';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 
 const AddSubscriptionScreen: React.FC = () => {
@@ -75,7 +74,7 @@ const AddSubscriptionScreen: React.FC = () => {
 
     if (selectedDate) {
       handleInputChange('nextBillingDate', selectedDate);
-      
+
       if (Platform.OS === 'android' && pickerMode === 'date') {
         setShowPicker(false);
         setTimeout(() => {
@@ -237,10 +236,7 @@ const AddSubscriptionScreen: React.FC = () => {
 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Next Billing Date *</Text>
-                <TouchableOpacity 
-                  style={styles.datePickerButton} 
-                  onPress={showPickerHandler}
-                >
+                <TouchableOpacity style={styles.datePickerButton} onPress={showPickerHandler}>
                   <Text style={styles.datePickerText}>
                     {formData.nextBillingDate.toLocaleString([], {
                       dateStyle: 'medium',

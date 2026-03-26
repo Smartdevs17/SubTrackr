@@ -2,7 +2,7 @@ import {
   formatCurrency,
   formatRelativeDate,
   formatBillingCycle,
-  formatCategory
+  formatCategory,
 } from '../formatting';
 import { SubscriptionCategory, BillingCycle } from '../../types/subscription';
 
@@ -19,7 +19,7 @@ describe('Formatting Utilities', () => {
     });
 
     it('handles negative values correctly', () => {
-      expect(formatCurrency(-10.50)).toBe('-$10.50');
+      expect(formatCurrency(-10.5)).toBe('-$10.50');
     });
   });
 

@@ -368,8 +368,8 @@ export class WalletServiceManager {
 
       // 1. Get Token Decimals & Parse Amount
       const erc20Abi = [
-        "function decimals() view returns (uint8)",
-        "function approve(address spender, uint256 amount) returns (bool)"
+        'function decimals() view returns (uint8)',
+        'function approve(address spender, uint256 amount) returns (bool)',
       ];
       const erc20 = new ethers.Contract(token, erc20Abi, signer);
       const decimals = await erc20.decimals();
@@ -384,14 +384,14 @@ export class WalletServiceManager {
 
       // 3. Create the Sablier Stream
       const abi = [
-        "function createWithDurations(tuple(address sender, address recipient, uint128 totalAmount, address asset, bool cancelable, bool transferable, tuple(uint40 cliff, uint40 total) durations, address broker) params) external returns (uint256 streamId)"
+        'function createWithDurations(tuple(address sender, address recipient, uint128 totalAmount, address asset, bool cancelable, bool transferable, tuple(uint40 cliff, uint40 total) durations, address broker) params) external returns (uint256 streamId)',
       ];
-      
+
       const sablierContract = new ethers.Contract(SABLIER_V2_LOCKUP_LINEAR, abi, signer);
       const sender = await signer.getAddress();
-      
+
       // Calculate duration in seconds
-      const totalDuration = Math.floor((stopTime - startTime) / 1000); 
+      const totalDuration = Math.floor((stopTime - startTime) / 1000);
 
       const params = {
         sender: sender,
@@ -402,9 +402,9 @@ export class WalletServiceManager {
         transferable: true,
         durations: {
           cliff: 0,
-          total: totalDuration
+          total: totalDuration,
         },
-        broker: ethers.constants.AddressZero
+        broker: ethers.constants.AddressZero,
       };
 
       const txCreate = await sablierContract.createWithDurations(params);

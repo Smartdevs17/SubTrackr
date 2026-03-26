@@ -23,3 +23,6 @@ contracts/target/
 # Backup/fixed package snapshots
 package-fixed.json
 package.json.backup
+# GitHub API response dumps (UTF-16 encoded)
+issue*.json
+issues_summary.json

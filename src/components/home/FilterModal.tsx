@@ -183,7 +183,9 @@ export const FilterModal: React.FC<FilterModalProps> = ({
                           styles.sortButtonText,
                           sortBy === field && styles.sortButtonTextSelected,
                         ]}>
-                        {field === 'nextBilling' ? 'Next Billing' : field.charAt(0).toUpperCase() + field.slice(1)}
+                        {field === 'nextBilling'
+                          ? 'Next Billing'
+                          : field.charAt(0).toUpperCase() + field.slice(1)}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -195,14 +197,22 @@ export const FilterModal: React.FC<FilterModalProps> = ({
                   <TouchableOpacity
                     style={[styles.sortButton, sortOrder === 'asc' && styles.sortButtonSelected]}
                     onPress={() => setSortOrder('asc')}>
-                    <Text style={[styles.sortButtonText, sortOrder === 'asc' && styles.sortButtonTextSelected]}>
+                    <Text
+                      style={[
+                        styles.sortButtonText,
+                        sortOrder === 'asc' && styles.sortButtonTextSelected,
+                      ]}>
                       ↑ Ascending
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.sortButton, sortOrder === 'desc' && styles.sortButtonSelected]}
                     onPress={() => setSortOrder('desc')}>
-                    <Text style={[styles.sortButtonText, sortOrder === 'desc' && styles.sortButtonTextSelected]}>
+                    <Text
+                      style={[
+                        styles.sortButtonText,
+                        sortOrder === 'desc' && styles.sortButtonTextSelected,
+                      ]}>
                       ↓ Descending
                     </Text>
                   </TouchableOpacity>
@@ -276,7 +286,12 @@ const styles = StyleSheet.create({
     ...typography.body,
   },
   priceRangeSeparator: { ...typography.body, color: colors.textSecondary },
-  toggleContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: spacing.sm },
+  toggleContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+  },
   toggleLabel: { ...typography.body, color: colors.text },
   sortContainer: { gap: spacing.md },
   sortRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
@@ -293,7 +308,13 @@ const styles = StyleSheet.create({
   sortButtonSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
   sortButtonText: { ...typography.body, color: colors.text },
   sortButtonTextSelected: { color: colors.text, fontWeight: '600' },
-  modalFooter: { flexDirection: 'row', gap: spacing.md, padding: spacing.lg, borderTopWidth: 1, borderTopColor: colors.border },
+  modalFooter: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    padding: spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
   clearFiltersButton: {
     flex: 1,
     backgroundColor: colors.surface,
@@ -304,6 +325,12 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   clearFiltersButtonText: { ...typography.body, color: colors.text, fontWeight: '600' },
-  applyFiltersButton: { flex: 1, backgroundColor: colors.primary, borderRadius: borderRadius.md, padding: spacing.md, alignItems: 'center' },
+  applyFiltersButton: {
+    flex: 1,
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    alignItems: 'center',
+  },
   applyFiltersButtonText: { ...typography.body, color: colors.text, fontWeight: '600' },
 });

@@ -18,7 +18,7 @@ interface SubscriptionListProps {
 }
 
 export const SubscriptionList: React.FC<SubscriptionListProps> = ({
-  subscriptions,
+  subscriptions: _subscriptions,
   activeSubscriptions,
   upcomingSubscriptions,
   hasSubscriptions,
