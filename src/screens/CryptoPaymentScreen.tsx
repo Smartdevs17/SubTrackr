@@ -16,7 +16,11 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
-import walletServiceManager, { GasEstimate, WalletConnection } from '../services/walletService';
+import walletServiceManager, {
+  GasEstimate,
+  WalletConnection,
+  TokenBalance,
+} from '../services/walletService';
 
 interface RouteParams {
   subscriptionId?: string;
