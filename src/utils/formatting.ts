@@ -45,7 +45,7 @@ export const formatRelativeDate = (date: Date): string => {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const thatDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  
+
   const diffInMs = today.getTime() - thatDay.getTime();
   const diffInDays = Math.round(diffInMs / (1000 * 60 * 60 * 24));
 

@@ -12,7 +12,7 @@ describe('App Launch', () => {
   it('should launch the app properly', async () => {
     // Using robust wait to ensure app loads
     const appContainer = element(by.id('app-root')).atIndex(0);
-    // If 'app-root' testID isn't set, we might expect another known element, 
+    // If 'app-root' testID isn't set, we might expect another known element,
     // adjusting based on what's available or failing gracefully for now.
     try {
       await waitFor(appContainer).toExist().withTimeout(10000);

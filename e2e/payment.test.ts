@@ -22,7 +22,9 @@ describe('Crypto Payment Flow', () => {
       const walletModal = element(by.id('wallet-connect-modal'));
       await expect(walletModal).toBeVisible();
     } catch (e) {
-      console.warn('Elements not found, test will require proper testID assignment in UI components.');
+      console.warn(
+        'Elements not found, test will require proper testID assignment in UI components.'
+      );
     }
   });
 });

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { ethers } from 'ethers';
 import {
   View,
   Text,
@@ -321,7 +322,7 @@ const CryptoPaymentScreen: React.FC = () => {
           )}
 
           {/* Create Stream Button */}
-          <div style={styles.footer}>
+          <View style={styles.footer}>
             <Button
               title={isLoading ? 'Creating Stream...' : 'Create Payment Stream'}
               onPress={handleCreateStream}
@@ -330,7 +331,7 @@ const CryptoPaymentScreen: React.FC = () => {
               fullWidth
               size="large"
             />
-          </div>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

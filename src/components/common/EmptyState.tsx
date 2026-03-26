@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 // eslint-disable-next-line import/no-unresolved
-import { colors, spacing, typography, borderRadius } from '../utils/constants';
+import { colors, spacing, typography, borderRadius } from '../../utils/constants';
 
 interface EmptyStateProps {
   icon: string;
