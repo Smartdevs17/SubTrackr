@@ -151,21 +151,57 @@ export const dummySubscriptions: Subscription[] = [
   },
 ];
 
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+const CACHE_TTL_MS = 60_000;
+
+let _cache: {
+  ref: Subscription[];
+  len: number;
+  ts: number;
+  result: Subscription[];
+} | null = null;
+
+/** Convert a Date, string, or numeric timestamp to a millisecond timestamp. */
+const toTimestamp = (d: Date | string | number): number =>
+  typeof d === 'number' ? d : d instanceof Date ? d.getTime() : new Date(d).getTime();
+
+/**
+ * Clear the internal memoization cache.
+ * Exposed for testing purposes only.
+ */
+export const _clearUpcomingCache = (): void => {
+  _cache = null;
+};
+
 export const getUpcomingSubscriptions = (subscriptions: Subscription[]): Subscription[] => {
   if (!subscriptions || !Array.isArray(subscriptions)) {
     return [];
   }
 
-  const today = new Date();
-  const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const nowTs = Date.now();
 
-  return subscriptions
-    .filter((sub) => sub.isActive)
+  // Return cached result if input reference unchanged and cache is fresh
+  if (
+    _cache &&
+    _cache.ref === subscriptions &&
+    _cache.len === subscriptions.length &&
+    nowTs - _cache.ts < CACHE_TTL_MS
+  ) {
+    return _cache.result;
+  }
+
+  const nextWeekTs = nowTs + SEVEN_DAYS_MS;
+
+  const result = subscriptions
     .filter((sub) => {
-      const billingDate = new Date(sub.nextBillingDate);
-      return billingDate >= today && billingDate <= nextWeek;
+      if (!sub.isActive) return false;
+      const ts = toTimestamp(sub.nextBillingDate);
+      return ts >= nowTs && ts <= nextWeekTs;
     })
-    .sort((a, b) => new Date(a.nextBillingDate).getTime() - new Date(b.nextBillingDate).getTime());
+    .sort((a, b) => toTimestamp(a.nextBillingDate) - toTimestamp(b.nextBillingDate));
+
+  _cache = { ref: subscriptions, len: subscriptions.length, ts: nowTs, result };
+  return result;
 };
 
 export const getTotalMonthlySpending = (subscriptions: Subscription[]): number => {
