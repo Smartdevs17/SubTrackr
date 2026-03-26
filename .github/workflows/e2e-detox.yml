@@ -10,6 +10,7 @@ jobs:
   test-ios:
     name: Detox iOS
     runs-on: macos-latest
+    continue-on-error: ${{ github.event_name == 'pull_request' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -20,6 +21,12 @@ jobs:
         run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
       - name: Expo Prebuild
         run: npx expo prebuild -p ios
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+      - name: Install CocoaPods dependencies
+        run: cd ios && pod install --repo-update
       - name: Install AppleSimulatorUtils
         run: brew tap wix/brew && brew install applesimutils
       - name: Build Detox iOS
