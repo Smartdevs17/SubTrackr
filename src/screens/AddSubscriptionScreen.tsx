@@ -225,7 +225,23 @@ const AddSubscriptionScreen: React.FC = () => {
                     style={styles.priceInput}
                     value={formData.price > 0 ? formData.price.toString() : ''}
                     onChangeText={(text) => {
-                      const numValue = parseFloat(text) || 0;
+                      if (text.trim() === '') {
+                        handleInputChange('priceError', '');
+                        handleInputChange('price', 0);
+                        return;
+                      }
+                      // Reject non-numeric input (allow digits, one dot, leading/trailing spaces)
+                      if (!/^[\d.,\s]*$/.test(text.trim())) {
+                        handleInputChange('priceError', 'Price must be a valid number');
+                        return;
+                      }
+                      const normalized = text.replace(/,/g, '.').trim();
+                      const numValue = parseFloat(normalized);
+                      if (Number.isNaN(numValue)) {
+                        handleInputChange('priceError', 'Price must be a valid number');
+                      } else {
+                        handleInputChange('priceError', '');
+                      }
                       handleInputChange('price', numValue);
                     }}
                     placeholder="0.00"
@@ -233,6 +249,9 @@ const AddSubscriptionScreen: React.FC = () => {
                     keyboardType="decimal-pad"
                   />
                 </View>
+                {formData.priceError ? (
+                  <Text style={styles.errorText}>{formData.priceError}</Text>
+                ) : null}
               </View>
 
               <View style={styles.inputGroup}>
@@ -416,6 +435,11 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginBottom: spacing.xs,
     fontWeight: '500',
+  },
+  errorText: {
+    color: colors.error || '#e74c3c',
+    fontSize: 12,
+    marginTop: spacing.xs,
   },
   textInput: {
     backgroundColor: colors.surface,
