@@ -68,6 +68,7 @@ SubTrackr/
 ### 1. Clone the Repository
 
 First, clone the repository to your local machine:
+
 ```bash
 git clone https://github.com/Smartdevs17/SubTrackr.git
 cd SubTrackr
@@ -76,15 +77,18 @@ cd SubTrackr
 ### 2. Install Prerequisites
 
 #### Required for all development:
+
 - **Node.js 20+**: We recommend using [nvm](https://github.com/nvm-sh/nvm) to manage Node.js versions:
+
   ```bash
   # Install nvm (if not already installed)
   curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-  
+
   # Install and use Node.js 20
   nvm install 20
   nvm use 20
   ```
+
 - **Expo CLI**: Install the Expo command line tools globally:
   ```bash
   npm install -g expo-cli
@@ -92,14 +96,17 @@ cd SubTrackr
 - **Freighter Wallet**: Install the [Freighter Wallet](https://freighter.app/) browser extension for Stellar transaction signing.
 
 #### Required only for smart contract development:
+
 - **Rust**: Install Rust and the WASM target:
+
   ```bash
   # Install Rust (if not already installed)
   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-  
+
   # Add WASM target
   rustup target add wasm32-unknown-unknown
   ```
+
 - **Soroban CLI**: Install the Soroban command line tools:
   ```bash
   cargo install --locked soroban-cli
@@ -108,21 +115,23 @@ cd SubTrackr
 ### 3. Configure Environment Variables
 
 Create a `.env` file in the root directory of the project:
+
 ```bash
 cp .env.example .env
 ```
 
 > **Note**: If `.env.example` doesn't exist, create a new `.env` file with the following variables:
 
-| Variable             | Description                               | Example Value                              |
-| -------------------- | ----------------------------------------- | ------------------------------------------ |
-| `STELLAR_NETWORK`    | `testnet` or `public` Stellar network     | `testnet`                                  |
-| `CONTRACT_ID`        | Deployed Soroban subscription contract ID | `CB64...` (your deployed contract address) |
+| Variable             | Description                               | Example Value                                                     |
+| -------------------- | ----------------------------------------- | ----------------------------------------------------------------- |
+| `STELLAR_NETWORK`    | `testnet` or `public` Stellar network     | `testnet`                                                         |
+| `CONTRACT_ID`        | Deployed Soroban subscription contract ID | `CB64...` (your deployed contract address)                        |
 | `WEB3AUTH_CLIENT_ID` | Web3Auth client ID for social login       | Get one from [Web3Auth Dashboard](https://dashboard.web3auth.io/) |
 
 ### 4. Run the Mobile App
 
 Install dependencies and start the Expo development server:
+
 ```bash
 # Install dependencies
 npm install
@@ -132,6 +141,7 @@ npx expo start
 ```
 
 You can then run the app on:
+
 - **iOS Simulator**: Press `i` in the Expo terminal
 - **Android Emulator**: Press `a` in the Expo terminal
 - **Physical Device**: Scan the QR code with the Expo Go app (iOS/Android)
@@ -139,6 +149,7 @@ You can then run the app on:
 ### 5. (Optional) Deploy Smart Contracts
 
 If you want to work on the smart contracts:
+
 ```bash
 # Navigate to contracts directory
 cd contracts
@@ -153,6 +164,7 @@ soroban contract deploy --wasm target/wasm32-unknown-unknown/release/subtrackr.w
 ### 6. Run Tests
 
 Run the test suite to ensure everything is working correctly:
+
 ```bash
 # Run unit tests
 npm test

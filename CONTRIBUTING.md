@@ -19,13 +19,13 @@ Thank you for taking the time to contribute SubTracker. This document covers eve
 
 ### Prerequisites
 
-| Tool | Version | Purpose |
-|------|---------|---------|
-| Node.js | 20+ | Mobile app development |
-| npm | bundled with Node | Package management |
-| Rust | 1.77+ | Smart contract development |
-| Expo CLI | latest | Running and building the app |
-| Soroban CLI | latest | Deploying/interacting with contracts |
+| Tool        | Version           | Purpose                              |
+| ----------- | ----------------- | ------------------------------------ |
+| Node.js     | 20+               | Mobile app development               |
+| npm         | bundled with Node | Package management                   |
+| Rust        | 1.77+             | Smart contract development           |
+| Expo CLI    | latest            | Running and building the app         |
+| Soroban CLI | latest            | Deploying/interacting with contracts |
 
 ### Mobile App Setup
 
@@ -60,11 +60,11 @@ npm run contracts:test
 
 Create a `.env` file at the project root if needed:
 
-| Variable | Description |
-|----------|-------------|
-| `STELLAR_NETWORK` | `testnet` or `public` |
-| `CONTRACT_ID` | Deployed Soroban subscription contract ID |
-| `WEB3AUTH_CLIENT_ID` | Web3Auth client ID for social login |
+| Variable             | Description                               |
+| -------------------- | ----------------------------------------- |
+| `STELLAR_NETWORK`    | `testnet` or `public`                     |
+| `CONTRACT_ID`        | Deployed Soroban subscription contract ID |
+| `WEB3AUTH_CLIENT_ID` | Web3Auth client ID for social login       |
 
 ### Generating Contract TypeScript Types
 
@@ -149,17 +149,17 @@ This project uses **Conventional Commits**. Every commit message must follow thi
 
 ### Types
 
-| Type | When to use |
-|------|-------------|
-| `feat` | New feature |
-| `fix` | Bug fix |
-| `chore` | Maintenance, dependency updates, tooling |
-| `docs` | Documentation only |
+| Type       | When to use                                     |
+| ---------- | ----------------------------------------------- |
+| `feat`     | New feature                                     |
+| `fix`      | Bug fix                                         |
+| `chore`    | Maintenance, dependency updates, tooling        |
+| `docs`     | Documentation only                              |
 | `refactor` | Code change that is neither a fix nor a feature |
-| `test` | Adding or updating tests |
-| `style` | Formatting, whitespace — no logic change |
-| `ci` | CI/CD configuration changes |
-| `perf` | Performance improvement |
+| `test`     | Adding or updating tests                        |
+| `style`    | Formatting, whitespace — no logic change        |
+| `ci`       | CI/CD configuration changes                     |
+| `perf`     | Performance improvement                         |
 
 ### Scope (optional but encouraged)
 
@@ -210,10 +210,10 @@ refactor/wallet-service-error-handling
 
 ### Protected Branches
 
-| Branch | Purpose |
-|--------|---------|
-| `main` | Production-ready code — all CI must pass, PR required |
-| `dev` / `develop` | Integration branch — CI required |
+| Branch            | Purpose                                               |
+| ----------------- | ----------------------------------------------------- |
+| `main`            | Production-ready code — all CI must pass, PR required |
+| `dev` / `develop` | Integration branch — CI required                      |
 
 Never commit directly to `main`. All changes must go through a pull request.
 
@@ -232,16 +232,16 @@ Never commit directly to `main`. All changes must go through a pull request.
 
 All of the following CI jobs must pass before a PR can be merged:
 
-| Check | Command |
-|-------|---------|
-| Prettier format | `npm run format:check` |
-| ESLint | `npm run lint` |
-| TypeScript type check | `npm run typecheck` |
-| Jest tests | `npm test` |
-| Expo build | `npm run build` |
-| Rust formatting | `npm run contracts:fmt` |
-| Rust Clippy | `npm run contracts:clippy` |
-| Rust tests | `npm run contracts:test` |
+| Check                 | Command                    |
+| --------------------- | -------------------------- |
+| Prettier format       | `npm run format:check`     |
+| ESLint                | `npm run lint`             |
+| TypeScript type check | `npm run typecheck`        |
+| Jest tests            | `npm test`                 |
+| Expo build            | `npm run build`            |
+| Rust formatting       | `npm run contracts:fmt`    |
+| Rust Clippy           | `npm run contracts:clippy` |
+| Rust tests            | `npm run contracts:test`   |
 
 ### PR Checklist
 

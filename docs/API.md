@@ -39,21 +39,21 @@ The Soroban smart contract (`contracts/src/lib.rs`) handles subscription plan cr
 
 Defines billing frequency for subscription plans.
 
-| Variant     | Duration   |
-|-------------|------------|
-| `Weekly`    | 604,800s   |
-| `Monthly`   | 2,592,000s |
-| `Quarterly` | 7,776,000s |
-| `Yearly`    | 31,536,000s|
+| Variant     | Duration    |
+| ----------- | ----------- |
+| `Weekly`    | 604,800s    |
+| `Monthly`   | 2,592,000s  |
+| `Quarterly` | 7,776,000s  |
+| `Yearly`    | 31,536,000s |
 
 #### SubscriptionStatus
 
-| Variant     | Description                        |
-|-------------|------------------------------------|
+| Variant     | Description                         |
+| ----------- | ----------------------------------- |
 | `Active`    | Subscription is active and billable |
-| `Paused`    | Temporarily paused by subscriber   |
-| `Cancelled` | Permanently cancelled              |
-| `PastDue`   | Payment failed or overdue          |
+| `Paused`    | Temporarily paused by subscriber    |
+| `Cancelled` | Permanently cancelled               |
+| `PastDue`   | Payment failed or overdue           |
 
 #### Plan
 
@@ -98,7 +98,7 @@ Set the contract admin. Must be called once before any other function.
 **Parameters:**
 
 | Name    | Type      | Description          |
-|---------|-----------|----------------------|
+| ------- | --------- | -------------------- |
 | `admin` | `Address` | Admin wallet address |
 
 **Auth:** None (first-time setup only).
@@ -123,19 +123,20 @@ Create a new subscription plan. Returns the plan ID.
 
 **Parameters:**
 
-| Name       | Type       | Description                      |
-|------------|------------|----------------------------------|
-| `merchant` | `Address`  | Plan owner address               |
-| `name`     | `String`   | Plan display name                |
-| `price`    | `i128`     | Price per interval in stroops    |
-| `token`    | `Address`  | Payment token contract address   |
-| `interval` | `Interval` | Billing frequency                |
+| Name       | Type       | Description                    |
+| ---------- | ---------- | ------------------------------ |
+| `merchant` | `Address`  | Plan owner address             |
+| `name`     | `String`   | Plan display name              |
+| `price`    | `i128`     | Price per interval in stroops  |
+| `token`    | `Address`  | Payment token contract address |
+| `interval` | `Interval` | Billing frequency              |
 
 **Auth:** Requires `merchant` authorization.
 
 **Returns:** `u64` - the new plan ID.
 
 **Errors:**
+
 - `"Price must be positive"` - if `price <= 0`
 
 **Example:**
@@ -164,14 +165,15 @@ Deactivate a plan so no new subscribers can join. Existing subscribers continue 
 
 **Parameters:**
 
-| Name       | Type      | Description          |
-|------------|-----------|----------------------|
-| `merchant` | `Address` | Plan owner address   |
+| Name       | Type      | Description              |
+| ---------- | --------- | ------------------------ |
+| `merchant` | `Address` | Plan owner address       |
 | `plan_id`  | `u64`     | ID of plan to deactivate |
 
 **Auth:** Requires `merchant` authorization. Must match plan owner.
 
 **Errors:**
+
 - `"Only plan owner can deactivate"` - if caller is not the plan merchant
 
 ---
@@ -185,7 +187,7 @@ Subscribe to an active plan. Processes the first payment immediately. Returns th
 **Parameters:**
 
 | Name         | Type      | Description               |
-|--------------|-----------|---------------------------|
+| ------------ | --------- | ------------------------- |
 | `subscriber` | `Address` | Subscriber wallet address |
 | `plan_id`    | `u64`     | ID of the plan            |
 
@@ -194,6 +196,7 @@ Subscribe to an active plan. Processes the first payment immediately. Returns th
 **Returns:** `u64` - the new subscription ID.
 
 **Errors:**
+
 - `"Plan is not active"` - if the plan has been deactivated
 - `"Merchant cannot self-subscribe"` - if subscriber is the plan merchant
 - `"Already subscribed to this plan"` - if subscriber has an active subscription to this plan
@@ -221,14 +224,15 @@ Permanently cancel a subscription. Works on Active or Paused subscriptions.
 
 **Parameters:**
 
-| Name              | Type      | Description              |
-|-------------------|-----------|--------------------------|
-| `subscriber`      | `Address` | Subscriber wallet address|
-| `subscription_id` | `u64`     | ID of the subscription   |
+| Name              | Type      | Description               |
+| ----------------- | --------- | ------------------------- |
+| `subscriber`      | `Address` | Subscriber wallet address |
+| `subscription_id` | `u64`     | ID of the subscription    |
 
 **Auth:** Requires `subscriber` authorization.
 
 **Errors:**
+
 - `"Only subscriber can cancel"` - if caller is not the subscriber
 
 #### `pause_subscription`
@@ -237,14 +241,15 @@ Temporarily pause billing on a subscription.
 
 **Parameters:**
 
-| Name              | Type      | Description              |
-|-------------------|-----------|--------------------------|
-| `subscriber`      | `Address` | Subscriber wallet address|
-| `subscription_id` | `u64`     | ID of the subscription   |
+| Name              | Type      | Description               |
+| ----------------- | --------- | ------------------------- |
+| `subscriber`      | `Address` | Subscriber wallet address |
+| `subscription_id` | `u64`     | ID of the subscription    |
 
 **Auth:** Requires `subscriber` authorization.
 
 **Errors:**
+
 - `"Only active subscriptions can be paused"` - if status is not Active
 
 #### `resume_subscription`
@@ -253,14 +258,15 @@ Resume a paused subscription.
 
 **Parameters:**
 
-| Name              | Type      | Description              |
-|-------------------|-----------|--------------------------|
-| `subscriber`      | `Address` | Subscriber wallet address|
-| `subscription_id` | `u64`     | ID of the subscription   |
+| Name              | Type      | Description               |
+| ----------------- | --------- | ------------------------- |
+| `subscriber`      | `Address` | Subscriber wallet address |
+| `subscription_id` | `u64`     | ID of the subscription    |
 
 **Auth:** Requires `subscriber` authorization.
 
 **Errors:**
+
 - `"Subscription not active"` - if status is not Paused (note: error message is reused)
 
 ---
@@ -274,14 +280,16 @@ Process a due payment for an active subscription. Anyone can call this (permissi
 **Parameters:**
 
 | Name              | Type  | Description            |
-|-------------------|-------|------------------------|
+| ----------------- | ----- | ---------------------- |
 | `subscription_id` | `u64` | ID of the subscription |
 
 **Errors:**
+
 - `"Subscription not active"` - if status is not Active
 - `"Payment not yet due"` - if current time < `next_charge_at`
 
 **Side effects:**
+
 - Transfers `plan.price` from subscriber to merchant via the plan's token contract
 - Updates `last_charged_at`, `next_charge_at`, and `total_paid`
 
@@ -291,16 +299,18 @@ Submit a refund request for a subscription.
 
 **Parameters:**
 
-| Name              | Type   | Description               |
-|-------------------|--------|---------------------------|
-| `subscription_id` | `u64`  | ID of the subscription    |
-| `amount`          | `i128` | Requested refund amount   |
+| Name              | Type   | Description             |
+| ----------------- | ------ | ----------------------- |
+| `subscription_id` | `u64`  | ID of the subscription  |
+| `amount`          | `i128` | Requested refund amount |
 
 **Errors:**
+
 - `"Refund amount must be positive"` - if `amount <= 0`
 - `"Refund amount cannot exceed total paid"` - if `amount > total_paid`
 
 **Events:**
+
 - `refund_requested(subscription_id, (subscriber, amount))`
 
 #### `approve_refund`
@@ -310,15 +320,17 @@ Admin approves a pending refund. Transfers tokens from merchant to subscriber.
 **Parameters:**
 
 | Name              | Type  | Description            |
-|-------------------|-------|------------------------|
+| ----------------- | ----- | ---------------------- |
 | `subscription_id` | `u64` | ID of the subscription |
 
 **Auth:** Requires admin authorization.
 
 **Errors:**
+
 - `"No pending refund request"` - if `refund_requested_amount == 0`
 
 **Events:**
+
 - `refund_approved(subscription_id, (subscriber, amount))`
 
 #### `reject_refund`
@@ -328,15 +340,17 @@ Admin rejects a pending refund request, resetting the requested amount to zero.
 **Parameters:**
 
 | Name              | Type  | Description            |
-|-------------------|-------|------------------------|
+| ----------------- | ----- | ---------------------- |
 | `subscription_id` | `u64` | ID of the subscription |
 
 **Auth:** Requires admin authorization.
 
 **Errors:**
+
 - `"No pending refund request"` - if `refund_requested_amount == 0`
 
 **Events:**
+
 - `refund_rejected(subscription_id, subscriber)`
 
 ---
@@ -348,29 +362,29 @@ All query functions are read-only and require no authorization.
 #### `get_plan`
 
 | Parameter | Type  | Returns |
-|-----------|-------|---------|
+| --------- | ----- | ------- |
 | `plan_id` | `u64` | `Plan`  |
 
 #### `get_subscription`
 
 | Parameter         | Type  | Returns        |
-|-------------------|-------|----------------|
+| ----------------- | ----- | -------------- |
 | `subscription_id` | `u64` | `Subscription` |
 
 #### `get_user_subscriptions`
 
 Returns all subscription IDs for a given subscriber.
 
-| Parameter    | Type      | Returns     |
-|--------------|-----------|-------------|
-| `subscriber` | `Address` | `Vec<u64>`  |
+| Parameter    | Type      | Returns    |
+| ------------ | --------- | ---------- |
+| `subscriber` | `Address` | `Vec<u64>` |
 
 #### `get_merchant_plans`
 
 Returns all plan IDs for a given merchant.
 
 | Parameter  | Type      | Returns    |
-|------------|-----------|------------|
+| ---------- | --------- | ---------- |
 | `merchant` | `Address` | `Vec<u64>` |
 
 #### `get_plan_count`
@@ -378,7 +392,7 @@ Returns all plan IDs for a given merchant.
 Returns the total number of plans created.
 
 | Returns |
-|---------|
+| ------- |
 | `u64`   |
 
 #### `get_subscription_count`
@@ -386,7 +400,7 @@ Returns the total number of plans created.
 Returns the total number of subscriptions created.
 
 | Returns |
-|---------|
+| ------- |
 | `u64`   |
 
 **Example (query):**
@@ -421,11 +435,11 @@ soroban contract invoke \
 
 The contract emits Soroban events for refund lifecycle actions. Subscribe to these via Soroban RPC event streaming.
 
-| Event              | Topic 1            | Data                             |
-|--------------------|--------------------|----------------------------------|
-| `refund_requested` | `subscription_id`  | `(subscriber: Address, amount: i128)` |
-| `refund_approved`  | `subscription_id`  | `(subscriber: Address, amount: i128)` |
-| `refund_rejected`  | `subscription_id`  | `subscriber: Address`            |
+| Event              | Topic 1           | Data                                  |
+| ------------------ | ----------------- | ------------------------------------- |
+| `refund_requested` | `subscription_id` | `(subscriber: Address, amount: i128)` |
+| `refund_approved`  | `subscription_id` | `(subscriber: Address, amount: i128)` |
+| `refund_rejected`  | `subscription_id` | `subscriber: Address`                 |
 
 ---
 
@@ -433,20 +447,20 @@ The contract emits Soroban events for refund lifecycle actions. Subscribe to the
 
 All smart contract errors are returned as string panics.
 
-| Error Message                              | Function(s)              | Cause                                  |
-|--------------------------------------------|--------------------------|----------------------------------------|
-| `Price must be positive`                   | `create_plan`            | Price is zero or negative              |
-| `Plan is not active`                       | `subscribe`              | Plan was deactivated                   |
-| `Merchant cannot self-subscribe`           | `subscribe`              | Subscriber address matches merchant    |
-| `Already subscribed to this plan`          | `subscribe`              | Duplicate active subscription          |
-| `Only subscriber can cancel`               | `cancel_subscription`    | Caller is not the subscriber           |
-| `Only active subscriptions can be paused`  | `pause_subscription`     | Subscription is not Active             |
-| `Subscription not active`                  | `resume_subscription`, `charge_subscription` | Subscription is not in expected state |
-| `Payment not yet due`                      | `charge_subscription`    | Current time < next_charge_at          |
-| `Refund amount must be positive`           | `request_refund`         | Amount is zero or negative             |
-| `Refund amount cannot exceed total paid`   | `request_refund`         | Amount > total_paid                    |
-| `No pending refund request`               | `approve_refund`, `reject_refund` | No refund was requested       |
-| `Only plan owner can deactivate`           | `deactivate_plan`        | Caller is not the plan merchant        |
+| Error Message                             | Function(s)                                  | Cause                                 |
+| ----------------------------------------- | -------------------------------------------- | ------------------------------------- |
+| `Price must be positive`                  | `create_plan`                                | Price is zero or negative             |
+| `Plan is not active`                      | `subscribe`                                  | Plan was deactivated                  |
+| `Merchant cannot self-subscribe`          | `subscribe`                                  | Subscriber address matches merchant   |
+| `Already subscribed to this plan`         | `subscribe`                                  | Duplicate active subscription         |
+| `Only subscriber can cancel`              | `cancel_subscription`                        | Caller is not the subscriber          |
+| `Only active subscriptions can be paused` | `pause_subscription`                         | Subscription is not Active            |
+| `Subscription not active`                 | `resume_subscription`, `charge_subscription` | Subscription is not in expected state |
+| `Payment not yet due`                     | `charge_subscription`                        | Current time < next_charge_at         |
+| `Refund amount must be positive`          | `request_refund`                             | Amount is zero or negative            |
+| `Refund amount cannot exceed total paid`  | `request_refund`                             | Amount > total_paid                   |
+| `No pending refund request`               | `approve_refund`, `reject_refund`            | No refund was requested               |
+| `Only plan owner can deactivate`          | `deactivate_plan`                            | Caller is not the plan merchant       |
 
 ---
 
@@ -510,9 +524,9 @@ Fetch native currency and USDC balances for a wallet.
 
 **Parameters:**
 
-| Name      | Type     | Description            |
-|-----------|----------|------------------------|
-| `address` | `string` | Wallet address         |
+| Name      | Type     | Description              |
+| --------- | -------- | ------------------------ |
+| `address` | `string` | Wallet address           |
 | `chainId` | `number` | Chain ID (1, 137, 42161) |
 
 **Returns:** Array of `TokenBalance`:
@@ -559,12 +573,12 @@ Estimate gas for a simple token transfer.
 
 **Parameters:**
 
-| Name      | Type     | Description        |
-|-----------|----------|--------------------|
-| `from`    | `string` | Sender address     |
-| `to`      | `string` | Recipient address  |
-| `value`   | `string` | Transfer value     |
-| `chainId` | `number` | Chain ID           |
+| Name      | Type     | Description       |
+| --------- | -------- | ----------------- |
+| `from`    | `string` | Sender address    |
+| `to`      | `string` | Recipient address |
+| `value`   | `string` | Transfer value    |
+| `chainId` | `number` | Chain ID          |
 
 #### `estimateSuperfluidCreateFlow(tokenSymbol, amountPerMonth, recipient, chainId): Promise<GasEstimate>`
 
@@ -572,19 +586,19 @@ Estimate gas for creating a Superfluid stream.
 
 **Parameters:**
 
-| Name             | Type     | Description                 |
-|------------------|----------|-----------------------------|
-| `tokenSymbol`    | `string` | Token symbol (e.g. "USDC")  |
-| `amountPerMonth` | `string` | Monthly amount to stream    |
-| `recipient`      | `string` | Recipient address           |
-| `chainId`        | `number` | Chain ID                    |
+| Name             | Type     | Description                |
+| ---------------- | -------- | -------------------------- |
+| `tokenSymbol`    | `string` | Token symbol (e.g. "USDC") |
+| `amountPerMonth` | `string` | Monthly amount to stream   |
+| `recipient`      | `string` | Recipient address          |
+| `chainId`        | `number` | Chain ID                   |
 
 **GasEstimate:**
 
 ```typescript
 {
-  gasLimit: string;      // Estimated gas units
-  gasPrice: string;      // Gas price in wei
+  gasLimit: string; // Estimated gas units
+  gasPrice: string; // Gas price in wei
   estimatedCost: string; // Total cost formatted in native currency
 }
 ```
@@ -599,18 +613,18 @@ Create a continuous payment stream using Superfluid's Constant Flow Agreement (C
 
 **Parameters:**
 
-| Name             | Type     | Description                 |
-|------------------|----------|-----------------------------|
-| `tokenSymbol`    | `string` | Token symbol (e.g. "USDC")  |
-| `amountPerMonth` | `string` | Monthly amount to stream    |
-| `recipient`      | `string` | Recipient address           |
-| `chainId`        | `number` | Chain ID                    |
+| Name             | Type     | Description                |
+| ---------------- | -------- | -------------------------- |
+| `tokenSymbol`    | `string` | Token symbol (e.g. "USDC") |
+| `amountPerMonth` | `string` | Monthly amount to stream   |
+| `recipient`      | `string` | Recipient address          |
+| `chainId`        | `number` | Chain ID                   |
 
 **Returns:**
 
 ```typescript
 {
-  txHash: string;   // Transaction hash
+  txHash: string; // Transaction hash
   streamId: string; // Superfluid stream identifier
 }
 ```
@@ -623,14 +637,14 @@ Create a time-locked vesting stream using Sablier V2.
 
 **Parameters:**
 
-| Name        | Type     | Description                    |
-|-------------|----------|--------------------------------|
-| `token`     | `string` | Token contract address         |
-| `amount`    | `string` | Total amount to stream         |
-| `startTime` | `number` | Unix timestamp for stream start|
-| `stopTime`  | `number` | Unix timestamp for stream end  |
-| `recipient` | `string` | Recipient address              |
-| `chainId`   | `number` | Chain ID                       |
+| Name        | Type     | Description                     |
+| ----------- | -------- | ------------------------------- |
+| `token`     | `string` | Token contract address          |
+| `amount`    | `string` | Total amount to stream          |
+| `startTime` | `number` | Unix timestamp for stream start |
+| `stopTime`  | `number` | Unix timestamp for stream end   |
+| `recipient` | `string` | Recipient address               |
+| `chainId`   | `number` | Chain ID                        |
 
 **Returns:** `string` - transaction hash.
 
@@ -640,16 +654,16 @@ Create a time-locked vesting stream using Sablier V2.
 
 ### Wallet Error Codes
 
-| Error Message | Cause |
-|---------------|-------|
-| `Wallet is not connected or does not expose a signing provider` | No active wallet connection with a signer |
+| Error Message                                                                         | Cause                                                    |
+| ------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `Wallet is not connected or does not expose a signing provider`                       | No active wallet connection with a signer                |
 | `Wallet network (X) does not match selected chain (Y). Switch network in your wallet` | Chain ID mismatch between wallet and requested operation |
-| `Monthly amount is too small to stream (flow rate rounds to zero per second)` | Superfluid flow rate would be 0 |
-| `Recipient must be a different address than your connected wallet` | Self-stream attempt |
-| `No RPC configured for chain X` | Unsupported chain ID |
-| `ARB is not supported as a Superfluid super token on this flow` | Unsupported super token |
-| `Transaction was rejected in your wallet` | User rejected the wallet prompt |
-| `Could not estimate gas for Superfluid createFlow` | Gas estimation failure |
+| `Monthly amount is too small to stream (flow rate rounds to zero per second)`         | Superfluid flow rate would be 0                          |
+| `Recipient must be a different address than your connected wallet`                    | Self-stream attempt                                      |
+| `No RPC configured for chain X`                                                       | Unsupported chain ID                                     |
+| `ARB is not supported as a Superfluid super token on this flow`                       | Unsupported super token                                  |
+| `Transaction was rejected in your wallet`                                             | User rejected the wallet prompt                          |
+| `Could not estimate gas for Superfluid createFlow`                                    | Gas estimation failure                                   |
 
 ---
 
@@ -680,6 +694,7 @@ Request notification permissions from the user.
 Cancel all existing reminders and reschedule based on current subscriptions. Only schedules reminders for subscriptions where `isActive === true` and `notificationsEnabled !== false`.
 
 **Reminder timing:**
+
 - 1 day before `nextBillingDate` if there is enough lead time
 - Otherwise, 1 hour before `nextBillingDate`
 
@@ -688,6 +703,7 @@ Cancel all existing reminders and reschedule based on current subscriptions. Onl
 Display an immediate notification for a successful charge.
 
 **Notification content:**
+
 - Title: `"Payment successful"`
 - Body: `"Your {name} subscription has been renewed."`
 
@@ -696,6 +712,7 @@ Display an immediate notification for a successful charge.
 Display an immediate notification for a failed charge.
 
 **Notification content:**
+
 - Title: `"Payment failed"`
 - Body: `"Could not renew {name}. {detail}"` or `"Could not renew {name}. Check your balance."`
 
@@ -709,11 +726,11 @@ Attach listeners for notification taps. Returns a cleanup function.
 
 ### Notification Data Types
 
-| Type                | Value               | Description           |
-|---------------------|---------------------|-----------------------|
-| `RENEWAL_REMINDER`  | `renewal_reminder`  | Upcoming billing alert|
-| `CHARGE_SUCCESS`    | `charge_success`    | Payment succeeded     |
-| `CHARGE_FAILED`     | `charge_failed`     | Payment failed        |
+| Type               | Value              | Description            |
+| ------------------ | ------------------ | ---------------------- |
+| `RENEWAL_REMINDER` | `renewal_reminder` | Upcoming billing alert |
+| `CHARGE_SUCCESS`   | `charge_success`   | Payment succeeded      |
+| `CHARGE_FAILED`    | `charge_failed`    | Payment failed         |
 
 ---
 
@@ -784,7 +801,7 @@ Defined in `src/types/api.ts`.
   privacy: {
     dataSharing: boolean;
     analytics: boolean;
-  };
+  }
 }
 ```
 
@@ -830,25 +847,25 @@ Defined in `src/types/subscription.ts`.
 
 #### `SubscriptionCategory`
 
-| Value          | Description       |
-|----------------|-------------------|
-| `streaming`    | Streaming services|
-| `software`     | Software tools    |
-| `gaming`       | Gaming services   |
-| `productivity` | Productivity apps |
-| `fitness`      | Fitness and health|
-| `education`    | Learning platforms|
-| `finance`      | Financial services|
-| `other`        | Uncategorized     |
+| Value          | Description        |
+| -------------- | ------------------ |
+| `streaming`    | Streaming services |
+| `software`     | Software tools     |
+| `gaming`       | Gaming services    |
+| `productivity` | Productivity apps  |
+| `fitness`      | Fitness and health |
+| `education`    | Learning platforms |
+| `finance`      | Financial services |
+| `other`        | Uncategorized      |
 
 #### `BillingCycle`
 
-| Value     | Description        |
-|-----------|--------------------|
-| `monthly` | Billed monthly     |
-| `yearly`  | Billed annually    |
-| `weekly`  | Billed weekly      |
-| `custom`  | Custom interval    |
+| Value     | Description     |
+| --------- | --------------- |
+| `monthly` | Billed monthly  |
+| `yearly`  | Billed annually |
+| `weekly`  | Billed weekly   |
+| `custom`  | Custom interval |
 
 #### `SubscriptionFormData`
 
@@ -941,7 +958,7 @@ Defined in `src/types/wallet.ts`.
     name: string;
     symbol: string;
     decimals: number;
-  };
+  }
 }
 ```
 
@@ -949,16 +966,16 @@ Defined in `src/types/wallet.ts`.
 
 ## Supported Chains
 
-| Chain    | Chain ID | RPC URL                          |
-|----------|----------|----------------------------------|
-| Ethereum | 1        | `https://cloudflare-eth.com`     |
-| Polygon  | 137      | `https://polygon-rpc.com`        |
-| Arbitrum | 42161    | `https://arb1.arbitrum.io/rpc`   |
+| Chain    | Chain ID | RPC URL                        |
+| -------- | -------- | ------------------------------ |
+| Ethereum | 1        | `https://cloudflare-eth.com`   |
+| Polygon  | 137      | `https://polygon-rpc.com`      |
+| Arbitrum | 42161    | `https://arb1.arbitrum.io/rpc` |
 
 Additional chains defined in wallet types but not yet configured with RPC:
 
 | Chain    | Chain ID |
-|----------|----------|
+| -------- | -------- |
 | Optimism | 10       |
 | Base     | 8453     |
 
@@ -969,16 +986,16 @@ Additional chains defined in wallet types but not yet configured with RPC:
 ### USDC Addresses by Chain
 
 | Chain    | Address                                      |
-|----------|----------------------------------------------|
-| Ethereum | `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48`|
-| Polygon  | `0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174`|
-| Arbitrum | `0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8`|
+| -------- | -------------------------------------------- |
+| Ethereum | `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` |
+| Polygon  | `0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174` |
+| Arbitrum | `0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8` |
 
 ### Protocol Addresses
 
 | Protocol   | Address                                      |
-|------------|----------------------------------------------|
-| Sablier V2 | `0xAFb979d9afAd1aD27C5eFf4E27226E3AB9e5dCC9`|
+| ---------- | -------------------------------------------- |
+| Sablier V2 | `0xAFb979d9afAd1aD27C5eFf4E27226E3AB9e5dCC9` |
 
 ### Soroban Contract
 

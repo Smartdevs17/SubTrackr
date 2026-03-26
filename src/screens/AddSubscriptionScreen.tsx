@@ -18,7 +18,6 @@ import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { SubscriptionCategory, BillingCycle, SubscriptionFormData } from '../types/subscription';
 import { useSubscriptionStore } from '../store';
 import { Button } from '../components/common/Button';
-import { formatCurrency } from '../utils/formatting';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 
 const AddSubscriptionScreen: React.FC = () => {
