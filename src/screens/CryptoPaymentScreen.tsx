@@ -8,15 +8,18 @@ import {
   TextInput,
   TouchableOpacity,
   Alert,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { colors, spacing, typography, borderRadius, shadows } from '../utils/constants';
+import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
-import walletServiceManager, { TokenBalance, GasEstimate } from '../services/walletService';
+import walletServiceManager, {
+  TokenBalance,
+  GasEstimate,
+  WalletConnection,
+} from '../services/walletService';
 
 interface RouteParams {
   subscriptionId?: string;
@@ -40,10 +43,9 @@ const CryptoPaymentScreen: React.FC = () => {
   const [selectedProtocol, setSelectedProtocol] = useState<'superfluid' | 'sablier'>('superfluid');
   const [gasEstimate, setGasEstimate] = useState<GasEstimate | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isEstimatingGas, setIsEstimatingGas] = useState(false);
 
   const [availableTokens, setAvailableTokens] = useState<TokenBalance[]>([]);
-  const [connection, setConnection] = useState<any>(null);
+  const [connection, setConnection] = useState<WalletConnection | null>(null);
 
   useEffect(() => {
     loadWalletData();
@@ -55,10 +57,15 @@ const CryptoPaymentScreen: React.FC = () => {
     }
   }, [amount, recipientAddress, connection, selectedProtocol, selectedToken]);
 
+  // Internal validation for type narrowing
+  const isWalletConnected = (conn: WalletConnection | null): conn is WalletConnection => {
+    return conn !== null && conn.isConnected;
+  };
+
   const loadWalletData = async () => {
     try {
       const conn = walletServiceManager.getConnection();
-      if (!conn) {
+      if (!conn || !conn.isConnected) {
         Alert.alert('Error', 'Please connect a wallet first');
         navigation.goBack();
         return;
@@ -77,10 +84,9 @@ const CryptoPaymentScreen: React.FC = () => {
   };
 
   const estimateGas = async () => {
-    if (!connection || !amount || !recipientAddress) return;
+    if (!isWalletConnected(connection) || !amount || !recipientAddress) return;
 
     try {
-      setIsEstimatingGas(true);
       if (selectedProtocol === 'superfluid') {
         const estimate = await walletServiceManager.estimateSuperfluidCreateFlow(
           selectedToken,
@@ -101,8 +107,6 @@ const CryptoPaymentScreen: React.FC = () => {
     } catch (error) {
       console.error('Failed to estimate gas:', error);
       setGasEstimate(null);
-    } finally {
-      setIsEstimatingGas(false);
     }
   };
 
@@ -120,8 +124,8 @@ const CryptoPaymentScreen: React.FC = () => {
       return false;
     }
 
-    if (!recipientAddress || recipientAddress.length !== 42) {
-      Alert.alert('Error', 'Please enter a valid recipient address');
+    if (!recipientAddress || !ethers.utils.isAddress(recipientAddress)) {
+      Alert.alert('Error', 'Please enter a valid Ethereum address');
       return false;
     }
 
@@ -135,6 +139,11 @@ const CryptoPaymentScreen: React.FC = () => {
 
   const handleCreateStream = async () => {
     if (!validateForm()) return;
+
+    if (!isWalletConnected(connection)) {
+      Alert.alert('Error', 'Wallet not connected');
+      return;
+    }
 
     try {
       setIsLoading(true);
@@ -187,18 +196,6 @@ const CryptoPaymentScreen: React.FC = () => {
       ARB: '🔵',
     };
     return icons[symbol] || '🪙';
-  };
-
-  const getProtocolDescription = (protocol: 'superfluid' | 'sablier'): string => {
-    const descriptions = {
-      superfluid: 'Continuous streaming payments with real-time settlement',
-      sablier: 'Scheduled payments with time-locked streams',
-    };
-    return descriptions[protocol];
-  };
-
-  const getProtocolIcon = (protocol: 'superfluid' | 'sablier'): string => {
-    return protocol === 'superfluid' ? '🌊' : '⏰';
   };
 
   return (
@@ -324,7 +321,7 @@ const CryptoPaymentScreen: React.FC = () => {
           )}
 
           {/* Create Stream Button */}
-          <View style={styles.footer}>
+          <div style={styles.footer}>
             <Button
               title={isLoading ? 'Creating Stream...' : 'Create Payment Stream'}
               onPress={handleCreateStream}
@@ -333,7 +330,7 @@ const CryptoPaymentScreen: React.FC = () => {
               fullWidth
               size="large"
             />
-          </View>
+          </div>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

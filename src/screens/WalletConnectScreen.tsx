@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { colors, spacing, typography, borderRadius, shadows } from '../utils/constants';
@@ -16,6 +17,8 @@ import { Card } from '../components/common/Card';
 import { useAppKit, useAppKitAccount, useAppKitProvider } from '@reown/appkit-ethers-react-native';
 import walletServiceManager, { WalletConnection, TokenBalance } from '../services/walletService';
 import { useWalletStore } from '../store';
+
+import * as Clipboard from 'expo-clipboard';
 
 const WalletConnectScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -111,6 +114,24 @@ const WalletConnectScreen: React.FC = () => {
 
   const handleRefreshBalances = () => {
     loadTokenBalances();
+  };
+
+  // Handle Copy Address
+  const handleCopyAddress = async () => {
+    if (connection?.address) {
+      try {
+        await Clipboard.setStringAsync(connection.address);
+
+        if (Platform.OS === 'android') {
+          Alert.alert('Copied', 'Address copied to clipboard');
+        } else {
+          Alert.alert('Success', 'Address copied to clipboard');
+        }
+      } catch (error) {
+        console.error('Failed to copy address:', error);
+        Alert.alert('Error', 'Failed to copy address to clipboard');
+      }
+    }
   };
 
   const handleSetupCryptoPayments = () => {
@@ -255,7 +276,7 @@ const WalletConnectScreen: React.FC = () => {
               <View style={styles.walletInfo}>
                 <View style={styles.addressContainer}>
                   <Text style={styles.addressLabel}>Wallet Address</Text>
-                  <TouchableOpacity style={styles.addressCopyButton}>
+                  <TouchableOpacity style={styles.addressCopyButton} onPress={handleCopyAddress}>
                     <Text style={styles.copyIcon}>📋</Text>
                   </TouchableOpacity>
                 </View>
