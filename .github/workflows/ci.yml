@@ -8,9 +8,31 @@ on:
 
 env:
   NODE_VERSION: '20'
-  RUST_VERSION: '1.77'
+  RUST_VERSION: '1.85'
 
 jobs:
+  commitlint:
+    name: Conventional Commit Check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Validate PR commits
+        run: npx commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.sha }} --verbose
+
   # ─────────────────────────────────────────────────────────
   # TypeScript / React Native Checks
   # ─────────────────────────────────────────────────────────
@@ -111,7 +133,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
         with:
-          version: ${{ env.RUST_VERSION }}
+          toolchain: ${{ env.RUST_VERSION }}
           components: rustfmt
 
       - name: Check Rust formatting
@@ -127,7 +149,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
         with:
-          version: ${{ env.RUST_VERSION }}
+          toolchain: ${{ env.RUST_VERSION }}
           components: clippy
 
       - name: Cache Rust dependencies
@@ -149,7 +171,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
         with:
-          version: ${{ env.RUST_VERSION }}
+          toolchain: ${{ env.RUST_VERSION }}
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -170,7 +192,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
         with:
-          version: ${{ env.RUST_VERSION }}
+          toolchain: ${{ env.RUST_VERSION }}
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -188,7 +210,18 @@ jobs:
     name: Merge Protection Check
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
-    needs: [typescript-lint, typescript-typecheck, typescript-tests, typescript-build, rust-format, rust-clippy, rust-tests, rust-build]
+    needs:
+      [
+        commitlint,
+        typescript-lint,
+        typescript-typecheck,
+        typescript-tests,
+        typescript-build,
+        rust-format,
+        rust-clippy,
+        rust-tests,
+        rust-build,
+      ]
     steps:
       - name: All checks passed
         run: echo "All quality gates passed!"
@@ -200,10 +233,25 @@ jobs:
     name: CI Complete
     runs-on: ubuntu-latest
     if: always()
-    needs: [typescript-lint, typescript-typecheck, typescript-tests, typescript-build, rust-format, rust-clippy, rust-tests, rust-build]
+    needs:
+      [
+        commitlint,
+        typescript-lint,
+        typescript-typecheck,
+        typescript-tests,
+        typescript-build,
+        rust-format,
+        rust-clippy,
+        rust-tests,
+        rust-build,
+      ]
     steps:
       - name: Check for failures
         run: |
+          if [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ needs.commitlint.result }}" != "success" ]; then
+            echo "Conventional commit check failed"
+            exit 1
+          fi
           if [ "${{ needs.typescript-lint.result }}" != "success" ] || \
              [ "${{ needs.typescript-typecheck.result }}" != "success" ] || \
              [ "${{ needs.typescript-tests.result }}" != "success" ] || \

@@ -12,10 +12,10 @@ import {
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { colors, spacing, typography, borderRadius, shadows } from '../utils/constants';
+import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { useSubscriptionStore } from '../store';
-import { formatCurrency, formatCurrencyCompact } from '../utils/formatting';
-import { Subscription, SubscriptionCategory, BillingCycle } from '../types/subscription';
+import { formatCurrency } from '../utils/formatting';
+import { Subscription, SubscriptionCategory } from '../types/subscription';
 import { RootStackParamList } from '../navigation/types';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
@@ -34,7 +34,6 @@ const SubscriptionDetailScreen: React.FC = () => {
     deleteSubscription,
     updateSubscription,
     recordBillingOutcome,
-    isLoading,
   } = useSubscriptionStore();
 
   const [subscription, setSubscription] = useState<Subscription | null>(null);
@@ -300,9 +299,14 @@ const SubscriptionDetailScreen: React.FC = () => {
               </Text>
             </View>
           </View>
-          
+
           <View style={styles.nextBillingRow}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <View
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}>
               <Text style={styles.priceLabel}>Gas Budget per Charge</Text>
               <Text style={[styles.priceValue, { fontSize: 16 }]}>
                 {subscription.gasBudget?.toFixed(4) || '0.0500'} XLM
@@ -310,14 +314,22 @@ const SubscriptionDetailScreen: React.FC = () => {
             </View>
           </View>
 
-          {subscription.lastGasCost && subscription.chargeCount && subscription.chargeCount > 1 && 
-           subscription.lastGasCost > (subscription.totalGasSpent! / subscription.chargeCount) * 1.5 && (
-            <View style={[styles.statusBadge, styles.statusInactive, { marginTop: spacing.md, backgroundColor: colors.error + '20' }]}>
-              <Text style={[styles.statusText, { color: colors.error }]}>
-                ⚠️ Gas cost spike detected! ({subscription.lastGasCost.toFixed(4)} XLM)
-              </Text>
-            </View>
-          )}
+          {subscription.lastGasCost &&
+            subscription.chargeCount &&
+            subscription.chargeCount > 1 &&
+            subscription.lastGasCost >
+              (subscription.totalGasSpent! / subscription.chargeCount) * 1.5 && (
+              <View
+                style={[
+                  styles.statusBadge,
+                  styles.statusInactive,
+                  { marginTop: spacing.md, backgroundColor: colors.error + '20' },
+                ]}>
+                <Text style={[styles.statusText, { color: colors.error }]}>
+                  ⚠️ Gas cost spike detected! ({subscription.lastGasCost.toFixed(4)} XLM)
+                </Text>
+              </View>
+            )}
         </Card>
 
         {/* Actions */}

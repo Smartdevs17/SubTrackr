@@ -1,0 +1,602 @@
+openapi: 3.0.3
+info:
+  title: SubTrackr Soroban Contract API
+  description: |
+    OpenAPI representation of the SubTrackr Soroban smart contract interface.
+    These are not REST endpoints but Soroban contract invocations via RPC.
+    Each path represents a contract function invoked through `soroban contract invoke`.
+  version: 1.0.0
+  contact:
+    name: SubTrackr
+    url: https://github.com/Smartdevs17/SubTrackr
+
+servers:
+  - url: https://soroban-testnet.stellar.org
+    description: Stellar Testnet RPC
+  - url: https://soroban.stellar.org
+    description: Stellar Mainnet RPC
+
+paths:
+  /initialize:
+    post:
+      summary: Initialize contract
+      description: Set the contract admin. Must be called once before any other function.
+      tags: [Initialization]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [admin]
+              properties:
+                admin:
+                  type: string
+                  description: Stellar address of the admin
+                  example: GABCDEFGHIJKLMNOPQRSTUVWXYZ234567
+      responses:
+        '200':
+          description: Contract initialized
+
+  /create_plan:
+    post:
+      summary: Create subscription plan
+      description: Create a new subscription plan. Requires merchant authorization.
+      tags: [Plan Management]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [merchant, name, price, token, interval]
+              properties:
+                merchant:
+                  type: string
+                  description: Plan owner Stellar address
+                name:
+                  type: string
+                  description: Plan display name
+                  example: Pro Monthly
+                price:
+                  type: integer
+                  format: int128
+                  description: Price per interval in stroops
+                  example: 10000000
+                token:
+                  type: string
+                  description: Payment token contract address
+                interval:
+                  type: string
+                  enum: [Weekly, Monthly, Quarterly, Yearly]
+      responses:
+        '200':
+          description: Plan created
+          content:
+            application/json:
+              schema:
+                type: integer
+                format: uint64
+                description: New plan ID
+                example: 1
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractError'
+              examples:
+                price_zero:
+                  value:
+                    error: Price must be positive
+
+  /deactivate_plan:
+    post:
+      summary: Deactivate plan
+      description: Deactivate a plan. Existing subscribers continue. Requires merchant authorization.
+      tags: [Plan Management]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [merchant, plan_id]
+              properties:
+                merchant:
+                  type: string
+                plan_id:
+                  type: integer
+                  format: uint64
+      responses:
+        '200':
+          description: Plan deactivated
+        '403':
+          description: Not authorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractError'
+              examples:
+                not_owner:
+                  value:
+                    error: Only plan owner can deactivate
+
+  /subscribe:
+    post:
+      summary: Subscribe to plan
+      description: Subscribe to an active plan. First payment processed immediately.
+      tags: [Subscription Management]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subscriber, plan_id]
+              properties:
+                subscriber:
+                  type: string
+                  description: Subscriber Stellar address
+                plan_id:
+                  type: integer
+                  format: uint64
+      responses:
+        '200':
+          description: Subscription created
+          content:
+            application/json:
+              schema:
+                type: integer
+                format: uint64
+                description: New subscription ID
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractError'
+              examples:
+                inactive:
+                  value:
+                    error: Plan is not active
+                self_subscribe:
+                  value:
+                    error: Merchant cannot self-subscribe
+                duplicate:
+                  value:
+                    error: Already subscribed to this plan
+
+  /cancel_subscription:
+    post:
+      summary: Cancel subscription
+      description: Permanently cancel an active or paused subscription.
+      tags: [Subscription Management]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subscriber, subscription_id]
+              properties:
+                subscriber:
+                  type: string
+                subscription_id:
+                  type: integer
+                  format: uint64
+      responses:
+        '200':
+          description: Subscription cancelled
+        '403':
+          description: Not authorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractError'
+              examples:
+                not_subscriber:
+                  value:
+                    error: Only subscriber can cancel
+
+  /pause_subscription:
+    post:
+      summary: Pause subscription
+      description: Temporarily pause billing on an active subscription.
+      tags: [Subscription Management]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subscriber, subscription_id]
+              properties:
+                subscriber:
+                  type: string
+                subscription_id:
+                  type: integer
+                  format: uint64
+      responses:
+        '200':
+          description: Subscription paused
+        '400':
+          description: Invalid state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractError'
+              examples:
+                not_active:
+                  value:
+                    error: Only active subscriptions can be paused
+
+  /resume_subscription:
+    post:
+      summary: Resume subscription
+      description: Resume a paused subscription.
+      tags: [Subscription Management]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subscriber, subscription_id]
+              properties:
+                subscriber:
+                  type: string
+                subscription_id:
+                  type: integer
+                  format: uint64
+      responses:
+        '200':
+          description: Subscription resumed
+        '400':
+          description: Invalid state
+
+  /charge_subscription:
+    post:
+      summary: Charge subscription
+      description: Process a due payment. Permissionless - anyone can call.
+      tags: [Payment Processing]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subscription_id]
+              properties:
+                subscription_id:
+                  type: integer
+                  format: uint64
+      responses:
+        '200':
+          description: Payment processed
+        '400':
+          description: Not due or inactive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractError'
+              examples:
+                not_active:
+                  value:
+                    error: Subscription not active
+                not_due:
+                  value:
+                    error: Payment not yet due
+
+  /request_refund:
+    post:
+      summary: Request refund
+      description: Submit a refund request for a subscription.
+      tags: [Payment Processing]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subscription_id, amount]
+              properties:
+                subscription_id:
+                  type: integer
+                  format: uint64
+                amount:
+                  type: integer
+                  format: int128
+                  description: Refund amount in stroops
+      responses:
+        '200':
+          description: Refund requested. Emits refund_requested event.
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractError'
+              examples:
+                not_positive:
+                  value:
+                    error: Refund amount must be positive
+                exceeds_paid:
+                  value:
+                    error: Refund amount cannot exceed total paid
+
+  /approve_refund:
+    post:
+      summary: Approve refund
+      description: Admin approves a pending refund. Transfers tokens to subscriber.
+      tags: [Payment Processing]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subscription_id]
+              properties:
+                subscription_id:
+                  type: integer
+                  format: uint64
+      responses:
+        '200':
+          description: Refund approved and processed. Emits refund_approved event.
+        '400':
+          description: No pending refund
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractError'
+              examples:
+                no_request:
+                  value:
+                    error: No pending refund request
+
+  /reject_refund:
+    post:
+      summary: Reject refund
+      description: Admin rejects a pending refund request.
+      tags: [Payment Processing]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subscription_id]
+              properties:
+                subscription_id:
+                  type: integer
+                  format: uint64
+      responses:
+        '200':
+          description: Refund rejected. Emits refund_rejected event.
+        '400':
+          description: No pending refund
+
+  /get_plan:
+    post:
+      summary: Get plan details
+      description: Query a plan by ID. Read-only.
+      tags: [Queries]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [plan_id]
+              properties:
+                plan_id:
+                  type: integer
+                  format: uint64
+      responses:
+        '200':
+          description: Plan details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Plan'
+
+  /get_subscription:
+    post:
+      summary: Get subscription details
+      description: Query a subscription by ID. Read-only.
+      tags: [Queries]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subscription_id]
+              properties:
+                subscription_id:
+                  type: integer
+                  format: uint64
+      responses:
+        '200':
+          description: Subscription details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+
+  /get_user_subscriptions:
+    post:
+      summary: Get user subscriptions
+      description: Get all subscription IDs for a subscriber. Read-only.
+      tags: [Queries]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subscriber]
+              properties:
+                subscriber:
+                  type: string
+      responses:
+        '200':
+          description: List of subscription IDs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: integer
+                  format: uint64
+
+  /get_merchant_plans:
+    post:
+      summary: Get merchant plans
+      description: Get all plan IDs for a merchant. Read-only.
+      tags: [Queries]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [merchant]
+              properties:
+                merchant:
+                  type: string
+      responses:
+        '200':
+          description: List of plan IDs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: integer
+                  format: uint64
+
+  /get_plan_count:
+    post:
+      summary: Get total plan count
+      tags: [Queries]
+      responses:
+        '200':
+          description: Total plans
+          content:
+            application/json:
+              schema:
+                type: integer
+                format: uint64
+
+  /get_subscription_count:
+    post:
+      summary: Get total subscription count
+      tags: [Queries]
+      responses:
+        '200':
+          description: Total subscriptions
+          content:
+            application/json:
+              schema:
+                type: integer
+                format: uint64
+
+components:
+  schemas:
+    Plan:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: uint64
+          example: 1
+        merchant:
+          type: string
+          example: GABCDEFGHIJKLMNOPQRSTUVWXYZ234567
+        name:
+          type: string
+          example: Pro Monthly
+        price:
+          type: integer
+          format: int128
+          description: Price in stroops
+          example: 10000000
+        token:
+          type: string
+          description: Payment token contract address
+        interval:
+          type: string
+          enum: [Weekly, Monthly, Quarterly, Yearly]
+          example: Monthly
+        active:
+          type: boolean
+          example: true
+        subscriber_count:
+          type: integer
+          format: uint32
+          example: 5
+        created_at:
+          type: integer
+          format: uint64
+          description: Unix timestamp
+          example: 1711324800
+
+    Subscription:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: uint64
+          example: 1
+        plan_id:
+          type: integer
+          format: uint64
+          example: 1
+        subscriber:
+          type: string
+          example: GUSER1234567890ABCDEFGHIJKLMNOP
+        status:
+          type: string
+          enum: [Active, Paused, Cancelled, PastDue]
+          example: Active
+        started_at:
+          type: integer
+          format: uint64
+          description: Unix timestamp
+        last_charged_at:
+          type: integer
+          format: uint64
+          description: Unix timestamp
+        next_charge_at:
+          type: integer
+          format: uint64
+          description: Unix timestamp
+        total_paid:
+          type: integer
+          format: int128
+          description: Cumulative amount paid in stroops
+        refund_requested_amount:
+          type: integer
+          format: int128
+          description: Pending refund amount (0 if none)
+
+    ContractError:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message from contract panic
+
+tags:
+  - name: Initialization
+    description: One-time contract setup
+  - name: Plan Management
+    description: Create and manage subscription plans
+  - name: Subscription Management
+    description: Subscribe, cancel, pause, and resume subscriptions
+  - name: Payment Processing
+    description: Charge subscriptions, request and manage refunds
+  - name: Queries
+    description: Read-only data retrieval
