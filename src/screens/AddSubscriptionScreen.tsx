@@ -29,6 +29,7 @@ const AddSubscriptionScreen: React.FC = () => {
     description: '',
     category: SubscriptionCategory.OTHER,
     price: 0,
+    priceError: '',
     currency: 'USD',
     billingCycle: BillingCycle.MONTHLY,
     nextBillingDate: new Date(),
@@ -99,8 +100,8 @@ const AddSubscriptionScreen: React.FC = () => {
       return;
     }
 
-    if (formData.price <= 0) {
-      Alert.alert('Error', 'Please enter a valid price');
+    if (formData.priceError || !formData.price || formData.price <= 0 || Number.isNaN(formData.price)) {
+      Alert.alert('Error', formData.priceError || 'Please enter a valid price');
       return;
     }
 
@@ -149,7 +150,7 @@ const AddSubscriptionScreen: React.FC = () => {
       <KeyboardAvoidingView
         style={styles.keyboardAvoidingView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <ScrollView style={styles.scrollView}>
+        <ScrollView style={styles.scrollView} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
             <View style={styles.headerContent}>
               <TouchableOpacity onPress={handleCancel} style={styles.cancelButton}>
@@ -224,7 +225,23 @@ const AddSubscriptionScreen: React.FC = () => {
                     style={styles.priceInput}
                     value={formData.price > 0 ? formData.price.toString() : ''}
                     onChangeText={(text) => {
-                      const numValue = parseFloat(text) || 0;
+                      if (text.trim() === '') {
+                        handleInputChange('priceError', '');
+                        handleInputChange('price', 0);
+                        return;
+                      }
+                      // Reject non-numeric input (allow digits, one dot, leading/trailing spaces)
+                      if (!/^[\d.,\s]*$/.test(text.trim())) {
+                        handleInputChange('priceError', 'Price must be a valid number');
+                        return;
+                      }
+                      const normalized = text.replace(/,/g, '.').trim();
+                      const numValue = parseFloat(normalized);
+                      if (Number.isNaN(numValue)) {
+                        handleInputChange('priceError', 'Price must be a valid number');
+                      } else {
+                        handleInputChange('priceError', '');
+                      }
                       handleInputChange('price', numValue);
                     }}
                     placeholder="0.00"
@@ -232,6 +249,9 @@ const AddSubscriptionScreen: React.FC = () => {
                     keyboardType="decimal-pad"
                   />
                 </View>
+                {formData.priceError ? (
+                  <Text style={styles.errorText}>{formData.priceError}</Text>
+                ) : null}
               </View>
 
               <View style={styles.inputGroup}>
@@ -415,6 +435,11 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginBottom: spacing.xs,
     fontWeight: '500',
+  },
+  errorText: {
+    color: colors.error || '#e74c3c',
+    fontSize: 12,
+    marginTop: spacing.xs,
   },
   textInput: {
     backgroundColor: colors.surface,
