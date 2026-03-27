@@ -2,15 +2,12 @@ name: E2E Detox Tests
 
 on:
   push:
-    branches: [ "main", "feature/*" ]
-  pull_request:
     branches: [ "main" ]
 
 jobs:
   test-ios:
     name: Detox iOS
     runs-on: macos-latest
-    continue-on-error: ${{ github.event_name == 'pull_request' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
