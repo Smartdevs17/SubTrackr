@@ -287,12 +287,7 @@ impl SubTrackrContract {
     }
 
     /// User pauses their subscription with a specific duration
-    pub fn pause_by_subscriber(
-        env: Env,
-        subscriber: Address,
-        subscription_id: u64,
-        duration: u64,
-    ) {
+    pub fn pause_by_subscriber(env: Env, subscriber: Address, subscription_id: u64, duration: u64) {
         subscriber.require_auth();
 
         let mut sub: Subscription = env
@@ -418,108 +413,6 @@ impl SubTrackrContract {
         // token::Client::new(&env, &plan.token).transfer(
         //     &sub.subscriber, &plan.merchant, &plan.price
         // );
-    }
-
-    /// Request a refund for a subscription (can only be called by the subscriber)
-    pub fn request_refund(env: Env, subscription_id: u64, amount: i128) {
-        let mut sub: Subscription = env
-            .storage()
-            .persistent()
-            .get(&DataKey::Subscription(subscription_id))
-            .expect("Subscription not found");
-
-        sub.subscriber.require_auth();
-
-        assert!(amount > 0, "Refund amount must be positive");
-        assert!(
-            amount <= sub.total_paid,
-            "Refund amount cannot exceed total paid"
-        );
-
-        sub.refund_requested_amount = amount;
-
-        env.storage()
-            .persistent()
-            .set(&DataKey::Subscription(subscription_id), &sub);
-
-        // Publish event
-        env.events().publish(
-            (String::from_str(&env, "refund_requested"), subscription_id),
-            (sub.subscriber.clone(), amount),
-        );
-    }
-
-    /// Approve a refund (can only be called by the admin)
-    pub fn approve_refund(env: Env, subscription_id: u64) {
-        let mut sub: Subscription = env
-            .storage()
-            .persistent()
-            .get(&DataKey::Subscription(subscription_id))
-            .expect("Subscription not found");
-
-        let admin: Address = env
-            .storage()
-            .instance()
-            .get(&DataKey::Admin)
-            .expect("Admin not set");
-        admin.require_auth();
-
-        let amount = sub.refund_requested_amount;
-        assert!(amount > 0, "No pending refund request");
-
-        let _plan: Plan = env
-            .storage()
-            .persistent()
-            .get(&DataKey::Plan(sub.plan_id))
-            .expect("Plan not found");
-
-        // TODO: Execute actual token transfer from merchant back to subscriber
-        // token::Client::new(&env, &plan.token).transfer(
-        //     &plan.merchant, &sub.subscriber, &amount
-        // );
-
-        sub.total_paid -= amount;
-        sub.refund_requested_amount = 0;
-
-        env.storage()
-            .persistent()
-            .set(&DataKey::Subscription(subscription_id), &sub);
-
-        // Publish event
-        env.events().publish(
-            (String::from_str(&env, "refund_approved"), subscription_id),
-            (sub.subscriber.clone(), amount),
-        );
-    }
-
-    /// Reject a refund (can only be called by the admin)
-    pub fn reject_refund(env: Env, subscription_id: u64) {
-        let mut sub: Subscription = env
-            .storage()
-            .persistent()
-            .get(&DataKey::Subscription(subscription_id))
-            .expect("Subscription not found");
-
-        let admin: Address = env
-            .storage()
-            .instance()
-            .get(&DataKey::Admin)
-            .expect("Admin not set");
-        admin.require_auth();
-
-        assert!(sub.refund_requested_amount > 0, "No pending refund request");
-
-        sub.refund_requested_amount = 0;
-
-        env.storage()
-            .persistent()
-            .set(&DataKey::Subscription(subscription_id), &sub);
-
-        // Publish event
-        env.events().publish(
-            (String::from_str(&env, "refund_rejected"), subscription_id),
-            sub.subscriber.clone(),
-        );
     }
 
     /// Request a refund for a subscription (can only be called by the subscriber)

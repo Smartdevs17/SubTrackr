@@ -2,13 +2,13 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main, dev, develop]
+    branches: [main, dev, develop, 'feature/*']
   pull_request:
-    branches: [main, dev, develop]
+    branches: [main, dev, develop, 'feature/*']
 
 env:
   NODE_VERSION: '20'
-  RUST_VERSION: '1.85'
+  RUST_VERSION: 'stable'
 
 jobs:
   commitlint:

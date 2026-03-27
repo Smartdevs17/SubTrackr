@@ -1,0 +1,61 @@
+name: E2E Detox Tests
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  test-ios:
+    name: Detox iOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
+      - name: Expo Prebuild
+        run: npx expo prebuild -p ios
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+      - name: Install CocoaPods dependencies
+        run: cd ios && pod install --repo-update
+      - name: Install AppleSimulatorUtils
+        run: brew tap wix/brew && brew install applesimutils
+      - name: Build Detox iOS
+        run: npm run e2e:build-ios
+      - name: Test Detox iOS
+        run: npm run e2e:test-ios
+
+  test-android:
+    name: Detox Android
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+      - name: Expo Prebuild
+        run: npx expo prebuild -p android
+      - name: Build Detox Android
+        run: npm run e2e:build-android
+      - name: Detox Android Emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: default
+          arch: x86_64
+          profile: pixel_4
+          script: npm run e2e:test-android

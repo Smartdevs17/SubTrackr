@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { ethers } from 'ethers';
 import {
   View,
   Text,
@@ -16,9 +17,9 @@ import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
 import walletServiceManager, {
-  TokenBalance,
   GasEstimate,
   WalletConnection,
+  TokenBalance,
 } from '../services/walletService';
 
 interface RouteParams {
@@ -321,7 +322,7 @@ const CryptoPaymentScreen: React.FC = () => {
           )}
 
           {/* Create Stream Button */}
-          <div style={styles.footer}>
+          <View style={styles.footer}>
             <Button
               title={isLoading ? 'Creating Stream...' : 'Create Payment Stream'}
               onPress={handleCreateStream}
@@ -330,7 +331,7 @@ const CryptoPaymentScreen: React.FC = () => {
               fullWidth
               size="large"
             />
-          </div>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

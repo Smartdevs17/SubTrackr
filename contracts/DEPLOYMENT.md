@@ -46,10 +46,10 @@ export ADMIN_ADDRESS="GD..."
 
 ## Environment Variables
 
-| Variable | Description | Required For |
-|---|---|---|
+| Variable          | Description                                                                        | Required For     |
+| ----------------- | ---------------------------------------------------------------------------------- | ---------------- |
 | `SOROBAN_ACCOUNT` | The identity name (configured in Soroban CLI) or secret key to use for deployment. | Testnet, Mainnet |
-| `ADMIN_ADDRESS` | The Stellar address that will be set as the contract admin during initialization. | Testnet, Mainnet |
+| `ADMIN_ADDRESS`   | The Stellar address that will be set as the contract admin during initialization.  | Testnet, Mainnet |
 
 ## Verification
 

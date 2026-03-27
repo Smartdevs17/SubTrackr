@@ -6,6 +6,7 @@ module.exports = {
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
   collectCoverageFrom: ['src/**/*.{ts,tsx}', '!src/**/*.d.ts', '!src/**/index.ts'],
   testMatch: ['**/__tests__/**/*.(test|spec).[jt]s?(x)', '**/?(*.)+(spec|test).[jt]s?(x)'],
+  modulePathIgnorePatterns: ['<rootDir>/e2e'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
   },

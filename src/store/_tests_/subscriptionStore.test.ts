@@ -1,4 +1,4 @@
-import { act } from 'react-dom/test-utils';
+import { act } from 'react';
 import { expect, describe, it, beforeEach, jest } from '@jest/globals';
 import { useSubscriptionStore } from '../subscriptionStore';
 import { SubscriptionCategory, BillingCycle } from '../../types/subscription';
