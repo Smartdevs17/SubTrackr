@@ -1,5 +1,11 @@
-import { WalletServiceManager, WalletConnection, TokenBalance, GasEstimate } from '../walletService';
+import {
+  WalletServiceManager,
+  WalletConnection,
+  TokenBalance,
+  GasEstimate,
+} from '../walletService';
 import { ethers } from 'ethers';
+import { getContractAddress, ERC20__factory } from '../../contracts';
 
 // ── Mock dependencies ──────────────────────────────────────────────
 
@@ -42,13 +48,9 @@ jest.mock('../../config/evm', () => ({
   getEvmRpcUrl: jest.fn().mockReturnValue('https://rpc.example.com'),
 }));
 
-import { ethers as mockedEthers } from 'ethers';
-import { getContractAddress } from '../../contracts';
-import { getEvmRpcUrl } from '../../config/evm';
-import { Framework } from '@superfluid-finance/sdk-core';
-
-const mockedGetContractAddress = getContractAddress as jest.MockedFunction<typeof getContractAddress>;
-const mockedJsonRpcProvider = mockedEthers.providers.JsonRpcProvider as jest.Mock;
+const mockedGetContractAddress = getContractAddress as jest.MockedFunction<
+  typeof getContractAddress
+>;
 
 // ── Helpers ────────────────────────────────────────────────────────
 
@@ -64,7 +66,7 @@ function createMockConnection(overrides?: Partial<WalletConnection>): WalletConn
 
 function freshManager(): WalletServiceManager {
   // Reset singleton state by re-instantiating via reflection
-  const mgr = new WalletServiceManager() as WalletServiceManager & { connection: WalletConnection | null; listeners: Function[] };
+  const mgr = new WalletServiceManager() as any;
   mgr.connection = null;
   mgr.listeners = [];
   return mgr;
@@ -82,7 +84,7 @@ describe('WalletServiceManager', () => {
   });
 
   describe('Connection management', () => {
-    let mgr: WalletServiceManager & { connection: WalletConnection | null; listeners: Function[] };
+    let mgr: WalletServiceManager;
 
     beforeEach(() => {
       mgr = freshManager() as typeof mgr;
@@ -122,7 +124,7 @@ describe('WalletServiceManager', () => {
 
   describe('disconnectWallet', () => {
     it('clears connection and notifies listeners', async () => {
-      const mgr = freshManager() as WalletServiceManager & { connection: WalletConnection | null; listeners: Function[] };
+      const mgr = freshManager();
       const listener = jest.fn();
       mgr.addListener(listener);
       mgr.setConnection(createMockConnection());
@@ -142,7 +144,7 @@ describe('WalletServiceManager', () => {
   });
 
   describe('getTokenBalances', () => {
-    let mgr: WalletServiceManager & { connection: WalletConnection | null; listeners: Function[] };
+    let mgr: WalletServiceManager;
     let mockProvider: { getBalance: jest.Mock; getGasPrice: jest.Mock };
 
     beforeEach(() => {
@@ -151,7 +153,9 @@ describe('WalletServiceManager', () => {
         getBalance: jest.fn().mockResolvedValue(ethers.BigNumber.from('1000000000000000000')),
         getGasPrice: jest.fn(),
       };
-      (mockedEthers.providers.JsonRpcProvider as jest.Mock).mockReturnValue(mockProvider);
+      jest
+        .spyOn(ethers.providers, 'JsonRpcProvider')
+        .mockImplementation(() => mockProvider as unknown as ethers.providers.JsonRpcProvider);
     });
 
     it('returns native balance for chainId 1', async () => {
@@ -181,8 +185,7 @@ describe('WalletServiceManager', () => {
 
       const mockBalanceOf = jest.fn().mockResolvedValue(ethers.BigNumber.from('5000000'));
       const mockContract = { balanceOf: mockBalanceOf, decimals: jest.fn() };
-      const ERC20Factory = require('../../contracts').ERC20__factory;
-      ERC20Factory.connect.mockReturnValue(mockContract);
+      (ERC20__factory.connect as jest.Mock).mockReturnValue(mockContract);
 
       const balances = await mgr.getTokenBalances('0xAddr', 1);
       const usdc = balances.find((b: TokenBalance) => b.symbol === 'USDC');
@@ -191,7 +194,7 @@ describe('WalletServiceManager', () => {
     });
 
     it('skips USDC when contract address is null', async () => {
-      mockedGetContractAddress.mockReturnValue(null);
+      mockedGetContractAddress.mockReturnValue(undefined);
       const balances = await mgr.getTokenBalances('0xAddr', 1);
       const usdc = balances.find((b: TokenBalance) => b.symbol === 'USDC');
       expect(usdc).toBeUndefined();
@@ -204,8 +207,7 @@ describe('WalletServiceManager', () => {
         balanceOf: jest.fn().mockRejectedValue(new Error('call revert')),
         decimals: jest.fn(),
       };
-      const ERC20Factory = require('../../contracts').ERC20__factory;
-      ERC20Factory.connect.mockReturnValue(mockContract);
+      (ERC20__factory.connect as jest.Mock).mockReturnValue(mockContract);
 
       const balances = await mgr.getTokenBalances('0xAddr', 1);
       const usdc = balances.find((b: TokenBalance) => b.symbol === 'USDC');
@@ -219,7 +221,7 @@ describe('WalletServiceManager', () => {
   });
 
   describe('estimateGas', () => {
-    let mgr: WalletServiceManager & { connection: WalletConnection | null; listeners: Function[] };
+    let mgr: WalletServiceManager;
     let mockProvider: { getBalance: jest.Mock; getGasPrice: jest.Mock };
 
     beforeEach(() => {
@@ -228,7 +230,9 @@ describe('WalletServiceManager', () => {
         getBalance: jest.fn(),
         getGasPrice: jest.fn().mockResolvedValue(ethers.BigNumber.from('20000000000')), // 20 gwei
       };
-      (mockedEthers.providers.JsonRpcProvider as jest.Mock).mockReturnValue(mockProvider);
+      jest
+        .spyOn(ethers.providers, 'JsonRpcProvider')
+        .mockImplementation(() => mockProvider as unknown as ethers.providers.JsonRpcProvider);
     });
 
     it('returns a valid gas estimate', async () => {
@@ -273,9 +277,9 @@ describe('WalletServiceManager', () => {
         message: 'User rejected',
       });
 
-      await expect(
-        mgr.createSuperfluidStream('ETH', '10', '0xRecipient', 1)
-      ).rejects.toThrow('Transaction was rejected in your wallet.');
+      await expect(mgr.createSuperfluidStream('ETH', '10', '0xRecipient', 1)).rejects.toThrow(
+        'Transaction was rejected in your wallet.'
+      );
     });
   });
 
@@ -291,9 +295,9 @@ describe('WalletServiceManager', () => {
         code: 'ACTION_REJECTED',
       });
 
-      await expect(
-        mgr.createSuperfluidStream('ETH', '10', '0xRecipient', 1)
-      ).rejects.toThrow('Transaction was rejected in your wallet.');
+      await expect(mgr.createSuperfluidStream('ETH', '10', '0xRecipient', 1)).rejects.toThrow(
+        'Transaction was rejected in your wallet.'
+      );
     });
   });
 
@@ -305,9 +309,9 @@ describe('WalletServiceManager', () => {
       };
       jest.spyOn(mgr as any, 'getWalletSigner').mockReturnValue(mockSigner);
 
-      await expect(
-        mgr.estimateSuperfluidCreateFlow('ETH', '10', '0xRecipient', 1)
-      ).rejects.toThrow('does not match selected chain');
+      await expect(mgr.estimateSuperfluidCreateFlow('ETH', '10', '0xRecipient', 1)).rejects.toThrow(
+        'does not match selected chain'
+      );
     });
   });
 
@@ -326,7 +330,14 @@ describe('WalletServiceManager', () => {
       });
 
       await expect(
-        mgr.createSablierStream('0xToken', '10', Date.now(), Date.now() + 86400000, '0xRecipient', 1)
+        mgr.createSablierStream(
+          '0xToken',
+          '10',
+          Date.now(),
+          Date.now() + 86400000,
+          '0xRecipient',
+          1
+        )
       ).rejects.toThrow('Transaction was rejected in your wallet.');
     });
   });
