@@ -20,11 +20,15 @@ import { useSubscriptionStore } from '../store';
 import { Button } from '../components/common/Button';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 
+interface AddSubscriptionFormData extends SubscriptionFormData {
+  priceError: string;
+}
+
 const AddSubscriptionScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { addSubscription, isLoading } = useSubscriptionStore();
 
-  const [formData, setFormData] = useState<SubscriptionFormData>({
+  const [formData, setFormData] = useState<AddSubscriptionFormData>({
     name: '',
     description: '',
     category: SubscriptionCategory.OTHER,
@@ -61,7 +65,7 @@ const AddSubscriptionScreen: React.FC = () => {
   };
 
   const handleInputChange = (
-    field: keyof SubscriptionFormData,
+    field: keyof AddSubscriptionFormData,
     value: string | number | boolean | Date
   ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -100,7 +104,12 @@ const AddSubscriptionScreen: React.FC = () => {
       return;
     }
 
-    if (formData.priceError || !formData.price || formData.price <= 0 || Number.isNaN(formData.price)) {
+    if (
+      formData.priceError ||
+      !formData.price ||
+      formData.price <= 0 ||
+      Number.isNaN(formData.price)
+    ) {
       Alert.alert('Error', formData.priceError || 'Please enter a valid price');
       return;
     }
