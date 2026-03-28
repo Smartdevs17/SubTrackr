@@ -1,4 +1,5 @@
 import { Subscription, SubscriptionCategory, BillingCycle } from '../types/subscription';
+import { TIME_CONSTANTS, BILLING_CONVERSIONS, CACHE_CONSTANTS } from './constants/values';
 
 export const dummySubscriptions: Subscription[] = [
   {
@@ -9,7 +10,7 @@ export const dummySubscriptions: Subscription[] = [
     price: 15.99,
     currency: 'USD',
     billingCycle: BillingCycle.MONTHLY,
-    nextBillingDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days from now
+    nextBillingDate: new Date(Date.now() + 3 * TIME_CONSTANTS.MS_PER_DAY), // 3 days from now
     isActive: true,
     isCryptoEnabled: false,
     createdAt: new Date('2024-01-15'),
@@ -23,7 +24,7 @@ export const dummySubscriptions: Subscription[] = [
     price: 9.99,
     currency: 'USD',
     billingCycle: BillingCycle.MONTHLY,
-    nextBillingDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000), // 1 day from now
+    nextBillingDate: new Date(Date.now() + 1 * TIME_CONSTANTS.MS_PER_DAY), // 1 day from now
     isActive: true,
     isCryptoEnabled: true,
     cryptoToken: 'USDC',
@@ -39,7 +40,7 @@ export const dummySubscriptions: Subscription[] = [
     price: 52.99,
     currency: 'USD',
     billingCycle: BillingCycle.MONTHLY,
-    nextBillingDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000), // 15 days from now
+    nextBillingDate: new Date(Date.now() + 15 * TIME_CONSTANTS.MS_PER_DAY), // 15 days from now
     isActive: true,
     isCryptoEnabled: false,
     createdAt: new Date('2023-12-01'),
@@ -53,7 +54,7 @@ export const dummySubscriptions: Subscription[] = [
     price: 8.0,
     currency: 'USD',
     billingCycle: BillingCycle.MONTHLY,
-    nextBillingDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+    nextBillingDate: new Date(Date.now() + 7 * TIME_CONSTANTS.MS_PER_DAY), // 7 days from now
     isActive: true,
     isCryptoEnabled: true,
     cryptoToken: 'ETH',
@@ -69,7 +70,7 @@ export const dummySubscriptions: Subscription[] = [
     price: 16.99,
     currency: 'USD',
     billingCycle: BillingCycle.MONTHLY,
-    nextBillingDate: new Date(Date.now() + 20 * 24 * 60 * 60 * 1000), // 20 days from now
+    nextBillingDate: new Date(Date.now() + 20 * TIME_CONSTANTS.MS_PER_DAY), // 20 days from now
     isActive: true,
     isCryptoEnabled: false,
     createdAt: new Date('2023-11-15'),
@@ -83,7 +84,7 @@ export const dummySubscriptions: Subscription[] = [
     price: 12.99,
     currency: 'USD',
     billingCycle: BillingCycle.MONTHLY,
-    nextBillingDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), // 5 days from now
+    nextBillingDate: new Date(Date.now() + 5 * TIME_CONSTANTS.MS_PER_DAY), // 5 days from now
     isActive: true,
     isCryptoEnabled: true,
     cryptoToken: 'USDC',
@@ -99,7 +100,7 @@ export const dummySubscriptions: Subscription[] = [
     price: 399.0,
     currency: 'USD',
     billingCycle: BillingCycle.YEARLY,
-    nextBillingDate: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000), // 45 days from now
+    nextBillingDate: new Date(Date.now() + 45 * TIME_CONSTANTS.MS_PER_DAY), // 45 days from now
     isActive: true,
     isCryptoEnabled: false,
     createdAt: new Date('2024-01-01'),
@@ -113,7 +114,7 @@ export const dummySubscriptions: Subscription[] = [
     price: 4.99,
     currency: 'USD',
     billingCycle: BillingCycle.MONTHLY,
-    nextBillingDate: new Date(Date.now() + 12 * 24 * 60 * 60 * 1000), // 12 days from now
+    nextBillingDate: new Date(Date.now() + 12 * TIME_CONSTANTS.MS_PER_DAY), // 12 days from now
     isActive: false,
     isCryptoEnabled: false,
     createdAt: new Date('2023-10-01'),
@@ -127,7 +128,7 @@ export const dummySubscriptions: Subscription[] = [
     price: 0.001,
     currency: 'ETH',
     billingCycle: BillingCycle.CUSTOM,
-    nextBillingDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000), // 2 days from now
+    nextBillingDate: new Date(Date.now() + 2 * TIME_CONSTANTS.MS_PER_DAY), // 2 days from now
     isActive: true,
     isCryptoEnabled: true,
     cryptoToken: 'ETH',
@@ -143,7 +144,7 @@ export const dummySubscriptions: Subscription[] = [
     price: 9.99,
     currency: 'USD',
     billingCycle: BillingCycle.MONTHLY,
-    nextBillingDate: new Date(Date.now() + 25 * 24 * 60 * 60 * 1000), // 25 days from now
+    nextBillingDate: new Date(Date.now() + 25 * TIME_CONSTANTS.MS_PER_DAY), // 25 days from now
     isActive: true,
     isCryptoEnabled: false,
     createdAt: new Date('2023-12-20'),
@@ -151,8 +152,8 @@ export const dummySubscriptions: Subscription[] = [
   },
 ];
 
-const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
-const CACHE_TTL_MS = 60_000;
+const SEVEN_DAYS_MS = TIME_CONSTANTS.MS_PER_WEEK;
+const CACHE_TTL_MS = CACHE_CONSTANTS.CACHE_TTL_MS;
 
 let _cache: {
   ref: Subscription[];
@@ -219,7 +220,7 @@ export const getTotalMonthlySpending = (subscriptions: Subscription[]): number =
           monthlyAmount = sub.price / 12;
           break;
         case BillingCycle.WEEKLY:
-          monthlyAmount = sub.price * 4.33; // Average weeks per month
+          monthlyAmount = sub.price * BILLING_CONVERSIONS.WEEKS_PER_MONTH; // Average weeks per month
           break;
         case BillingCycle.CUSTOM:
           // For custom cycles, assume monthly for now
