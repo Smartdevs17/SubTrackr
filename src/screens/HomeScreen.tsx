@@ -11,7 +11,7 @@ import { RootStackParamList } from '../navigation/types';
 
 // Components
 import { FloatingActionButton } from '../components/common/FloatingActionButton';
-import { useSubscriptionFilters } from '../hooks/useSubscriptionFilters';
+import { useFilteredSubscriptions } from '../hooks/useFilteredSubscriptions';
 import { FilterBar } from '../components/home/FilterBar';
 import { FilterModal } from '../components/home/FilterModal';
 import { StatsCard } from '../components/home/StatsCard';
@@ -28,7 +28,7 @@ const HomeScreen: React.FC = () => {
 
   // Use the new hook
   const { filters, filteredAndSorted, activeFilterCount, hasActiveFilters, clearAllFilters } =
-    useSubscriptionFilters(subscriptions);
+    useFilteredSubscriptions(subscriptions);
   const [showFilterModal, setShowFilterModal] = useState(false);
 
   useEffect(() => {
