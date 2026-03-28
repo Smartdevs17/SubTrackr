@@ -96,8 +96,14 @@ jobs:
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
 
-      - name: Run tests
-        run: npm test
+      - name: Run tests with coverage
+        run: npm run test:coverage
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/lcov.info
 
   typescript-build:
     name: TypeScript Build
@@ -119,6 +125,29 @@ jobs:
         run: npm run build
         env:
           EXPO_NO_TELEMETRY: 1
+
+  sonarcloud:
+    name: SonarCloud Analysis
+    runs-on: ubuntu-latest
+    needs: [typescript-tests]
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   # ─────────────────────────────────────────────────────────
   # Rust / Soroban Smart Contract Checks
@@ -217,6 +246,7 @@ jobs:
         typescript-typecheck,
         typescript-tests,
         typescript-build,
+        sonarcloud,
         rust-format,
         rust-clippy,
         rust-tests,
@@ -240,6 +270,7 @@ jobs:
         typescript-typecheck,
         typescript-tests,
         typescript-build,
+        sonarcloud,
         rust-format,
         rust-clippy,
         rust-tests,
@@ -256,6 +287,7 @@ jobs:
              [ "${{ needs.typescript-typecheck.result }}" != "success" ] || \
              [ "${{ needs.typescript-tests.result }}" != "success" ] || \
              [ "${{ needs.typescript-build.result }}" != "success" ] || \
+             [ "${{ needs.sonarcloud.result }}" != "success" ] || \
              [ "${{ needs.rust-format.result }}" != "success" ] || \
              [ "${{ needs.rust-clippy.result }}" != "success" ] || \
              [ "${{ needs.rust-tests.result }}" != "success" ] || \
