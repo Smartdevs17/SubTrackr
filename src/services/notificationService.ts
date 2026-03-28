@@ -8,6 +8,7 @@ export const NOTIFICATION_DATA_TYPE = {
   RENEWAL_REMINDER: 'renewal_reminder',
   CHARGE_SUCCESS: 'charge_success',
   CHARGE_FAILED: 'charge_failed',
+  TRANSACTION_QUEUE: 'transaction_queue',
 } as const;
 
 const ANDROID_CHANNEL_ID = 'billing';
@@ -164,6 +165,27 @@ export async function presentChargeFailedNotification(
       data: {
         type: NOTIFICATION_DATA_TYPE.CHARGE_FAILED,
         subscriptionId: sub.id,
+      },
+      sound: 'default',
+    },
+    trigger: null,
+  });
+}
+
+export async function presentTransactionQueueNotification(
+  title: string,
+  body: string
+): Promise<void> {
+  if (!isNotificationsSupported()) return;
+  const status = await getPermissionStatus();
+  if (status !== Notifications.PermissionStatus.GRANTED) return;
+
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title,
+      body,
+      data: {
+        type: NOTIFICATION_DATA_TYPE.TRANSACTION_QUEUE,
       },
       sound: 'default',
     },
