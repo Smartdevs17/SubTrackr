@@ -187,35 +187,44 @@ export class WalletServiceManager {
   }
 
   async estimateGas(
-    from: string,
-    to: string,
-    value: string,
-    chainId: number
-  ): Promise<GasEstimate> {
-    try {
-      const provider = this.getProvider(chainId);
-      const gasPrice = await provider.getGasPrice();
+  from: string,
+  to: string,
+  value: string,
+  chainId: number,
+  userGasLimitOverride?: string 
+): Promise<GasEstimate> {
+    const provider = this.getProvider(chainId);
 
-      const estimatedGas = await provider.estimateGas({
-        from,
-        to,
-        value: ethers.utils.parseEther(value || '0'),
-      });
+    // Use getFeeData for EIP-1559 support
+    const feeData = await provider.getFeeData();
+    const gasPrice = feeData.maxFeePerGas ?? feeData.gasPrice ?? ethers.BigNumber.from(0);
 
-      // safety buffer (20%)
-      const gasLimit = estimatedGas.mul(120).div(100);
+    let gasLimit: ethers.BigNumber;
 
-      const estimatedCost = gasPrice.mul(gasLimit);
-
-      return {
-        gasLimit: gasLimit.toString(),
-        gasPrice: ethers.utils.formatUnits(gasPrice, 'gwei'),
-        estimatedCost: ethers.utils.formatEther(estimatedCost),
-      };
-    } catch (error) {
-      console.error('Failed to estimate gas:', error);
-      throw error;
+    if (userGasLimitOverride) {
+      gasLimit = ethers.BigNumber.from(userGasLimitOverride);
+    } else {
+      try {
+        const estimated = await provider.estimateGas({
+          from,
+          to,
+          value: ethers.utils.parseEther(value || '0'),
+        });
+        // Network-specific buffer: higher for Polygon due to congestion variability
+        const bufferMultiplier = chainId === 137 ? 130 : 120;
+        gasLimit = estimated.mul(bufferMultiplier).div(100);
+      } catch (err) {
+        console.warn('Gas estimation failed, using safe fallback:', err);
+        gasLimit = ethers.BigNumber.from(100000);
+      }
     }
+
+    const estimatedCost = gasPrice.mul(gasLimit);
+    return {
+      gasLimit: gasLimit.toString(),
+      gasPrice: ethers.utils.formatUnits(gasPrice, 'gwei'),
+      estimatedCost: ethers.utils.formatEther(estimatedCost),
+    };
   }
 
   private getWalletSigner(): ethers.Signer {
