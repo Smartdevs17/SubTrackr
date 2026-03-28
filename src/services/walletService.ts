@@ -3,6 +3,12 @@ import { Framework, SFError } from '@superfluid-finance/sdk-core';
 
 import { ERC20__factory, getContractAddress } from '../contracts';
 import { getEvmRpcUrl } from '../config/evm';
+import {
+  TIME_CONSTANTS,
+  CRYPTO_CONSTANTS,
+  CHAIN_IDS,
+  ADDRESS_CONSTANTS,
+} from '../utils/constants/values';
 
 export interface WalletConnection {
   address: string;
@@ -44,7 +50,7 @@ export interface SuperfluidStreamResult {
   streamId: string;
 }
 
-const SECONDS_PER_MONTH = 30 * 24 * 60 * 60;
+const SECONDS_PER_MONTH = TIME_CONSTANTS.SECONDS_PER_MONTH;
 
 function isUserRejectedError(error: unknown): boolean {
   if (error == null || typeof error !== 'object') return false;
@@ -59,7 +65,7 @@ function superTokenResolverSymbol(chainId: number, tokenSymbol: string): string 
   if (s === 'USDC' || s === 'USDC.E') return 'USDCx';
   if (s === 'MATIC') return 'MATICx';
   if (s === 'ETH') {
-    if (chainId === 137) return 'MATICx';
+    if (chainId === CHAIN_IDS.POLYGON) return 'MATICx';
     return 'ETHx';
   }
   if (s === 'ARB') {
@@ -154,11 +160,11 @@ export class WalletServiceManager {
         name: this.getNativeName(chainId),
         address: '0x0000000000000000000000000000000000000000',
         balance: ethers.utils.formatEther(nativeBalance),
-        decimals: 18,
+        decimals: CRYPTO_CONSTANTS.ETH_DECIMALS,
       });
 
       // Get USDC balance if on supported chains
-      if (chainId === 1 || chainId === 137 || chainId === 42161) {
+      if (chainId === CHAIN_IDS.ETHEREUM || chainId === CHAIN_IDS.POLYGON || chainId === CHAIN_IDS.ARBITRUM) {
         const usdcAddress = getContractAddress(chainId, 'usdc');
         if (!usdcAddress) {
           return balances;
@@ -171,8 +177,8 @@ export class WalletServiceManager {
             symbol: 'USDC',
             name: 'USD Coin',
             address: usdcAddress,
-            balance: ethers.utils.formatUnits(usdcBalance, 6),
-            decimals: 6,
+            balance: ethers.utils.formatUnits(usdcBalance, CRYPTO_CONSTANTS.USDC_DECIMALS),
+            decimals: CRYPTO_CONSTANTS.USDC_DECIMALS,
           });
         } catch {
           console.log('USDC not available on this chain');
@@ -211,11 +217,11 @@ export class WalletServiceManager {
           value: ethers.utils.parseEther(value || '0'),
         });
         // Network-specific buffer: higher for Polygon due to congestion variability
-        const bufferMultiplier = chainId === 137 ? 130 : 120;
+        const bufferMultiplier = chainId === CHAIN_IDS.POLYGON ? CRYPTO_CONSTANTS.POLYGON_GAS_BUFFER_MULTIPLIER : CRYPTO_CONSTANTS.DEFAULT_GAS_BUFFER_MULTIPLIER;
         gasLimit = estimated.mul(bufferMultiplier).div(100);
       } catch (err) {
         console.warn('Gas estimation failed, using safe fallback:', err);
-        gasLimit = ethers.BigNumber.from(100000);
+        gasLimit = ethers.BigNumber.from(CRYPTO_CONSTANTS.FALLBACK_GAS_LIMIT);
       }
     }
 
@@ -393,7 +399,7 @@ export class WalletServiceManager {
       const amountBn = ethers.utils.parseUnits(amount, decimals);
 
       // Sablier V2 LockupLinear is consistently deployed at this address across major EVM networks
-      const SABLIER_V2_LOCKUP_LINEAR = '0xAFb979d9afAd1aD27C5eFf4E27226E3AB9e5dCC9';
+      const SABLIER_V2_LOCKUP_LINEAR = ADDRESS_CONSTANTS.SABLIER_V2_LOCKUP_LINEAR;
 
       // 2. Approve Token Spending
       const txApprove = await erc20.approve(SABLIER_V2_LOCKUP_LINEAR, amountBn);
@@ -421,7 +427,7 @@ export class WalletServiceManager {
           cliff: 0,
           total: totalDuration,
         },
-        broker: ethers.constants.AddressZero,
+        broker: ADDRESS_CONSTANTS.ZERO_ADDRESS,
       };
 
       const txCreate = await sablierContract.createWithDurations(params);
@@ -447,18 +453,18 @@ export class WalletServiceManager {
 
   private getNativeSymbol(chainId: number): string {
     const symbols: Record<number, string> = {
-      1: 'ETH',
-      137: 'MATIC',
-      42161: 'ETH',
+      [CHAIN_IDS.ETHEREUM]: 'ETH',
+      [CHAIN_IDS.POLYGON]: 'MATIC',
+      [CHAIN_IDS.ARBITRUM]: 'ETH',
     };
     return symbols[chainId] || 'ETH';
   }
 
   private getNativeName(chainId: number): string {
     const names: Record<number, string> = {
-      1: 'Ethereum',
-      137: 'Polygon',
-      42161: 'Arbitrum',
+      [CHAIN_IDS.ETHEREUM]: 'Ethereum',
+      [CHAIN_IDS.POLYGON]: 'Polygon',
+      [CHAIN_IDS.ARBITRUM]: 'Arbitrum',
     };
     return names[chainId] || 'Ethereum';
   }
