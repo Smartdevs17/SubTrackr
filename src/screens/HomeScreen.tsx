@@ -72,7 +72,7 @@ const HomeScreen: React.FC = () => {
         <StatsCard
           totalMonthlySpend={stats.totalMonthlySpend}
           totalActive={stats.totalActive}
-          onWalletPress={() => navigation.navigate('WalletConnect' as never)}
+          onWalletPress={() => navigation.navigate('WalletConnect')}
         />
 
         <SubscriptionList
@@ -85,13 +85,13 @@ const HomeScreen: React.FC = () => {
           totalCount={subscriptions.length}
           onSubscriptionPress={(sub) => navigation.navigate('SubscriptionDetail', { id: sub.id })}
           onToggleStatus={handleToggleStatus}
-          onAddFirstPress={() => navigation.navigate('AddSubscription' as never)}
+          onAddFirstPress={() => navigation.navigate('AddSubscription')}
         />
       </ScrollView>
 
       {subscriptions.length > 0 && (
         <FloatingActionButton
-          onPress={() => navigation.navigate('AddSubscription' as never)}
+          onPress={() => navigation.navigate('AddSubscription')}
           icon="+"
           size="large"
         />
