@@ -21,6 +21,7 @@ import walletServiceManager, {
   WalletConnection,
   TokenBalance,
 } from '../services/walletService';
+import { useTransactionQueueStore } from '../store/transactionQueueStore';
 
 interface RouteParams {
   subscriptionId?: string;
@@ -47,6 +48,17 @@ const CryptoPaymentScreen: React.FC = () => {
 
   const [availableTokens, setAvailableTokens] = useState<TokenBalance[]>([]);
   const [connection, setConnection] = useState<WalletConnection | null>(null);
+
+  const isOnline = useTransactionQueueStore((state) => state.isOnline);
+  const isQueueProcessing = useTransactionQueueStore((state) => state.isProcessing);
+  const queuedTransactions = useTransactionQueueStore((state) => state.queuedTransactions);
+  const executeOrQueueTransaction = useTransactionQueueStore(
+    (state) => state.executeOrQueueTransaction
+  );
+
+  const pendingCount = queuedTransactions.filter(
+    (tx) => tx.status === 'pending' || tx.status === 'processing'
+  ).length;
 
   useEffect(() => {
     loadWalletData();
@@ -148,30 +160,34 @@ const CryptoPaymentScreen: React.FC = () => {
 
     try {
       setIsLoading(true);
-      let streamId: string;
-      let txHash: string | undefined;
+      const selectedTokenInfo = availableTokens.find((token) => token.symbol === selectedToken);
+      const tokenForExecution =
+        selectedProtocol === 'sablier' ? selectedTokenInfo?.address ?? selectedToken : selectedToken;
 
-      if (selectedProtocol === 'superfluid') {
-        const result = await walletServiceManager.createSuperfluidStream(
-          selectedToken,
-          amount,
-          recipientAddress,
-          connection.chainId
+      const startTime = Math.floor(Date.now() / 1000);
+      const stopTime = startTime + 30 * 24 * 60 * 60;
+
+      const result = await executeOrQueueTransaction({
+        protocol: selectedProtocol,
+        token: tokenForExecution,
+        amount,
+        recipientAddress,
+        chainId: connection.chainId,
+        startTime,
+        stopTime,
+      });
+
+      if (result.queued) {
+        Alert.alert(
+          'Queued',
+          'You are offline or the network is unstable. Your transaction is queued and will run automatically when back online.',
+          [{ text: 'OK', onPress: () => navigation.goBack() }]
         );
-        streamId = result.streamId;
-        txHash = result.txHash;
-      } else {
-        const startTime = Math.floor(Date.now() / 1000);
-        const stopTime = startTime + 30 * 24 * 60 * 60; // 30 days from now
-        streamId = await walletServiceManager.createSablierStream(
-          selectedToken,
-          amount,
-          startTime,
-          stopTime,
-          recipientAddress,
-          connection.chainId
-        );
+        return;
       }
+
+      const streamId = result.streamId ?? 'unknown';
+      const txHash = result.txHash;
 
       const successBody =
         selectedProtocol === 'superfluid' && txHash
@@ -215,6 +231,26 @@ const CryptoPaymentScreen: React.FC = () => {
                 : 'Set up crypto payment streams for your subscriptions'}
             </Text>
           </View>
+
+              {!isOnline && (
+                <Card variant="elevated" padding="large">
+                  <Text style={styles.offlineTitle}>Offline mode enabled</Text>
+                  <Text style={styles.offlineText}>
+                    Transactions are queued locally and sent automatically when your connection returns.
+                  </Text>
+                </Card>
+              )}
+
+              {pendingCount > 0 && (
+                <Card variant="elevated" padding="large">
+                  <Text style={styles.pendingTitle}>Pending transactions: {pendingCount}</Text>
+                  <Text style={styles.pendingText}>
+                    {isQueueProcessing
+                      ? 'Processing queued transactions now.'
+                      : 'Waiting for connectivity to process queued transactions.'}
+                  </Text>
+                </Card>
+              )}
 
           {/* Token Selection */}
           <Card variant="elevated" padding="large">
@@ -324,7 +360,13 @@ const CryptoPaymentScreen: React.FC = () => {
           {/* Create Stream Button */}
           <View style={styles.footer}>
             <Button
-              title={isLoading ? 'Creating Stream...' : 'Create Payment Stream'}
+              title={
+                isLoading
+                  ? 'Creating Stream...'
+                  : isOnline
+                    ? 'Create Payment Stream'
+                    : 'Queue Payment Stream'
+              }
               onPress={handleCreateStream}
               loading={isLoading}
               variant="crypto"
@@ -359,6 +401,24 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   subtitle: {
+    ...typography.body,
+    color: colors.textSecondary,
+  },
+  offlineTitle: {
+    ...typography.h3,
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  offlineText: {
+    ...typography.body,
+    color: colors.textSecondary,
+  },
+  pendingTitle: {
+    ...typography.h3,
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  pendingText: {
     ...typography.body,
     color: colors.textSecondary,
   },
