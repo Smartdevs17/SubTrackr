@@ -195,7 +195,15 @@ export class WalletServiceManager {
     try {
       const provider = this.getProvider(chainId);
       const gasPrice = await provider.getGasPrice();
-      const gasLimit = ethers.BigNumber.from('21000'); // Standard ETH transfer
+
+      const estimatedGas = await provider.estimateGas({
+        from,
+        to,
+        value: ethers.utils.parseEther(value || '0'),
+      });
+
+      // safety buffer (20%)
+      const gasLimit = estimatedGas.mul(120).div(100);
 
       const estimatedCost = gasPrice.mul(gasLimit);
 
