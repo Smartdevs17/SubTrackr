@@ -23,7 +23,7 @@ export const CONTRACT_ADDRESSES: Record<KnownChainId, ChainContracts> = {
     usdc: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174',
   },
   [CHAIN_IDS.ARBITRUM_ONE]: {
-    usdc: '0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8',
+    usdc: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
   },
 };
 
