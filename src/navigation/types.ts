@@ -5,7 +5,7 @@ export type RootStackParamList = {
   AddSubscription: undefined;
   SubscriptionDetail: { id: string };
   WalletConnect: undefined;
-  CryptoPayment: { subscriptionId?: string };
+  CryptoPayment: { subscriptionId?: string } | undefined;
   Analytics: undefined;
   Settings: undefined;
 };

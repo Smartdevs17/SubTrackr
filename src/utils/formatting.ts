@@ -1,4 +1,5 @@
 import { SubscriptionCategory, BillingCycle } from '../types/subscription';
+import { TIME_CONSTANTS, CRYPTO_CONSTANTS, FORMATTING_CONSTANTS } from './constants/values';
 
 export const formatCurrency = (amount: number, currency: string = 'USD'): string => {
   return new Intl.NumberFormat('en-US', {
@@ -13,22 +14,29 @@ export const formatCurrencyCompact = (amount: number, currency: string = 'USD'):
       style: 'currency',
       currency,
       notation: 'compact',
-      maximumFractionDigits: 1,
+      maximumFractionDigits: FORMATTING_CONSTANTS.COMPACT_MAX_FRACTION_DIGITS,
     }).format(amount);
   }
 
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency,
-    maximumFractionDigits: 2,
+    maximumFractionDigits: FORMATTING_CONSTANTS.REGULAR_MAX_FRACTION_DIGITS,
   }).format(amount);
 };
 
-export const formatCryptoAmount = (amount: number, decimals: number = 18): string => {
+export const formatCryptoAmount = (
+  amount: number,
+  decimals: number = CRYPTO_CONSTANTS.DEFAULT_CRYPTO_DECIMALS
+): string => {
   return amount.toFixed(decimals);
 };
 
-export const formatAddress = (address: string, start: number = 6, end: number = 4): string => {
+export const formatAddress = (
+  address: string,
+  start: number = FORMATTING_CONSTANTS.ADDRESS_START_CHARS,
+  end: number = FORMATTING_CONSTANTS.ADDRESS_END_CHARS
+): string => {
   if (!address || address.length < start + end) return address;
   return `${address.slice(0, start)}...${address.slice(-end)}`;
 };
@@ -43,8 +51,11 @@ export const formatDate = (date: Date): string => {
 
 export const formatRelativeDate = (date: Date): string => {
   const now = new Date();
-  const diffInMs = now.getTime() - date.getTime();
-  const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const thatDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+  const diffInMs = today.getTime() - thatDay.getTime();
+  const diffInDays = Math.round(diffInMs / TIME_CONSTANTS.MS_PER_DAY);
 
   if (diffInDays === 0) return 'Today';
   if (diffInDays === 1) return 'Yesterday';
@@ -69,13 +80,13 @@ export const formatFlowRate = (flowRate: string, token: string = 'ETH'): string 
   if (isNaN(flowRateNum)) return '0';
 
   // Assuming flow rate is in wei per second
-  const daily = flowRateNum * 86400; // seconds in a day
-  const monthly = daily * 30; // approximate days in a month
+  const daily = flowRateNum * TIME_CONSTANTS.SECONDS_PER_DAY;
+  const monthly = daily * TIME_CONSTANTS.DAYS_PER_MONTH;
 
-  if (monthly >= 1e18) {
-    return `${(monthly / 1e18).toFixed(4)} ${token}/month`;
-  } else if (daily >= 1e18) {
-    return `${(daily / 1e18).toFixed(4)} ${token}/day`;
+  if (monthly >= CRYPTO_CONSTANTS.WEI_TO_ETHER) {
+    return `${(monthly / CRYPTO_CONSTANTS.WEI_TO_ETHER).toFixed(4)} ${token}/month`;
+  } else if (daily >= CRYPTO_CONSTANTS.WEI_TO_ETHER) {
+    return `${(daily / CRYPTO_CONSTANTS.WEI_TO_ETHER).toFixed(4)} ${token}/day`;
   } else {
     return `${flowRateNum} wei/s`;
   }

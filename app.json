@@ -47,7 +47,8 @@
           "sounds": [],
           "enableBackgroundRemoteNotifications": false
         }
-      ]
+      ],
+      "@config-plugins/detox"
     ]
   }
 }

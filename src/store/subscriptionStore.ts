@@ -2,14 +2,15 @@ import { create } from 'zustand';
 import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  Subscription,
+  Subscription, // eslint-disable-line
   SubscriptionFormData,
   SubscriptionStats,
-  SubscriptionCategory,
-  BillingCycle,
+  SubscriptionCategory, // eslint-disable-line
+  BillingCycle, // eslint-disable-line
 } from '../types/subscription';
-import { dummySubscriptions } from '../utils/dummyData';
+import { dummySubscriptions } from '../utils/dummyData'; // eslint-disable-line
 import { advanceBillingDate } from '../utils/billingDate';
+import { BILLING_CONVERSIONS, CACHE_CONSTANTS } from '../utils/constants/values';
 import {
   syncRenewalReminders,
   presentChargeSuccessNotification,
@@ -18,7 +19,17 @@ import {
 
 const STORAGE_KEY = 'subtrackr-subscriptions';
 const STORE_VERSION = 1;
-const WRITE_DEBOUNCE_MS = 400;
+const WRITE_DEBOUNCE_MS = CACHE_CONSTANTS.WRITE_DEBOUNCE_MS;
+
+/**
+ * Generate a unique ID for subscriptions
+ * Uses timestamp + random component to prevent collisions
+ */
+const generateUniqueId = (): string => {
+  const timestamp = Date.now().toString(36);
+  const randomComponent = Math.random().toString(36).substring(2, 8);
+  return `${timestamp}-${randomComponent}`;
+};
 
 type PersistedSubscriptionSlice = Pick<SubscriptionState, 'subscriptions'>;
 
@@ -34,7 +45,7 @@ const toValidDate = (value: unknown, fallback = new Date()): Date => {
 const normalizeSubscription = (raw: Partial<Subscription>): Subscription => {
   const now = new Date();
   return {
-    id: raw.id ?? Date.now().toString(),
+    id: raw.id ?? generateUniqueId(),
     name: raw.name ?? 'Untitled',
     description: raw.description,
     category: raw.category ?? SubscriptionCategory.OTHER,
@@ -158,7 +169,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         set({ isLoading: true, error: null });
         try {
           const newSubscription: Subscription = {
-            id: Date.now().toString(),
+            id: generateUniqueId(),
             ...data,
             isActive: true,
             notificationsEnabled: data.notificationsEnabled !== false,
@@ -311,15 +322,18 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         const totalMonthlySpend = activeSubs.reduce((total, sub) => {
           if (sub.billingCycle === 'monthly') return total + sub.price;
           if (sub.billingCycle === 'yearly') return total + sub.price / 12;
-          if (sub.billingCycle === 'weekly') return total + sub.price * 4;
+          if (sub.billingCycle === 'weekly')
+            return total + sub.price * BILLING_CONVERSIONS.WEEKS_PER_MONTH;
           return total + sub.price;
         }, 0);
 
         const totalYearlySpend = activeSubs.reduce((total, sub) => {
           if (sub.billingCycle === 'yearly') return total + sub.price;
-          if (sub.billingCycle === 'monthly') return total + sub.price * 12;
-          if (sub.billingCycle === 'weekly') return total + sub.price * 52;
-          return total + sub.price * 12;
+          if (sub.billingCycle === 'monthly')
+            return total + sub.price * BILLING_CONVERSIONS.MONTHS_PER_YEAR;
+          if (sub.billingCycle === 'weekly')
+            return total + sub.price * BILLING_CONVERSIONS.WEEKS_PER_YEAR;
+          return total + sub.price * BILLING_CONVERSIONS.MONTHS_PER_YEAR;
         }, 0);
 
         const categoryBreakdown = activeSubs.reduce(

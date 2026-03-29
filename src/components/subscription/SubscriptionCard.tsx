@@ -1,48 +1,25 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { colors, spacing, typography, borderRadius, shadows } from '../../utils/constants';
-import { Subscription, SubscriptionCategory } from '../../types/subscription';
+import { Subscription } from '../../types/subscription';
 import {
   formatCurrency,
   formatCategory,
   formatBillingCycle,
   formatRelativeDate,
 } from '../../utils/formatting';
+import {
+  getCategoryIcon,
+  getStatusColor,
+  getBillingCycleColor,
+  isUpcomingBilling,
+} from '../../utils/subscriptionHelpers';
 
 export interface SubscriptionCardProps {
   subscription: Subscription;
   onPress: (subscription: Subscription) => void;
   onToggleStatus?: (id: string) => void;
 }
-
-const getCategoryIcon = (category: SubscriptionCategory): string => {
-  const icons: Record<SubscriptionCategory, string> = {
-    [SubscriptionCategory.STREAMING]: '🎬',
-    [SubscriptionCategory.SOFTWARE]: '💻',
-    [SubscriptionCategory.GAMING]: '🎮',
-    [SubscriptionCategory.PRODUCTIVITY]: '📊',
-    [SubscriptionCategory.FITNESS]: '💪',
-    [SubscriptionCategory.EDUCATION]: '📚',
-    [SubscriptionCategory.FINANCE]: '💰',
-    [SubscriptionCategory.OTHER]: '📱',
-  };
-  return icons[category];
-};
-
-const getStatusColor = (isActive: boolean): string => {
-  return isActive ? colors.success : colors.warning;
-};
-
-const getBillingCycleColor = (billingCycle: string): string => {
-  switch (billingCycle) {
-    case 'yearly':
-      return colors.accent;
-    case 'weekly':
-      return colors.secondary;
-    default:
-      return colors.primary;
-  }
-};
 
 export const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
   subscription,
@@ -62,17 +39,19 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
     }
   };
 
-  const isUpcoming = () => {
-    const today = new Date();
-    const billingDate = new Date(subscription.nextBillingDate);
-    const diffTime = billingDate.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays >= 0 && diffDays <= 7;
-  };
+  const upcoming = isUpcomingBilling(subscription.nextBillingDate);
 
   return (
     <TouchableOpacity
-      style={[styles.container, isUpcoming() && styles.upcomingContainer]}
+      accessible={true}
+      accessibilityRole="button"
+      accessibilityLabel={`${subscription.name}, ${formatCurrency(
+        subscription.price,
+        subscription.currency
+      )} per ${formatBillingCycle(subscription.billingCycle)}, ${
+        subscription.isActive ? 'Active' : 'Paused'
+      }`}
+      style={[styles.container, upcoming && styles.upcomingContainer]}
       onPress={() => onPress(subscription)}
       activeOpacity={0.8}>
       <View style={styles.header}>
@@ -89,7 +68,10 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
           </Text>
         </View>
 
-        <View style={styles.statusContainer}>
+        <View
+          accessible={true}
+          accessibilityLabel={subscription.isActive ? 'Subscription active' : 'Subscription paused'}
+          style={styles.statusContainer}>
           <View
             style={[
               styles.statusIndicator,
@@ -105,7 +87,13 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
       </View>
 
       <View style={styles.details}>
-        <View style={styles.priceContainer}>
+        <View
+          accessible={true}
+          accessibilityLabel={`Price ${formatCurrency(
+            subscription.price,
+            subscription.currency
+          )} per ${formatBillingCycle(subscription.billingCycle)}`}
+          style={styles.priceContainer}>
           <Text style={styles.price}>
             {formatCurrency(subscription.price, subscription.currency)}
           </Text>
@@ -120,7 +108,11 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
 
         <View style={styles.billingInfo}>
           <Text style={styles.billingLabel}>Next billing:</Text>
-          <Text style={[styles.billingDate, isUpcoming() && styles.upcomingDate]}>
+          <Text
+            style={[styles.billingDate, upcoming && styles.upcomingDate]}
+            accessibilityLabel={`Next billing date ${formatRelativeDate(
+              new Date(subscription.nextBillingDate)
+            )}`}>
             {formatRelativeDate(new Date(subscription.nextBillingDate))}
           </Text>
         </View>
@@ -136,7 +128,11 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
         <TouchableOpacity
           style={styles.toggleButton}
           onPress={handleToggleStatus}
-          activeOpacity={0.7}>
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={
+            subscription.isActive ? `Pause ${subscription.name}` : `Activate ${subscription.name}`
+          }>
           <Text style={styles.toggleText}>{subscription.isActive ? 'Pause' : 'Activate'}</Text>
         </TouchableOpacity>
       )}

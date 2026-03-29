@@ -11,7 +11,7 @@ import { RootStackParamList } from '../navigation/types';
 
 // Components
 import { FloatingActionButton } from '../components/common/FloatingActionButton';
-import { useSubscriptionFilters } from '../hooks/useSubscriptionFilters';
+import { useFilteredSubscriptions } from '../hooks/useFilteredSubscriptions';
 import { FilterBar } from '../components/home/FilterBar';
 import { FilterModal } from '../components/home/FilterModal';
 import { StatsCard } from '../components/home/StatsCard';
@@ -28,7 +28,7 @@ const HomeScreen: React.FC = () => {
 
   // Use the new hook
   const { filters, filteredAndSorted, activeFilterCount, hasActiveFilters, clearAllFilters } =
-    useSubscriptionFilters(subscriptions);
+    useFilteredSubscriptions(subscriptions);
   const [showFilterModal, setShowFilterModal] = useState(false);
 
   useEffect(() => {
@@ -72,7 +72,7 @@ const HomeScreen: React.FC = () => {
         <StatsCard
           totalMonthlySpend={stats.totalMonthlySpend}
           totalActive={stats.totalActive}
-          onWalletPress={() => navigation.navigate('WalletConnect' as never)}
+          onWalletPress={() => navigation.navigate('WalletConnect')}
         />
 
         <SubscriptionList
@@ -85,13 +85,13 @@ const HomeScreen: React.FC = () => {
           totalCount={subscriptions.length}
           onSubscriptionPress={(sub) => navigation.navigate('SubscriptionDetail', { id: sub.id })}
           onToggleStatus={handleToggleStatus}
-          onAddFirstPress={() => navigation.navigate('AddSubscription' as never)}
+          onAddFirstPress={() => navigation.navigate('AddSubscription')}
         />
       </ScrollView>
 
       {subscriptions.length > 0 && (
         <FloatingActionButton
-          onPress={() => navigation.navigate('AddSubscription' as never)}
+          onPress={() => navigation.navigate('AddSubscription')}
           icon="+"
           size="large"
         />

@@ -12,6 +12,8 @@ pub enum Interval {
     Yearly,    // 31536000s (365 days)
 }
 
+const MAX_PAUSE_DURATION: u64 = 2_592_000; // 30 days
+
 impl Interval {
     pub fn seconds(&self) -> u64 {
         match self {
@@ -61,6 +63,8 @@ pub struct Subscription {
     pub total_paid: i128,
     pub total_gas_spent: u64,
     pub charge_count: u32,
+    pub paused_at: u64,
+    pub pause_duration: u64,
     pub refund_requested_amount: i128,
 }
 
@@ -213,6 +217,8 @@ impl SubTrackrContract {
             total_paid: 0,
             total_gas_spent: 0,
             charge_count: 0,
+            paused_at: 0,
+            pause_duration: 0,
             refund_requested_amount: 0,
         };
 
@@ -281,6 +287,11 @@ impl SubTrackrContract {
 
     /// User pauses their subscription
     pub fn pause_subscription(env: Env, subscriber: Address, subscription_id: u64) {
+        Self::pause_by_subscriber(env, subscriber, subscription_id, MAX_PAUSE_DURATION);
+    }
+
+    /// User pauses their subscription with a specific duration
+    pub fn pause_by_subscriber(env: Env, subscriber: Address, subscription_id: u64, duration: u64) {
         subscriber.require_auth();
 
         let mut sub: Subscription = env
@@ -294,12 +305,24 @@ impl SubTrackrContract {
             sub.status == SubscriptionStatus::Active,
             "Only active subscriptions can be paused"
         );
+        assert!(
+            duration <= MAX_PAUSE_DURATION,
+            "Pause duration exceeds limit"
+        );
 
         sub.status = SubscriptionStatus::Paused;
+        sub.paused_at = env.ledger().timestamp();
+        sub.pause_duration = duration;
 
         env.storage()
             .persistent()
             .set(&DataKey::Subscription(subscription_id), &sub);
+
+        // Publish event
+        env.events().publish(
+            (String::from_str(&env, "subscription_paused"), subscriber),
+            (subscription_id, sub.paused_at, duration),
+        );
     }
 
     /// User resumes a paused subscription
@@ -314,7 +337,8 @@ impl SubTrackrContract {
 
         assert!(sub.subscriber == subscriber, "Only subscriber can resume");
         assert!(
-            sub.status == SubscriptionStatus::Paused,
+            sub.status == SubscriptionStatus::Paused
+                || Self::check_and_resume_internal(&env, &mut sub),
             "Only paused subscriptions can be resumed"
         );
 
@@ -327,10 +351,18 @@ impl SubTrackrContract {
 
         sub.status = SubscriptionStatus::Active;
         sub.next_charge_at = now + plan.interval.seconds();
+        sub.paused_at = 0;
+        sub.pause_duration = 0;
 
         env.storage()
             .persistent()
             .set(&DataKey::Subscription(subscription_id), &sub);
+
+        // Publish event
+        env.events().publish(
+            (String::from_str(&env, "subscription_resumed"), subscriber),
+            subscription_id,
+        );
     }
 
     // ── Payment Processing ──
@@ -344,6 +376,13 @@ impl SubTrackrContract {
             .expect("Subscription not found");
 
         sub.subscriber.require_auth();
+
+        // Handle auto-resume if needed
+        if Self::check_and_resume_internal(&env, &mut sub) {
+            env.storage()
+                .persistent()
+                .set(&DataKey::Subscription(subscription_id), &sub);
+        }
 
         assert!(
             sub.status == SubscriptionStatus::Active,
@@ -497,10 +536,14 @@ impl SubTrackrContract {
 
     /// Get subscription details
     pub fn get_subscription(env: Env, subscription_id: u64) -> Subscription {
-        env.storage()
+        let mut sub: Subscription = env
+            .storage()
             .persistent()
             .get(&DataKey::Subscription(subscription_id))
-            .expect("Subscription not found")
+            .expect("Subscription not found");
+
+        Self::check_and_resume_internal(&env, &mut sub);
+        sub
     }
 
     /// Get all subscription IDs for a user
@@ -533,6 +576,21 @@ impl SubTrackrContract {
             .instance()
             .get(&DataKey::SubscriptionCount)
             .unwrap_or(0)
+    }
+
+    // ── Internal Helpers ──
+
+    fn check_and_resume_internal(env: &Env, sub: &mut Subscription) -> bool {
+        if sub.status == SubscriptionStatus::Paused {
+            let now = env.ledger().timestamp();
+            if now >= sub.paused_at + sub.pause_duration {
+                sub.status = SubscriptionStatus::Active;
+                sub.paused_at = 0;
+                sub.pause_duration = 0;
+                return true;
+            }
+        }
+        false
     }
 }
 
@@ -726,6 +784,50 @@ mod test {
             env.ledger().timestamp() + Interval::Monthly.seconds()
         );
         assert!(resumed.next_charge_at > initial.next_charge_at);
+    }
+
+    #[test]
+    #[should_panic(expected = "Pause duration exceeds limit")]
+    fn test_pause_by_subscriber_limit_enforced() {
+        let env = Env::default();
+        let (client, _admin, _merchant, subscriber, _token) = setup(&env);
+        let sub_id = client.subscribe(&subscriber, &1);
+
+        // Max is 30 days (2,592_000s). Try 31 days.
+        client.pause_by_subscriber(&subscriber, &sub_id, &2_678_400);
+    }
+
+    #[test]
+    fn test_auto_resume() {
+        let env = Env::default();
+        let (client, _admin, _merchant, subscriber, _token) = setup(&env);
+        let sub_id = client.subscribe(&subscriber, &1);
+
+        // Pause for 1 day (86,400s)
+        client.pause_by_subscriber(&subscriber, &sub_id, &86_400);
+        let paused = client.get_subscription(&sub_id);
+        assert_eq!(paused.status, SubscriptionStatus::Paused);
+
+        // Fast forward 2 days (172,800s)
+        env.ledger().with_mut(|li| {
+            li.timestamp += 172_800;
+        });
+
+        // get_subscription should now return Active due to auto-resume
+        let resumed = client.get_subscription(&sub_id);
+        assert_eq!(resumed.status, SubscriptionStatus::Active);
+        assert_eq!(resumed.paused_at, 0);
+        assert_eq!(resumed.pause_duration, 0);
+
+        // charge_subscription should also work now
+        // But we need to make sure next_charge_at is reached
+        env.ledger().with_mut(|li| {
+            li.timestamp += Interval::Monthly.seconds();
+        });
+        client.charge_subscription(&sub_id);
+
+        let charged = client.get_subscription(&sub_id);
+        assert_eq!(charged.total_paid, 500);
     }
 
     #[test]

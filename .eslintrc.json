@@ -16,5 +16,19 @@
     "@typescript-eslint/no-explicit-any": "warn",
     "no-console": ["warn", { "allow": ["warn", "error"] }]
   },
-  "ignorePatterns": ["node_modules/", "dist/", "android/", "ios/", ".expo/", "src/contracts/types/"]
+  "ignorePatterns": [
+    "node_modules/",
+    "dist/",
+    "android/",
+    "ios/",
+    ".expo/",
+    "src/contracts/types/"
+  ],
+  "settings": {
+    "import/resolver": {
+      "node": {
+        "extensions": [".js", ".jsx", ".ts", ".tsx"]
+      }
+    }
+  }
 }
