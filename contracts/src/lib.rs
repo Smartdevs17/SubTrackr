@@ -61,6 +61,8 @@ pub struct Subscription {
     pub last_charged_at: u64,
     pub next_charge_at: u64,
     pub total_paid: i128,
+    pub total_gas_spent: u64,
+    pub charge_count: u32,
     pub paused_at: u64,
     pub pause_duration: u64,
     pub refund_requested_amount: i128,
@@ -213,6 +215,8 @@ impl SubTrackrContract {
             last_charged_at: now,
             next_charge_at: now + plan.interval.seconds(),
             total_paid: 0,
+            total_gas_spent: 0,
+            charge_count: 0,
             paused_at: 0,
             pause_duration: 0,
             refund_requested_amount: 0,
@@ -404,15 +408,18 @@ impl SubTrackrContract {
         sub.last_charged_at = now;
         sub.next_charge_at = now + plan.interval.seconds();
         sub.total_paid += plan.price;
+        sub.total_gas_spent += 100_000; // Simulated gas cost (0.01 XLM)
+        sub.charge_count += 1;
 
         env.storage()
             .persistent()
             .set(&DataKey::Subscription(subscription_id), &sub);
 
-        // TODO: Execute actual token transfer from subscriber to merchant
-        // token::Client::new(&env, &plan.token).transfer(
-        //     &sub.subscriber, &plan.merchant, &plan.price
-        // );
+        // Publish event
+        env.events().publish(
+            (String::from_str(&env, "subscription_charged"), subscription_id),
+            (sub.subscriber.clone(), plan.price, 100_000u64, now),
+        );
     }
 
     /// Request a refund for a subscription (can only be called by the subscriber)

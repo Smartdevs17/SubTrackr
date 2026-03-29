@@ -255,7 +255,9 @@ export const useTransactionQueueStore = create<TransactionQueueState>()(
         set({ isProcessing: true, lastError: null });
 
         try {
-          const sortedQueue = [...get().queuedTransactions].sort((a, b) => a.createdAt - b.createdAt);
+          const sortedQueue = [...get().queuedTransactions].sort(
+            (a, b) => a.createdAt - b.createdAt
+          );
 
           for (const tx of sortedQueue) {
             if (!get().isOnline) break;
@@ -292,7 +294,9 @@ export const useTransactionQueueStore = create<TransactionQueueState>()(
               await executeQueuedPayload(tx.payload);
 
               set((state) => ({
-                queuedTransactions: state.queuedTransactions.filter((queued) => queued.id !== tx.id),
+                queuedTransactions: state.queuedTransactions.filter(
+                  (queued) => queued.id !== tx.id
+                ),
               }));
 
               await presentTransactionQueueNotification(
@@ -325,7 +329,9 @@ export const useTransactionQueueStore = create<TransactionQueueState>()(
 
               if (isLikelyConflictError(error)) {
                 set((state) => ({
-                  queuedTransactions: state.queuedTransactions.filter((queued) => queued.id !== tx.id),
+                  queuedTransactions: state.queuedTransactions.filter(
+                    (queued) => queued.id !== tx.id
+                  ),
                 }));
 
                 await presentTransactionQueueNotification(
@@ -340,7 +346,9 @@ export const useTransactionQueueStore = create<TransactionQueueState>()(
 
               if (attempts >= MAX_ATTEMPTS) {
                 set((state) => ({
-                  queuedTransactions: state.queuedTransactions.filter((queued) => queued.id !== tx.id),
+                  queuedTransactions: state.queuedTransactions.filter(
+                    (queued) => queued.id !== tx.id
+                  ),
                   lastError: error instanceof Error ? error.message : 'Queued transaction failed.',
                 }));
 

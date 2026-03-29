@@ -162,7 +162,9 @@ const CryptoPaymentScreen: React.FC = () => {
       setIsLoading(true);
       const selectedTokenInfo = availableTokens.find((token) => token.symbol === selectedToken);
       const tokenForExecution =
-        selectedProtocol === 'sablier' ? selectedTokenInfo?.address ?? selectedToken : selectedToken;
+        selectedProtocol === 'sablier'
+          ? (selectedTokenInfo?.address ?? selectedToken)
+          : selectedToken;
 
       const startTime = Math.floor(Date.now() / 1000);
       const stopTime = startTime + 30 * 24 * 60 * 60;
@@ -232,25 +234,25 @@ const CryptoPaymentScreen: React.FC = () => {
             </Text>
           </View>
 
-              {!isOnline && (
-                <Card variant="elevated" padding="large">
-                  <Text style={styles.offlineTitle}>Offline mode enabled</Text>
-                  <Text style={styles.offlineText}>
-                    Transactions are queued locally and sent automatically when your connection returns.
-                  </Text>
-                </Card>
-              )}
+          {!isOnline && (
+            <Card variant="elevated" padding="large">
+              <Text style={styles.offlineTitle}>Offline mode enabled</Text>
+              <Text style={styles.offlineText}>
+                Transactions are queued locally and sent automatically when your connection returns.
+              </Text>
+            </Card>
+          )}
 
-              {pendingCount > 0 && (
-                <Card variant="elevated" padding="large">
-                  <Text style={styles.pendingTitle}>Pending transactions: {pendingCount}</Text>
-                  <Text style={styles.pendingText}>
-                    {isQueueProcessing
-                      ? 'Processing queued transactions now.'
-                      : 'Waiting for connectivity to process queued transactions.'}
-                  </Text>
-                </Card>
-              )}
+          {pendingCount > 0 && (
+            <Card variant="elevated" padding="large">
+              <Text style={styles.pendingTitle}>Pending transactions: {pendingCount}</Text>
+              <Text style={styles.pendingText}>
+                {isQueueProcessing
+                  ? 'Processing queued transactions now.'
+                  : 'Waiting for connectivity to process queued transactions.'}
+              </Text>
+            </Card>
+          )}
 
           {/* Token Selection */}
           <Card variant="elevated" padding="large">

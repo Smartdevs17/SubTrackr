@@ -164,7 +164,11 @@ export class WalletServiceManager {
       });
 
       // Get USDC balance if on supported chains
-      if (chainId === CHAIN_IDS.ETHEREUM || chainId === CHAIN_IDS.POLYGON || chainId === CHAIN_IDS.ARBITRUM) {
+      if (
+        chainId === CHAIN_IDS.ETHEREUM ||
+        chainId === CHAIN_IDS.POLYGON ||
+        chainId === CHAIN_IDS.ARBITRUM
+      ) {
         const usdcAddress = getContractAddress(chainId, 'usdc');
         if (!usdcAddress) {
           return balances;
@@ -193,12 +197,12 @@ export class WalletServiceManager {
   }
 
   async estimateGas(
-  from: string,
-  to: string,
-  value: string,
-  chainId: number,
-  userGasLimitOverride?: string 
-): Promise<GasEstimate> {
+    from: string,
+    to: string,
+    value: string,
+    chainId: number,
+    userGasLimitOverride?: string
+  ): Promise<GasEstimate> {
     const provider = this.getProvider(chainId);
 
     // Use getFeeData for EIP-1559 support
@@ -217,7 +221,10 @@ export class WalletServiceManager {
           value: ethers.utils.parseEther(value || '0'),
         });
         // Network-specific buffer: higher for Polygon due to congestion variability
-        const bufferMultiplier = chainId === CHAIN_IDS.POLYGON ? CRYPTO_CONSTANTS.POLYGON_GAS_BUFFER_MULTIPLIER : CRYPTO_CONSTANTS.DEFAULT_GAS_BUFFER_MULTIPLIER;
+        const bufferMultiplier =
+          chainId === CHAIN_IDS.POLYGON
+            ? CRYPTO_CONSTANTS.POLYGON_GAS_BUFFER_MULTIPLIER
+            : CRYPTO_CONSTANTS.DEFAULT_GAS_BUFFER_MULTIPLIER;
         gasLimit = estimated.mul(bufferMultiplier).div(100);
       } catch (err) {
         console.warn('Gas estimation failed, using safe fallback:', err);

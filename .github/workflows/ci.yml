@@ -8,7 +8,7 @@ on:
 
 env:
   NODE_VERSION: '20'
-  RUST_VERSION: 'stable'
+  RUST_VERSION: '1.85'
 
 jobs:
   commitlint:

@@ -1,9 +1,5 @@
 import { SubscriptionCategory, BillingCycle } from '../types/subscription';
-import {
-  TIME_CONSTANTS,
-  CRYPTO_CONSTANTS,
-  FORMATTING_CONSTANTS,
-} from './constants/values';
+import { TIME_CONSTANTS, CRYPTO_CONSTANTS, FORMATTING_CONSTANTS } from './constants/values';
 
 export const formatCurrency = (amount: number, currency: string = 'USD'): string => {
   return new Intl.NumberFormat('en-US', {
@@ -29,11 +25,18 @@ export const formatCurrencyCompact = (amount: number, currency: string = 'USD'):
   }).format(amount);
 };
 
-export const formatCryptoAmount = (amount: number, decimals: number = CRYPTO_CONSTANTS.DEFAULT_CRYPTO_DECIMALS): string => {
+export const formatCryptoAmount = (
+  amount: number,
+  decimals: number = CRYPTO_CONSTANTS.DEFAULT_CRYPTO_DECIMALS
+): string => {
   return amount.toFixed(decimals);
 };
 
-export const formatAddress = (address: string, start: number = FORMATTING_CONSTANTS.ADDRESS_START_CHARS, end: number = FORMATTING_CONSTANTS.ADDRESS_END_CHARS): string => {
+export const formatAddress = (
+  address: string,
+  start: number = FORMATTING_CONSTANTS.ADDRESS_START_CHARS,
+  end: number = FORMATTING_CONSTANTS.ADDRESS_END_CHARS
+): string => {
   if (!address || address.length < start + end) return address;
   return `${address.slice(0, start)}...${address.slice(-end)}`;
 };
