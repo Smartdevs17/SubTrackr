@@ -61,6 +61,33 @@ After deployment, you can verify that the contract is active by running:
 
 Replace `<CONTRACT_ID>` with the ID returned by the deployment script and `<NETWORK>` with `local`, `testnet`, or `public`.
 
+### Explorer Source Verification
+
+Some explorers (e.g., Stellar Expert / Soroban explorers) support attaching source bundles for transparency.
+
+1) Build the WASM (optional, for checksum reference):
+
+```bash
+cargo build --release --target wasm32-unknown-unknown --manifest-path contracts/Cargo.toml
+```
+
+2) Package the contract source:
+
+```bash
+./scripts/package-source.sh
+```
+
+This generates a tar.gz in `dist/` containing:
+- `contracts/Cargo.toml`
+- `contracts/src/**`
+- `WASM_SHA256.txt` (if a compiled WASM was found)
+
+3) Upload the tar.gz bundle to your chosen explorer’s contract page (or submit via their form/API), referencing your deployed `CONTRACT_ID`.
+
+Notes:
+- Ensure the license header is present in your sources if required by the explorer.
+- Keep optimizer/toolchain settings consistent across builds for reproducibility.
+
 ## Rollback Procedure
 
 Since smart contracts on Soroban are immutable (unless explicitly designed otherwise), a "rollback" typically involves:

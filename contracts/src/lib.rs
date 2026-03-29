@@ -77,6 +77,12 @@ pub enum DataKey {
     UserSubscriptions(Address),
     MerchantPlans(Address),
     Admin,
+    /// Minimum seconds between calls for a given function (by name)
+    RateLimit(String),
+    /// Last timestamp (seconds) a caller invoked a function (by function name)
+    LastCall(Address, String),
+    /// Pending transfer request: subscription_id -> pending recipient
+    PendingTransfer(u64),
 }
 
 #[contract]
@@ -94,6 +100,26 @@ impl SubTrackrContract {
             .set(&DataKey::SubscriptionCount, &0u64);
     }
 
+    // ── Rate Limiting Admin ──
+
+    /// Set minimum seconds between calls for a function name (admin only).
+    pub fn set_rate_limit(env: Env, function: String, min_interval_secs: u64) {
+        let admin = Self::get_admin(&env);
+        admin.require_auth();
+        env.storage()
+            .instance()
+            .set(&DataKey::RateLimit(function), &min_interval_secs);
+    }
+
+    /// Remove rate limit for a function name (admin only).
+    pub fn remove_rate_limit(env: Env, function: String) {
+        let admin = Self::get_admin(&env);
+        admin.require_auth();
+        env.storage()
+            .instance()
+            .remove(&DataKey::RateLimit(function));
+    }
+
     // ── Plan Management ──
 
     /// Merchant creates a subscription plan
@@ -105,6 +131,10 @@ impl SubTrackrContract {
         token: Address,
         interval: Interval,
     ) -> u64 {
+        // Admin override: admin bypasses rate limits; otherwise enforce for caller
+        if merchant != Self::get_admin(&env) {
+            Self::enforce_rate_limit(&env, &merchant, "create_plan");
+        }
         merchant.require_auth();
         assert!(price > 0, "Price must be positive");
 
@@ -146,6 +176,9 @@ impl SubTrackrContract {
 
     /// Merchant deactivates a plan (no new subscribers, existing ones continue)
     pub fn deactivate_plan(env: Env, merchant: Address, plan_id: u64) {
+        if merchant != Self::get_admin(&env) {
+            Self::enforce_rate_limit(&env, &merchant, "deactivate_plan");
+        }
         merchant.require_auth();
 
         let mut plan: Plan = env
@@ -166,6 +199,9 @@ impl SubTrackrContract {
 
     /// User subscribes to a plan
     pub fn subscribe(env: Env, subscriber: Address, plan_id: u64) -> u64 {
+        if subscriber != Self::get_admin(&env) {
+            Self::enforce_rate_limit(&env, &subscriber, "subscribe");
+        }
         subscriber.require_auth();
 
         let mut plan: Plan = env
@@ -251,6 +287,9 @@ impl SubTrackrContract {
 
     /// User cancels their subscription
     pub fn cancel_subscription(env: Env, subscriber: Address, subscription_id: u64) {
+        if subscriber != Self::get_admin(&env) {
+            Self::enforce_rate_limit(&env, &subscriber, "cancel_subscription");
+        }
         subscriber.require_auth();
 
         let mut sub: Subscription = env
@@ -287,11 +326,17 @@ impl SubTrackrContract {
 
     /// User pauses their subscription
     pub fn pause_subscription(env: Env, subscriber: Address, subscription_id: u64) {
+        if subscriber != Self::get_admin(&env) {
+            Self::enforce_rate_limit(&env, &subscriber, "pause_subscription");
+        }
         Self::pause_by_subscriber(env, subscriber, subscription_id, MAX_PAUSE_DURATION);
     }
 
     /// User pauses their subscription with a specific duration
     pub fn pause_by_subscriber(env: Env, subscriber: Address, subscription_id: u64, duration: u64) {
+        if subscriber != Self::get_admin(&env) {
+            Self::enforce_rate_limit(&env, &subscriber, "pause_by_subscriber");
+        }
         subscriber.require_auth();
 
         let mut sub: Subscription = env
@@ -327,6 +372,9 @@ impl SubTrackrContract {
 
     /// User resumes a paused subscription
     pub fn resume_subscription(env: Env, subscriber: Address, subscription_id: u64) {
+        if subscriber != Self::get_admin(&env) {
+            Self::enforce_rate_limit(&env, &subscriber, "resume_subscription");
+        }
         subscriber.require_auth();
 
         let mut sub: Subscription = env
@@ -375,6 +423,11 @@ impl SubTrackrContract {
             .get(&DataKey::Subscription(subscription_id))
             .expect("Subscription not found");
 
+        if sub.subscriber != Self::get_admin(&env) {
+            // Rate limit by the subscriber address (payer) to avoid spamming their own subscription
+            Self::enforce_rate_limit(&env, &sub.subscriber, "charge_subscription");
+        }
+
         sub.subscriber.require_auth();
 
         // Handle auto-resume if needed
@@ -417,7 +470,10 @@ impl SubTrackrContract {
 
         // Publish event
         env.events().publish(
-            (String::from_str(&env, "subscription_charged"), subscription_id),
+            (
+                String::from_str(&env, "subscription_charged"),
+                subscription_id,
+            ),
             (sub.subscriber.clone(), plan.price, 100_000u64, now),
         );
     }
@@ -429,6 +485,10 @@ impl SubTrackrContract {
             .persistent()
             .get(&DataKey::Subscription(subscription_id))
             .expect("Subscription not found");
+
+        if sub.subscriber != Self::get_admin(&env) {
+            Self::enforce_rate_limit(&env, &sub.subscriber, "request_refund");
+        }
 
         sub.subscriber.require_auth();
 
@@ -453,6 +513,7 @@ impl SubTrackrContract {
 
     /// Approve a refund (can only be called by the admin)
     pub fn approve_refund(env: Env, subscription_id: u64) {
+        // Admin may be high-frequency; still allow limits if configured, but admin is exempt
         let mut sub: Subscription = env
             .storage()
             .persistent()
@@ -464,6 +525,7 @@ impl SubTrackrContract {
             .instance()
             .get(&DataKey::Admin)
             .expect("Admin not set");
+        // Do not enforce for admin
         admin.require_auth();
 
         let amount = sub.refund_requested_amount;
@@ -496,6 +558,7 @@ impl SubTrackrContract {
 
     /// Reject a refund (can only be called by the admin)
     pub fn reject_refund(env: Env, subscription_id: u64) {
+        // Admin exempt
         let mut sub: Subscription = env
             .storage()
             .persistent()
@@ -521,6 +584,116 @@ impl SubTrackrContract {
         env.events().publish(
             (String::from_str(&env, "refund_rejected"), subscription_id),
             sub.subscriber.clone(),
+        );
+    }
+
+    // ── Subscription Transfer ──
+
+    /// Current subscriber requests to transfer a subscription to `recipient`.
+    /// Requires subscriber auth. Records a pending transfer for later acceptance.
+    pub fn request_transfer(env: Env, subscription_id: u64, recipient: Address) {
+        let mut sub: Subscription = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Subscription(subscription_id))
+            .expect("Subscription not found");
+
+        // Rate limit by current subscriber
+        if sub.subscriber != Self::get_admin(&env) {
+            Self::enforce_rate_limit(&env, &sub.subscriber, "request_transfer");
+        }
+
+        sub.subscriber.require_auth();
+        assert!(
+            sub.status != SubscriptionStatus::Cancelled,
+            "Subscription is cancelled"
+        );
+        assert!(sub.subscriber != recipient, "Cannot transfer to self");
+
+        env.storage()
+            .instance()
+            .set(&DataKey::PendingTransfer(subscription_id), &recipient);
+
+        env.events().publish(
+            (
+                String::from_str(&env, "transfer_requested"),
+                subscription_id,
+            ),
+            (sub.subscriber.clone(), recipient.clone()),
+        );
+    }
+
+    /// Recipient accepts a pending transfer.
+    /// Requires recipient auth. Moves subscription ownership and updates indices.
+    pub fn accept_transfer(env: Env, subscription_id: u64, recipient: Address) {
+        // Require recipient auth and rate-limit by recipient
+        if recipient != Self::get_admin(&env) {
+            Self::enforce_rate_limit(&env, &recipient, "accept_transfer");
+        }
+        recipient.require_auth();
+
+        let mut sub: Subscription = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Subscription(subscription_id))
+            .expect("Subscription not found");
+
+        // Verify pending transfer exists and matches recipient
+        let pending_recipient: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::PendingTransfer(subscription_id))
+            .expect("No pending transfer for this subscription");
+        assert!(
+            pending_recipient == recipient,
+            "Transfer recipient mismatch"
+        );
+
+        // Update user subscription indices: remove from old, add to new
+        let mut old_user_subs: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&DataKey::UserSubscriptions(sub.subscriber.clone()))
+            .unwrap_or(Vec::new(&env));
+        // Remove subscription_id from old list
+        let mut new_list: Vec<u64> = Vec::new(&env);
+        for id in old_user_subs.iter() {
+            if id != subscription_id {
+                new_list.push_back(id);
+            }
+        }
+        env.storage().persistent().set(
+            &DataKey::UserSubscriptions(sub.subscriber.clone()),
+            &new_list,
+        );
+
+        // Add to new recipient list
+        let mut rec_user_subs: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&DataKey::UserSubscriptions(recipient.clone()))
+            .unwrap_or(Vec::new(&env));
+        rec_user_subs.push_back(subscription_id);
+        env.storage().persistent().set(
+            &DataKey::UserSubscriptions(recipient.clone()),
+            &rec_user_subs,
+        );
+
+        // Move ownership
+        let old = sub.subscriber.clone();
+        sub.subscriber = recipient.clone();
+        env.storage()
+            .persistent()
+            .set(&DataKey::Subscription(subscription_id), &sub);
+
+        // Clear pending transfer
+        env.storage()
+            .instance()
+            .remove(&DataKey::PendingTransfer(subscription_id));
+
+        env.events().publish(
+            (String::from_str(&env, "transfer_accepted"), subscription_id),
+            (old, recipient),
         );
     }
 
@@ -579,6 +752,55 @@ impl SubTrackrContract {
     }
 
     // ── Internal Helpers ──
+
+    fn get_admin(env: &Env) -> Address {
+        env.storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .expect("Admin not set")
+    }
+
+    /// If a rate limit is configured for `function_name`, enforce min interval per-caller.
+    fn enforce_rate_limit(env: &Env, caller: &Address, function_name: &str) {
+        // Read min interval; if none, return
+        let fname = String::from_str(env, function_name);
+        let min_interval: Option<u64> = env
+            .storage()
+            .instance()
+            .get(&DataKey::RateLimit(fname.clone()));
+        if min_interval.is_none() {
+            return;
+        }
+        let min_secs = min_interval.unwrap();
+        if min_secs == 0 {
+            return;
+        }
+
+        let now = env.ledger().timestamp();
+        let last_opt: Option<u64> = env
+            .storage()
+            .instance()
+            .get(&DataKey::LastCall(caller.clone(), fname.clone()));
+
+        if let Some(last) = last_opt {
+            if now < last + min_secs {
+                // Emit violation event, then revert with clear message
+                env.events().publish(
+                    (
+                        String::from_str(env, "rate_limit_violation"),
+                        caller.clone(),
+                    ),
+                    (fname.clone(), last, now, min_secs),
+                );
+                panic!("Rate limited: please wait before calling this function again");
+            }
+        }
+
+        // Record last call timestamp
+        env.storage()
+            .instance()
+            .set(&DataKey::LastCall(caller.clone(), fname), &now);
+    }
 
     fn check_and_resume_internal(env: &Env, sub: &mut Subscription) -> bool {
         if sub.status == SubscriptionStatus::Paused {
@@ -828,6 +1050,71 @@ mod test {
 
         let charged = client.get_subscription(&sub_id);
         assert_eq!(charged.total_paid, 500);
+    }
+
+    #[test]
+    #[should_panic(expected = "Rate limited")]
+    fn test_rate_limit_enforced_for_subscribe() {
+        let env = Env::default();
+        let (client, _admin, _merchant, subscriber, _token) = setup(&env);
+        // Configure 100s min interval for subscribe
+        client.set_rate_limit(&String::from_str(&env, "subscribe"), &100u64);
+
+        // First subscribe ok
+        let _ = client.subscribe(&subscriber, &1);
+        // Immediate second subscribe should be rate-limited
+        let _ = client.subscribe(&subscriber, &1);
+    }
+
+    #[test]
+    fn test_admin_override_bypass() {
+        let env = Env::default();
+        let (client, admin, merchant, _subscriber, _token) = setup(&env);
+        client.set_rate_limit(&String::from_str(&env, "create_plan"), &100u64);
+
+        // Admin creates plans repeatedly without being rate-limited
+        let _ = client.create_plan(
+            &admin,
+            &String::from_str(&env, "Admin Plan A"),
+            &1_i128,
+            &merchant, // reuse address as mock token
+            &Interval::Monthly,
+        );
+        let _ = client.create_plan(
+            &admin,
+            &String::from_str(&env, "Admin Plan B"),
+            &2_i128,
+            &merchant,
+            &Interval::Monthly,
+        );
+    }
+
+    #[test]
+    fn test_subscription_transfer_flow() {
+        let env = Env::default();
+        let (client, _admin, _merchant, subscriber, _token) = setup(&env);
+        let recipient = Address::generate(&env);
+
+        let sub_id = client.subscribe(&subscriber, &1);
+
+        // Request transfer by current subscriber
+        client.request_transfer(&sub_id, &recipient);
+
+        // Accept by recipient
+        client.accept_transfer(&sub_id, &recipient);
+
+        // New owner is recipient
+        let sub = client.get_subscription(&sub_id);
+        assert_eq!(sub.subscriber, recipient);
+
+        // Old owner list should not contain the subscription anymore
+        let old_list = client.get_user_subscriptions(&subscriber);
+        assert_eq!(old_list.len(), 0);
+
+        // Recipient list should contain it
+        let new_list = client.get_user_subscriptions(&recipient);
+        assert_eq!(new_list.len(), 1);
+        assert_eq!(new_list.get_unchecked(0), sub_id);
     }
 
     #[test]
