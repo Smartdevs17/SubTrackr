@@ -400,6 +400,7 @@ export class WalletServiceManager {
       const erc20Abi = [
         'function decimals() view returns (uint8)',
         'function approve(address spender, uint256 amount) returns (bool)',
+        'function allowance(address owner, address spender) view returns (uint256)',
       ];
       const erc20 = new ethers.Contract(token, erc20Abi, signer);
       const decimals = await erc20.decimals();
@@ -408,9 +409,13 @@ export class WalletServiceManager {
       // Sablier V2 LockupLinear is consistently deployed at this address across major EVM networks
       const SABLIER_V2_LOCKUP_LINEAR = ADDRESS_CONSTANTS.SABLIER_V2_LOCKUP_LINEAR;
 
-      // 2. Approve Token Spending
-      const txApprove = await erc20.approve(SABLIER_V2_LOCKUP_LINEAR, amountBn);
-      await txApprove.wait();
+      // 2. Ensure Allowance (approve exact amount if insufficient)
+      const owner = await signer.getAddress();
+      const currentAllowance: ethers.BigNumber = await erc20.allowance(owner, SABLIER_V2_LOCKUP_LINEAR);
+      if (currentAllowance.lt(amountBn)) {
+        const txApprove = await erc20.approve(SABLIER_V2_LOCKUP_LINEAR, amountBn);
+        await txApprove.wait();
+      }
 
       // 3. Create the Sablier Stream
       const abi = [
@@ -452,6 +457,84 @@ export class WalletServiceManager {
       console.error('Failed to create Sablier stream:', error);
       throw error;
     }
+  }
+
+  /**
+   * Returns the ERC20 allowance that `owner` granted to `spender`.
+   */
+  async getErc20Allowance(
+    token: string,
+    owner: string,
+    spender: string,
+    chainId: number
+  ): Promise<ethers.BigNumber> {
+    const provider = this.getProvider(chainId);
+    const erc20Abi = ['function allowance(address owner, address spender) view returns (uint256)'];
+    const erc20 = new ethers.Contract(token, erc20Abi, provider);
+    return erc20.allowance(owner, spender);
+  }
+
+  /**
+   * Estimates gas for approving an ERC20 allowance to `spender`.
+   */
+  async estimateApproveGas(
+    token: string,
+    spender: string,
+    amount: ethers.BigNumberish,
+    chainId: number
+  ): Promise<GasEstimate> {
+    const provider = this.getProvider(chainId);
+    const feeData = await provider.getFeeData();
+    const gasPrice = feeData.maxFeePerGas ?? feeData.gasPrice ?? ethers.BigNumber.from(0);
+
+    const erc20Abi = ['function approve(address spender, uint256 amount) returns (bool)'];
+    const conn = this.connection;
+    if (!conn?.eip1193Provider) {
+      throw new Error('Wallet is not connected for gas estimation.');
+    }
+    const web3Provider = new ethers.providers.Web3Provider(conn.eip1193Provider);
+    const signer = web3Provider.getSigner();
+    const erc20WithSigner = new ethers.Contract(token, erc20Abi, signer);
+
+    let gasLimit: ethers.BigNumber;
+    try {
+      const estimated = await erc20WithSigner.estimateGas.approve(spender, amount);
+      const bufferMultiplier =
+        chainId === CHAIN_IDS.POLYGON
+          ? CRYPTO_CONSTANTS.POLYGON_GAS_BUFFER_MULTIPLIER
+          : CRYPTO_CONSTANTS.DEFAULT_GAS_BUFFER_MULTIPLIER;
+      gasLimit = estimated.mul(bufferMultiplier).div(100);
+    } catch (err) {
+      console.warn('Approve gas estimation failed, using fallback:', err);
+      gasLimit = ethers.BigNumber.from(CRYPTO_CONSTANTS.FALLBACK_GAS_LIMIT);
+    }
+
+    const estimatedCost = gasPrice.mul(gasLimit);
+    return {
+      gasLimit: gasLimit.toString(),
+      gasPrice: ethers.utils.formatUnits(gasPrice, 'gwei'),
+      estimatedCost: ethers.utils.formatEther(estimatedCost),
+    };
+  }
+
+  /**
+   * Performs an ERC20 approve for `spender` and waits for mining.
+   * Returns transaction hash.
+   */
+  async approveErc20(
+    token: string,
+    spender: string,
+    amount: ethers.BigNumberish
+  ): Promise<string> {
+    const signer = this.getWalletSigner();
+    const erc20Abi = ['function approve(address spender, uint256 amount) returns (bool)'];
+    const erc20 = new ethers.Contract(token, erc20Abi, signer);
+    const tx = await erc20.approve(spender, amount);
+    const receipt = await tx.wait();
+    if (!receipt?.transactionHash) {
+      throw new Error('Approval transaction mined without a hash');
+    }
+    return receipt.transactionHash;
   }
 
   private getProvider(chainId: number): ethers.providers.JsonRpcProvider {
