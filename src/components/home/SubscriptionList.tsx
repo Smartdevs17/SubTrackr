@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import { colors, spacing, typography, borderRadius, shadows } from '../../utils/constants';
 import { SubscriptionCard } from '../subscription/SubscriptionCard';
 import { Subscription } from '../../types/subscription';
+import { usePerformanceProfiler } from '../../hooks/usePerformanceProfiler';
 
 interface SubscriptionListProps {
   subscriptions: Subscription[];
@@ -17,7 +19,7 @@ interface SubscriptionListProps {
   onAddFirstPress: () => void;
 }
 
-export const SubscriptionList: React.FC<SubscriptionListProps> = ({
+export const SubscriptionList: React.FC<SubscriptionListProps> = React.memo(({
   subscriptions: _subscriptions,
   activeSubscriptions,
   upcomingSubscriptions,
@@ -29,8 +31,22 @@ export const SubscriptionList: React.FC<SubscriptionListProps> = ({
   onToggleStatus,
   onAddFirstPress,
 }) => {
+  usePerformanceProfiler('SubscriptionList', {
+    activeCount: activeSubscriptions.length,
+    upcomingCount: upcomingSubscriptions.length,
+  });
+
+  const renderItem = useCallback(
+    ({ item }: { item: Subscription }) => (
+      <SubscriptionCard subscription={item} onPress={onSubscriptionPress} onToggleStatus={onToggleStatus} />
+    ),
+    [onSubscriptionPress, onToggleStatus]
+  );
+
+  const keyExtractor = useCallback((item: Subscription) => item.id, []);
+
   return (
-    <View>
+    <View testID="subscription-list-root">
       {/* Upcoming Billing Section */}
       {upcomingSubscriptions && upcomingSubscriptions.length > 0 && (
         <View style={styles.section}>
@@ -85,14 +101,15 @@ export const SubscriptionList: React.FC<SubscriptionListProps> = ({
 
         {hasSubscriptions ? (
           <View style={styles.subscriptionsList}>
-            {activeSubscriptions.map((subscription) => (
-              <SubscriptionCard
-                key={subscription.id}
-                subscription={subscription}
-                onPress={onSubscriptionPress}
-                onToggleStatus={onToggleStatus}
-              />
-            ))}
+            <FlashList
+              data={activeSubscriptions}
+              renderItem={renderItem}
+              keyExtractor={keyExtractor}
+              estimatedItemSize={148}
+              scrollEnabled={false}
+              removeClippedSubviews
+              showsVerticalScrollIndicator={false}
+            />
           </View>
         ) : (
           <View
@@ -111,6 +128,7 @@ export const SubscriptionList: React.FC<SubscriptionListProps> = ({
             <TouchableOpacity
               style={styles.addFirstButton}
               onPress={onAddFirstPress}
+              testID="add-subscription-button"
               accessibilityRole="button"
               accessibilityLabel="Add your first subscription">
               <Text style={styles.addFirstButtonText}>Add Subscription</Text>
@@ -120,7 +138,7 @@ export const SubscriptionList: React.FC<SubscriptionListProps> = ({
       </View>
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   section: {

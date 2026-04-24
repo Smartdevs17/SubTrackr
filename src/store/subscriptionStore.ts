@@ -16,6 +16,8 @@ import {
   presentChargeSuccessNotification,
   presentChargeFailedNotification,
 } from '../services/notificationService';
+import { useGamificationStore } from './gamificationStore';
+import { AchievementTrigger } from '../types/gamification';
 import { errorHandler, AppError } from '../services/errorHandler';
 
 const STORAGE_KEY = 'subtrackr-subscriptions';
@@ -185,6 +187,15 @@ export const useSubscriptionStore = create<SubscriptionState>()(
 
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
+
+          // Gamification Triggers
+          const gamificationStore = useGamificationStore.getState();
+          gamificationStore.addPoints(10); // 10 points for adding a subscription
+          gamificationStore.checkAchievements(AchievementTrigger.SUBSCRIPTION_ADDED, {
+            totalSubscriptions: get().subscriptions.length,
+            price: data.price,
+            category: data.category,
+          });
         } catch (error) {
           const appError = errorHandler.handleError(error as Error, {
             action: 'addSubscription',

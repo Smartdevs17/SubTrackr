@@ -10,6 +10,7 @@ export interface FloatingActionButtonProps {
   size?: 'small' | 'medium' | 'large';
   accessibilityLabel?: string;
   accessibilityHint?: string;
+  testID?: string;
 }
 
 export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
@@ -20,6 +21,7 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
   size = 'medium',
   accessibilityLabel,
   accessibilityHint,
+  testID,
 }) => {
   const buttonStyle = [styles.button, styles[size], style];
 
@@ -28,6 +30,7 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
       style={buttonStyle}
       onPress={onPress}
       activeOpacity={0.8}
+      testID={testID}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? title ?? 'Add item'}
       accessibilityHint={accessibilityHint ?? 'Activates the primary action'}>

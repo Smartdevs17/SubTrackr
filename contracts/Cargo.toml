@@ -1,18 +1,28 @@
 [package]
-name = "subtrackr"
-version = "0.1.0"
+name = "subtrackr-subscription"
+version = "0.2.0"
 edition = "2021"
 authors = ["SubTrackr Team"]
-description = "On-chain subscription management on Stellar/Soroban"
+description = "SubTrackr subscription implementation contract (Soroban)"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 soroban-sdk = "21.0.0"
+subtrackr-types = { path = "../types" }
 
 [dev-dependencies]
 soroban-sdk = { version = "21.0.0", features = ["testutils"] }
+arbitrary = { version = "1.3", features = ["derive"] }
+[workspace]
+resolver = "2"
+members = [
+    "proxy",
+    "storage",
+    "subscription",
+    "types",
+]
 
 [profile.release]
 opt-level = "z"

@@ -1,0 +1,65 @@
+name: Subscription Contract Fuzzing Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'contracts/subscription/**'
+      - '.github/workflows/fuzz-tests.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'contracts/subscription/**'
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    name: Run Fuzzing Tests
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+          profile: minimal
+      
+      - name: Cache cargo registry
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-
+      
+      - name: Cache cargo index
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-git-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-git-
+      
+      - name: Cache cargo build
+        uses: actions/cache@v3
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-build-target-
+      
+      - name: Run fuzzing tests
+        run: |
+          cd contracts/subscription
+          cargo test --lib
+          cargo test --test fuzz_tests
+          cargo test --test pricing_fuzz_tests
+          cargo test --test rate_limit_fuzz_tests
+      
+      - name: Print test results
+        if: always()
+        run: |
+          echo "Fuzzing tests completed!"

@@ -128,7 +128,7 @@ cp .env.example .env
 | Variable             | Description                               | Example Value                                                     |
 | -------------------- | ----------------------------------------- | ----------------------------------------------------------------- |
 | `STELLAR_NETWORK`    | `testnet` or `public` Stellar network     | `testnet`                                                         |
-| `CONTRACT_ID`        | Deployed Soroban subscription contract ID | `CB64...` (your deployed contract address)                        |
+| `CONTRACT_ID`        | Deployed SubTrackr proxy contract ID (stable) | `CB64...` (your deployed proxy contract address)               |
 | `WEB3AUTH_CLIENT_ID` | Web3Auth client ID for social login       | Get one from [Web3Auth Dashboard](https://dashboard.web3auth.io/) |
 
 ### 4. Run the Mobile App
@@ -154,15 +154,16 @@ You can then run the app on:
 If you want to work on the smart contracts:
 
 ```bash
-# Navigate to contracts directory
-cd contracts
+# Local (requires local Soroban network + `alice` identity)
+./scripts/deploy-local.sh
 
-# Build the contract
-cargo build --target wasm32-unknown-unknown --release
-
-# Deploy to Stellar testnet
-soroban contract deploy --wasm target/wasm32-unknown-unknown/release/subtrackr.wasm --network testnet
+# Testnet
+export SOROBAN_ACCOUNT="your-testnet-identity"
+export ADMIN_ADDRESS="GB..."
+./scripts/deploy-testnet.sh
 ```
+
+SubTrackr uses an upgradeable architecture (proxy + storage + implementation). Use the deployed `PROXY_ID` (saved to `contracts/.env.<network>`) as the stable contract ID.
 
 ### 6. Run Tests
 

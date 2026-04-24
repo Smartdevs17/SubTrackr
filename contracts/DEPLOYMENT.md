@@ -2,6 +2,16 @@
 
 This guide describes how to deploy SubTrackr smart contracts to various Stellar networks using the provided automation scripts.
 
+## Contract Architecture (Upgradeable)
+
+SubTrackr is deployed as three Soroban contracts:
+
+- **Proxy** (`subtrackr-proxy` / `UpgradeableProxy`): Stable contract ID used by the app. Manages upgrades (timelock, history, rollback scheduling) and forwards calls to the current implementation.
+- **Storage** (`subtrackr-storage` / `SubTrackrStorage`): Holds all subscription state (plans, subscriptions, indexes). Only the currently-authorized implementation can write to it.
+- **Implementation** (`subtrackr-subscription` / `SubTrackrSubscription`): Business logic. Can be upgraded by deploying a new implementation contract and updating the proxy.
+
+The **proxy contract ID never changes** during upgrades, so subscribers and integrators don’t need to update addresses.
+
 ## Prerequisites
 
 - [Soroban CLI](https://developers.stellar.org/docs/smart-contracts/getting-started/setup#install-the-soroban-cli) installed.
@@ -50,16 +60,18 @@ export ADMIN_ADDRESS="GD..."
 | ----------------- | ---------------------------------------------------------------------------------- | ---------------- |
 | `SOROBAN_ACCOUNT` | The identity name (configured in Soroban CLI) or secret key to use for deployment. | Testnet, Mainnet |
 | `ADMIN_ADDRESS`   | The Stellar address that will be set as the contract admin during initialization.  | Testnet, Mainnet |
+| `UPGRADE_DELAY_SECS` | Minimum delay (seconds) between scheduling and executing an upgrade.           | Testnet, Mainnet |
+| `ROLLBACK_DELAY_SECS` | Delay (seconds) used when scheduling a rollback via `rollback()`.            | Testnet, Mainnet |
 
 ## Verification
 
 After deployment, you can verify that the contract is active by running:
 
 ```bash
-./scripts/verify.sh <CONTRACT_ID> <NETWORK>
+./scripts/verify.sh <PROXY_ID> <NETWORK> [SOURCE]
 ```
 
-Replace `<CONTRACT_ID>` with the ID returned by the deployment script and `<NETWORK>` with `local`, `testnet`, or `public`.
+Replace `<PROXY_ID>` with the proxy contract ID returned by the deployment script and `<NETWORK>` with `local`, `testnet`, or `public`.
 
 ## Migrations
 
@@ -115,26 +127,81 @@ cargo build --release --target wasm32-unknown-unknown --manifest-path contracts/
 
 This generates a tar.gz in `dist/` containing:
 - `contracts/Cargo.toml`
-- `contracts/src/**`
+- `contracts/proxy/**`
+- `contracts/storage/**`
+- `contracts/subscription/**`
+- `contracts/types/**`
 - `WASM_SHA256.txt` (if a compiled WASM was found)
 
-3) Upload the tar.gz bundle to your chosen explorer’s contract page (or submit via their form/API), referencing your deployed `CONTRACT_ID`.
+3) Upload the tar.gz bundle to your chosen explorer’s contract page (or submit via their form/API), referencing your deployed `PROXY_ID` (and optionally the storage/implementation IDs).
 
 Notes:
 - Ensure the license header is present in your sources if required by the explorer.
 - Keep optimizer/toolchain settings consistent across builds for reproducibility.
 
-## Rollback Procedure
+## Upgrade Procedure
 
-Since smart contracts on Soroban are immutable (unless explicitly designed otherwise), a "rollback" typically involves:
+### 1) Deploy a new implementation
 
-1. Fixing the issue in the contract source code.
-2. Deploying a new version of the contract.
-3. Updating the application (frontend/backend) to use the new `CONTRACT_ID`.
+Build and deploy the updated `subtrackr-subscription` contract.
+You can use the helper script (deploy + schedule):
 
-Ensure you keep track of the `CONTRACT_ID` for each deployment (these are automatically saved to `contracts/.env.<network>`).
+```bash
+export SOROBAN_ACCOUNT="your-network-identity"
+export ADMIN_ADDRESS="G..."
+./scripts/upgrade-deploy-and-schedule.sh <PROXY_ID> <NETWORK>
+```
 
-With the migration framework, you can restore the active contract pointer using the history artifact:
+This deploys a new implementation and schedules the upgrade via `authorize_upgrade`.
+
+### 2) Wait for the timelock
+
+Upgrades are timelocked. The proxy enforces:
+- `execute_after >= now + upgrade_delay_secs`
+
+### 3) Execute the upgrade
+
+```bash
+./scripts/upgrade-execute.sh <PROXY_ID> <IMPLEMENTATION_ID> <NETWORK>
+```
+
+Execution calls `upgrade_to(implementation)` which:
+- Updates the storage contract to authorize writes from the new implementation
+- Runs `validate_upgrade(...)` and `migrate(...)` when needed
+- Updates `get_version()` (storage schema version)
+- Appends to upgrade history
+
+### Storage Migrations & Versions
+
+`get_version()` on the proxy represents the **storage schema version**.
+
+When changing storage layout between versions:
+- Bump the implementation’s `STORAGE_VERSION`
+- Implement `migrate(proxy, storage, from_version)`
+- Keep migrations **forward-only** and deterministic
+
+## Rollback Procedure (Timelocked)
+
+If the latest implementation is faulty, the proxy can schedule a rollback to the immediately-previous implementation:
+
+1) Schedule rollback:
+
+```bash
+./scripts/rollback-schedule.sh <PROXY_ID> <NETWORK>
+```
+
+2) After the rollback delay elapses, execute the scheduled rollback with `upgrade_to(...)`.
+
+Notes:
+- Rollback changes the **implementation**, not the already-applied storage schema.
+- Keep older implementations forward-compatible when possible (e.g., additive storage changes).
+
+## Migration History Rollback
+
+The migration framework added in this branch is still useful for operational cutovers that track an
+active contract pointer outside the proxy upgrade path.
+
+Restore the last recorded active contract from migration history with:
 
 ```bash
 ./scripts/rollback-migration.sh \

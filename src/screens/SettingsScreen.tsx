@@ -9,14 +9,17 @@ import {
   Switch,
   Alert,
   Linking,
+  Modal,
+  FlatList,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
-import { useWalletStore } from '../store';
+import { useWalletStore, useNetworkStore } from '../store';
 import { Card } from '../components/common/Card';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
+import { Network } from '../config/networks';
 
 const APP_VERSION = '1.0.0';
 interface Settings {
@@ -28,13 +31,16 @@ const SETTINGS_KEY = '@subtrackr_settings';
 const SettingsScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { address, network, disconnect } = useWalletStore();
+  const { currentNetwork, availableNetworks, setNetwork, initialize } = useNetworkStore();
   const [settings, setSettings] = useState<Settings>({
     notificationsEnabled: true,
     defaultCurrency: 'USD',
   });
+  const [networkModalVisible, setNetworkModalVisible] = useState(false);
 
   useEffect(() => {
     loadSettings();
+    initialize();
   }, []);
 
   const loadSettings = async () => {
@@ -101,12 +107,20 @@ const SettingsScreen: React.FC = () => {
               <Text style={styles.settingValue}>{shortenAddress(address || '')}</Text>
             </View>
           </View>
-          <View style={styles.settingRow}>
+          <TouchableOpacity
+            style={styles.settingRow}
+            onPress={() => setNetworkModalVisible(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Select network"
+            accessibilityHint="Opens network selection modal">
             <View style={styles.settingInfo}>
               <Text style={styles.settingLabel}>Network</Text>
-              <Text style={styles.settingValue}>{network || 'Not connected'}</Text>
+              <Text style={styles.settingValue}>
+                {currentNetwork ? currentNetwork.name : 'Select Network'}
+              </Text>
             </View>
-          </View>
+            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>→</Text>
+          </TouchableOpacity>
           {address && (
             <TouchableOpacity
               style={styles.dangerButton}
@@ -184,11 +198,29 @@ const SettingsScreen: React.FC = () => {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.linkRow}
+            onPress={() => navigation.navigate('AdminDashboard')}
+            accessibilityRole="button"
+            accessibilityLabel="Admin dashboard"
+            accessibilityHint="Opens the web-style admin dashboard view">
+            <Text style={styles.linkText}>Admin Dashboard</Text>
+            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>→</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.linkRow}
             onPress={() => navigation.navigate('LanguageSettings')}
             accessibilityRole="button"
             accessibilityLabel="Language settings"
             accessibilityHint="Opens language selection screen">
             <Text style={styles.linkText}>Language</Text>
+            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>→</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.linkRow}
+            onPress={() => navigation.navigate('SessionManagement')}
+            accessibilityRole="button"
+            accessibilityLabel="Session management"
+            accessibilityHint="Opens active session security controls">
+            <Text style={styles.linkText}>Session Management</Text>
             <Text style={styles.linkArrow} accessibilityElementsHidden={true}>→</Text>
           </TouchableOpacity>
           {__DEV__ && (
@@ -218,6 +250,54 @@ const SettingsScreen: React.FC = () => {
             <Text style={styles.linkArrow} accessibilityElementsHidden={true}>→</Text>
           </TouchableOpacity>
         </Card>
+
+        {/* Network Selection Modal */}
+        <Modal
+          visible={networkModalVisible}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setNetworkModalVisible(false)}>
+          <SafeAreaView style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <TouchableOpacity
+                onPress={() => setNetworkModalVisible(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Close network selection">
+                <Text style={styles.closeButton}>Cancel</Text>
+              </TouchableOpacity>
+              <Text style={styles.modalTitle}>Select Network</Text>
+              <View style={{ width: 50 }} />
+            </View>
+            <FlatList
+              data={availableNetworks}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.networkItem,
+                    currentNetwork?.id === item.id && styles.networkItemSelected,
+                  ]}
+                  onPress={async () => {
+                    await setNetwork(item.id);
+                    setNetworkModalVisible(false);
+                  }}
+                  accessibilityRole="radio"
+                  accessibilityLabel={`Select ${item.name}`}
+                  accessibilityState={{ checked: currentNetwork?.id === item.id }}>
+                  <View style={styles.networkInfo}>
+                    <Text style={styles.networkName}>{item.name}</Text>
+                    <Text style={styles.networkType}>
+                      {item.type.toUpperCase()} {item.isTestnet ? '(Testnet)' : '(Mainnet)'}
+                    </Text>
+                  </View>
+                  {currentNetwork?.id === item.id && (
+                    <Text style={styles.checkmark}>✓</Text>
+                  )}
+                </TouchableOpacity>
+              )}
+            />
+          </SafeAreaView>
+        </Modal>
       </ScrollView>
     </SafeAreaView>
   );
@@ -274,6 +354,30 @@ const styles = StyleSheet.create({
   linkRowLast: { borderBottomWidth: 0 },
   linkText: { ...typography.body, color: colors.text },
   linkArrow: { ...typography.body, color: colors.textSecondary },
+  modalContainer: { flex: 1, backgroundColor: colors.background },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  modalTitle: { ...typography.h2, color: colors.text },
+  closeButton: { ...typography.body, color: colors.primary },
+  networkItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  networkItemSelected: { backgroundColor: colors.primary + '10' },
+  networkInfo: { flex: 1 },
+  networkName: { ...typography.body, color: colors.text, fontWeight: '600' },
+  networkType: { ...typography.caption, color: colors.textSecondary, marginTop: spacing.xs },
+  checkmark: { ...typography.h3, color: colors.primary },
 });
 
 export default SettingsScreen;

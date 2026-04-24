@@ -130,7 +130,7 @@ const SubscriptionDetailScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} testID="subscription-detail-screen">
       <ScrollView style={styles.scrollView}>
         {/* Header */}
         <View style={styles.header}>
@@ -177,7 +177,7 @@ const SubscriptionDetailScreen: React.FC = () => {
             </View>
             <View style={styles.priceItem}>
               <Text style={styles.priceLabel}>Billing Cycle</Text>
-              <Text style={styles.priceValue}>
+              <Text style={styles.priceValue} testID="subscription-billing-cycle-value">
                 {subscription.billingCycle.charAt(0).toUpperCase() +
                   subscription.billingCycle.slice(1)}
               </Text>
@@ -217,12 +217,14 @@ const SubscriptionDetailScreen: React.FC = () => {
           <View style={styles.simulateRow}>
             <TouchableOpacity
               onPress={() => void recordBillingOutcome(subscription.id, 'success')}
-              style={styles.simulateLink}>
+              style={styles.simulateLink}
+              testID="simulate-charge-success-button">
               <Text style={styles.simulateLinkText}>Simulate successful charge</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => void recordBillingOutcome(subscription.id, 'failed')}
-              style={styles.simulateLink}>
+              style={styles.simulateLink}
+              testID="simulate-charge-failed-button">
               <Text style={styles.simulateLinkTextDanger}>Simulate failed charge</Text>
             </TouchableOpacity>
           </View>
@@ -238,6 +240,7 @@ const SubscriptionDetailScreen: React.FC = () => {
                 subscription.isActive ? styles.statusActive : styles.statusInactive,
               ]}>
               <Text
+                testID="subscription-status-badge"
                 style={[
                   styles.statusText,
                   subscription.isActive ? styles.statusTextActive : styles.statusTextInactive,
@@ -346,12 +349,14 @@ const SubscriptionDetailScreen: React.FC = () => {
             onPress={handlePauseResume}
             variant="secondary"
             style={styles.actionButton}
+            testID="pause-resume-subscription-button"
           />
           <Button
             title="Cancel Subscription"
             onPress={handleCancel}
             variant="danger"
             style={styles.actionButton}
+            testID="cancel-subscription-button"
           />
         </View>
       </ScrollView>

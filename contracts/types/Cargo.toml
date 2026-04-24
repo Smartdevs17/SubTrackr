@@ -1,0 +1,12 @@
+[package]
+name = "subtrackr-types"
+version = "0.1.0"
+edition = "2021"
+authors = ["SubTrackr Team"]
+description = "Shared contract types for SubTrackr (Soroban)"
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+soroban-sdk = "21.0.0"

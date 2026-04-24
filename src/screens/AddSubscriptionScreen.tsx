@@ -55,6 +55,12 @@ const AddSubscriptionScreen: React.FC = () => {
   // Date Picker States
   const [showPicker, setShowPicker] = useState(false);
   const [pickerMode, setPickerMode] = useState<'date' | 'time'>('date');
+  const [selectedCategory, setSelectedCategory] = useState<SubscriptionCategory>(
+    SubscriptionCategory.OTHER
+  );
+  const [selectedBillingCycle, setSelectedBillingCycle] = useState<BillingCycle>(
+    BillingCycle.MONTHLY
+  );
 
   const handleCategorySelect = (category: SubscriptionCategory) => {
     setSelectedCategory(category);
@@ -171,17 +177,22 @@ const AddSubscriptionScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} testID="add-subscription-screen">
       <KeyboardAvoidingView
         style={styles.keyboardAvoidingView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView style={styles.scrollView} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
             <View style={styles.headerContent}>
-              <TouchableOpacity onPress={handleCancel} style={styles.cancelButton}>
+              <TouchableOpacity
+                onPress={handleCancel}
+                style={styles.cancelButton}
+                testID="cancel-add-subscription-button">
                 <Text style={styles.cancelText}>Cancel</Text>
               </TouchableOpacity>
-              <Text style={styles.title}>Add Subscription</Text>
+              <Text style={styles.title} testID="subscription-form-title">
+                Add Subscription
+              </Text>
               <View style={styles.placeholderButton} />
             </View>
             <Text style={styles.subtitle}>Track your new subscription</Text>
@@ -202,6 +213,7 @@ const AddSubscriptionScreen: React.FC = () => {
                   accessibilityLabel="Subscription name, required"
                   accessibilityHint="Enter the name of the subscription service"
                   returnKeyType="next"
+                  testID="subscription-name-input"
                 />
               </View>
 
@@ -282,6 +294,7 @@ const AddSubscriptionScreen: React.FC = () => {
                     keyboardType="decimal-pad"
                     accessibilityLabel="Price, required"
                     accessibilityHint="Enter the subscription price"
+                    testID="subscription-price-input"
                   />
                 </View>
                 {formData.priceError ? (
@@ -328,6 +341,7 @@ const AddSubscriptionScreen: React.FC = () => {
                         selectedBillingCycle === cycle && styles.billingCycleItemSelected,
                       ]}
                       onPress={() => handleBillingCycleSelect(cycle)}
+                      testID={`billing-cycle-option-${cycle}`}
                       accessibilityRole="radio"
                       accessibilityLabel={cycle.charAt(0).toUpperCase() + cycle.slice(1)}
                       accessibilityState={{ checked: selectedBillingCycle === cycle }}>
@@ -415,6 +429,7 @@ const AddSubscriptionScreen: React.FC = () => {
             loading={isLoading}
             fullWidth
             size="large"
+            testID="save-subscription-button"
           />
         </View>
       </KeyboardAvoidingView>

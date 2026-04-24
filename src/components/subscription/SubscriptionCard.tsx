@@ -21,7 +21,7 @@ export interface SubscriptionCardProps {
   onToggleStatus?: (id: string) => void;
 }
 
-export const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
+export const SubscriptionCard: React.FC<SubscriptionCardProps> = React.memo(({
   subscription,
   onPress,
   onToggleStatus,
@@ -43,6 +43,7 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
 
   return (
     <TouchableOpacity
+      testID={`subscription-card-${subscription.id}`}
       accessible={true}
       accessibilityRole="button"
       accessibilityLabel={`${subscription.name}, ${formatCurrency(
@@ -60,7 +61,7 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
         </View>
 
         <View style={styles.titleContainer}>
-          <Text style={styles.name} numberOfLines={1}>
+          <Text testID={`subscription-name-${subscription.id}`} style={styles.name} numberOfLines={1}>
             {subscription.name}
           </Text>
           <Text style={styles.category} numberOfLines={1}>
@@ -129,6 +130,7 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
           style={styles.toggleButton}
           onPress={handleToggleStatus}
           activeOpacity={0.7}
+          testID={`subscription-toggle-${subscription.id}`}
           accessibilityRole="button"
           accessibilityLabel={
             subscription.isActive ? `Pause ${subscription.name}` : `Activate ${subscription.name}`
@@ -138,7 +140,7 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
       )}
     </TouchableOpacity>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {

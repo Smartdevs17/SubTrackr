@@ -1,30 +1,32 @@
-import { by, device, element, expect, waitFor } from 'detox';
+import { by, element, expect, waitFor } from 'detox';
+import {
+  createSubscription,
+  launchCleanApp,
+  openSubscriptionByName,
+} from './helpers/subscriptionFlows';
 
-describe('Crypto Payment Flow', () => {
+describe('Subscription Charging Flow E2E', () => {
   beforeAll(async () => {
-    await device.launchApp();
+    await launchCleanApp();
   });
 
   beforeEach(async () => {
-    await device.reloadReactNative();
+    await launchCleanApp();
   });
 
-  it('should handle crypto payment modal trigger', async () => {
-    const subItem = element(by.text('Detox Test Sub'));
-    try {
-      await waitFor(subItem).toBeVisible().withTimeout(5000);
-      await subItem.tap();
+  it('simulates successful and failed billing events', async () => {
+    const subName = 'E2E Charge Flow';
+    await createSubscription(subName, '11.99');
+    await openSubscriptionByName(subName);
 
-      const payBtn = element(by.id('pay-crypto-button'));
-      await waitFor(payBtn).toBeVisible().withTimeout(3000);
-      await payBtn.tap();
+    await expect(element(by.id('simulate-charge-success-button'))).toBeVisible();
+    await element(by.id('simulate-charge-success-button')).tap();
 
-      const walletModal = element(by.id('wallet-connect-modal'));
-      await expect(walletModal).toBeVisible();
-    } catch (e) {
-      console.warn(
-        'Elements not found, test will require proper testID assignment in UI components.'
-      );
-    }
+    await waitFor(element(by.id('simulate-charge-failed-button'))).toBeVisible().withTimeout(5000);
+    await element(by.id('simulate-charge-failed-button')).tap();
+
+    // Validate action controls still available after charging operations.
+    await expect(element(by.id('cancel-subscription-button'))).toBeVisible();
+    await expect(element(by.id('pause-resume-subscription-button'))).toBeVisible();
   });
 });
