@@ -18,6 +18,7 @@ import SessionManagementScreen from '../screens/SessionManagementScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import ErrorDashboardScreen from '../screens/ErrorDashboardScreen';
 import AdminDashboardScreen from '../screens/AdminDashboardScreen';
+import FraudDashboard from '../screens/FraudDashboard';
 import { SegmentManagementScreen } from '../screens/SegmentManagementScreen';
 import { SegmentDetailScreen } from '../screens/SegmentDetailScreen';
 import { GamificationScreen } from '../screens/GamificationScreen';
@@ -115,6 +116,11 @@ const SettingsStack = () => (
       name="ErrorDashboard"
       component={ErrorDashboardScreen}
       options={{ title: 'Error Dashboard', headerShown: true }}
+    />
+    <Stack.Screen
+      name="FraudDashboard"
+      component={FraudDashboard}
+      options={{ title: 'Fraud Dashboard', headerShown: true }}
     />
   </Stack.Navigator>
 );
