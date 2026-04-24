@@ -1,6 +1,6 @@
 #![no_std]
 
-use soroban_sdk::{contracttype, Address, String};
+use soroban_sdk::{contracttype, Address, String, Vec};
 
 /// Billing interval in seconds.
 #[contracttype]
@@ -94,6 +94,92 @@ pub struct UpgradeEvent {
     pub version_after: u32,
     pub scheduled_for: Timestamp,
     pub executed_at: Timestamp,
+}
+
+pub type SubscriptionId = u64;
+pub type MerchantId = Address;
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum FraudAction {
+    Approve,
+    Flag,
+    Block,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum FraudReviewStatus {
+    Pending,
+    Reviewed,
+    Dismissed,
+    Escalated,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum RiskSignalKind {
+    Velocity,
+    UsageAnomaly,
+    Chargeback,
+    PatternShift,
+    DeviceMismatch,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct RiskSignal {
+    pub kind: RiskSignalKind,
+    pub score: u32,
+    pub detail: String,
+    pub observed_at: Timestamp,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct RiskScore {
+    pub subscriber: Address,
+    pub subscription_id: SubscriptionId,
+    pub merchant_id: MerchantId,
+    pub total_score: u32,
+    pub velocity_score: u32,
+    pub anomaly_score: u32,
+    pub chargeback_score: u32,
+    pub action: FraudAction,
+    pub reason: String,
+    pub assessed_at: Timestamp,
+    pub signals: Vec<RiskSignal>,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct FraudCase {
+    pub case_id: u64,
+    pub subscription_id: SubscriptionId,
+    pub subscriber: Address,
+    pub merchant_id: MerchantId,
+    pub risk_score: u32,
+    pub action: FraudAction,
+    pub status: FraudReviewStatus,
+    pub reason: String,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct FraudReport {
+    pub merchant_id: MerchantId,
+    pub total_subscriptions: u32,
+    pub flagged_subscriptions: u32,
+    pub blocked_subscriptions: u32,
+    pub manual_review_count: u32,
+    pub average_risk: u32,
+    pub velocity_alerts: u32,
+    pub anomaly_alerts: u32,
+    pub chargeback_predictions: u32,
+    pub high_risk_subscribers: u32,
+    pub recent_cases: Vec<FraudCase>,
 }
 
 /// Storage keys for the proxy contract state.
