@@ -308,6 +308,14 @@
                   "map": [
                     {
                       "key": {
+                        "symbol": "charge_count"
+                      },
+                      "val": {
+                        "u32": 0
+                      }
+                    },
+                    {
+                      "key": {
                         "symbol": "id"
                       },
                       "val": {
@@ -391,6 +399,14 @@
                       },
                       "val": {
                         "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "total_gas_spent"
+                      },
+                      "val": {
+                        "u64": 0
                       }
                     },
                     {
@@ -902,7 +918,7 @@
             "data": {
               "vec": [
                 {
-                  "string": "caught panic 'Payment not yet due' from contract function 'Symbol(obj#169)'"
+                  "string": "caught panic 'Payment not yet due' from contract function 'Symbol(obj#185)'"
                 },
                 {
                   "u64": 1

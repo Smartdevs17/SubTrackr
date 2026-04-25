@@ -1,3 +1,4 @@
+#![allow(clippy::too_many_arguments)]
 use soroban_sdk::{
     contract, contractimpl,
     testutils::{Address as _, Ledger},
@@ -18,15 +19,27 @@ fn storage_instance_get<V: TryFromVal<Env, Val>>(
     key: StorageKey,
 ) -> Option<V> {
     let args: Vec<Val> = soroban_sdk::vec![env, key.into_val(env)];
-    let val_opt: Option<Val> =
-        env.invoke_contract(storage, &soroban_sdk::Symbol::new(env, "instance_get"), args);
+    let val_opt: Option<Val> = env.invoke_contract(
+        storage,
+        &soroban_sdk::Symbol::new(env, "instance_get"),
+        args,
+    );
     val_opt.map(|val| V::try_from_val(env, &val).unwrap())
 }
 
-fn storage_instance_set<V: IntoVal<Env, Val>>(env: &Env, storage: &Address, key: StorageKey, value: V) {
+fn storage_instance_set<V: IntoVal<Env, Val>>(
+    env: &Env,
+    storage: &Address,
+    key: StorageKey,
+    value: V,
+) {
     let val: Val = value.into_val(env);
     let args: Vec<Val> = soroban_sdk::vec![env, key.into_val(env), val];
-    env.invoke_contract::<()>(storage, &soroban_sdk::Symbol::new(env, "instance_set"), args);
+    env.invoke_contract::<()>(
+        storage,
+        &soroban_sdk::Symbol::new(env, "instance_set"),
+        args,
+    );
 }
 
 fn storage_persistent_get<V: TryFromVal<Env, Val>>(
@@ -35,12 +48,20 @@ fn storage_persistent_get<V: TryFromVal<Env, Val>>(
     key: StorageKey,
 ) -> Option<V> {
     let args: Vec<Val> = soroban_sdk::vec![env, key.into_val(env)];
-    let val_opt: Option<Val> =
-        env.invoke_contract(storage, &soroban_sdk::Symbol::new(env, "persistent_get"), args);
+    let val_opt: Option<Val> = env.invoke_contract(
+        storage,
+        &soroban_sdk::Symbol::new(env, "persistent_get"),
+        args,
+    );
     val_opt.map(|val| V::try_from_val(env, &val).unwrap())
 }
 
-fn storage_persistent_set<V: IntoVal<Env, Val>>(env: &Env, storage: &Address, key: StorageKey, value: V) {
+fn storage_persistent_set<V: IntoVal<Env, Val>>(
+    env: &Env,
+    storage: &Address,
+    key: StorageKey,
+    value: V,
+) {
     let val: Val = value.into_val(env);
     let args: Vec<Val> = soroban_sdk::vec![env, key.into_val(env), val];
     env.invoke_contract::<()>(
@@ -134,8 +155,8 @@ mod v1_impl {
                 .expect("Plan not found");
             assert!(plan.active, "Plan is not active");
 
-            let mut sub_count: u64 = storage_instance_get(&env, &storage, StorageKey::SubscriptionCount)
-                .unwrap_or(0);
+            let mut sub_count: u64 =
+                storage_instance_get(&env, &storage, StorageKey::SubscriptionCount).unwrap_or(0);
             sub_count += 1;
 
             let now = env.ledger().timestamp();
@@ -163,7 +184,8 @@ mod v1_impl {
 
         pub fn get_plan(env: Env, proxy: Address, storage: Address, plan_id: u64) -> Plan {
             proxy.require_auth();
-            storage_persistent_get(&env, &storage, StorageKey::Plan(plan_id)).expect("Plan not found")
+            storage_persistent_get(&env, &storage, StorageKey::Plan(plan_id))
+                .expect("Plan not found")
         }
 
         pub fn get_subscription(

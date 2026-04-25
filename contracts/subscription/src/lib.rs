@@ -1,4 +1,7 @@
 #![no_std]
+#![allow(clippy::too_many_arguments)]
+
+pub mod revenue;
 
 use soroban_sdk::{token, Address, Env, IntoVal, String, TryFromVal, Val, Vec};
 use subtrackr_types::{Interval, Plan, StorageKey, Subscription, SubscriptionStatus};
@@ -22,7 +25,12 @@ fn storage_instance_get<V: TryFromVal<Env, Val>>(
     val_opt.map(|val| V::try_from_val(env, &val).unwrap())
 }
 
-fn storage_instance_set<V: IntoVal<Env, Val>>(env: &Env, storage: &Address, key: StorageKey, value: V) {
+fn storage_instance_set<V: IntoVal<Env, Val>>(
+    env: &Env,
+    storage: &Address,
+    key: StorageKey,
+    value: V,
+) {
     let val: Val = value.into_val(env);
     let args: Vec<Val> = soroban_sdk::vec![env, key.into_val(env), val];
     env.invoke_contract::<()>(
@@ -55,7 +63,12 @@ fn storage_persistent_get<V: TryFromVal<Env, Val>>(
     val_opt.map(|val| V::try_from_val(env, &val).unwrap())
 }
 
-fn storage_persistent_set<V: IntoVal<Env, Val>>(env: &Env, storage: &Address, key: StorageKey, value: V) {
+fn storage_persistent_set<V: IntoVal<Env, Val>>(
+    env: &Env,
+    storage: &Address,
+    key: StorageKey,
+    value: V,
+) {
     let val: Val = value.into_val(env);
     let args: Vec<Val> = soroban_sdk::vec![env, key.into_val(env), val];
     env.invoke_contract::<()>(
@@ -100,7 +113,10 @@ fn enforce_rate_limit(env: &Env, storage: &Address, caller: &Address, function_n
     if let Some(last) = last_opt {
         if now < last + min_secs {
             env.events().publish(
-                (String::from_str(env, "rate_limit_violation"), caller.clone()),
+                (
+                    String::from_str(env, "rate_limit_violation"),
+                    caller.clone(),
+                ),
                 (fname.clone(), last, now, min_secs),
             );
             panic!("Rate limited: please wait before calling this function again");
@@ -144,11 +160,24 @@ fn set_user_plan_index(
 }
 
 fn remove_user_plan_index(env: &Env, storage: &Address, subscriber: &Address, plan_id: u64) {
-    storage_persistent_remove(env, storage, StorageKey::UserPlanIndex(subscriber.clone(), plan_id));
+    storage_persistent_remove(
+        env,
+        storage,
+        StorageKey::UserPlanIndex(subscriber.clone(), plan_id),
+    );
 }
 
-fn get_user_plan_index(env: &Env, storage: &Address, subscriber: &Address, plan_id: u64) -> Option<u64> {
-    storage_persistent_get(env, storage, StorageKey::UserPlanIndex(subscriber.clone(), plan_id))
+fn get_user_plan_index(
+    env: &Env,
+    storage: &Address,
+    subscriber: &Address,
+    plan_id: u64,
+) -> Option<u64> {
+    storage_persistent_get(
+        env,
+        storage,
+        StorageKey::UserPlanIndex(subscriber.clone(), plan_id),
+    )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -194,8 +223,8 @@ impl SubTrackrSubscription {
         assert!(from_version < STORAGE_VERSION, "Unsupported migration path");
 
         if from_version == 1 {
-            let sub_count: u64 = storage_instance_get(&env, &storage, StorageKey::SubscriptionCount)
-                .unwrap_or(0);
+            let sub_count: u64 =
+                storage_instance_get(&env, &storage, StorageKey::SubscriptionCount).unwrap_or(0);
             let mut i: u64 = 1;
             while i <= sub_count {
                 let sub_opt: Option<Subscription> =
@@ -270,7 +299,8 @@ impl SubTrackrSubscription {
         merchant.require_auth();
         assert!(price > 0, "Price must be positive");
 
-        let mut count: u64 = storage_instance_get(&env, &storage, StorageKey::PlanCount).unwrap_or(0);
+        let mut count: u64 =
+            storage_instance_get(&env, &storage, StorageKey::PlanCount).unwrap_or(0);
         count += 1;
 
         let plan = Plan {
@@ -288,12 +318,9 @@ impl SubTrackrSubscription {
         storage_persistent_set(&env, &storage, StorageKey::Plan(count), plan.clone());
         storage_instance_set(&env, &storage, StorageKey::PlanCount, count);
 
-        let mut merchant_plans: Vec<u64> = storage_persistent_get(
-            &env,
-            &storage,
-            StorageKey::MerchantPlans(merchant.clone()),
-        )
-        .unwrap_or(Vec::new(&env));
+        let mut merchant_plans: Vec<u64> =
+            storage_persistent_get(&env, &storage, StorageKey::MerchantPlans(merchant.clone()))
+                .unwrap_or(Vec::new(&env));
         merchant_plans.push_back(count);
         storage_persistent_set(
             &env,
@@ -305,7 +332,13 @@ impl SubTrackrSubscription {
         count
     }
 
-    pub fn deactivate_plan(env: Env, proxy: Address, storage: Address, merchant: Address, plan_id: u64) {
+    pub fn deactivate_plan(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        merchant: Address,
+        plan_id: u64,
+    ) {
         proxy.require_auth();
         if merchant != get_admin(&env, &storage) {
             enforce_rate_limit(&env, &storage, &merchant, "deactivate_plan");
@@ -323,7 +356,13 @@ impl SubTrackrSubscription {
 
     // ── Subscription Management ──
 
-    pub fn subscribe(env: Env, proxy: Address, storage: Address, subscriber: Address, plan_id: u64) -> u64 {
+    pub fn subscribe(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscriber: Address,
+        plan_id: u64,
+    ) -> u64 {
         proxy.require_auth();
         if subscriber != get_admin(&env, &storage) {
             enforce_rate_limit(&env, &storage, &subscriber, "subscribe");
@@ -369,7 +408,12 @@ impl SubTrackrSubscription {
             refund_requested_amount: 0,
         };
 
-        storage_persistent_set(&env, &storage, StorageKey::Subscription(sub_count), subscription);
+        storage_persistent_set(
+            &env,
+            &storage,
+            StorageKey::Subscription(sub_count),
+            subscription,
+        );
         storage_instance_set(&env, &storage, StorageKey::SubscriptionCount, sub_count);
 
         let mut user_subs: Vec<u64> = storage_persistent_get(
@@ -395,7 +439,13 @@ impl SubTrackrSubscription {
         sub_count
     }
 
-    pub fn cancel_subscription(env: Env, proxy: Address, storage: Address, subscriber: Address, subscription_id: u64) {
+    pub fn cancel_subscription(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscriber: Address,
+        subscription_id: u64,
+    ) {
         proxy.require_auth();
         if subscriber != get_admin(&env, &storage) {
             enforce_rate_limit(&env, &storage, &subscriber, "cancel_subscription");
@@ -413,7 +463,12 @@ impl SubTrackrSubscription {
         );
 
         sub.status = SubscriptionStatus::Cancelled;
-        storage_persistent_set(&env, &storage, StorageKey::Subscription(subscription_id), sub.clone());
+        storage_persistent_set(
+            &env,
+            &storage,
+            StorageKey::Subscription(subscription_id),
+            sub.clone(),
+        );
 
         // Remove index
         remove_user_plan_index(&env, &storage, &subscriber, sub.plan_id);
@@ -479,7 +534,12 @@ impl SubTrackrSubscription {
         sub.paused_at = env.ledger().timestamp();
         sub.pause_duration = duration;
 
-        storage_persistent_set(&env, &storage, StorageKey::Subscription(subscription_id), sub.clone());
+        storage_persistent_set(
+            &env,
+            &storage,
+            StorageKey::Subscription(subscription_id),
+            sub.clone(),
+        );
 
         env.events().publish(
             (String::from_str(&env, "subscription_paused"), subscriber),
@@ -506,8 +566,7 @@ impl SubTrackrSubscription {
 
         assert!(sub.subscriber == subscriber, "Only subscriber can resume");
         assert!(
-            sub.status == SubscriptionStatus::Paused
-                || check_and_resume_internal(&env, &mut sub),
+            sub.status == SubscriptionStatus::Paused || check_and_resume_internal(&env, &mut sub),
             "Only paused subscriptions can be resumed"
         );
 
@@ -520,7 +579,12 @@ impl SubTrackrSubscription {
         sub.paused_at = 0;
         sub.pause_duration = 0;
 
-        storage_persistent_set(&env, &storage, StorageKey::Subscription(subscription_id), sub);
+        storage_persistent_set(
+            &env,
+            &storage,
+            StorageKey::Subscription(subscription_id),
+            sub,
+        );
 
         env.events().publish(
             (String::from_str(&env, "subscription_resumed"), subscriber),
@@ -562,7 +626,11 @@ impl SubTrackrSubscription {
         let plan: Plan = storage_persistent_get(&env, &storage, StorageKey::Plan(sub.plan_id))
             .expect("Plan not found");
 
-        token::Client::new(&env, &plan.token).transfer(&sub.subscriber, &plan.merchant, &plan.price);
+        token::Client::new(&env, &plan.token).transfer(
+            &sub.subscriber,
+            &plan.merchant,
+            &plan.price,
+        );
 
         sub.last_charged_at = now;
         sub.next_charge_at = now + plan.interval.seconds();
@@ -570,10 +638,31 @@ impl SubTrackrSubscription {
         sub.total_gas_spent += 100_000;
         sub.charge_count += 1;
 
-        storage_persistent_set(&env, &storage, StorageKey::Subscription(subscription_id), sub.clone());
+        storage_persistent_set(
+            &env,
+            &storage,
+            StorageKey::Subscription(subscription_id),
+            sub.clone(),
+        );
+
+        // Generate revenue recognition schedule and defer the full charge amount.
+        revenue::generate_revenue_schedule(
+            &env,
+            &storage,
+            subscription_id,
+            sub.plan_id,
+            plan.price,
+            now,
+            plan.interval.seconds(),
+        );
+        revenue::update_merchant_revenue_balances(&env, &storage, &plan.merchant, 0, plan.price);
+        revenue::track_merchant_subscription(&env, &storage, &plan.merchant, subscription_id);
 
         env.events().publish(
-            (String::from_str(&env, "subscription_charged"), subscription_id),
+            (
+                String::from_str(&env, "subscription_charged"),
+                subscription_id,
+            ),
             (sub.subscriber.clone(), plan.price, 100_000u64, now),
         );
     }
@@ -603,7 +692,12 @@ impl SubTrackrSubscription {
         );
 
         sub.refund_requested_amount = amount;
-        storage_persistent_set(&env, &storage, StorageKey::Subscription(subscription_id), sub.clone());
+        storage_persistent_set(
+            &env,
+            &storage,
+            StorageKey::Subscription(subscription_id),
+            sub.clone(),
+        );
 
         env.events().publish(
             (String::from_str(&env, "refund_requested"), subscription_id),
@@ -629,7 +723,12 @@ impl SubTrackrSubscription {
         sub.total_paid -= amount;
         sub.refund_requested_amount = 0;
 
-        storage_persistent_set(&env, &storage, StorageKey::Subscription(subscription_id), sub.clone());
+        storage_persistent_set(
+            &env,
+            &storage,
+            StorageKey::Subscription(subscription_id),
+            sub.clone(),
+        );
 
         env.events().publish(
             (String::from_str(&env, "refund_approved"), subscription_id),
@@ -649,7 +748,12 @@ impl SubTrackrSubscription {
         assert!(sub.refund_requested_amount > 0, "No pending refund request");
         sub.refund_requested_amount = 0;
 
-        storage_persistent_set(&env, &storage, StorageKey::Subscription(subscription_id), sub.clone());
+        storage_persistent_set(
+            &env,
+            &storage,
+            StorageKey::Subscription(subscription_id),
+            sub.clone(),
+        );
 
         env.events().publish(
             (String::from_str(&env, "refund_rejected"), subscription_id),
@@ -690,7 +794,10 @@ impl SubTrackrSubscription {
         );
 
         env.events().publish(
-            (String::from_str(&env, "transfer_requested"), subscription_id),
+            (
+                String::from_str(&env, "transfer_requested"),
+                subscription_id,
+            ),
             (sub.subscriber.clone(), recipient),
         );
     }
@@ -759,7 +866,12 @@ impl SubTrackrSubscription {
 
         let old = sub.subscriber.clone();
         sub.subscriber = recipient.clone();
-        storage_persistent_set(&env, &storage, StorageKey::Subscription(subscription_id), sub);
+        storage_persistent_set(
+            &env,
+            &storage,
+            StorageKey::Subscription(subscription_id),
+            sub,
+        );
 
         storage_instance_remove(&env, &storage, StorageKey::PendingTransfer(subscription_id));
 
@@ -776,7 +888,12 @@ impl SubTrackrSubscription {
         storage_persistent_get(&env, &storage, StorageKey::Plan(plan_id)).expect("Plan not found")
     }
 
-    pub fn get_subscription(env: Env, proxy: Address, storage: Address, subscription_id: u64) -> Subscription {
+    pub fn get_subscription(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscription_id: u64,
+    ) -> Subscription {
         proxy.require_auth();
         let mut sub: Subscription =
             storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
@@ -786,15 +903,26 @@ impl SubTrackrSubscription {
         sub
     }
 
-    pub fn get_user_subscriptions(env: Env, proxy: Address, storage: Address, subscriber: Address) -> Vec<u64> {
+    pub fn get_user_subscriptions(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscriber: Address,
+    ) -> Vec<u64> {
         proxy.require_auth();
         storage_persistent_get(&env, &storage, StorageKey::UserSubscriptions(subscriber))
             .unwrap_or(Vec::new(&env))
     }
 
-    pub fn get_merchant_plans(env: Env, proxy: Address, storage: Address, merchant: Address) -> Vec<u64> {
+    pub fn get_merchant_plans(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        merchant: Address,
+    ) -> Vec<u64> {
         proxy.require_auth();
-        storage_persistent_get(&env, &storage, StorageKey::MerchantPlans(merchant)).unwrap_or(Vec::new(&env))
+        storage_persistent_get(&env, &storage, StorageKey::MerchantPlans(merchant))
+            .unwrap_or(Vec::new(&env))
     }
 
     pub fn get_plan_count(env: Env, proxy: Address, storage: Address) -> u64 {
@@ -805,5 +933,75 @@ impl SubTrackrSubscription {
     pub fn get_subscription_count(env: Env, proxy: Address, storage: Address) -> u64 {
         proxy.require_auth();
         storage_instance_get(&env, &storage, StorageKey::SubscriptionCount).unwrap_or(0)
+    }
+
+    // ── Revenue Recognition API ──
+
+    /// Set a revenue recognition rule for a plan (merchant only).
+    pub fn set_revenue_rule(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        merchant: Address,
+        plan_id: u64,
+        method: revenue::RecognitionMethod,
+        recognition_period: u64,
+    ) {
+        proxy.require_auth();
+        merchant.require_auth();
+        let plan: Plan = storage_persistent_get(&env, &storage, StorageKey::Plan(plan_id))
+            .expect("Plan not found");
+        assert!(
+            plan.merchant == merchant,
+            "Only plan owner can set revenue rule"
+        );
+        revenue::set_recognition_rule(
+            &env,
+            &storage,
+            revenue::RevenueRecognitionRule {
+                plan_id,
+                method,
+                recognition_period,
+            },
+        );
+    }
+
+    /// Compute a recognition snapshot for a subscription as of the current ledger time.
+    pub fn recognize_revenue(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscription_id: u64,
+    ) -> revenue::Recognition {
+        proxy.require_auth();
+        let sub: Subscription =
+            storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
+                .expect("Subscription not found");
+        let plan: Plan = storage_persistent_get(&env, &storage, StorageKey::Plan(sub.plan_id))
+            .expect("Plan not found");
+        let now = env.ledger().timestamp();
+        revenue::recognize_revenue(&env, &storage, subscription_id, plan.merchant, now)
+    }
+
+    /// Return the cumulative deferred revenue balance for a merchant.
+    pub fn get_deferred_revenue(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        merchant_id: Address,
+    ) -> i128 {
+        proxy.require_auth();
+        revenue::get_deferred_revenue(&env, &storage, &merchant_id)
+    }
+
+    /// Return the revenue schedule for a subscription (None if not yet generated).
+    pub fn get_revenue_schedule(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscription_id: u64,
+    ) -> Option<revenue::RevenueSchedule> {
+        proxy.require_auth();
+        revenue::get_revenue_schedule(&env, &storage, subscription_id)
     }
 }
