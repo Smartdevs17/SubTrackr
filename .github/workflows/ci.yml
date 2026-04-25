@@ -27,7 +27,15 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
+      - name: Cache node modules
+        uses: actions/cache@v4
+        id: cache-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package-lock.json') }}
+
       - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: npm ci --legacy-peer-deps
 
       - name: Validate PR commits
@@ -49,7 +57,15 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
+      - name: Cache node modules
+        uses: actions/cache@v4
+        id: cache-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package-lock.json') }}
+
       - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: npm ci --legacy-peer-deps
 
       - name: Check formatting (Prettier)
@@ -71,7 +87,15 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
+      - name: Cache node modules
+        uses: actions/cache@v4
+        id: cache-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package-lock.json') }}
+
       - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: npm ci --legacy-peer-deps
 
       - name: EVM ABI TypeChain (must match committed output)
@@ -99,7 +123,15 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
+      - name: Cache node modules
+        uses: actions/cache@v4
+        id: cache-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package-lock.json') }}
+
       - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: npm ci --legacy-peer-deps
 
       - name: Run sharded tests with coverage
@@ -126,7 +158,25 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
+      - name: Cache node modules
+        uses: actions/cache@v4
+        id: cache-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Cache Expo build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            .expo
+            node_modules/.cache/expo
+          key: ${{ runner.os }}-expo-${{ hashFiles('package.json', 'app.json') }}
+          restore-keys: |
+            ${{ runner.os }}-expo-
+
       - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: npm ci --legacy-peer-deps
 
       - name: Run Expo export
@@ -189,10 +239,17 @@ jobs:
           toolchain: ${{ env.RUST_VERSION }}
           components: clippy
 
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
+      - name: Cache Rust dependencies and target
+        uses: actions/cache@v4
         with:
-          workspaces: './contracts -> target'
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            contracts/target/
+          key: ${{ runner.os }}-cargo-${{ env.RUST_VERSION }}-${{ hashFiles('contracts/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ env.RUST_VERSION }}-
 
       - name: Run Clippy
         working-directory: ./contracts
@@ -210,10 +267,17 @@ jobs:
         with:
           toolchain: ${{ env.RUST_VERSION }}
 
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
+      - name: Cache Rust dependencies and target
+        uses: actions/cache@v4
         with:
-          workspaces: './contracts -> target'
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            contracts/target/
+          key: ${{ runner.os }}-cargo-${{ env.RUST_VERSION }}-${{ hashFiles('contracts/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ env.RUST_VERSION }}-
 
       - name: Run Rust tests
         working-directory: ./contracts
@@ -231,10 +295,17 @@ jobs:
         with:
           toolchain: ${{ env.RUST_VERSION }}
 
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
+      - name: Cache Rust dependencies and target
+        uses: actions/cache@v4
         with:
-          workspaces: './contracts -> target'
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            contracts/target/
+          key: ${{ runner.os }}-cargo-${{ env.RUST_VERSION }}-${{ hashFiles('contracts/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ env.RUST_VERSION }}-
 
       - name: Build Rust contracts
         working-directory: ./contracts
