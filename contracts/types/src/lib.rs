@@ -134,4 +134,16 @@ pub enum StorageKey {
 
     /// Proxy pointer to the state storage contract.
     ProxyStorage,
+
+    // ── Revenue recognition (added with revenue module) ──
+    /// RevenueRecognitionRule keyed by plan_id.
+    RevenueRecognitionRule(u64),
+    /// RevenueSchedule keyed by subscription_id.
+    RevenueSchedule(u64),
+    /// Cumulative deferred revenue balance for a merchant.
+    RevenueDeferredBalance(Address),
+    /// Cumulative recognised revenue balance for a merchant.
+    RevenueRecognisedBalance(Address),
+    /// List of subscription IDs tracked for a merchant (for analytics).
+    RevenueMerchantSubscriptions(Address),
 }

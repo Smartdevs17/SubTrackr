@@ -3,4 +3,4 @@ export { useTransactionQueueStore } from './transactionQueueStore';
 export { useWalletStore } from './walletStore';
 export { useNetworkStore } from './networkStore';
 export { useCommunityStore } from './communityStore';
-export { useSlaStore } from './slaStore';
+export { useAccountingStore } from './accountingStore';
