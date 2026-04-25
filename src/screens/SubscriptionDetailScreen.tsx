@@ -12,9 +12,10 @@ import {
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { colors, spacing, typography, borderRadius } from '../utils/constants';
-import { useSubscriptionStore } from '../store';
+import { useSubscriptionStore, useSettingsStore } from '../store';
+import { currencyService } from '../services/currencyService';
 import { formatCurrency } from '../utils/formatting';
+
 import { Subscription, SubscriptionCategory } from '../types/subscription';
 import { RootStackParamList } from '../navigation/types';
 import { Button } from '../components/common/Button';
@@ -39,6 +40,9 @@ const SubscriptionDetailScreen: React.FC = () => {
     updateSubscription,
     recordBillingOutcome,
   } = useSubscriptionStore();
+  const { preferredCurrency, exchangeRates } = useSettingsStore();
+  const rates = exchangeRates?.rates || {};
+
 
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
@@ -179,9 +183,23 @@ const SubscriptionDetailScreen: React.FC = () => {
             <View style={styles.priceItem}>
               <Text style={styles.priceLabel}>Amount</Text>
               <Text style={styles.priceValue}>
-                {formatCurrency(subscription.price, subscription.currency)}
+                {formatCurrency(
+                  currencyService.convert(
+                    subscription.price,
+                    subscription.currency,
+                    preferredCurrency,
+                    rates
+                  ),
+                  preferredCurrency
+                )}
               </Text>
+              {subscription.currency !== preferredCurrency && (
+                <Text style={styles.originalPriceDetail}>
+                  Original: {formatCurrency(subscription.price, subscription.currency)}
+                </Text>
+              )}
             </View>
+
             <View style={styles.priceItem}>
               <Text style={styles.priceLabel}>Billing Cycle</Text>
               <Text style={styles.priceValue} testID="subscription-billing-cycle-value">
@@ -482,7 +500,13 @@ const styles = StyleSheet.create({
     ...typography.h3,
     color: colors.text,
   },
+  originalPriceDetail: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  },
   nextBillingRow: {
+
     borderTopWidth: 1,
     borderTopColor: colors.border,
     paddingTop: spacing.md,

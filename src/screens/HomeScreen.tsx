@@ -12,7 +12,8 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
-import { useSubscriptionStore } from '../store';
+import { useSubscriptionStore, useSettingsStore } from '../store';
+
 import { getUpcomingSubscriptions } from '../utils/dummyData';
 import { Subscription } from '../types/subscription';
 import { RootStackParamList } from '../navigation/types';
@@ -37,8 +38,10 @@ const HomeScreen: React.FC = () => {
   const isOnline = useTransactionQueueStore((state) => state.isOnline);
   const pendingTransactions = useTransactionQueueStore((state) => state.queuedTransactions.length);
   const { level } = useGamificationStore();
+  const { preferredCurrency, exchangeRates } = useSettingsStore();
   const [refreshing, setRefreshing] = useState(false);
   const [upcomingSubscriptions, setUpcomingSubscriptions] = useState<Subscription[]>([]);
+
 
   // Use the new hook
   const { filters, filteredAndSorted, activeFilterCount, hasActiveFilters, clearAllFilters } =
@@ -57,7 +60,8 @@ const HomeScreen: React.FC = () => {
   useEffect(() => {
     calculateStats();
     if (subscriptions) setUpcomingSubscriptions(getUpcomingSubscriptions(subscriptions));
-  }, [subscriptions, calculateStats]);
+  }, [subscriptions, calculateStats, preferredCurrency, exchangeRates]);
+
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -156,7 +160,9 @@ const HomeScreen: React.FC = () => {
           totalMonthlySpend={stats.totalMonthlySpend}
           totalActive={stats.totalActive}
           onWalletPress={() => navigation.navigate('WalletConnect')}
+          currency={preferredCurrency}
         />
+
 
         {!isOnline && (
           <View style={styles.errorContainer}>
