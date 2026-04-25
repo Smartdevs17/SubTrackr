@@ -6,6 +6,8 @@ authors = ["SubTrackr Team"]
 description = "Shared contract types for SubTrackr (Soroban)"
 
 [lib]
+name = "subtrackr_types"
+path = "src/lib.rs"
 crate-type = ["rlib"]
 
 [dependencies]

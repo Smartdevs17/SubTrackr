@@ -32,6 +32,66 @@ pub enum SubscriptionStatus {
     PastDue,
 }
 
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum InvoiceStatus {
+    Draft,
+    Sent,
+    Partial,
+    Paid,
+    Void,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct TimeRange {
+    pub start: Timestamp,
+    pub end: Timestamp,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct InvoiceLineItem {
+    pub description: String,
+    pub quantity: u32,
+    pub unit_price: i128,
+    pub currency: String,
+    /// Exchange rate scaled by 1_000_000 to convert to invoice currency.
+    pub exchange_rate: i128,
+    pub tax_rate_bps: u32,
+    pub line_total: i128,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct Invoice {
+    pub id: u64,
+    pub invoice_number: String,
+    pub subscription_id: u64,
+    pub subscriber: Address,
+    pub merchant: Address,
+    pub period: TimeRange,
+    pub line_items: Vec<InvoiceLineItem>,
+    pub subtotal: i128,
+    pub tax: i128,
+    pub total: i128,
+    pub due_date: Timestamp,
+    pub status: InvoiceStatus,
+    pub currency: String,
+    pub region: String,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct InvoiceConfig {
+    pub numbering_prefix: String,
+    pub numbering_padding: u32,
+    pub default_currency: String,
+    pub default_tax_bps: u32,
+    pub exchange_rate_scale: i128,
+    pub payment_terms_secs: Timestamp,
+}
+
 /// A subscription plan created by a merchant.
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
@@ -203,6 +263,15 @@ pub enum StorageKey {
     /// Pending transfer request: subscription_id -> pending recipient
     PendingTransfer(u64),
 
+    // ── Invoice state ──
+    InvoiceCount,
+    Invoice(u64),
+    InvoiceBySubscription(u64),
+    InvoiceConfig,
+    TaxRate(String),
+    ExchangeRate(String),
+    InvoiceContract,
+
     // ── Proxy upgrade state ──
     ProxyImplementation,
     ProxyVersion,
@@ -220,4 +289,16 @@ pub enum StorageKey {
 
     /// Proxy pointer to the state storage contract.
     ProxyStorage,
+
+    // ── Revenue recognition (added with revenue module) ──
+    /// RevenueRecognitionRule keyed by plan_id.
+    RevenueRecognitionRule(u64),
+    /// RevenueSchedule keyed by subscription_id.
+    RevenueSchedule(u64),
+    /// Cumulative deferred revenue balance for a merchant.
+    RevenueDeferredBalance(Address),
+    /// Cumulative recognised revenue balance for a merchant.
+    RevenueRecognisedBalance(Address),
+    /// List of subscription IDs tracked for a merchant (for analytics).
+    RevenueMerchantSubscriptions(Address),
 }

@@ -10,6 +10,7 @@ import {
 } from '../types/subscription';
 import { dummySubscriptions } from '../utils/dummyData'; // eslint-disable-line
 import { advanceBillingDate } from '../utils/billingDate';
+import { buildBillingPeriod } from '../utils/invoice';
 import { BILLING_CONVERSIONS, CACHE_CONSTANTS } from '../utils/constants/values';
 import {
   syncRenewalReminders,
@@ -17,6 +18,7 @@ import {
   presentChargeFailedNotification,
 } from '../services/notificationService';
 import { useGamificationStore } from './gamificationStore';
+import { useInvoiceStore } from './invoiceStore';
 import { AchievementTrigger } from '../types/gamification';
 import { errorHandler, AppError } from '../services/errorHandler';
 
@@ -293,6 +295,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         }
 
         if (outcome === 'success') {
+          const billingPeriod = buildBillingPeriod(sub);
           const next = advanceBillingDate(new Date(sub.nextBillingDate), sub.billingCycle);
           const simulatedGas = 0.01 + Math.random() * 0.005; // Simulate 0.01 - 0.015 XLM gas
           set((state) => ({
@@ -312,6 +315,17 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           }));
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
+
+          await useInvoiceStore.getState().generateInvoiceFromSubscription(
+            {
+              subscription: sub,
+              period: billingPeriod,
+              region: 'GLOBAL',
+              currency: sub.currency,
+              recipientEmail: `${sub.name.toLowerCase().replace(/[^a-z0-9]+/g, '.')}@billing.local`,
+            },
+            0
+          );
         }
       },
 

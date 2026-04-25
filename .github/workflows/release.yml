@@ -5,6 +5,11 @@ on:
     workflows: ['CI/CD Pipeline']
     types: [completed]
   workflow_dispatch:
+    inputs:
+      deploy:
+        description: 'Deployment target (canary|prod)'
+        required: true
+        default: 'canary'
 
 permissions:
   contents: write
@@ -41,3 +46,82 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npx semantic-release
+
+  expo-canary:
+    name: Expo Canary Deploy
+    needs: release
+    if: ${{ github.event.inputs.deploy == 'canary' || github.event_name == 'workflow_run' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Publish to Expo Canary channel
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          npx expo login --token $EXPO_TOKEN
+          npx expo publish --release-channel canary
+
+  expo-promote:
+    name: Promote Canary to Production
+    needs: expo-canary
+    if: ${{ github.event.inputs.deploy == 'prod' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Promote to Production channel
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          npx expo login --token $EXPO_TOKEN
+          npx expo publish --release-channel production --release-channel canary
+
+  expo-rollback:
+    name: Expo Rollback
+    if: ${{ github.event.inputs.deploy == 'rollback' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout previous tag
+        run: |
+          git fetch --tags
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD~1)
+          git checkout $PREV_TAG
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Publish previous build to Production
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          npx expo login --token $EXPO_TOKEN
+          npx expo publish --release-channel production
+
+

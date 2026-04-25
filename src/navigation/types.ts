@@ -9,6 +9,8 @@ export type RootStackParamList = {
   Community: undefined;
   Profile: { subscriber?: string } | undefined;
   Analytics: undefined;
+  InvoiceList: undefined;
+  InvoiceDetail: { id: string };
   GDPRSettings: undefined;
   Settings: undefined;
   AdminDashboard: undefined;
@@ -18,7 +20,7 @@ export type RootStackParamList = {
   SegmentManagement: undefined;
   SegmentDetail: { segmentId: string };
   Gamification: undefined;
-  FraudDashboard: undefined;
+  RevenueReport: undefined;
 };
 
 export type TabParamList = {
@@ -26,5 +28,6 @@ export type TabParamList = {
   AddTab: undefined;
   WalletTab: undefined;
   AnalyticsTab: undefined;
+  RevenueTab: undefined;
   SettingsTab: undefined;
 };

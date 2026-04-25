@@ -129,6 +129,18 @@ const HomeScreen: React.FC = () => {
                 }}>
                 <Text style={{ color: '#fff', fontWeight: 'bold' }}>Segments</Text>
               </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('InvoiceList')}
+                style={{
+                  backgroundColor: colors.surface,
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                }}>
+                <Text style={{ color: colors.text, fontWeight: 'bold' }}>Invoices</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </View>

@@ -18,10 +18,12 @@ import SessionManagementScreen from '../screens/SessionManagementScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import ErrorDashboardScreen from '../screens/ErrorDashboardScreen';
 import AdminDashboardScreen from '../screens/AdminDashboardScreen';
-import FraudDashboard from '../screens/FraudDashboard';
+import InvoiceListScreen from '../screens/InvoiceListScreen';
+import InvoiceDetailScreen from '../screens/InvoiceDetailScreen';
 import { SegmentManagementScreen } from '../screens/SegmentManagementScreen';
 import { SegmentDetailScreen } from '../screens/SegmentDetailScreen';
 import { GamificationScreen } from '../screens/GamificationScreen';
+import RevenueReportScreen from '../screens/RevenueReportScreen';
 import { colors } from '../utils/constants';
 import { RootStackParamList, TabParamList } from './types';
 
@@ -76,6 +78,16 @@ const HomeStack = () => (
       component={GamificationScreen}
       options={{ title: 'Achievements', headerShown: true }}
     />
+    <Stack.Screen
+      name="InvoiceList"
+      component={InvoiceListScreen}
+      options={{ title: 'Invoices', headerShown: true }}
+    />
+    <Stack.Screen
+      name="InvoiceDetail"
+      component={InvoiceDetailScreen}
+      options={{ title: 'Invoice Detail', headerShown: true }}
+    />
   </Stack.Navigator>
 );
 
@@ -116,11 +128,6 @@ const SettingsStack = () => (
       name="ErrorDashboard"
       component={ErrorDashboardScreen}
       options={{ title: 'Error Dashboard', headerShown: true }}
-    />
-    <Stack.Screen
-      name="FraudDashboard"
-      component={FraudDashboard}
-      options={{ title: 'Fraud Dashboard', headerShown: true }}
     />
   </Stack.Navigator>
 );
@@ -174,6 +181,16 @@ const TabNavigator = () => (
         tabBarLabel: 'Analytics',
         tabBarIcon: ({ color, size }) => (
           <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>📊</Text>
+        ),
+      }}
+    />
+    <Tab.Screen
+      name="RevenueTab"
+      component={RevenueReportScreen}
+      options={{
+        tabBarLabel: 'Revenue',
+        tabBarIcon: ({ color, size }) => (
+          <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>💰</Text>
         ),
       }}
     />

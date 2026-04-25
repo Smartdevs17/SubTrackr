@@ -1,6 +1,7 @@
 import { act } from 'react';
 import { expect, describe, it, beforeEach, jest } from '@jest/globals';
 import { useSubscriptionStore } from '../subscriptionStore';
+import { useInvoiceStore } from '../invoiceStore';
 import { SubscriptionCategory, BillingCycle } from '../../types/subscription';
 
 // 🔥 Mock AsyncStorage
@@ -45,6 +46,21 @@ describe('subscriptionStore', () => {
       isLoading: false,
       error: null,
     });
+    useInvoiceStore.setState({
+      invoices: [],
+      config: {
+        numberingPrefix: 'INV',
+        numberingPadding: 6,
+        defaultCurrency: 'USD',
+        defaultRegion: 'GLOBAL',
+        defaultTaxRateBps: 0,
+        exchangeRateScale: 1_000_000,
+        paymentTermsDays: 14,
+      },
+      nextSequence: 1,
+      isLoading: false,
+      error: null,
+    });
   });
 
   // =========================
@@ -69,6 +85,36 @@ describe('subscriptionStore', () => {
     const state = useSubscriptionStore.getState();
     expect(state.subscriptions.length).toBe(1);
     expect(state.subscriptions[0].name).toBe('Netflix');
+  });
+
+  it('generates an invoice after a successful billing event', async () => {
+    useSubscriptionStore.setState({
+      subscriptions: [
+        {
+          id: 'billing-1',
+          name: 'Netflix',
+          category: SubscriptionCategory.STREAMING,
+          price: 10,
+          currency: 'USD',
+          billingCycle: BillingCycle.MONTHLY,
+          nextBillingDate: new Date('2026-05-01T00:00:00Z'),
+          isActive: true,
+          notificationsEnabled: true,
+          isCryptoEnabled: false,
+          createdAt: new Date('2026-04-01T00:00:00Z'),
+          updatedAt: new Date('2026-04-01T00:00:00Z'),
+        },
+      ],
+    });
+
+    await act(async () => {
+      await useSubscriptionStore.getState().recordBillingOutcome('billing-1', 'success');
+    });
+
+    const invoices = useInvoiceStore.getState().invoices;
+    expect(invoices).toHaveLength(1);
+    expect(invoices[0].subscriptionId).toBe('billing-1');
+    expect(invoices[0].status).toBe('draft');
   });
 
   // =========================

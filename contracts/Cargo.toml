@@ -4,7 +4,7 @@ members = [
     "proxy",
     "storage",
     "subscription",
-    "fraud",
+    "invoice",
     "types",
 ]
 
@@ -17,7 +17,3 @@ debug-assertions = false
 panic = "abort"
 codegen-units = 1
 lto = true
-
-[workspace.dependencies]
-soroban-sdk = "21.0.0"
-arbitrary = { version = "1.3", features = ["derive"] }

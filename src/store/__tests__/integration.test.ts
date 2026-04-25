@@ -16,6 +16,7 @@ import { act } from 'react';
 import { expect, describe, it, beforeEach, afterEach, jest } from '@jest/globals';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSubscriptionStore } from '../subscriptionStore';
+import { useInvoiceStore } from '../invoiceStore';
 import { useWalletStore } from '../walletStore';
 import { SubscriptionCategory, BillingCycle } from '../../types/subscription';
 import { BILLING_CONVERSIONS } from '../../utils/constants/values';
@@ -77,6 +78,24 @@ function resetWalletStore() {
   });
 }
 
+function resetInvoiceStore() {
+  useInvoiceStore.setState({
+    invoices: [],
+    config: {
+      numberingPrefix: 'INV',
+      numberingPadding: 6,
+      defaultCurrency: 'USD',
+      defaultRegion: 'GLOBAL',
+      defaultTaxRateBps: 0,
+      exchangeRateScale: 1_000_000,
+      paymentTermsDays: 14,
+    },
+    nextSequence: 1,
+    isLoading: false,
+    error: null,
+  });
+}
+
 const baseFormData = {
   name: 'Netflix',
   category: SubscriptionCategory.STREAMING,
@@ -96,6 +115,7 @@ beforeEach(() => {
   (AsyncStorage.getItem as jest.Mock).mockClear();
   (AsyncStorage.removeItem as jest.Mock).mockClear();
   resetSubscriptionStore();
+  resetInvoiceStore();
   resetWalletStore();
 });
 
@@ -387,6 +407,7 @@ describe('subscriptionStore integration', () => {
     // Monthly advance: April → May
     expect(next.getFullYear()).toBe(2026);
     expect(next.getMonth()).toBe(4); // May (0-indexed)
+    expect(useInvoiceStore.getState().invoices).toHaveLength(1);
   });
 
   // ── recordBillingOutcome: failed outcome does not advance billing date ───────
