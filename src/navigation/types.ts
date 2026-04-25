@@ -9,10 +9,13 @@ export type RootStackParamList = {
   Community: undefined;
   Profile: { subscriber?: string } | undefined;
   Analytics: undefined;
+  SlaDashboard: undefined;
   InvoiceList: undefined;
   InvoiceDetail: { id: string };
   GDPRSettings: undefined;
   Settings: undefined;
+  WebhookSettings: undefined;
+  AccountingExport: undefined;
   AdminDashboard: undefined;
   LanguageSettings: undefined;
   SessionManagement: undefined;

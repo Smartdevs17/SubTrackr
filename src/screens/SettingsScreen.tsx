@@ -40,7 +40,7 @@ const SettingsScreen: React.FC = () => {
   useEffect(() => {
     loadSettings();
     initialize();
-  }, []);
+  }, [initialize]);
 
   const loadSettings = async () => {
     try {
@@ -214,6 +214,17 @@ const SettingsScreen: React.FC = () => {
             accessibilityLabel="Community"
             accessibilityHint="Opens subscriber profiles and forum discussions">
             <Text style={styles.linkText}>Community</Text>
+            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
+              &gt;
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.linkRow}
+            onPress={() => navigation.navigate('AccountingExport')}
+            accessibilityRole="button"
+            accessibilityLabel="Accounting export"
+            accessibilityHint="Opens QuickBooks and Xero subscription export settings">
+            <Text style={styles.linkText}>Accounting Export</Text>
             <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
               &gt;
             </Text>
