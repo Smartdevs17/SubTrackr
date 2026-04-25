@@ -25,7 +25,9 @@ import { SegmentManagementScreen } from '../screens/SegmentManagementScreen';
 import { SegmentDetailScreen } from '../screens/SegmentDetailScreen';
 import { GamificationScreen } from '../screens/GamificationScreen';
 import RevenueReportScreen from '../screens/RevenueReportScreen';
+import UsageDashboardScreen from '../screens/UsageDashboard';
 import { colors } from '../utils/constants';
+
 import { RootStackParamList, TabParamList } from './types';
 
 const Tab = createBottomTabNavigator<TabParamList>();
@@ -94,7 +96,13 @@ const HomeStack = () => (
       component={InvoiceDetailScreen}
       options={{ title: 'Invoice Detail', headerShown: true }}
     />
+    <Stack.Screen
+      name="UsageDashboard"
+      component={UsageDashboardScreen}
+      options={{ headerShown: false }}
+    />
   </Stack.Navigator>
+
 );
 
 const SettingsStack = () => (

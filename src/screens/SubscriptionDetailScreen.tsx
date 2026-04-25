@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { useSubscriptionStore } from '../store';
 import { formatCurrency } from '../utils/formatting';
@@ -20,9 +21,7 @@ import { RootStackParamList } from '../navigation/types';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
 import { ScreenTransition, SharedElement } from '../components/common/SharedElement';
-
-type SubscriptionDetailRouteProp = RouteProp<RootStackParamList, 'SubscriptionDetail'>;
-type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+import { errorHandler } from '../services/errorHandler';
 
 type SubscriptionDetailRouteProp = RouteProp<RootStackParamList, 'SubscriptionDetail'>;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -564,6 +563,7 @@ const styles = StyleSheet.create({
   },
   statusTextInactive: {
     color: colors.textSecondary,
+    fontWeight: typography.weights.medium,
   },
   cryptoBadge: {
     backgroundColor: colors.accent + '20',
@@ -610,6 +610,31 @@ const styles = StyleSheet.create({
   actionButton: {
     width: '100%',
   },
+  usageCard: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    padding: spacing.md,
+  },
+  usageButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    marginTop: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  usageIcon: {
+    marginRight: spacing.md,
+  },
+  usageButtonText: {
+    flex: 1,
+    fontSize: typography.sizes.md,
+    fontWeight: typography.weights.medium,
+    color: colors.text,
+  },
 });
+
 
 export default SubscriptionDetailScreen;
