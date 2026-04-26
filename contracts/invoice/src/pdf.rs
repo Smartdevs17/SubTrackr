@@ -21,7 +21,10 @@ fn collect_lines(invoice: &Invoice) -> StdString {
     let mut body = StdString::new();
     body.push_str("SubTrackr Invoice\n");
     body.push_str("=================\n");
-    body.push_str(&format!("Invoice number: {}\n", invoice.invoice_number.to_string()));
+    body.push_str(&format!(
+        "Invoice number: {}\n",
+        invoice.invoice_number.to_string()
+    ));
     body.push_str(&format!("Invoice ID: {}\n", invoice.id));
     body.push_str(&format!("Subscription ID: {}\n", invoice.subscription_id));
     body.push_str(&format!("Status: {:?}\n", invoice.status));
@@ -34,7 +37,7 @@ fn collect_lines(invoice: &Invoice) -> StdString {
         body.push_str(&line_item_text(&item));
         body.push('\n');
     }
-    body.push_str("\n");
+    body.push('\n');
     body.push_str(&format!("Subtotal: {}\n", invoice.subtotal));
     body.push_str(&format!("Tax: {}\n", invoice.tax));
     body.push_str(&format!("Total: {}\n", invoice.total));

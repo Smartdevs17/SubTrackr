@@ -18,7 +18,9 @@ export interface WebhookPlanLike {
   createdAt: number;
 }
 
-export const toWebhookSubscriptionSnapshot = (subscription: Subscription): WebhookSubscriptionSnapshot => ({
+export const toWebhookSubscriptionSnapshot = (
+  subscription: Subscription
+): WebhookSubscriptionSnapshot => ({
   id: subscription.id,
   planId: subscription.id,
   subscriberId: subscription.id,

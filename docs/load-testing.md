@@ -23,13 +23,17 @@ load-tests/
 ## Running Tests
 
 ### Standard Run
+
 Run the default scenario (Subscription Flow):
+
 ```bash
 npm run load:test
 ```
 
 ### Run Specific Scenario
+
 Use environment variables to select a scenario:
+
 ```bash
 # Windows
 $env:SCENARIO="billing"; npm run load:test
@@ -39,11 +43,13 @@ SCENARIO=billing npm run load:test
 ```
 
 Available scenarios:
+
 - `subscription`: Full End-to-End subscription lifecycle.
 - `billing`: Stress test for monthly recurring billing spikes.
 - `user`: Typical sustained user activity (fetching subscriptions).
 
 ### Pass Custom Parameters
+
 ```bash
 k6 run -e BASE_URL=https://staging.api.subtrackr.com load-tests/run.js
 ```

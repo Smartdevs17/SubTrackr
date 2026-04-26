@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { UserProfile } from '../types/api';
+import { SubscriptionTier } from '../types/subscription';
 
 interface ConsentState {
   analytics: boolean;
@@ -12,8 +13,10 @@ interface ConsentState {
 
 interface UserState {
   user: UserProfile | null;
+  subscriptionTier: SubscriptionTier;
   consent: ConsentState;
   setUser: (user: UserProfile | null) => void;
+  setSubscriptionTier: (subscriptionTier: SubscriptionTier) => void;
   setConsent: (consent: Partial<ConsentState>) => void;
   acceptAll: () => void;
   resetConsent: () => void;
@@ -23,13 +26,21 @@ export const useUserStore = create<UserState>()(
   persist(
     (set) => ({
       user: null,
+      subscriptionTier: SubscriptionTier.FREE,
       consent: {
         analytics: false,
         marketing: false,
         notifications: true, // Default to true for core functionality
         hasAcceptedPolicy: false,
       },
-      setUser: (user) => set(() => ({ user })),
+      setUser: (user) =>
+        set((state) => ({
+          user,
+          subscriptionTier: user
+            ? (user.subscriptionTier ?? state.subscriptionTier)
+            : SubscriptionTier.FREE,
+        })),
+      setSubscriptionTier: (subscriptionTier) => set(() => ({ subscriptionTier })),
       setConsent: (newConsent) =>
         set((state) => ({
           consent: { ...state.consent, ...newConsent },

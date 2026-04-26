@@ -4,25 +4,15 @@ import type {
   WebhookConfig,
   WebhookDelivery,
   WebhookDeliveryStatus,
+  WebhookEventInput,
   WebhookEventPayload,
   WebhookEventType,
   WebhookRetryPolicy,
-  WebhookPlanSnapshot,
-  WebhookSubscriptionSnapshot,
 } from '../../src/types/webhook';
 
-type FetchLike = typeof fetch;
+export type { WebhookEventInput } from '../../src/types/webhook';
 
-export interface WebhookEventInput {
-  webhookId: string;
-  merchantId: string;
-  eventType: WebhookEventType;
-  subscription: WebhookSubscriptionSnapshot;
-  plan: WebhookPlanSnapshot;
-  previousStatus: string;
-  currentStatus: string;
-  occurredAt?: number;
-}
+type FetchLike = typeof fetch;
 
 export interface RegisterWebhookInput {
   merchantId: string;
@@ -133,7 +123,10 @@ export class WebhookDeliveryService {
     return config;
   }
 
-  updateWebhook(id: string, input: Partial<Omit<RegisterWebhookInput, 'merchantId'>>): WebhookConfig {
+  updateWebhook(
+    id: string,
+    input: Partial<Omit<RegisterWebhookInput, 'merchantId'>>
+  ): WebhookConfig {
     const existing = this.webhooks.get(id);
     if (!existing) throw new Error(`Webhook ${id} not found`);
 
@@ -164,7 +157,9 @@ export class WebhookDeliveryService {
   }
 
   listWebhooks(merchantId: string): WebhookConfig[] {
-    return Array.from(this.webhooks.values()).filter((webhook) => webhook.merchantId === merchantId);
+    return Array.from(this.webhooks.values()).filter(
+      (webhook) => webhook.merchantId === merchantId
+    );
   }
 
   getWebhook(id: string): WebhookConfig | undefined {
@@ -184,13 +179,20 @@ export class WebhookDeliveryService {
   getAnalytics(webhookId: string): WebhookAnalytics {
     const deliveries = this.getWebhookDeliveries(webhookId, Number.MAX_SAFE_INTEGER);
     const totalDeliveries = deliveries.length;
-    const successfulDeliveries = deliveries.filter((delivery) => delivery.status === 'delivered').length;
+    const successfulDeliveries = deliveries.filter(
+      (delivery) => delivery.status === 'delivered'
+    ).length;
     const failedDeliveries = deliveries.filter((delivery) => delivery.status === 'failed').length;
     const pendingDeliveries = deliveries.filter((delivery) =>
       ['pending', 'retrying', 'paused'].includes(delivery.status)
     ).length;
-    const retryCount = deliveries.reduce((sum, delivery) => sum + Math.max(0, delivery.attempts - 1), 0);
-    const avgAttempts = totalDeliveries ? deliveries.reduce((sum, d) => sum + d.attempts, 0) / totalDeliveries : 0;
+    const retryCount = deliveries.reduce(
+      (sum, delivery) => sum + Math.max(0, delivery.attempts - 1),
+      0
+    );
+    const avgAttempts = totalDeliveries
+      ? deliveries.reduce((sum, d) => sum + d.attempts, 0) / totalDeliveries
+      : 0;
 
     return {
       webhookId,
@@ -249,25 +251,23 @@ export class WebhookDeliveryService {
     const signature = signWebhookPayload(payload, webhook.secretKey);
     const idempotencyKey = `${payload.id}:${webhook.id}`;
     if (this.deliveredKeys.has(idempotencyKey)) {
-      const skipped = {
-        delivery: {
-          id: createId('del'),
-          webhookId: webhook.id,
-          eventId: payload.id,
-          eventType: payload.eventType,
-          url: webhook.url,
-          payload,
-          status: 'skipped',
-          attempts: 0,
-          maxAttempts: webhook.retryPolicy.maxRetries,
-          createdAt: now(),
-          updatedAt: now(),
-          signature,
-          idempotencyKey,
-        },
+      const delivery: WebhookDelivery = {
+        id: createId('del'),
+        webhookId: webhook.id,
+        eventId: payload.id,
+        eventType: payload.eventType,
+        url: webhook.url,
+        payload,
+        status: 'skipped',
+        attempts: 0,
+        maxAttempts: webhook.retryPolicy.maxRetries,
+        createdAt: now(),
+        updatedAt: now(),
+        signature,
+        idempotencyKey,
       };
-      this.deliveries.set(skipped.delivery.id, skipped.delivery);
-      return skipped;
+      this.deliveries.set(delivery.id, delivery);
+      return { delivery };
     }
 
     const delivery: WebhookDelivery = {
@@ -368,11 +368,16 @@ export class WebhookDeliveryService {
           throw new Error(`HTTP ${response.status}`);
         }
 
-        return this.finalizeDelivery(webhook, next, {
-          status: 'delivered',
-          responseCode: response.status,
-          deliveredAt: now(),
-        }, response);
+        return this.finalizeDelivery(
+          webhook,
+          next,
+          {
+            status: 'delivered',
+            responseCode: response.status,
+            deliveredAt: now(),
+          },
+          response
+        );
       } catch (error) {
         lastError = error instanceof Error ? error.message : 'Webhook delivery failed';
         const isLastAttempt = attempt >= maxAttempts;
@@ -418,10 +423,8 @@ export class WebhookDeliveryService {
 
     const configPatch: Partial<WebhookConfig> = {
       updatedAt: next.updatedAt,
-      successCount:
-        next.status === 'delivered' ? webhook.successCount + 1 : webhook.successCount,
-      failureCount:
-        next.status === 'failed' ? webhook.failureCount + 1 : webhook.failureCount,
+      successCount: next.status === 'delivered' ? webhook.successCount + 1 : webhook.successCount,
+      failureCount: next.status === 'failed' ? webhook.failureCount + 1 : webhook.failureCount,
       lastHealthStatus:
         next.status === 'delivered'
           ? 'healthy'

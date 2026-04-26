@@ -88,9 +88,8 @@ const WalletConnectV2Screen: React.FC = () => {
         previousConnectionRef.current = false;
         await walletServiceManager.disconnectWallet();
         await disconnect();
-        const nextSession = await walletConnectSessionManager.markDisconnected(
-          'wallet_session_closed'
-        );
+        const nextSession =
+          await walletConnectSessionManager.markDisconnected('wallet_session_closed');
 
         if (!active) return;
         setConnection(null);
@@ -157,7 +156,9 @@ const WalletConnectV2Screen: React.FC = () => {
       Alert.alert('Success', 'Wallet disconnected successfully.');
     } catch (error) {
       console.error('Failed to disconnect wallet:', error);
-      setSessionState(await walletConnectSessionManager.markError('walletconnect_disconnect_failed'));
+      setSessionState(
+        await walletConnectSessionManager.markError('walletconnect_disconnect_failed')
+      );
       Alert.alert('Error', 'Failed to disconnect wallet');
     }
   };
@@ -286,7 +287,7 @@ const WalletConnectV2Screen: React.FC = () => {
               <View style={styles.statusRow}>
                 <View style={[styles.statusIndicator, { backgroundColor: statusColor }]} />
                 <Text style={styles.statusText}>
-                  {isHydratingSession ? 'Restoring session' : sessionState?.status ?? 'idle'}
+                  {isHydratingSession ? 'Restoring session' : (sessionState?.status ?? 'idle')}
                 </Text>
               </View>
               {sessionState?.connectedAt ? (
@@ -406,7 +407,10 @@ const WalletConnectV2Screen: React.FC = () => {
 
               <View style={styles.chainInfo}>
                 <View
-                  style={[styles.chainBadge, { backgroundColor: getChainColor(connection.chainId) }]}>
+                  style={[
+                    styles.chainBadge,
+                    { backgroundColor: getChainColor(connection.chainId) },
+                  ]}>
                   <Text style={styles.chainText}>{getChainName(connection.chainId)}</Text>
                 </View>
                 <Text style={styles.chainDescription}>
@@ -442,7 +446,9 @@ const WalletConnectV2Screen: React.FC = () => {
                         </View>
                       </View>
                       <View style={styles.balanceInfo}>
-                        <Text style={styles.tokenBalance}>{parseFloat(token.balance).toFixed(4)}</Text>
+                        <Text style={styles.tokenBalance}>
+                          {parseFloat(token.balance).toFixed(4)}
+                        </Text>
                         <Text style={styles.tokenValue}>
                           ${(parseFloat(token.balance) * getTokenPrice(token.symbol)).toFixed(2)}
                         </Text>

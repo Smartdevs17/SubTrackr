@@ -1,3 +1,5 @@
+import { BillingCycle } from './subscription';
+
 export type WebhookEventType =
   | 'subscription.created'
   | 'subscription.updated'
@@ -62,6 +64,17 @@ export interface WebhookPlanSnapshot {
   createdAt: number;
 }
 
+export interface WebhookEventInput {
+  webhookId: string;
+  merchantId: string;
+  eventType: WebhookEventType;
+  subscription: WebhookSubscriptionSnapshot;
+  plan: WebhookPlanSnapshot;
+  previousStatus: string;
+  currentStatus: string;
+  occurredAt?: number;
+}
+
 export interface WebhookEventPayload {
   id: string;
   webhookId: string;
@@ -117,4 +130,3 @@ export interface WebhookAnalytics {
   lastSuccessAt?: number;
   lastFailureAt?: number;
 }
-import { BillingCycle } from './subscription';

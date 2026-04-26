@@ -15,8 +15,4 @@ export {
   verifyWebhookSignature,
   isWebhookEventAllowed,
 } from './webhook';
-export type {
-  RegisterWebhookInput,
-  WebhookDeliveryResult,
-  WebhookEventInput,
-} from './webhook';
+export type { RegisterWebhookInput, WebhookDeliveryResult, WebhookEventInput } from './webhook';
