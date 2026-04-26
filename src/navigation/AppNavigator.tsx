@@ -172,6 +172,51 @@ const SettingsStack = () => (
       component={ExportScreen} 
       options={{ title: 'Export Subscriptions', headerShown: true }} 
     />
+    <Stack.Screen
+      name="Profile"
+      component={ProfileScreen}
+      options={{ title: 'Profile', headerShown: true }}
+    />
+    <Stack.Screen
+      name="GDPRSettings"
+      component={GDPRSettingsScreen}
+      options={{ title: 'Privacy Settings', headerShown: true }}
+    />
+    <Stack.Screen
+      name="LanguageSettings"
+      component={LanguageSettingsScreen}
+      options={{ title: 'Language', headerShown: true }}
+    />
+    <Stack.Screen
+      name="SessionManagement"
+      component={SessionManagementScreen}
+      options={{ title: 'Sessions', headerShown: true }}
+    />
+    <Stack.Screen
+      name="AdminDashboard"
+      component={AdminDashboardScreen}
+      options={{ title: 'Admin Dashboard', headerShown: true }}
+    />
+    <Stack.Screen
+      name="WebhookSettings"
+      component={WebhookSettingsScreen}
+      options={{ title: 'Webhooks', headerShown: true }}
+    />
+    <Stack.Screen
+      name="AccountingExport"
+      component={AccountingExportScreen}
+      options={{ title: 'Accounting Export', headerShown: true }}
+    />
+    <Stack.Screen
+      name="SlaDashboard"
+      component={SlaDashboard}
+      options={{ title: 'SLA Dashboard', headerShown: true }}
+    />
+    <Stack.Screen
+      name="ErrorDashboard"
+      component={ErrorDashboardScreen}
+      options={{ title: 'Error Dashboard', headerShown: true }}
+    />
   </Stack.Navigator>
 );
 
