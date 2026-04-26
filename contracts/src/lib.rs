@@ -5,13 +5,20 @@
 #![no_std]
 
 use soroban_sdk::{
-    contract, contractimpl, contracttype, Env, Address, String,
-    Vec, Symbol, IntoVal, Val, TryFromVal,
+    contract, contractimpl, contracttype, Address, BytesN, Env, IntoVal, String, Symbol, TryFromVal,
+    Val, Vec,
 };
 
 // ════════════════════════════════════════════════════════════════
 // DATA STRUCTURES
 // ════════════════════════════════════════════════════════════════
+
+#[derive(Clone)]
+#[contracttype]
+enum DataKey {
+    Admin,
+    ContractVersion,
+}
 
 /// Represents a single operation in a batch
 #[derive(Clone)]
@@ -197,6 +204,62 @@ pub struct SubTrackrBatch;
 
 #[contractimpl]
 impl SubTrackrBatch {
+    /// Initialize the contract with an admin.
+    ///
+    /// The admin is required for upgrade operations.
+    pub fn init(env: Env, admin: Address) {
+        if env.storage().instance().has(&DataKey::Admin) {
+            panic!("already initialized");
+        }
+
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::Admin, &admin);
+        env.storage().instance().set(&DataKey::ContractVersion, &1u32);
+
+        env.events()
+            .publish(Symbol::new(&env, "admin_initialized"), admin);
+    }
+
+    /// Upgrade the contract WASM (admin-only).
+    ///
+    /// Note: state is preserved because Soroban upgrades keep instance storage.
+    /// If you need migrations, upgrade first, then call `migrate`.
+    pub fn upgrade(env: Env, new_wasm_hash: BytesN<32>) {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .unwrap_or_else(|| panic!("contract not initialized"));
+        admin.require_auth();
+
+        env.events().publish(
+            Symbol::new(&env, "contract_upgrade_requested"),
+            new_wasm_hash.clone(),
+        );
+
+        env.deployer().update_current_contract_wasm(new_wasm_hash);
+
+        env.events()
+            .publish(Symbol::new(&env, "contract_upgraded"), admin);
+    }
+
+    /// Post-upgrade migration hook (admin-only).
+    pub fn migrate(env: Env, new_version: u32) {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .unwrap_or_else(|| panic!("contract not initialized"));
+        admin.require_auth();
+
+        env.storage()
+            .instance()
+            .set(&DataKey::ContractVersion, &new_version);
+
+        env.events()
+            .publish(Symbol::new(&env, "contract_migrated"), new_version);
+    }
+
     /// Execute a batch of subscription operations
     ///
     /// # Arguments
@@ -225,6 +288,18 @@ impl SubTrackrBatch {
         for (index, operation) in operations.iter().enumerate() {
             let op_index = index as u32;
 
+            // Emit intent event so indexers can follow what was requested, even if it fails later.
+            env.events().publish(
+                (Symbol::new(&env, "operation_requested"), batch_id, op_index),
+                (
+                    user.clone(),
+                    proxy.clone(),
+                    operation.function_name.clone(),
+                    operation.required,
+                    operation.depends_on,
+                ),
+            );
+
             // CHECK: Can we execute this operation?
             if should_fail && atomic {
                 // In atomic mode, stop if previous failed
@@ -236,6 +311,11 @@ impl SubTrackrBatch {
                 };
                 results.push_back(result);
                 failed_count += 1;
+
+                env.events().publish(
+                    (Symbol::new(&env, "operation_failed"), batch_id, op_index),
+                    String::from_str(&env, "Skipped due to atomic failure"),
+                );
                 continue;
             }
 
@@ -253,6 +333,11 @@ impl SubTrackrBatch {
                         };
                         results.push_back(result);
                         failed_count += 1;
+
+                        env.events().publish(
+                            (Symbol::new(&env, "operation_failed"), batch_id, op_index),
+                            String::from_str(&env, "Dependency failed"),
+                        );
 
                         if operation.required {
                             should_fail = true;
@@ -276,11 +361,14 @@ impl SubTrackrBatch {
 
             successful_count += 1;
 
-            // Emit event for operation completion
+            // Emit generic success event
             env.events().publish(
-                (Symbol::new(&env, "operation_success"), batch_id),
-                op_index,
+                (Symbol::new(&env, "operation_success"), batch_id, op_index),
+                operation.function_name.clone(),
             );
+
+            // Emit domain-level events for off-chain indexers.
+            Self::emit_domain_event(&env, batch_id, op_index, &user, &proxy, operation);
         }
 
         // Create batch result
@@ -344,6 +432,50 @@ impl SubTrackrBatch {
         let timestamp = env.ledger().timestamp() as u64;
 
         (seq << 32) | (timestamp & 0xFFFFFFFF)
+    }
+
+    fn emit_domain_event(
+        env: &Env,
+        batch_id: u64,
+        op_index: u32,
+        user: &Address,
+        proxy: &Address,
+        operation: &BatchOperation,
+    ) {
+        let fn_name = operation.function_name.clone();
+
+        // Best-effort mapping based on operation name conventions.
+        // Indexers can also rely on `operation_requested` / `operation_success` for full coverage.
+        let topic = if fn_name == String::from_str(env, "create_plan")
+            || fn_name == String::from_str(env, "plan_create")
+            || fn_name == String::from_str(env, "createPlan")
+        {
+            Some(Symbol::new(env, "plan_created"))
+        } else if fn_name == String::from_str(env, "subscribe")
+            || fn_name == String::from_str(env, "start_subscription")
+            || fn_name == String::from_str(env, "subscription_start")
+        {
+            Some(Symbol::new(env, "subscription_started"))
+        } else if fn_name == String::from_str(env, "process_payment")
+            || fn_name == String::from_str(env, "payment_process")
+            || fn_name == String::from_str(env, "pay")
+        {
+            Some(Symbol::new(env, "payment_processed"))
+        } else if fn_name == String::from_str(env, "cancel_subscription")
+            || fn_name == String::from_str(env, "subscription_cancel")
+            || fn_name == String::from_str(env, "cancel")
+        {
+            Some(Symbol::new(env, "subscription_cancelled"))
+        } else {
+            None
+        };
+
+        if let Some(topic) = topic {
+            env.events().publish(
+                (topic, batch_id, op_index),
+                (user.clone(), proxy.clone(), operation.params.clone()),
+            );
+        }
     }
 
     /// Get batch status
