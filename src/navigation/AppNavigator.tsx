@@ -4,6 +4,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { navigationRef } from './navigationRef';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { useTranslation } from 'react-i18next';
 import HomeScreen from '../screens/HomeScreen';
 import AddSubscriptionScreen from '../screens/AddSubscriptionScreen';
 import WalletConnectScreen from '../screens/WalletConnectV2Screen';
@@ -146,80 +147,84 @@ const SettingsStack = () => (
   </Stack.Navigator>
 );
 
-const TabNavigator = () => (
-  <Tab.Navigator
-    screenOptions={{
-      tabBarStyle: {
-        backgroundColor: colors.surface,
-        borderTopColor: colors.border,
-        borderTopWidth: 1,
-      },
-      tabBarActiveTintColor: colors.primary,
-      tabBarInactiveTintColor: colors.textSecondary,
-      headerShown: false,
-    }}>
-    <Tab.Screen
-      name="HomeTab"
-      component={HomeStack}
-      options={{
-        tabBarLabel: 'Home',
-        tabBarIcon: ({ color, size }) => (
-          <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>🏠</Text>
-        ),
-      }}
-    />
-    <Tab.Screen
-      name="AddTab"
-      component={AddSubscriptionScreen}
-      options={{
-        tabBarLabel: 'Add',
-        tabBarIcon: ({ color, size }) => (
-          <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>➕</Text>
-        ),
-      }}
-    />
-    <Tab.Screen
-      name="WalletTab"
-      component={WalletConnectScreen}
-      options={{
-        tabBarLabel: 'Wallet',
-        tabBarIcon: ({ color, size }) => (
-          <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>🔗</Text>
-        ),
-      }}
-    />
-    <Tab.Screen
-      name="AnalyticsTab"
-      component={AnalyticsScreen}
-      options={{
-        tabBarLabel: 'Analytics',
-        tabBarIcon: ({ color, size }) => (
-          <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>📊</Text>
-        ),
-      }}
-    />
-    <Tab.Screen
-      name="RevenueTab"
-      component={RevenueReportScreen}
-      options={{
-        tabBarLabel: 'Revenue',
-        tabBarIcon: ({ color, size }) => (
-          <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>💰</Text>
-        ),
-      }}
-    />
-    <Tab.Screen
-      name="SettingsTab"
-      component={SettingsStack}
-      options={{
-        tabBarLabel: 'Settings',
-        tabBarIcon: ({ color, size }) => (
-          <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>⚙️</Text>
-        ),
-      }}
-    />
-  </Tab.Navigator>
-);
+const TabNavigator = () => {
+  const { t } = useTranslation();
+
+  return (
+    <Tab.Navigator
+      screenOptions={{
+        tabBarStyle: {
+          backgroundColor: colors.surface,
+          borderTopColor: colors.border,
+          borderTopWidth: 1,
+        },
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textSecondary,
+        headerShown: false,
+      }}>
+      <Tab.Screen
+        name="HomeTab"
+        component={HomeStack}
+        options={{
+          tabBarLabel: t('navigation.home'),
+          tabBarIcon: ({ color, size }) => (
+            <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>🏠</Text>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="AddTab"
+        component={AddSubscriptionScreen}
+        options={{
+          tabBarLabel: t('navigation.add'),
+          tabBarIcon: ({ color, size }) => (
+            <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>➕</Text>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="WalletTab"
+        component={WalletConnectScreen}
+        options={{
+          tabBarLabel: t('navigation.wallet'),
+          tabBarIcon: ({ color, size }) => (
+            <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>🔗</Text>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="AnalyticsTab"
+        component={AnalyticsScreen}
+        options={{
+          tabBarLabel: t('navigation.analytics'),
+          tabBarIcon: ({ color, size }) => (
+            <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>📊</Text>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="RevenueTab"
+        component={RevenueReportScreen}
+        options={{
+          tabBarLabel: t('navigation.revenue'),
+          tabBarIcon: ({ color, size }) => (
+            <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>💰</Text>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="SettingsTab"
+        component={SettingsStack}
+        options={{
+          tabBarLabel: t('navigation.settings'),
+          tabBarIcon: ({ color, size }) => (
+            <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>⚙️</Text>
+          ),
+        }}
+      />
+    </Tab.Navigator>
+  );
+};
 
 export const AppNavigator = () => {
   return (
