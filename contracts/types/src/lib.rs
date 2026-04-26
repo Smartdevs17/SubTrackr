@@ -6,6 +6,7 @@ use soroban_sdk::{contracttype, Address, String, Vec};
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
 pub enum Interval {
+    Daily,     // 86400s
     Weekly,    // 604800s
     Monthly,   // 2592000s (30 days)
     Quarterly, // 7776000s (90 days)
@@ -15,6 +16,7 @@ pub enum Interval {
 impl Interval {
     pub fn seconds(&self) -> u64 {
         match self {
+            Interval::Daily => 86_400,
             Interval::Weekly => 604_800,
             Interval::Monthly => 2_592_000,
             Interval::Quarterly => 7_776_000,
@@ -135,6 +137,49 @@ pub enum UpgradeAction {
     Executed,
     RolledBack,
     Cancelled,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum QuotaMetric {
+    ApiCalls,
+    Storage, // in MB
+    Seats,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum RolloverPolicy {
+    NoRollover,
+    RolloverAll,
+    RolloverCap(u64),
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct Quota {
+    pub metric: QuotaMetric,
+    pub limit: u64,
+    pub period: Interval,
+    pub rollover_policy: RolloverPolicy,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct UsageRecord {
+    pub subscription_id: u64,
+    pub metric: QuotaMetric,
+    pub current_usage: u64,
+    pub period_start: u64,
+    pub rollover_balance: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum QuotaStatus {
+    WithinLimit,
+    SoftLimitReached,
+    HardLimitReached,
 }
 
 #[contracttype]
@@ -344,4 +389,10 @@ pub enum StorageKey {
     RevenueRecognisedBalance(Address),
     /// List of subscription IDs tracked for a merchant (for analytics).
     RevenueMerchantSubscriptions(Address),
+
+    // ── Added in storage version 4 (Quota & Usage) ──
+    /// List of quotas for a given plan (plan_id -> Vec<Quota>)
+    PlanQuotas(u64),
+    /// Usage record for a subscription and metric (sub_id, metric -> UsageRecord)
+    SubscriptionUsage(u64, QuotaMetric),
 }

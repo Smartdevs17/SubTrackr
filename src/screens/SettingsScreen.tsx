@@ -19,6 +19,7 @@ import { Card } from '../components/common/Card';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
+import { useTranslation } from 'react-i18next';
 
 const APP_VERSION = '1.0.0';
 interface Settings {
@@ -28,6 +29,7 @@ interface Settings {
 const SETTINGS_KEY = '@subtrackr_settings';
 
 const SettingsScreen: React.FC = () => {
+  const { t } = useTranslation();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { address, disconnect } = useWalletStore();
   const { currentNetwork, availableNetworks, setNetwork, initialize } = useNetworkStore();
@@ -70,22 +72,22 @@ const SettingsScreen: React.FC = () => {
   );
 
   const handleDisconnectWallet = useCallback(() => {
-    Alert.alert('Disconnect Wallet', 'Are you sure you want to disconnect your wallet?', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('settings.disconnect_wallet'), t('settings.disconnect_wallet_confirm'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Disconnect',
+        text: t('settings.disconnect'),
         style: 'destructive',
         onPress: async () => {
           try {
             await disconnect();
-            Alert.alert('Success', 'Wallet disconnected');
+            Alert.alert(t('common.success'), t('settings.wallet_disconnected'));
           } catch {
-            Alert.alert('Error', 'Failed to disconnect wallet');
+            Alert.alert(t('common.error'), t('settings.wallet_disconnect_failed'));
           }
         },
       },
     ]);
-  }, [disconnect]);
+  }, [disconnect, t]);
 
   const currencies = ['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD'];
   const shortenAddress = (addr: string): string =>
@@ -95,16 +97,16 @@ const SettingsScreen: React.FC = () => {
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.scrollView}>
         <View style={styles.header}>
-          <Text style={styles.title}>Settings</Text>
-          <Text style={styles.subtitle}>Configure your preferences</Text>
+          <Text style={styles.title}>{t('settings.title')}</Text>
+          <Text style={styles.subtitle}>{t('settings.subtitle')}</Text>
         </View>
         <Card style={styles.section}>
           <Text style={styles.sectionTitle} accessibilityRole="header">
-            Account
+            {t('settings.sections.account')}
           </Text>
           <View style={styles.settingRow}>
             <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>Wallet Address</Text>
+              <Text style={styles.settingLabel}>{t('settings.wallet_address')}</Text>
               <Text style={styles.settingValue}>{shortenAddress(address || '')}</Text>
             </View>
           </View>
@@ -112,12 +114,12 @@ const SettingsScreen: React.FC = () => {
             style={styles.settingRow}
             onPress={() => setNetworkModalVisible(true)}
             accessibilityRole="button"
-            accessibilityLabel="Select network"
-            accessibilityHint="Opens network selection modal">
+            accessibilityLabel={t('settings.select_network')}
+            accessibilityHint={t('settings.select_network_hint')}>
             <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>Network</Text>
+              <Text style={styles.settingLabel}>{t('settings.network')}</Text>
               <Text style={styles.settingValue}>
-                {currentNetwork ? currentNetwork.name : 'Select Network'}
+                {currentNetwork ? currentNetwork.name : t('settings.select_network')}
               </Text>
             </View>
             <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
@@ -129,27 +131,27 @@ const SettingsScreen: React.FC = () => {
               style={styles.dangerButton}
               onPress={handleDisconnectWallet}
               accessibilityRole="button"
-              accessibilityLabel="Disconnect wallet"
-              accessibilityHint="Disconnects your connected crypto wallet">
-              <Text style={styles.dangerButtonText}>Disconnect Wallet</Text>
+              accessibilityLabel={t('settings.disconnect_wallet')}
+              accessibilityHint={t('settings.disconnect_wallet_hint')}>
+              <Text style={styles.dangerButtonText}>{t('settings.disconnect_wallet')}</Text>
             </TouchableOpacity>
           )}
         </Card>
         <Card style={styles.section}>
           <Text style={styles.sectionTitle} accessibilityRole="header">
-            Notifications
+            {t('settings.sections.notifications')}
           </Text>
           <View style={styles.settingRow}>
             <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>Billing Reminders</Text>
-              <Text style={styles.settingDescription}>Get notified before subscriptions renew</Text>
+              <Text style={styles.settingLabel}>{t('settings.billing_reminders')}</Text>
+              <Text style={styles.settingDescription}>{t('settings.billing_reminders_desc')}</Text>
             </View>
             <Switch
               value={settings.notificationsEnabled}
               onValueChange={handleNotificationToggle}
               trackColor={{ false: colors.border, true: colors.primary }}
               thumbColor={colors.text}
-              accessibilityLabel="Billing reminders"
+              accessibilityLabel={t('settings.billing_reminders')}
               accessibilityRole="switch"
               accessibilityState={{ checked: settings.notificationsEnabled }}
             />
@@ -157,12 +159,12 @@ const SettingsScreen: React.FC = () => {
         </Card>
         <Card style={styles.section}>
           <Text style={styles.sectionTitle} accessibilityRole="header">
-            Preferences
+            {t('settings.sections.preferences')}
           </Text>
           <View style={styles.settingRow}>
             <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>Default Currency</Text>
-              <Text style={styles.settingDescription}>Currency for new subscriptions</Text>
+              <Text style={styles.settingLabel}>{t('settings.default_currency')}</Text>
+              <Text style={styles.settingDescription}>{t('settings.default_currency_desc')}</Text>
             </View>
           </View>
           <View style={styles.currencyGrid}>
@@ -190,19 +192,19 @@ const SettingsScreen: React.FC = () => {
         </Card>
         <Card style={styles.section}>
           <Text style={styles.sectionTitle} accessibilityRole="header">
-            About
+            {t('settings.sections.about')}
           </Text>
           <View style={styles.settingRow}>
-            <Text style={styles.settingLabel}>Version</Text>
+            <Text style={styles.settingLabel}>{t('settings.version')}</Text>
             <Text style={styles.settingValue}>{APP_VERSION}</Text>
           </View>
           <TouchableOpacity
             style={styles.linkRow}
             onPress={() => Linking.openURL('mailto:support@subtrackr.app')}
             accessibilityRole="link"
-            accessibilityLabel="Contact Support"
-            accessibilityHint="Opens your email app to contact support">
-            <Text style={styles.linkText}>Contact Support</Text>
+            accessibilityLabel={t('settings.contact_support')}
+            accessibilityHint={t('settings.contact_support_hint')}>
+            <Text style={styles.linkText}>{t('settings.contact_support')}</Text>
             <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
               →
             </Text>
@@ -211,9 +213,9 @@ const SettingsScreen: React.FC = () => {
             style={styles.linkRow}
             onPress={() => navigation.navigate('Community')}
             accessibilityRole="button"
-            accessibilityLabel="Community"
-            accessibilityHint="Opens subscriber profiles and forum discussions">
-            <Text style={styles.linkText}>Community</Text>
+            accessibilityLabel={t('settings.community')}
+            accessibilityHint={t('settings.community_hint')}>
+            <Text style={styles.linkText}>{t('settings.community')}</Text>
             <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
               &gt;
             </Text>
@@ -233,9 +235,9 @@ const SettingsScreen: React.FC = () => {
             style={styles.linkRow}
             onPress={() => navigation.navigate('WebhookSettings')}
             accessibilityRole="button"
-            accessibilityLabel="Webhook settings"
-            accessibilityHint="Opens subscription webhook management">
-            <Text style={styles.linkText}>Webhooks</Text>
+            accessibilityLabel={t('settings.webhooks')}
+            accessibilityHint={t('settings.webhooks_hint')}>
+            <Text style={styles.linkText}>{t('settings.webhooks')}</Text>
             <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
               →
             </Text>
@@ -244,9 +246,9 @@ const SettingsScreen: React.FC = () => {
             style={styles.linkRow}
             onPress={() => navigation.navigate('AdminDashboard')}
             accessibilityRole="button"
-            accessibilityLabel="Admin dashboard"
-            accessibilityHint="Opens the web-style admin dashboard view">
-            <Text style={styles.linkText}>Admin Dashboard</Text>
+            accessibilityLabel={t('settings.admin_dashboard')}
+            accessibilityHint={t('settings.admin_dashboard_hint')}>
+            <Text style={styles.linkText}>{t('settings.admin_dashboard')}</Text>
             <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
               →
             </Text>
@@ -255,9 +257,9 @@ const SettingsScreen: React.FC = () => {
             style={styles.linkRow}
             onPress={() => navigation.navigate('SlaDashboard')}
             accessibilityRole="button"
-            accessibilityLabel="SLA dashboard"
-            accessibilityHint="Opens the SLA management dashboard">
-            <Text style={styles.linkText}>SLA Dashboard</Text>
+            accessibilityLabel={t('settings.sla_dashboard')}
+            accessibilityHint={t('settings.sla_dashboard_hint')}>
+            <Text style={styles.linkText}>{t('settings.sla_dashboard')}</Text>
             <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
               →
             </Text>
@@ -266,9 +268,9 @@ const SettingsScreen: React.FC = () => {
             style={styles.linkRow}
             onPress={() => navigation.navigate('LanguageSettings')}
             accessibilityRole="button"
-            accessibilityLabel="Language settings"
-            accessibilityHint="Opens language selection screen">
-            <Text style={styles.linkText}>Language</Text>
+            accessibilityLabel={t('settings.language')}
+            accessibilityHint={t('settings.language_hint')}>
+            <Text style={styles.linkText}>{t('settings.language')}</Text>
             <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
               →
             </Text>
@@ -277,9 +279,9 @@ const SettingsScreen: React.FC = () => {
             style={styles.linkRow}
             onPress={() => navigation.navigate('SessionManagement')}
             accessibilityRole="button"
-            accessibilityLabel="Session management"
-            accessibilityHint="Opens active session security controls">
-            <Text style={styles.linkText}>Session Management</Text>
+            accessibilityLabel={t('settings.session_management')}
+            accessibilityHint={t('settings.session_management_hint')}>
+            <Text style={styles.linkText}>{t('settings.session_management')}</Text>
             <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
               →
             </Text>
@@ -288,7 +290,7 @@ const SettingsScreen: React.FC = () => {
             <TouchableOpacity
               style={styles.linkRow}
               onPress={() => navigation.navigate('ErrorDashboard')}>
-              <Text style={styles.linkText}>Error Dashboard</Text>
+              <Text style={styles.linkText}>{t('settings.error_dashboard')}</Text>
               <Text style={styles.linkArrow}>→</Text>
             </TouchableOpacity>
           )}
@@ -296,9 +298,9 @@ const SettingsScreen: React.FC = () => {
             style={styles.linkRow}
             onPress={() => Linking.openURL('https://subtrackr.app/privacy')}
             accessibilityRole="link"
-            accessibilityLabel="Privacy Policy"
-            accessibilityHint="Opens privacy policy in browser">
-            <Text style={styles.linkText}>Privacy Policy</Text>
+            accessibilityLabel={t('settings.privacy_policy')}
+            accessibilityHint={t('settings.privacy_policy_hint')}>
+            <Text style={styles.linkText}>{t('settings.privacy_policy')}</Text>
             <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
               →
             </Text>
@@ -307,9 +309,9 @@ const SettingsScreen: React.FC = () => {
             style={[styles.linkRow, styles.linkRowLast]}
             onPress={() => Linking.openURL('https://subtrackr.app/terms')}
             accessibilityRole="link"
-            accessibilityLabel="Terms of Service"
-            accessibilityHint="Opens terms of service in browser">
-            <Text style={styles.linkText}>Terms of Service</Text>
+            accessibilityLabel={t('settings.terms_of_service')}
+            accessibilityHint={t('settings.terms_of_service_hint')}>
+            <Text style={styles.linkText}>{t('settings.terms_of_service')}</Text>
             <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
               →
             </Text>
@@ -327,10 +329,10 @@ const SettingsScreen: React.FC = () => {
               <TouchableOpacity
                 onPress={() => setNetworkModalVisible(false)}
                 accessibilityRole="button"
-                accessibilityLabel="Close network selection">
-                <Text style={styles.closeButton}>Cancel</Text>
+                accessibilityLabel={t('settings.close_network_selection')}>
+                <Text style={styles.closeButton}>{t('common.cancel')}</Text>
               </TouchableOpacity>
-              <Text style={styles.modalTitle}>Select Network</Text>
+              <Text style={styles.modalTitle}>{t('settings.select_network')}</Text>
               <View style={{ width: 50 }} />
             </View>
             <FlatList
@@ -347,12 +349,13 @@ const SettingsScreen: React.FC = () => {
                     setNetworkModalVisible(false);
                   }}
                   accessibilityRole="radio"
-                  accessibilityLabel={`Select ${item.name}`}
+                  accessibilityLabel={t('settings.select_network_item', { name: item.name })}
                   accessibilityState={{ checked: currentNetwork?.id === item.id }}>
                   <View style={styles.networkInfo}>
                     <Text style={styles.networkName}>{item.name}</Text>
                     <Text style={styles.networkType}>
-                      {item.type.toUpperCase()} {item.isTestnet ? '(Testnet)' : '(Mainnet)'}
+                      {item.type.toUpperCase()}{' '}
+                      {item.isTestnet ? t('settings.testnet') : t('settings.mainnet')}
                     </Text>
                   </View>
                   {currentNetwork?.id === item.id && <Text style={styles.checkmark}>✓</Text>}

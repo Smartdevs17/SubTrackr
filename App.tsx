@@ -6,6 +6,9 @@ import { AppNavigator } from './src/navigation/AppNavigator';
 import { useNotifications } from './src/hooks/useNotifications';
 import { useTransactionQueue } from './src/hooks/useTransactionQueue';
 import ErrorBoundary from './src/components/ErrorBoundary';
+import { initI18n } from './src/i18n/config';
+import i18n from './src/i18n/config';
+import { I18nextProvider } from 'react-i18next';
 
 // Import WalletConnect compatibility layer
 import '@walletconnect/react-native-compat';
@@ -82,13 +85,34 @@ function NotificationBootstrap() {
 }
 
 export default function App() {
+  const [i18nReady, setI18nReady] = React.useState(false);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      try {
+        await initI18n();
+      } finally {
+        if (!cancelled) setI18nReady(true);
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!i18nReady) return null;
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={{ flex: 1 }} testID="app-root">
         <StatusBar style="light" />
         <ErrorBoundary>
-          <NotificationBootstrap />
-          <AppNavigator />
+          <I18nextProvider i18n={i18n}>
+            <NotificationBootstrap />
+            <AppNavigator />
+          </I18nextProvider>
         </ErrorBoundary>
         <AppKit />
       </View>

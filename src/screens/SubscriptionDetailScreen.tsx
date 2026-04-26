@@ -562,6 +562,7 @@ const styles = StyleSheet.create({
   },
   statusTextInactive: {
     color: colors.textSecondary,
+    fontWeight: '500',
   },
   cryptoBadge: {
     backgroundColor: colors.accent + '20',
@@ -607,6 +608,30 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     width: '100%',
+  },
+  usageCard: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    padding: spacing.md,
+  },
+  usageButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    marginTop: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  usageIcon: {
+    marginRight: spacing.md,
+  },
+  usageButtonText: {
+    ...typography.body,
+    flex: 1,
+    fontWeight: '500',
+    color: colors.text,
   },
 });
 
