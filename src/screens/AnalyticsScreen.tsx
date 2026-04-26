@@ -162,19 +162,33 @@ const AnalyticsScreen: React.FC = () => {
           ))}
         </View>
         <View style={styles.summaryContainer}>
-          <Card
-            style={styles.summaryCard}
-            accessible={true}
-            accessibilityLabel={`Monthly spend, $${stats.totalMonthlySpend.toFixed(2)}`}>
-            <Text style={styles.summaryLabel} accessibilityElementsHidden={true} importantForAccessibility="no">Monthly Spend</Text>
-            <Text style={styles.summaryValue} accessibilityElementsHidden={true} importantForAccessibility="no">${stats.totalMonthlySpend.toFixed(2)}</Text>
+          <Card style={styles.summaryCard}>
+            <Text
+              style={styles.summaryLabel}
+              accessibilityElementsHidden={true}
+              importantForAccessibility="no">
+              Monthly Spend
+            </Text>
+            <Text
+              style={styles.summaryValue}
+              accessibilityElementsHidden={true}
+              importantForAccessibility="no">
+              ${stats.totalMonthlySpend.toFixed(2)}
+            </Text>
           </Card>
-          <Card
-            style={styles.summaryCard}
-            accessible={true}
-            accessibilityLabel={`Yearly estimate, $${stats.totalYearlySpend.toFixed(2)}`}>
-            <Text style={styles.summaryLabel} accessibilityElementsHidden={true} importantForAccessibility="no">Yearly Estimate</Text>
-            <Text style={styles.summaryValue} accessibilityElementsHidden={true} importantForAccessibility="no">${stats.totalYearlySpend.toFixed(2)}</Text>
+          <Card style={styles.summaryCard}>
+            <Text
+              style={styles.summaryLabel}
+              accessibilityElementsHidden={true}
+              importantForAccessibility="no">
+              Yearly Estimate
+            </Text>
+            <Text
+              style={styles.summaryValue}
+              accessibilityElementsHidden={true}
+              importantForAccessibility="no">
+              ${stats.totalYearlySpend.toFixed(2)}
+            </Text>
           </Card>
         </View>
         <Card style={styles.chartCard}>

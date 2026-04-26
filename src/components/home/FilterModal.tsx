@@ -116,10 +116,7 @@ export const FilterModal: React.FC<FilterModalProps> = ({
                 return (
                   <TouchableOpacity
                     key={cycle}
-                    style={[
-                      styles.billingCycleChip,
-                      isSelected && styles.billingCycleChipSelected,
-                    ]}
+                    style={[styles.billingCycleChip, isSelected && styles.billingCycleChipSelected]}
                     onPress={() => toggleBillingCycle(cycle)}
                     accessibilityRole="checkbox"
                     accessibilityLabel={label}

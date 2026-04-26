@@ -63,9 +63,7 @@ const ErrorDashboardScreen: React.FC = () => {
         </Text>
       </View>
       <Text style={styles.errorMessage}>{item.userMessage}</Text>
-      <Text style={styles.errorTimestamp}>
-        {item.context.timestamp.toLocaleString()}
-      </Text>
+      <Text style={styles.errorTimestamp}>{item.context.timestamp.toLocaleString()}</Text>
       {item.context.component && (
         <Text style={styles.errorComponent}>Component: {item.context.component}</Text>
       )}
@@ -90,9 +88,21 @@ const ErrorDashboardScreen: React.FC = () => {
         {/* Statistics Cards */}
         <View style={styles.statsContainer}>
           {renderStatCard('Total Errors', errorStats.total, colors.error)}
-          {renderStatCard('Critical', errorStats.bySeverity[ErrorSeverity.CRITICAL] || 0, colors.error)}
-          {renderStatCard('High Priority', errorStats.bySeverity[ErrorSeverity.HIGH] || 0, '#dc2626')}
-          {renderStatCard('Validation', errorStats.byType[ErrorType.VALIDATION] || 0, colors.warning)}
+          {renderStatCard(
+            'Critical',
+            errorStats.bySeverity[ErrorSeverity.CRITICAL] || 0,
+            colors.error
+          )}
+          {renderStatCard(
+            'High Priority',
+            errorStats.bySeverity[ErrorSeverity.HIGH] || 0,
+            '#dc2626'
+          )}
+          {renderStatCard(
+            'Validation',
+            errorStats.byType[ErrorType.VALIDATION] || 0,
+            colors.warning
+          )}
           {renderStatCard('Network', errorStats.byType[ErrorType.NETWORK] || 0, '#3b82f6')}
           {renderStatCard('Crypto', errorStats.byType[ErrorType.CRYPTO] || 0, colors.accent)}
         </View>
@@ -108,8 +118,7 @@ const ErrorDashboardScreen: React.FC = () => {
                 // Force re-render by triggering navigation
                 navigation.goBack();
                 setTimeout(() => navigation.navigate('ErrorDashboard'), 100);
-              }}
-            >
+              }}>
               <Text style={styles.clearButtonText}>Clear All</Text>
             </TouchableOpacity>
           </View>

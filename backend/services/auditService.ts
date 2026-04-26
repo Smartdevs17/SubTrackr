@@ -145,7 +145,7 @@ export class AuditService {
   applyRetention(): number {
     const cutoff = Date.now() - this.retention.maxAgeMs;
     const before = this.log.length;
-    this.log = this.log.filter((e) => e.timestamp >= cutoff);
+    this.log = this.log.filter((e) => e.timestamp > cutoff);
     return before - this.log.length; // number of events pruned
   }
 

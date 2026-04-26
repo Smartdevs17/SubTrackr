@@ -125,11 +125,11 @@ cp .env.example .env
 
 > **Note**: If `.env.example` doesn't exist, create a new `.env` file with the following variables:
 
-| Variable             | Description                               | Example Value                                                     |
-| -------------------- | ----------------------------------------- | ----------------------------------------------------------------- |
-| `STELLAR_NETWORK`    | `testnet` or `public` Stellar network     | `testnet`                                                         |
-| `CONTRACT_ID`        | Deployed SubTrackr proxy contract ID (stable) | `CB64...` (your deployed proxy contract address)               |
-| `WEB3AUTH_CLIENT_ID` | Web3Auth client ID for social login       | Get one from [Web3Auth Dashboard](https://dashboard.web3auth.io/) |
+| Variable             | Description                                   | Example Value                                                     |
+| -------------------- | --------------------------------------------- | ----------------------------------------------------------------- |
+| `STELLAR_NETWORK`    | `testnet` or `public` Stellar network         | `testnet`                                                         |
+| `CONTRACT_ID`        | Deployed SubTrackr proxy contract ID (stable) | `CB64...` (your deployed proxy contract address)                  |
+| `WEB3AUTH_CLIENT_ID` | Web3Auth client ID for social login           | Get one from [Web3Auth Dashboard](https://dashboard.web3auth.io/) |
 
 ### 4. Run the Mobile App
 
@@ -243,6 +243,7 @@ SubTrackr prioritizes the security of your subscriptions and on-chain transactio
 - **Reporting**: Found a vulnerability? Please see our [Security Policy](docs/security.md) for reporting guidelines.
 
 To run a manual security audit:
+
 ```bash
 npm run security:audit
 ```

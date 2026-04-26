@@ -49,6 +49,35 @@ ios/
 _typechain_tmp/
 _tc_verify/
 
+# Feature flags and A/B testing data
+feature_flags_cache/
+ab_test_data/
+
+# User data and analytics
+user_analytics/
+local_user_data/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Logs
+logs/
+*.log
+
+# Coverage reports
+coverage/
+.nyc_output/
+
+# VS Code
+.vscode/settings.json
+!.vscode/extensions.json
+
+# React Native
+.expo-shared/
+
+
 # Build artifacts
 build_errors*.txt
 *.log

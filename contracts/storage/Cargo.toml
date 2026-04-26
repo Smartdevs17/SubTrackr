@@ -6,6 +6,8 @@ authors = ["SubTrackr Team"]
 description = "State storage contract for SubTrackr (Soroban)"
 
 [lib]
+name = "subtrackr_storage"
+path = "src/lib.rs"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]

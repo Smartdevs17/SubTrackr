@@ -34,8 +34,8 @@ const GDPRSettingsScreen = () => {
       'Are you sure you want to delete your account? This action will anonymize your data and revoke access to all subscriptions. It cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete Everything', 
+        {
+          text: 'Delete Everything',
           style: 'destructive',
           onPress: async () => {
             setLoading(true);
@@ -47,7 +47,7 @@ const GDPRSettingsScreen = () => {
             } finally {
               setLoading(false);
             }
-          }
+          },
         },
       ]
     );
@@ -92,31 +92,33 @@ const GDPRSettingsScreen = () => {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Your Data Rights</Text>
-        
-        <TouchableOpacity 
-          style={styles.button} 
+
+        <TouchableOpacity
+          style={styles.button}
           onPress={handleExport}
           disabled={loading}
           accessibilityRole="button"
           accessibilityLabel="Export my data as JSON"
           accessibilityHint="Downloads a copy of your profile, subscriptions, and billing history"
-          accessibilityState={{ disabled: loading, busy: loading }}
-        >
-          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Export My Data (JSON)</Text>}
+          accessibilityState={{ disabled: loading, busy: loading }}>
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.buttonText}>Export My Data (JSON)</Text>
+          )}
         </TouchableOpacity>
         <Text style={styles.infoText}>
           Download a structured copy of your profile, subscriptions, and billing history.
         </Text>
 
-        <TouchableOpacity 
-          style={[styles.button, styles.deleteButton]} 
+        <TouchableOpacity
+          style={[styles.button, styles.deleteButton]}
           onPress={handleDeleteAccount}
           disabled={loading}
           accessibilityRole="button"
           accessibilityLabel="Delete my account"
           accessibilityHint="Permanently anonymizes your personal data. This cannot be undone."
-          accessibilityState={{ disabled: loading }}
-        >
+          accessibilityState={{ disabled: loading }}>
           <Text style={styles.buttonText}>Delete My Account</Text>
         </TouchableOpacity>
         <Text style={styles.infoText}>
@@ -126,8 +128,8 @@ const GDPRSettingsScreen = () => {
 
       <View style={styles.footer}>
         <Text style={styles.footerText}>
-          SubTrackr stores your data on-chain via Stellar and encrypted in our secure databases. 
-          For more information, see our Privacy Policy.
+          SubTrackr stores your data on-chain via Stellar and encrypted in our secure databases. For
+          more information, see our Privacy Policy.
         </Text>
       </View>
     </ScrollView>

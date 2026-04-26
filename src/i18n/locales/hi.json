@@ -1,5 +1,6 @@
 {
   "common": {
+    "ok": "ठीक है",
     "save": "सहेजें",
     "cancel": "रद्द करें",
     "delete": "हटाएं",
@@ -14,6 +15,7 @@
     "add": "जोड़ें",
     "wallet": "वॉलेट",
     "analytics": "एनालिटिक्स",
+    "revenue": "राजस्व",
     "settings": "सेटिंग्स"
   },
   "home": {
@@ -22,9 +24,58 @@
     "no_subscriptions": "कोई सदस्यता नहीं मिली। अपनी पहली सदस्यता जोड़ें!"
   },
   "settings": {
+    "title": "सेटिंग्स",
+    "subtitle": "अपनी प्राथमिकताएँ कॉन्फ़िगर करें",
     "language": "भाषा",
     "notifications": "सूचनाएं",
     "privacy": "गोपनीयता और GDPR",
-    "about": "के बारे में"
+    "about": "के बारे में",
+    "language_subtitle": "ऐप इंटरफ़ेस के लिए अपनी पसंदीदा भाषा चुनें।",
+    "language_restart_notice": "भाषा बदल दी गई है। कुछ लेआउट बदलावों के लिए ऐप को रीस्टार्ट करना पड़ सकता है।",
+    "language_failed": "भाषा बदलने में विफल।",
+    "language_footer": "SubTrackr अरबी के लिए RTL लेआउट और तारीख/मुद्रा के लिए स्थानीय फ़ॉर्मैटिंग सपोर्ट करता है।",
+    "sections": {
+      "account": "खाता",
+      "notifications": "सूचनाएं",
+      "preferences": "प्राथमिकताएँ",
+      "about": "के बारे में"
+    },
+    "wallet_address": "वॉलेट पता",
+    "network": "नेटवर्क",
+    "select_network": "नेटवर्क चुनें",
+    "select_network_hint": "नेटवर्क चयन मोडल खोलता है",
+    "select_network_item": "{{name}} चुनें",
+    "close_network_selection": "नेटवर्क चयन बंद करें",
+    "testnet": "(टेस्टनेट)",
+    "mainnet": "(मेननेट)",
+    "disconnect_wallet": "वॉलेट डिस्कनेक्ट करें",
+    "disconnect_wallet_confirm": "क्या आप वाकई अपना वॉलेट डिस्कनेक्ट करना चाहते हैं?",
+    "disconnect_wallet_hint": "आपके जुड़े हुए क्रिप्टो वॉलेट को डिस्कनेक्ट करता है",
+    "disconnect": "डिस्कनेक्ट",
+    "wallet_disconnected": "वॉलेट डिस्कनेक्ट हो गया",
+    "wallet_disconnect_failed": "वॉलेट डिस्कनेक्ट करने में विफल",
+    "billing_reminders": "बिलिंग रिमाइंडर",
+    "billing_reminders_desc": "सदस्यता नवीनीकरण से पहले सूचित करें",
+    "default_currency": "डिफ़ॉल्ट मुद्रा",
+    "default_currency_desc": "नई सदस्यताओं के लिए मुद्रा",
+    "version": "संस्करण",
+    "contact_support": "सपोर्ट से संपर्क करें",
+    "contact_support_hint": "सपोर्ट से संपर्क के लिए आपका ईमेल ऐप खोलता है",
+    "community": "समुदाय",
+    "community_hint": "सब्सक्राइबर प्रोफ़ाइल और फ़ोरम चर्चाएँ खोलता है",
+    "webhooks": "वेबहुक्स",
+    "webhooks_hint": "सदस्यता वेबहुक प्रबंधन खोलता है",
+    "admin_dashboard": "एडमिन डैशबोर्ड",
+    "admin_dashboard_hint": "एडमिन डैशबोर्ड दृश्य खोलता है",
+    "sla_dashboard": "SLA डैशबोर्ड",
+    "sla_dashboard_hint": "SLA प्रबंधन डैशबोर्ड खोलता है",
+    "language_hint": "भाषा चयन स्क्रीन खोलता है",
+    "session_management": "सेशन प्रबंधन",
+    "session_management_hint": "सक्रिय सेशन सुरक्षा नियंत्रण खोलता है",
+    "error_dashboard": "एरर डैशबोर्ड",
+    "privacy_policy": "गोपनीयता नीति",
+    "privacy_policy_hint": "ब्राउज़र में गोपनीयता नीति खोलता है",
+    "terms_of_service": "सेवा की शर्तें",
+    "terms_of_service_hint": "ब्राउज़र में सेवा की शर्तें खोलता है"
   }
 }

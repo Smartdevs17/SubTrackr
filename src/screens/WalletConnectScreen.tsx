@@ -275,7 +275,9 @@ const WalletConnectScreen: React.FC = () => {
                   accessibilityRole="button"
                   accessibilityLabel="Disconnect wallet"
                   accessibilityHint="Disconnects your currently connected wallet">
-                  <Text style={styles.disconnectIcon} accessibilityElementsHidden={true}>⏹️</Text>
+                  <Text style={styles.disconnectIcon} accessibilityElementsHidden={true}>
+                    ⏹️
+                  </Text>
                   <Text style={styles.disconnectText}>Disconnect</Text>
                 </TouchableOpacity>
               </View>
@@ -289,7 +291,9 @@ const WalletConnectScreen: React.FC = () => {
                     accessibilityRole="button"
                     accessibilityLabel="Copy wallet address"
                     accessibilityHint="Copies your wallet address to the clipboard">
-                    <Text style={styles.copyIcon} accessibilityElementsHidden={true}>📋</Text>
+                    <Text style={styles.copyIcon} accessibilityElementsHidden={true}>
+                      📋
+                    </Text>
                   </TouchableOpacity>
                 </View>
                 <Text style={styles.addressText}>{formatAddress(connection.address)}</Text>
@@ -323,7 +327,9 @@ const WalletConnectScreen: React.FC = () => {
                   accessibilityRole="button"
                   accessibilityLabel="Refresh token balances"
                   accessibilityHint="Reloads your current token balances from the blockchain">
-                  <Text style={styles.refreshIcon} accessibilityElementsHidden={true}>🔄</Text>
+                  <Text style={styles.refreshIcon} accessibilityElementsHidden={true}>
+                    🔄
+                  </Text>
                   <Text style={styles.refreshText}>Refresh</Text>
                 </TouchableOpacity>
               </View>

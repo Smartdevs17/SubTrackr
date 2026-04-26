@@ -16,8 +16,10 @@ import { act } from 'react';
 import { expect, describe, it, beforeEach, afterEach, jest } from '@jest/globals';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSubscriptionStore } from '../subscriptionStore';
+import { useInvoiceStore } from '../invoiceStore';
 import { useWalletStore } from '../walletStore';
 import { SubscriptionCategory, BillingCycle } from '../../types/subscription';
+import { BILLING_CONVERSIONS } from '../../utils/constants/values';
 
 // ── In-memory AsyncStorage ────────────────────────────────────────────────────
 // Provides real read/write semantics without disk I/O.
@@ -45,6 +47,7 @@ jest.mock('../../services/notificationService', () => ({
   syncRenewalReminders: jest.fn(() => Promise.resolve()),
   presentChargeSuccessNotification: jest.fn(() => Promise.resolve()),
   presentChargeFailedNotification: jest.fn(() => Promise.resolve()),
+  presentLocalNotification: jest.fn(() => Promise.resolve()),
 }));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -75,6 +78,24 @@ function resetWalletStore() {
   });
 }
 
+function resetInvoiceStore() {
+  useInvoiceStore.setState({
+    invoices: [],
+    config: {
+      numberingPrefix: 'INV',
+      numberingPadding: 6,
+      defaultCurrency: 'USD',
+      defaultRegion: 'GLOBAL',
+      defaultTaxRateBps: 0,
+      exchangeRateScale: 1_000_000,
+      paymentTermsDays: 14,
+    },
+    nextSequence: 1,
+    isLoading: false,
+    error: null,
+  });
+}
+
 const baseFormData = {
   name: 'Netflix',
   category: SubscriptionCategory.STREAMING,
@@ -94,6 +115,7 @@ beforeEach(() => {
   (AsyncStorage.getItem as jest.Mock).mockClear();
   (AsyncStorage.removeItem as jest.Mock).mockClear();
   resetSubscriptionStore();
+  resetInvoiceStore();
   resetWalletStore();
 });
 
@@ -301,7 +323,7 @@ describe('subscriptionStore integration', () => {
 
     const { stats } = useSubscriptionStore.getState();
     expect(stats.totalActive).toBe(3);
-    expect(stats.totalMonthlySpend).toBe(40); // 10 + 10 + 20
+    expect(stats.totalMonthlySpend).toBe(10 + 10 + 5 * BILLING_CONVERSIONS.WEEKS_PER_MONTH);
     expect(stats.totalYearlySpend).toBe(500); // 120 + 120 + 260
     expect(stats.categoryBreakdown[SubscriptionCategory.STREAMING]).toBe(1);
     expect(stats.categoryBreakdown[SubscriptionCategory.SOFTWARE]).toBe(1);
@@ -385,6 +407,7 @@ describe('subscriptionStore integration', () => {
     // Monthly advance: April → May
     expect(next.getFullYear()).toBe(2026);
     expect(next.getMonth()).toBe(4); // May (0-indexed)
+    expect(useInvoiceStore.getState().invoices).toHaveLength(1);
   });
 
   // ── recordBillingOutcome: failed outcome does not advance billing date ───────

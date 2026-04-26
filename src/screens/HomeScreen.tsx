@@ -1,5 +1,13 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, SafeAreaView, RefreshControl } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  SafeAreaView,
+  RefreshControl,
+  TouchableOpacity,
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -8,6 +16,9 @@ import { useSubscriptionStore } from '../store';
 import { getUpcomingSubscriptions } from '../utils/dummyData';
 import { Subscription } from '../types/subscription';
 import { RootStackParamList } from '../navigation/types';
+import { useGamificationStore } from '../store/gamificationStore';
+import { useTransactionQueueStore } from '../store/transactionQueueStore';
+import { usePerformanceProfiler } from '../hooks/usePerformanceProfiler';
 
 // Components
 import { FloatingActionButton } from '../components/common/FloatingActionButton';
@@ -23,13 +34,25 @@ const HomeScreen: React.FC = () => {
   const navigation = useNavigation<HomeNavigationProp>();
   const { subscriptions, stats, fetchSubscriptions, calculateStats, toggleSubscriptionStatus } =
     useSubscriptionStore();
+  const isOnline = useTransactionQueueStore((state) => state.isOnline);
+  const pendingTransactions = useTransactionQueueStore((state) => state.queuedTransactions.length);
+  const { level } = useGamificationStore();
   const [refreshing, setRefreshing] = useState(false);
   const [upcomingSubscriptions, setUpcomingSubscriptions] = useState<Subscription[]>([]);
 
   // Use the new hook
   const { filters, filteredAndSorted, activeFilterCount, hasActiveFilters, clearAllFilters } =
     useFilteredSubscriptions(subscriptions);
+  const activeSubscriptions = useMemo(
+    () => filteredAndSorted.filter((subscription) => subscription.isActive),
+    [filteredAndSorted]
+  );
   const [showFilterModal, setShowFilterModal] = useState(false);
+
+  usePerformanceProfiler('HomeScreen', {
+    subscriptions: subscriptions.length,
+    filtered: filteredAndSorted.length,
+  });
 
   useEffect(() => {
     calculateStats();
@@ -47,7 +70,10 @@ const HomeScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container} accessibilityLabel="SubTrackr home screen">
+    <SafeAreaView
+      style={styles.container}
+      accessibilityLabel="SubTrackr home screen"
+      testID="home-screen">
       <ScrollView
         style={styles.scrollView}
         refreshControl={
@@ -59,18 +85,72 @@ const HomeScreen: React.FC = () => {
           />
         }>
         <View style={styles.header}>
-          <Text style={styles.title} accessibilityRole="header">
-            SubTrackr
-          </Text>
-          <Text style={styles.subtitle}>Manage your subscriptions</Text>
-          <FilterBar
-            searchQuery={filters.searchQuery}
-            setSearchQuery={filters.setSearchQuery}
-            onFilterPress={() => setShowFilterModal(true)}
-            hasActiveFilters={hasActiveFilters}
-            activeFilterCount={activeFilterCount}
-          />
+          <View
+            style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <View>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={styles.title} accessibilityRole="header">
+                  SubTrackr
+                </Text>
+                <TouchableOpacity
+                  onPress={() => navigation.navigate('Gamification')}
+                  style={{
+                    backgroundColor: colors.primary,
+                    borderRadius: 12,
+                    paddingHorizontal: 8,
+                    paddingVertical: 2,
+                    marginLeft: 10,
+                  }}>
+                  <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>
+                    Lvl {level}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.subtitle}>Manage your subscriptions</Text>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('Community')}
+                style={{
+                  backgroundColor: colors.primary,
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 8,
+                }}>
+                <Text style={{ color: '#fff', fontWeight: 'bold' }}>Community</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('SegmentManagement')}
+                style={{
+                  backgroundColor: colors.accent,
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 8,
+                }}>
+                <Text style={{ color: '#fff', fontWeight: 'bold' }}>Segments</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('InvoiceList')}
+                style={{
+                  backgroundColor: colors.surface,
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                }}>
+                <Text style={{ color: colors.text, fontWeight: 'bold' }}>Invoices</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
+        <FilterBar
+          searchQuery={filters.searchQuery}
+          setSearchQuery={filters.setSearchQuery}
+          onFilterPress={() => setShowFilterModal(true)}
+          hasActiveFilters={hasActiveFilters}
+          activeFilterCount={activeFilterCount}
+        />
 
         <StatsCard
           totalMonthlySpend={stats.totalMonthlySpend}
@@ -78,9 +158,18 @@ const HomeScreen: React.FC = () => {
           onWalletPress={() => navigation.navigate('WalletConnect')}
         />
 
+        {!isOnline && (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>
+              You are offline. {pendingTransactions} queued transaction
+              {pendingTransactions === 1 ? '' : 's'} will sync when back online.
+            </Text>
+          </View>
+        )}
+
         <SubscriptionList
           subscriptions={subscriptions}
-          activeSubscriptions={filteredAndSorted.filter((s) => s.isActive)}
+          activeSubscriptions={activeSubscriptions}
           upcomingSubscriptions={upcomingSubscriptions}
           hasSubscriptions={subscriptions.length > 0}
           hasActiveFilters={hasActiveFilters}
@@ -97,6 +186,7 @@ const HomeScreen: React.FC = () => {
           onPress={() => navigation.navigate('AddSubscription')}
           icon="+"
           size="large"
+          testID="add-subscription-button"
         />
       )}
 

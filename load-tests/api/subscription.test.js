@@ -1,6 +1,11 @@
 import http from 'k6/http';
 import { sleep } from 'k6';
-import { BASE_URL, commonHeaders, generateSubscriptionData, handleResponse } from '../utils/helpers.js';
+import {
+  BASE_URL,
+  commonHeaders,
+  generateSubscriptionData,
+  handleResponse,
+} from '../utils/helpers.js';
 
 export function createSubscription() {
   const payload = generateSubscriptionData();
