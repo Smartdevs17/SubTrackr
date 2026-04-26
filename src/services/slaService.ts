@@ -33,11 +33,15 @@ function clampPercentage(value: number): number {
 export function normalizeSlaConfig(merchantId: string, input: Partial<SlaConfig>): SlaConfig {
   return {
     merchantId,
-    uptimeTarget: Number.isFinite(input.uptimeTarget) ? Number(input.uptimeTarget) : SLA_DEFAULTS.uptimeTarget,
+    uptimeTarget: Number.isFinite(input.uptimeTarget)
+      ? Number(input.uptimeTarget)
+      : SLA_DEFAULTS.uptimeTarget,
     measurementInterval: Number.isFinite(input.measurementInterval)
       ? Math.max(1, Math.floor(Number(input.measurementInterval)))
       : SLA_DEFAULTS.measurementInterval,
-    subscriberContacts: Array.isArray(input.subscriberContacts) ? [...input.subscriberContacts] : [],
+    subscriberContacts: Array.isArray(input.subscriberContacts)
+      ? [...input.subscriberContacts]
+      : [],
   };
 }
 
@@ -54,12 +58,17 @@ export function calculateAvailabilityImpact(event: SlaAvailabilityEvent): {
   };
 }
 
-export function calculateUptimePercentage(observedSeconds: number, downtimeSeconds: number): number {
+export function calculateUptimePercentage(
+  observedSeconds: number,
+  downtimeSeconds: number
+): number {
   if (observedSeconds <= 0) return 100;
   return clampPercentage(100 - (downtimeSeconds / observedSeconds) * 100);
 }
 
-export function calculateCreditAmount(breach: Pick<SlaBreach, 'uptimeTarget' | 'uptimePercentage' | 'measurementInterval'>): number {
+export function calculateCreditAmount(
+  breach: Pick<SlaBreach, 'uptimeTarget' | 'uptimePercentage' | 'measurementInterval'>
+): number {
   if (breach.uptimePercentage >= breach.uptimeTarget) return 0;
 
   const deficit = breach.uptimeTarget - breach.uptimePercentage;
@@ -139,7 +148,9 @@ export function evaluateMerchantSnapshot(
 ): EvaluateMerchantSnapshotResult {
   const now = input.now ?? Date.now();
   const status = calculateMerchantStatus(input.config, input.events, input.breaches, now);
-  const merchantBreaches = input.breaches.filter((breach) => breach.merchantId === input.config.merchantId);
+  const merchantBreaches = input.breaches.filter(
+    (breach) => breach.merchantId === input.config.merchantId
+  );
   const activeBreach = [...merchantBreaches].reverse().find((breach) => !breach.resolvedAt) ?? null;
 
   if (!status.compliant && !activeBreach) {
@@ -201,13 +212,16 @@ export function buildSlaDashboardReport(input: {
   const merchantIds = Object.keys(input.configs);
   const summary = {
     totalMerchants: merchantIds.length,
-    compliantMerchants: merchantIds.filter((merchantId) => input.statuses[merchantId]?.compliant).length,
+    compliantMerchants: merchantIds.filter((merchantId) => input.statuses[merchantId]?.compliant)
+      .length,
     breachCount: input.breaches.filter((breach) => !breach.resolvedAt).length,
     averageUptime: merchantIds.length
       ? Number(
           (
-            merchantIds.reduce((sum, merchantId) => sum + (input.statuses[merchantId]?.uptimePercentage ?? 100), 0) /
-            merchantIds.length
+            merchantIds.reduce(
+              (sum, merchantId) => sum + (input.statuses[merchantId]?.uptimePercentage ?? 100),
+              0
+            ) / merchantIds.length
           ).toFixed(2)
         )
       : 100,

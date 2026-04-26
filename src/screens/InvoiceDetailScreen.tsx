@@ -25,7 +25,9 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 const InvoiceDetailScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RoutePropType>();
-  const invoice = useInvoiceStore((state) => state.invoices.find((entry) => entry.id === route.params.id));
+  const invoice = useInvoiceStore((state) =>
+    state.invoices.find((entry) => entry.id === route.params.id)
+  );
   const sendInvoice = useInvoiceStore((state) => state.sendInvoice);
   const voidInvoice = useInvoiceStore((state) => state.voidInvoice);
   const markInvoicePaid = useInvoiceStore((state) => state.markInvoicePaid);
@@ -89,9 +91,7 @@ const InvoiceDetailScreen: React.FC = () => {
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Total</Text>
-            <Text style={styles.totalValue}>
-              {formatCurrency(invoice.total, invoice.currency)}
-            </Text>
+            <Text style={styles.totalValue}>{formatCurrency(invoice.total, invoice.currency)}</Text>
           </View>
         </Card>
 
@@ -118,15 +118,15 @@ const InvoiceDetailScreen: React.FC = () => {
           </View>
           <View style={styles.breakdownRow}>
             <Text style={styles.breakdownLabel}>Tax</Text>
-            <Text style={styles.breakdownValue}>{formatCurrency(invoice.tax, invoice.currency)}</Text>
+            <Text style={styles.breakdownValue}>
+              {formatCurrency(invoice.tax, invoice.currency)}
+            </Text>
           </View>
         </Card>
 
         <Card style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Delivery</Text>
-          <Text style={styles.deliveryText}>
-            Recipient: {invoice.recipientEmail ?? 'Not set'}
-          </Text>
+          <Text style={styles.deliveryText}>Recipient: {invoice.recipientEmail ?? 'Not set'}</Text>
           <View style={styles.actionRow}>
             <TouchableOpacity style={styles.actionButton} onPress={handleEmail}>
               <Text style={styles.actionButtonText}>Email invoice</Text>

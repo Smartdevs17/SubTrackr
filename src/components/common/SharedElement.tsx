@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { Animated, View, StyleSheet } from 'react-native';
 import { SharedElementTransition, animations, useAnimatedValue } from '../../utils/animations';
 
-interface SharedElementProps {
+export interface SharedElementProps {
   id: string;
   children: React.ReactNode;
   style?: any;

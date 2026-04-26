@@ -32,7 +32,9 @@ const calculateAnalytics = (webhookId: string, deliveries: WebhookDelivery[]): W
     ['pending', 'retrying', 'paused'].includes(delivery.status)
   ).length;
   const retryCount = scoped.reduce((sum, delivery) => sum + Math.max(0, delivery.attempts - 1), 0);
-  const avgAttempts = totalDeliveries ? scoped.reduce((sum, delivery) => sum + delivery.attempts, 0) / totalDeliveries : 0;
+  const avgAttempts = totalDeliveries
+    ? scoped.reduce((sum, delivery) => sum + delivery.attempts, 0) / totalDeliveries
+    : 0;
 
   return {
     webhookId,
@@ -61,12 +63,16 @@ interface WebhookState {
   isLoading: boolean;
   error: string | null;
 
-  registerWebhook: (input: Omit<WebhookConfig, 'id' | 'createdAt' | 'updatedAt' | 'successCount' | 'failureCount'>) => Promise<WebhookConfig>;
+  registerWebhook: (
+    input: Omit<WebhookConfig, 'id' | 'createdAt' | 'updatedAt' | 'successCount' | 'failureCount'>
+  ) => Promise<WebhookConfig>;
   updateWebhook: (id: string, patch: Partial<WebhookConfig>) => Promise<WebhookConfig>;
   deleteWebhook: (id: string) => Promise<void>;
   pauseWebhook: (id: string) => Promise<WebhookConfig>;
   resumeWebhook: (id: string) => Promise<WebhookConfig>;
-  recordDelivery: (delivery: Omit<WebhookDelivery, 'id' | 'createdAt' | 'updatedAt'>) => Promise<WebhookDelivery>;
+  recordDelivery: (
+    delivery: Omit<WebhookDelivery, 'id' | 'createdAt' | 'updatedAt'>
+  ) => Promise<WebhookDelivery>;
   retryDelivery: (deliveryId: string) => Promise<WebhookDelivery>;
   getWebhookDeliveries: (webhookId: string, limit?: number) => WebhookDelivery[];
   getAnalytics: (webhookId: string) => WebhookAnalytics;

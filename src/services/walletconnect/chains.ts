@@ -75,4 +75,3 @@ export const WALLETCONNECT_APP_CHAINS = WALLETCONNECT_CHAINS.map((chain) => ({
 export function getWalletConnectChain(chainId: number): WalletConnectChainDefinition | undefined {
   return WALLETCONNECT_CHAINS.find((chain) => chain.chainId === chainId);
 }
-

@@ -156,7 +156,7 @@ export function buildStraightLineSchedule(
   const entries: RevenueScheduleEntry[] = Array.from({ length: numPeriods }, (_, i) => ({
     periodStart: chargeDate + i * periodMs,
     periodEnd: chargeDate + (i + 1) * periodMs,
-    recognisedAmount: i === numPeriods - 1 ? slice + remainder : slice,
+    recognisedAmount: i === numPeriods - 1 ? Math.round((slice + remainder) * 100) / 100 : slice,
     isRecognised: false,
   }));
 

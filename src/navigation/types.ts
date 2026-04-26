@@ -10,10 +10,13 @@ export type RootStackParamList = {
   Community: undefined;
   Profile: { subscriber?: string } | undefined;
   Analytics: undefined;
+  SlaDashboard: undefined;
   InvoiceList: undefined;
   InvoiceDetail: { id: string };
   GDPRSettings: undefined;
   Settings: undefined;
+  WebhookSettings: undefined;
+  AccountingExport: undefined;
   AdminDashboard: undefined;
   LanguageSettings: undefined;
   SessionManagement: undefined;
@@ -22,6 +25,7 @@ export type RootStackParamList = {
   SegmentDetail: { segmentId: string };
   Gamification: undefined;
   RevenueReport: undefined;
+  UsageDashboard: { subscriptionId: string; planId: string; name: string };
 };
 
 export type TabParamList = {

@@ -85,7 +85,9 @@ export const DEFAULT_INVOICE_CONFIG: InvoiceConfig = {
 };
 
 export const isOpenInvoice = (status: InvoiceStatus): boolean =>
-  status === InvoiceStatus.DRAFT || status === InvoiceStatus.SENT || status === InvoiceStatus.PARTIAL;
+  status === InvoiceStatus.DRAFT ||
+  status === InvoiceStatus.SENT ||
+  status === InvoiceStatus.PARTIAL;
 
 export const billingCycleToMonths = (cycle: BillingCycle): number => {
   switch (cycle) {

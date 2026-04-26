@@ -19,14 +19,12 @@ const LanguageSettingsScreen = () => {
     const success = await languageService.changeLanguage(code);
     if (success) {
       if (code === 'ar' || currentLanguage === 'ar') {
-        Alert.alert(
-          t('common.success'),
-          'Language changed. Some layout changes may require an app restart.',
-          [{ text: 'OK' }]
-        );
+        Alert.alert(t('common.success'), t('settings.language_restart_notice'), [
+          { text: t('common.ok') },
+        ]);
       }
     } else {
-      Alert.alert(t('common.error'), 'Failed to change language.');
+      Alert.alert(t('common.error'), t('settings.language_failed'));
     }
   };
 
@@ -34,7 +32,7 @@ const LanguageSettingsScreen = () => {
     <ScrollView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>{t('settings.language')}</Text>
-        <Text style={styles.subtitle}>Select your preferred language for the app interface.</Text>
+        <Text style={styles.subtitle}>{t('settings.language_subtitle')}</Text>
       </View>
 
       <View style={styles.list}>
@@ -58,10 +56,7 @@ const LanguageSettingsScreen = () => {
       </View>
 
       <View style={styles.footer}>
-        <Text style={styles.footerText}>
-          SubTrackr supports RTL layouts for Arabic and localized formatting for dates and
-          currencies.
-        </Text>
+        <Text style={styles.footerText}>{t('settings.language_footer')}</Text>
       </View>
     </ScrollView>
   );
