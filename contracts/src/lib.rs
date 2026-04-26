@@ -16,8 +16,31 @@ use soroban_sdk::{
 #[derive(Clone)]
 #[contracttype]
 enum DataKey {
-    Admin,
+    AdminOwners,
+    AdminThreshold,
+    AdminTimelockDelaySeconds,
+    AdminProposalSeq,
+    AdminProposal,
     ContractVersion,
+}
+
+#[derive(Clone)]
+#[contracttype]
+pub enum AdminAction {
+    AddOwner(Address),
+    RemoveOwner(Address),
+    SetThreshold(u32),
+    SetTimelockDelaySeconds(u64),
+}
+
+#[derive(Clone)]
+#[contracttype]
+pub struct AdminProposal {
+    pub id: u64,
+    pub action: AdminAction,
+    pub created_at: u64,
+    pub execute_after: u64,
+    pub approvals: Vec<Address>,
 }
 
 /// Represents a single operation in a batch
@@ -208,29 +231,60 @@ impl SubTrackrBatch {
     ///
     /// The admin is required for upgrade operations.
     pub fn init(env: Env, admin: Address) {
-        if env.storage().instance().has(&DataKey::Admin) {
+        if env.storage().instance().has(&DataKey::AdminOwners) {
             panic!("already initialized");
         }
 
         admin.require_auth();
-        env.storage().instance().set(&DataKey::Admin, &admin);
+        let mut owners: Vec<Address> = Vec::new(&env);
+        owners.push_back(admin.clone());
+        env.storage().instance().set(&DataKey::AdminOwners, &owners);
+        env.storage().instance().set(&DataKey::AdminThreshold, &1u32);
+        env.storage()
+            .instance()
+            .set(&DataKey::AdminTimelockDelaySeconds, &0u64);
+        env.storage().instance().set(&DataKey::AdminProposalSeq, &0u64);
         env.storage().instance().set(&DataKey::ContractVersion, &1u32);
 
         env.events()
             .publish(Symbol::new(&env, "admin_initialized"), admin);
     }
 
+    /// Initialize the contract with multisig admin settings.
+    ///
+    /// `owners` must be non-empty and `threshold` must be in the range `[1..=owners.len()]`.
+    pub fn init_multisig(env: Env, initializer: Address, owners: Vec<Address>, threshold: u32, timelock_delay_seconds: u64) {
+        if env.storage().instance().has(&DataKey::AdminOwners) {
+            panic!("already initialized");
+        }
+
+        initializer.require_auth();
+
+        if owners.len() == 0 {
+            panic!("owners cannot be empty");
+        }
+
+        if threshold == 0 || threshold > owners.len() as u32 {
+            panic!("invalid threshold");
+        }
+
+        env.storage().instance().set(&DataKey::AdminOwners, &owners);
+        env.storage().instance().set(&DataKey::AdminThreshold, &threshold);
+        env.storage()
+            .instance()
+            .set(&DataKey::AdminTimelockDelaySeconds, &timelock_delay_seconds);
+        env.storage().instance().set(&DataKey::AdminProposalSeq, &0u64);
+        env.storage().instance().set(&DataKey::ContractVersion, &1u32);
+
+        env.events().publish(Symbol::new(&env, "multisig_initialized"), (threshold, timelock_delay_seconds));
+    }
+
     /// Upgrade the contract WASM (admin-only).
     ///
     /// Note: state is preserved because Soroban upgrades keep instance storage.
     /// If you need migrations, upgrade first, then call `migrate`.
-    pub fn upgrade(env: Env, new_wasm_hash: BytesN<32>) {
-        let admin: Address = env
-            .storage()
-            .instance()
-            .get(&DataKey::Admin)
-            .unwrap_or_else(|| panic!("contract not initialized"));
-        admin.require_auth();
+    pub fn upgrade(env: Env, signers: Vec<Address>, new_wasm_hash: BytesN<32>) {
+        Self::require_threshold_signers(&env, &signers);
 
         env.events().publish(
             Symbol::new(&env, "contract_upgrade_requested"),
@@ -240,17 +294,12 @@ impl SubTrackrBatch {
         env.deployer().update_current_contract_wasm(new_wasm_hash);
 
         env.events()
-            .publish(Symbol::new(&env, "contract_upgraded"), admin);
+            .publish(Symbol::new(&env, "contract_upgraded"), signers.len() as u32);
     }
 
     /// Post-upgrade migration hook (admin-only).
-    pub fn migrate(env: Env, new_version: u32) {
-        let admin: Address = env
-            .storage()
-            .instance()
-            .get(&DataKey::Admin)
-            .unwrap_or_else(|| panic!("contract not initialized"));
-        admin.require_auth();
+    pub fn migrate(env: Env, signers: Vec<Address>, new_version: u32) {
+        Self::require_threshold_signers(&env, &signers);
 
         env.storage()
             .instance()
@@ -258,6 +307,229 @@ impl SubTrackrBatch {
 
         env.events()
             .publish(Symbol::new(&env, "contract_migrated"), new_version);
+    }
+
+    /// Get current multisig owners.
+    pub fn get_admin_owners(env: Env) -> Vec<Address> {
+        env.storage()
+            .instance()
+            .get(&DataKey::AdminOwners)
+            .unwrap_or_else(|| panic!("contract not initialized"))
+    }
+
+    /// Get current multisig threshold.
+    pub fn get_admin_threshold(env: Env) -> u32 {
+        env.storage()
+            .instance()
+            .get(&DataKey::AdminThreshold)
+            .unwrap_or_else(|| panic!("contract not initialized"))
+    }
+
+    /// Get current timelock delay (seconds).
+    pub fn get_admin_timelock_delay_seconds(env: Env) -> u64 {
+        env.storage()
+            .instance()
+            .get(&DataKey::AdminTimelockDelaySeconds)
+            .unwrap_or_else(|| panic!("contract not initialized"))
+    }
+
+    /// Propose an owner/threshold/timelock change (timelocked).
+    /// The proposer counts as the first approval.
+    pub fn propose_admin_action(env: Env, proposer: Address, action: AdminAction) -> u64 {
+        proposer.require_auth();
+        Self::assert_is_owner(&env, &proposer);
+
+        if env.storage().instance().has(&DataKey::AdminProposal) {
+            panic!("proposal already active");
+        }
+
+        let mut seq: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::AdminProposalSeq)
+            .unwrap_or(0u64);
+        seq += 1;
+        env.storage().instance().set(&DataKey::AdminProposalSeq, &seq);
+
+        let now = env.ledger().timestamp() as u64;
+        let delay: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::AdminTimelockDelaySeconds)
+            .unwrap_or(0u64);
+
+        let mut approvals: Vec<Address> = Vec::new(&env);
+        approvals.push_back(proposer.clone());
+
+        let proposal = AdminProposal {
+            id: seq,
+            action,
+            created_at: now,
+            execute_after: now.saturating_add(delay),
+            approvals,
+        };
+
+        env.storage().instance().set(&DataKey::AdminProposal, &proposal);
+        env.events()
+            .publish(Symbol::new(&env, "admin_proposal_created"), proposal.id);
+
+        proposal.id
+    }
+
+    /// Approve an active proposal.
+    pub fn approve_admin_proposal(env: Env, approver: Address, proposal_id: u64) {
+        approver.require_auth();
+        Self::assert_is_owner(&env, &approver);
+
+        let mut proposal: AdminProposal = env
+            .storage()
+            .instance()
+            .get(&DataKey::AdminProposal)
+            .unwrap_or_else(|| panic!("no active proposal"));
+
+        if proposal.id != proposal_id {
+            panic!("proposal id mismatch");
+        }
+
+        if Self::vec_contains_address(&proposal.approvals, &approver) {
+            return;
+        }
+
+        proposal.approvals.push_back(approver);
+        env.storage().instance().set(&DataKey::AdminProposal, &proposal);
+
+        env.events().publish(
+            Symbol::new(&env, "admin_proposal_approved"),
+            (proposal_id, proposal.approvals.len() as u32),
+        );
+    }
+
+    /// Execute an approved proposal after its timelock has elapsed.
+    pub fn execute_admin_proposal(env: Env, proposal_id: u64) {
+        let proposal: AdminProposal = env
+            .storage()
+            .instance()
+            .get(&DataKey::AdminProposal)
+            .unwrap_or_else(|| panic!("no active proposal"));
+
+        if proposal.id != proposal_id {
+            panic!("proposal id mismatch");
+        }
+
+        let threshold: u32 = env
+            .storage()
+            .instance()
+            .get(&DataKey::AdminThreshold)
+            .unwrap_or_else(|| panic!("contract not initialized"));
+
+        if proposal.approvals.len() < threshold as u32 {
+            panic!("insufficient approvals");
+        }
+
+        let now = env.ledger().timestamp() as u64;
+        if now < proposal.execute_after {
+            panic!("timelock not elapsed");
+        }
+
+        match proposal.action {
+            AdminAction::AddOwner(ref new_owner) => {
+                let mut owners = Self::load_owners(&env);
+                if !Self::vec_contains_address(&owners, new_owner) {
+                    owners.push_back(new_owner.clone());
+                    env.storage().instance().set(&DataKey::AdminOwners, &owners);
+                }
+            }
+            AdminAction::RemoveOwner(ref owner) => {
+                let owners = Self::load_owners(&env);
+                let mut next: Vec<Address> = Vec::new(&env);
+                for existing in owners.iter() {
+                    if &existing != owner {
+                        next.push_back(existing);
+                    }
+                }
+                if next.len() == 0 {
+                    panic!("cannot remove last owner");
+                }
+                let current_threshold: u32 = env
+                    .storage()
+                    .instance()
+                    .get(&DataKey::AdminThreshold)
+                    .unwrap_or_else(|| panic!("contract not initialized"));
+                if current_threshold > next.len() as u32 {
+                    env.storage()
+                        .instance()
+                        .set(&DataKey::AdminThreshold, &(next.len() as u32));
+                }
+                env.storage().instance().set(&DataKey::AdminOwners, &next);
+            }
+            AdminAction::SetThreshold(new_threshold) => {
+                let owners = Self::load_owners(&env);
+                if new_threshold == 0 || new_threshold > owners.len() as u32 {
+                    panic!("invalid threshold");
+                }
+                env.storage().instance().set(&DataKey::AdminThreshold, &new_threshold);
+            }
+            AdminAction::SetTimelockDelaySeconds(delay) => {
+                env.storage()
+                    .instance()
+                    .set(&DataKey::AdminTimelockDelaySeconds, &delay);
+            }
+        }
+
+        env.storage().instance().remove(&DataKey::AdminProposal);
+        env.events()
+            .publish(Symbol::new(&env, "admin_proposal_executed"), proposal_id);
+    }
+
+    fn require_threshold_signers(env: &Env, signers: &Vec<Address>) {
+        let owners = Self::load_owners(env);
+        let threshold: u32 = env
+            .storage()
+            .instance()
+            .get(&DataKey::AdminThreshold)
+            .unwrap_or_else(|| panic!("contract not initialized"));
+
+        if signers.len() < threshold as u32 {
+            panic!("insufficient signers");
+        }
+
+        let mut unique: Vec<Address> = Vec::new(env);
+        for signer in signers.iter() {
+            if !Self::vec_contains_address(&owners, &signer) {
+                panic!("signer not owner");
+            }
+            if !Self::vec_contains_address(&unique, &signer) {
+                unique.push_back(signer.clone());
+            }
+            signer.require_auth();
+        }
+
+        if unique.len() < threshold as u32 {
+            panic!("duplicate signers");
+        }
+    }
+
+    fn load_owners(env: &Env) -> Vec<Address> {
+        env.storage()
+            .instance()
+            .get(&DataKey::AdminOwners)
+            .unwrap_or_else(|| panic!("contract not initialized"))
+    }
+
+    fn assert_is_owner(env: &Env, address: &Address) {
+        let owners = Self::load_owners(env);
+        if !Self::vec_contains_address(&owners, address) {
+            panic!("not an owner");
+        }
+    }
+
+    fn vec_contains_address(vec: &Vec<Address>, address: &Address) -> bool {
+        for item in vec.iter() {
+            if &item == address {
+                return true;
+            }
+        }
+        false
     }
 
     /// Execute a batch of subscription operations
