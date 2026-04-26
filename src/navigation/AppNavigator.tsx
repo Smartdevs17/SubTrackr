@@ -6,6 +6,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import HomeScreen from '../screens/HomeScreen';
 import AddSubscriptionScreen from '../screens/AddSubscriptionScreen';
+import CancellationFlowScreen from '../screens/CancellationFlowScreen';
 import WalletConnectScreen from '../screens/WalletConnectV2Screen';
 import CryptoPaymentScreen from '../screens/CryptoPaymentScreen';
 import CommunityScreen from '../screens/CommunityScreen';
@@ -38,6 +39,11 @@ const HomeStack = () => (
       name="AddSubscription"
       component={AddSubscriptionScreen}
       options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="CancellationFlow"
+      component={CancellationFlowScreen}
+      options={{ title: 'Cancel Subscription', headerShown: true }}
     />
     <Stack.Screen
       name="SubscriptionDetail"

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
 import { Animated, View, StyleSheet } from 'react-native';
 import { SharedElementTransition, animations, useAnimatedValue } from '../../utils/animations';
 
@@ -8,6 +8,46 @@ interface SharedElementProps {
   style?: any;
   transitionType?: 'fade' | 'scale' | 'slide';
 }
+
+interface ScreenTransitionProps {
+  children: React.ReactNode;
+  type?: 'slide' | 'fade' | 'none';
+  duration?: number;
+}
+
+export const ScreenTransition: React.FC<ScreenTransitionProps> = ({
+  children,
+  type = 'slide',
+  duration = 400,
+}) => {
+  const anim = useAnimatedValue(0);
+
+  useEffect(() => {
+    Animated.timing(anim, {
+      toValue: 1,
+      duration: duration,
+      useNativeDriver: true,
+    }).start();
+  }, [anim, duration]);
+
+  const animatedStyle = React.useMemo(() => {
+    if (type === 'none') return {};
+
+    return {
+      opacity: anim,
+      transform: [
+        {
+          translateX: anim.interpolate({
+            inputRange: [0, 1],
+            outputRange: [type === 'slide' ? 50 : 0, 0],
+          }),
+        },
+      ],
+    };
+  }, [anim, type]);
+
+  return <Animated.View style={[{ flex: 1 }, animatedStyle]}>{children}</Animated.View>;
+};
 
 export const SharedElement: React.FC<SharedElementProps> = ({
   id,
@@ -52,12 +92,14 @@ export const SharedElement: React.FC<SharedElementProps> = ({
       case 'slide':
         return {
           opacity: Animated.multiply(animatedValue, localAnim),
-          transform: [{
-            translateX: Animated.multiply(
-              animatedValue.interpolate({ inputRange: [0, 1], outputRange: [100, 0] }),
-              localAnim
-            )
-          }],
+          transform: [
+            {
+              translateX: Animated.multiply(
+                animatedValue.interpolate({ inputRange: [0, 1], outputRange: [100, 0] }),
+                localAnim
+              ),
+            },
+          ],
         };
       case 'fade':
       default:
@@ -67,11 +109,7 @@ export const SharedElement: React.FC<SharedElementProps> = ({
     }
   }, [animatedValue, localAnim, transitionType]);
 
-  return (
-    <Animated.View style={[styles.container, animatedStyle, style]}>
-      {children}
-    </Animated.View>
-  );
+  return <Animated.View style={[styles.container, animatedStyle, style]}>{children}</Animated.View>;
 };
 
 interface SharedElementTransitionProviderProps {
@@ -79,13 +117,9 @@ interface SharedElementTransitionProviderProps {
 }
 
 export const SharedElementTransitionProvider: React.FC<SharedElementTransitionProviderProps> = ({
-  children
+  children,
 }) => {
-  return (
-    <View style={styles.provider}>
-      {children}
-    </View>
-  );
+  return <View style={styles.provider}>{children}</View>;
 };
 
 const styles = StyleSheet.create({

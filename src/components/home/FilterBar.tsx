@@ -18,58 +18,46 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   activeFilterCount,
 }) => {
   return (
-    <View style={styles.searchFilterBar} accessibilityRole="search">
-      <View style={styles.searchContainer}>
+    <View style={styles.container} accessibilityRole="search">
+      {/* Search Input Field */}
+      <View style={styles.searchWrapper}>
         <Text
-          style={styles.searchIcon}
+          style={styles.iconSm}
           accessibilityElementsHidden={true}
-          importantForAccessibility="no">
+          importantForAccessibility="no-hide-descendants">
           🔍
         </Text>
         <TextInput
-          style={styles.searchInput}
+          style={styles.input}
           placeholder="Search subscriptions..."
           placeholderTextColor={colors.textSecondary}
           value={searchQuery}
           onChangeText={setSearchQuery}
           accessibilityLabel="Search subscriptions"
-          accessibilityHint="Type to filter your subscription list"
           returnKeyType="search"
-          clearButtonMode="while-editing"
+          clearButtonMode="never" // We use a custom clear button for better cross-platform control
         />
         {searchQuery.length > 0 && (
           <TouchableOpacity
             onPress={() => setSearchQuery('')}
-            accessibilityRole="button"
             accessibilityLabel="Clear search"
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Text style={styles.clearSearchIcon}>✕</Text>
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Text style={styles.clearIcon}>✕</Text>
           </TouchableOpacity>
         )}
       </View>
 
+      {/* Filter Action Button */}
       <TouchableOpacity
         style={[styles.filterButton, hasActiveFilters && styles.filterButtonActive]}
         onPress={onFilterPress}
         accessibilityRole="button"
-        accessibilityLabel={
-          hasActiveFilters
-            ? `Filters, ${activeFilterCount} active filter${activeFilterCount !== 1 ? 's' : ''}`
-            : 'Filters'
-        }
-        accessibilityHint="Opens filter and sort options">
-        <Text
-          style={styles.filterIcon}
-          accessibilityElementsHidden={true}
-          importantForAccessibility="no">
-          🔧
-        </Text>
+        accessibilityLabel={`Filters${hasActiveFilters ? `, ${activeFilterCount} active` : ''}`}>
+        <Text style={[styles.filterIcon, hasActiveFilters && styles.filterIconActive]}>🔧</Text>
+
         {hasActiveFilters && (
-          <View
-            style={styles.filterBadge}
-            accessibilityElementsHidden={true}
-            importantForAccessibility="no">
-            <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>{activeFilterCount}</Text>
           </View>
         )}
       </TouchableOpacity>
@@ -78,72 +66,76 @@ export const FilterBar: React.FC<FilterBarProps> = ({
 };
 
 const styles = StyleSheet.create({
-  searchFilterBar: {
+  container: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: spacing.lg,
     marginTop: spacing.md,
     gap: spacing.sm,
   },
-  searchContainer: {
+  searchWrapper: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surface,
     borderRadius: borderRadius.md,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    height: 48, // Fixed height for better touch targets
     borderWidth: 1,
     borderColor: colors.border,
   },
-  searchIcon: {
-    fontSize: 16,
-    marginRight: spacing.sm,
-    color: colors.textSecondary,
-  },
-  searchInput: {
+  input: {
     flex: 1,
     color: colors.text,
     ...typography.body,
+    paddingVertical: 0, // Fixes vertical alignment on some Android versions
+    marginLeft: spacing.xs,
   },
-  clearSearchIcon: {
-    fontSize: 16,
+  iconSm: {
+    fontSize: 14,
+  },
+  clearIcon: {
+    fontSize: 14,
     color: colors.textSecondary,
-    padding: spacing.xs,
+    fontWeight: 'bold',
   },
   filterButton: {
     backgroundColor: colors.surface,
     borderRadius: borderRadius.md,
-    padding: spacing.md,
+    width: 48,
+    height: 48,
     borderWidth: 1,
     borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
   },
   filterButtonActive: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primary + '15', // Soft tint of primary
     borderColor: colors.primary,
   },
   filterIcon: {
     fontSize: 18,
-    color: colors.text,
+    color: colors.textSecondary,
   },
-  filterBadge: {
+  filterIconActive: {
+    color: colors.primary,
+  },
+  badge: {
     position: 'absolute',
-    top: -5,
-    right: -5,
-    backgroundColor: colors.error,
-    borderRadius: borderRadius.full,
-    minWidth: 20,
-    height: 20,
+    top: -4,
+    right: -4,
+    backgroundColor: colors.accent, // Using accent instead of error red
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: spacing.xs,
+    borderWidth: 2,
+    borderColor: colors.background, // Creates a "cutout" effect
   },
-  filterBadgeText: {
-    ...typography.caption,
-    color: colors.text,
-    fontWeight: '600',
+  badgeText: {
+    color: '#fff',
     fontSize: 10,
+    fontWeight: 'bold',
   },
 });
