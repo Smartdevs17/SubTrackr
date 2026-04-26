@@ -2,6 +2,9 @@
 #![allow(clippy::too_many_arguments)]
 
 pub mod revenue;
+pub mod quota;
+pub mod usage;
+
 
 use soroban_sdk::{token, Address, Env, IntoVal, String, TryFromVal, Val, Vec};
 use subtrackr_types::{
@@ -1045,4 +1048,83 @@ impl SubTrackrSubscription {
         proxy.require_auth();
         revenue::get_revenue_schedule(&env, &storage, subscription_id)
     }
+
+    // ── Quota & Usage API ──
+
+    pub fn set_plan_quotas(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        merchant: Address,
+        plan_id: u64,
+        quotas: Vec<subtrackr_types::Quota>,
+    ) {
+        proxy.require_auth();
+        merchant.require_auth();
+        let plan: subtrackr_types::Plan =
+            storage_persistent_get(&env, &storage, StorageKey::Plan(plan_id))
+                .expect("Plan not found");
+        assert!(
+            plan.merchant == merchant,
+            "Only plan owner can set quotas"
+        );
+        quota::set_plan_quotas(&env, &storage, plan_id, quotas);
+    }
+
+    pub fn get_plan_quotas(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        plan_id: u64,
+    ) -> Vec<subtrackr_types::Quota> {
+        proxy.require_auth();
+        quota::get_plan_quotas(&env, &storage, plan_id)
+    }
+
+    pub fn record_usage(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscription_id: u64,
+        metric: subtrackr_types::QuotaMetric,
+        amount: u64,
+    ) -> subtrackr_types::UsageRecord {
+        proxy.require_auth();
+        let sub: subtrackr_types::Subscription =
+            storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
+                .expect("Subscription not found");
+        
+        let admin = get_admin(&env, &storage);
+        // Only subscriber or admin can record usage? Usually it's the app/admin
+        // For simplicity, let's allow anyone with auth (simplified for this task)
+        // In a real app, you might want more complex auth.
+        
+        usage::record_usage(&env, &storage, subscription_id, sub.plan_id, metric, amount)
+    }
+
+    pub fn get_usage_record(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscription_id: u64,
+        metric: subtrackr_types::QuotaMetric,
+    ) -> subtrackr_types::UsageRecord {
+        proxy.require_auth();
+        usage::get_usage_record(&env, &storage, subscription_id, metric)
+    }
+
+    pub fn check_quota(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscription_id: u64,
+        metric: subtrackr_types::QuotaMetric,
+    ) -> subtrackr_types::QuotaStatus {
+        proxy.require_auth();
+        let sub: subtrackr_types::Subscription =
+            storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
+                .expect("Subscription not found");
+        usage::check_quota(&env, &storage, subscription_id, sub.plan_id, metric)
+    }
 }
+

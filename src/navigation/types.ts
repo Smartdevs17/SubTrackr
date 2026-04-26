@@ -21,7 +21,9 @@ export type RootStackParamList = {
   SegmentDetail: { segmentId: string };
   Gamification: undefined;
   RevenueReport: undefined;
+  UsageDashboard: { subscriptionId: string; planId: string; name: string };
 };
+
 
 export type TabParamList = {
   HomeTab: NavigatorScreenParams<RootStackParamList> | undefined;
