@@ -14,6 +14,8 @@ import GDPRSettingsScreen from '../screens/GDPRSettingsScreen';
 import LanguageSettingsScreen from '../screens/LanguageSettingsScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import ErrorDashboardScreen from '../screens/ErrorDashboardScreen';
+import ImportScreen from '../screens/ImportScreen';
+import ExportScreen from '../screens/ExportScreen';
 import { colors } from '../utils/constants';
 import { RootStackParamList, TabParamList } from './types';
 
@@ -63,6 +65,16 @@ const SettingsStack = () => (
       name="ErrorDashboard" 
       component={ErrorDashboardScreen} 
       options={{ title: 'Error Dashboard', headerShown: true }} 
+    />
+    <Stack.Screen 
+      name="Import" 
+      component={ImportScreen} 
+      options={{ title: 'Import Subscriptions', headerShown: true }} 
+    />
+    <Stack.Screen 
+      name="Export" 
+      component={ExportScreen} 
+      options={{ title: 'Export Subscriptions', headerShown: true }} 
     />
   </Stack.Navigator>
 );

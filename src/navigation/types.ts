@@ -10,6 +10,8 @@ export type RootStackParamList = {
   Settings: undefined;
   LanguageSettings: undefined;
   ErrorDashboard: undefined;
+  Import: undefined;
+  Export: undefined;
 };
 
 export type TabParamList = {

@@ -182,6 +182,27 @@ const SettingsScreen: React.FC = () => {
           </View>
         </Card>
         <Card style={styles.section}>
+          <Text style={styles.sectionTitle} accessibilityRole="header">Data Management</Text>
+          <TouchableOpacity
+            style={styles.linkRow}
+            onPress={() => navigation.navigate('Import')}
+            accessibilityRole="button"
+            accessibilityLabel="Import subscriptions"
+            accessibilityHint="Opens import screen">
+            <Text style={styles.linkText}>Import Subscriptions</Text>
+            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>→</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.linkRow}
+            onPress={() => navigation.navigate('Export')}
+            accessibilityRole="button"
+            accessibilityLabel="Export subscriptions"
+            accessibilityHint="Opens export screen">
+            <Text style={styles.linkText}>Export Subscriptions</Text>
+            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>→</Text>
+          </TouchableOpacity>
+        </Card>
+        <Card style={styles.section}>
           <Text style={styles.sectionTitle} accessibilityRole="header">About</Text>
           <View style={styles.settingRow}>
             <Text style={styles.settingLabel}>Version</Text>
