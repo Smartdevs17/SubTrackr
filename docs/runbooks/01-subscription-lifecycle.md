@@ -19,12 +19,12 @@ subscribe()
 charge_subscription() ──► payment fails ──► [PastDue]  (manual intervention required)
 ```
 
-| Status | Billable | Can Pause | Can Cancel | Can Charge |
-| ------ | -------- | --------- | ---------- | ---------- |
-| Active | Yes | Yes | Yes | Yes |
-| Paused | No | No | Yes | No |
-| Cancelled | No | No | No | No |
-| PastDue | No | No | Yes | No |
+| Status    | Billable | Can Pause | Can Cancel | Can Charge |
+| --------- | -------- | --------- | ---------- | ---------- |
+| Active    | Yes      | Yes       | Yes        | Yes        |
+| Paused    | No       | No        | Yes        | No         |
+| Cancelled | No       | No        | No         | No         |
+| PastDue   | No       | No        | Yes        | No         |
 
 ---
 
@@ -70,10 +70,10 @@ soroban contract invoke \
 
 Common errors:
 
-| Error | Cause | Action |
-| ----- | ----- | ------ |
-| `Subscription not active` | Status is Paused/Cancelled | Check status with `get_subscription` |
-| `Payment not yet due` | `next_charge_at` is in the future | Wait until due date |
+| Error                     | Cause                             | Action                               |
+| ------------------------- | --------------------------------- | ------------------------------------ |
+| `Subscription not active` | Status is Paused/Cancelled        | Check status with `get_subscription` |
+| `Payment not yet due`     | `next_charge_at` is in the future | Wait until due date                  |
 
 ---
 
@@ -151,12 +151,12 @@ soroban contract invoke --id $CONTRACT_ID --network $NETWORK \
 
 ## Billing Cycle Reference
 
-| Interval | Seconds | Approximate Duration |
-| -------- | ------- | -------------------- |
-| Weekly | 604,800 | 7 days |
-| Monthly | 2,592,000 | 30 days |
-| Quarterly | 7,776,000 | 90 days |
-| Yearly | 31,536,000 | 365 days |
+| Interval  | Seconds    | Approximate Duration |
+| --------- | ---------- | -------------------- |
+| Weekly    | 604,800    | 7 days               |
+| Monthly   | 2,592,000  | 30 days              |
+| Quarterly | 7,776,000  | 90 days              |
+| Yearly    | 31,536,000 | 365 days             |
 
 `next_charge_at = last_charged_at + interval_seconds`
 
@@ -172,6 +172,7 @@ await notificationService.syncRenewalReminders(subscriptions);
 ```
 
 Reminders are scheduled:
+
 - 1 day before `nextBillingDate` if sufficient lead time exists
 - 1 hour before `nextBillingDate` otherwise
 

@@ -199,9 +199,7 @@ const WebhookSettingsScreen: React.FC = () => {
                 </View>
               </View>
 
-              <Text style={styles.webhookMeta}>
-                Events: {webhook.events.join(', ')}
-              </Text>
+              <Text style={styles.webhookMeta}>Events: {webhook.events.join(', ')}</Text>
 
               <View style={styles.analyticsRow}>
                 <Text style={styles.analyticsValue}>
@@ -213,7 +211,9 @@ const WebhookSettingsScreen: React.FC = () => {
               <View style={styles.actionRow}>
                 <TouchableOpacity
                   style={styles.actionButton}
-                  onPress={() => (webhook.isPaused ? resumeWebhook(webhook.id) : pauseWebhook(webhook.id))}>
+                  onPress={() =>
+                    webhook.isPaused ? resumeWebhook(webhook.id) : pauseWebhook(webhook.id)
+                  }>
                   <Text style={styles.actionButtonText}>
                     {webhook.isPaused ? 'Resume' : 'Pause'}
                   </Text>
@@ -221,7 +221,9 @@ const WebhookSettingsScreen: React.FC = () => {
                 <TouchableOpacity style={styles.actionButton} onPress={() => startEdit(webhook)}>
                   <Text style={styles.actionButtonText}>Edit</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.actionButtonDanger} onPress={() => onDelete(webhook.id)}>
+                <TouchableOpacity
+                  style={styles.actionButtonDanger}
+                  onPress={() => onDelete(webhook.id)}>
                   <Text style={styles.actionButtonText}>Delete</Text>
                 </TouchableOpacity>
               </View>
@@ -235,11 +237,14 @@ const WebhookSettingsScreen: React.FC = () => {
                     <View style={styles.deliveryInfo}>
                       <Text style={styles.deliveryEvent}>{delivery.eventType}</Text>
                       <Text style={styles.deliveryMeta}>
-                        {webhookStatusLabels[delivery.status]} · attempts {delivery.attempts}/{delivery.maxAttempts}
+                        {webhookStatusLabels[delivery.status]} · attempts {delivery.attempts}/
+                        {delivery.maxAttempts}
                       </Text>
                     </View>
                     {delivery.status === 'failed' ? (
-                      <TouchableOpacity style={styles.retryButton} onPress={() => retryDelivery(delivery.id)}>
+                      <TouchableOpacity
+                        style={styles.retryButton}
+                        onPress={() => retryDelivery(delivery.id)}>
                         <Text style={styles.retryButtonText}>Retry</Text>
                       </TouchableOpacity>
                     ) : null}

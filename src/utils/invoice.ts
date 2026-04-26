@@ -78,7 +78,11 @@ export const buildInvoiceLineItem = (
   exchangeRate = config.exchangeRateScale,
   taxRateBps = config.defaultTaxRateBps
 ): InvoiceLineItem => {
-  const unitPrice = convertCurrencyAmount(subscription.price, exchangeRate, config.exchangeRateScale);
+  const unitPrice = convertCurrencyAmount(
+    subscription.price,
+    exchangeRate,
+    config.exchangeRateScale
+  );
 
   return {
     description: subscription.name,

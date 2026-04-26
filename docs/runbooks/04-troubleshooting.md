@@ -11,6 +11,7 @@ Diagnosis and resolution steps for common operational issues.
 **Cause:** The plan was deactivated via `deactivate_plan`.
 
 **Diagnosis:**
+
 ```bash
 soroban contract invoke --id $CONTRACT_ID --network $NETWORK \
   -- get_plan --plan_id <ID>
@@ -26,6 +27,7 @@ soroban contract invoke --id $CONTRACT_ID --network $NETWORK \
 **Cause:** The subscriber has an existing Active or Paused subscription to this plan.
 
 **Diagnosis:**
+
 ```bash
 soroban contract invoke --id $CONTRACT_ID --network $NETWORK \
   -- get_user_subscriptions --subscriber $ADDRESS
@@ -43,6 +45,7 @@ soroban contract invoke --id $CONTRACT_ID --network $NETWORK \
 **Cause:** `next_charge_at` is in the future.
 
 **Diagnosis:**
+
 ```bash
 soroban contract invoke --id $CONTRACT_ID --network $NETWORK \
   -- get_subscription --subscription_id <ID>
@@ -58,6 +61,7 @@ soroban contract invoke --id $CONTRACT_ID --network $NETWORK \
 **Cause:** `refund_requested_amount` is 0 — no refund was requested, or it was already processed.
 
 **Diagnosis:**
+
 ```bash
 soroban contract invoke --id $CONTRACT_ID --network $NETWORK \
   -- get_subscription --subscription_id <ID>
@@ -73,6 +77,7 @@ soroban contract invoke --id $CONTRACT_ID --network $NETWORK \
 **Cause:** RPC endpoint is unreachable or overloaded.
 
 **Steps:**
+
 1. Check Stellar network status: https://status.stellar.org
 2. Try the alternate RPC:
    ```bash
@@ -92,6 +97,7 @@ soroban contract invoke --id $CONTRACT_ID --network $NETWORK \
 **Cause:** AsyncStorage wallet key may have been cleared or schema changed.
 
 **Steps:**
+
 1. Trigger DR failover to restore from backup:
    ```ts
    const result = await disasterRecoveryService.failover();
@@ -107,11 +113,11 @@ soroban contract invoke --id $CONTRACT_ID --network $NETWORK \
 
 **Resolution:** Instruct the user to switch networks in their wallet to match the required chain ID.
 
-| Chain | Chain ID |
-| ----- | -------- |
-| Ethereum | 1 |
-| Polygon | 137 |
-| Arbitrum | 42161 |
+| Chain    | Chain ID |
+| -------- | -------- |
+| Ethereum | 1        |
+| Polygon  | 137      |
+| Arbitrum | 42161    |
 
 ---
 
@@ -128,6 +134,7 @@ soroban contract invoke --id $CONTRACT_ID --network $NETWORK \
 **Cause:** RPC connectivity issue or unsupported token.
 
 **Steps:**
+
 1. Verify the token is a supported Superfluid super token
 2. Check chain RPC connectivity
 3. Retry — transient RPC failures are common
@@ -139,6 +146,7 @@ soroban contract invoke --id $CONTRACT_ID --network $NETWORK \
 ### Renewal reminders not firing
 
 **Diagnosis checklist:**
+
 - [ ] `notificationService.getPermissionStatus()` returns `GRANTED`
 - [ ] `subscription.isActive === true`
 - [ ] `subscription.notificationsEnabled !== false`
@@ -147,6 +155,7 @@ soroban contract invoke --id $CONTRACT_ID --network $NETWORK \
 - [ ] `syncRenewalReminders` was called after the last subscription mutation
 
 **Resolution:** Re-sync reminders:
+
 ```ts
 await notificationService.syncRenewalReminders(allSubscriptions);
 ```
@@ -166,6 +175,7 @@ await notificationService.syncRenewalReminders(allSubscriptions);
 ### Alert not firing despite high failure rate
 
 **Diagnosis:**
+
 ```ts
 const dashboard = monitoringService.getDashboard();
 console.log(dashboard.successRate, dashboard.failureCount);
@@ -183,10 +193,11 @@ console.log(dashboard.successRate, dashboard.failureCount);
 **Cause:** `resolveAlert` was not called after the previous incident was resolved.
 
 **Resolution:**
+
 ```ts
 const active = monitoringService.getActiveAlerts();
 // Resolve stale alerts
-active.forEach(a => monitoringService.resolveAlert(a.id));
+active.forEach((a) => monitoringService.resolveAlert(a.id));
 ```
 
 ---
@@ -196,19 +207,23 @@ active.forEach(a => monitoringService.resolveAlert(a.id));
 ### Backup checksum failure
 
 **Diagnosis:**
+
 ```ts
 const result = await disasterRecoveryService.verifyBackup(manifest.id);
 console.log(result.errors);
 ```
 
 **Resolution:**
+
 1. Do not restore the corrupted backup
 2. List all backups and verify each:
    ```ts
    const backups = await disasterRecoveryService.listBackups();
    for (const b of backups) {
      const v = await disasterRecoveryService.verifyBackup(b.id);
-     if (v.valid) { /* restore this one */ break; }
+     if (v.valid) {
+       /* restore this one */ break;
+     }
    }
    ```
 3. Delete the corrupted backup after restoring a valid one
@@ -220,6 +235,7 @@ console.log(result.errors);
 **Cause:** Restore duration exceeded 5 minutes (300,000ms).
 
 **Steps:**
+
 1. Check AsyncStorage size — large subscription lists slow restore
 2. Consider reducing backup scope to critical keys only
 3. Profile `restoreBackup()` to identify the slow step
@@ -231,6 +247,7 @@ console.log(result.errors);
 ### Audit chain verification fails
 
 **Diagnosis:**
+
 ```ts
 const result = auditService.verify();
 console.log(result.firstInvalidIndex);
@@ -239,6 +256,7 @@ console.log(result.firstInvalidIndex);
 **Cause:** Log was tampered with or the HMAC secret changed between events.
 
 **Resolution:**
+
 - Do not delete or modify audit events
 - If secret rotation is needed, export the current log first:
   ```ts

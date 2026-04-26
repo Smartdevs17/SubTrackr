@@ -265,3 +265,19 @@ export function updateUserRole(
       : user
   );
 }
+
+export interface AuditLogFilter {
+  resourceType?: string;
+  action?: string;
+  actorId?: string;
+}
+
+export function filterAuditLog(log: AuditEvent[], filter: AuditLogFilter): AuditEvent[] {
+  return log.filter((event) => {
+    if (filter.resourceType !== undefined && event.resourceType !== filter.resourceType)
+      return false;
+    if (filter.action !== undefined && event.action !== filter.action) return false;
+    if (filter.actorId !== undefined && event.actorId !== filter.actorId) return false;
+    return true;
+  });
+}

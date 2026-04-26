@@ -20,10 +20,8 @@ import { Subscription, SubscriptionCategory } from '../types/subscription';
 import { RootStackParamList } from '../navigation/types';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
-import { ScreenTransition, SharedElement } from '../components/common/SharedElement';
-
-type SubscriptionDetailRouteProp = RouteProp<RootStackParamList, 'SubscriptionDetail'>;
-type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+import { ScreenTransition } from '../components/common/ScreenTransitions';
+import { SharedElement } from '../components/common/SharedElement';
 
 type SubscriptionDetailRouteProp = RouteProp<RootStackParamList, 'SubscriptionDetail'>;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -247,144 +245,233 @@ const SubscriptionDetailScreen: React.FC = () => {
               <Text style={styles.simulateLinkText}>Simulate successful charge</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={() => void recordBillingOutcome(subscription.id, 'failed')}
-              style={styles.simulateLink}
-              testID="simulate-charge-failed-button">
-              <Text style={styles.simulateLinkTextDanger}>Simulate failed charge</Text>
+              style={styles.backIcon}
+              onPress={() => navigation.goBack()}
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={styles.backIconText}>←</Text>
             </TouchableOpacity>
+            <Text style={styles.title} accessibilityRole="header">
+              Subscription Details
+            </Text>
+            <View style={styles.placeholder} />
           </View>
-        </Card>
 
-        {/* Status Card */}
-        <Card style={styles.statusCard}>
-          <Text style={styles.sectionTitle}>Status</Text>
-          <View style={styles.statusRow}>
-            <View
-              style={[
-                styles.statusBadge,
-                subscription.isActive ? styles.statusActive : styles.statusInactive,
-              ]}>
-              <Text
-                testID="subscription-status-badge"
-                style={[
-                  styles.statusText,
-                  subscription.isActive ? styles.statusTextActive : styles.statusTextInactive,
-                ]}>
-                {subscription.isActive ? 'Active' : 'Paused'}
-              </Text>
-            </View>
-            {subscription.isCryptoEnabled && (
-              <View style={styles.cryptoBadge}>
-                <Text style={styles.cryptoText}>Crypto Enabled</Text>
-              </View>
-            )}
-          </View>
-        </Card>
-
-        {/* Crypto Details */}
-        {subscription.isCryptoEnabled && subscription.cryptoStreamId && (
-          <Card style={styles.cryptoCard}>
-            <Text style={styles.sectionTitle}>Crypto Stream</Text>
-            <View style={styles.cryptoDetailRow}>
-              <Text style={styles.cryptoLabel}>Stream ID</Text>
-              <Text style={styles.cryptoValue} numberOfLines={1}>
-                {subscription.cryptoStreamId}
-              </Text>
-            </View>
-            {subscription.cryptoToken && (
-              <View style={styles.cryptoDetailRow}>
-                <Text style={styles.cryptoLabel}>Token</Text>
-                <Text style={styles.cryptoValue}>{subscription.cryptoToken}</Text>
-              </View>
-            )}
-            {subscription.cryptoAmount && (
-              <View style={styles.cryptoDetailRow}>
-                <Text style={styles.cryptoLabel}>Amount</Text>
-                <Text style={styles.cryptoValue}>
-                  {subscription.cryptoAmount} {subscription.cryptoToken}
+          {/* Main Info Card */}
+          <Card style={styles.mainCard}>
+            <View style={styles.nameRow}>
+              <Text style={styles.categoryIcon}>{getCategoryIcon(subscription.category)}</Text>
+              <View style={styles.nameContainer}>
+                <SharedElement id={`subscription-${subscription.id}-name`}>
+                  <Text style={styles.subscriptionName}>{subscription.name}</Text>
+                </SharedElement>
+                <Text style={styles.categoryText}>
+                  {subscription.category.charAt(0).toUpperCase() + subscription.category.slice(1)}
                 </Text>
               </View>
+            </View>
+
+            {subscription.description && (
+              <Text style={styles.description}>{subscription.description}</Text>
             )}
-            <Button
-              title="Make Crypto Payment"
-              onPress={handleCryptoPayment}
-              variant="primary"
-              style={styles.paymentButton}
-            />
           </Card>
-        )}
 
-        {/* Gas Tracking Section */}
-        <Card style={styles.statusCard}>
-          <Text style={styles.sectionTitle}>Gas Budget Tracking</Text>
-          <View style={styles.priceRow}>
-            <View style={styles.priceItem}>
-              <Text style={styles.priceLabel}>Avg Gas Cost</Text>
-              <Text style={styles.priceValue}>
-                {subscription.chargeCount && subscription.chargeCount > 0
-                  ? (subscription.totalGasSpent! / subscription.chargeCount).toFixed(4)
-                  : '0.0000'}{' '}
-                XLM
+          {/* Price Card */}
+          <Card style={styles.priceCard}>
+            <Text style={styles.sectionTitle}>Pricing</Text>
+            <View style={styles.priceRow}>
+              <View style={styles.priceItem}>
+                <Text style={styles.priceLabel}>Amount</Text>
+                <Text style={styles.priceValue}>
+                  {formatCurrency(subscription.price, subscription.currency)}
+                </Text>
+              </View>
+              <View style={styles.priceItem}>
+                <Text style={styles.priceLabel}>Billing Cycle</Text>
+                <Text style={styles.priceValue} testID="subscription-billing-cycle-value">
+                  {subscription.billingCycle.charAt(0).toUpperCase() +
+                    subscription.billingCycle.slice(1)}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.nextBillingRow}>
+              <Text style={styles.priceLabel}>Next Billing Date</Text>
+              <Text style={styles.nextBillingDate}>
+                {new Date(subscription.nextBillingDate).toLocaleDateString('en-US', {
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                })}
               </Text>
             </View>
-            <View style={styles.priceItem}>
-              <Text style={styles.priceLabel}>Total Gas Spent</Text>
-              <Text style={styles.priceValue}>
-                {subscription.totalGasSpent?.toFixed(4) || '0.0000'} XLM
-              </Text>
-            </View>
-          </View>
+          </Card>
 
-          <View style={styles.nextBillingRow}>
-            <View
-              style={{
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}>
-              <Text style={styles.priceLabel}>Gas Budget per Charge</Text>
-              <Text style={[styles.priceValue, { fontSize: 16 }]}>
-                {subscription.gasBudget?.toFixed(4) || '0.0500'} XLM
-              </Text>
+          {/* Notifications */}
+          <Card style={styles.statusCard}>
+            <Text style={styles.sectionTitle}>Billing notifications</Text>
+            <Text style={styles.notificationSubtext}>
+              Renewal reminders (1 day before, or 1 hour if due sooner) and charge alerts
+            </Text>
+            <View style={styles.switchRow}>
+              <Text style={styles.switchLabel}>Enabled for this subscription</Text>
+              <Switch
+                value={subscription.notificationsEnabled !== false}
+                onValueChange={(value) =>
+                  updateSubscription(subscription.id, { notificationsEnabled: value })
+                }
+                trackColor={{ false: colors.border, true: colors.primary }}
+                thumbColor={colors.text}
+              />
             </View>
-          </View>
+            <Text style={styles.simulateSectionTitle}>Test charge alerts (local only)</Text>
+            <View style={styles.simulateRow}>
+              <TouchableOpacity
+                onPress={() => void recordBillingOutcome(subscription.id, 'success')}
+                style={styles.simulateLink}
+                testID="simulate-charge-success-button">
+                <Text style={styles.simulateLinkText}>Simulate successful charge</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => void recordBillingOutcome(subscription.id, 'failed')}
+                style={styles.simulateLink}
+                testID="simulate-charge-failed-button">
+                <Text style={styles.simulateLinkTextDanger}>Simulate failed charge</Text>
+              </TouchableOpacity>
+            </View>
+          </Card>
 
-          {subscription.lastGasCost &&
-            subscription.chargeCount &&
-            subscription.chargeCount > 1 &&
-            subscription.lastGasCost >
-              (subscription.totalGasSpent! / subscription.chargeCount) * 1.5 && (
+          {/* Status Card */}
+          <Card style={styles.statusCard}>
+            <Text style={styles.sectionTitle}>Status</Text>
+            <View style={styles.statusRow}>
               <View
                 style={[
                   styles.statusBadge,
-                  styles.statusInactive,
-                  { marginTop: spacing.md, backgroundColor: colors.error + '20' },
+                  subscription.isActive ? styles.statusActive : styles.statusInactive,
                 ]}>
-                <Text style={[styles.statusText, { color: colors.error }]}>
-                  ⚠️ Gas cost spike detected! ({subscription.lastGasCost.toFixed(4)} XLM)
+                <Text
+                  testID="subscription-status-badge"
+                  style={[
+                    styles.statusText,
+                    subscription.isActive ? styles.statusTextActive : styles.statusTextInactive,
+                  ]}>
+                  {subscription.isActive ? 'Active' : 'Paused'}
                 </Text>
               </View>
-            )}
-        </Card>
+              {subscription.isCryptoEnabled && (
+                <View style={styles.cryptoBadge}>
+                  <Text style={styles.cryptoText}>Crypto Enabled</Text>
+                </View>
+              )}
+            </View>
+          </Card>
 
-        {/* Actions */}
-        <View style={styles.actionsContainer}>
-          <Button
-            title={subscription.isActive ? 'Pause Subscription' : 'Resume Subscription'}
-            onPress={handlePauseResume}
-            variant="secondary"
-            style={styles.actionButton}
-            testID="pause-resume-subscription-button"
-          />
-          <Button
-            title="Cancel Subscription"
-            onPress={handleCancel}
-            variant="danger"
-            style={styles.actionButton}
-            testID="cancel-subscription-button"
-          />
-        </View>
-      </ScrollView>
+          {/* Crypto Details */}
+          {subscription.isCryptoEnabled && subscription.cryptoStreamId && (
+            <Card style={styles.cryptoCard}>
+              <Text style={styles.sectionTitle}>Crypto Stream</Text>
+              <View style={styles.cryptoDetailRow}>
+                <Text style={styles.cryptoLabel}>Stream ID</Text>
+                <Text style={styles.cryptoValue} numberOfLines={1}>
+                  {subscription.cryptoStreamId}
+                </Text>
+              </View>
+              {subscription.cryptoToken && (
+                <View style={styles.cryptoDetailRow}>
+                  <Text style={styles.cryptoLabel}>Token</Text>
+                  <Text style={styles.cryptoValue}>{subscription.cryptoToken}</Text>
+                </View>
+              )}
+              {subscription.cryptoAmount && (
+                <View style={styles.cryptoDetailRow}>
+                  <Text style={styles.cryptoLabel}>Amount</Text>
+                  <Text style={styles.cryptoValue}>
+                    {subscription.cryptoAmount} {subscription.cryptoToken}
+                  </Text>
+                </View>
+              )}
+              <Button
+                title="Make Crypto Payment"
+                onPress={handleCryptoPayment}
+                variant="primary"
+                style={styles.paymentButton}
+              />
+            </Card>
+          )}
+
+          {/* Gas Tracking Section */}
+          <Card style={styles.statusCard}>
+            <Text style={styles.sectionTitle}>Gas Budget Tracking</Text>
+            <View style={styles.priceRow}>
+              <View style={styles.priceItem}>
+                <Text style={styles.priceLabel}>Avg Gas Cost</Text>
+                <Text style={styles.priceValue}>
+                  {subscription.chargeCount && subscription.chargeCount > 0
+                    ? (subscription.totalGasSpent! / subscription.chargeCount).toFixed(4)
+                    : '0.0000'}{' '}
+                  XLM
+                </Text>
+              </View>
+              <View style={styles.priceItem}>
+                <Text style={styles.priceLabel}>Total Gas Spent</Text>
+                <Text style={styles.priceValue}>
+                  {subscription.totalGasSpent?.toFixed(4) || '0.0000'} XLM
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.nextBillingRow}>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}>
+                <Text style={styles.priceLabel}>Gas Budget per Charge</Text>
+                <Text style={[styles.priceValue, { fontSize: 16 }]}>
+                  {subscription.gasBudget?.toFixed(4) || '0.0500'} XLM
+                </Text>
+              </View>
+            </View>
+
+            {subscription.lastGasCost &&
+              subscription.chargeCount &&
+              subscription.chargeCount > 1 &&
+              subscription.lastGasCost >
+                (subscription.totalGasSpent! / subscription.chargeCount) * 1.5 && (
+                <View
+                  style={[
+                    styles.statusBadge,
+                    styles.statusInactive,
+                    { marginTop: spacing.md, backgroundColor: colors.error + '20' },
+                  ]}>
+                  <Text style={[styles.statusText, { color: colors.error }]}>
+                    ⚠️ Gas cost spike detected! ({subscription.lastGasCost.toFixed(4)} XLM)
+                  </Text>
+                </View>
+              )}
+          </Card>
+
+          {/* Actions */}
+          <View style={styles.actionsContainer}>
+            <Button
+              title={subscription.isActive ? 'Pause Subscription' : 'Resume Subscription'}
+              onPress={handlePauseResume}
+              variant="secondary"
+              style={styles.actionButton}
+              testID="pause-resume-subscription-button"
+            />
+            <Button
+              title="Cancel Subscription"
+              onPress={handleCancel}
+              variant="danger"
+              style={styles.actionButton}
+              testID="cancel-subscription-button"
+            />
+          </View>
+        </ScrollView>
       </ScreenTransition>
     </SafeAreaView>
   );
@@ -588,6 +675,7 @@ const styles = StyleSheet.create({
   },
   statusTextInactive: {
     color: colors.textSecondary,
+    fontWeight: '500',
   },
   cryptoBadge: {
     backgroundColor: colors.accent + '20',
@@ -633,6 +721,30 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     width: '100%',
+  },
+  usageCard: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    padding: spacing.md,
+  },
+  usageButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    marginTop: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  usageIcon: {
+    marginRight: spacing.md,
+  },
+  usageButtonText: {
+    ...typography.body,
+    flex: 1,
+    fontWeight: '500',
+    color: colors.text,
   },
 });
 

@@ -9,8 +9,11 @@ import type {
   WebhookPlanSnapshot,
   WebhookSubscriptionSnapshot,
 } from '../../../src/types/webhook';
+import { BillingCycle } from '../../../src/types/subscription';
 
-const makeSubscription = (overrides: Partial<WebhookSubscriptionSnapshot> = {}): WebhookSubscriptionSnapshot => ({
+const makeSubscription = (
+  overrides: Partial<WebhookSubscriptionSnapshot> = {}
+): WebhookSubscriptionSnapshot => ({
   id: 'sub_1',
   planId: 'plan_1',
   subscriberId: 'user_1',
@@ -33,7 +36,7 @@ const makePlan = (overrides: Partial<WebhookPlanSnapshot> = {}): WebhookPlanSnap
   name: 'Pro',
   price: 500,
   token: 'USDC',
-  interval: 'monthly',
+  interval: BillingCycle.MONTHLY,
   active: true,
   subscriberCount: 1,
   createdAt: 1_700_000_000,

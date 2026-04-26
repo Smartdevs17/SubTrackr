@@ -1,6 +1,12 @@
 import { buildPairingUri } from '../sessionManager';
 import { getWalletConnectChain, WALLETCONNECT_CHAINS } from '../chains';
 
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  setItem: jest.fn(() => Promise.resolve()),
+  getItem: jest.fn(() => Promise.resolve(null)),
+  removeItem: jest.fn(() => Promise.resolve()),
+}));
+
 describe('walletconnect chains', () => {
   it('includes multiple supported chains', () => {
     expect(WALLETCONNECT_CHAINS.map((chain) => chain.chainId)).toEqual(

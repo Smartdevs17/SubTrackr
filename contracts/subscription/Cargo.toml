@@ -9,8 +9,6 @@ description = "SubTrackr subscription implementation contract (Soroban)"
 name = "subtrackr_subscription"
 path = "src/lib.rs"
 crate-type = ["cdylib", "rlib"]
-name = "subtrackr_subscription"
-path = "src/lib.rs"
 
 [dependencies]
 soroban-sdk = "21.0.0"

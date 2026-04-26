@@ -54,7 +54,7 @@ export interface SubscriptionPlan {
   price: number;
   currency: string;
   billingCycle: BillingCycle;
-  features: string[]; // Feature IDs included in this plan
+  features: import('./feature').FeatureId[]; // Feature IDs included in this plan
   limits: Record<string, number>; // Feature limits (e.g., { 'max_subscriptions': 10 })
   isPopular?: boolean;
   description: string;

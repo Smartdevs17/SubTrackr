@@ -2,7 +2,7 @@ name: E2E Detox Tests
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ['main']
 
 jobs:
   test-ios:

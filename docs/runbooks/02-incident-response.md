@@ -6,12 +6,12 @@ Procedures for detecting, classifying, escalating, and resolving incidents in Su
 
 ## Severity Classification
 
-| Severity | Criteria | Initial Response | Escalation |
-| -------- | -------- | ---------------- | ---------- |
-| P1 — Critical | Service down, mass payment failures, data loss, security breach | 15 min | Immediate — wake on-call lead |
-| P2 — High | Failure rate >10%, notification outage, contract unreachable | 1 hour | After 30 min without resolution |
-| P3 — Medium | Single-user billing issue, degraded performance | 4 hours | Next business day if unresolved |
-| P4 — Low | UI glitch, minor doc gap, non-critical warning | Next business day | N/A |
+| Severity      | Criteria                                                        | Initial Response  | Escalation                      |
+| ------------- | --------------------------------------------------------------- | ----------------- | ------------------------------- |
+| P1 — Critical | Service down, mass payment failures, data loss, security breach | 15 min            | Immediate — wake on-call lead   |
+| P2 — High     | Failure rate >10%, notification outage, contract unreachable    | 1 hour            | After 30 min without resolution |
+| P3 — Medium   | Single-user billing issue, degraded performance                 | 4 hours           | Next business day if unresolved |
+| P4 — Low      | UI glitch, minor doc gap, non-critical warning                  | Next business day | N/A                             |
 
 ---
 
@@ -24,6 +24,7 @@ Detect → Triage → Contain → Investigate → Resolve → Post-mortem
 ### 1. Detect
 
 Alerts fire from:
+
 - `MonitoringService` — transaction failure rate >30% triggers `high-failure-rate` alert
 - `MonitoringService` — avg gas >500,000 triggers `gas-spike` alert
 - `AlertingService` — dispatches to Slack / PagerDuty / console
@@ -49,11 +50,11 @@ soroban contract invoke \
 
 Stop the bleeding before investigating root cause.
 
-| Scenario | Containment Action |
-| -------- | ------------------ |
-| Mass payment failures | Pause affected plans via `deactivate_plan` |
-| Compromised admin key | Rotate key; redeploy contract if necessary |
-| Runaway charge loop | Identify caller; block at RPC level if possible |
+| Scenario              | Containment Action                                                                        |
+| --------------------- | ----------------------------------------------------------------------------------------- |
+| Mass payment failures | Pause affected plans via `deactivate_plan`                                                |
+| Compromised admin key | Rotate key; redeploy contract if necessary                                                |
+| Runaway charge loop   | Identify caller; block at RPC level if possible                                           |
 | Corrupted local state | Trigger DR failover (see [DISASTER_RECOVERY_RUNBOOK.md](../DISASTER_RECOVERY_RUNBOOK.md)) |
 
 ### 4. Investigate
@@ -94,7 +95,10 @@ monitoringService.resolveAlert(alertId);
 Notify affected users via notification service if billing was impacted:
 
 ```ts
-await notificationService.presentChargeFailedNotification(sub, 'Service disruption — no charge applied');
+await notificationService.presentChargeFailedNotification(
+  sub,
+  'Service disruption — no charge applied'
+);
 ```
 
 ### 6. Post-mortem
@@ -115,6 +119,7 @@ For P1/P2 incidents, complete a post-mortem within 48 hours covering:
 **Alert:** `high-failure-rate` (failure rate >30%)
 
 **Steps:**
+
 1. Check `dashboard.failureCount` and `dashboard.recentMetrics`
 2. Identify if failures are concentrated on a specific plan or token
 3. Verify token contract is operational on the relevant chain
@@ -128,6 +133,7 @@ For P1/P2 incidents, complete a post-mortem within 48 hours covering:
 **Symptoms:** All `soroban contract invoke` calls time out or return RPC errors.
 
 **Steps:**
+
 1. Check Stellar network status: https://status.stellar.org
 2. Try alternate RPC endpoint (testnet: `https://soroban-testnet.stellar.org`, mainnet: `https://soroban.stellar.org`)
 3. If network-wide outage, communicate status to users; no action on contract needed
@@ -140,6 +146,7 @@ For P1/P2 incidents, complete a post-mortem within 48 hours covering:
 **Symptoms:** Unexpected `refund_approved` events in contract event stream.
 
 **Steps:**
+
 1. Immediately rotate the admin key
 2. Query all recent `approve_refund` calls via Soroban event stream
 3. Assess financial impact
@@ -153,6 +160,7 @@ For P1/P2 incidents, complete a post-mortem within 48 hours covering:
 **Symptoms:** Users not receiving billing reminders or charge notifications.
 
 **Steps:**
+
 1. Check Expo push notification service status
 2. Verify `notificationService.getPermissionStatus()` returns `GRANTED` for affected users
 3. Confirm `syncRenewalReminders` is being called after subscription mutations
@@ -163,9 +171,9 @@ For P1/P2 incidents, complete a post-mortem within 48 hours covering:
 
 ## Escalation Contacts
 
-| Condition | Escalate To |
-| --------- | ----------- |
-| P1 security incident | Security team + on-call lead immediately |
-| Contract redeployment needed | Contract admin key holder |
-| Stellar network outage | Monitor https://status.stellar.org; no internal escalation |
-| Persistent P2 >2 hours | Engineering lead |
+| Condition                    | Escalate To                                                |
+| ---------------------------- | ---------------------------------------------------------- |
+| P1 security incident         | Security team + on-call lead immediately                   |
+| Contract redeployment needed | Contract admin key holder                                  |
+| Stellar network outage       | Monitor https://status.stellar.org; no internal escalation |
+| Persistent P2 >2 hours       | Engineering lead                                           |
