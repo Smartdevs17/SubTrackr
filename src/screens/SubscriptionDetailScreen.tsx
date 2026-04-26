@@ -22,8 +22,6 @@ import { RootStackParamList } from '../navigation/types';
 // Components
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
-// CRITICAL: Verify these exports in your SharedElement file.
-// If they are default exports, remove the brackets.
 import { ScreenTransition, SharedElement } from '../components/common/SharedElement';
 
 type SubscriptionDetailRouteProp = RouteProp<RootStackParamList, 'SubscriptionDetail'>;
@@ -36,7 +34,6 @@ const SubscriptionDetailScreen: React.FC = () => {
 
   const { subscriptions, toggleSubscriptionStatus, updateSubscription } = useSubscriptionStore();
 
-  // Find subscription from store directly to ensure data is fresh
   const subscription = useMemo(() => subscriptions?.find((s) => s.id === id), [id, subscriptions]);
 
   const [loading, setLoading] = useState(!subscription);
@@ -62,17 +59,20 @@ const SubscriptionDetailScreen: React.FC = () => {
 
   const handleStartCancellation = useCallback(() => {
     if (subscription) {
-      navigation.navigate('CancellationFlow', { subscriptionId: subscription.id });
+      navigation.navigate('CancellationFlow', {
+        subscriptionId: subscription.id,
+      });
     }
   }, [subscription, navigation]);
 
   const handleCryptoPayment = useCallback(() => {
     if (subscription) {
-      navigation.navigate('CryptoPayment', { subscriptionId: subscription.id });
+      navigation.navigate('CryptoPayment', {
+        subscriptionId: subscription.id,
+      });
     }
   }, [subscription, navigation]);
 
-  // Memoized Category Icon helper to prevent re-calc on every frame
   const categoryIcon = useMemo(() => {
     if (!subscription) return '📦';
     const icons: Record<string, string> = {
@@ -109,10 +109,6 @@ const SubscriptionDetailScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* FIX: If ScreenTransition is the cause of your "undefined" error, 
-         temporarily replace it with a standard <View style={{flex: 1}}> 
-         to verify.
-      */}
       <ScreenTransition type="slide" duration={400}>
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
           {/* Header */}
@@ -184,7 +180,9 @@ const SubscriptionDetailScreen: React.FC = () => {
               <Switch
                 value={subscription.notificationsEnabled !== false}
                 onValueChange={(value) =>
-                  updateSubscription(subscription.id, { notificationsEnabled: value })
+                  updateSubscription(subscription.id, {
+                    notificationsEnabled: value,
+                  })
                 }
                 trackColor={{ false: colors.border, true: colors.primary }}
               />
@@ -225,9 +223,16 @@ const SubscriptionDetailScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  scrollView: { flex: 1 },
-  scrollContent: { paddingBottom: spacing.xl },
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: spacing.xl,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -240,43 +245,142 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: spacing.lg,
   },
-  backButton: { padding: spacing.sm },
-  backIconText: { fontSize: 24, color: colors.text },
-  headerTitle: { ...typography.h3, color: colors.text },
-  placeholder: { width: 40 },
-  mainCard: { marginHorizontal: spacing.lg, marginBottom: spacing.sm, padding: spacing.lg },
-  nameRow: { flexDirection: 'row', alignItems: 'center' },
-  categoryIconText: { fontSize: 40, marginRight: spacing.md },
-  nameContainer: { flex: 1 },
-  subscriptionName: { ...typography.h2, color: colors.text },
-  categoryText: { ...typography.caption, color: colors.textSecondary, textTransform: 'uppercase' },
-  statusIndicator: { width: 12, height: 12, borderRadius: 6 },
-  bgSuccess: { backgroundColor: colors.success },
-  bgPaused: { backgroundColor: colors.warning },
-  sectionRow: { flexDirection: 'row', marginHorizontal: spacing.lg, marginBottom: spacing.sm },
-  flexCard: { flex: 1, padding: spacing.md, alignItems: 'center' },
-  marginRight: { marginRight: spacing.sm },
-  standardCard: { marginHorizontal: spacing.lg, marginBottom: spacing.sm, padding: spacing.md },
+  backButton: {
+    padding: spacing.sm,
+  },
+  backIconText: {
+    fontSize: 24,
+    color: colors.text,
+  },
+  headerTitle: {
+    ...typography.h3,
+    color: colors.text,
+  },
+  placeholder: {
+    width: 40,
+  },
+  mainCard: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+    padding: spacing.lg,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  categoryIconText: {
+    fontSize: 40,
+    marginRight: spacing.md,
+  },
+  nameContainer: {
+    flex: 1,
+  },
+  subscriptionName: {
+    ...typography.h2,
+    color: colors.text,
+  },
+  categoryText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+  },
+  statusIndicator: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  bgSuccess: {
+    backgroundColor: colors.success,
+  },
+  bgPaused: {
+    backgroundColor: colors.warning,
+  },
+  sectionRow: {
+    flexDirection: 'row',
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+  },
+  flexCard: {
+    flex: 1,
+    padding: spacing.md,
+    alignItems: 'center',
+  },
+  marginRight: {
+    marginRight: spacing.sm,
+  },
+  standardCard: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+    padding: spacing.md,
+  },
   sectionTitle: {
     ...typography.caption,
     color: colors.textSecondary,
     marginBottom: spacing.md,
     fontWeight: 'bold',
   },
-  dataRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.xs },
-  dataLabel: { ...typography.body, color: colors.textSecondary },
-  dataValue: { ...typography.body, color: colors.text, fontWeight: '600' },
-  priceLabel: { ...typography.caption, color: colors.textSecondary },
-  priceValue: { ...typography.h3, color: colors.text, marginTop: 4 },
-  switchRow: { flexDirection: 'row', alignItems: 'center' },
-  switchTitle: { ...typography.body, fontWeight: '700', color: colors.text },
-  switchSubtext: { ...typography.caption, color: colors.textSecondary },
-  actionsContainer: { marginTop: spacing.lg, paddingHorizontal: spacing.lg },
-  actionSectionTitle: { ...typography.h3, marginBottom: spacing.md, color: colors.text },
-  actionButton: { marginBottom: spacing.sm },
-  cancelButton: { marginTop: spacing.md },
-  errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.xl },
-  errorText: { ...typography.h3, color: colors.text, marginBottom: spacing.lg },
+  dataRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: spacing.xs,
+  },
+  dataLabel: {
+    ...typography.body,
+    color: colors.textSecondary,
+  },
+  dataValue: {
+    ...typography.body,
+    color: colors.text,
+    fontWeight: '600',
+  },
+  priceLabel: {
+    ...typography.caption,
+    color: colors.textSecondary,
+  },
+  priceValue: {
+    ...typography.h3,
+    color: colors.text,
+    marginTop: 4,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  switchTitle: {
+    ...typography.body,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  switchSubtext: {
+    ...typography.caption,
+    color: colors.textSecondary,
+  },
+  actionsContainer: {
+    marginTop: spacing.lg,
+    paddingHorizontal: spacing.lg,
+  },
+  actionSectionTitle: {
+    ...typography.h3,
+    marginBottom: spacing.md,
+    color: colors.text,
+  },
+  actionButton: {
+    marginBottom: spacing.sm,
+  },
+  cancelButton: {
+    marginTop: spacing.md,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.xl,
+  },
+  errorText: {
+    ...typography.h3,
+    color: colors.text,
+    marginBottom: spacing.lg,
+  },
 });
 
 export default SubscriptionDetailScreen;
