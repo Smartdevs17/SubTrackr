@@ -205,9 +205,7 @@ export class WalletServiceManager {
   ): Promise<GasEstimate> {
     const provider = this.getProvider(chainId);
 
-    // Use getFeeData for EIP-1559 support
-    const feeData = await provider.getFeeData();
-    const gasPrice = feeData.maxFeePerGas ?? feeData.gasPrice ?? ethers.BigNumber.from(0);
+    const gasPrice = await this.resolveGasPrice(provider);
 
     let gasLimit: ethers.BigNumber;
 
@@ -411,7 +409,10 @@ export class WalletServiceManager {
 
       // 2. Ensure Allowance (approve exact amount if insufficient)
       const owner = await signer.getAddress();
-      const currentAllowance: ethers.BigNumber = await erc20.allowance(owner, SABLIER_V2_LOCKUP_LINEAR);
+      const currentAllowance: ethers.BigNumber = await erc20.allowance(
+        owner,
+        SABLIER_V2_LOCKUP_LINEAR
+      );
       if (currentAllowance.lt(amountBn)) {
         const txApprove = await erc20.approve(SABLIER_V2_LOCKUP_LINEAR, amountBn);
         await txApprove.wait();
@@ -484,8 +485,7 @@ export class WalletServiceManager {
     chainId: number
   ): Promise<GasEstimate> {
     const provider = this.getProvider(chainId);
-    const feeData = await provider.getFeeData();
-    const gasPrice = feeData.maxFeePerGas ?? feeData.gasPrice ?? ethers.BigNumber.from(0);
+    const gasPrice = await this.resolveGasPrice(provider);
 
     const erc20Abi = ['function approve(address spender, uint256 amount) returns (bool)'];
     const conn = this.connection;
@@ -521,11 +521,7 @@ export class WalletServiceManager {
    * Performs an ERC20 approve for `spender` and waits for mining.
    * Returns transaction hash.
    */
-  async approveErc20(
-    token: string,
-    spender: string,
-    amount: ethers.BigNumberish
-  ): Promise<string> {
+  async approveErc20(token: string, spender: string, amount: ethers.BigNumberish): Promise<string> {
     const signer = this.getWalletSigner();
     const erc20Abi = ['function approve(address spender, uint256 amount) returns (bool)'];
     const erc20 = new ethers.Contract(token, erc20Abi, signer);
@@ -539,6 +535,21 @@ export class WalletServiceManager {
 
   private getProvider(chainId: number): ethers.providers.JsonRpcProvider {
     return new ethers.providers.JsonRpcProvider(getEvmRpcUrl(chainId));
+  }
+
+  private async resolveGasPrice(
+    provider: ethers.providers.JsonRpcProvider
+  ): Promise<ethers.BigNumber> {
+    if (typeof provider.getFeeData === 'function') {
+      const feeData = await provider.getFeeData();
+      return feeData.maxFeePerGas ?? feeData.gasPrice ?? ethers.BigNumber.from(0);
+    }
+
+    if (typeof provider.getGasPrice === 'function') {
+      return provider.getGasPrice();
+    }
+
+    return ethers.BigNumber.from(0);
   }
 
   private getNativeSymbol(chainId: number): string {

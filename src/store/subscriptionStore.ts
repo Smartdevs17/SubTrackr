@@ -10,12 +10,16 @@ import {
 } from '../types/subscription';
 import { dummySubscriptions } from '../utils/dummyData'; // eslint-disable-line
 import { advanceBillingDate } from '../utils/billingDate';
+import { buildBillingPeriod } from '../utils/invoice';
 import { BILLING_CONVERSIONS, CACHE_CONSTANTS } from '../utils/constants/values';
 import {
   syncRenewalReminders,
   presentChargeSuccessNotification,
   presentChargeFailedNotification,
 } from '../services/notificationService';
+import { useGamificationStore } from './gamificationStore';
+import { useInvoiceStore } from './invoiceStore';
+import { AchievementTrigger } from '../types/gamification';
 import { errorHandler, AppError } from '../services/errorHandler';
 
 const STORAGE_KEY = 'subtrackr-subscriptions';
@@ -185,6 +189,15 @@ export const useSubscriptionStore = create<SubscriptionState>()(
 
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
+
+          // Gamification Triggers
+          const gamificationStore = useGamificationStore.getState();
+          gamificationStore.addPoints(10); // 10 points for adding a subscription
+          gamificationStore.checkAchievements(AchievementTrigger.SUBSCRIPTION_ADDED, {
+            totalSubscriptions: get().subscriptions.length,
+            price: data.price,
+            category: data.category,
+          });
         } catch (error) {
           const appError = errorHandler.handleError(error as Error, {
             action: 'addSubscription',
@@ -282,6 +295,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         }
 
         if (outcome === 'success') {
+          const billingPeriod = buildBillingPeriod(sub);
           const next = advanceBillingDate(new Date(sub.nextBillingDate), sub.billingCycle);
           const simulatedGas = 0.01 + Math.random() * 0.005; // Simulate 0.01 - 0.015 XLM gas
           set((state) => ({
@@ -301,6 +315,17 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           }));
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
+
+          await useInvoiceStore.getState().generateInvoiceFromSubscription(
+            {
+              subscription: sub,
+              period: billingPeriod,
+              region: 'GLOBAL',
+              currency: sub.currency,
+              recipientEmail: `${sub.name.toLowerCase().replace(/[^a-z0-9]+/g, '.')}@billing.local`,
+            },
+            0
+          );
         }
       },
 
@@ -314,7 +339,9 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           await syncRenewalReminders(get().subscriptions);
         } catch (error) {
           set({
-            error: error instanceof Error ? error.message : 'Failed to fetch subscriptions',
+            error: errorHandler.handleError(error as Error, {
+              action: 'fetchSubscriptions',
+            }),
             isLoading: false,
           });
         }
@@ -392,7 +419,11 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       onRehydrateStorage: () => (state, error) => {
         if (error) {
           useSubscriptionStore.setState({
-            error: 'Stored subscription data is corrupted. Loaded fallback data.',
+            error: errorHandler.createError(
+              new Error('Stored subscription data is corrupted. Loaded fallback data.'),
+              { action: 'rehydrateSubscriptions' },
+              true
+            ),
             subscriptions: [...dummySubscriptions],
             isLoading: false,
           });

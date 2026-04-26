@@ -27,7 +27,7 @@ export const formatCurrencyCompact = (amount: number, currency: string = 'USD'):
 
 export const formatCryptoAmount = (
   amount: number,
-  decimals: number = CRYPTO_CONSTANTS.DEFAULT_CRYPTO_DECIMALS
+  decimals: number = FORMATTING_CONSTANTS.DEFAULT_CRYPTO_DECIMALS
 ): string => {
   return amount.toFixed(decimals);
 };

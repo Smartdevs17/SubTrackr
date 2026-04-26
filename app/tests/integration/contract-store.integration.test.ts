@@ -8,6 +8,7 @@
 import { act } from 'react';
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as notificationService from '../../../src/services/notificationService';
 import { useSubscriptionStore } from '../../../src/store/subscriptionStore';
 import { SubscriptionCategory, BillingCycle } from '../../../src/types/subscription';
 import { makeSubscription, makeSubscriptionFormData, resetIdCounter } from './factories';
@@ -32,15 +33,16 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 }));
 
 // ── Notification service mock (the "contract" side) ───────────────────────────
-const mockSyncRenewalReminders = jest.fn(() => Promise.resolve());
-const mockPresentChargeSuccess = jest.fn(() => Promise.resolve());
-const mockPresentChargeFailed = jest.fn(() => Promise.resolve());
-
 jest.mock('../../../src/services/notificationService', () => ({
-  syncRenewalReminders: (...args: unknown[]) => mockSyncRenewalReminders(...args),
-  presentChargeSuccessNotification: (...args: unknown[]) => mockPresentChargeSuccess(...args),
-  presentChargeFailedNotification: (...args: unknown[]) => mockPresentChargeFailed(...args),
+  syncRenewalReminders: jest.fn(() => Promise.resolve()),
+  presentChargeSuccessNotification: jest.fn(() => Promise.resolve()),
+  presentChargeFailedNotification: jest.fn(() => Promise.resolve()),
+  presentLocalNotification: jest.fn(() => Promise.resolve()),
 }));
+
+const mockSyncRenewalReminders = notificationService.syncRenewalReminders as jest.Mock;
+const mockPresentChargeSuccess = notificationService.presentChargeSuccessNotification as jest.Mock;
+const mockPresentChargeFailed = notificationService.presentChargeFailedNotification as jest.Mock;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function resetStore() {
@@ -83,7 +85,7 @@ describe('contract-store integration', () => {
     });
 
     expect(mockSyncRenewalReminders).toHaveBeenCalledTimes(1);
-    const [subs] = mockSyncRenewalReminders.mock.calls[0] as [unknown[]];
+    const [subs] = mockSyncRenewalReminders.mock.calls[0] as unknown as [unknown[]];
     expect(Array.isArray(subs)).toBe(true);
     expect((subs as { name: string }[]).some((s) => s.name === 'GitHub Copilot')).toBe(true);
   });
@@ -101,7 +103,7 @@ describe('contract-store integration', () => {
     });
 
     expect(mockSyncRenewalReminders).toHaveBeenCalledTimes(1);
-    const [subs] = mockSyncRenewalReminders.mock.calls[0] as [{ price: number }[]];
+    const [subs] = mockSyncRenewalReminders.mock.calls[0] as unknown as [{ price: number }[]];
     expect(subs[0].price).toBe(19.99);
   });
 
@@ -116,7 +118,7 @@ describe('contract-store integration', () => {
     });
 
     expect(mockSyncRenewalReminders).toHaveBeenCalledTimes(1);
-    const [subs] = mockSyncRenewalReminders.mock.calls[0] as [{ name: string }[]];
+    const [subs] = mockSyncRenewalReminders.mock.calls[0] as unknown as [{ name: string }[]];
     expect(subs.every((s) => s.name !== 'Remove Me')).toBe(true);
   });
 

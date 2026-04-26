@@ -222,13 +222,14 @@ describe('WalletServiceManager', () => {
 
   describe('estimateGas', () => {
     let mgr: WalletServiceManager;
-    let mockProvider: { getBalance: jest.Mock; getGasPrice: jest.Mock };
+    let mockProvider: { getBalance: jest.Mock; getGasPrice: jest.Mock; estimateGas: jest.Mock };
 
     beforeEach(() => {
       mgr = freshManager() as typeof mgr;
       mockProvider = {
         getBalance: jest.fn(),
         getGasPrice: jest.fn().mockResolvedValue(ethers.BigNumber.from('20000000000')), // 20 gwei
+        estimateGas: jest.fn().mockResolvedValue(ethers.BigNumber.from('17500')),
       };
       jest
         .spyOn(ethers.providers, 'JsonRpcProvider')

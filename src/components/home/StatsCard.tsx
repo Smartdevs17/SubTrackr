@@ -20,10 +20,18 @@ export const StatsCard: React.FC<StatsCardProps> = ({
         style={styles.statCard}
         accessible={true}
         accessibilityLabel={`Total monthly spend, ${formatCurrencyCompact(totalMonthlySpend)}`}>
-        <Text style={styles.statLabel} accessibilityElementsHidden={true} importantForAccessibility="no">
+        <Text
+          style={styles.statLabel}
+          accessibilityElementsHidden={true}
+          importantForAccessibility="no">
           Total Monthly
         </Text>
-        <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit accessibilityElementsHidden={true} importantForAccessibility="no">
+        <Text
+          style={styles.statValue}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          accessibilityElementsHidden={true}
+          importantForAccessibility="no">
           {formatCurrencyCompact(totalMonthlySpend)}
         </Text>
       </View>
@@ -31,10 +39,16 @@ export const StatsCard: React.FC<StatsCardProps> = ({
         style={styles.statCard}
         accessible={true}
         accessibilityLabel={`Active subscriptions, ${totalActive}`}>
-        <Text style={styles.statLabel} accessibilityElementsHidden={true} importantForAccessibility="no">
+        <Text
+          style={styles.statLabel}
+          accessibilityElementsHidden={true}
+          importantForAccessibility="no">
           Active Subs
         </Text>
-        <Text style={styles.statValue} accessibilityElementsHidden={true} importantForAccessibility="no">
+        <Text
+          style={styles.statValue}
+          accessibilityElementsHidden={true}
+          importantForAccessibility="no">
           {totalActive}
         </Text>
       </View>

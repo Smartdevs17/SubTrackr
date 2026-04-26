@@ -80,7 +80,9 @@ pub(crate) fn set_rollback_delay_secs(env: &Env, delay_secs: u64) {
 }
 
 pub(crate) fn scheduled_upgrade(env: &Env) -> Option<ScheduledUpgrade> {
-    env.storage().instance().get(&StorageKey::ProxyScheduledUpgrade)
+    env.storage()
+        .instance()
+        .get(&StorageKey::ProxyScheduledUpgrade)
 }
 
 pub(crate) fn set_scheduled_upgrade(env: &Env, upgrade: &ScheduledUpgrade) {
@@ -90,7 +92,9 @@ pub(crate) fn set_scheduled_upgrade(env: &Env, upgrade: &ScheduledUpgrade) {
 }
 
 pub(crate) fn clear_scheduled_upgrade(env: &Env) {
-    env.storage().instance().remove(&StorageKey::ProxyScheduledUpgrade);
+    env.storage()
+        .instance()
+        .remove(&StorageKey::ProxyScheduledUpgrade);
 }
 
 pub(crate) fn previous_count(env: &Env) -> u32 {
@@ -112,9 +116,10 @@ pub(crate) fn previous_top(env: &Env) -> Option<Address> {
 
 pub(crate) fn push_previous(env: &Env, implementation: &Address) {
     let count = previous_count(env);
-    env.storage()
-        .instance()
-        .set(&StorageKey::ProxyPreviousImplementation(count), implementation);
+    env.storage().instance().set(
+        &StorageKey::ProxyPreviousImplementation(count),
+        implementation,
+    );
     env.storage()
         .instance()
         .set(&StorageKey::ProxyPreviousImplementationCount, &(count + 1));

@@ -21,6 +21,7 @@ export interface ButtonProps {
   accessibilityLabel?: string;
   accessibilityHint?: string;
   accessibilitySelected?: boolean;
+  testID?: string;
 }
 
 export const Button: React.FC<ButtonProps> = ({
@@ -35,6 +36,7 @@ export const Button: React.FC<ButtonProps> = ({
   accessibilityLabel,
   accessibilityHint,
   accessibilitySelected = false,
+  testID,
 }) => {
   const buttonStyle = [
     styles.button,
@@ -59,6 +61,7 @@ export const Button: React.FC<ButtonProps> = ({
       disabled={disabled || loading}
       activeOpacity={0.8}
       accessibilityRole="button"
+      testID={testID}
       accessibilityLabel={accessibilityLabel ?? title}
       accessibilityHint={accessibilityHint}
       accessibilityState={{

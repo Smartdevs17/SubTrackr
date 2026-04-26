@@ -56,12 +56,12 @@ export ADMIN_ADDRESS="GD..."
 
 ## Environment Variables
 
-| Variable          | Description                                                                        | Required For     |
-| ----------------- | ---------------------------------------------------------------------------------- | ---------------- |
-| `SOROBAN_ACCOUNT` | The identity name (configured in Soroban CLI) or secret key to use for deployment. | Testnet, Mainnet |
-| `ADMIN_ADDRESS`   | The Stellar address that will be set as the contract admin during initialization.  | Testnet, Mainnet |
-| `UPGRADE_DELAY_SECS` | Minimum delay (seconds) between scheduling and executing an upgrade.           | Testnet, Mainnet |
-| `ROLLBACK_DELAY_SECS` | Delay (seconds) used when scheduling a rollback via `rollback()`.            | Testnet, Mainnet |
+| Variable              | Description                                                                        | Required For     |
+| --------------------- | ---------------------------------------------------------------------------------- | ---------------- |
+| `SOROBAN_ACCOUNT`     | The identity name (configured in Soroban CLI) or secret key to use for deployment. | Testnet, Mainnet |
+| `ADMIN_ADDRESS`       | The Stellar address that will be set as the contract admin during initialization.  | Testnet, Mainnet |
+| `UPGRADE_DELAY_SECS`  | Minimum delay (seconds) between scheduling and executing an upgrade.               | Testnet, Mainnet |
+| `ROLLBACK_DELAY_SECS` | Delay (seconds) used when scheduling a rollback via `rollback()`.                  | Testnet, Mainnet |
 
 ## Verification
 
@@ -77,19 +77,20 @@ Replace `<PROXY_ID>` with the proxy contract ID returned by the deployment scrip
 
 Some explorers (e.g., Stellar Expert / Soroban explorers) support attaching source bundles for transparency.
 
-1) Build the WASM (optional, for checksum reference):
+1. Build the WASM (optional, for checksum reference):
 
 ```bash
 cargo build --release --target wasm32-unknown-unknown --manifest-path contracts/Cargo.toml
 ```
 
-2) Package the contract source:
+2. Package the contract source:
 
 ```bash
 ./scripts/package-source.sh
 ```
 
 This generates a tar.gz in `dist/` containing:
+
 - `contracts/Cargo.toml`
 - `contracts/proxy/**`
 - `contracts/storage/**`
@@ -97,9 +98,10 @@ This generates a tar.gz in `dist/` containing:
 - `contracts/types/**`
 - `WASM_SHA256.txt` (if a compiled WASM was found)
 
-3) Upload the tar.gz bundle to your chosen explorer’s contract page (or submit via their form/API), referencing your deployed `PROXY_ID` (and optionally the storage/implementation IDs).
+3. Upload the tar.gz bundle to your chosen explorer’s contract page (or submit via their form/API), referencing your deployed `PROXY_ID` (and optionally the storage/implementation IDs).
 
 Notes:
+
 - Ensure the license header is present in your sources if required by the explorer.
 - Keep optimizer/toolchain settings consistent across builds for reproducibility.
 
@@ -122,6 +124,7 @@ This deploys a new implementation and schedules the upgrade via `authorize_upgra
 ### 2) Wait for the timelock
 
 Upgrades are timelocked. The proxy enforces:
+
 - `execute_after >= now + upgrade_delay_secs`
 
 ### 3) Execute the upgrade
@@ -131,6 +134,7 @@ Upgrades are timelocked. The proxy enforces:
 ```
 
 Execution calls `upgrade_to(implementation)` which:
+
 - Updates the storage contract to authorize writes from the new implementation
 - Runs `validate_upgrade(...)` and `migrate(...)` when needed
 - Updates `get_version()` (storage schema version)
@@ -141,6 +145,7 @@ Execution calls `upgrade_to(implementation)` which:
 `get_version()` on the proxy represents the **storage schema version**.
 
 When changing storage layout between versions:
+
 - Bump the implementation’s `STORAGE_VERSION`
 - Implement `migrate(proxy, storage, from_version)`
 - Keep migrations **forward-only** and deterministic
@@ -149,14 +154,15 @@ When changing storage layout between versions:
 
 If the latest implementation is faulty, the proxy can schedule a rollback to the immediately-previous implementation:
 
-1) Schedule rollback:
+1. Schedule rollback:
 
 ```bash
 ./scripts/rollback-schedule.sh <PROXY_ID> <NETWORK>
 ```
 
-2) After the rollback delay elapses, execute the scheduled rollback with `upgrade_to(...)`.
+2. After the rollback delay elapses, execute the scheduled rollback with `upgrade_to(...)`.
 
 Notes:
+
 - Rollback changes the **implementation**, not the already-applied storage schema.
 - Keep older implementations forward-compatible when possible (e.g., additive storage changes).

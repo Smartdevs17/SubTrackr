@@ -21,124 +21,129 @@ export interface SubscriptionCardProps {
   onToggleStatus?: (id: string) => void;
 }
 
-export const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
-  subscription,
-  onPress,
-  onToggleStatus,
-}) => {
-  const handleToggleStatus = () => {
-    if (onToggleStatus) {
-      Alert.alert(
-        subscription.isActive ? 'Pause Subscription' : 'Activate Subscription',
-        `Are you sure you want to ${subscription.isActive ? 'pause' : 'activate'} ${subscription.name}?`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Confirm', onPress: () => onToggleStatus(subscription.id) },
-        ]
-      );
-    }
-  };
+export const SubscriptionCard: React.FC<SubscriptionCardProps> = React.memo(
+  ({ subscription, onPress, onToggleStatus }) => {
+    const handleToggleStatus = () => {
+      if (onToggleStatus) {
+        Alert.alert(
+          subscription.isActive ? 'Pause Subscription' : 'Activate Subscription',
+          `Are you sure you want to ${subscription.isActive ? 'pause' : 'activate'} ${subscription.name}?`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Confirm', onPress: () => onToggleStatus(subscription.id) },
+          ]
+        );
+      }
+    };
 
-  const upcoming = isUpcomingBilling(subscription.nextBillingDate);
+    const upcoming = isUpcomingBilling(subscription.nextBillingDate);
 
-  return (
-    <TouchableOpacity
-      accessible={true}
-      accessibilityRole="button"
-      accessibilityLabel={`${subscription.name}, ${formatCurrency(
-        subscription.price,
-        subscription.currency
-      )} per ${formatBillingCycle(subscription.billingCycle)}, ${
-        subscription.isActive ? 'Active' : 'Paused'
-      }`}
-      style={[styles.container, upcoming && styles.upcomingContainer]}
-      onPress={() => onPress(subscription)}
-      activeOpacity={0.8}>
-      <View style={styles.header}>
-        <View style={styles.iconContainer}>
-          <Text style={styles.icon}>{getCategoryIcon(subscription.category)}</Text>
-        </View>
+    return (
+      <TouchableOpacity
+        testID={`subscription-card-${subscription.id}`}
+        accessible={true}
+        accessibilityRole="button"
+        accessibilityLabel={`${subscription.name}, ${formatCurrency(
+          subscription.price,
+          subscription.currency
+        )} per ${formatBillingCycle(subscription.billingCycle)}, ${
+          subscription.isActive ? 'Active' : 'Paused'
+        }`}
+        style={[styles.container, upcoming && styles.upcomingContainer]}
+        onPress={() => onPress(subscription)}
+        activeOpacity={0.8}>
+        <View style={styles.header}>
+          <View style={styles.iconContainer}>
+            <Text style={styles.icon}>{getCategoryIcon(subscription.category)}</Text>
+          </View>
 
-        <View style={styles.titleContainer}>
-          <Text style={styles.name} numberOfLines={1}>
-            {subscription.name}
-          </Text>
-          <Text style={styles.category} numberOfLines={1}>
-            {formatCategory(subscription.category)}
-          </Text>
-        </View>
+          <View style={styles.titleContainer}>
+            <Text
+              testID={`subscription-name-${subscription.id}`}
+              style={styles.name}
+              numberOfLines={1}>
+              {subscription.name}
+            </Text>
+            <Text style={styles.category} numberOfLines={1}>
+              {formatCategory(subscription.category)}
+            </Text>
+          </View>
 
-        <View
-          accessible={true}
-          accessibilityLabel={subscription.isActive ? 'Subscription active' : 'Subscription paused'}
-          style={styles.statusContainer}>
           <View
-            style={[
-              styles.statusIndicator,
-              { backgroundColor: getStatusColor(subscription.isActive) },
-            ]}
-          />
-          {subscription.isCryptoEnabled && (
-            <View style={styles.cryptoBadge}>
-              <Text style={styles.cryptoText}>₿</Text>
-            </View>
-          )}
-        </View>
-      </View>
-
-      <View style={styles.details}>
-        <View
-          accessible={true}
-          accessibilityLabel={`Price ${formatCurrency(
-            subscription.price,
-            subscription.currency
-          )} per ${formatBillingCycle(subscription.billingCycle)}`}
-          style={styles.priceContainer}>
-          <Text style={styles.price}>
-            {formatCurrency(subscription.price, subscription.currency)}
-          </Text>
-          <Text
-            style={[
-              styles.billingCycle,
-              { color: getBillingCycleColor(subscription.billingCycle) },
-            ]}>
-            /{formatBillingCycle(subscription.billingCycle)}
-          </Text>
+            accessible={true}
+            accessibilityLabel={
+              subscription.isActive ? 'Subscription active' : 'Subscription paused'
+            }
+            style={styles.statusContainer}>
+            <View
+              style={[
+                styles.statusIndicator,
+                { backgroundColor: getStatusColor(subscription.isActive) },
+              ]}
+            />
+            {subscription.isCryptoEnabled && (
+              <View style={styles.cryptoBadge}>
+                <Text style={styles.cryptoText}>₿</Text>
+              </View>
+            )}
+          </View>
         </View>
 
-        <View style={styles.billingInfo}>
-          <Text style={styles.billingLabel}>Next billing:</Text>
-          <Text
-            style={[styles.billingDate, upcoming && styles.upcomingDate]}
-            accessibilityLabel={`Next billing date ${formatRelativeDate(
-              new Date(subscription.nextBillingDate)
-            )}`}>
-            {formatRelativeDate(new Date(subscription.nextBillingDate))}
-          </Text>
+        <View style={styles.details}>
+          <View
+            accessible={true}
+            accessibilityLabel={`Price ${formatCurrency(
+              subscription.price,
+              subscription.currency
+            )} per ${formatBillingCycle(subscription.billingCycle)}`}
+            style={styles.priceContainer}>
+            <Text style={styles.price}>
+              {formatCurrency(subscription.price, subscription.currency)}
+            </Text>
+            <Text
+              style={[
+                styles.billingCycle,
+                { color: getBillingCycleColor(subscription.billingCycle) },
+              ]}>
+              /{formatBillingCycle(subscription.billingCycle)}
+            </Text>
+          </View>
+
+          <View style={styles.billingInfo}>
+            <Text style={styles.billingLabel}>Next billing:</Text>
+            <Text
+              style={[styles.billingDate, upcoming && styles.upcomingDate]}
+              accessibilityLabel={`Next billing date ${formatRelativeDate(
+                new Date(subscription.nextBillingDate)
+              )}`}>
+              {formatRelativeDate(new Date(subscription.nextBillingDate))}
+            </Text>
+          </View>
         </View>
-      </View>
 
-      {subscription.description && (
-        <Text style={styles.description} numberOfLines={2}>
-          {subscription.description}
-        </Text>
-      )}
+        {subscription.description && (
+          <Text style={styles.description} numberOfLines={2}>
+            {subscription.description}
+          </Text>
+        )}
 
-      {onToggleStatus && (
-        <TouchableOpacity
-          style={styles.toggleButton}
-          onPress={handleToggleStatus}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel={
-            subscription.isActive ? `Pause ${subscription.name}` : `Activate ${subscription.name}`
-          }>
-          <Text style={styles.toggleText}>{subscription.isActive ? 'Pause' : 'Activate'}</Text>
-        </TouchableOpacity>
-      )}
-    </TouchableOpacity>
-  );
-};
+        {onToggleStatus && (
+          <TouchableOpacity
+            style={styles.toggleButton}
+            onPress={handleToggleStatus}
+            activeOpacity={0.7}
+            testID={`subscription-toggle-${subscription.id}`}
+            accessibilityRole="button"
+            accessibilityLabel={
+              subscription.isActive ? `Pause ${subscription.name}` : `Activate ${subscription.name}`
+            }>
+            <Text style={styles.toggleText}>{subscription.isActive ? 'Pause' : 'Activate'}</Text>
+          </TouchableOpacity>
+        )}
+      </TouchableOpacity>
+    );
+  }
+);
 
 const styles = StyleSheet.create({
   container: {

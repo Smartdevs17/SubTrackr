@@ -58,6 +58,25 @@ jobs:
       - name: Run ESLint
         run: npm run lint
 
+  npm-audit:
+    name: NPM Audit (High/Critical)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Run NPM Audit
+        run: npx audit-ci --config audit-ci.json
+
   typescript-typecheck:
     name: TypeScript Type Check
     runs-on: ubuntu-latest
@@ -81,8 +100,14 @@ jobs:
         run: npx tsc --noEmit
 
   typescript-tests:
-    name: TypeScript Tests
+    name: TypeScript Tests (Sharded)
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        shard: [1, 2, 3]
+    env:
+      SHARD: ${{ matrix.shard }}
+      SHARD_COUNT: 3
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -96,13 +121,15 @@ jobs:
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
 
-      - name: Run tests with coverage
-        run: npm run test:coverage
+      - name: Run sharded tests with coverage
+        run: |
+          echo "Running shard $SHARD of $SHARD_COUNT"
+          npm run test:shard
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-report
+          name: coverage-report-${{ matrix.shard }}
           path: coverage/lcov.info
 
   typescript-build:

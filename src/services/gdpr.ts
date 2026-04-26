@@ -31,7 +31,7 @@ export const gdprService = {
   /**
    * Request account deletion/anonymization
    */
-  async requestDeletion(permanent: boolean) {
+  async requestDeletion(_permanent: boolean) {
     try {
       // await api.delete('/delete', { data: { permanent } });
       return { success: true };
@@ -61,5 +61,5 @@ export const gdprService = {
     // In a real mobile app, we'd use Expo FileSystem and Sharing
     console.log('Triggering download for:', data);
     Alert.alert('Success', 'Your data export has been prepared and will be sent to your email.');
-  }
+  },
 };

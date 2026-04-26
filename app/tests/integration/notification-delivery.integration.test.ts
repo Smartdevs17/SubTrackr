@@ -25,31 +25,27 @@ jest.mock('react-native', () => ({
 }));
 
 // ── expo-notifications mock ───────────────────────────────────────────────────
-const mockSchedule = jest.fn(() => Promise.resolve('notif-id'));
-const mockGetScheduled = jest.fn(() => Promise.resolve([]));
-const mockCancel = jest.fn(() => Promise.resolve());
-const mockGetPermissions = jest.fn(() =>
-  Promise.resolve({ status: Notifications.PermissionStatus.GRANTED })
-);
-const mockRequestPermissions = jest.fn(() =>
-  Promise.resolve({ status: Notifications.PermissionStatus.GRANTED })
-);
-const mockSetHandler = jest.fn();
-const mockSetChannel = jest.fn(() => Promise.resolve());
-
 jest.mock('expo-notifications', () => ({
   PermissionStatus: { GRANTED: 'granted', DENIED: 'denied', UNDETERMINED: 'undetermined' },
   AndroidImportance: { HIGH: 4 },
   AndroidNotificationVisibility: { PUBLIC: 1 },
   SchedulableTriggerInputTypes: { DATE: 'date' },
-  setNotificationHandler: (...args: unknown[]) => mockSetHandler(...args),
-  setNotificationChannelAsync: (...args: unknown[]) => mockSetChannel(...args),
-  getPermissionsAsync: () => mockGetPermissions(),
-  requestPermissionsAsync: () => mockRequestPermissions(),
-  scheduleNotificationAsync: (...args: unknown[]) => mockSchedule(...args),
-  getAllScheduledNotificationsAsync: () => mockGetScheduled(),
-  cancelScheduledNotificationAsync: (...args: unknown[]) => mockCancel(...args),
+  setNotificationHandler: jest.fn(),
+  setNotificationChannelAsync: jest.fn(() => Promise.resolve()),
+  getPermissionsAsync: jest.fn(() => Promise.resolve({ status: 'granted' })),
+  requestPermissionsAsync: jest.fn(() => Promise.resolve({ status: 'granted' })),
+  scheduleNotificationAsync: jest.fn(() => Promise.resolve('notif-id')),
+  getAllScheduledNotificationsAsync: jest.fn(() => Promise.resolve([])),
+  cancelScheduledNotificationAsync: jest.fn(() => Promise.resolve()),
 }));
+
+const mockSchedule = Notifications.scheduleNotificationAsync as jest.Mock;
+const mockGetScheduled = Notifications.getAllScheduledNotificationsAsync as jest.Mock;
+const mockCancel = Notifications.cancelScheduledNotificationAsync as jest.Mock;
+const mockGetPermissions = Notifications.getPermissionsAsync as jest.Mock;
+const mockRequestPermissions = Notifications.requestPermissionsAsync as jest.Mock;
+const mockSetHandler = Notifications.setNotificationHandler as jest.Mock;
+const mockSetChannel = Notifications.setNotificationChannelAsync as jest.Mock;
 
 beforeEach(() => {
   mockSchedule.mockClear();
@@ -77,7 +73,7 @@ describe('notification delivery integration', () => {
     await presentChargeSuccessNotification(sub);
 
     expect(mockSchedule).toHaveBeenCalledTimes(1);
-    const [payload] = mockSchedule.mock.calls[0] as [
+    const [payload] = mockSchedule.mock.calls[0] as unknown as [
       { content: { title: string; data: { type: string } }; trigger: null },
     ];
     expect(payload.content.title).toContain('Linear');
@@ -90,7 +86,7 @@ describe('notification delivery integration', () => {
     await presentChargeFailedNotification(sub);
 
     expect(mockSchedule).toHaveBeenCalledTimes(1);
-    const [payload] = mockSchedule.mock.calls[0] as [
+    const [payload] = mockSchedule.mock.calls[0] as unknown as [
       { content: { title: string; data: { type: string } }; trigger: null },
     ];
     expect(payload.content.title).toContain('Figma');
@@ -102,7 +98,7 @@ describe('notification delivery integration', () => {
     const sub = makeSubscription();
     await presentChargeFailedNotification(sub, 'Insufficient balance');
 
-    const [payload] = mockSchedule.mock.calls[0] as [{ content: { body: string } }];
+    const [payload] = mockSchedule.mock.calls[0] as unknown as [{ content: { body: string } }];
     expect(payload.content.body).toBe('Insufficient balance');
   });
 
@@ -110,7 +106,7 @@ describe('notification delivery integration', () => {
     await presentTransactionQueueNotification('Queue update', 'Your transaction was processed');
 
     expect(mockSchedule).toHaveBeenCalledTimes(1);
-    const [payload] = mockSchedule.mock.calls[0] as [
+    const [payload] = mockSchedule.mock.calls[0] as unknown as [
       { content: { title: string; body: string; data: { type: string } } },
     ];
     expect(payload.content.title).toBe('Queue update');
@@ -128,7 +124,7 @@ describe('notification delivery integration', () => {
       },
       trigger: null,
     };
-    mockGetScheduled.mockResolvedValueOnce([existingNotif]);
+    mockGetScheduled.mockResolvedValueOnce([existingNotif] as never);
 
     const sub = makeSubscription({
       nextBillingDate: new Date(Date.now() + 48 * 60 * 60 * 1000), // 2 days from now
@@ -142,7 +138,7 @@ describe('notification delivery integration', () => {
   });
 
   it('syncRenewalReminders does not schedule for inactive subscriptions', async () => {
-    mockGetScheduled.mockResolvedValueOnce([]);
+    mockGetScheduled.mockResolvedValueOnce([] as unknown as never);
 
     const sub = makeSubscription({ isActive: false, notificationsEnabled: true });
     await syncRenewalReminders([sub]);
@@ -151,7 +147,7 @@ describe('notification delivery integration', () => {
   });
 
   it('syncRenewalReminders does not schedule when notificationsEnabled is false', async () => {
-    mockGetScheduled.mockResolvedValueOnce([]);
+    mockGetScheduled.mockResolvedValueOnce([] as unknown as never);
 
     const sub = makeSubscription({
       isActive: true,
@@ -164,7 +160,7 @@ describe('notification delivery integration', () => {
   });
 
   it('syncRenewalReminders schedules a reminder for an active sub with future billing date', async () => {
-    mockGetScheduled.mockResolvedValueOnce([]);
+    mockGetScheduled.mockResolvedValueOnce([] as unknown as never);
 
     const sub = makeSubscription({
       isActive: true,
@@ -176,7 +172,9 @@ describe('notification delivery integration', () => {
     await syncRenewalReminders([sub]);
 
     expect(mockSchedule).toHaveBeenCalledTimes(1);
-    const [payload] = mockSchedule.mock.calls[0] as [{ content: { data: { type: string } } }];
+    const [payload] = mockSchedule.mock.calls[0] as unknown as [
+      { content: { data: { type: string } } },
+    ];
     expect(payload.content.data.type).toBe(NOTIFICATION_DATA_TYPE.RENEWAL_REMINDER);
   });
 
