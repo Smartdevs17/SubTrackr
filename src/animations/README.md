@@ -5,32 +5,38 @@ A comprehensive animation system for React Native that provides smooth transitio
 ## Features
 
 ### ✅ Shared Element Transitions
+
 - Smooth transitions between screens when navigating
 - Maintains visual continuity for subscription cards
 - Supports fade, scale, and slide transition types
 
 ### ✅ Enter/Exit Animations
+
 - Staggered list animations for subscription cards
 - Screen transition animations with customizable timing
 - Loading state animations with skeleton placeholders
 
 ### ✅ Loading Skeletons
+
 - Animated skeleton placeholders during data loading
 - Pulse animation for visual feedback
 - Customizable skeleton components for different content types
 
 ### ✅ Value Change Animations
+
 - Price change animations with bounce effects
 - Status toggle animations with scale transitions
 - Smooth value interpolation for numeric changes
 
 ### ✅ Gesture-Driven Animations
+
 - Swipeable subscription cards with action reveals
 - Press animations with scale feedback
 - Long press animations with rotation effects
 - Pan gesture handling for custom interactions
 
 ### ✅ Performance Optimization
+
 - Native driver usage for 60fps animations
 - Animation batching to prevent layout thrashing
 - Memory-efficient animation pools
@@ -41,18 +47,21 @@ A comprehensive animation system for React Native that provides smooth transitio
 ### Core Components
 
 #### Animation Utilities (`src/utils/animations.ts`)
+
 - Pre-built animation presets (fade, scale, slide, bounce)
 - Shared element transition management
 - Interpolation utilities and easing functions
 - Animation composition helpers
 
 #### Performance Hooks (`src/hooks/useAnimationPerformance.ts`)
+
 - Animation lifecycle management
 - InteractionManager integration
 - Animation batching utilities
 - Performance monitoring and metrics
 
 #### Animated Components
+
 - `AnimatedSubscriptionCard`: Enhanced subscription card with animations
 - `SubscriptionListSkeleton`: Loading state placeholders
 - `ScreenTransition`: Screen-level transition wrapper
@@ -62,15 +71,17 @@ A comprehensive animation system for React Native that provides smooth transitio
 ## Usage Examples
 
 ### Basic Screen Transitions
+
 ```tsx
 import { ScreenTransition } from '../animations';
 
 <ScreenTransition type="fade" duration={400}>
   <YourScreenContent />
-</ScreenTransition>
+</ScreenTransition>;
 ```
 
 ### Shared Element Transitions
+
 ```tsx
 import { SharedElement } from '../animations';
 
@@ -86,6 +97,7 @@ import { SharedElement } from '../animations';
 ```
 
 ### Animated Subscription Cards
+
 ```tsx
 import { AnimatedSubscriptionCard } from '../animations';
 
@@ -94,21 +106,25 @@ import { AnimatedSubscriptionCard } from '../animations';
   onPress={handlePress}
   sharedElementId={`subscription-${subscription.id}`}
   index={index}
-/>
+/>;
 ```
 
 ### Loading Skeletons
+
 ```tsx
 import { SubscriptionListSkeleton } from '../animations';
 
-{isLoading ? (
-  <SubscriptionListSkeleton count={5} />
-) : (
-  <SubscriptionList subscriptions={subscriptions} />
-)}
+{
+  isLoading ? (
+    <SubscriptionListSkeleton count={5} />
+  ) : (
+    <SubscriptionList subscriptions={subscriptions} />
+  );
+}
 ```
 
 ### Gesture Interactions
+
 ```tsx
 import { SwipeableSubscriptionCard } from '../animations';
 
@@ -116,20 +132,21 @@ import { SwipeableSubscriptionCard } from '../animations';
   leftAction={{ label: 'Delete', color: 'red' }}
   rightAction={{ label: 'Edit', color: 'blue' }}
   onSwipeLeft={handleDelete}
-  onSwipeRight={handleEdit}
->
+  onSwipeRight={handleEdit}>
   <YourCardContent />
-</SwipeableSubscriptionCard>
+</SwipeableSubscriptionCard>;
 ```
 
 ## Animation Presets
 
 ### Timing Configurations
+
 - `fast`: 200ms - Quick interactions
 - `normal`: 300ms - Standard transitions
 - `slow`: 500ms - Dramatic effects
 
 ### Easing Functions
+
 - `easeInOut`: Smooth acceleration/deceleration
 - `easeOut`: Quick start, smooth finish
 - `easeIn`: Smooth start, quick finish
@@ -147,6 +164,7 @@ import { SwipeableSubscriptionCard } from '../animations';
 ## Testing
 
 The animation system includes comprehensive tests covering:
+
 - Component rendering with animations
 - Gesture handling and interactions
 - Animation lifecycle management
@@ -154,6 +172,7 @@ The animation system includes comprehensive tests covering:
 - Shared element transitions
 
 Run tests with:
+
 ```bash
 npm test src/animations/
 ```

@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { FeatureId, FeatureAccessResult } from '../types/feature';
-import { SubscriptionTier } from '../types/subscription';
 import { featureFlagsService } from '../services/featureFlags';
 import { useUserStore } from '../store/userStore';
 

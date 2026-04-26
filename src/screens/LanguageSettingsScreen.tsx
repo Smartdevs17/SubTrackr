@@ -19,11 +19,9 @@ const LanguageSettingsScreen = () => {
     const success = await languageService.changeLanguage(code);
     if (success) {
       if (code === 'ar' || currentLanguage === 'ar') {
-        Alert.alert(
-          t('common.success'),
-          t('settings.language_restart_notice'),
-          [{ text: t('common.ok') }]
-        );
+        Alert.alert(t('common.success'), t('settings.language_restart_notice'), [
+          { text: t('common.ok') },
+        ]);
       }
     } else {
       Alert.alert(t('common.error'), t('settings.language_failed'));
@@ -58,9 +56,7 @@ const LanguageSettingsScreen = () => {
       </View>
 
       <View style={styles.footer}>
-        <Text style={styles.footerText}>
-          {t('settings.language_footer')}
-        </Text>
+        <Text style={styles.footerText}>{t('settings.language_footer')}</Text>
       </View>
     </ScrollView>
   );

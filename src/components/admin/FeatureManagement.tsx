@@ -9,10 +9,10 @@ import {
   TextInput,
   Alert,
 } from 'react-native';
-import { FeatureId, FeatureFlag } from '../types/feature';
-import { SubscriptionTier } from '../types/subscription';
-import { featureFlagsService } from '../services/featureFlags';
-import { colors, spacing, typography, borderRadius, shadows } from '../utils/constants';
+import { FeatureId, FeatureFlag } from '../../types/feature';
+import { SubscriptionTier } from '../../types/subscription';
+import { featureFlagsService } from '../../services/featureFlags';
+import { colors, spacing, typography, borderRadius, shadows } from '../../utils/constants';
 
 interface FeatureManagementProps {
   onFeatureUpdate?: (featureId: FeatureId, updates: Partial<FeatureFlag>) => void;
@@ -21,9 +21,7 @@ interface FeatureManagementProps {
 /**
  * Administrative component for managing feature flags
  */
-export const FeatureManagement: React.FC<FeatureManagementProps> = ({
-  onFeatureUpdate,
-}) => {
+export const FeatureManagement: React.FC<FeatureManagementProps> = ({ onFeatureUpdate }) => {
   const [editingFeature, setEditingFeature] = useState<FeatureId | null>(null);
   const [rolloutPercentage, setRolloutPercentage] = useState<string>('');
 
@@ -95,8 +93,7 @@ export const FeatureManagement: React.FC<FeatureManagementProps> = ({
               {feature.tierAccess.map((tier) => (
                 <View
                   key={tier}
-                  style={[styles.tierBadge, { backgroundColor: getTierColor(tier) }]}
-                >
+                  style={[styles.tierBadge, { backgroundColor: getTierColor(tier) }]}>
                   <Text style={styles.tierBadgeText}>{tier}</Text>
                 </View>
               ))}
@@ -117,8 +114,7 @@ export const FeatureManagement: React.FC<FeatureManagementProps> = ({
                 />
                 <TouchableOpacity
                   style={styles.saveButton}
-                  onPress={() => handleRolloutUpdate(featureId)}
-                >
+                  onPress={() => handleRolloutUpdate(featureId)}>
                   <Text style={styles.saveButtonText}>Save</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -126,8 +122,7 @@ export const FeatureManagement: React.FC<FeatureManagementProps> = ({
                   onPress={() => {
                     setEditingFeature(null);
                     setRolloutPercentage('');
-                  }}
-                >
+                  }}>
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
               </View>
@@ -137,11 +132,8 @@ export const FeatureManagement: React.FC<FeatureManagementProps> = ({
                 onPress={() => {
                   setEditingFeature(featureId);
                   setRolloutPercentage(`${feature.rolloutPercentage || 100}`);
-                }}
-              >
-                <Text style={styles.rolloutText}>
-                  {feature.rolloutPercentage || 100}%
-                </Text>
+                }}>
+                <Text style={styles.rolloutText}>{feature.rolloutPercentage || 100}%</Text>
                 <Text style={styles.editText}>Tap to edit</Text>
               </TouchableOpacity>
             )}
@@ -150,18 +142,14 @@ export const FeatureManagement: React.FC<FeatureManagementProps> = ({
           {feature.dependencies && feature.dependencies.length > 0 && (
             <View style={styles.dependencies}>
               <Text style={styles.detailLabel}>Dependencies:</Text>
-              <Text style={styles.dependenciesText}>
-                {feature.dependencies.join(', ')}
-              </Text>
+              <Text style={styles.dependenciesText}>{feature.dependencies.join(', ')}</Text>
             </View>
           )}
 
           {feature.abTestGroups && feature.abTestGroups.length > 0 && (
             <View style={styles.abTest}>
               <Text style={styles.detailLabel}>A/B Test Groups:</Text>
-              <Text style={styles.abTestText}>
-                {feature.abTestGroups.join(', ')}
-              </Text>
+              <Text style={styles.abTestText}>{feature.abTestGroups.join(', ')}</Text>
             </View>
           )}
         </View>

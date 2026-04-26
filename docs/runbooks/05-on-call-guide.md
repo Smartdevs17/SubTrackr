@@ -15,14 +15,14 @@ Reference for engineers on the SubTrackr on-call rotation.
 
 ## Tools & Access
 
-| Tool | Purpose | Access |
-| ---- | ------- | ------ |
-| PagerDuty | Alert routing and escalation | On-call rotation |
-| Soroban CLI | Contract inspection and invocation | `soroban` binary + account identity |
-| Stellar Expert | Contract event explorer | https://stellar.expert |
-| Stellar Status | Network health | https://status.stellar.org |
-| Monitoring dashboard | `monitoringService.getDashboard()` | App backend |
-| Audit log | `auditService.query(...)` | App backend |
+| Tool                 | Purpose                            | Access                              |
+| -------------------- | ---------------------------------- | ----------------------------------- |
+| PagerDuty            | Alert routing and escalation       | On-call rotation                    |
+| Soroban CLI          | Contract inspection and invocation | `soroban` binary + account identity |
+| Stellar Expert       | Contract event explorer            | https://stellar.expert              |
+| Stellar Status       | Network health                     | https://status.stellar.org          |
+| Monitoring dashboard | `monitoringService.getDashboard()` | App backend                         |
+| Audit log            | `auditService.query(...)`          | App backend                         |
 
 ---
 
@@ -50,25 +50,25 @@ Reference for engineers on the SubTrackr on-call rotation.
 
 ## Alert Response Quick Reference
 
-| Alert | Runbook | First Action |
-| ----- | ------- | ------------ |
-| `high-failure-rate` | [02-incident-response.md](./02-incident-response.md#scenario-a--high-transaction-failure-rate) | Check `dashboard.recentMetrics` |
-| `gas-spike` | [02-incident-response.md](./02-incident-response.md) | Check for runaway charge loops |
-| Contract unreachable | [02-incident-response.md](./02-incident-response.md#scenario-b--contract-unreachable) | Check https://status.stellar.org |
-| Notification outage | [02-incident-response.md](./02-incident-response.md#scenario-d--notification-delivery-failure) | Check Expo push service |
-| Backup checksum failure | [04-troubleshooting.md](./04-troubleshooting.md#backup-checksum-failure) | List and verify all backups |
-| Audit chain break | [04-troubleshooting.md](./04-troubleshooting.md#audit-chain-verification-fails) | Treat as P1 security incident |
+| Alert                   | Runbook                                                                                        | First Action                     |
+| ----------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------- |
+| `high-failure-rate`     | [02-incident-response.md](./02-incident-response.md#scenario-a--high-transaction-failure-rate) | Check `dashboard.recentMetrics`  |
+| `gas-spike`             | [02-incident-response.md](./02-incident-response.md)                                           | Check for runaway charge loops   |
+| Contract unreachable    | [02-incident-response.md](./02-incident-response.md#scenario-b--contract-unreachable)          | Check https://status.stellar.org |
+| Notification outage     | [02-incident-response.md](./02-incident-response.md#scenario-d--notification-delivery-failure) | Check Expo push service          |
+| Backup checksum failure | [04-troubleshooting.md](./04-troubleshooting.md#backup-checksum-failure)                       | List and verify all backups      |
+| Audit chain break       | [04-troubleshooting.md](./04-troubleshooting.md#audit-chain-verification-fails)                | Treat as P1 security incident    |
 
 ---
 
 ## Escalation Matrix
 
-| Condition | Escalate To | How |
-| --------- | ----------- | --- |
-| P1 incident unresolved after 15 min | Engineering lead | PagerDuty escalation policy |
-| Contract redeployment required | Contract admin key holder | Direct contact |
-| Security breach suspected | Security team | security@subtrackr.example.com |
-| Stellar network outage | No internal escalation | Monitor https://status.stellar.org |
+| Condition                           | Escalate To               | How                                |
+| ----------------------------------- | ------------------------- | ---------------------------------- |
+| P1 incident unresolved after 15 min | Engineering lead          | PagerDuty escalation policy        |
+| Contract redeployment required      | Contract admin key holder | Direct contact                     |
+| Security breach suspected           | Security team             | security@subtrackr.example.com     |
+| Stellar network outage              | No internal escalation    | Monitor https://status.stellar.org |
 
 ---
 

@@ -1,6 +1,6 @@
+use crate::{storage_persistent_get, storage_persistent_set};
 use soroban_sdk::{Address, Env, Vec};
 use subtrackr_types::{Quota, StorageKey};
-use crate::{storage_persistent_get, storage_persistent_set};
 
 pub fn set_plan_quotas(env: &Env, storage: &Address, plan_id: u64, quotas: Vec<Quota>) {
     storage_persistent_set(env, storage, StorageKey::PlanQuotas(plan_id), quotas);

@@ -75,7 +75,7 @@ jobs:
         run: npm ci --legacy-peer-deps
 
       - name: Run NPM Audit
-        run: npm audit --audit-level=high
+        run: npx audit-ci --config audit-ci.json
 
   typescript-typecheck:
     name: TypeScript Type Check

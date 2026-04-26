@@ -42,7 +42,7 @@ const SettingsScreen: React.FC = () => {
   useEffect(() => {
     loadSettings();
     initialize();
-  }, []);
+  }, [initialize]);
 
   const loadSettings = async () => {
     try {
@@ -222,6 +222,17 @@ const SettingsScreen: React.FC = () => {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.linkRow}
+            onPress={() => navigation.navigate('AccountingExport')}
+            accessibilityRole="button"
+            accessibilityLabel="Accounting export"
+            accessibilityHint="Opens QuickBooks and Xero subscription export settings">
+            <Text style={styles.linkText}>Accounting Export</Text>
+            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
+              &gt;
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.linkRow}
             onPress={() => navigation.navigate('WebhookSettings')}
             accessibilityRole="button"
             accessibilityLabel={t('settings.webhooks')}
@@ -343,7 +354,8 @@ const SettingsScreen: React.FC = () => {
                   <View style={styles.networkInfo}>
                     <Text style={styles.networkName}>{item.name}</Text>
                     <Text style={styles.networkType}>
-                      {item.type.toUpperCase()} {item.isTestnet ? t('settings.testnet') : t('settings.mainnet')}
+                      {item.type.toUpperCase()}{' '}
+                      {item.isTestnet ? t('settings.testnet') : t('settings.mainnet')}
                     </Text>
                   </View>
                   {currentNetwork?.id === item.id && <Text style={styles.checkmark}>✓</Text>}

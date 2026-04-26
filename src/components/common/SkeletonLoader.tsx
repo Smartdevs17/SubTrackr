@@ -1,7 +1,7 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
 import { View, Animated, StyleSheet } from 'react-native';
-import { colors, spacing, borderRadius, shadows } from '../utils/constants';
-import { animations, useAnimatedValue } from '../utils/animations';
+import { colors, spacing, borderRadius, shadows } from '../../utils/constants';
+import { animations, useAnimatedValue } from '../../utils/animations';
 
 interface SkeletonProps {
   width?: number | string;
@@ -95,17 +95,13 @@ interface SubscriptionListSkeletonProps {
 
 export const SubscriptionListSkeleton: React.FC<SubscriptionListSkeletonProps> = ({
   count = 3,
-  style
+  style,
 }) => {
   const items = Array.from({ length: count }, (_, index) => (
     <SubscriptionCardSkeleton key={index} />
   ));
 
-  return (
-    <View style={[styles.listContainer, style]}>
-      {items}
-    </View>
-  );
+  return <View style={[styles.listContainer, style]}>{items}</View>;
 };
 
 const styles = StyleSheet.create({

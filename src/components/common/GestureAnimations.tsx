@@ -1,12 +1,12 @@
 import React, { useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, PanResponder, Dimensions } from 'react-native';
-import { colors, spacing, borderRadius } from '../../utils/constants';
+import { colors, spacing } from '../../utils/constants';
 import { animations, useAnimatedValue } from '../../utils/animations';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.3;
 
-interface SwipeableSubscriptionCardProps {
+export interface SwipeableSubscriptionCardProps {
   children: React.ReactNode;
   onSwipeLeft?: () => void;
   onSwipeRight?: () => void;
@@ -30,7 +30,7 @@ export const SwipeableSubscriptionCard: React.FC<SwipeableSubscriptionCardProps>
   rightAction,
 }) => {
   const pan = useRef(new Animated.ValueXY()).current;
-  const [isSwiping, setIsSwiping] = useState(false);
+  const [, setIsSwiping] = useState(false);
   const bounceAnim = useAnimatedValue(1);
 
   const panResponder = useRef(
@@ -39,10 +39,7 @@ export const SwipeableSubscriptionCard: React.FC<SwipeableSubscriptionCardProps>
       onPanResponderGrant: () => {
         setIsSwiping(true);
       },
-      onPanResponderMove: Animated.event(
-        [null, { dx: pan.x }],
-        { useNativeDriver: false }
-      ),
+      onPanResponderMove: Animated.event([null, { dx: pan.x }], { useNativeDriver: false }),
       onPanResponderRelease: (evt, gestureState) => {
         const { dx, vx } = gestureState;
 
@@ -91,10 +88,7 @@ export const SwipeableSubscriptionCard: React.FC<SwipeableSubscriptionCardProps>
   ).current;
 
   const animatedCardStyle = {
-    transform: [
-      { translateX: pan.x },
-      { scale: bounceAnim },
-    ],
+    transform: [{ translateX: pan.x }, { scale: bounceAnim }],
   };
 
   const leftActionStyle = {
@@ -103,13 +97,15 @@ export const SwipeableSubscriptionCard: React.FC<SwipeableSubscriptionCardProps>
       outputRange: [1, 0.5, 0],
       extrapolate: 'clamp',
     }),
-    transform: [{
-      translateX: pan.x.interpolate({
-        inputRange: [-SCREEN_WIDTH, 0],
-        outputRange: [0, -SCREEN_WIDTH / 2],
-        extrapolate: 'clamp',
-      }),
-    }],
+    transform: [
+      {
+        translateX: pan.x.interpolate({
+          inputRange: [-SCREEN_WIDTH, 0],
+          outputRange: [0, -SCREEN_WIDTH / 2],
+          extrapolate: 'clamp',
+        }),
+      },
+    ],
   };
 
   const rightActionStyle = {
@@ -118,13 +114,15 @@ export const SwipeableSubscriptionCard: React.FC<SwipeableSubscriptionCardProps>
       outputRange: [0, 0.5, 1],
       extrapolate: 'clamp',
     }),
-    transform: [{
-      translateX: pan.x.interpolate({
-        inputRange: [0, SCREEN_WIDTH],
-        outputRange: [SCREEN_WIDTH / 2, 0],
-        extrapolate: 'clamp',
-      }),
-    }],
+    transform: [
+      {
+        translateX: pan.x.interpolate({
+          inputRange: [0, SCREEN_WIDTH],
+          outputRange: [SCREEN_WIDTH / 2, 0],
+          extrapolate: 'clamp',
+        }),
+      },
+    ],
   };
 
   return (
@@ -150,10 +148,7 @@ export const SwipeableSubscriptionCard: React.FC<SwipeableSubscriptionCardProps>
       )}
 
       {/* Main Card */}
-      <Animated.View
-        style={[styles.card, animatedCardStyle]}
-        {...panResponder.panHandlers}
-      >
+      <Animated.View style={[styles.card, animatedCardStyle]} {...panResponder.panHandlers}>
         {children}
       </Animated.View>
     </View>
@@ -165,6 +160,12 @@ interface GestureDrivenCardProps {
   onPress?: () => void;
   onLongPress?: () => void;
   onDoubleTap?: () => void;
+}
+
+interface GestureChildProps {
+  onPress?: () => void;
+  onLongPress?: () => void;
+  delayLongPress?: number;
 }
 
 export const GestureDrivenCard: React.FC<GestureDrivenCardProps> = ({
@@ -239,7 +240,7 @@ export const GestureDrivenCard: React.FC<GestureDrivenCardProps> = ({
 
   return (
     <Animated.View style={animatedStyle}>
-      {React.cloneElement(children as React.ReactElement, {
+      {React.cloneElement(children as React.ReactElement<GestureChildProps>, {
         onPress: handlePress,
         onLongPress: handleLongPress,
         delayLongPress: 500,

@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView } fr
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { colors, spacing, typography, borderRadius, shadows } from '../utils/constants';
 import { useUsageStore } from '../store/usageStore';
-import { QuotaMetric, QuotaStatus } from '../types/usage';
 import { Button } from '../components/common/Button';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -11,23 +10,13 @@ const UsageDashboard: React.FC = () => {
   const route = useRoute<any>();
   const navigation = useNavigation();
   const { subscriptionId, planId, name } = route.params || {};
-  const { records, fetchUsage, isLoading } = useUsageStore();
-
-  const subscriptionRecords = records[subscriptionId] || [];
+  const { fetchUsage } = useUsageStore();
 
   useEffect(() => {
     if (subscriptionId && planId) {
       fetchUsage(subscriptionId, planId);
     }
-  }, [subscriptionId, planId]);
-
-  const getStatusColor = (status: QuotaStatus) => {
-    switch (status) {
-      case QuotaStatus.HARD_LIMIT_REACHED: return colors.error;
-      case QuotaStatus.SOFT_LIMIT_REACHED: return colors.warning;
-      default: return colors.success;
-    }
-  };
+  }, [subscriptionId, planId, fetchUsage]);
 
   const renderUsageCard = (metric: string, current: number, limit: number, unit: string) => {
     const progress = Math.min(current / limit, 1);
@@ -39,13 +28,29 @@ const UsageDashboard: React.FC = () => {
       <View style={styles.card} key={metric}>
         <View style={styles.cardHeader}>
           <Text style={styles.metricTitle}>{metric}</Text>
-          <Text style={[styles.percentageText, { color: isError ? colors.error : isWarning ? colors.warning : colors.success }]}>
+          <Text
+            style={[
+              styles.percentageText,
+              { color: isError ? colors.error : isWarning ? colors.warning : colors.success },
+            ]}>
             {percentage}%
           </Text>
         </View>
-        
+
         <View style={styles.progressContainer}>
-          <View style={[styles.progressBar, { width: `${percentage}%`, backgroundColor: isError ? colors.error : isWarning ? colors.warning : colors.primary }]} />
+          <View
+            style={[
+              styles.progressBar,
+              {
+                width: `${percentage}%`,
+                backgroundColor: isError
+                  ? colors.error
+                  : isWarning
+                    ? colors.warning
+                    : colors.primary,
+              },
+            ]}
+          />
         </View>
 
         <View style={styles.cardFooter}>
@@ -83,15 +88,14 @@ const UsageDashboard: React.FC = () => {
           <Ionicons name="notifications-outline" size={24} color={colors.primary} />
           <View style={styles.notificationTextContainer}>
             <Text style={styles.notificationTitle}>Quota Alert</Text>
-            <Text style={styles.notificationBody}>Your API Call usage is at 85%. You might want to upgrade your plan soon to avoid service interruption.</Text>
+            <Text style={styles.notificationBody}>
+              Your API Call usage is at 85%. You might want to upgrade your plan soon to avoid
+              service interruption.
+            </Text>
           </View>
         </View>
 
-        <Button 
-          title="Upgrade Plan" 
-          onPress={() => {}} 
-          style={styles.upgradeButton}
-        />
+        <Button title="Upgrade Plan" onPress={() => {}} style={styles.upgradeButton} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -113,8 +117,7 @@ const styles = StyleSheet.create({
     marginRight: spacing.md,
   },
   title: {
-    fontSize: typography.sizes.lg,
-    fontWeight: typography.weights.bold,
+    ...typography.h3,
     color: colors.text,
   },
   scrollContent: {
@@ -124,12 +127,11 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   subName: {
-    fontSize: typography.sizes.xl,
-    fontWeight: typography.weights.bold,
+    ...typography.h2,
     color: colors.text,
   },
   subId: {
-    fontSize: typography.sizes.sm,
+    ...typography.caption,
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
@@ -147,13 +149,12 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   metricTitle: {
-    fontSize: typography.sizes.md,
-    fontWeight: typography.weights.semibold,
+    ...typography.body,
+    fontWeight: '600',
     color: colors.text,
   },
   percentageText: {
-    fontSize: typography.sizes.lg,
-    fontWeight: typography.weights.bold,
+    ...typography.h3,
   },
   progressContainer: {
     height: 8,
@@ -171,13 +172,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   usageText: {
-    fontSize: typography.sizes.sm,
+    ...typography.caption,
     color: colors.textSecondary,
   },
   remainingText: {
-    fontSize: typography.sizes.sm,
+    ...typography.caption,
     color: colors.primary,
-    fontWeight: typography.weights.medium,
+    fontWeight: '500',
   },
   notificationCard: {
     flexDirection: 'row',
@@ -192,12 +193,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   notificationTitle: {
-    fontSize: typography.sizes.md,
-    fontWeight: typography.weights.bold,
+    ...typography.body,
+    fontWeight: '600',
     color: colors.primary,
   },
   notificationBody: {
-    fontSize: typography.sizes.sm,
+    ...typography.caption,
     color: colors.text,
     marginTop: spacing.xs,
   },

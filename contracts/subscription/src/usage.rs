@@ -1,6 +1,6 @@
+use crate::{quota, storage_persistent_get, storage_persistent_set};
 use soroban_sdk::{Address, Env};
-use subtrackr_types::{Quota, QuotaMetric, QuotaStatus, RolloverPolicy, StorageKey, UsageRecord};
-use crate::{storage_persistent_get, storage_persistent_set, quota};
+use subtrackr_types::{QuotaMetric, QuotaStatus, RolloverPolicy, StorageKey, UsageRecord};
 
 pub fn record_usage(
     env: &Env,
@@ -12,7 +12,7 @@ pub fn record_usage(
 ) -> UsageRecord {
     let now = env.ledger().timestamp();
     let quotas = quota::get_plan_quotas(env, storage, plan_id);
-    
+
     let maybe_quota = quotas.iter().find(|q| q.metric == metric);
     let quota = maybe_quota.expect("Metric not found for this plan");
 
@@ -21,16 +21,18 @@ pub fn record_usage(
     // Check if period has expired
     if now >= record.period_start + quota.period.seconds() {
         // Calculate rollover
-        let unused = if record.current_usage < (quota.limit + record.rollover_balance) {
-            (quota.limit + record.rollover_balance) - record.current_usage
-        } else {
-            0
-        };
+        let unused = (quota.limit + record.rollover_balance).saturating_sub(record.current_usage);
 
         let new_rollover = match quota.rollover_policy {
             RolloverPolicy::NoRollover => 0,
             RolloverPolicy::RolloverAll => unused,
-            RolloverPolicy::RolloverCap(cap) => if unused > cap { cap } else { unused },
+            RolloverPolicy::RolloverCap(cap) => {
+                if unused > cap {
+                    cap
+                } else {
+                    unused
+                }
+            }
         };
 
         record.period_start = now;
@@ -39,7 +41,7 @@ pub fn record_usage(
     }
 
     record.current_usage += amount;
-    
+
     storage_persistent_set(
         env,
         storage,
@@ -79,12 +81,12 @@ pub fn check_quota(
 ) -> QuotaStatus {
     let record = get_usage_record(env, storage, subscription_id, metric.clone());
     let quotas = quota::get_plan_quotas(env, storage, plan_id);
-    
+
     let maybe_quota = quotas.iter().find(|q| q.metric == metric);
     if maybe_quota.is_none() {
         return QuotaStatus::WithinLimit;
     }
-    
+
     let quota = maybe_quota.unwrap();
     let total_limit = quota.limit + record.rollover_balance;
 

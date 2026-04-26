@@ -18,6 +18,8 @@ import GDPRSettingsScreen from '../screens/GDPRSettingsScreen';
 import LanguageSettingsScreen from '../screens/LanguageSettingsScreen';
 import SessionManagementScreen from '../screens/SessionManagementScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import AccountingExportScreen from '../screens/AccountingExportScreen';
+import WebhookSettingsScreen from '../screens/WebhookSettingsScreen';
 import ErrorDashboardScreen from '../screens/ErrorDashboardScreen';
 import AdminDashboardScreen from '../screens/AdminDashboardScreen';
 import InvoiceListScreen from '../screens/InvoiceListScreen';
@@ -103,7 +105,6 @@ const HomeStack = () => (
       options={{ headerShown: false }}
     />
   </Stack.Navigator>
-
 );
 
 const SettingsStack = () => (
@@ -138,6 +139,21 @@ const SettingsStack = () => (
       name="AdminDashboard"
       component={AdminDashboardScreen}
       options={{ title: 'Admin Dashboard', headerShown: true }}
+    />
+    <Stack.Screen
+      name="WebhookSettings"
+      component={WebhookSettingsScreen}
+      options={{ title: 'Webhooks', headerShown: true }}
+    />
+    <Stack.Screen
+      name="AccountingExport"
+      component={AccountingExportScreen}
+      options={{ title: 'Accounting Export', headerShown: true }}
+    />
+    <Stack.Screen
+      name="SlaDashboard"
+      component={SlaDashboard}
+      options={{ title: 'SLA Dashboard', headerShown: true }}
     />
     <Stack.Screen
       name="ErrorDashboard"

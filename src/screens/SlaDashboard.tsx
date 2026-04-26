@@ -24,11 +24,20 @@ const STATE_OPTIONS: { label: string; value: SlaAvailabilityState; description: 
 const formatPercent = (value: number) => `${value.toFixed(2)}%`;
 
 const SlaDashboard: React.FC = () => {
-  const { configs, statuses, breaches, report, configureSla, trackServiceAvailability, refreshReport } =
-    useSlaStore();
+  const {
+    configs,
+    statuses,
+    breaches,
+    report,
+    configureSla,
+    trackServiceAvailability,
+    refreshReport,
+  } = useSlaStore();
   const [merchantId, setMerchantId] = useState('merchant-demo');
   const [uptimeTarget, setUptimeTarget] = useState(String(SLA_DEFAULTS.uptimeTarget));
-  const [measurementInterval, setMeasurementInterval] = useState(String(SLA_DEFAULTS.measurementInterval));
+  const [measurementInterval, setMeasurementInterval] = useState(
+    String(SLA_DEFAULTS.measurementInterval)
+  );
   const [durationSeconds, setDurationSeconds] = useState('3600');
   const [state, setState] = useState<SlaAvailabilityState>('healthy');
   const [note, setNote] = useState('');
@@ -120,7 +129,8 @@ const SlaDashboard: React.FC = () => {
           </TouchableOpacity>
           {merchantConfig && (
             <Text style={styles.helperText}>
-              Target {merchantConfig.uptimeTarget}% over {merchantConfig.measurementInterval} seconds
+              Target {merchantConfig.uptimeTarget}% over {merchantConfig.measurementInterval}{' '}
+              seconds
             </Text>
           )}
         </Card>
@@ -192,15 +202,19 @@ const SlaDashboard: React.FC = () => {
                 Target {merchantStatus.uptimeTarget}% over {merchantStatus.measurementInterval}s
               </Text>
               <Text style={styles.statusLine}>
-                Observed {merchantStatus.observedSeconds.toFixed(0)}s with {merchantStatus.downtimeSeconds.toFixed(0)}s downtime
+                Observed {merchantStatus.observedSeconds.toFixed(0)}s with{' '}
+                {merchantStatus.downtimeSeconds.toFixed(0)}s downtime
               </Text>
               <Text style={styles.statusLine}>
-                Partial outages {merchantStatus.partialOutageSeconds.toFixed(0)}s, maintenance {merchantStatus.maintenanceSeconds.toFixed(0)}s
+                Partial outages {merchantStatus.partialOutageSeconds.toFixed(0)}s, maintenance{' '}
+                {merchantStatus.maintenanceSeconds.toFixed(0)}s
               </Text>
               <Text style={styles.statusLine}>Credits: {merchantStatus.creditBalance}</Text>
             </View>
           ) : (
-            <Text style={styles.emptyText}>Configure a merchant SLA to see the live status panel.</Text>
+            <Text style={styles.emptyText}>
+              Configure a merchant SLA to see the live status panel.
+            </Text>
           )}
         </Card>
 
@@ -217,10 +231,13 @@ const SlaDashboard: React.FC = () => {
                   Uptime {formatPercent(breach.uptimePercentage)} vs target {breach.uptimeTarget}%
                 </Text>
                 <Text style={styles.breachMeta}>
-                  Downtime {breach.downtimeSeconds.toFixed(0)}s, detected {new Date(breach.detectedAt).toLocaleString()}
+                  Downtime {breach.downtimeSeconds.toFixed(0)}s, detected{' '}
+                  {new Date(breach.detectedAt).toLocaleString()}
                 </Text>
                 <Text style={styles.breachMeta}>
-                  {breach.resolvedAt ? `Resolved ${new Date(breach.resolvedAt).toLocaleString()}` : 'Open breach'}
+                  {breach.resolvedAt
+                    ? `Resolved ${new Date(breach.resolvedAt).toLocaleString()}`
+                    : 'Open breach'}
                 </Text>
               </View>
             ))

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { SubscriptionTier } from './subscription';
 
 export const ApiResponseSchema = <T extends z.ZodTypeAny>(dataSchema: T) =>
   z.object({
@@ -31,6 +32,7 @@ export const UserProfileSchema = z.object({
   email: z.string().email(),
   name: z.string(),
   avatar: z.string().optional(),
+  subscriptionTier: z.nativeEnum(SubscriptionTier).optional(),
   preferences: NotificationPreferencesSchema,
   createdAt: z.union([z.string(), z.date()]),
   updatedAt: z.union([z.string(), z.date()]),

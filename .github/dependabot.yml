@@ -1,29 +1,29 @@
 version: 2
 updates:
-  - package-ecosystem: "npm"
-    directory: "/"
+  - package-ecosystem: 'npm'
+    directory: '/'
     schedule:
-      interval: "daily"
+      interval: 'daily'
     open-pull-requests-limit: 10
     reviewers:
-      - "Smartdevs17" # Based on the repo URL found in package.json
+      - 'Smartdevs17' # Based on the repo URL found in package.json
     groups:
       dependencies:
         patterns:
-          - "*"
+          - '*'
         update-types:
-          - "patch"
-          - "minor"
+          - 'patch'
+          - 'minor'
     commit-message:
-      prefix: "fix(deps)"
-      include: "scope"
+      prefix: 'fix(deps)'
+      include: 'scope'
     labels:
-      - "dependencies"
-      - "security"
+      - 'dependencies'
+      - 'security'
 
-  - package-ecosystem: "github-actions"
-    directory: "/"
+  - package-ecosystem: 'github-actions'
+    directory: '/'
     schedule:
-      interval: "weekly"
+      interval: 'weekly'
     commit-message:
-      prefix: "ci(actions)"
+      prefix: 'ci(actions)'

@@ -52,16 +52,10 @@ export class BatchTransactionService {
    * Add transaction to batch queue
    * @returns true if added, false if batch is full
    */
-  addTransaction(
-    functionName: string,
-    params: any[],
-    required: boolean = true
-  ): boolean {
+  addTransaction(functionName: string, params: any[], required: boolean = true): boolean {
     // Check if batch is full
     if (this.pendingTransactions.length >= this.maxBatchSize) {
-      console.warn(
-        `Batch is full (${this.maxBatchSize}), cannot add more transactions`
-      );
+      console.warn(`Batch is full (${this.maxBatchSize}), cannot add more transactions`);
       return false;
     }
 
@@ -140,13 +134,11 @@ export class BatchTransactionService {
     const totalGas = this.getGasEstimate();
     const batchId = this.generateBatchId();
 
-    const results: OperationResult[] = this.pendingTransactions.map(
-      (tx, index) => ({
-        index,
-        success: true,
-        result: null,
-      })
-    );
+    const results: OperationResult[] = this.pendingTransactions.map((tx, index) => ({
+      index,
+      success: true,
+      result: null,
+    }));
 
     return {
       batchId,
@@ -168,7 +160,7 @@ export class BatchTransactionService {
     );
 
     if (this.pendingTransactions.length === 0) {
-      throw new Error("❌ No transactions to execute");
+      throw new Error('❌ No transactions to execute');
     }
 
     const results: OperationResult[] = [];
@@ -186,7 +178,7 @@ export class BatchTransactionService {
         results.push({
           index: i,
           success: false,
-          error: "Skipped due to atomic failure",
+          error: 'Skipped due to atomic failure',
         });
         failCount++;
         continue;
@@ -199,7 +191,7 @@ export class BatchTransactionService {
           results.push({
             index: i,
             success: false,
-            error: "Dependency failed",
+            error: 'Dependency failed',
           });
           failCount++;
 
@@ -256,9 +248,7 @@ export class BatchTransactionService {
     // Clear batch after execution
     this.pendingTransactions = [];
 
-    console.log(
-      `✅ Batch complete: ${successCount}/${batchResult.totalOperations} successful`
-    );
+    console.log(`✅ Batch complete: ${successCount}/${batchResult.totalOperations} successful`);
     console.log(`   Gas used: ${totalGas.toLocaleString()} units`);
 
     return batchResult;
@@ -267,7 +257,7 @@ export class BatchTransactionService {
   /**
    * Execute single transaction (simulated)
    */
-  private async executeTransaction(tx: BatchTransaction): Promise<any> {
+  private async executeTransaction(_tx: BatchTransaction): Promise<any> {
     // In real implementation, call actual contract function
     // For now, simulate with delay
     return new Promise((resolve) => {
@@ -282,17 +272,14 @@ export class BatchTransactionService {
    */
   clearBatch(): void {
     this.pendingTransactions = [];
-    console.log("🗑️ Batch cleared");
+    console.log('🗑️ Batch cleared');
   }
 
   /**
    * Get gas estimate for pending batch
    */
   getGasEstimate(): number {
-    return (
-      this.baseGasCost +
-      this.pendingTransactions.length * this.gasPerOperation
-    );
+    return this.baseGasCost + this.pendingTransactions.length * this.gasPerOperation;
   }
 
   /**
@@ -322,7 +309,7 @@ export class BatchTransactionService {
    */
   setMaxBatchSize(size: number): void {
     if (size > 100) {
-      console.warn("Max batch size should not exceed 100");
+      console.warn('Max batch size should not exceed 100');
       return;
     }
     this.maxBatchSize = size;

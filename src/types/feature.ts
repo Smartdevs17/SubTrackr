@@ -24,7 +24,7 @@ export interface FeatureAccessResult {
 
 export interface FeatureConfig {
   features: Record<string, FeatureFlag>;
-  plans: Record<SubscriptionTier, string[]>; // Feature IDs available per tier
+  plans: Record<SubscriptionTier, FeatureId[]>; // Feature IDs available per tier
   globalRolloutPercentage: number;
   abTestEnabled: boolean;
 }
