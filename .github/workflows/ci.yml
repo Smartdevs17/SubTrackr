@@ -270,7 +270,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run k6 Load Test
-        uses: grafana/k6-action@v0.5.0
+        uses: grafana/k6-action@v0.5.1
         with:
           filename: load-tests/run.js
           flags: --env SCENARIO=subscription

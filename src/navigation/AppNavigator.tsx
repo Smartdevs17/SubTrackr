@@ -21,6 +21,8 @@ import SettingsScreen from '../screens/SettingsScreen';
 import AccountingExportScreen from '../screens/AccountingExportScreen';
 import WebhookSettingsScreen from '../screens/WebhookSettingsScreen';
 import ErrorDashboardScreen from '../screens/ErrorDashboardScreen';
+import ImportScreen from '../screens/ImportScreen';
+import ExportScreen from '../screens/ExportScreen';
 import AdminDashboardScreen from '../screens/AdminDashboardScreen';
 import InvoiceListScreen from '../screens/InvoiceListScreen';
 import InvoiceDetailScreen from '../screens/InvoiceDetailScreen';
@@ -114,6 +116,61 @@ const SettingsStack = () => (
       name="Community"
       component={CommunityScreen}
       options={{ title: 'Community', headerShown: true }}
+    />
+    <Stack.Screen
+      name="Profile"
+      component={ProfileScreen}
+      options={{ title: 'Profile', headerShown: true }}
+    />
+    <Stack.Screen
+      name="GDPRSettings"
+      component={GDPRSettingsScreen}
+      options={{ title: 'Privacy Settings', headerShown: true }}
+    />
+    <Stack.Screen
+      name="LanguageSettings"
+      component={LanguageSettingsScreen}
+      options={{ title: 'Language', headerShown: true }}
+    />
+    <Stack.Screen
+      name="SessionManagement"
+      component={SessionManagementScreen}
+      options={{ title: 'Sessions', headerShown: true }}
+    />
+    <Stack.Screen
+      name="AdminDashboard"
+      component={AdminDashboardScreen}
+      options={{ title: 'Admin Dashboard', headerShown: true }}
+    />
+    <Stack.Screen
+      name="WebhookSettings"
+      component={WebhookSettingsScreen}
+      options={{ title: 'Webhooks', headerShown: true }}
+    />
+    <Stack.Screen
+      name="AccountingExport"
+      component={AccountingExportScreen}
+      options={{ title: 'Accounting Export', headerShown: true }}
+    />
+    <Stack.Screen
+      name="SlaDashboard"
+      component={SlaDashboard}
+      options={{ title: 'SLA Dashboard', headerShown: true }}
+    />
+    <Stack.Screen
+      name="ErrorDashboard"
+      component={ErrorDashboardScreen}
+      options={{ title: 'Error Dashboard', headerShown: true }}
+    />
+    <Stack.Screen 
+      name="Import" 
+      component={ImportScreen} 
+      options={{ title: 'Import Subscriptions', headerShown: true }} 
+    />
+    <Stack.Screen 
+      name="Export" 
+      component={ExportScreen} 
+      options={{ title: 'Export Subscriptions', headerShown: true }} 
     />
     <Stack.Screen
       name="Profile"
