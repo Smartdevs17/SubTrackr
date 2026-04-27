@@ -59,7 +59,7 @@ jobs:
         run: npm run lint
 
   npm-audit:
-    name: NPM Audit (High/Critical)
+    name: NPM Audit Policy
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -74,8 +74,8 @@ jobs:
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
 
-      - name: Run NPM Audit
-        run: npm audit --audit-level=high
+      - name: Run audit-ci policy
+        run: npx audit-ci --config audit-ci.json
 
   typescript-typecheck:
     name: TypeScript Type Check

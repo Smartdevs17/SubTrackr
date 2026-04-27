@@ -156,6 +156,17 @@ const SettingsScreen: React.FC = () => {
               accessibilityState={{ checked: settings.notificationsEnabled }}
             />
           </View>
+          <TouchableOpacity
+            style={[styles.linkRow, styles.linkRowLast]}
+            onPress={() => navigation.navigate('CalendarIntegration')}
+            accessibilityRole="button"
+            accessibilityLabel={t('settings.calendar_sync')}
+            accessibilityHint={t('settings.calendar_sync_hint')}>
+            <Text style={styles.linkText}>{t('settings.calendar_sync')}</Text>
+            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
+              {'>'}
+            </Text>
+          </TouchableOpacity>
         </Card>
         <Card style={styles.section}>
           <Text style={styles.sectionTitle} accessibilityRole="header">
@@ -343,7 +354,8 @@ const SettingsScreen: React.FC = () => {
                   <View style={styles.networkInfo}>
                     <Text style={styles.networkName}>{item.name}</Text>
                     <Text style={styles.networkType}>
-                      {item.type.toUpperCase()} {item.isTestnet ? t('settings.testnet') : t('settings.mainnet')}
+                      {item.type.toUpperCase()}{' '}
+                      {item.isTestnet ? t('settings.testnet') : t('settings.mainnet')}
                     </Text>
                   </View>
                   {currentNetwork?.id === item.id && <Text style={styles.checkmark}>✓</Text>}

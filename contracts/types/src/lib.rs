@@ -13,7 +13,6 @@ pub enum Interval {
     Yearly,    // 31536000s (365 days)
 }
 
-
 impl Interval {
     pub fn seconds(&self) -> u64 {
         match self {
@@ -24,7 +23,6 @@ impl Interval {
             Interval::Yearly => 31_536_000,
         }
     }
-
 }
 
 #[contracttype]
@@ -183,7 +181,6 @@ pub enum QuotaStatus {
     SoftLimitReached,
     HardLimitReached,
 }
-
 
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
@@ -399,4 +396,3 @@ pub enum StorageKey {
     /// Usage record for a subscription and metric (sub_id, metric -> UsageRecord)
     SubscriptionUsage(u64, QuotaMetric),
 }
-

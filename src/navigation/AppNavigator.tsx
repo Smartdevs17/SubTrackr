@@ -18,6 +18,8 @@ import GDPRSettingsScreen from '../screens/GDPRSettingsScreen';
 import LanguageSettingsScreen from '../screens/LanguageSettingsScreen';
 import SessionManagementScreen from '../screens/SessionManagementScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import CalendarIntegrationScreen from '../screens/CalendarIntegrationScreen';
+import WebhookSettingsScreen from '../screens/WebhookSettingsScreen';
 import ErrorDashboardScreen from '../screens/ErrorDashboardScreen';
 import AdminDashboardScreen from '../screens/AdminDashboardScreen';
 import InvoiceListScreen from '../screens/InvoiceListScreen';
@@ -103,12 +105,16 @@ const HomeStack = () => (
       options={{ headerShown: false }}
     />
   </Stack.Navigator>
-
 );
 
 const SettingsStack = () => (
   <Stack.Navigator>
     <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />
+    <Stack.Screen
+      name="CalendarIntegration"
+      component={CalendarIntegrationScreen}
+      options={{ title: 'Calendar Integrations', headerShown: true }}
+    />
     <Stack.Screen
       name="Community"
       component={CommunityScreen}
@@ -128,6 +134,11 @@ const SettingsStack = () => (
       name="LanguageSettings"
       component={LanguageSettingsScreen}
       options={{ title: 'Language', headerShown: true }}
+    />
+    <Stack.Screen
+      name="WebhookSettings"
+      component={WebhookSettingsScreen}
+      options={{ title: 'Webhooks', headerShown: true }}
     />
     <Stack.Screen
       name="SessionManagement"

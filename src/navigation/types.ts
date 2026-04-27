@@ -13,6 +13,8 @@ export type RootStackParamList = {
   InvoiceDetail: { id: string };
   GDPRSettings: undefined;
   Settings: undefined;
+  CalendarIntegration: undefined;
+  WebhookSettings: undefined;
   AdminDashboard: undefined;
   LanguageSettings: undefined;
   SessionManagement: undefined;
@@ -21,9 +23,9 @@ export type RootStackParamList = {
   SegmentDetail: { segmentId: string };
   Gamification: undefined;
   RevenueReport: undefined;
+  SlaDashboard: undefined;
   UsageDashboard: { subscriptionId: string; planId: string; name: string };
 };
-
 
 export type TabParamList = {
   HomeTab: NavigatorScreenParams<RootStackParamList> | undefined;

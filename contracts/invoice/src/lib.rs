@@ -8,7 +8,7 @@ use alloc::format;
 use alloc::string::ToString;
 use soroban_sdk::{Address, Bytes, Env, IntoVal, String, TryFromVal, Val, Vec};
 use subtrackr_types::{
-    Invoice, InvoiceConfig, InvoiceLineItem, InvoiceStatus, Interval, Plan, StorageKey,
+    Interval, Invoice, InvoiceConfig, InvoiceLineItem, InvoiceStatus, Plan, StorageKey,
     Subscription, TimeRange,
 };
 
@@ -68,7 +68,8 @@ fn format_invoice_number(env: &Env, sequence: u64) -> String {
 }
 
 fn get_subscription(env: &Env, storage: &Address, subscription_id: u64) -> Subscription {
-    let args: Vec<Val> = soroban_sdk::vec![env, StorageKey::Subscription(subscription_id).into_val(env)];
+    let args: Vec<Val> =
+        soroban_sdk::vec![env, StorageKey::Subscription(subscription_id).into_val(env)];
     let val_opt: Option<Val> = env.invoke_contract(
         storage,
         &soroban_sdk::Symbol::new(env, "persistent_get"),
@@ -139,8 +140,11 @@ fn build_line_item(
 
 fn store_invoice(env: &Env, invoice: &Invoice) {
     storage_persistent_set(env, StorageKey::Invoice(invoice.id), invoice.clone());
-    let mut list: Vec<u64> = storage_instance_get(env, StorageKey::InvoiceBySubscription(invoice.subscription_id))
-        .unwrap_or(Vec::new(env));
+    let mut list: Vec<u64> = storage_instance_get(
+        env,
+        StorageKey::InvoiceBySubscription(invoice.subscription_id),
+    )
+    .unwrap_or(Vec::new(env));
     list.push_back(invoice.id);
     storage_instance_set(
         env,
@@ -150,8 +154,8 @@ fn store_invoice(env: &Env, invoice: &Invoice) {
 }
 
 fn update_invoice_status(env: &Env, invoice_id: u64, status: InvoiceStatus) -> Invoice {
-    let mut invoice: Invoice = storage_persistent_get(env, StorageKey::Invoice(invoice_id))
-        .expect("Invoice not found");
+    let mut invoice: Invoice =
+        storage_persistent_get(env, StorageKey::Invoice(invoice_id)).expect("Invoice not found");
     invoice.status = status;
     storage_persistent_set(env, StorageKey::Invoice(invoice_id), invoice.clone());
     invoice

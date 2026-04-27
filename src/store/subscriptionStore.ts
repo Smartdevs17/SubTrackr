@@ -17,6 +17,7 @@ import {
   presentChargeSuccessNotification,
   presentChargeFailedNotification,
 } from '../services/notificationService';
+import { useCalendarStore } from './calendarStore';
 import { useGamificationStore } from './gamificationStore';
 import { useInvoiceStore } from './invoiceStore';
 import { AchievementTrigger } from '../types/gamification';
@@ -189,6 +190,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
 
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
+          await useCalendarStore.getState().syncSubscriptionToCalendars(newSubscription);
 
           // Gamification Triggers
           const gamificationStore = useGamificationStore.getState();
@@ -223,6 +225,10 @@ export const useSubscriptionStore = create<SubscriptionState>()(
 
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
+          const updatedSubscription = get().subscriptions.find((sub) => sub.id === id);
+          if (updatedSubscription) {
+            await useCalendarStore.getState().syncSubscriptionToCalendars(updatedSubscription);
+          }
         } catch (error) {
           const appError = errorHandler.handleError(error as Error, {
             action: 'updateSubscription',
@@ -246,6 +252,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
 
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
+          await useCalendarStore.getState().removeSubscriptionFromCalendars(id);
         } catch (error) {
           const appError = errorHandler.handleError(error as Error, {
             action: 'deleteSubscription',
@@ -270,6 +277,10 @@ export const useSubscriptionStore = create<SubscriptionState>()(
 
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
+          const updatedSubscription = get().subscriptions.find((sub) => sub.id === id);
+          if (updatedSubscription) {
+            await useCalendarStore.getState().syncSubscriptionToCalendars(updatedSubscription);
+          }
         } catch (error) {
           const appError = errorHandler.handleError(error as Error, {
             action: 'toggleSubscriptionStatus',
@@ -315,6 +326,10 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           }));
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
+          const updatedSubscription = get().subscriptions.find((entry) => entry.id === id);
+          if (updatedSubscription) {
+            await useCalendarStore.getState().syncSubscriptionToCalendars(updatedSubscription);
+          }
 
           await useInvoiceStore.getState().generateInvoiceFromSubscription(
             {
@@ -337,6 +352,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           set({ isLoading: false });
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
+          await useCalendarStore.getState().syncSubscriptions(get().subscriptions);
         } catch (error) {
           set({
             error: errorHandler.handleError(error as Error, {
@@ -442,6 +458,9 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         });
         useSubscriptionStore.getState().calculateStats();
         void syncRenewalReminders(useSubscriptionStore.getState().subscriptions);
+        void useCalendarStore
+          .getState()
+          .syncSubscriptions(useSubscriptionStore.getState().subscriptions);
       },
     }
   )

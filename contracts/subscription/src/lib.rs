@@ -1,10 +1,9 @@
 #![no_std]
 #![allow(clippy::too_many_arguments)]
 
-pub mod revenue;
 pub mod quota;
+pub mod revenue;
 pub mod usage;
-
 
 use soroban_sdk::{token, Address, Env, IntoVal, String, TryFromVal, Val, Vec};
 use subtrackr_types::{
@@ -1064,10 +1063,7 @@ impl SubTrackrSubscription {
         let plan: subtrackr_types::Plan =
             storage_persistent_get(&env, &storage, StorageKey::Plan(plan_id))
                 .expect("Plan not found");
-        assert!(
-            plan.merchant == merchant,
-            "Only plan owner can set quotas"
-        );
+        assert!(plan.merchant == merchant, "Only plan owner can set quotas");
         quota::set_plan_quotas(&env, &storage, plan_id, quotas);
     }
 
@@ -1093,12 +1089,12 @@ impl SubTrackrSubscription {
         let sub: subtrackr_types::Subscription =
             storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
                 .expect("Subscription not found");
-        
+
         let admin = get_admin(&env, &storage);
         // Only subscriber or admin can record usage? Usually it's the app/admin
         // For simplicity, let's allow anyone with auth (simplified for this task)
         // In a real app, you might want more complex auth.
-        
+
         usage::record_usage(&env, &storage, subscription_id, sub.plan_id, metric, amount)
     }
 
@@ -1127,4 +1123,3 @@ impl SubTrackrSubscription {
         usage::check_quota(&env, &storage, subscription_id, sub.plan_id, metric)
     }
 }
-
