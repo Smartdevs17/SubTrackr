@@ -17,9 +17,12 @@ import { RootStackParamList } from '../navigation/types';
 import { useSubscriptionStore, useSettingsStore } from '../store';
 import { Button } from '../components/common/Button';
 import { getCurrencySymbol } from '../utils/formatting';
+import { colors, spacing, typography, borderRadius } from '../utils/constants';
 
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { errorHandler } from '../services/errorHandler';
+import type { SubscriptionFormData } from '../types/subscription';
+import { BillingCycle, SubscriptionCategory } from '../types/subscription';
 
 interface AddSubscriptionFormData extends SubscriptionFormData {
   priceError: string;
@@ -44,7 +47,6 @@ const AddSubscriptionScreen: React.FC = () => {
     cryptoToken: undefined,
     cryptoAmount: undefined,
   });
-
 
   useEffect(() => {
     if (error) {
@@ -271,7 +273,6 @@ const AddSubscriptionScreen: React.FC = () => {
                 <View style={styles.priceInputContainer}>
                   <Text style={styles.currencySymbol}>{getCurrencySymbol(formData.currency)}</Text>
                   <TextInput
-
                     style={styles.priceInput}
                     value={formData.price > 0 ? formData.price.toString() : ''}
                     onChangeText={(text) => {
@@ -332,7 +333,6 @@ const AddSubscriptionScreen: React.FC = () => {
                   ))}
                 </View>
               </View>
-
 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Next Billing Date *</Text>

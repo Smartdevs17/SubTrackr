@@ -8,13 +8,9 @@ import {
   TouchableOpacity,
   Alert,
   TextInput,
-  ActivityIndicator,
   FlatList,
   Modal,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../navigation/types';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
@@ -36,10 +32,7 @@ import {
 } from '../utils/importExport';
 import { useSubscriptionStore } from '../store';
 
-type ImportScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Import'>;
-
 const ImportScreen: React.FC = () => {
-  const navigation = useNavigation<ImportScreenNavigationProp>();
   const { subscriptions, addSubscription, updateSubscription } = useSubscriptionStore();
 
   const [importMode, setImportMode] = useState<ImportMode>('upsert');
@@ -92,9 +85,7 @@ const ImportScreen: React.FC = () => {
       Alert.alert(
         'Import Preview',
         `Found ${validation.validRows.length} valid subscription(s).\n\n${
-          validation.warnings.length > 0
-            ? `Warnings: ${validation.warnings.length}\n`
-            : ''
+          validation.warnings.length > 0 ? `Warnings: ${validation.warnings.length}\n` : ''
         }Do you want to proceed with the import?`,
         [
           {
@@ -111,10 +102,7 @@ const ImportScreen: React.FC = () => {
         ]
       );
     } catch (error) {
-      Alert.alert(
-        'Error',
-        error instanceof Error ? error.message : 'Failed to parse import data'
-      );
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to parse import data');
     } finally {
       setIsProcessing(false);
     }
@@ -124,10 +112,7 @@ const ImportScreen: React.FC = () => {
     setIsProcessing(true);
 
     try {
-      const result = processImport(
-        { subscriptions: parsedData, mode: importMode },
-        subscriptions
-      );
+      const result = processImport({ subscriptions: parsedData, mode: importMode }, subscriptions);
 
       setImportResult(result);
 
@@ -181,10 +166,7 @@ const ImportScreen: React.FC = () => {
         `Imported: ${result.imported}\nUpdated: ${result.updated}\nFailed: ${result.failed}`
       );
     } catch (error) {
-      Alert.alert(
-        'Error',
-        error instanceof Error ? error.message : 'Failed to complete import'
-      );
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to complete import');
     } finally {
       setIsProcessing(false);
     }
@@ -214,18 +196,10 @@ const ImportScreen: React.FC = () => {
         {(['create', 'upsert', 'replace'] as ImportMode[]).map((mode) => (
           <TouchableOpacity
             key={mode}
-            style={[
-              styles.modeButton,
-              importMode === mode && styles.modeButtonActive,
-            ]}
-            onPress={() => setImportMode(mode)}
-          >
+            style={[styles.modeButton, importMode === mode && styles.modeButtonActive]}
+            onPress={() => setImportMode(mode)}>
             <Text
-              style={[
-                styles.modeButtonText,
-                importMode === mode && styles.modeButtonTextActive,
-              ]}
-            >
+              style={[styles.modeButtonText, importMode === mode && styles.modeButtonTextActive]}>
               {mode.charAt(0).toUpperCase() + mode.slice(1)}
             </Text>
           </TouchableOpacity>
@@ -235,8 +209,8 @@ const ImportScreen: React.FC = () => {
         {importMode === 'create'
           ? 'Add new subscriptions only (skip duplicates)'
           : importMode === 'upsert'
-          ? 'Update existing or add new subscriptions'
-          : 'Replace all existing subscriptions'}
+            ? 'Update existing or add new subscriptions'
+            : 'Replace all existing subscriptions'}
       </Text>
     </View>
   );
@@ -255,14 +229,12 @@ const ImportScreen: React.FC = () => {
           <View style={styles.errorContainer}>
             <Text style={styles.errorTitle}>Errors:</Text>
             {validationResult.errors.slice(0, 5).map((error, index) => (
-              <Text key={index} style={styles.errorText}>
+              <Text key={index} style={styles.errorDetailText}>
                 Row {error.row}: {error.message}
               </Text>
             ))}
             {validationResult.errors.length > 5 && (
-              <Text style={styles.moreText}>
-                ...and {validationResult.errors.length - 5} more
-              </Text>
+              <Text style={styles.moreText}>...and {validationResult.errors.length - 5} more</Text>
             )}
           </View>
         )}
@@ -270,7 +242,7 @@ const ImportScreen: React.FC = () => {
           <View style={styles.warningContainer}>
             <Text style={styles.warningTitle}>Warnings:</Text>
             {validationResult.warnings.slice(0, 3).map((warning, index) => (
-              <Text key={index} style={styles.warningText}>
+              <Text key={index} style={styles.warningDetailText}>
                 Row {warning.row}: {warning.message}
               </Text>
             ))}
@@ -288,19 +260,19 @@ const ImportScreen: React.FC = () => {
         <Text style={styles.resultTitle}>Import Results</Text>
         <View style={styles.resultRow}>
           <Text style={styles.resultLabel}>Imported:</Text>
-          <Text style={[styles.resultValue, styles.successText]}>
-            {importResult.imported}
-          </Text>
+          <Text style={[styles.resultValue, styles.successText]}>{importResult.imported}</Text>
         </View>
         <View style={styles.resultRow}>
           <Text style={styles.resultLabel}>Updated:</Text>
-          <Text style={[styles.resultValue, styles.successText]}>
-            {importResult.updated}
-          </Text>
+          <Text style={[styles.resultValue, styles.successText]}>{importResult.updated}</Text>
         </View>
         <View style={styles.resultRow}>
           <Text style={styles.resultLabel}>Failed:</Text>
-          <Text style={[styles.resultValue, importResult.failed > 0 ? styles.errorText : styles.successText]}>
+          <Text
+            style={[
+              styles.resultValue,
+              importResult.failed > 0 ? styles.errorText : styles.successText,
+            ]}>
             {importResult.failed}
           </Text>
         </View>
@@ -313,8 +285,7 @@ const ImportScreen: React.FC = () => {
       visible={showHistory}
       animationType="slide"
       presentationStyle="pageSheet"
-      onRequestClose={() => setShowHistory(false)}
-    >
+      onRequestClose={() => setShowHistory(false)}>
       <SafeAreaView style={styles.modalContainer}>
         <View style={styles.modalHeader}>
           <Text style={styles.modalTitle}>Import History</Text>
@@ -335,22 +306,17 @@ const ImportScreen: React.FC = () => {
                     item.status === 'success' && styles.successText,
                     item.status === 'partial' && styles.warningText,
                     item.status === 'failed' && styles.errorText,
-                  ]}
-                >
+                  ]}>
                   {item.status}
                 </Text>
               </View>
-              <Text style={styles.historyDate}>
-                {new Date(item.timestamp).toLocaleString()}
-              </Text>
+              <Text style={styles.historyDate}>{new Date(item.timestamp).toLocaleString()}</Text>
               <Text style={styles.historyStats}>
                 Imported: {item.imported} | Updated: {item.updated} | Failed: {item.failed}
               </Text>
             </Card>
           )}
-          ListEmptyComponent={
-            <Text style={styles.emptyText}>No import history</Text>
-          }
+          ListEmptyComponent={<Text style={styles.emptyText}>No import history</Text>}
         />
       </SafeAreaView>
     </Modal>
@@ -361,8 +327,7 @@ const ImportScreen: React.FC = () => {
       visible={showTemplateModal}
       animationType="slide"
       presentationStyle="pageSheet"
-      onRequestClose={() => setShowTemplateModal(false)}
-    >
+      onRequestClose={() => setShowTemplateModal(false)}>
       <SafeAreaView style={styles.modalContainer}>
         <View style={styles.modalHeader}>
           <Text style={styles.modalTitle}>Load Template</Text>
@@ -371,23 +336,13 @@ const ImportScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
         <View style={styles.templateButtons}>
-          <TouchableOpacity
-            style={styles.templateButton}
-            onPress={() => loadTemplate('csv')}
-          >
+          <TouchableOpacity style={styles.templateButton} onPress={() => loadTemplate('csv')}>
             <Text style={styles.templateButtonText}>CSV Template</Text>
-            <Text style={styles.templateButtonSubtext}>
-              Sample CSV with column headers
-            </Text>
+            <Text style={styles.templateButtonSubtext}>Sample CSV with column headers</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.templateButton}
-            onPress={() => loadTemplate('json')}
-          >
+          <TouchableOpacity style={styles.templateButton} onPress={() => loadTemplate('json')}>
             <Text style={styles.templateButtonText}>JSON Template</Text>
-            <Text style={styles.templateButtonSubtext}>
-              Sample JSON export format
-            </Text>
+            <Text style={styles.templateButtonSubtext}>Sample JSON export format</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -399,9 +354,7 @@ const ImportScreen: React.FC = () => {
       <ScrollView style={styles.scrollView}>
         <View style={styles.header}>
           <Text style={styles.title}>Import Subscriptions</Text>
-          <Text style={styles.subtitle}>
-            Import subscription data from CSV or JSON
-          </Text>
+          <Text style={styles.subtitle}>Import subscription data from CSV or JSON</Text>
         </View>
 
         {renderModeSelector()}
@@ -502,7 +455,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   modeButtonTextActive: {
-    color: colors.textInverted,
+    color: colors.onPrimary,
   },
   modeDescription: {
     ...typography.caption,
@@ -599,11 +552,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: spacing.sm,
   },
-  errorText: {
+  errorDetailText: {
     ...typography.caption,
     color: colors.error,
   },
-  warningText: {
+  warningDetailText: {
     ...typography.caption,
     color: colors.warning,
   },

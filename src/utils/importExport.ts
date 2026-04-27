@@ -3,6 +3,7 @@
  * Supports CSV import with column mapping and JSON export
  */
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Subscription, SubscriptionCategory, BillingCycle } from '../types/subscription';
 
 // ============================================
@@ -101,8 +102,18 @@ export const CSV_COLUMN_MAPPING: ColumnMapping[] = [
   { csvColumn: 'billingCycle', fieldName: 'billingCycle', required: true },
   { csvColumn: 'nextBillingDate', fieldName: 'nextBillingDate', required: true },
   { csvColumn: 'isActive', fieldName: 'isActive', required: false, transform: parseBoolean },
-  { csvColumn: 'notificationsEnabled', fieldName: 'notificationsEnabled', required: false, transform: parseBoolean },
-  { csvColumn: 'isCryptoEnabled', fieldName: 'isCryptoEnabled', required: false, transform: parseBoolean },
+  {
+    csvColumn: 'notificationsEnabled',
+    fieldName: 'notificationsEnabled',
+    required: false,
+    transform: parseBoolean,
+  },
+  {
+    csvColumn: 'isCryptoEnabled',
+    fieldName: 'isCryptoEnabled',
+    required: false,
+    transform: parseBoolean,
+  },
   { csvColumn: 'cryptoToken', fieldName: 'cryptoToken', required: false },
   { csvColumn: 'cryptoAmount', fieldName: 'cryptoAmount', required: false, transform: parseFloat },
 ];
@@ -155,10 +166,10 @@ function normalizeBillingCycle(value: string): BillingCycle {
   }
   // Try common variations
   const cycleMap: Record<string, BillingCycle> = {
-    'month': BillingCycle.MONTHLY,
-    'year': BillingCycle.YEARLY,
-    'week': BillingCycle.WEEKLY,
-    'custom': BillingCycle.CUSTOM,
+    month: BillingCycle.MONTHLY,
+    year: BillingCycle.YEARLY,
+    week: BillingCycle.WEEKLY,
+    custom: BillingCycle.CUSTOM,
   };
   for (const [key, cycle] of Object.entries(cycleMap)) {
     if (normalized.includes(key)) {
@@ -179,7 +190,7 @@ function parseDate(value: string): Date {
     /^(\d{2})\/(\d{2})\/(\d{4})$/, // MM/DD/YYYY
     /^(\d{2})-(\d{2})-(\d{4})$/, // DD-MM-YYYY
   ];
-  
+
   for (const format of formats) {
     const match = value.match(format);
     if (match) {
@@ -189,7 +200,7 @@ function parseDate(value: string): Date {
       }
     }
   }
-  
+
   return new Date(); // Default to current date
 }
 
@@ -201,15 +212,15 @@ function parseDate(value: string): Date {
  * Parse CSV string into array of subscription objects
  */
 export function parseCSV(csvContent: string): SubscriptionInput[] {
-  const lines = csvContent.split(/\r?\n/).filter(line => line.trim());
-  
+  const lines = csvContent.split(/\r?\n/).filter((line) => line.trim());
+
   if (lines.length < 2) {
     throw new Error('CSV must contain at least a header row and one data row');
   }
 
   const headerLine = lines[0];
   const headers = parseCSVLine(headerLine);
-  
+
   // Create header to field mapping
   const headerMap = new Map<string, number>();
   headers.forEach((header, index) => {
@@ -220,20 +231,18 @@ export function parseCSV(csvContent: string): SubscriptionInput[] {
 
   for (let i = 1; i < lines.length; i++) {
     const values = parseCSVLine(lines[i]);
-    if (values.length === 0 || values.every(v => !v.trim())) {
+    if (values.length === 0 || values.every((v) => !v.trim())) {
       continue; // Skip empty rows
     }
 
     const subscription: Partial<SubscriptionInput> = {};
-    
+
     for (const mapping of CSV_COLUMN_MAPPING) {
       const columnIndex = headerMap.get(mapping.csvColumn.toLowerCase());
       if (columnIndex !== undefined && values[columnIndex]) {
         const rawValue = values[columnIndex];
-        const value = mapping.transform ? 
-          String(mapping.transform(rawValue)) : 
-          rawValue;
-        
+        const value = mapping.transform ? String(mapping.transform(rawValue)) : rawValue;
+
         (subscription as Record<string, unknown>)[mapping.fieldName] = value;
       }
     }
@@ -253,7 +262,7 @@ function parseCSVLine(line: string): string[] {
 
   for (let i = 0; i < line.length; i++) {
     const char = line[i];
-    
+
     if (char === '"') {
       if (inQuotes && line[i + 1] === '"') {
         current += '"';
@@ -277,9 +286,9 @@ function parseCSVLine(line: string): string[] {
  * Generate CSV from subscriptions
  */
 export function generateCSV(subscriptions: Subscription[]): string {
-  const headers = CSV_COLUMN_MAPPING.map(m => m.csvColumn);
-  const rows = subscriptions.map(sub => {
-    return CSV_COLUMN_MAPPING.map(mapping => {
+  const headers = CSV_COLUMN_MAPPING.map((m) => m.csvColumn);
+  const rows = subscriptions.map((sub) => {
+    return CSV_COLUMN_MAPPING.map((mapping) => {
       const value = sub[mapping.fieldName as keyof Subscription];
       if (value === undefined || value === null) {
         return '';
@@ -309,17 +318,20 @@ export function exportToJSON(subscriptions: Subscription[]): string {
     version: EXPORT_VERSION,
     exportedAt: new Date().toISOString(),
     subscriptionCount: subscriptions.length,
-    subscriptions: subscriptions.map(sub => ({
+    subscriptions: subscriptions.map((sub) => ({
       ...sub,
-      nextBillingDate: sub.nextBillingDate instanceof Date ? 
-        sub.nextBillingDate : 
-        new Date(sub.nextBillingDate as unknown as string),
-      createdAt: sub.createdAt instanceof Date ? 
-        sub.createdAt : 
-        new Date(sub.createdAt as unknown as string),
-      updatedAt: sub.updatedAt instanceof Date ? 
-        sub.updatedAt : 
-        new Date(sub.updatedAt as unknown as string),
+      nextBillingDate:
+        sub.nextBillingDate instanceof Date
+          ? sub.nextBillingDate
+          : new Date(sub.nextBillingDate as unknown as string),
+      createdAt:
+        sub.createdAt instanceof Date
+          ? sub.createdAt
+          : new Date(sub.createdAt as unknown as string),
+      updatedAt:
+        sub.updatedAt instanceof Date
+          ? sub.updatedAt
+          : new Date(sub.updatedAt as unknown as string),
     })),
   };
 
@@ -331,10 +343,10 @@ export function exportToJSON(subscriptions: Subscription[]): string {
  */
 export function parseJSON(jsonContent: string): SubscriptionInput[] {
   const data = JSON.parse(jsonContent);
-  
+
   // Handle both direct array and wrapped export format
   let subscriptions: Subscription[] | SubscriptionInput[];
-  
+
   if (Array.isArray(data)) {
     subscriptions = data;
   } else if (data.subscriptions && Array.isArray(data.subscriptions)) {
@@ -343,7 +355,7 @@ export function parseJSON(jsonContent: string): SubscriptionInput[] {
     throw new Error('Invalid JSON format: expected array or export object');
   }
 
-  return subscriptions.map(sub => ({
+  return subscriptions.map((sub) => ({
     id: sub.id,
     name: sub.name,
     description: sub.description,
@@ -351,7 +363,9 @@ export function parseJSON(jsonContent: string): SubscriptionInput[] {
     price: Number(sub.price) || 0,
     currency: sub.currency || 'USD',
     billingCycle: typeof sub.billingCycle === 'string' ? sub.billingCycle : BillingCycle.MONTHLY,
-    nextBillingDate: sub.nextBillingDate ? new Date(sub.nextBillingDate).toISOString() : new Date().toISOString(),
+    nextBillingDate: sub.nextBillingDate
+      ? new Date(sub.nextBillingDate).toISOString()
+      : new Date().toISOString(),
     isActive: sub.isActive,
     notificationsEnabled: sub.notificationsEnabled,
     isCryptoEnabled: sub.isCryptoEnabled,
@@ -394,7 +408,9 @@ export function validateImport(data: ImportData): ValidationResult {
         message: 'Category is required',
         value: subscription.category,
       });
-    } else if (!VALID_CATEGORIES.includes(subscription.category.toLowerCase() as SubscriptionCategory)) {
+    } else if (
+      !VALID_CATEGORIES.includes(subscription.category.toLowerCase() as SubscriptionCategory)
+    ) {
       warnings.push({
         row: rowNum,
         field: 'category',
@@ -432,7 +448,9 @@ export function validateImport(data: ImportData): ValidationResult {
         message: 'Billing cycle is required',
         value: subscription.billingCycle,
       });
-    } else if (!VALID_BILLING_CYCLES.includes(subscription.billingCycle.toLowerCase() as BillingCycle)) {
+    } else if (
+      !VALID_BILLING_CYCLES.includes(subscription.billingCycle.toLowerCase() as BillingCycle)
+    ) {
       warnings.push({
         row: rowNum,
         field: 'billingCycle',
@@ -498,7 +516,7 @@ export function processImport(
   existingSubscriptions: Subscription[]
 ): ImportResult {
   const validation = validateImport(data);
-  
+
   if (validation.validRows.length === 0 && validation.errors.length > 0) {
     return {
       success: false,
@@ -511,15 +529,15 @@ export function processImport(
   }
 
   let imported = 0;
-  let updated = 0;
+  let updatedCount = 0;
   const errors: ImportError[] = [...validation.errors];
   const warnings: ImportWarning[] = [...validation.warnings];
 
   // Create lookup for existing subscriptions
   const existingByName = new Map<string, Subscription>();
   const existingById = new Map<string, Subscription>();
-  
-  existingSubscriptions.forEach(sub => {
+
+  existingSubscriptions.forEach((sub) => {
     existingByName.set(sub.name.toLowerCase(), sub);
     if (sub.id) {
       existingById.set(sub.id, sub);
@@ -543,7 +561,7 @@ export function processImport(
         // Update existing
         const existing = existingByIdMatch || existingByNameMatch;
         if (existing) {
-          const updated: Subscription = {
+          const merged: Subscription = {
             ...existing,
             name: input.name,
             description: input.description,
@@ -559,8 +577,8 @@ export function processImport(
             cryptoAmount: input.cryptoAmount ?? existing.cryptoAmount,
             updatedAt: now,
           };
-          processedSubscriptions.push(updated);
-          updated++;
+          processedSubscriptions.push(merged);
+          updatedCount++;
         }
       } else {
         // Create new
@@ -596,8 +614,8 @@ export function processImport(
   return {
     success: errors.length === 0,
     imported,
-    updated,
-    failed: data.subscriptions.length - imported - updated,
+    updated: updatedCount,
+    failed: data.subscriptions.length - imported - updatedCount,
     errors,
     warnings,
   };
@@ -612,7 +630,6 @@ export function processImport(
  */
 export async function getImportHistory(): Promise<ImportHistoryEntry[]> {
   try {
-    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
     const historyJson = await AsyncStorage.getItem(HISTORY_KEY);
     if (historyJson) {
       return JSON.parse(historyJson);
@@ -628,14 +645,13 @@ export async function getImportHistory(): Promise<ImportHistoryEntry[]> {
  */
 export async function saveImportHistory(entry: ImportHistoryEntry): Promise<void> {
   try {
-    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
     const history = await getImportHistory();
-    
+
     history.unshift(entry);
-    
+
     // Keep only last N entries
     const trimmedHistory = history.slice(0, MAX_HISTORY_ENTRIES);
-    
+
     await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(trimmedHistory));
   } catch (error) {
     console.error('Failed to save import history:', error);
@@ -671,7 +687,6 @@ export async function recordImport(
  */
 export async function clearImportHistory(): Promise<void> {
   try {
-    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
     await AsyncStorage.removeItem(HISTORY_KEY);
   } catch (error) {
     console.error('Failed to clear import history:', error);
@@ -687,7 +702,7 @@ export async function clearImportHistory(): Promise<void> {
  */
 export function detectFormat(content: string): 'csv' | 'json' | 'unknown' {
   const trimmed = content.trim();
-  
+
   if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
     try {
       JSON.parse(trimmed);
@@ -696,12 +711,12 @@ export function detectFormat(content: string): 'csv' | 'json' | 'unknown' {
       // Not valid JSON
     }
   }
-  
+
   // Check for CSV indicators
   if (trimmed.includes(',') && trimmed.split('\n')[0].split(',').length > 1) {
     return 'csv';
   }
-  
+
   return 'unknown';
 }
 
@@ -756,6 +771,6 @@ export function getJSONTemplate(): string {
       },
     ],
   };
-  
+
   return JSON.stringify(template, null, 2);
 }

@@ -8,30 +8,18 @@ import {
   TouchableOpacity,
   Alert,
   Share,
-  ActivityIndicator,
   Clipboard,
   Platform,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../navigation/types';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
-import {
-  generateCSV,
-  exportToJSON,
-  ExportData,
-  Subscription,
-} from '../utils/importExport';
+import { generateCSV, exportToJSON } from '../utils/importExport';
 import { useSubscriptionStore } from '../store';
-
-type ExportScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Export'>;
 
 type ExportFormat = 'json' | 'csv';
 
 const ExportScreen: React.FC = () => {
-  const navigation = useNavigation<ExportScreenNavigationProp>();
   const { subscriptions } = useSubscriptionStore();
 
   const [exportFormat, setExportFormat] = useState<ExportFormat>('json');
@@ -49,14 +37,11 @@ const ExportScreen: React.FC = () => {
 
     try {
       let data: string;
-      let preview: string;
 
       if (exportFormat === 'json') {
         data = exportToJSON(subscriptions);
-        preview = JSON.stringify(JSON.parse(data), null, 2);
       } else {
         data = generateCSV(subscriptions);
-        preview = data;
       }
 
       setExportedData(data);
@@ -81,10 +66,7 @@ const ExportScreen: React.FC = () => {
         ]
       );
     } catch (error) {
-      Alert.alert(
-        'Error',
-        error instanceof Error ? error.message : 'Failed to export data'
-      );
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to export data');
     } finally {
       setIsExporting(false);
     }
@@ -114,9 +96,7 @@ const ExportScreen: React.FC = () => {
     Alert.alert(
       'Download',
       'In a production app, this would save the file to the device storage.',
-      [
-        { text: 'OK' },
-      ]
+      [{ text: 'OK' }]
     );
   };
 
@@ -125,42 +105,28 @@ const ExportScreen: React.FC = () => {
       <Text style={styles.sectionTitle}>Export Format</Text>
       <View style={styles.formatButtons}>
         <TouchableOpacity
-          style={[
-            styles.formatButton,
-            exportFormat === 'json' && styles.formatButtonActive,
-          ]}
-          onPress={() => setExportFormat('json')}
-        >
+          style={[styles.formatButton, exportFormat === 'json' && styles.formatButtonActive]}
+          onPress={() => setExportFormat('json')}>
           <Text
             style={[
               styles.formatButtonText,
               exportFormat === 'json' && styles.formatButtonTextActive,
-            ]}
-          >
+            ]}>
             JSON
           </Text>
-          <Text style={styles.formatButtonSubtext}>
-            Full data with metadata
-          </Text>
+          <Text style={styles.formatButtonSubtext}>Full data with metadata</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[
-            styles.formatButton,
-            exportFormat === 'csv' && styles.formatButtonActive,
-          ]}
-          onPress={() => setExportFormat('csv')}
-        >
+          style={[styles.formatButton, exportFormat === 'csv' && styles.formatButtonActive]}
+          onPress={() => setExportFormat('csv')}>
           <Text
             style={[
               styles.formatButtonText,
               exportFormat === 'csv' && styles.formatButtonTextActive,
-            ]}
-          >
+            ]}>
             CSV
           </Text>
-          <Text style={styles.formatButtonSubtext}>
-            Spreadsheet compatible
-          </Text>
+          <Text style={styles.formatButtonSubtext}>Spreadsheet compatible</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -175,15 +141,11 @@ const ExportScreen: React.FC = () => {
           <Text style={styles.statLabel}>Total Subscriptions</Text>
         </View>
         <View style={styles.statItem}>
-          <Text style={styles.statValue}>
-            {subscriptions.filter((s) => s.isActive).length}
-          </Text>
+          <Text style={styles.statValue}>{subscriptions.filter((s) => s.isActive).length}</Text>
           <Text style={styles.statLabel}>Active</Text>
         </View>
         <View style={styles.statItem}>
-          <Text style={styles.statValue}>
-            {subscriptions.filter((s) => !s.isActive).length}
-          </Text>
+          <Text style={styles.statValue}>{subscriptions.filter((s) => !s.isActive).length}</Text>
           <Text style={styles.statLabel}>Paused</Text>
         </View>
       </View>
@@ -214,9 +176,8 @@ const ExportScreen: React.FC = () => {
   const renderPreview = () => {
     if (!showPreview || !exportedData) return null;
 
-    const previewText = exportedData.length > 500 
-      ? exportedData.substring(0, 500) + '...'
-      : exportedData;
+    const previewText =
+      exportedData.length > 500 ? exportedData.substring(0, 500) + '...' : exportedData;
 
     return (
       <Card style={styles.previewCard}>
@@ -241,25 +202,18 @@ const ExportScreen: React.FC = () => {
         disabled={isExporting || subscriptions.length === 0}
         loading={isExporting}
       />
-      
+
       {exportedData && (
         <View style={styles.actionButtons}>
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => shareData(exportedData)}
-          >
+          <TouchableOpacity style={styles.actionButton} onPress={() => shareData(exportedData)}>
             <Text style={styles.actionButtonText}>Share</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() => copyToClipboard(exportedData)}
-          >
+            onPress={() => copyToClipboard(exportedData)}>
             <Text style={styles.actionButtonText}>Copy</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={downloadFile}
-          >
+          <TouchableOpacity style={styles.actionButton} onPress={downloadFile}>
             <Text style={styles.actionButtonText}>Download</Text>
           </TouchableOpacity>
         </View>
@@ -296,9 +250,7 @@ const ExportScreen: React.FC = () => {
       <ScrollView style={styles.scrollView}>
         <View style={styles.header}>
           <Text style={styles.title}>Export Subscriptions</Text>
-          <Text style={styles.subtitle}>
-            Export your subscription data for backup or migration
-          </Text>
+          <Text style={styles.subtitle}>Export your subscription data for backup or migration</Text>
         </View>
 
         {renderSubscriptionStats()}
@@ -310,9 +262,7 @@ const ExportScreen: React.FC = () => {
         {subscriptions.length === 0 && (
           <View style={styles.emptyState}>
             <Text style={styles.emptyTitle}>No Subscriptions</Text>
-            <Text style={styles.emptyText}>
-              Add some subscriptions first before exporting.
-            </Text>
+            <Text style={styles.emptyText}>Add some subscriptions first before exporting.</Text>
           </View>
         )}
       </ScrollView>
