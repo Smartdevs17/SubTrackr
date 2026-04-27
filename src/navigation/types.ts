@@ -4,6 +4,7 @@ export type RootStackParamList = {
   Home: undefined;
   AddSubscription: undefined;
   SubscriptionDetail: { id: string };
+  CancellationFlow: { subscriptionId: string };
   WalletConnect: undefined;
   CryptoPayment: { subscriptionId?: string } | undefined;
   Community: undefined;
