@@ -21,6 +21,8 @@ export type RootStackParamList = {
   LanguageSettings: undefined;
   SessionManagement: undefined;
   ErrorDashboard: undefined;
+  Import: undefined;
+  Export: undefined;
   SegmentManagement: undefined;
   SegmentDetail: { segmentId: string };
   Gamification: undefined;
