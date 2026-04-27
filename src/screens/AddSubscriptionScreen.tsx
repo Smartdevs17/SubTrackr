@@ -14,10 +14,10 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
-import { colors, spacing, typography, borderRadius } from '../utils/constants';
-import { SubscriptionCategory, BillingCycle, SubscriptionFormData } from '../types/subscription';
-import { useSubscriptionStore } from '../store';
+import { useSubscriptionStore, useSettingsStore } from '../store';
 import { Button } from '../components/common/Button';
+import { getCurrencySymbol } from '../utils/formatting';
+
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { errorHandler } from '../services/errorHandler';
 
@@ -28,6 +28,7 @@ interface AddSubscriptionFormData extends SubscriptionFormData {
 const AddSubscriptionScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { addSubscription, isLoading, error } = useSubscriptionStore();
+  const { preferredCurrency } = useSettingsStore();
 
   const [formData, setFormData] = useState<AddSubscriptionFormData>({
     name: '',
@@ -35,7 +36,7 @@ const AddSubscriptionScreen: React.FC = () => {
     category: SubscriptionCategory.OTHER,
     price: 0,
     priceError: '',
-    currency: 'USD',
+    currency: preferredCurrency,
     billingCycle: BillingCycle.MONTHLY,
     nextBillingDate: new Date(),
     notificationsEnabled: true,
@@ -43,6 +44,7 @@ const AddSubscriptionScreen: React.FC = () => {
     cryptoToken: undefined,
     cryptoAmount: undefined,
   });
+
 
   useEffect(() => {
     if (error) {
@@ -267,8 +269,9 @@ const AddSubscriptionScreen: React.FC = () => {
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Price *</Text>
                 <View style={styles.priceInputContainer}>
-                  <Text style={styles.currencySymbol}>$</Text>
+                  <Text style={styles.currencySymbol}>{getCurrencySymbol(formData.currency)}</Text>
                   <TextInput
+
                     style={styles.priceInput}
                     value={formData.price > 0 ? formData.price.toString() : ''}
                     onChangeText={(text) => {
@@ -303,6 +306,33 @@ const AddSubscriptionScreen: React.FC = () => {
                   <Text style={styles.errorText}>{formData.priceError}</Text>
                 ) : null}
               </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Currency</Text>
+                <View style={[styles.categoryGrid, { marginTop: spacing.sm }]}>
+                  {['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'INR'].map((currency) => (
+                    <TouchableOpacity
+                      key={currency}
+                      style={[
+                        styles.categoryItem,
+                        formData.currency === currency && styles.categoryItemSelected,
+                      ]}
+                      onPress={() => handleInputChange('currency', currency)}
+                      accessibilityRole="radio"
+                      accessibilityLabel={currency}
+                      accessibilityState={{ checked: formData.currency === currency }}>
+                      <Text
+                        style={[
+                          styles.categoryText,
+                          formData.currency === currency && styles.categoryTextSelected,
+                        ]}>
+                        {currency}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Next Billing Date *</Text>
