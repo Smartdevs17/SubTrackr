@@ -148,6 +148,10 @@ interface SubscriptionState {
   isLoading: boolean;
   error: AppError | null;
 
+  // Template state
+  templates: PlanTemplate[];
+  templatesLoading: boolean;
+
   // Actions
   addSubscription: (data: SubscriptionFormData) => Promise<void>;
   updateSubscription: (id: string, data: Partial<Subscription>) => Promise<void>;
@@ -157,6 +161,13 @@ interface SubscriptionState {
   recordBillingOutcome: (id: string, outcome: 'success' | 'failed') => Promise<void>;
   fetchSubscriptions: () => Promise<void>;
   calculateStats: () => void;
+
+  // Template actions
+  createTemplate: (data: TemplateFormData) => Promise<void>;
+  updateTemplate: (id: string, data: TemplateFormData) => Promise<void>;
+  deleteTemplate: (id: string) => Promise<void>;
+  fetchTemplates: () => Promise<void>;
+  computePreviewPrice: (templateId: string, quantity: number) => number;
 }
 
 export const useSubscriptionStore = create<SubscriptionState>()(
@@ -423,6 +434,115 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             totalGasSpent,
           },
         });
+      },
+
+      // Template State
+      templates: [],
+      templatesLoading: false,
+
+      // Template Actions
+      createTemplate: async (data: TemplateFormData) => {
+        set({ templatesLoading: true, error: null });
+        try {
+          // TODO: Implement smart contract call
+          // For now, store locally
+          const newTemplate: PlanTemplate = {
+            id: Date.now().toString(),
+            merchant: 'current_user', // TODO: Get from wallet
+            name: data.name,
+            basePrice: data.basePrice,
+            billingPeriod: data.billingPeriod,
+            tiers: data.tiers,
+            version: 1,
+            active: true,
+            createdAt: new Date(),
+          };
+
+          set((state) => ({
+            templates: [...state.templates, newTemplate],
+            templatesLoading: false,
+          }));
+        } catch (error) {
+          const appError = errorHandler.handleError(error as Error, {
+            action: 'createTemplate',
+            metadata: { formData: data },
+          });
+          set({ error: appError, templatesLoading: false });
+        }
+      },
+
+      updateTemplate: async (id: string, data: TemplateFormData) => {
+        set({ templatesLoading: true, error: null });
+        try {
+          // TODO: Implement smart contract call
+          set((state) => ({
+            templates: state.templates.map((template) =>
+              template.id === id
+                ? {
+                    ...template,
+                    ...data,
+                    version: template.version + 1,
+                  }
+                : template
+            ),
+            templatesLoading: false,
+          }));
+        } catch (error) {
+          const appError = errorHandler.handleError(error as Error, {
+            action: 'updateTemplate',
+            templateId: id,
+            metadata: { updateData: data },
+          });
+          set({ error: appError, templatesLoading: false });
+        }
+      },
+
+      deleteTemplate: async (id: string) => {
+        set({ templatesLoading: true, error: null });
+        try {
+          // TODO: Implement smart contract call
+          set((state) => ({
+            templates: state.templates.filter((template) => template.id !== id),
+            templatesLoading: false,
+          }));
+        } catch (error) {
+          const appError = errorHandler.handleError(error as Error, {
+            action: 'deleteTemplate',
+            templateId: id,
+          });
+          set({ error: appError, templatesLoading: false });
+        }
+      },
+
+      fetchTemplates: async () => {
+        set({ templatesLoading: true, error: null });
+        try {
+          // TODO: Implement smart contract call
+          // For now, just set loading to false
+          set({ templatesLoading: false });
+        } catch (error) {
+          const appError = errorHandler.handleError(error as Error, {
+            action: 'fetchTemplates',
+          });
+          set({ error: appError, templatesLoading: false });
+        }
+      },
+
+      computePreviewPrice: (templateId: string, quantity: number) => {
+        const template = get().templates.find((t) => t.id === templateId);
+        if (!template) return 0;
+
+        // Find best eligible tier (highest discount)
+        let bestDiscountBps = 0;
+        for (const tier of template.tiers) {
+          if (quantity >= tier.minQuantity && tier.discountBps > bestDiscountBps) {
+            bestDiscountBps = tier.discountBps;
+          }
+        }
+
+        // Calculate final price
+        const discount = (template.basePrice * bestDiscountBps) / 10000;
+        return template.basePrice - discount;
       },
     }),
     {
