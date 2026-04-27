@@ -1,6 +1,6 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef } from 'react';
 import { View, Text, StyleSheet, Animated, PanResponder, Dimensions } from 'react-native';
-import { colors, spacing, borderRadius } from '../../utils/constants';
+import { colors, spacing } from '../../utils/constants';
 import { animations, useAnimatedValue } from '../../utils/animations';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -30,23 +30,15 @@ export const SwipeableSubscriptionCard: React.FC<SwipeableSubscriptionCardProps>
   rightAction,
 }) => {
   const pan = useRef(new Animated.ValueXY()).current;
-  const [isSwiping, setIsSwiping] = useState(false);
   const bounceAnim = useAnimatedValue(1);
 
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onPanResponderGrant: () => {
-        setIsSwiping(true);
-      },
-      onPanResponderMove: Animated.event(
-        [null, { dx: pan.x }],
-        { useNativeDriver: false }
-      ),
+      onPanResponderGrant: () => {},
+      onPanResponderMove: Animated.event([null, { dx: pan.x }], { useNativeDriver: false }),
       onPanResponderRelease: (evt, gestureState) => {
         const { dx, vx } = gestureState;
-
-        setIsSwiping(false);
 
         // Determine swipe direction and velocity
         const isLeftSwipe = dx < -SWIPE_THRESHOLD || vx < -0.5;
@@ -81,7 +73,6 @@ export const SwipeableSubscriptionCard: React.FC<SwipeableSubscriptionCardProps>
         }
       },
       onPanResponderTerminate: () => {
-        setIsSwiping(false);
         Animated.spring(pan, {
           toValue: { x: 0, y: 0 },
           useNativeDriver: false,
@@ -91,10 +82,7 @@ export const SwipeableSubscriptionCard: React.FC<SwipeableSubscriptionCardProps>
   ).current;
 
   const animatedCardStyle = {
-    transform: [
-      { translateX: pan.x },
-      { scale: bounceAnim },
-    ],
+    transform: [{ translateX: pan.x }, { scale: bounceAnim }],
   };
 
   const leftActionStyle = {
@@ -103,13 +91,15 @@ export const SwipeableSubscriptionCard: React.FC<SwipeableSubscriptionCardProps>
       outputRange: [1, 0.5, 0],
       extrapolate: 'clamp',
     }),
-    transform: [{
-      translateX: pan.x.interpolate({
-        inputRange: [-SCREEN_WIDTH, 0],
-        outputRange: [0, -SCREEN_WIDTH / 2],
-        extrapolate: 'clamp',
-      }),
-    }],
+    transform: [
+      {
+        translateX: pan.x.interpolate({
+          inputRange: [-SCREEN_WIDTH, 0],
+          outputRange: [0, -SCREEN_WIDTH / 2],
+          extrapolate: 'clamp',
+        }),
+      },
+    ],
   };
 
   const rightActionStyle = {
@@ -118,13 +108,15 @@ export const SwipeableSubscriptionCard: React.FC<SwipeableSubscriptionCardProps>
       outputRange: [0, 0.5, 1],
       extrapolate: 'clamp',
     }),
-    transform: [{
-      translateX: pan.x.interpolate({
-        inputRange: [0, SCREEN_WIDTH],
-        outputRange: [SCREEN_WIDTH / 2, 0],
-        extrapolate: 'clamp',
-      }),
-    }],
+    transform: [
+      {
+        translateX: pan.x.interpolate({
+          inputRange: [0, SCREEN_WIDTH],
+          outputRange: [SCREEN_WIDTH / 2, 0],
+          extrapolate: 'clamp',
+        }),
+      },
+    ],
   };
 
   return (
@@ -150,10 +142,7 @@ export const SwipeableSubscriptionCard: React.FC<SwipeableSubscriptionCardProps>
       )}
 
       {/* Main Card */}
-      <Animated.View
-        style={[styles.card, animatedCardStyle]}
-        {...panResponder.panHandlers}
-      >
+      <Animated.View style={[styles.card, animatedCardStyle]} {...panResponder.panHandlers}>
         {children}
       </Animated.View>
     </View>
@@ -239,7 +228,7 @@ export const GestureDrivenCard: React.FC<GestureDrivenCardProps> = ({
 
   return (
     <Animated.View style={animatedStyle}>
-      {React.cloneElement(children as React.ReactElement, {
+      {React.cloneElement(children as React.ReactElement<any>, {
         onPress: handlePress,
         onLongPress: handleLongPress,
         delayLongPress: 500,

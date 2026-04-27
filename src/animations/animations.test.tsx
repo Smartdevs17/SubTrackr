@@ -1,4 +1,5 @@
 import React from 'react';
+import { Text } from 'react-native';
 import { render, fireEvent, waitFor } from '@testing-library/react-native';
 import { AnimatedSubscriptionCard } from '../components/subscription/AnimatedSubscriptionCard';
 import { SubscriptionListSkeleton } from '../components/common/SkeletonLoader';

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Animated, Easing, ViewStyle, TextStyle } from 'react-native';
+import { Animated, Easing, ViewStyle } from 'react-native';
 
 // Animation configurations
 export const animationConfig = {
@@ -57,7 +57,10 @@ export const animations = {
     });
   },
 
-  slideInFromRight: (animatedValue: Animated.Value, duration: number = animationConfig.duration.normal) => {
+  slideInFromRight: (
+    animatedValue: Animated.Value,
+    duration: number = animationConfig.duration.normal
+  ) => {
     return Animated.timing(animatedValue, {
       toValue: 0,
       duration,
@@ -66,7 +69,10 @@ export const animations = {
     });
   },
 
-  slideOutToRight: (animatedValue: Animated.Value, duration: number = animationConfig.duration.normal) => {
+  slideOutToRight: (
+    animatedValue: Animated.Value,
+    duration: number = animationConfig.duration.normal
+  ) => {
     return Animated.timing(animatedValue, {
       toValue: 1,
       duration,
@@ -75,7 +81,7 @@ export const animations = {
     });
   },
 
-  scaleIn: (animatedValue: Animated.Value, duration: number = animationConfig.duration.normal) => {
+  scaleIn: (animatedValue: Animated.Value, _duration: number = animationConfig.duration.normal) => {
     return Animated.spring(animatedValue, {
       toValue: 1,
       tension: 100,
@@ -136,8 +142,8 @@ export const useAnimatedValue = (initialValue: number = 0): Animated.Value => {
 };
 
 export const useAnimatedValues = (count: number, initialValue: number = 0): Animated.Value[] => {
-  return React.useMemo(() =>
-    Array.from({ length: count }, () => new Animated.Value(initialValue)),
+  return React.useMemo(
+    () => Array.from({ length: count }, () => new Animated.Value(initialValue)),
     [count, initialValue]
   );
 };
@@ -151,12 +157,16 @@ export const stagger = (
 };
 
 // Parallel animation utility
-export const parallel = (animations: Animated.CompositeAnimation[]): Animated.CompositeAnimation => {
+export const parallel = (
+  animations: Animated.CompositeAnimation[]
+): Animated.CompositeAnimation => {
   return Animated.parallel(animations);
 };
 
 // Sequence animation utility
-export const sequence = (animations: Animated.CompositeAnimation[]): Animated.CompositeAnimation => {
+export const sequence = (
+  animations: Animated.CompositeAnimation[]
+): Animated.CompositeAnimation => {
   return Animated.sequence(animations);
 };
 
@@ -165,7 +175,7 @@ export const interpolate = (
   animatedValue: Animated.Value,
   inputRange: number[],
   outputRange: number[] | string[]
-): Animated.AnimatedInterpolation => {
+): Animated.AnimatedInterpolation<number | string> => {
   return animatedValue.interpolate({
     inputRange,
     outputRange,
@@ -182,11 +192,17 @@ export const createAnimatedStyle = {
     transform: [{ scale: animatedValue }],
   }),
 
-  translateX: (animatedValue: Animated.Value, range: [number, number] = [-100, 0]): Animated.WithAnimatedObject<ViewStyle> => ({
+  translateX: (
+    animatedValue: Animated.Value,
+    range: [number, number] = [-100, 0]
+  ): Animated.WithAnimatedObject<ViewStyle> => ({
     transform: [{ translateX: interpolate(animatedValue, [0, 1], range) }],
   }),
 
-  translateY: (animatedValue: Animated.Value, range: [number, number] = [-100, 0]): Animated.WithAnimatedObject<ViewStyle> => ({
+  translateY: (
+    animatedValue: Animated.Value,
+    range: [number, number] = [-100, 0]
+  ): Animated.WithAnimatedObject<ViewStyle> => ({
     transform: [{ translateY: interpolate(animatedValue, [0, 1], range) }],
   }),
 

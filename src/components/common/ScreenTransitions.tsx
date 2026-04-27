@@ -64,22 +64,26 @@ export const ScreenTransition: React.FC<ScreenTransitionProps> = ({
       case 'slide':
         return {
           opacity: animatedValue,
-          transform: [{
-            translateX: animatedValue.interpolate({
-              inputRange: [0, 1],
-              outputRange: [50, 0],
-            }),
-          }],
+          transform: [
+            {
+              translateX: animatedValue.interpolate({
+                inputRange: [0, 1],
+                outputRange: [50, 0],
+              }),
+            },
+          ],
         };
       case 'scale':
         return {
           opacity: animatedValue,
-          transform: [{
-            scale: animatedValue.interpolate({
-              inputRange: [0, 1],
-              outputRange: [0.9, 1],
-            }),
-          }],
+          transform: [
+            {
+              scale: animatedValue.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0.9, 1],
+              }),
+            },
+          ],
         };
       case 'fade':
       default:
@@ -90,9 +94,7 @@ export const ScreenTransition: React.FC<ScreenTransitionProps> = ({
   };
 
   return (
-    <Animated.View style={[styles.container, getAnimatedStyle(), style]}>
-      {children}
-    </Animated.View>
+    <Animated.View style={[styles.container, getAnimatedStyle(), style]}>{children}</Animated.View>
   );
 };
 
@@ -109,15 +111,12 @@ export const StaggeredList: React.FC<StaggeredListProps> = ({
   animationType = 'fade',
   style,
 }) => {
-  const animatedValues = React.useMemo(
-    () => children.map(() => useAnimatedValue(0)),
-    [children.length]
-  );
+  const animatedValues = React.useMemo(() => children.map(() => new Animated.Value(0)), [children]);
 
   useEffect(() => {
     // Start staggered animations immediately for better performance
     requestAnimationFrame(() => {
-      const staggerAnimations = animatedValues.map((anim, index) => {
+      const staggerAnimations = animatedValues.map((anim) => {
         let animation: Animated.CompositeAnimation;
 
         switch (animationType) {
@@ -150,23 +149,27 @@ export const StaggeredList: React.FC<StaggeredListProps> = ({
           case 'slide':
             animatedStyle = {
               opacity: animatedValue,
-              transform: [{
-                translateX: animatedValue.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [30, 0],
-                }),
-              }],
+              transform: [
+                {
+                  translateX: animatedValue.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [30, 0],
+                  }),
+                },
+              ],
             };
             break;
           case 'scale':
             animatedStyle = {
               opacity: animatedValue,
-              transform: [{
-                scale: animatedValue.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0.8, 1],
-                }),
-              }],
+              transform: [
+                {
+                  scale: animatedValue.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.8, 1],
+                  }),
+                },
+              ],
             };
             break;
           case 'fade':
@@ -199,7 +202,6 @@ export const TransitionGroup: React.FC<TransitionGroupProps> = ({
   children,
   appear = true,
   enter = true,
-  exit = true,
   style,
 }) => {
   const animatedValue = useAnimatedValue(appear ? 0 : 1);

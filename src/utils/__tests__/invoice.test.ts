@@ -1,6 +1,12 @@
 import { expect, describe, it } from '@jest/globals';
 import { BillingCycle, SubscriptionCategory } from '../../types/subscription';
-import { buildBillingPeriod, calculateInvoiceTax, calculateInvoiceTotals, convertCurrencyAmount, formatInvoiceNumber } from '../invoice';
+import {
+  buildBillingPeriod,
+  calculateInvoiceTax,
+  calculateInvoiceTotals,
+  convertCurrencyAmount,
+  formatInvoiceNumber,
+} from '../invoice';
 import { DEFAULT_INVOICE_CONFIG, InvoiceStatus } from '../../types/invoice';
 
 describe('invoice utilities', () => {

@@ -86,7 +86,7 @@ describe('composeGestureHandlers', () => {
     const composed = composeGestureHandlers(
       () => log.push('a'),
       () => log.push('b'),
-      () => log.push('c'),
+      () => log.push('c')
     );
 
     const mockResult = {} as ComposedGestureResult;
@@ -100,7 +100,7 @@ describe('composeGestureHandlers', () => {
     composer.addHandler(
       composeGestureHandlers(
         (r) => received.push(r),
-        (r) => received.push(r),
+        (r) => received.push(r)
       )
     );
     composer.process(SWIPE_SAMPLE);

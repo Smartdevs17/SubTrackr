@@ -96,7 +96,9 @@ describe('slaStore', () => {
     });
 
     const status = useSlaStore.getState().getSlaStatus('merchant-b');
-    const breaches = useSlaStore.getState().breaches.filter((breach) => breach.merchantId === 'merchant-b');
+    const breaches = useSlaStore
+      .getState()
+      .breaches.filter((breach) => breach.merchantId === 'merchant-b');
 
     expect(status?.compliant).toBe(false);
     expect(breaches).toHaveLength(1);

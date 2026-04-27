@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import { Animated, InteractionManager } from 'react-native';
 
 interface UseAnimationPerformanceOptions {
@@ -11,13 +11,9 @@ export const useAnimationPerformance = (
   animation: Animated.CompositeAnimation,
   options: UseAnimationPerformanceOptions = {}
 ) => {
-  const {
-    useNativeDriver = true,
-    shouldRasterizeIOS = false,
-    enableInteractionManager = false,
-  } = options;
+  const { enableInteractionManager = false } = options;
 
-  const animationRef = useRef<Animated.CompositeAnimation>();
+  const animationRef = useRef<Animated.CompositeAnimation | null>(null);
 
   useEffect(() => {
     animationRef.current = animation;
@@ -78,7 +74,7 @@ export class AnimationBatch {
   }
 
   stop(): void {
-    this.animations.forEach(anim => anim.stop());
+    this.animations.forEach((anim) => anim.stop());
     this.animations = [];
     this.isRunning = false;
   }
@@ -130,8 +126,8 @@ export const useDebouncedAnimation = (
   animationCreator: (value: number) => Animated.CompositeAnimation,
   delay: number = 300
 ) => {
-  const timeoutRef = useRef<NodeJS.Timeout>();
-  const animationRef = useRef<Animated.CompositeAnimation>();
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const animationRef = useRef<Animated.CompositeAnimation | null>(null);
   const lastValueRef = useRef(value);
 
   useEffect(() => {
@@ -172,12 +168,15 @@ export class AnimationPool {
 
   static get(key: string, size: number): Animated.Value[] {
     if (!this.pool.has(key)) {
-      this.pool.set(key, Array.from({ length: size }, () => new Animated.Value(0)));
+      this.pool.set(
+        key,
+        Array.from({ length: size }, () => new Animated.Value(0))
+      );
     }
 
     const values = this.pool.get(key)!;
     // Reset all values
-    values.forEach(value => value.setValue(0));
+    values.forEach((value) => value.setValue(0));
     return values;
   }
 
@@ -185,7 +184,7 @@ export class AnimationPool {
     // Values are kept for reuse, just reset them
     const values = this.pool.get(key);
     if (values) {
-      values.forEach(value => value.setValue(0));
+      values.forEach((value) => value.setValue(0));
     }
   }
 
@@ -209,22 +208,22 @@ export const usePowerAwareAnimation = () => {
     checkPowerMode();
   }, []);
 
-  const getOptimizedConfig = useCallback((baseConfig: any) => {
-    if (isLowPower) {
-      return {
-        ...baseConfig,
-        duration: Math.max(baseConfig.duration * 0.7, 150), // Reduce duration but keep minimum
-        useNativeDriver: true, // Prefer native driver for better performance
-      };
-    }
-    return baseConfig;
-  }, [isLowPower]);
+  const getOptimizedConfig = useCallback(
+    (baseConfig: any) => {
+      if (isLowPower) {
+        return {
+          ...baseConfig,
+          duration: Math.max(baseConfig.duration * 0.7, 150), // Reduce duration but keep minimum
+          useNativeDriver: true, // Prefer native driver for better performance
+        };
+      }
+      return baseConfig;
+    },
+    [isLowPower]
+  );
 
   return {
     isLowPower,
     getOptimizedConfig,
   };
 };
-
-// Import React for useState
-import React from 'react';

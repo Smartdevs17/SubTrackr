@@ -1,12 +1,5 @@
 import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Dimensions,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
 import { SubscriptionTier, SubscriptionPlan } from '../types/subscription';
 import { FeatureId } from '../types/feature';
 import { FEATURE_CONFIG } from '../config/features';
@@ -40,6 +33,7 @@ export const SubscriptionPlans: React.FC<SubscriptionPlansProps> = ({
       currency: 'USD',
       billingCycle: 'monthly' as any,
       features: FEATURE_CONFIG.plans[SubscriptionTier.FREE],
+      limits: {},
       description: 'Perfect for getting started',
     },
     {
@@ -50,6 +44,7 @@ export const SubscriptionPlans: React.FC<SubscriptionPlansProps> = ({
       currency: 'USD',
       billingCycle: 'monthly' as any,
       features: FEATURE_CONFIG.plans[SubscriptionTier.BASIC],
+      limits: {},
       description: 'Great for personal use',
     },
     {
@@ -60,6 +55,7 @@ export const SubscriptionPlans: React.FC<SubscriptionPlansProps> = ({
       currency: 'USD',
       billingCycle: 'monthly' as any,
       features: FEATURE_CONFIG.plans[SubscriptionTier.PREMIUM],
+      limits: {},
       isPopular: true,
       description: 'Advanced features for power users',
     },
@@ -71,12 +67,13 @@ export const SubscriptionPlans: React.FC<SubscriptionPlansProps> = ({
       currency: 'USD',
       billingCycle: 'monthly' as any,
       features: FEATURE_CONFIG.plans[SubscriptionTier.ENTERPRISE],
+      limits: {},
       description: 'Complete solution for teams',
     },
   ];
 
-  const getFeatureName = (featureId: FeatureId): string => {
-    const feature = FEATURE_CONFIG.features[featureId];
+  const getFeatureName = (featureId: string): string => {
+    const feature = FEATURE_CONFIG.features[featureId as FeatureId];
     return feature?.name || featureId.replace(/_/g, ' ');
   };
 
@@ -101,12 +98,8 @@ export const SubscriptionPlans: React.FC<SubscriptionPlansProps> = ({
         <View style={styles.planHeader}>
           <Text style={styles.planName}>{plan.name}</Text>
           <View style={styles.priceContainer}>
-            <Text style={styles.price}>
-              ${plan.price}
-            </Text>
-            <Text style={styles.billingCycle}>
-              /{plan.billingCycle.replace('ly', '')}
-            </Text>
+            <Text style={styles.price}>${plan.price}</Text>
+            <Text style={styles.billingCycle}>/{plan.billingCycle.replace('ly', '')}</Text>
           </View>
           <Text style={styles.planDescription}>{plan.description}</Text>
         </View>
@@ -116,30 +109,19 @@ export const SubscriptionPlans: React.FC<SubscriptionPlansProps> = ({
           {plan.features.slice(0, 5).map((featureId) => (
             <View key={featureId} style={styles.featureItem}>
               <Text style={styles.checkmark}>✓</Text>
-              <Text style={styles.featureText}>
-                {getFeatureName(featureId)}
-              </Text>
+              <Text style={styles.featureText}>{getFeatureName(featureId)}</Text>
             </View>
           ))}
           {plan.features.length > 5 && (
-            <Text style={styles.moreFeatures}>
-              +{plan.features.length - 5} more features
-            </Text>
+            <Text style={styles.moreFeatures}>+{plan.features.length - 5} more features</Text>
           )}
         </View>
 
         <TouchableOpacity
-          style={[
-            styles.selectButton,
-            isCurrentPlan && styles.currentButton,
-          ]}
+          style={[styles.selectButton, isCurrentPlan && styles.currentButton]}
           onPress={() => onSelectPlan?.(plan)}
-          disabled={isCurrentPlan}
-        >
-          <Text style={[
-            styles.selectButtonText,
-            isCurrentPlan && styles.currentButtonText,
-          ]}>
+          disabled={isCurrentPlan}>
+          <Text style={[styles.selectButtonText, isCurrentPlan && styles.currentButtonText]}>
             {isCurrentPlan ? 'Current Plan' : 'Select Plan'}
           </Text>
         </TouchableOpacity>
@@ -151,19 +133,15 @@ export const SubscriptionPlans: React.FC<SubscriptionPlansProps> = ({
     <ScrollView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Choose Your Plan</Text>
-        <Text style={styles.subtitle}>
-          Select the plan that best fits your needs
-        </Text>
+        <Text style={styles.subtitle}>Select the plan that best fits your needs</Text>
       </View>
 
-      <View style={styles.plansGrid}>
-        {plans.map((plan) => renderPlanCard(plan))}
-      </View>
+      <View style={styles.plansGrid}>{plans.map((plan) => renderPlanCard(plan))}</View>
 
       <View style={styles.footer}>
         <Text style={styles.footerText}>
-          All plans include our core subscription tracking features.
-          Upgrade or downgrade at any time.
+          All plans include our core subscription tracking features. Upgrade or downgrade at any
+          time.
         </Text>
       </View>
     </ScrollView>

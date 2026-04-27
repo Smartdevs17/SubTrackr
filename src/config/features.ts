@@ -1,4 +1,4 @@
-import { FeatureConfig, FeatureFlag, SubscriptionTier, FeatureId } from '../types/feature';
+import { FeatureConfig, SubscriptionTier, FeatureId } from '../types/feature';
 
 export const FEATURE_CONFIG: FeatureConfig = {
   globalRolloutPercentage: 100,
@@ -48,7 +48,12 @@ export const FEATURE_CONFIG: FeatureConfig = {
       name: 'Basic Subscription Tracking',
       description: 'Track your subscriptions with basic features',
       enabled: true,
-      tierAccess: [SubscriptionTier.FREE, SubscriptionTier.BASIC, SubscriptionTier.PREMIUM, SubscriptionTier.ENTERPRISE],
+      tierAccess: [
+        SubscriptionTier.FREE,
+        SubscriptionTier.BASIC,
+        SubscriptionTier.PREMIUM,
+        SubscriptionTier.ENTERPRISE,
+      ],
       rolloutPercentage: 100,
       createdAt: new Date('2024-01-01'),
       updatedAt: new Date('2024-01-01'),
@@ -58,7 +63,12 @@ export const FEATURE_CONFIG: FeatureConfig = {
       name: 'Basic Analytics',
       description: 'View basic spending analytics and insights',
       enabled: true,
-      tierAccess: [SubscriptionTier.FREE, SubscriptionTier.BASIC, SubscriptionTier.PREMIUM, SubscriptionTier.ENTERPRISE],
+      tierAccess: [
+        SubscriptionTier.FREE,
+        SubscriptionTier.BASIC,
+        SubscriptionTier.PREMIUM,
+        SubscriptionTier.ENTERPRISE,
+      ],
       rolloutPercentage: 100,
       createdAt: new Date('2024-01-01'),
       updatedAt: new Date('2024-01-01'),
@@ -68,7 +78,12 @@ export const FEATURE_CONFIG: FeatureConfig = {
       name: 'Push Notifications',
       description: 'Receive notifications about subscription renewals and payments',
       enabled: true,
-      tierAccess: [SubscriptionTier.FREE, SubscriptionTier.BASIC, SubscriptionTier.PREMIUM, SubscriptionTier.ENTERPRISE],
+      tierAccess: [
+        SubscriptionTier.FREE,
+        SubscriptionTier.BASIC,
+        SubscriptionTier.PREMIUM,
+        SubscriptionTier.ENTERPRISE,
+      ],
       rolloutPercentage: 100,
       createdAt: new Date('2024-01-01'),
       updatedAt: new Date('2024-01-01'),

@@ -24,8 +24,7 @@ const HORIZONTAL_DOMINANCE_RATIO = 1.35;
 export function validateHorizontalSwipe(sample: GestureSample): GestureValidationResult {
   const absDx = Math.abs(sample.dx);
   const absDy = Math.abs(sample.dy);
-  const direction: GestureDirection =
-    sample.dx > 0 ? 'right' : sample.dx < 0 ? 'left' : 'none';
+  const direction: GestureDirection = sample.dx > 0 ? 'right' : sample.dx < 0 ? 'left' : 'none';
 
   if (!direction || direction === 'none') {
     return { isValid: false, direction: 'none', priority: 'tap', reason: 'no-horizontal-motion' };
@@ -66,4 +65,3 @@ export function triggerGestureFeedback(kind: GesturePriority | 'success'): void 
   const duration = kind === 'success' ? 20 : Platform.OS === 'ios' ? 10 : 15;
   Vibration.vibrate(duration);
 }
-

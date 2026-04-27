@@ -1090,7 +1090,7 @@ impl SubTrackrSubscription {
             storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
                 .expect("Subscription not found");
 
-        let admin = get_admin(&env, &storage);
+        let _admin = get_admin(&env, &storage);
         // Only subscriber or admin can record usage? Usually it's the app/admin
         // For simplicity, let's allow anyone with auth (simplified for this task)
         // In a real app, you might want more complex auth.

@@ -78,7 +78,9 @@ function updateMerchantState(state: SlaState, merchantId: string, now = Date.now
     };
   }
 
-  const merchantEvents = state.availabilityEvents.filter((event) => event.merchantId === merchantId);
+  const merchantEvents = state.availabilityEvents.filter(
+    (event) => event.merchantId === merchantId
+  );
   const merchantBreaches = state.breaches.filter((breach) => breach.merchantId === merchantId);
   const evaluation = evaluateMerchantSnapshot({
     config,
@@ -102,7 +104,9 @@ function updateMerchantState(state: SlaState, merchantId: string, now = Date.now
   };
 }
 
-function rebuildReport(state: Pick<SlaState, 'configs' | 'statuses' | 'breaches' | 'availabilityEvents'>): SlaDashboardReport {
+function rebuildReport(
+  state: Pick<SlaState, 'configs' | 'statuses' | 'breaches' | 'availabilityEvents'>
+): SlaDashboardReport {
   return buildSlaDashboardReport({
     configs: state.configs,
     statuses: state.statuses,
@@ -179,7 +183,8 @@ export const useSlaStore = create<SlaState>()(
               ...state,
               availabilityEvents,
             };
-            const evaluated = updateMerchantState(nextState, merchantId, event.timestamp);
+            const evaluationTime = event.timestamp + event.durationSeconds * 1000;
+            const evaluated = updateMerchantState(nextState, merchantId, evaluationTime);
             createdBreach = evaluated.createdBreach;
 
             return {
@@ -196,13 +201,14 @@ export const useSlaStore = create<SlaState>()(
             };
           });
 
-          if (createdBreach) {
+          const breach = createdBreach as SlaBreach | null;
+          if (breach !== null) {
             const config = get().configs[merchantId];
             void presentSlaBreachNotification({
               merchantName: config?.merchantId ?? merchantId,
-              uptimeTarget: createdBreach.uptimeTarget,
-              uptimePercentage: createdBreach.uptimePercentage,
-              creditAmount: createdBreach.creditAmount,
+              uptimeTarget: breach.uptimeTarget,
+              uptimePercentage: breach.uptimePercentage,
+              creditAmount: breach.creditAmount,
             });
           }
         } catch (error) {
@@ -274,7 +280,8 @@ export const useSlaStore = create<SlaState>()(
         }
       },
 
-      calculateCredit: (breachId) => get().breaches.find((breach) => breach.id === breachId)?.creditAmount ?? 0,
+      calculateCredit: (breachId) =>
+        get().breaches.find((breach) => breach.id === breachId)?.creditAmount ?? 0,
 
       getSlaStatus: (merchantId) => get().statuses[merchantId] ?? null,
 

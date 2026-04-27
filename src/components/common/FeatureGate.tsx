@@ -38,13 +38,7 @@ export const FeatureGate: React.FC<FeatureGateProps> = ({
   }
 
   if (showUpgradePrompt) {
-    return (
-      <UpgradePrompt
-        feature={feature}
-        reason={reason}
-        message={upgradeMessage}
-      />
-    );
+    return <UpgradePrompt feature={feature} reason={reason} message={upgradeMessage} />;
   }
 
   return null;
@@ -56,11 +50,7 @@ interface UpgradePromptProps {
   message?: string;
 }
 
-const UpgradePrompt: React.FC<UpgradePromptProps> = ({
-  feature,
-  reason,
-  message,
-}) => {
+const UpgradePrompt: React.FC<UpgradePromptProps> = ({ feature, reason, message }) => {
   const defaultMessage = reason
     ? `Upgrade to access ${feature.replace(/_/g, ' ')}`
     : 'Upgrade to unlock this feature';
@@ -69,14 +59,8 @@ const UpgradePrompt: React.FC<UpgradePromptProps> = ({
     <View style={styles.upgradeContainer}>
       <Text style={styles.upgradeIcon}>🔒</Text>
       <Text style={styles.upgradeTitle}>Premium Feature</Text>
-      <Text style={styles.upgradeMessage}>
-        {message || defaultMessage}
-      </Text>
-      {reason && (
-        <Text style={styles.upgradeReason}>
-          {reason}
-        </Text>
-      )}
+      <Text style={styles.upgradeMessage}>{message || defaultMessage}</Text>
+      {reason && <Text style={styles.upgradeReason}>{reason}</Text>}
     </View>
   );
 };
@@ -112,12 +96,7 @@ export const FeatureLimitGate: React.FC<FeatureLimitGateProps> = ({
   }
 
   if (showLimitMessage) {
-    return (
-      <LimitReachedMessage
-        limitKey={limitKey}
-        remaining={remaining}
-      />
-    );
+    return <LimitReachedMessage limitKey={limitKey} remaining={remaining} />;
   }
 
   return null;
@@ -128,12 +107,9 @@ interface LimitReachedMessageProps {
   remaining: number;
 }
 
-const LimitReachedMessage: React.FC<LimitReachedMessageProps> = ({
-  limitKey,
-  remaining,
-}) => {
+const LimitReachedMessage: React.FC<LimitReachedMessageProps> = ({ limitKey, remaining }) => {
   const formatLimitKey = (key: string) => {
-    return key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    return key.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
   };
 
   const getLimitMessage = () => {
@@ -149,12 +125,8 @@ const LimitReachedMessage: React.FC<LimitReachedMessageProps> = ({
   return (
     <View style={styles.limitContainer}>
       <Text style={styles.limitIcon}>⚠️</Text>
-      <Text style={styles.limitMessage}>
-        {getLimitMessage()}
-      </Text>
-      <Text style={styles.limitSubtext}>
-        Upgrade to increase your limits
-      </Text>
+      <Text style={styles.limitMessage}>{getLimitMessage()}</Text>
+      <Text style={styles.limitSubtext}>Upgrade to increase your limits</Text>
     </View>
   );
 };

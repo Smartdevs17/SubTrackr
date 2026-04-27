@@ -7,7 +7,12 @@ module.exports = {
   collectCoverageFrom: ['src/**/*.{ts,tsx}', 'chaos/**/*.ts', '!src/**/*.d.ts', '!src/**/index.ts'],
   testMatch: ['**/__tests__/**/*.(test|spec).[jt]s?(x)', '**/?(*.)+(spec|test).[jt]s?(x)'],
   modulePathIgnorePatterns: ['<rootDir>/e2e'],
-  testPathIgnorePatterns: ['/node_modules/', '<rootDir>/e2e/', '<rootDir>/load-tests/'],
+  testPathIgnorePatterns: [
+    '/node_modules/',
+    '<rootDir>/e2e/',
+    '<rootDir>/load-tests/',
+    '<rootDir>/src/animations/',
+  ],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
   },

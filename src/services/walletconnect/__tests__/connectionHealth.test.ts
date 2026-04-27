@@ -1,7 +1,9 @@
 import { assessConnectionHealth, formatConnectionDuration } from '../connectionHealth';
 import type { WalletConnectSessionState } from '../types';
 
-function makeSession(overrides: Partial<WalletConnectSessionState> = {}): WalletConnectSessionState {
+function makeSession(
+  overrides: Partial<WalletConnectSessionState> = {}
+): WalletConnectSessionState {
   const now = new Date().toISOString();
   return {
     status: 'connected',

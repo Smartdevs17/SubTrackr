@@ -1,5 +1,7 @@
 import { SubscriptionTier } from './subscription';
 
+export { SubscriptionTier } from './subscription';
+
 export interface FeatureFlag {
   id: string;
   name: string;
@@ -24,7 +26,7 @@ export interface FeatureAccessResult {
 
 export interface FeatureConfig {
   features: Record<string, FeatureFlag>;
-  plans: Record<SubscriptionTier, string[]>; // Feature IDs available per tier
+  plans: Record<SubscriptionTier, FeatureId[]>; // Feature IDs available per tier
   globalRolloutPercentage: number;
   abTestEnabled: boolean;
 }

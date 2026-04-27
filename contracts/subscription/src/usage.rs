@@ -1,6 +1,6 @@
 use crate::{quota, storage_persistent_get, storage_persistent_set};
 use soroban_sdk::{Address, Env};
-use subtrackr_types::{Quota, QuotaMetric, QuotaStatus, RolloverPolicy, StorageKey, UsageRecord};
+use subtrackr_types::{QuotaMetric, QuotaStatus, RolloverPolicy, StorageKey, UsageRecord};
 
 pub fn record_usage(
     env: &Env,
@@ -21,11 +21,7 @@ pub fn record_usage(
     // Check if period has expired
     if now >= record.period_start + quota.period.seconds() {
         // Calculate rollover
-        let unused = if record.current_usage < (quota.limit + record.rollover_balance) {
-            (quota.limit + record.rollover_balance) - record.current_usage
-        } else {
-            0
-        };
+        let unused = (quota.limit + record.rollover_balance).saturating_sub(record.current_usage);
 
         let new_rollover = match quota.rollover_policy {
             RolloverPolicy::NoRollover => 0,

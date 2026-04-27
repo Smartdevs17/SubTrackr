@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, Animated } from 'react-native';
 import { colors, spacing, typography, borderRadius, shadows } from '../../utils/constants';
 import { Subscription } from '../../types/subscription';
@@ -46,11 +46,12 @@ export const AnimatedSubscriptionCard: React.FC<AnimatedSubscriptionCardProps> =
   const scaleAnim = useAnimatedValue(1);
   const priceAnim = useAnimatedValue(0);
   const statusAnim = useAnimatedValue(subscription.isActive ? 1 : 0);
+  const fallbackSharedElementAnim = useAnimatedValue(1);
 
   // Shared element transition
   const sharedElementAnim = sharedElementId
     ? SharedElementTransition.register(sharedElementId, 1)
-    : useAnimatedValue(1);
+    : fallbackSharedElementAnim;
 
   useEffect(() => {
     // Enter animation with stagger
@@ -141,16 +142,19 @@ export const AnimatedSubscriptionCard: React.FC<AnimatedSubscriptionCardProps> =
 
   const animatedStatusStyle = {
     opacity: statusAnim,
-    transform: [{
-      scale: statusAnim.interpolate({
-        inputRange: [0, 1],
-        outputRange: [0.8, 1],
-      }),
-    }],
+    transform: [
+      {
+        scale: statusAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0.8, 1],
+        }),
+      },
+    ],
   };
 
   return (
-    <Animated.View style={[styles.container, animatedCardStyle, upcoming && styles.upcomingContainer]}>
+    <Animated.View
+      style={[styles.container, animatedCardStyle, upcoming && styles.upcomingContainer]}>
       <TouchableOpacity
         testID={`subscription-card-${subscription.id}`}
         accessible={true}
@@ -163,8 +167,7 @@ export const AnimatedSubscriptionCard: React.FC<AnimatedSubscriptionCardProps> =
         }`}
         style={styles.touchable}
         onPress={handlePress}
-        activeOpacity={0.8}
-      >
+        activeOpacity={0.8}>
         <View style={styles.header}>
           <Animated.View style={[styles.iconContainer, animatedStatusStyle]}>
             <Text style={styles.icon}>{getCategoryIcon(subscription.category)}</Text>
@@ -174,8 +177,7 @@ export const AnimatedSubscriptionCard: React.FC<AnimatedSubscriptionCardProps> =
             <Text
               testID={`subscription-name-${subscription.id}`}
               style={styles.name}
-              numberOfLines={1}
-            >
+              numberOfLines={1}>
               {subscription.name}
             </Text>
             <Text style={styles.category} numberOfLines={1}>
@@ -185,9 +187,10 @@ export const AnimatedSubscriptionCard: React.FC<AnimatedSubscriptionCardProps> =
 
           <Animated.View
             accessible={true}
-            accessibilityLabel={subscription.isActive ? 'Subscription active' : 'Subscription paused'}
-            style={[styles.statusContainer, animatedStatusStyle]}
-          >
+            accessibilityLabel={
+              subscription.isActive ? 'Subscription active' : 'Subscription paused'
+            }
+            style={[styles.statusContainer, animatedStatusStyle]}>
             <View
               style={[
                 styles.statusIndicator,
@@ -209,8 +212,7 @@ export const AnimatedSubscriptionCard: React.FC<AnimatedSubscriptionCardProps> =
               subscription.price,
               subscription.currency
             )} per ${formatBillingCycle(subscription.billingCycle)}`}
-            style={[styles.priceContainer, isAnimating && animatedPriceStyle]}
-          >
+            style={[styles.priceContainer, isAnimating && animatedPriceStyle]}>
             <Text style={styles.price}>
               {formatCurrency(subscription.price, subscription.currency)}
             </Text>
@@ -218,8 +220,7 @@ export const AnimatedSubscriptionCard: React.FC<AnimatedSubscriptionCardProps> =
               style={[
                 styles.billingCycle,
                 { color: getBillingCycleColor(subscription.billingCycle) },
-              ]}
-            >
+              ]}>
               /{formatBillingCycle(subscription.billingCycle)}
             </Text>
           </Animated.View>
@@ -230,8 +231,7 @@ export const AnimatedSubscriptionCard: React.FC<AnimatedSubscriptionCardProps> =
               style={[styles.billingDate, upcoming && styles.upcomingDate]}
               accessibilityLabel={`Next billing date ${formatRelativeDate(
                 new Date(subscription.nextBillingDate)
-              )}`}
-            >
+              )}`}>
               {formatRelativeDate(new Date(subscription.nextBillingDate))}
             </Text>
           </View>
@@ -252,11 +252,8 @@ export const AnimatedSubscriptionCard: React.FC<AnimatedSubscriptionCardProps> =
             accessibilityRole="button"
             accessibilityLabel={
               subscription.isActive ? `Pause ${subscription.name}` : `Activate ${subscription.name}`
-            }
-          >
-            <Text style={styles.toggleText}>
-              {subscription.isActive ? 'Pause' : 'Activate'}
-            </Text>
+            }>
+            <Text style={styles.toggleText}>{subscription.isActive ? 'Pause' : 'Activate'}</Text>
           </TouchableOpacity>
         )}
       </TouchableOpacity>

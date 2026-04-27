@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { UsageRecord, Quota, QuotaMetric, QuotaStatus, UsageReport } from '../types/usage';
+import { UsageRecord, Quota, QuotaMetric, QuotaStatus } from '../types/usage';
 import { errorHandler } from '../services/errorHandler';
 
 interface UsageState {
@@ -28,15 +28,18 @@ export const useUsageStore = create<UsageState>()(
         try {
           // In a real app, this would call the Soroban contract
           // For this implementation, we simulate fetching/caching
-          
+
           // const response = await sorobanService.getUsage(subscriptionId);
-          // set((state) => ({ 
-          //   records: { ...state.records, [subscriptionId]: response } 
+          // set((state) => ({
+          //   records: { ...state.records, [subscriptionId]: response }
           // }));
-          
+
           set({ isLoading: false });
         } catch (error) {
-          const appError = errorHandler.handle(error);
+          const appError = errorHandler.handleError(error as Error, {
+            action: 'fetchUsage',
+            metadata: { subscriptionId, planId },
+          });
           set({ error: appError.userMessage, isLoading: false });
         }
       },
@@ -47,8 +50,8 @@ export const useUsageStore = create<UsageState>()(
           // Simulate contract call
           set((state) => {
             const currentRecords = state.records[subscriptionId] || [];
-            const recordIdx = currentRecords.findIndex(r => r.metric === metric);
-            
+            const recordIdx = currentRecords.findIndex((r) => r.metric === metric);
+
             let updatedRecords;
             if (recordIdx > -1) {
               updatedRecords = [...currentRecords];
@@ -57,13 +60,16 @@ export const useUsageStore = create<UsageState>()(
                 currentUsage: updatedRecords[recordIdx].currentUsage + amount,
               };
             } else {
-              updatedRecords = [...currentRecords, {
-                subscriptionId,
-                metric,
-                currentUsage: amount,
-                periodStart: new Date(),
-                rolloverBalance: 0,
-              }];
+              updatedRecords = [
+                ...currentRecords,
+                {
+                  subscriptionId,
+                  metric,
+                  currentUsage: amount,
+                  periodStart: new Date(),
+                  rolloverBalance: 0,
+                },
+              ];
             }
 
             return {
@@ -72,14 +78,17 @@ export const useUsageStore = create<UsageState>()(
             };
           });
         } catch (error) {
-          const appError = errorHandler.handle(error);
+          const appError = errorHandler.handleError(error as Error, {
+            action: 'recordUsage',
+            metadata: { subscriptionId, metric, amount },
+          });
           set({ error: appError.userMessage, isLoading: false });
         }
       },
 
       getQuotaStatus: (subscriptionId, metric) => {
         const records = get().records[subscriptionId] || [];
-        const record = records.find(r => r.metric === metric);
+        const record = records.find((r) => r.metric === metric);
         if (!record) return QuotaStatus.WITHIN_LIMIT;
 
         // Simplified check (we should fetch plan quotas too)

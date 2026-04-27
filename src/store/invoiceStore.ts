@@ -9,7 +9,7 @@ import {
   InvoiceStatus,
   InvoiceTotals,
 } from '../types/invoice';
-import { buildBillingPeriod, buildInvoice, calculateInvoiceTotals } from '../utils/invoice';
+import { buildInvoice, calculateInvoiceTotals } from '../utils/invoice';
 import { CACHE_CONSTANTS } from '../utils/constants/values';
 import { errorHandler, AppError } from '../services/errorHandler';
 import { presentLocalNotification } from '../services/notificationService';

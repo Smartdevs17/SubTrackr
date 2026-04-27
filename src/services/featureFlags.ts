@@ -1,4 +1,4 @@
-import { FeatureId, FeatureAccessResult, FeatureFlag, ABTestVariant } from '../types/feature';
+import { FeatureId, FeatureAccessResult, FeatureFlag } from '../types/feature';
 import { SubscriptionTier } from '../types/subscription';
 import { FEATURE_CONFIG } from '../config/features';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -77,7 +77,10 @@ class FeatureFlagsService {
     }
 
     // Check gradual rollout
-    const isInRollout = this.isUserInRollout(feature.rolloutPercentage || 100, userId || this.userId);
+    const isInRollout = this.isUserInRollout(
+      feature.rolloutPercentage || 100,
+      userId || this.userId
+    );
     if (!isInRollout) {
       return {
         hasAccess: false,
@@ -141,7 +144,7 @@ class FeatureFlagsService {
     // Use user ID hash for deterministic rollout
     const hash = this.hashString(userId);
     const normalizedHash = (hash % 100) / 100;
-    return normalizedHash < (percentage / 100);
+    return normalizedHash < percentage / 100;
   }
 
   /**
@@ -202,7 +205,7 @@ class FeatureFlagsService {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
       const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
+      hash = (hash << 5) - hash + char;
       hash = hash & hash; // Convert to 32-bit integer
     }
     return Math.abs(hash);
@@ -242,11 +245,7 @@ class FeatureFlagsService {
   /**
    * Check if user has exceeded a feature limit
    */
-  hasExceededLimit(
-    userTier: SubscriptionTier,
-    limitKey: string,
-    currentUsage: number
-  ): boolean {
+  hasExceededLimit(userTier: SubscriptionTier, limitKey: string, currentUsage: number): boolean {
     const limits = this.getFeatureLimits(userTier);
     const limit = limits[limitKey];
 
@@ -257,11 +256,7 @@ class FeatureFlagsService {
   /**
    * Get remaining usage for a limit
    */
-  getRemainingUsage(
-    userTier: SubscriptionTier,
-    limitKey: string,
-    currentUsage: number
-  ): number {
+  getRemainingUsage(userTier: SubscriptionTier, limitKey: string, currentUsage: number): number {
     const limits = this.getFeatureLimits(userTier);
     const limit = limits[limitKey];
 

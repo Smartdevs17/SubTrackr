@@ -1,11 +1,7 @@
 {
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
   "schemaVersion": "1.0",
-  "mutate": [
-    "src/**/*.{ts,tsx}",
-    "!src/**/*.test.{ts,tsx}",
-    "!src/**/__tests__/**"
-  ],
+  "mutate": ["src/**/*.{ts,tsx}", "!src/**/*.test.{ts,tsx}", "!src/**/__tests__/**"],
   "testRunner": "jest",
   "jest": {
     "projectType": "custom",

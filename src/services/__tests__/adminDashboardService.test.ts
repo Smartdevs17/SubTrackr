@@ -15,18 +15,37 @@ import {
 // ── Fixtures ──────────────────────────────────────────────────────────────
 
 function makeMerchant(overrides: Partial<MerchantRecord> = {}): MerchantRecord {
-  return { id: 'merch_1', name: 'Test', status: 'active', activePlans: 5, monthlyRevenue: 1000, ...overrides };
+  return {
+    id: 'merch_1',
+    name: 'Test',
+    status: 'active',
+    activePlans: 5,
+    monthlyRevenue: 1000,
+    ...overrides,
+  };
 }
 
 function makeSub(overrides: Partial<SubscriptionAdminRecord> = {}): SubscriptionAdminRecord {
   return {
-    id: 'sub_1', name: 'Pro Plan', merchantId: 'merch_1', merchantName: 'Test',
-    amount: 29, currency: 'USD', status: 'active', ...overrides,
+    id: 'sub_1',
+    name: 'Pro Plan',
+    merchantId: 'merch_1',
+    merchantName: 'Test',
+    amount: 29,
+    currency: 'USD',
+    status: 'active',
+    ...overrides,
   };
 }
 
 function makeUser(overrides: Partial<AdminUserRecord> = {}): AdminUserRecord {
-  return { id: 'user_1', name: 'Test User', email: 'test@example.com', role: 'analyst', ...overrides };
+  return {
+    id: 'user_1',
+    name: 'Test User',
+    email: 'test@example.com',
+    role: 'analyst',
+    ...overrides,
+  };
 }
 
 // ── getAdminDashboardData ────────────────────────────────────────────────
@@ -75,11 +94,15 @@ describe('adminDashboardService', () => {
 
 describe('toggleMerchantStatus', () => {
   it('admin: suspends an active merchant', () => {
-    expect(toggleMerchantStatus(makeMerchant({ status: 'active' }), 'admin').status).toBe('suspended');
+    expect(toggleMerchantStatus(makeMerchant({ status: 'active' }), 'admin').status).toBe(
+      'suspended'
+    );
   });
 
   it('admin: activates a suspended merchant', () => {
-    expect(toggleMerchantStatus(makeMerchant({ status: 'suspended' }), 'admin').status).toBe('active');
+    expect(toggleMerchantStatus(makeMerchant({ status: 'suspended' }), 'admin').status).toBe(
+      'active'
+    );
   });
 
   it('non-admin roles: return merchant unchanged', () => {
@@ -175,15 +198,21 @@ describe('bulkUpdateSubscriptions', () => {
 
 describe('updateUserRole', () => {
   it('admin: viewer → analyst', () => {
-    expect(updateUserRole([makeUser({ id: 'u1', role: 'viewer' })], 'u1', 'admin')[0].role).toBe('analyst');
+    expect(updateUserRole([makeUser({ id: 'u1', role: 'viewer' })], 'u1', 'admin')[0].role).toBe(
+      'analyst'
+    );
   });
 
   it('admin: analyst → support', () => {
-    expect(updateUserRole([makeUser({ id: 'u1', role: 'analyst' })], 'u1', 'admin')[0].role).toBe('support');
+    expect(updateUserRole([makeUser({ id: 'u1', role: 'analyst' })], 'u1', 'admin')[0].role).toBe(
+      'support'
+    );
   });
 
   it('admin: support → viewer', () => {
-    expect(updateUserRole([makeUser({ id: 'u1', role: 'support' })], 'u1', 'admin')[0].role).toBe('viewer');
+    expect(updateUserRole([makeUser({ id: 'u1', role: 'support' })], 'u1', 'admin')[0].role).toBe(
+      'viewer'
+    );
   });
 
   it('non-admin: returns list unchanged', () => {
@@ -224,6 +253,8 @@ describe('filterAuditLog', () => {
 
   it('applies multiple criteria as AND', () => {
     const results = filterAuditLog(auditLog, { resourceType: 'subscription', actorId: 'user_2' });
-    expect(results.every((e) => e.resourceType === 'subscription' && e.actorId === 'user_2')).toBe(true);
+    expect(results.every((e) => e.resourceType === 'subscription' && e.actorId === 'user_2')).toBe(
+      true
+    );
   });
 });

@@ -8,8 +8,8 @@ use alloc::format;
 use alloc::string::ToString;
 use soroban_sdk::{Address, Bytes, Env, IntoVal, String, TryFromVal, Val, Vec};
 use subtrackr_types::{
-    Interval, Invoice, InvoiceConfig, InvoiceLineItem, InvoiceStatus, Plan, StorageKey,
-    Subscription, TimeRange,
+    Invoice, InvoiceConfig, InvoiceLineItem, InvoiceStatus, Plan, StorageKey, Subscription,
+    TimeRange,
 };
 
 const DEFAULT_RATE_SCALE: i128 = 1_000_000;
@@ -329,7 +329,7 @@ mod tests {
             name: String::from_str(&env, "Pro Plan"),
             price: 10_000,
             token: merchant.clone(),
-            interval: Interval::Monthly,
+            interval: subtrackr_types::Interval::Monthly,
             active: true,
             subscriber_count: 1,
             created_at: 1_750_000_000,
@@ -386,7 +386,7 @@ mod tests {
             name: String::from_str(&env, "Pro Plan"),
             price: 10_000,
             token: Address::generate(&env),
-            interval: Interval::Monthly,
+            interval: subtrackr_types::Interval::Monthly,
             active: true,
             subscriber_count: 1,
             created_at: 1_750_000_000,

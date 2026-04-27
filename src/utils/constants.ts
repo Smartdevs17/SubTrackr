@@ -13,6 +13,12 @@ export const colors = {
   textSecondary: '#cbd5e1', // Slate 300
   border: '#334155', // Slate 600
   overlay: 'rgba(15, 23, 42, 0.8)', // Background with opacity
+  surfaceVariant: '#334155',
+  warningBackground: 'rgba(245, 158, 11, 0.18)',
+  onPrimary: '#f8fafc',
+  onSecondary: '#f8fafc',
+  onSurface: '#f8fafc',
+  onSurfaceVariant: '#cbd5e1',
 };
 
 export const spacing = {
@@ -30,9 +36,21 @@ export const borderRadius = {
   lg: 12,
   xl: 16,
   full: 9999,
+  round: 9999,
 };
 
 export const typography = {
+  sizes: {
+    sm: 12,
+    md: 16,
+    lg: 20,
+    xl: 32,
+  },
+  weights: {
+    medium: '500' as const,
+    semibold: '600' as const,
+    bold: '700' as const,
+  },
   h1: {
     fontSize: 32,
     fontWeight: 'bold' as const,
@@ -53,6 +71,11 @@ export const typography = {
     fontWeight: 'normal' as const,
     lineHeight: 24,
   },
+  body2: {
+    fontSize: 14,
+    fontWeight: 'normal' as const,
+    lineHeight: 20,
+  },
   caption: {
     fontSize: 14,
     fontWeight: 'normal' as const,
@@ -62,6 +85,12 @@ export const typography = {
     fontSize: 12,
     fontWeight: 'normal' as const,
     lineHeight: 16,
+  },
+  button: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    lineHeight: 20,
+    textTransform: 'uppercase' as const,
   },
 };
 
