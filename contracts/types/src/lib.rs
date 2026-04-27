@@ -109,6 +109,29 @@ pub struct Plan {
     pub created_at: u64,
 }
 
+/// Pricing tier for dynamic discount calculation.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PricingTier {
+    pub min_quantity: u32, // Minimum quantity to qualify for this tier
+    pub discount_bps: u32, // Discount in basis points (0–10000)
+}
+
+/// Reusable subscription plan template.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PlanTemplate {
+    pub id: u64,                 // Auto-increment template ID
+    pub merchant: Address,       // Template owner
+    pub name: String,            // Template name
+    pub base_price: i128,        // Base price in stroops
+    pub billing_period: u64,     // Billing period in seconds
+    pub tiers: Vec<PricingTier>, // Pricing tiers
+    pub version: u32,            // Template version (increments on update)
+    pub active: bool,            // Whether template is active
+    pub created_at: u64,         // Creation timestamp
+}
+
 /// A user's subscription to a plan.
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
@@ -126,6 +149,8 @@ pub struct Subscription {
     pub paused_at: u64,
     pub pause_duration: u64,
     pub refund_requested_amount: i128,
+    pub template_id: Option<u64>,      // Reference to template (if created from template)
+    pub template_version: Option<u32>, // Template version at subscription creation
 }
 
 pub type Timestamp = u64;
@@ -395,4 +420,14 @@ pub enum StorageKey {
     PlanQuotas(u64),
     /// Usage record for a subscription and metric (sub_id, metric -> UsageRecord)
     SubscriptionUsage(u64, QuotaMetric),
+
+    // ── Added in storage version 5 (Plan Templates) ──
+    /// Template data keyed by template ID
+    Template(u64),
+    /// Global template counter
+    TemplateCount,
+    /// Merchant's templates index (merchant -> Vec<TemplateId>)
+    MerchantTemplates(Address),
+    /// Track active subscriptions per template (for safe deletion)
+    TemplateActiveSubscriptions(u64),
 }

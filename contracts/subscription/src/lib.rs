@@ -4,10 +4,12 @@
 pub mod quota;
 pub mod revenue;
 pub mod usage;
+pub mod pricing;
 
 use soroban_sdk::{token, Address, Env, IntoVal, String, TryFromVal, Val, Vec};
 use subtrackr_types::{
-    Interval, Invoice, Plan, StorageKey, Subscription, SubscriptionStatus, TimeRange,
+    Interval, Invoice, Plan, PlanTemplate, PricingTier, StorageKey, Subscription,
+    SubscriptionStatus, TimeRange,
 };
 
 /// Billing interval in seconds.
@@ -429,6 +431,8 @@ impl SubTrackrSubscription {
             paused_at: 0,
             pause_duration: 0,
             refund_requested_amount: 0,
+            template_id: None,
+            template_version: None,
         };
 
         storage_persistent_set(
@@ -1121,5 +1125,301 @@ impl SubTrackrSubscription {
             storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
                 .expect("Subscription not found");
         usage::check_quota(&env, &storage, subscription_id, sub.plan_id, metric)
+    }
+
+    // ── Template Validation ──
+
+    fn validate_template(_env: &Env, template: &PlanTemplate) {
+        // Base price must be positive
+        assert!(template.base_price > 0, "Base price must be positive");
+
+        // Validate tiers
+        assert!(!template.tiers.is_empty(), "At least one tier required");
+
+        let mut last_min_quantity: u32 = 0;
+
+        for tier in template.tiers.iter() {
+            // Discount must be in valid range
+            assert!(tier.discount_bps <= 10000, "Discount must be 0-10000 bps");
+
+            // Tiers must be sorted by min_quantity (non-decreasing)
+            assert!(
+                tier.min_quantity >= last_min_quantity,
+                "Tiers must be sorted by min_quantity"
+            );
+
+            // Check for duplicate min_quantity
+            assert!(
+                tier.min_quantity > last_min_quantity || last_min_quantity == 0,
+                "Duplicate min_quantity in tiers"
+            );
+
+            // Verify no negative pricing after discount
+            let discount = template.base_price * (tier.discount_bps as i128) / 10000;
+            assert!(
+                template.base_price - discount >= 0,
+                "Tier would result in negative pricing"
+            );
+
+            last_min_quantity = tier.min_quantity;
+        }
+    }
+
+    // ── Template Management ──
+
+    pub fn create_template(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        merchant: Address,
+        name: String,
+        base_price: i128,
+        billing_period: u64,
+        tiers: Vec<PricingTier>,
+    ) -> u64 {
+        proxy.require_auth();
+        merchant.require_auth();
+
+        let mut template = PlanTemplate {
+            id: 0, // Will be set below
+            merchant: merchant.clone(),
+            name,
+            base_price,
+            billing_period,
+            tiers,
+            version: 1,
+            active: true,
+            created_at: env.ledger().timestamp(),
+        };
+
+        // Validate before assigning ID
+        Self::validate_template(&env, &template);
+
+        // Auto-increment ID
+        let mut count: u64 =
+            storage_instance_get(&env, &storage, StorageKey::TemplateCount).unwrap_or(0);
+        count += 1;
+        template.id = count;
+
+        // Store template
+        storage_persistent_set(&env, &storage, StorageKey::Template(count), template.clone());
+        storage_instance_set(&env, &storage, StorageKey::TemplateCount, count);
+
+        // Index by merchant
+        let mut merchant_templates: Vec<u64> = storage_persistent_get(
+            &env,
+            &storage,
+            StorageKey::MerchantTemplates(merchant.clone()),
+        )
+        .unwrap_or(Vec::new(&env));
+        merchant_templates.push_back(count);
+        storage_persistent_set(
+            &env,
+            &storage,
+            StorageKey::MerchantTemplates(merchant),
+            merchant_templates,
+        );
+
+        count
+    }
+
+    pub fn update_template(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        merchant: Address,
+        template_id: u64,
+        name: String,
+        base_price: i128,
+        billing_period: u64,
+        tiers: Vec<PricingTier>,
+    ) {
+        proxy.require_auth();
+        merchant.require_auth();
+
+        let template: PlanTemplate = storage_persistent_get(
+            &env,
+            &storage,
+            StorageKey::Template(template_id),
+        )
+        .expect("Template not found");
+
+        assert!(template.merchant == merchant, "Only template owner can update");
+
+        // Create updated template with incremented version
+        let updated = PlanTemplate {
+            id: template_id,
+            merchant: merchant.clone(),
+            name,
+            base_price,
+            billing_period,
+            tiers,
+            version: template.version + 1, // Increment version
+            active: template.active,
+            created_at: template.created_at, // Preserve original creation time
+        };
+
+        Self::validate_template(&env, &updated);
+
+        storage_persistent_set(&env, &storage, StorageKey::Template(template_id), updated);
+    }
+
+    pub fn get_template(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        template_id: u64,
+    ) -> PlanTemplate {
+        proxy.require_auth();
+
+        storage_persistent_get(&env, &storage, StorageKey::Template(template_id))
+            .expect("Template not found")
+    }
+
+    pub fn list_templates(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        merchant: Address,
+    ) -> Vec<u64> {
+        proxy.require_auth();
+        merchant.require_auth();
+
+        storage_persistent_get(&env, &storage, StorageKey::MerchantTemplates(merchant))
+            .unwrap_or(Vec::new(&env))
+    }
+
+    pub fn delete_template(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        merchant: Address,
+        template_id: u64,
+    ) {
+        proxy.require_auth();
+        merchant.require_auth();
+
+        let mut template: PlanTemplate = storage_persistent_get(
+            &env,
+            &storage,
+            StorageKey::Template(template_id),
+        )
+        .expect("Template not found");
+
+        assert!(template.merchant == merchant, "Only template owner can delete");
+
+        // Check for active subscriptions using this template
+        let active_count: u32 = storage_persistent_get(
+            &env,
+            &storage,
+            StorageKey::TemplateActiveSubscriptions(template_id),
+        )
+        .unwrap_or(0);
+
+        if active_count > 0 {
+            // Soft delete: mark as inactive instead of removing
+            template.active = false;
+            storage_persistent_set(&env, &storage, StorageKey::Template(template_id), template);
+        } else {
+            // Safe to hard delete
+            storage_persistent_remove(&env, &storage, StorageKey::Template(template_id));
+
+            // Remove from merchant index
+            let merchant_templates: Vec<u64> = storage_persistent_get(
+                &env,
+                &storage,
+                StorageKey::MerchantTemplates(merchant.clone()),
+            )
+            .unwrap_or(Vec::new(&env));
+
+            // Filter out the deleted template ID
+            let mut filtered = Vec::new(&env);
+            for id in merchant_templates.iter() {
+                if id != template_id {
+                    filtered.push_back(id);
+                }
+            }
+            storage_persistent_set(
+                &env,
+                &storage,
+                StorageKey::MerchantTemplates(merchant),
+                filtered,
+            );
+        }
+    }
+
+    pub fn apply_template(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscriber: Address,
+        template_id: u64,
+        quantity: u32,
+    ) -> u64 {
+        proxy.require_auth();
+        subscriber.require_auth();
+
+        // Fetch template
+        let template: PlanTemplate = storage_persistent_get(
+            &env,
+            &storage,
+            StorageKey::Template(template_id),
+        )
+        .expect("Template not found");
+
+        assert!(template.active, "Template is not active");
+
+        // Compute price using pricing engine
+        let _resolved_price =
+            pricing::compute_price(template.base_price, &template.tiers, quantity);
+
+        // Create subscription with resolved price and template reference
+        let mut sub_count: u64 =
+            storage_instance_get(&env, &storage, StorageKey::SubscriptionCount).unwrap_or(0);
+        sub_count += 1;
+
+        let now = env.ledger().timestamp();
+        let subscription = Subscription {
+            id: sub_count,
+            plan_id: template_id, // Reference template ID
+            subscriber: subscriber.clone(),
+            status: SubscriptionStatus::Active,
+            started_at: now,
+            last_charged_at: now,
+            next_charge_at: now + template.billing_period,
+            total_paid: 0,
+            total_gas_spent: 0,
+            charge_count: 0,
+            paused_at: 0,
+            pause_duration: 0,
+            refund_requested_amount: 0,
+            template_id: Some(template_id),
+            template_version: Some(template.version),
+        };
+
+        storage_persistent_set(
+            &env,
+            &storage,
+            StorageKey::Subscription(sub_count),
+            subscription,
+        );
+        storage_instance_set(&env, &storage, StorageKey::SubscriptionCount, sub_count);
+
+        // Track template usage for deletion safety
+        let mut active_count: u32 = storage_persistent_get(
+            &env,
+            &storage,
+            StorageKey::TemplateActiveSubscriptions(template_id),
+        )
+        .unwrap_or(0);
+        active_count += 1;
+        storage_persistent_set(
+            &env,
+            &storage,
+            StorageKey::TemplateActiveSubscriptions(template_id),
+            active_count,
+        );
+
+        sub_count
     }
 }
