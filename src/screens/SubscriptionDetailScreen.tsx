@@ -12,11 +12,11 @@ import {
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-
-import { colors, spacing, typography } from '../utils/constants';
-import { useSubscriptionStore } from '../store';
+import { useSubscriptionStore, useSettingsStore } from '../store';
+import { currencyService } from '../services/currencyService';
 import { formatCurrency } from '../utils/formatting';
-import { SubscriptionCategory } from '../types/subscription';
+import { colors, spacing, typography } from '../utils/constants';
+import { Subscription, SubscriptionCategory } from '../types/subscription';
 import { RootStackParamList } from '../navigation/types';
 
 // Components
@@ -32,7 +32,16 @@ const SubscriptionDetailScreen: React.FC = () => {
   const route = useRoute<SubscriptionDetailRouteProp>();
   const { id } = route.params;
 
-  const { subscriptions, toggleSubscriptionStatus, updateSubscription } = useSubscriptionStore();
+  const {
+    subscriptions,
+    toggleSubscriptionStatus,
+    deleteSubscription,
+    updateSubscription,
+    recordBillingOutcome,
+  } = useSubscriptionStore();
+  const { preferredCurrency, exchangeRates } = useSettingsStore();
+  const rates = exchangeRates?.rates || {};
+
 
   const subscription = useMemo(() => subscriptions?.find((s) => s.id === id), [id, subscriptions]);
 
@@ -113,7 +122,115 @@ const SubscriptionDetailScreen: React.FC = () => {
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
           {/* Header */}
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <TouchableOpacity
+            style={styles.backIcon}
+            onPress={() => navigation.goBack()}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={styles.backIconText}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.title} accessibilityRole="header">
+            Subscription Details
+          </Text>
+          <View style={styles.placeholder} />
+        </View>
+
+        {/* Main Info Card */}
+        <Card style={styles.mainCard}>
+          <View style={styles.nameRow}>
+            <Text style={styles.categoryIcon}>{getCategoryIcon(subscription.category)}</Text>
+            <View style={styles.nameContainer}>
+              <SharedElement id={`subscription-${subscription.id}-name`}>
+                <Text style={styles.subscriptionName}>{subscription.name}</Text>
+              </SharedElement>
+              <Text style={styles.categoryText}>
+                {subscription.category.charAt(0).toUpperCase() + subscription.category.slice(1)}
+              </Text>
+            </View>
+          </View>
+
+          {subscription.description && (
+            <Text style={styles.description}>{subscription.description}</Text>
+          )}
+        </Card>
+
+        {/* Price Card */}
+        <Card style={styles.priceCard}>
+          <Text style={styles.sectionTitle}>Pricing</Text>
+          <View style={styles.priceRow}>
+            <View style={styles.priceItem}>
+              <Text style={styles.priceLabel}>Amount</Text>
+              <Text style={styles.priceValue}>
+                {formatCurrency(
+                  currencyService.convert(
+                    subscription.price,
+                    subscription.currency,
+                    preferredCurrency,
+                    rates
+                  ),
+                  preferredCurrency
+                )}
+              </Text>
+              {subscription.currency !== preferredCurrency && (
+                <Text style={styles.originalPriceDetail}>
+                  Original: {formatCurrency(subscription.price, subscription.currency)}
+                </Text>
+              )}
+            </View>
+
+            <View style={styles.priceItem}>
+              <Text style={styles.priceLabel}>Billing Cycle</Text>
+              <Text style={styles.priceValue} testID="subscription-billing-cycle-value">
+                {subscription.billingCycle.charAt(0).toUpperCase() +
+                  subscription.billingCycle.slice(1)}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.nextBillingRow}>
+            <Text style={styles.priceLabel}>Next Billing Date</Text>
+            <Text style={styles.nextBillingDate}>
+              {new Date(subscription.nextBillingDate).toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+              })}
+            </Text>
+          </View>
+        </Card>
+
+        {/* Notifications */}
+        <Card style={styles.statusCard}>
+          <Text style={styles.sectionTitle}>Billing notifications</Text>
+          <Text style={styles.notificationSubtext}>
+            Renewal reminders (1 day before, or 1 hour if due sooner) and charge alerts
+          </Text>
+          <View style={styles.switchRow}>
+            <Text style={styles.switchLabel}>Enabled for this subscription</Text>
+            <Switch
+              value={subscription.notificationsEnabled !== false}
+              onValueChange={(value) =>
+                updateSubscription(subscription.id, { notificationsEnabled: value })
+              }
+              trackColor={{ false: colors.border, true: colors.primary }}
+              thumbColor={colors.text}
+            />
+          </View>
+          <Text style={styles.simulateSectionTitle}>Test charge alerts (local only)</Text>
+          <View style={styles.simulateRow}>
+            <TouchableOpacity
+              onPress={() => void recordBillingOutcome(subscription.id, 'success')}
+              style={styles.simulateLink}
+              testID="simulate-charge-success-button">
+              <Text style={styles.simulateLinkText}>Simulate successful charge</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.backIcon}
+              onPress={() => navigation.goBack()}
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Text style={styles.backIconText}>←</Text>
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Details</Text>
@@ -304,6 +421,32 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: spacing.md,
     alignItems: 'center',
+  },
+  priceLabel: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+  },
+  priceValue: {
+    ...typography.h3,
+    color: colors.text,
+  },
+  originalPriceDetail: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  },
+  nextBillingRow: {
+
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: spacing.md,
+  },
+  nextBillingDate: {
+    ...typography.body,
+    color: colors.accent,
+    fontWeight: '600',
+    marginTop: spacing.xs,
   },
   marginRight: {
     marginRight: spacing.sm,

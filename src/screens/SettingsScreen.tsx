@@ -12,9 +12,9 @@ import {
   Modal,
   FlatList,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
-import { useWalletStore, useNetworkStore } from '../store';
+import { useWalletStore, useNetworkStore, useSettingsStore } from '../store';
+
 import { Card } from '../components/common/Card';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -33,43 +33,30 @@ const SettingsScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { address, disconnect } = useWalletStore();
   const { currentNetwork, availableNetworks, setNetwork, initialize } = useNetworkStore();
-  const [settings, setSettings] = useState<Settings>({
-    notificationsEnabled: true,
-    defaultCurrency: 'USD',
-  });
+  const {
+    preferredCurrency,
+    notificationsEnabled,
+    setPreferredCurrency,
+    setNotificationsEnabled,
+  } = useSettingsStore();
+
   const [networkModalVisible, setNetworkModalVisible] = useState(false);
 
   useEffect(() => {
-    loadSettings();
     initialize();
   }, [initialize]);
 
-  const loadSettings = async () => {
-    try {
-      const savedSettings = await AsyncStorage.getItem(SETTINGS_KEY);
-      if (savedSettings) setSettings(JSON.parse(savedSettings));
-    } catch (error) {
-      console.error('Failed to load settings:', error);
-    }
-  };
-
-  const saveSettings = async (newSettings: Settings) => {
-    try {
-      await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(newSettings));
-      setSettings(newSettings);
-    } catch (error) {
-      console.error('Failed to save settings:', error);
-    }
-  };
 
   const handleNotificationToggle = useCallback(
-    (value: boolean) => saveSettings({ ...settings, notificationsEnabled: value }),
-    [settings]
+    (value: boolean) => setNotificationsEnabled(value),
+    [setNotificationsEnabled]
   );
+
   const handleCurrencyChange = useCallback(
-    (currency: string) => saveSettings({ ...settings, defaultCurrency: currency }),
-    [settings]
+    (currency: string) => setPreferredCurrency(currency),
+    [setPreferredCurrency]
   );
+
 
   const handleDisconnectWallet = useCallback(() => {
     Alert.alert(t('settings.disconnect_wallet'), t('settings.disconnect_wallet_confirm'), [
@@ -147,14 +134,15 @@ const SettingsScreen: React.FC = () => {
               <Text style={styles.settingDescription}>{t('settings.billing_reminders_desc')}</Text>
             </View>
             <Switch
-              value={settings.notificationsEnabled}
+              value={notificationsEnabled}
               onValueChange={handleNotificationToggle}
               trackColor={{ false: colors.border, true: colors.primary }}
               thumbColor={colors.text}
               accessibilityLabel={t('settings.billing_reminders')}
               accessibilityRole="switch"
-              accessibilityState={{ checked: settings.notificationsEnabled }}
+              accessibilityState={{ checked: notificationsEnabled }}
             />
+
           </View>
         </Card>
         <Card style={styles.section}>
@@ -173,20 +161,21 @@ const SettingsScreen: React.FC = () => {
                 key={currency}
                 style={[
                   styles.currencyButton,
-                  settings.defaultCurrency === currency && styles.currencyButtonActive,
+                  preferredCurrency === currency && styles.currencyButtonActive,
                 ]}
                 onPress={() => handleCurrencyChange(currency)}
                 accessibilityRole="radio"
                 accessibilityLabel={currency}
-                accessibilityState={{ checked: settings.defaultCurrency === currency }}>
+                accessibilityState={{ checked: preferredCurrency === currency }}>
                 <Text
                   style={[
                     styles.currencyButtonText,
-                    settings.defaultCurrency === currency && styles.currencyButtonTextActive,
+                    preferredCurrency === currency && styles.currencyButtonTextActive,
                   ]}>
                   {currency}
                 </Text>
               </TouchableOpacity>
+
             ))}
           </View>
         </Card>

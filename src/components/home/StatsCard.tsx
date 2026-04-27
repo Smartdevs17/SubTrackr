@@ -7,30 +7,42 @@ interface StatsCardProps {
   totalMonthlySpend: number;
   totalActive: number;
   onWalletPress: () => void;
+  currency?: string;
 }
+
 
 export const StatsCard: React.FC<StatsCardProps> = ({
   totalMonthlySpend,
   totalActive,
   onWalletPress,
+  currency = 'USD',
 }) => {
+
   return (
     <View style={styles.container} accessibilityRole="summary">
       {/* Monthly Spend Card - Primary Focus */}
       <View
         style={[styles.card, styles.primaryCard]}
         accessible={true}
-        accessibilityLabel={`Total monthly spend: ${formatCurrencyCompact(totalMonthlySpend)}`}>
-        <Text style={styles.label} accessibilityElementsHidden={true}>
+        accessibilityLabel={`Total monthly spend, ${formatCurrencyCompact(
+          totalMonthlySpend,
+          currency
+        )}`}>
+        <Text
+          style={styles.statLabel}
+          accessibilityElementsHidden={true}
+          importantForAccessibility="no">
           Monthly Spend
         </Text>
         <Text
           style={[styles.value, styles.primaryValue]}
           numberOfLines={1}
           adjustsFontSizeToFit
-          accessibilityElementsHidden={true}>
-          {formatCurrencyCompact(totalMonthlySpend)}
+          accessibilityElementsHidden={true}
+          importantForAccessibility="no">
+          {formatCurrencyCompact(totalMonthlySpend, currency)}
         </Text>
+
       </View>
 
       {/* Active Count Card */}
