@@ -7,6 +7,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import HomeScreen from '../screens/HomeScreen';
 import AddSubscriptionScreen from '../screens/AddSubscriptionScreen';
+import CancellationFlowScreen from '../screens/CancellationFlowScreen';
 import WalletConnectScreen from '../screens/WalletConnectV2Screen';
 import CryptoPaymentScreen from '../screens/CryptoPaymentScreen';
 import CommunityScreen from '../screens/CommunityScreen';
@@ -21,6 +22,8 @@ import SettingsScreen from '../screens/SettingsScreen';
 import AccountingExportScreen from '../screens/AccountingExportScreen';
 import WebhookSettingsScreen from '../screens/WebhookSettingsScreen';
 import ErrorDashboardScreen from '../screens/ErrorDashboardScreen';
+import ImportScreen from '../screens/ImportScreen';
+import ExportScreen from '../screens/ExportScreen';
 import AdminDashboardScreen from '../screens/AdminDashboardScreen';
 import InvoiceListScreen from '../screens/InvoiceListScreen';
 import InvoiceDetailScreen from '../screens/InvoiceDetailScreen';
@@ -43,6 +46,11 @@ const HomeStack = () => (
       name="AddSubscription"
       component={AddSubscriptionScreen}
       options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="CancellationFlow"
+      component={CancellationFlowScreen}
+      options={{ title: 'Cancel Subscription', headerShown: true }}
     />
     <Stack.Screen
       name="SubscriptionDetail"
@@ -159,6 +167,16 @@ const SettingsStack = () => (
       name="ErrorDashboard"
       component={ErrorDashboardScreen}
       options={{ title: 'Error Dashboard', headerShown: true }}
+    />
+    <Stack.Screen 
+      name="Import" 
+      component={ImportScreen} 
+      options={{ title: 'Import Subscriptions', headerShown: true }} 
+    />
+    <Stack.Screen 
+      name="Export" 
+      component={ExportScreen} 
+      options={{ title: 'Export Subscriptions', headerShown: true }} 
     />
   </Stack.Navigator>
 );

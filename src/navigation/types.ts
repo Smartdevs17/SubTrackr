@@ -4,6 +4,7 @@ export type RootStackParamList = {
   Home: undefined;
   AddSubscription: undefined;
   SubscriptionDetail: { id: string };
+  CancellationFlow: { subscriptionId: string };
   WalletConnect: undefined;
   CryptoPayment: { subscriptionId?: string } | undefined;
   Community: undefined;
@@ -20,6 +21,8 @@ export type RootStackParamList = {
   LanguageSettings: undefined;
   SessionManagement: undefined;
   ErrorDashboard: undefined;
+  Import: undefined;
+  Export: undefined;
   SegmentManagement: undefined;
   SegmentDetail: { segmentId: string };
   Gamification: undefined;
