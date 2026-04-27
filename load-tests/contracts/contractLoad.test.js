@@ -7,11 +7,11 @@ export function simulateContractPayment() {
   const payload = JSON.stringify({
     contractId: 'CACX...123',
     method: 'execute_payment',
-    args: { amount: 10, user: 'G...XYZ' }
+    args: { amount: 10, user: 'G...XYZ' },
   });
 
   const res = http.post(`${BASE_URL}/contracts/simulate-payment`, payload, {
-    headers: Object.assign({}, commonHeaders, { 'X-Soroban-Simulation': 'true' })
+    headers: Object.assign({}, commonHeaders, { 'X-Soroban-Simulation': 'true' }),
   });
 
   check(res, {

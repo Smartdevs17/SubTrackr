@@ -16,7 +16,7 @@ const UsageDashboard: React.FC = () => {
     if (subscriptionId && planId) {
       fetchUsage(subscriptionId, planId);
     }
-  }, [fetchUsage, subscriptionId, planId]);
+  }, [subscriptionId, planId, fetchUsage]);
 
   const renderUsageCard = (metric: string, current: number, limit: number, unit: string) => {
     const progress = Math.min(current / limit, 1);
@@ -117,8 +117,7 @@ const styles = StyleSheet.create({
     marginRight: spacing.md,
   },
   title: {
-    fontSize: typography.sizes.lg,
-    fontWeight: typography.weights.bold,
+    ...typography.h3,
     color: colors.text,
   },
   scrollContent: {
@@ -128,12 +127,11 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   subName: {
-    fontSize: typography.sizes.xl,
-    fontWeight: typography.weights.bold,
+    ...typography.h2,
     color: colors.text,
   },
   subId: {
-    fontSize: typography.sizes.sm,
+    ...typography.caption,
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
@@ -151,13 +149,12 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   metricTitle: {
-    fontSize: typography.sizes.md,
-    fontWeight: typography.weights.semibold,
+    ...typography.body,
+    fontWeight: '600',
     color: colors.text,
   },
   percentageText: {
-    fontSize: typography.sizes.lg,
-    fontWeight: typography.weights.bold,
+    ...typography.h3,
   },
   progressContainer: {
     height: 8,
@@ -175,13 +172,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   usageText: {
-    fontSize: typography.sizes.sm,
+    ...typography.caption,
     color: colors.textSecondary,
   },
   remainingText: {
-    fontSize: typography.sizes.sm,
+    ...typography.caption,
     color: colors.primary,
-    fontWeight: typography.weights.medium,
+    fontWeight: '500',
   },
   notificationCard: {
     flexDirection: 'row',
@@ -196,12 +193,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   notificationTitle: {
-    fontSize: typography.sizes.md,
-    fontWeight: typography.weights.bold,
+    ...typography.body,
+    fontWeight: '600',
     color: colors.primary,
   },
   notificationBody: {
-    fontSize: typography.sizes.sm,
+    ...typography.caption,
     color: colors.text,
     marginTop: spacing.xs,
   },

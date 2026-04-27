@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, PanResponder, Dimensions } from 'react-native';
 import { colors, spacing } from '../../utils/constants';
 import { animations, useAnimatedValue } from '../../utils/animations';
@@ -6,7 +6,7 @@ import { animations, useAnimatedValue } from '../../utils/animations';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.3;
 
-interface SwipeableSubscriptionCardProps {
+export interface SwipeableSubscriptionCardProps {
   children: React.ReactNode;
   onSwipeLeft?: () => void;
   onSwipeRight?: () => void;
@@ -30,15 +30,20 @@ export const SwipeableSubscriptionCard: React.FC<SwipeableSubscriptionCardProps>
   rightAction,
 }) => {
   const pan = useRef(new Animated.ValueXY()).current;
+  const [, setIsSwiping] = useState(false);
   const bounceAnim = useAnimatedValue(1);
 
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onPanResponderGrant: () => {},
+      onPanResponderGrant: () => {
+        setIsSwiping(true);
+      },
       onPanResponderMove: Animated.event([null, { dx: pan.x }], { useNativeDriver: false }),
       onPanResponderRelease: (evt, gestureState) => {
         const { dx, vx } = gestureState;
+
+        setIsSwiping(false);
 
         // Determine swipe direction and velocity
         const isLeftSwipe = dx < -SWIPE_THRESHOLD || vx < -0.5;
@@ -73,6 +78,7 @@ export const SwipeableSubscriptionCard: React.FC<SwipeableSubscriptionCardProps>
         }
       },
       onPanResponderTerminate: () => {
+        setIsSwiping(false);
         Animated.spring(pan, {
           toValue: { x: 0, y: 0 },
           useNativeDriver: false,
@@ -156,6 +162,12 @@ interface GestureDrivenCardProps {
   onDoubleTap?: () => void;
 }
 
+interface GestureChildProps {
+  onPress?: () => void;
+  onLongPress?: () => void;
+  delayLongPress?: number;
+}
+
 export const GestureDrivenCard: React.FC<GestureDrivenCardProps> = ({
   children,
   onPress,
@@ -228,7 +240,7 @@ export const GestureDrivenCard: React.FC<GestureDrivenCardProps> = ({
 
   return (
     <Animated.View style={animatedStyle}>
-      {React.cloneElement(children as React.ReactElement<any>, {
+      {React.cloneElement(children as React.ReactElement<GestureChildProps>, {
         onPress: handlePress,
         onLongPress: handleLongPress,
         delayLongPress: 500,

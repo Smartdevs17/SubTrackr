@@ -23,7 +23,7 @@ export const useUsageStore = create<UsageState>()(
       isLoading: false,
       error: null,
 
-      fetchUsage: async (subscriptionId, planId) => {
+      fetchUsage: async (_subscriptionId, _planId) => {
         set({ isLoading: true, error: null });
         try {
           // In a real app, this would call the Soroban contract
@@ -38,7 +38,7 @@ export const useUsageStore = create<UsageState>()(
         } catch (error) {
           const appError = errorHandler.handleError(error as Error, {
             action: 'fetchUsage',
-            metadata: { subscriptionId, planId },
+            metadata: { subscriptionId: _subscriptionId, planId: _planId },
           });
           set({ error: appError.userMessage, isLoading: false });
         }

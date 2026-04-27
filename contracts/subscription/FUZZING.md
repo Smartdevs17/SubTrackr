@@ -7,9 +7,11 @@ This document describes the comprehensive fuzzing test suite for the SubTrackr s
 ## Test Files
 
 ### 1. `tests/fuzz.rs` - Core Fuzzing Tests
+
 Tests basic input validation and state transitions.
 
 **Tests:**
+
 - `test_negative_prices()` - Reject negative prices
 - `test_huge_prices()` - Handle very large numbers
 - `test_pause_duration_limits()` - Enforce pause duration limits
@@ -17,17 +19,21 @@ Tests basic input validation and state transitions.
 - `test_refund_limits()` - Prevent refunds exceeding total paid
 
 ### 2. `tests/pricing_fuzz.rs` - Pricing Differential Fuzzing
+
 Tests pricing calculations across different price points and intervals.
 
 **Tests:**
+
 - `test_pricing_calculations()` - Test all price × interval combinations
 - `test_subscriptions_with_different_prices()` - Multiple subscriptions with different prices
 - `test_price_boundaries()` - Test minimum and maximum prices
 
 ### 3. `tests/rate_limit_fuzz.rs` - Rate Limit Fuzzing
+
 Tests rate limiting functionality.
 
 **Tests:**
+
 - `test_rate_limit_intervals()` - Test various rate limit intervals
 - `test_rate_limit_removal()` - Test rate limit removal
 - `test_multiple_rate_limits()` - Test multiple function rate limits
@@ -35,12 +41,14 @@ Tests rate limiting functionality.
 ## Running Tests
 
 ### Run All Tests
+
 ```bash
 cd contracts/subscription
 cargo test
 ```
 
 ### Run Specific Test File
+
 ```bash
 cargo test --test fuzz_tests
 cargo test --test pricing_fuzz_tests
@@ -48,32 +56,36 @@ cargo test --test rate_limit_fuzz_tests
 ```
 
 ### Run Specific Test
+
 ```bash
 cargo test test_negative_prices
 ```
 
 ### Run With Output
+
 ```bash
 cargo test -- --nocapture
 ```
 
 ### Run Using Script
+
 ```bash
 bash scripts/run_fuzz_tests.sh
 ```
 
 ## Test Coverage
 
-| Category | Tests | Status |
-|----------|-------|--------|
-| Input Validation | 5 | ✅ |
-| Pricing | 3 | ✅ |
-| Rate Limiting | 3 | ✅ |
-| **Total** | **11** | **✅** |
+| Category         | Tests  | Status |
+| ---------------- | ------ | ------ |
+| Input Validation | 5      | ✅     |
+| Pricing          | 3      | ✅     |
+| Rate Limiting    | 3      | ✅     |
+| **Total**        | **11** | **✅** |
 
 ## Key Findings
 
 ### ✅ Vulnerabilities Tested
+
 - Zero price validation
 - Negative price handling
 - Integer overflow scenarios
@@ -83,6 +95,7 @@ bash scripts/run_fuzz_tests.sh
 - Rate limit enforcement
 
 ### ✅ Edge Cases Covered
+
 - Minimum price ($1)
 - Maximum price (i128::MAX / 2)
 - Pause duration boundaries (30 days)
@@ -92,6 +105,7 @@ bash scripts/run_fuzz_tests.sh
 ## CI/CD Integration
 
 Tests automatically run on:
+
 - Push to `main` or `develop`
 - Pull requests to `main` or `develop`
 - Changes to `contracts/subscription/**`
@@ -101,6 +115,7 @@ Tests automatically run on:
 ## Expected Results
 
 All tests should pass:
+
 ```
 running 11 tests
 test pricing_fuzz_tests::test_pricing_calculations ... ok

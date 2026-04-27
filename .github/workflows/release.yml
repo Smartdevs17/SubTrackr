@@ -123,5 +123,3 @@ jobs:
         run: |
           npx expo login --token $EXPO_TOKEN
           npx expo publish --release-channel production
-
-

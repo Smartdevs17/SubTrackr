@@ -12,4 +12,3 @@ npm run mutation:test
 
 - The HTML report is written to `reports/mutation/html/index.html`.
 - The run fails if the mutation score drops below the configured thresholds in `stryker.conf.json`.
-

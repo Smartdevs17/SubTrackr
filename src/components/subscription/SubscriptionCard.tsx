@@ -14,6 +14,9 @@ import {
   getBillingCycleColor,
   isUpcomingBilling,
 } from '../../utils/subscriptionHelpers';
+import { useSettingsStore } from '../../store/settingsStore';
+import { currencyService } from '../../services/currencyService';
+
 
 export interface SubscriptionCardProps {
   subscription: Subscription;
@@ -37,6 +40,16 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = React.memo(
     };
 
     const upcoming = isUpcomingBilling(subscription.nextBillingDate);
+    const { preferredCurrency, exchangeRates } = useSettingsStore();
+    const rates = exchangeRates?.rates || {};
+
+    const convertedPrice = currencyService.convert(
+      subscription.price,
+      subscription.currency,
+      preferredCurrency,
+      rates
+    );
+
 
     return (
       <TouchableOpacity
@@ -93,13 +106,16 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = React.memo(
           <View
             accessible={true}
             accessibilityLabel={`Price ${formatCurrency(
-              subscription.price,
-              subscription.currency
+              convertedPrice,
+              preferredCurrency
             )} per ${formatBillingCycle(subscription.billingCycle)}`}
             style={styles.priceContainer}>
-            <Text style={styles.price}>
-              {formatCurrency(subscription.price, subscription.currency)}
-            </Text>
+            <Text style={styles.price}>{formatCurrency(convertedPrice, preferredCurrency)}</Text>
+            {subscription.currency !== preferredCurrency && (
+              <Text style={styles.originalPrice}>
+                ({formatCurrency(subscription.price, subscription.currency)})
+              </Text>
+            )}
             <Text
               style={[
                 styles.billingCycle,
@@ -107,6 +123,7 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = React.memo(
               ]}>
               /{formatBillingCycle(subscription.billingCycle)}
             </Text>
+
           </View>
 
           <View style={styles.billingInfo}>
@@ -227,10 +244,17 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: 'bold',
   },
+  originalPrice: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginLeft: spacing.xs,
+    alignSelf: 'center',
+  },
   billingCycle: {
     ...typography.body,
     marginLeft: spacing.xs,
   },
+
   billingInfo: {
     alignItems: 'flex-end',
   },

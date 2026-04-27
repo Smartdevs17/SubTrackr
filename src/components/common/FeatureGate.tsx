@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { useFeatureAccess, useFeatureLimits } from '../hooks/useFeatureAccess';
-import { FeatureId } from '../types/feature';
-import { colors, spacing, typography, borderRadius } from '../utils/constants';
+import { useFeatureAccess, useFeatureLimits } from '../../hooks/useFeatureAccess';
+import { FeatureId } from '../../types/feature';
+import { colors, spacing, typography, borderRadius } from '../../utils/constants';
 
 interface FeatureGateProps {
   feature: FeatureId;

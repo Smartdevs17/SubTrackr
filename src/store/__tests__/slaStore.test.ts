@@ -5,6 +5,10 @@ import { useSlaStore } from '../slaStore';
 
 const mockMemoryStore = new Map<string, string>();
 
+interface NotificationServiceMock {
+  presentSlaBreachNotification: jest.Mock;
+}
+
 jest.mock('@react-native-async-storage/async-storage', () => ({
   setItem: jest.fn((key: string, value: string) => {
     mockMemoryStore.set(key, value);
@@ -77,8 +81,9 @@ describe('slaStore', () => {
   });
 
   it('creates a breach and sends a notification when uptime drops below target', async () => {
-    const notify = jest.requireMock('../../services/notificationService')
-      .presentSlaBreachNotification as jest.Mock;
+    const notify = (
+      jest.requireMock('../../services/notificationService') as NotificationServiceMock
+    ).presentSlaBreachNotification;
 
     await act(async () => {
       await useSlaStore.getState().configureSla('merchant-b', {

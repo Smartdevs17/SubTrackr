@@ -81,7 +81,7 @@ export const animations = {
     });
   },
 
-  scaleIn: (animatedValue: Animated.Value, _duration: number = animationConfig.duration.normal) => {
+  scaleIn: (animatedValue: Animated.Value) => {
     return Animated.spring(animatedValue, {
       toValue: 1,
       tension: 100,
@@ -175,7 +175,7 @@ export const interpolate = (
   animatedValue: Animated.Value,
   inputRange: number[],
   outputRange: number[] | string[]
-): Animated.AnimatedInterpolation<number | string> => {
+): Animated.AnimatedInterpolation<string | number> => {
   return animatedValue.interpolate({
     inputRange,
     outputRange,

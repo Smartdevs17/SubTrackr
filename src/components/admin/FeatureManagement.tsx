@@ -9,10 +9,10 @@ import {
   TextInput,
   Alert,
 } from 'react-native';
-import { FeatureId, FeatureFlag } from '../types/feature';
-import { SubscriptionTier } from '../types/subscription';
-import { featureFlagsService } from '../services/featureFlags';
-import { colors, spacing, typography, borderRadius, shadows } from '../utils/constants';
+import { FeatureId, FeatureFlag } from '../../types/feature';
+import { SubscriptionTier } from '../../types/subscription';
+import { featureFlagsService } from '../../services/featureFlags';
+import { colors, spacing, typography, borderRadius, shadows } from '../../utils/constants';
 
 interface FeatureManagementProps {
   onFeatureUpdate?: (featureId: FeatureId, updates: Partial<FeatureFlag>) => void;

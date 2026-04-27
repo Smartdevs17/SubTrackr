@@ -1,4 +1,5 @@
-import { FeatureConfig, SubscriptionTier, FeatureId } from '../types/feature';
+import { FeatureConfig, FeatureId } from '../types/feature';
+import { SubscriptionTier } from '../types/subscription';
 
 export const FEATURE_CONFIG: FeatureConfig = {
   globalRolloutPercentage: 100,

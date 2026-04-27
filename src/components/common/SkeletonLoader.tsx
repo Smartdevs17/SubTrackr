@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { View, Animated, StyleSheet } from 'react-native';
-import { colors, spacing, borderRadius, shadows } from '../utils/constants';
-import { animations, useAnimatedValue } from '../utils/animations';
+import { colors, spacing, borderRadius, shadows } from '../../utils/constants';
+import { animations, useAnimatedValue } from '../../utils/animations';
 
 interface SkeletonProps {
   width?: number | string;

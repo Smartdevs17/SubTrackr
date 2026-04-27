@@ -49,6 +49,7 @@ export const AnimatedSubscriptionCard: React.FC<AnimatedSubscriptionCardProps> =
   const fallbackSharedElementAnim = useAnimatedValue(1);
 
   // Shared element transition
+  const fallbackSharedElementAnim = useAnimatedValue(1);
   const sharedElementAnim = sharedElementId
     ? SharedElementTransition.register(sharedElementId, 1)
     : fallbackSharedElementAnim;
@@ -91,7 +92,7 @@ export const AnimatedSubscriptionCard: React.FC<AnimatedSubscriptionCardProps> =
   // Visibility animation
   useEffect(() => {
     if (isVisible) {
-      animations.scaleIn(scaleAnim, 300).start();
+      animations.scaleIn(scaleAnim).start();
     } else {
       animations.scaleOut(scaleAnim, 200).start();
     }

@@ -1,8 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, View, StyleSheet } from 'react-native';
-import { animations, useAnimatedValue, stagger } from '../../utils/animations';
+import { animations, useAnimatedValue, useAnimatedValues, stagger } from '../../utils/animations';
 
-interface ScreenTransitionProps {
+export interface ScreenTransitionProps {
   children: React.ReactNode;
   type?: 'fade' | 'slide' | 'scale' | 'stagger';
   duration?: number;
@@ -111,7 +111,7 @@ export const StaggeredList: React.FC<StaggeredListProps> = ({
   animationType = 'fade',
   style,
 }) => {
-  const animatedValues = React.useMemo(() => children.map(() => new Animated.Value(0)), [children]);
+  const animatedValues = useAnimatedValues(children.length, 0);
 
   useEffect(() => {
     // Start staggered animations immediately for better performance

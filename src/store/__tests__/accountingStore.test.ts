@@ -71,9 +71,7 @@ describe('buildStraightLineSchedule', () => {
     // 100 / 3 = 33.33 → 33 + 33 + 34
     const schedule = buildStraightLineSchedule('sub-1', 100, 0, 30 * MS_PER_DAY, 3);
     const amounts = schedule.entries.map((e) => e.recognisedAmount);
-    expect(amounts[0]).toBeCloseTo(33.33, 2);
-    expect(amounts[1]).toBeCloseTo(33.33, 2);
-    expect(amounts[2]).toBeCloseTo(33.34, 2);
+    expect(amounts).toEqual([33.33, 33.33, 33.34]);
   });
 
   it('single period covers full interval', () => {

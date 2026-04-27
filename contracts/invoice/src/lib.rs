@@ -300,6 +300,7 @@ mod tests {
     use alloc::vec;
     use soroban_sdk::testutils::{Address as _, Ledger};
     use subtrackr_storage::{SubTrackrStorage, SubTrackrStorageClient};
+    use subtrackr_types::Interval;
 
     fn setup_env() -> (Env, Address, Address, Address) {
         let env = Env::default();

@@ -2,12 +2,52 @@ import React, { useEffect } from 'react';
 import { Animated, View, StyleSheet } from 'react-native';
 import { SharedElementTransition, animations, useAnimatedValue } from '../../utils/animations';
 
-interface SharedElementProps {
+export interface SharedElementProps {
   id: string;
   children: React.ReactNode;
   style?: any;
   transitionType?: 'fade' | 'scale' | 'slide';
 }
+
+interface ScreenTransitionProps {
+  children: React.ReactNode;
+  type?: 'slide' | 'fade' | 'none';
+  duration?: number;
+}
+
+export const ScreenTransition: React.FC<ScreenTransitionProps> = ({
+  children,
+  type = 'slide',
+  duration = 400,
+}) => {
+  const anim = useAnimatedValue(0);
+
+  useEffect(() => {
+    Animated.timing(anim, {
+      toValue: 1,
+      duration: duration,
+      useNativeDriver: true,
+    }).start();
+  }, [anim, duration]);
+
+  const animatedStyle = React.useMemo(() => {
+    if (type === 'none') return {};
+
+    return {
+      opacity: anim,
+      transform: [
+        {
+          translateX: anim.interpolate({
+            inputRange: [0, 1],
+            outputRange: [type === 'slide' ? 50 : 0, 0],
+          }),
+        },
+      ],
+    };
+  }, [anim, type]);
+
+  return <Animated.View style={[{ flex: 1 }, animatedStyle]}>{children}</Animated.View>;
+};
 
 export const SharedElement: React.FC<SharedElementProps> = ({
   id,
@@ -90,5 +130,3 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
-
-export { ScreenTransition } from './ScreenTransitions';

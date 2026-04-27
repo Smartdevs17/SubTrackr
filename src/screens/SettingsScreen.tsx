@@ -12,9 +12,9 @@ import {
   Modal,
   FlatList,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
-import { useWalletStore, useNetworkStore } from '../store';
+import { useWalletStore, useNetworkStore, useSettingsStore } from '../store';
+
 import { Card } from '../components/common/Card';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -33,43 +33,30 @@ const SettingsScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { address, disconnect } = useWalletStore();
   const { currentNetwork, availableNetworks, setNetwork, initialize } = useNetworkStore();
-  const [settings, setSettings] = useState<Settings>({
-    notificationsEnabled: true,
-    defaultCurrency: 'USD',
-  });
+  const {
+    preferredCurrency,
+    notificationsEnabled,
+    setPreferredCurrency,
+    setNotificationsEnabled,
+  } = useSettingsStore();
+
   const [networkModalVisible, setNetworkModalVisible] = useState(false);
 
   useEffect(() => {
-    loadSettings();
     initialize();
-  }, []);
+  }, [initialize]);
 
-  const loadSettings = async () => {
-    try {
-      const savedSettings = await AsyncStorage.getItem(SETTINGS_KEY);
-      if (savedSettings) setSettings(JSON.parse(savedSettings));
-    } catch (error) {
-      console.error('Failed to load settings:', error);
-    }
-  };
-
-  const saveSettings = async (newSettings: Settings) => {
-    try {
-      await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(newSettings));
-      setSettings(newSettings);
-    } catch (error) {
-      console.error('Failed to save settings:', error);
-    }
-  };
 
   const handleNotificationToggle = useCallback(
-    (value: boolean) => saveSettings({ ...settings, notificationsEnabled: value }),
-    [settings]
+    (value: boolean) => setNotificationsEnabled(value),
+    [setNotificationsEnabled]
   );
+
   const handleCurrencyChange = useCallback(
-    (currency: string) => saveSettings({ ...settings, defaultCurrency: currency }),
-    [settings]
+    (currency: string) => setPreferredCurrency(currency),
+    [setPreferredCurrency]
   );
+
 
   const handleDisconnectWallet = useCallback(() => {
     Alert.alert(t('settings.disconnect_wallet'), t('settings.disconnect_wallet_confirm'), [
@@ -147,14 +134,15 @@ const SettingsScreen: React.FC = () => {
               <Text style={styles.settingDescription}>{t('settings.billing_reminders_desc')}</Text>
             </View>
             <Switch
-              value={settings.notificationsEnabled}
+              value={notificationsEnabled}
               onValueChange={handleNotificationToggle}
               trackColor={{ false: colors.border, true: colors.primary }}
               thumbColor={colors.text}
               accessibilityLabel={t('settings.billing_reminders')}
               accessibilityRole="switch"
-              accessibilityState={{ checked: settings.notificationsEnabled }}
+              accessibilityState={{ checked: notificationsEnabled }}
             />
+
           </View>
           <TouchableOpacity
             style={[styles.linkRow, styles.linkRowLast]}
@@ -184,24 +172,47 @@ const SettingsScreen: React.FC = () => {
                 key={currency}
                 style={[
                   styles.currencyButton,
-                  settings.defaultCurrency === currency && styles.currencyButtonActive,
+                  preferredCurrency === currency && styles.currencyButtonActive,
                 ]}
                 onPress={() => handleCurrencyChange(currency)}
                 accessibilityRole="radio"
                 accessibilityLabel={currency}
-                accessibilityState={{ checked: settings.defaultCurrency === currency }}>
+                accessibilityState={{ checked: preferredCurrency === currency }}>
                 <Text
                   style={[
                     styles.currencyButtonText,
-                    settings.defaultCurrency === currency && styles.currencyButtonTextActive,
+                    preferredCurrency === currency && styles.currencyButtonTextActive,
                   ]}>
                   {currency}
                 </Text>
               </TouchableOpacity>
+
             ))}
           </View>
         </Card>
         <Card style={styles.section}>
+          <Text style={styles.sectionTitle} accessibilityRole="header">Data Management</Text>
+          <TouchableOpacity
+            style={styles.linkRow}
+            onPress={() => navigation.navigate('Import')}
+            accessibilityRole="button"
+            accessibilityLabel="Import subscriptions"
+            accessibilityHint="Opens import screen">
+            <Text style={styles.linkText}>Import Subscriptions</Text>
+            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>→</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.linkRow}
+            onPress={() => navigation.navigate('Export')}
+            accessibilityRole="button"
+            accessibilityLabel="Export subscriptions"
+            accessibilityHint="Opens export screen">
+            <Text style={styles.linkText}>Export Subscriptions</Text>
+            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>→</Text>
+          </TouchableOpacity>
+        </Card>
+        <Card style={styles.section}>
+          <Text style={styles.sectionTitle} accessibilityRole="header">About</Text>
           <Text style={styles.sectionTitle} accessibilityRole="header">
             {t('settings.sections.about')}
           </Text>
@@ -227,6 +238,17 @@ const SettingsScreen: React.FC = () => {
             accessibilityLabel={t('settings.community')}
             accessibilityHint={t('settings.community_hint')}>
             <Text style={styles.linkText}>{t('settings.community')}</Text>
+            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
+              &gt;
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.linkRow}
+            onPress={() => navigation.navigate('AccountingExport')}
+            accessibilityRole="button"
+            accessibilityLabel="Accounting export"
+            accessibilityHint="Opens QuickBooks and Xero subscription export settings">
+            <Text style={styles.linkText}>Accounting Export</Text>
             <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
               &gt;
             </Text>

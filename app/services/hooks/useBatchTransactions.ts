@@ -2,11 +2,8 @@
 // REACT HOOK - Batch transaction management
 // ════════════════════════════════════════════════════════════════
 
-import { useState, useCallback } from "react";
-import BatchTransactionService, {
-  BatchTransaction,
-  BatchExecutionResult,
-} from "../services/batchTransactionService";
+import { useState, useCallback } from 'react';
+import BatchTransactionService, { BatchExecutionResult } from '../batchTransactionService';
 
 interface UseBatchTransactionsProps {
   maxBatchSize?: number;
@@ -15,18 +12,12 @@ interface UseBatchTransactionsProps {
 /**
  * React hook for managing batch transactions
  */
-export function useBatchTransactions({
-  maxBatchSize = 10,
-}: UseBatchTransactionsProps = {}) {
-  const [service] = useState(
-    () => new BatchTransactionService(maxBatchSize)
-  );
+export function useBatchTransactions({ maxBatchSize = 10 }: UseBatchTransactionsProps = {}) {
+  const [service] = useState(() => new BatchTransactionService(maxBatchSize));
 
   const [pending, setPending] = useState(0);
   const [executing, setExecuting] = useState(false);
-  const [lastResult, setLastResult] = useState<BatchExecutionResult | null>(
-    null
-  );
+  const [lastResult, setLastResult] = useState<BatchExecutionResult | null>(null);
 
   /**
    * Add transaction to batch
@@ -46,18 +37,8 @@ export function useBatchTransactions({
    * Add transaction with dependency
    */
   const addTransactionWithDependency = useCallback(
-    (
-      functionName: string,
-      params: any[],
-      dependsOn: number,
-      required: boolean = true
-    ) => {
-      const added = service.addTransactionWithDependency(
-        functionName,
-        params,
-        dependsOn,
-        required
-      );
+    (functionName: string, params: any[], dependsOn: number, required: boolean = true) => {
+      const added = service.addTransactionWithDependency(functionName, params, dependsOn, required);
       if (added) {
         setPending(service.getPendingCount());
       }
@@ -87,7 +68,7 @@ export function useBatchTransactions({
         setPending(0);
         return result;
       } catch (error) {
-        console.error("❌ Batch execution failed:", error);
+        console.error('❌ Batch execution failed:', error);
         throw error;
       } finally {
         setExecuting(false);

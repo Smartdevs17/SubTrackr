@@ -1,10 +1,11 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
-import { SubscriptionTier, SubscriptionPlan } from '../types/subscription';
-import { FeatureId } from '../types/feature';
-import { FEATURE_CONFIG } from '../config/features';
-import { useUserStore } from '../store/userStore';
-import { colors, spacing, typography, borderRadius, shadows } from '../utils/constants';
+import { BillingCycle, SubscriptionTier, SubscriptionPlan } from '../../types/subscription';
+import { FeatureId } from '../../types/feature';
+import { FEATURE_CONFIG } from '../../config/features';
+import { featureFlagsService } from '../../services/featureFlags';
+import { useUserStore } from '../../store/userStore';
+import { colors, spacing, typography, borderRadius, shadows } from '../../utils/constants';
 
 const { width } = Dimensions.get('window');
 const cardWidth = (width - spacing.lg * 3) / 2; // Two cards per row
@@ -31,9 +32,9 @@ export const SubscriptionPlans: React.FC<SubscriptionPlansProps> = ({
       tier: SubscriptionTier.FREE,
       price: 0,
       currency: 'USD',
-      billingCycle: 'monthly' as any,
+      billingCycle: BillingCycle.MONTHLY,
       features: FEATURE_CONFIG.plans[SubscriptionTier.FREE],
-      limits: {},
+      limits: featureFlagsService.getFeatureLimits(SubscriptionTier.FREE),
       description: 'Perfect for getting started',
     },
     {
@@ -42,9 +43,9 @@ export const SubscriptionPlans: React.FC<SubscriptionPlansProps> = ({
       tier: SubscriptionTier.BASIC,
       price: 4.99,
       currency: 'USD',
-      billingCycle: 'monthly' as any,
+      billingCycle: BillingCycle.MONTHLY,
       features: FEATURE_CONFIG.plans[SubscriptionTier.BASIC],
-      limits: {},
+      limits: featureFlagsService.getFeatureLimits(SubscriptionTier.BASIC),
       description: 'Great for personal use',
     },
     {
@@ -53,9 +54,9 @@ export const SubscriptionPlans: React.FC<SubscriptionPlansProps> = ({
       tier: SubscriptionTier.PREMIUM,
       price: 9.99,
       currency: 'USD',
-      billingCycle: 'monthly' as any,
+      billingCycle: BillingCycle.MONTHLY,
       features: FEATURE_CONFIG.plans[SubscriptionTier.PREMIUM],
-      limits: {},
+      limits: featureFlagsService.getFeatureLimits(SubscriptionTier.PREMIUM),
       isPopular: true,
       description: 'Advanced features for power users',
     },
@@ -65,15 +66,15 @@ export const SubscriptionPlans: React.FC<SubscriptionPlansProps> = ({
       tier: SubscriptionTier.ENTERPRISE,
       price: 29.99,
       currency: 'USD',
-      billingCycle: 'monthly' as any,
+      billingCycle: BillingCycle.MONTHLY,
       features: FEATURE_CONFIG.plans[SubscriptionTier.ENTERPRISE],
-      limits: {},
+      limits: featureFlagsService.getFeatureLimits(SubscriptionTier.ENTERPRISE),
       description: 'Complete solution for teams',
     },
   ];
 
-  const getFeatureName = (featureId: string): string => {
-    const feature = FEATURE_CONFIG.features[featureId as FeatureId];
+  const getFeatureName = (featureId: FeatureId): string => {
+    const feature = FEATURE_CONFIG.features[featureId];
     return feature?.name || featureId.replace(/_/g, ' ');
   };
 

@@ -183,8 +183,11 @@ export const useSlaStore = create<SlaState>()(
               ...state,
               availabilityEvents,
             };
-            const evaluationTime = event.timestamp + event.durationSeconds * 1000;
-            const evaluated = updateMerchantState(nextState, merchantId, evaluationTime);
+            const evaluated = updateMerchantState(
+              nextState,
+              merchantId,
+              event.timestamp + event.durationSeconds * 1000
+            );
             createdBreach = evaluated.createdBreach;
 
             return {
@@ -201,14 +204,14 @@ export const useSlaStore = create<SlaState>()(
             };
           });
 
-          const breach = createdBreach as SlaBreach | null;
-          if (breach !== null) {
+          const breachToNotify = createdBreach as SlaBreach | null;
+          if (breachToNotify) {
             const config = get().configs[merchantId];
             void presentSlaBreachNotification({
               merchantName: config?.merchantId ?? merchantId,
-              uptimeTarget: breach.uptimeTarget,
-              uptimePercentage: breach.uptimePercentage,
-              creditAmount: breach.creditAmount,
+              uptimeTarget: breachToNotify.uptimeTarget,
+              uptimePercentage: breachToNotify.uptimePercentage,
+              creditAmount: breachToNotify.creditAmount,
             });
           }
         } catch (error) {

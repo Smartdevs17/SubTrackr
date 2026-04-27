@@ -126,7 +126,7 @@ export const useDebouncedAnimation = (
   animationCreator: (value: number) => Animated.CompositeAnimation,
   delay: number = 300
 ) => {
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const animationRef = useRef<Animated.CompositeAnimation | null>(null);
   const lastValueRef = useRef(value);
 

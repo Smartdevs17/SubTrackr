@@ -9,19 +9,19 @@ The batching system allows you to combine multiple subscription operations into 
 ✅ **70% Gas Savings** - Combine operations  
 ✅ **Atomicity** - All or nothing execution  
 ✅ **Dependencies** - Control operation order  
-✅ **Simulation** - Test before execution  
+✅ **Simulation** - Test before execution
 
 ## Batch Operations Supported
 
-| Operation | Function | Example |
-|-----------|----------|---------|
-| Subscribe | `subscribe` | Subscribe to a plan |
-| Pause | `pause_subscription` | Pause a subscription |
-| Resume | `resume_subscription` | Resume paused subscription |
-| Cancel | `cancel_subscription` | Cancel subscription |
-| Charge | `charge_subscription` | Process payment |
-| Refund | `request_refund` | Request refund |
-| Transfer | `request_transfer` | Transfer ownership |
+| Operation | Function              | Example                    |
+| --------- | --------------------- | -------------------------- |
+| Subscribe | `subscribe`           | Subscribe to a plan        |
+| Pause     | `pause_subscription`  | Pause a subscription       |
+| Resume    | `resume_subscription` | Resume paused subscription |
+| Cancel    | `cancel_subscription` | Cancel subscription        |
+| Charge    | `charge_subscription` | Process payment            |
+| Refund    | `request_refund`      | Request refund             |
+| Transfer  | `request_transfer`    | Transfer ownership         |
 
 ## Usage Examples
 
@@ -31,11 +31,11 @@ The batching system allows you to combine multiple subscription operations into 
 import { useBatchTransactions } from '@/hooks/useBatchTransactions';
 
 export function SubscriptionBatcher() {
-  const { 
-    addTransaction, 
-    executeBatch, 
-    pending, 
-    isBatchReady 
+  const {
+    addTransaction,
+    executeBatch,
+    pending,
+    isBatchReady
   } = useBatchTransactions({ maxBatchSize: 10 });
 
   const handleAddSubscription = (planId: string) => {
@@ -52,8 +52,8 @@ export function SubscriptionBatcher() {
       <button onClick={() => handleAddSubscription("plan_1")}>
         Add Plan 1 ({pending}/10)
       </button>
-      <button 
-        onClick={handleBatchExecute} 
+      <button
+        onClick={handleBatchExecute}
         disabled={!isBatchReady()}
       >
         Execute Batch
@@ -85,19 +85,19 @@ console.log(`Gas savings: ${savings.percentSavings}%`);
 const { addTransactionWithDependency, executeBatch } = useBatchTransactions();
 
 // Op 0: Subscribe to plan
-addTransaction("subscribe", [planId], true);
+addTransaction('subscribe', [planId], true);
 
 // Op 1: Pause subscription (depends on op 0)
 // Only runs if op 0 succeeds
 addTransactionWithDependency(
-  "pause_subscription",
+  'pause_subscription',
   [subscriptionId, duration],
   0, // depends on operation 0
   true
 );
 
 // Op 2: Another operation (independent)
-addTransaction("request_refund", [amount], false);
+addTransaction('request_refund', [amount], false);
 
 const result = await executeBatch(false); // non-atomic (continue on error)
 ```
@@ -146,6 +146,7 @@ interface BatchExecutionResult {
 ## Cost Comparison
 
 ### Without Batching
+
 ```
 5 subscription operations
 × 150,000 gas each
@@ -153,6 +154,7 @@ interface BatchExecutionResult {
 ```
 
 ### With Batching
+
 ```
 Base cost: 50,000 gas
 + 5 operations × 100,000 each
@@ -164,6 +166,7 @@ Base cost: 50,000 gas
 ## Best Practices
 
 ✅ **DO:**
+
 - Batch similar operations together
 - Use dependencies when operations must run in order
 - Test with simulation first
@@ -171,6 +174,7 @@ Base cost: 50,000 gas
 - Use atomic mode for critical operations
 
 ❌ **DON'T:**
+
 - Create batches with > 100 operations
 - Ignore error results
 - Skip simulation for large batches
@@ -180,6 +184,7 @@ Base cost: 50,000 gas
 ## Atomic vs Non-Atomic
 
 ### Atomic Mode (All or Nothing)
+
 ```
 Operation 1: Subscribe ✓
 Operation 2: Charge ✓
@@ -190,6 +195,7 @@ Batch Status: FAILED
 ```
 
 ### Non-Atomic Mode (Continue on Error)
+
 ```
 Operation 1: Subscribe ✓
 Operation 2: Charge ✓
@@ -201,29 +207,32 @@ Batch Status: COMPLETED (with partial success)
 
 ## Performance Metrics
 
-| Metric | Value |
-|--------|-------|
-| Max operations/batch | 100 |
-| Base gas cost | 50,000 |
-| Gas per operation | 100,000 |
-| Simulation cost | 50,000 |
-| Average savings | ~25-30% |
+| Metric               | Value   |
+| -------------------- | ------- |
+| Max operations/batch | 100     |
+| Base gas cost        | 50,000  |
+| Gas per operation    | 100,000 |
+| Simulation cost      | 50,000  |
+| Average savings      | ~25-30% |
 
 ## Troubleshooting
 
 ### Batch Too Large
+
 ```
 Error: "Too many operations (max 100)"
 Solution: Split into multiple batches
 ```
 
 ### Invalid Dependency
+
 ```
 Error: "Invalid dependency"
 Solution: Ensure dependency index < current index
 ```
 
 ### Atomic Failure
+
 ```
 Error: "Batch failed (atomic)"
 Solution: Check individual operation results
