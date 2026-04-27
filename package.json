@@ -38,7 +38,9 @@
     "e2e:build-android": "detox build -c android.emu.release",
     "e2e:test-android": "detox test -c android.emu.release",
     "e2e:test-android:parallel": "detox test -c android.emu.release --workers 2",
-    "e2e:visual:update-ios": "detox test -c ios.sim.release --testNamePattern \"Subscription Visual Regression\""
+    "e2e:visual:update-ios": "detox test -c ios.sim.release --testNamePattern \"Subscription Visual Regression\"",
+    "bundle-size": "size-limit",
+    "bundle-size:why": "size-limit --why"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.1.2",
@@ -109,7 +111,9 @@
     "semantic-release": "^24.2.9",
     "ts-jest": "^29.4.6",
     "typechain": "^8.3.2",
-    "typescript": "~5.8.3"
+    "typescript": "~5.8.3",
+    "size-limit": "^11.1.4",
+    "@size-limit/file": "^11.1.4"
   },
   "private": false,
   "repository": {
