@@ -57,12 +57,14 @@ export interface SandboxConfig {
   name: string;
   description: string;
   isActive: boolean;
-  dataIsolation: boolean;
+  status?: SandboxStatus;
+  dataIsolation?: boolean;
   rateLimit: RateLimitConfig;
   dataResetInterval?: string;
   maxTestSubscriptions?: number;
   maxApiCalls?: number;
   allowedFeatures?: string[];
+  expiresAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -154,6 +156,7 @@ export interface SandboxMetrics {
   totalTransactions: number;
   totalVolume: number;
   totalApiCalls: number;
+  apiCallsMade?: number;
 }
 
 export interface OnboardingStepInfo {
