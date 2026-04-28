@@ -5,5 +5,5 @@ export { useWalletStore } from './walletStore';
 export { useNetworkStore } from './networkStore';
 export { useCommunityStore } from './communityStore';
 export { useAccountingStore } from './accountingStore';
+export { useCalendarStore } from './calendarStore';
 export { useSettingsStore } from './settingsStore';
-

@@ -15,6 +15,7 @@ export type RootStackParamList = {
   InvoiceDetail: { id: string };
   GDPRSettings: undefined;
   Settings: undefined;
+  CalendarIntegration: undefined;
   WebhookSettings: undefined;
   AccountingExport: undefined;
   AdminDashboard: undefined;

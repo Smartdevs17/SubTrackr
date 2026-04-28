@@ -36,7 +36,10 @@ export const useUsageStore = create<UsageState>()(
 
           set({ isLoading: false });
         } catch (error) {
-          const appError = errorHandler.handleError(error as Error);
+          const appError = errorHandler.handleError(error as Error, {
+            action: 'fetchUsage',
+            metadata: { subscriptionId: _subscriptionId, planId: _planId },
+          });
           set({ error: appError.userMessage, isLoading: false });
         }
       },
@@ -75,7 +78,10 @@ export const useUsageStore = create<UsageState>()(
             };
           });
         } catch (error) {
-          const appError = errorHandler.handleError(error as Error);
+          const appError = errorHandler.handleError(error as Error, {
+            action: 'recordUsage',
+            metadata: { subscriptionId, metric, amount },
+          });
           set({ error: appError.userMessage, isLoading: false });
         }
       },

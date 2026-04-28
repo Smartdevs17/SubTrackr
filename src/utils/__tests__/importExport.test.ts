@@ -13,10 +13,8 @@ import {
   getCSVTemplate,
   getJSONTemplate,
   ImportMode,
-  Subscription,
-  SubscriptionCategory,
-  BillingCycle,
-} from '../utils/importExport';
+} from '../importExport';
+import { Subscription, SubscriptionCategory, BillingCycle } from '../../types/subscription';
 
 describe('Import/Export Utilities', () => {
   describe('CSV Parsing', () => {
@@ -172,7 +170,7 @@ Spotify,Music streaming,streaming,9.99,USD,monthly,2026-05-15`;
 
       const json = exportToJSON(subscriptions);
       const parsed = JSON.parse(json);
-      
+
       expect(parsed.version).toBe('1.0.0');
       expect(parsed.subscriptionCount).toBe(1);
       expect(parsed.subscriptions[0].name).toBe('Netflix');
@@ -237,7 +235,7 @@ Spotify,Music streaming,streaming,9.99,USD,monthly,2026-05-15`;
 
       const result = validateImport(data);
       expect(result.isValid).toBe(false);
-      expect(result.errors.some(e => e.field === 'price')).toBe(true);
+      expect(result.errors.some((e) => e.field === 'price')).toBe(true);
     });
 
     it('should add warnings for invalid category', () => {
@@ -256,7 +254,7 @@ Spotify,Music streaming,streaming,9.99,USD,monthly,2026-05-15`;
       };
 
       const result = validateImport(data);
-      expect(result.warnings.some(w => w.field === 'category')).toBe(true);
+      expect(result.warnings.some((w) => w.field === 'category')).toBe(true);
     });
   });
 

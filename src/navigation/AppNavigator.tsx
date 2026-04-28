@@ -19,6 +19,7 @@ import GDPRSettingsScreen from '../screens/GDPRSettingsScreen';
 import LanguageSettingsScreen from '../screens/LanguageSettingsScreen';
 import SessionManagementScreen from '../screens/SessionManagementScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import CalendarIntegrationScreen from '../screens/CalendarIntegrationScreen';
 import AccountingExportScreen from '../screens/AccountingExportScreen';
 import WebhookSettingsScreen from '../screens/WebhookSettingsScreen';
 import ErrorDashboardScreen from '../screens/ErrorDashboardScreen';
@@ -119,6 +120,11 @@ const SettingsStack = () => (
   <Stack.Navigator>
     <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />
     <Stack.Screen
+      name="CalendarIntegration"
+      component={CalendarIntegrationScreen}
+      options={{ title: 'Calendar Integrations', headerShown: true }}
+    />
+    <Stack.Screen
       name="Community"
       component={CommunityScreen}
       options={{ title: 'Community', headerShown: true }}
@@ -139,6 +145,11 @@ const SettingsStack = () => (
       options={{ title: 'Language', headerShown: true }}
     />
     <Stack.Screen
+      name="WebhookSettings"
+      component={WebhookSettingsScreen}
+      options={{ title: 'Webhooks', headerShown: true }}
+    />
+    <Stack.Screen
       name="SessionManagement"
       component={SessionManagementScreen}
       options={{ title: 'Sessions', headerShown: true }}
@@ -147,11 +158,6 @@ const SettingsStack = () => (
       name="AdminDashboard"
       component={AdminDashboardScreen}
       options={{ title: 'Admin Dashboard', headerShown: true }}
-    />
-    <Stack.Screen
-      name="WebhookSettings"
-      component={WebhookSettingsScreen}
-      options={{ title: 'Webhooks', headerShown: true }}
     />
     <Stack.Screen
       name="AccountingExport"

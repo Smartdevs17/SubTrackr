@@ -6,6 +6,6 @@
     "esModuleInterop": true,
     "jsx": "react-native",
     "skipLibCheck": true,
-    "moduleResolution": "node"
+    "moduleResolution": "bundler"
   }
 }

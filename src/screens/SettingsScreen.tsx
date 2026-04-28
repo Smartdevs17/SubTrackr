@@ -22,30 +22,20 @@ import { RootStackParamList } from '../navigation/types';
 import { useTranslation } from 'react-i18next';
 
 const APP_VERSION = '1.0.0';
-interface Settings {
-  notificationsEnabled: boolean;
-  defaultCurrency: string;
-}
-const SETTINGS_KEY = '@subtrackr_settings';
 
 const SettingsScreen: React.FC = () => {
   const { t } = useTranslation();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { address, disconnect } = useWalletStore();
   const { currentNetwork, availableNetworks, setNetwork, initialize } = useNetworkStore();
-  const {
-    preferredCurrency,
-    notificationsEnabled,
-    setPreferredCurrency,
-    setNotificationsEnabled,
-  } = useSettingsStore();
+  const { preferredCurrency, notificationsEnabled, setPreferredCurrency, setNotificationsEnabled } =
+    useSettingsStore();
 
   const [networkModalVisible, setNetworkModalVisible] = useState(false);
 
   useEffect(() => {
     initialize();
   }, [initialize]);
-
 
   const handleNotificationToggle = useCallback(
     (value: boolean) => setNotificationsEnabled(value),
@@ -56,7 +46,6 @@ const SettingsScreen: React.FC = () => {
     (currency: string) => setPreferredCurrency(currency),
     [setPreferredCurrency]
   );
-
 
   const handleDisconnectWallet = useCallback(() => {
     Alert.alert(t('settings.disconnect_wallet'), t('settings.disconnect_wallet_confirm'), [
@@ -142,8 +131,18 @@ const SettingsScreen: React.FC = () => {
               accessibilityRole="switch"
               accessibilityState={{ checked: notificationsEnabled }}
             />
-
           </View>
+          <TouchableOpacity
+            style={[styles.linkRow, styles.linkRowLast]}
+            onPress={() => navigation.navigate('CalendarIntegration')}
+            accessibilityRole="button"
+            accessibilityLabel={t('settings.calendar_sync')}
+            accessibilityHint={t('settings.calendar_sync_hint')}>
+            <Text style={styles.linkText}>{t('settings.calendar_sync')}</Text>
+            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
+              {'>'}
+            </Text>
+          </TouchableOpacity>
         </Card>
         <Card style={styles.section}>
           <Text style={styles.sectionTitle} accessibilityRole="header">
@@ -175,12 +174,13 @@ const SettingsScreen: React.FC = () => {
                   {currency}
                 </Text>
               </TouchableOpacity>
-
             ))}
           </View>
         </Card>
         <Card style={styles.section}>
-          <Text style={styles.sectionTitle} accessibilityRole="header">Data Management</Text>
+          <Text style={styles.sectionTitle} accessibilityRole="header">
+            Data Management
+          </Text>
           <TouchableOpacity
             style={styles.linkRow}
             onPress={() => navigation.navigate('Import')}
@@ -188,7 +188,9 @@ const SettingsScreen: React.FC = () => {
             accessibilityLabel="Import subscriptions"
             accessibilityHint="Opens import screen">
             <Text style={styles.linkText}>Import Subscriptions</Text>
-            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>→</Text>
+            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
+              →
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.linkRow}
@@ -197,11 +199,15 @@ const SettingsScreen: React.FC = () => {
             accessibilityLabel="Export subscriptions"
             accessibilityHint="Opens export screen">
             <Text style={styles.linkText}>Export Subscriptions</Text>
-            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>→</Text>
+            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
+              →
+            </Text>
           </TouchableOpacity>
         </Card>
         <Card style={styles.section}>
-          <Text style={styles.sectionTitle} accessibilityRole="header">About</Text>
+          <Text style={styles.sectionTitle} accessibilityRole="header">
+            About
+          </Text>
           <Text style={styles.sectionTitle} accessibilityRole="header">
             {t('settings.sections.about')}
           </Text>
