@@ -10,6 +10,8 @@ name = "subtrackr_subscription"
 path = "src/lib.rs"
 crate-type = ["cdylib", "rlib"]
 
+serde = "1.0"
+
 [dependencies]
 soroban-sdk = "21.0.0"
 subtrackr-types = { path = "../types" }
