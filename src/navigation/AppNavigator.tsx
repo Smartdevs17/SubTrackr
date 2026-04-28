@@ -33,6 +33,8 @@ import { SegmentDetailScreen } from '../screens/SegmentDetailScreen';
 import { GamificationScreen } from '../screens/GamificationScreen';
 import RevenueReportScreen from '../screens/RevenueReportScreen';
 import UsageDashboardScreen from '../screens/UsageDashboard';
+import MerchantOnboardingScreen from '../screens/MerchantOnboardingScreen';
+import AffiliateDashboardScreen from '../screens/AffiliateDashboardScreen';
 import { colors } from '../utils/constants';
 
 import { RootStackParamList, TabParamList } from './types';
@@ -183,6 +185,16 @@ const SettingsStack = () => (
       name="Export" 
       component={ExportScreen} 
       options={{ title: 'Export Subscriptions', headerShown: true }} 
+    />
+    <Stack.Screen
+      name="MerchantOnboarding"
+      component={MerchantOnboardingScreen}
+      options={{ title: 'Merchant Onboarding', headerShown: true }}
+    />
+    <Stack.Screen
+      name="AffiliateDashboard"
+      component={AffiliateDashboardScreen}
+      options={{ title: 'Affiliate Dashboard', headerShown: true }}
     />
   </Stack.Navigator>
 );
