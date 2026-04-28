@@ -188,7 +188,7 @@ const ApiKeyManagementScreen: React.FC = () => {
                     </View>
                   </View>
                   <Text style={styles.keyEnvironment}>
-                    {key.environment.toUpperCase()}
+                    {(key.environment ?? SandboxEnvironment.DEVELOPMENT).toUpperCase()}
                   </Text>
                 </View>
 
@@ -198,10 +198,10 @@ const ApiKeyManagementScreen: React.FC = () => {
 
                 <View style={styles.keyMeta}>
                   <Text style={styles.keyMetaText}>
-                    Permissions: {key.permissions.join(', ')}
+                    Permissions: {(key.permissions ?? key.scopes ?? ['read']).join(', ')}
                   </Text>
                   <Text style={styles.keyMetaText}>
-                    Rate: {key.rateLimit.requestsPerMinute}/min · {key.rateLimit.requestsPerDay}/day
+                    Rate: {key.rateLimit?.requestsPerMinute ?? 60}/min · {key.rateLimit?.requestsPerDay ?? 10000}/day
                   </Text>
                   {key.lastUsedAt && (
                     <Text style={styles.keyMetaText}>

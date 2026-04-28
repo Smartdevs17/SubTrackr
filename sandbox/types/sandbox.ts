@@ -113,6 +113,8 @@ export interface TestUser {
   name: string;
   plan: 'free' | 'pro' | 'enterprise';
   apiKeys: TestApiKey[];
+  walletAddress?: string;
+  createdAt?: Date;
 }
 
 export interface TestApiKey {
@@ -196,4 +198,60 @@ export interface OnboardingStep {
   description: string;
   completed: boolean;
   completedAt: Date | null;
+}
+
+// Additional types for test data generation
+export interface TestData {
+  users: TestUserData[];
+  subscriptions: TestDataSubscription[];
+  payments: TestDataPayment[];
+  merchants: TestMerchant[];
+}
+
+export interface TestUserData {
+  id: string;
+  email: string;
+  name: string;
+  walletAddress: string;
+  createdAt: Date;
+}
+
+export interface TestMerchant {
+  id: string;
+  name: string;
+  email: string;
+  walletAddress: string;
+  plans: TestPlan[];
+}
+
+export interface TestPlan {
+  id: string;
+  name: string;
+  amount: number;
+  currency: string;
+  interval: 'daily' | 'weekly' | 'monthly' | 'yearly';
+  features: string[];
+}
+
+export interface TestDataSubscription {
+  id: string;
+  userId: string;
+  merchantId: string;
+  plan: string;
+  amount: number;
+  currency: string;
+  status: 'active' | 'paused' | 'cancelled';
+  nextBillingDate: Date;
+  createdAt: Date;
+}
+
+export interface TestDataPayment {
+  id: string;
+  subscriptionId: string;
+  userId: string;
+  amount: number;
+  currency: string;
+  status: 'completed' | 'pending' | 'failed';
+  transactionHash: string;
+  createdAt: Date;
 }
