@@ -10,6 +10,74 @@ import {
   ADDRESS_CONSTANTS,
 } from '../utils/constants/values';
 
+// ── Structured error handling ──────────────────────────────────────
+
+export enum WalletErrorCode {
+  NOT_CONNECTED = 'WALLET_NOT_CONNECTED',
+  USER_REJECTED = 'USER_REJECTED',
+  NETWORK_MISMATCH = 'NETWORK_MISMATCH',
+  BALANCE_FETCH_FAILED = 'BALANCE_FETCH_FAILED',
+  GAS_ESTIMATION_FAILED = 'GAS_ESTIMATION_FAILED',
+  STREAM_CREATION_FAILED = 'STREAM_CREATION_FAILED',
+  APPROVAL_FAILED = 'APPROVAL_FAILED',
+  INVALID_PARAMS = 'INVALID_PARAMS',
+  UNKNOWN = 'UNKNOWN',
+}
+
+export class WalletError extends Error {
+  readonly code: WalletErrorCode;
+  readonly userMessage: string;
+  readonly recovery?: string;
+
+  constructor(
+    code: WalletErrorCode,
+    userMessage: string,
+    recovery?: string,
+    cause?: unknown
+  ) {
+    super(userMessage);
+    this.name = 'WalletError';
+    this.code = code;
+    this.userMessage = userMessage;
+    this.recovery = recovery;
+    // Preserve original stack if available
+    if (cause instanceof Error && cause.stack) {
+      this.stack = `${this.stack}\nCaused by: ${cause.stack}`;
+    }
+  }
+}
+
+// ── Error rate tracker ─────────────────────────────────────────────
+
+interface ErrorRecord {
+  count: number;
+  lastSeen: number;
+}
+
+class ErrorRateTracker {
+  private readonly counts = new Map<WalletErrorCode, ErrorRecord>();
+
+  record(code: WalletErrorCode): void {
+    const existing = this.counts.get(code);
+    if (existing) {
+      existing.count += 1;
+      existing.lastSeen = Date.now();
+    } else {
+      this.counts.set(code, { count: 1, lastSeen: Date.now() });
+    }
+  }
+
+  getStats(): Record<string, ErrorRecord> {
+    return Object.fromEntries(this.counts.entries());
+  }
+
+  reset(): void {
+    this.counts.clear();
+  }
+}
+
+export const errorTracker = new ErrorRateTracker();
+
 export interface WalletConnection {
   address: string;
   chainId: number;
@@ -77,14 +145,16 @@ function superTokenResolverSymbol(chainId: number, tokenSymbol: string): string 
   return `${s}x`;
 }
 
-function formatSuperfluidError(error: unknown): string {
-  if (error instanceof SFError) {
-    return error.message;
-  }
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return 'Superfluid stream creation failed';
+function toWalletError(
+  error: unknown,
+  code: WalletErrorCode,
+  userMessage: string,
+  recovery?: string
+): WalletError {
+  errorTracker.record(code);
+  // Log full detail for debugging without leaking to the user
+  console.error(`[WalletError] ${code}:`, error);
+  return new WalletError(code, userMessage, recovery, error);
 }
 
 // This is a hook-based service that needs to be used within React components
@@ -191,8 +261,12 @@ export class WalletServiceManager {
 
       return balances;
     } catch (error) {
-      console.error('Failed to get token balances:', error);
-      throw error;
+      throw toWalletError(
+        error,
+        WalletErrorCode.BALANCE_FETCH_FAILED,
+        'Unable to fetch token balances.',
+        'Check your network connection and try again.'
+      );
     }
   }
 
@@ -203,9 +277,20 @@ export class WalletServiceManager {
     chainId: number,
     userGasLimitOverride?: string
   ): Promise<GasEstimate> {
-    const provider = this.getProvider(chainId);
+    let provider: ethers.providers.JsonRpcProvider;
+    let gasPrice: ethers.BigNumber;
 
-    const gasPrice = await this.resolveGasPrice(provider);
+    try {
+      provider = this.getProvider(chainId);
+      gasPrice = await this.resolveGasPrice(provider);
+    } catch (error) {
+      throw toWalletError(
+        error,
+        WalletErrorCode.GAS_ESTIMATION_FAILED,
+        'Could not retrieve gas price.',
+        'Check your network connection and try again.'
+      );
+    }
 
     let gasLimit: ethers.BigNumber;
 
@@ -241,7 +326,13 @@ export class WalletServiceManager {
   private getWalletSigner(): ethers.Signer {
     const conn = this.connection;
     if (!conn?.eip1193Provider) {
-      throw new Error('Wallet is not connected or does not expose a signing provider.');
+      const err = new WalletError(
+        WalletErrorCode.NOT_CONNECTED,
+        'Wallet is not connected.',
+        'Connect your wallet and try again.'
+      );
+      errorTracker.record(WalletErrorCode.NOT_CONNECTED);
+      throw err;
     }
     const web3Provider = new ethers.providers.Web3Provider(conn.eip1193Provider);
     return web3Provider.getSigner();
@@ -370,10 +461,19 @@ export class WalletServiceManager {
       };
     } catch (error) {
       if (isUserRejectedError(error)) {
-        throw new Error('Transaction was rejected in your wallet.');
+        errorTracker.record(WalletErrorCode.USER_REJECTED);
+        throw new WalletError(
+          WalletErrorCode.USER_REJECTED,
+          'Transaction was rejected in your wallet.',
+          'Open your wallet and approve the transaction to continue.'
+        );
       }
-      console.error('Failed to create Superfluid stream:', error);
-      throw new Error(formatSuperfluidError(error));
+      throw toWalletError(
+        error,
+        WalletErrorCode.STREAM_CREATION_FAILED,
+        'Stream creation failed.',
+        'Check your token balance and try again.'
+      );
     }
   }
 
@@ -453,10 +553,19 @@ export class WalletServiceManager {
       return receipt.transactionHash;
     } catch (error) {
       if (isUserRejectedError(error)) {
-        throw new Error('Transaction was rejected in your wallet.');
+        errorTracker.record(WalletErrorCode.USER_REJECTED);
+        throw new WalletError(
+          WalletErrorCode.USER_REJECTED,
+          'Transaction was rejected in your wallet.',
+          'Open your wallet and approve the transaction to continue.'
+        );
       }
-      console.error('Failed to create Sablier stream:', error);
-      throw error;
+      throw toWalletError(
+        error,
+        WalletErrorCode.STREAM_CREATION_FAILED,
+        'Stream creation failed.',
+        'Check your token balance and allowance, then try again.'
+      );
     }
   }
 
@@ -490,7 +599,13 @@ export class WalletServiceManager {
     const erc20Abi = ['function approve(address spender, uint256 amount) returns (bool)'];
     const conn = this.connection;
     if (!conn?.eip1193Provider) {
-      throw new Error('Wallet is not connected for gas estimation.');
+      const err = new WalletError(
+        WalletErrorCode.NOT_CONNECTED,
+        'Wallet is not connected.',
+        'Connect your wallet and try again.'
+      );
+      errorTracker.record(WalletErrorCode.NOT_CONNECTED);
+      throw err;
     }
     const web3Provider = new ethers.providers.Web3Provider(conn.eip1193Provider);
     const signer = web3Provider.getSigner();
@@ -525,12 +640,29 @@ export class WalletServiceManager {
     const signer = this.getWalletSigner();
     const erc20Abi = ['function approve(address spender, uint256 amount) returns (bool)'];
     const erc20 = new ethers.Contract(token, erc20Abi, signer);
-    const tx = await erc20.approve(spender, amount);
-    const receipt = await tx.wait();
-    if (!receipt?.transactionHash) {
-      throw new Error('Approval transaction mined without a hash');
+    try {
+      const tx = await erc20.approve(spender, amount);
+      const receipt = await tx.wait();
+      if (!receipt?.transactionHash) {
+        throw new Error('Approval transaction mined without a hash');
+      }
+      return receipt.transactionHash;
+    } catch (error) {
+      if (isUserRejectedError(error)) {
+        errorTracker.record(WalletErrorCode.USER_REJECTED);
+        throw new WalletError(
+          WalletErrorCode.USER_REJECTED,
+          'Approval was rejected in your wallet.',
+          'Open your wallet and approve the request to continue.'
+        );
+      }
+      throw toWalletError(
+        error,
+        WalletErrorCode.APPROVAL_FAILED,
+        'Token approval failed.',
+        'Check your wallet connection and try again.'
+      );
     }
-    return receipt.transactionHash;
   }
 
   private getProvider(chainId: number): ethers.providers.JsonRpcProvider {
