@@ -33,6 +33,11 @@ import { SegmentDetailScreen } from '../screens/SegmentDetailScreen';
 import { GamificationScreen } from '../screens/GamificationScreen';
 import RevenueReportScreen from '../screens/RevenueReportScreen';
 import UsageDashboardScreen from '../screens/UsageDashboard';
+import DeveloperPortalScreen from '../screens/DeveloperPortalScreen';
+import SandboxDashboardScreen from '../screens/SandboxDashboardScreen';
+import ApiKeyManagementScreen from '../screens/ApiKeyManagementScreen';
+import DocumentationPortalScreen from '../screens/DocumentationPortalScreen';
+import IntegrationGuidesScreen from '../screens/IntegrationGuidesScreen';
 import { colors } from '../utils/constants';
 
 import { RootStackParamList, TabParamList } from './types';
@@ -113,6 +118,31 @@ const HomeStack = () => (
       component={UsageDashboardScreen}
       options={{ headerShown: false }}
     />
+    <Stack.Screen
+      name="DeveloperPortal"
+      component={DeveloperPortalScreen}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="SandboxDashboard"
+      component={SandboxDashboardScreen}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="ApiKeyManagement"
+      component={ApiKeyManagementScreen}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="DocumentationPortal"
+      component={DocumentationPortalScreen}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="IntegrationGuides"
+      component={IntegrationGuidesScreen}
+      options={{ headerShown: false }}
+    />
   </Stack.Navigator>
 );
 
@@ -183,6 +213,26 @@ const SettingsStack = () => (
       name="Export" 
       component={ExportScreen} 
       options={{ title: 'Export Subscriptions', headerShown: true }} 
+    />
+    <Stack.Screen
+      name="DeveloperPortal"
+      component={DeveloperPortalScreen}
+      options={{ title: 'Developer Portal', headerShown: true }}
+    />
+    <Stack.Screen
+      name="Sandbox"
+      component={SandboxScreen}
+      options={{ title: 'Sandbox Environment', headerShown: true }}
+    />
+    <Stack.Screen
+      name="Documentation"
+      component={DocumentationPortalScreen}
+      options={{ title: 'Documentation', headerShown: true }}
+    />
+    <Stack.Screen
+      name="IntegrationGuides"
+      component={IntegrationGuidesScreen}
+      options={{ title: 'Integration Guides', headerShown: true }}
     />
   </Stack.Navigator>
 );
