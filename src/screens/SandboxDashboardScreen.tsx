@@ -205,10 +205,10 @@ const SandboxDashboardScreen: React.FC = () => {
               </View>
             </View>
 
-            {usageStats.topErrors.length > 0 && (
+            {(usageStats.topErrors ?? []).length > 0 && (
               <>
                 <Text style={styles.subsectionTitle}>Top Errors</Text>
-                {usageStats.topErrors.map((error) => (
+                {(usageStats.topErrors ?? []).map((error: { code: number; count: number; message: string }) => (
                   <View key={error.code} style={styles.errorRow}>
                     <Text style={styles.errorCode}>{error.code}</Text>
                     <Text style={styles.errorMessage}>{error.message}</Text>
