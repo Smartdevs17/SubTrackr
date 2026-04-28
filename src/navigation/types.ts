@@ -29,6 +29,8 @@ export type RootStackParamList = {
   Gamification: undefined;
   RevenueReport: undefined;
   UsageDashboard: { subscriptionId: string; planId: string; name: string };
+  MerchantOnboarding: undefined;
+  AffiliateDashboard: undefined;
 };
 
 export type TabParamList = {
