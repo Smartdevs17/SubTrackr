@@ -37,4 +37,10 @@ export type {
   UsageMetrics,
   HourlyUsage,
   DailyUsage,
+  TestData,
+  TestUserData,
+  TestMerchant,
+  TestPlan,
+  TestDataSubscription,
+  TestDataPayment,
 } from './types/sandbox';

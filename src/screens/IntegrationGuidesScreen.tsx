@@ -107,7 +107,7 @@ const IntegrationGuidesScreen: React.FC = () => {
               onPress={() => setExpandedGuide(expandedGuide === guide.id ? null : guide.id)}>
               <View style={styles.guideTitleRow}>
                 <Text style={styles.guideIcon}>
-                  {CATEGORY_LABELS[guide.category]?.icon || '📖'}
+                  {CATEGORY_LABELS[guide.category as IntegrationGuideCategory]?.icon || '📖'}
                 </Text>
                 <View style={styles.guideTitleContent}>
                   <Text style={styles.guideTitle}>{guide.title}</Text>
