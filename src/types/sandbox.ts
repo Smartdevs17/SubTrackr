@@ -2,6 +2,32 @@ export enum SandboxEnvironment {
   DEVELOPMENT = 'development',
   STAGING = 'staging',
   TESTING = 'testing',
+  PRODUCTION = 'production',
+}
+
+export enum SandboxStatus {
+  ACTIVE = 'active',
+  PAUSED = 'paused',
+  EXPIRED = 'expired',
+  DESTROYED = 'destroyed',
+}
+
+export enum DeveloperOnboardingStep {
+  WELCOME = 'welcome',
+  CREATE_ACCOUNT = 'create_account',
+  GENERATE_API_KEY = 'generate_api_key',
+  EXPLORE_SANDBOX = 'explore_sandbox',
+  BUILD_INTEGRATION = 'build_integration',
+  GO_LIVE = 'go_live',
+}
+
+export enum IntegrationGuideCategory {
+  GETTING_STARTED = 'getting_started',
+  SUBSCRIPTION_MANAGEMENT = 'subscription_management',
+  WEBHOOK_INTEGRATION = 'webhook_integration',
+  PAYMENT_PROCESSING = 'payment_processing',
+  ANALYTICS_REPORTING = 'analytics_reporting',
+  ADVANCED_FEATURES = 'advanced_features',
 }
 
 export enum ApiKeyStatus {
@@ -82,6 +108,50 @@ export interface UsageStats {
   totalDataTransferred: number;
   periodStart: Date;
   periodEnd: Date;
+  requestsByEndpoint?: Record<string, number>;
+  requestsByDay?: Record<string, number>;
+  topErrors?: Array<{ code: number; count: number; message: string }>;
+}
+
+export interface UsageMetric {
+  id: string;
+  apiKeyId: string;
+  sandboxId: string;
+  endpoint: string;
+  method: string;
+  statusCode: number;
+  responseTime: number;
+  requestSize: number;
+  responseSize: number;
+  timestamp: Date;
+  metadata: Record<string, unknown>;
+}
+
+export interface TestSubscription {
+  id: string;
+  name: string;
+  price: number;
+  currency: string;
+  status: string;
+  billingCycle: string;
+  nextBillingDate: Date;
+  createdAt: Date;
+}
+
+export interface SandboxMetrics {
+  totalSubscriptions: number;
+  totalTransactions: number;
+  totalVolume: number;
+  totalApiCalls: number;
+}
+
+export interface OnboardingStepInfo {
+  id: string;
+  title: string;
+  description: string;
+  step: DeveloperOnboardingStep;
+  completed: boolean;
+  required: boolean;
 }
 
 export interface DeveloperProfile {
