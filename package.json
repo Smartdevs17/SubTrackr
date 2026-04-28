@@ -55,7 +55,7 @@
     "@walletconnect/react-native-compat": "^2.23.9",
     "@walletconnect/utils": "^2.23.9",
     "ethers": "^5.8.0",
-    "expo": "~53.0.20",
+    "expo": "~55.0.18",
     "expo-application": "~6.1.5",
     "expo-clipboard": "~7.1.5",
     "expo-notifications": "^0.31.5",
