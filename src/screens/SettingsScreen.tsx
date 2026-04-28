@@ -219,11 +219,31 @@ const SettingsScreen: React.FC = () => {
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.linkRow, styles.linkRowLast]}
+            style={styles.linkRow}
             onPress={() => navigation.navigate('AffiliateDashboard')}
             accessibilityRole="button"
             accessibilityLabel="Affiliate dashboard">
             <Text style={styles.linkText}>Affiliate Dashboard</Text>
+            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
+              →
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.linkRow}
+            onPress={() => navigation.navigate('LoyaltyDashboard')}
+            accessibilityRole="button"
+            accessibilityLabel="Loyalty dashboard">
+            <Text style={styles.linkText}>Loyalty Dashboard</Text>
+            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
+              →
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.linkRow, styles.linkRowLast]}
+            onPress={() => navigation.navigate('CampaignManagement')}
+            accessibilityRole="button"
+            accessibilityLabel="Campaign management">
+            <Text style={styles.linkText}>Campaign Management</Text>
             <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
               →
             </Text>

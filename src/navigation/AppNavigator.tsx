@@ -35,6 +35,8 @@ import RevenueReportScreen from '../screens/RevenueReportScreen';
 import UsageDashboardScreen from '../screens/UsageDashboard';
 import MerchantOnboardingScreen from '../screens/MerchantOnboardingScreen';
 import AffiliateDashboardScreen from '../screens/AffiliateDashboardScreen';
+import LoyaltyDashboardScreen from '../screens/LoyaltyDashboardScreen';
+import CampaignManagementScreen from '../screens/CampaignManagementScreen';
 import { colors } from '../utils/constants';
 
 import { RootStackParamList, TabParamList } from './types';
@@ -195,6 +197,16 @@ const SettingsStack = () => (
       name="AffiliateDashboard"
       component={AffiliateDashboardScreen}
       options={{ title: 'Affiliate Dashboard', headerShown: true }}
+    />
+    <Stack.Screen
+      name="LoyaltyDashboard"
+      component={LoyaltyDashboardScreen}
+      options={{ title: 'Loyalty Dashboard', headerShown: true }}
+    />
+    <Stack.Screen
+      name="CampaignManagement"
+      component={CampaignManagementScreen}
+      options={{ title: 'Campaign Management', headerShown: true }}
     />
   </Stack.Navigator>
 );

@@ -31,6 +31,8 @@ export type RootStackParamList = {
   UsageDashboard: { subscriptionId: string; planId: string; name: string };
   MerchantOnboarding: undefined;
   AffiliateDashboard: undefined;
+  LoyaltyDashboard: undefined;
+  CampaignManagement: undefined;
 };
 
 export type TabParamList = {
