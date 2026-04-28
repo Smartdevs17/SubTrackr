@@ -97,15 +97,15 @@ const SandboxDashboardScreen: React.FC = () => {
           <View style={styles.configGrid}>
             <View style={styles.configItem}>
               <Text style={styles.configLabel}>Max Test Subscriptions</Text>
-              <Text style={styles.configValue}>{sandboxConfig.maxTestSubscriptions}</Text>
+              <Text style={styles.configValue}>{sandboxConfig.maxTestSubscriptions ?? 50}</Text>
             </View>
             <View style={styles.configItem}>
               <Text style={styles.configLabel}>Max API Calls</Text>
-              <Text style={styles.configValue}>{sandboxConfig.maxApiCalls.toLocaleString()}</Text>
+              <Text style={styles.configValue}>{(sandboxConfig.maxApiCalls ?? 10000).toLocaleString()}</Text>
             </View>
             <View style={styles.configItem}>
               <Text style={styles.configLabel}>Data Reset Interval</Text>
-              <Text style={styles.configValue}>{sandboxConfig.dataResetInterval}</Text>
+              <Text style={styles.configValue}>{sandboxConfig.dataResetInterval ?? 'weekly'}</Text>
             </View>
             <View style={styles.configItem}>
               <Text style={styles.configLabel}>Status</Text>
@@ -119,10 +119,10 @@ const SandboxDashboardScreen: React.FC = () => {
         <Card style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Allowed Features</Text>
-            <Text style={styles.sectionMeta}>{sandboxConfig.allowedFeatures.length} features</Text>
+            <Text style={styles.sectionMeta}>{(sandboxConfig.allowedFeatures ?? []).length} features</Text>
           </View>
           <View style={styles.featureGrid}>
-            {sandboxConfig.allowedFeatures.map((feature) => (
+            {(sandboxConfig.allowedFeatures ?? []).map((feature: string) => (
               <View key={feature} style={styles.featureChip}>
                 <Text style={styles.featureChipText}>
                   {feature.replace(/_/g, ' ')}

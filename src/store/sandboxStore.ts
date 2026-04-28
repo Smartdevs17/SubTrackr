@@ -4,74 +4,68 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   SandboxConfig,
   SandboxEnvironment,
+  SandboxStatus,
   DeveloperProfile,
   DeveloperOnboardingStep,
+  OnboardingStepInfo,
   ApiKey,
+  ApiKeyStatus,
+  ApiKeyScope,
   UsageStats,
+  UsageMetric,
   TestSubscription,
+  SandboxMetrics,
   IntegrationGuide,
   IntegrationGuideCategory,
 } from '../types/sandbox';
-import { sandboxService } from '../services/sandbox/sandboxService';
-import { apiKeyService } from '../services/sandbox/apiKeyService';
-import { developerOnboardingService } from '../services/sandbox/developerOnboardingService';
-import { usageTrackingService } from '../services/sandbox/usageTrackingService';
+import { AppError, errorHandler } from '../services/errorHandler';
 
-interface SandboxState {
-  sandboxConfig: SandboxConfig;
-  developerProfile: DeveloperProfile | null;
-  apiKeys: ApiKey[];
-  usageStats: UsageStats | null;
-  testSubscriptions: TestSubscription[];
-  integrationGuides: IntegrationGuide[];
-  isLoading: boolean;
-  error: string | null;
+const STORAGE_KEY = 'subtrackr-sandbox';
+const STORE_VERSION = 3;
 
-  initializeSandbox: () => Promise<void>;
-  switchEnvironment: (env: SandboxEnvironment) => Promise<void>;
-  createDeveloperProfile: (name: string, email: string, company?: string) => Promise<void>;
-  completeOnboardingStep: (step: DeveloperOnboardingStep) => Promise<void>;
-  generateApiKey: (name: string) => Promise<string>;
-  revokeApiKey: (keyId: string) => Promise<void>;
-  deleteApiKey: (keyId: string) => Promise<void>;
-  refreshUsageStats: () => void;
-  resetTestData: () => void;
-  addTestSubscription: (name: string, price: number) => void;
-  removeTestSubscription: (id: string) => void;
-  updateSandboxConfig: (updates: Partial<SandboxConfig>) => Promise<void>;
-  markGuideCompleted: (guideId: string) => void;
-}
+const generateId = (prefix: string): string =>
+  `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 
-const INTEGRATION_GUIDES: IntegrationGuide[] = [
+const generateApiKeyString = (): string => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let key = 'sk_sandbox_';
+  for (let i = 0; i < 48; i++) {
+    key += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return key;
+};
+
+const DEFAULT_RATE_LIMIT = {
+  requestsPerMinute: 60,
+  requestsPerHour: 1000,
+  requestsPerDay: 10000,
+  burstLimit: 10,
+};
+
+const DEFAULT_ONBOARDING_STEPS: OnboardingStepInfo[] = [
+  { id: 'welcome', title: 'Welcome', description: 'Learn about the developer portal', step: DeveloperOnboardingStep.WELCOME, completed: false, required: true },
+  { id: 'create-account', title: 'Create Account', description: 'Set up your developer profile', step: DeveloperOnboardingStep.CREATE_ACCOUNT, completed: false, required: true },
+  { id: 'generate-api-key', title: 'Generate API Key', description: 'Create your sandbox API key', step: DeveloperOnboardingStep.GENERATE_API_KEY, completed: false, required: true },
+  { id: 'explore-sandbox', title: 'Explore Sandbox', description: 'Test the sandbox environment', step: DeveloperOnboardingStep.EXPLORE_SANDBOX, completed: false, required: false },
+  { id: 'build-integration', title: 'Build Integration', description: 'Build your integration', step: DeveloperOnboardingStep.BUILD_INTEGRATION, completed: false, required: false },
+  { id: 'go-live', title: 'Go Live', description: 'Switch to production', step: DeveloperOnboardingStep.GO_LIVE, completed: false, required: false },
+];
+
+const DEFAULT_INTEGRATION_GUIDES: IntegrationGuide[] = [
   {
     id: 'guide-getting-started',
     title: 'Getting Started with SubTrackr API',
-    description: 'Learn how to set up your development environment and make your first API call',
+    description: 'Set up your environment and make your first API call',
     category: IntegrationGuideCategory.GETTING_STARTED,
     difficulty: 'beginner',
     estimatedTime: '15 minutes',
     steps: [
-      {
-        title: 'Sign up for a Developer Account',
-        content: 'Create your developer account on the SubTrackr Developer Portal.',
-      },
-      {
-        title: 'Generate API Keys',
-        content: 'Navigate to the API Keys section and generate your first sandbox API key.',
-      },
-      {
-        title: 'Make Your First API Call',
-        content: 'Use your API key to make a GET request to the subscriptions endpoint.',
-        codeExample: `const response = await fetch('https://api.subtrackr.dev/v1/subscriptions', {
-  headers: {
-    'Authorization': 'Bearer sk_sandbox_your_key_here',
-    'Content-Type': 'application/json',
-  },
-});
-const data = await response.json();`,
-      },
+      { title: 'Install SDK', content: 'npm install @subtrackr/sdk', codeExample: 'npm install @subtrackr/sdk', language: 'bash' },
+      { title: 'Initialize Client', content: 'Create a SubTrackr client with your API key.', codeExample: `const client = new SubTrackr({\n  apiKey: 'sk_sandbox_your_key',\n});`, language: 'typescript' },
+      { title: 'Make First Request', content: 'List subscriptions to verify setup.', codeExample: `const subs = await client.subscriptions.list();\nconsole.log(subs.data);`, language: 'typescript' },
     ],
-    tags: ['setup', 'authentication', 'first-request'],
+    tags: ['setup', 'quickstart'],
+    isCompleted: false,
   },
   {
     id: 'guide-subscription-management',
@@ -81,82 +75,52 @@ const data = await response.json();`,
     difficulty: 'intermediate',
     estimatedTime: '30 minutes',
     steps: [
-      {
-        title: 'Create a Subscription',
-        content: 'Use the POST endpoint to create new subscriptions.',
-        codeExample: `const response = await fetch('https://api.subtrackr.dev/v1/subscriptions', {
-  method: 'POST',
-  headers: {
-    'Authorization': 'Bearer sk_sandbox_your_key_here',
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({
-    name: 'Premium Plan',
-    price: 29.99,
-    currency: 'USD',
-    billingCycle: 'monthly',
-  }),
-});`,
-      },
-      {
-        title: 'Update Subscription Status',
-        content: 'Pause, resume, or cancel subscriptions using the status update endpoint.',
-      },
+      { title: 'Create Subscription', content: 'Use POST to create subscriptions.', codeExample: `const sub = await client.subscriptions.create({\n  name: 'Pro Plan',\n  price: 29.99,\n  currency: 'USD',\n  billingCycle: 'monthly',\n});`, language: 'typescript' },
+      { title: 'Update Status', content: 'Pause, resume, or cancel subscriptions.' },
     ],
-    tags: ['subscriptions', 'billing', 'crud'],
-  },
-  {
-    id: 'guide-payment-processing',
-    title: 'Payment Processing Integration',
-    description: 'Integrate payment processing with crypto and traditional payment methods',
-    category: IntegrationGuideCategory.PAYMENT_PROCESSING,
-    difficulty: 'advanced',
-    estimatedTime: '45 minutes',
-    steps: [
-      {
-        title: 'Set Up Payment Gateway',
-        content: 'Configure your payment gateway credentials in the sandbox environment.',
-      },
-      {
-        title: 'Process Crypto Payments',
-        content: 'Integrate with Stellar and EVM chains for cryptocurrency payments.',
-      },
-    ],
-    tags: ['payments', 'crypto', 'stellar'],
+    tags: ['subscriptions', 'billing'],
+    isCompleted: false,
   },
   {
     id: 'guide-webhook-integration',
     title: 'Webhook Integration',
-    description: 'Set up and manage webhooks for real-time event notifications',
+    description: 'Set up webhooks for real-time event notifications',
     category: IntegrationGuideCategory.WEBHOOK_INTEGRATION,
     difficulty: 'intermediate',
     estimatedTime: '25 minutes',
     steps: [
-      {
-        title: 'Register a Webhook Endpoint',
-        content: 'Register your server URL to receive webhook events.',
-      },
-      {
-        title: 'Verify Webhook Signatures',
-        content: 'All webhooks include an HMAC signature. Always verify before processing.',
-      },
+      { title: 'Register Endpoint', content: 'Register your server URL to receive events.' },
+      { title: 'Verify Signatures', content: 'Verify HMAC signatures on webhook payloads.' },
     ],
-    tags: ['webhooks', 'events', 'real-time'],
+    tags: ['webhooks', 'events'],
+    isCompleted: false,
+  },
+  {
+    id: 'guide-payment-processing',
+    title: 'Payment Processing',
+    description: 'Integrate crypto and traditional payment methods',
+    category: IntegrationGuideCategory.PAYMENT_PROCESSING,
+    difficulty: 'advanced',
+    estimatedTime: '45 minutes',
+    steps: [
+      { title: 'Configure Gateway', content: 'Set up payment gateway credentials.' },
+      { title: 'Process Crypto Payments', content: 'Integrate with Stellar and EVM chains.' },
+    ],
+    tags: ['payments', 'crypto'],
+    isCompleted: false,
   },
   {
     id: 'guide-analytics-reporting',
     title: 'Analytics & Reporting',
-    description: 'Access subscription analytics and generate custom reports',
+    description: 'Access subscription analytics and generate reports',
     category: IntegrationGuideCategory.ANALYTICS_REPORTING,
     difficulty: 'intermediate',
     estimatedTime: '20 minutes',
     steps: [
-      {
-        title: 'Fetch Analytics Data',
-        content: 'Use the analytics endpoints to retrieve subscription metrics.',
-      },
+      { title: 'Fetch Analytics', content: 'Retrieve subscription metrics via API.' },
     ],
     tags: ['analytics', 'reporting'],
+    isCompleted: false,
   },
   {
     id: 'guide-advanced-features',
@@ -166,205 +130,454 @@ const data = await response.json();`,
     difficulty: 'advanced',
     estimatedTime: '60 minutes',
     steps: [
-      {
-        title: 'Configure SLA Monitoring',
-        content: 'Set up SLA targets and monitor service availability.',
-      },
-      {
-        title: 'Manage Quotas',
-        content: 'Define and enforce usage quotas for different subscription tiers.',
-      },
+      { title: 'Configure SLA', content: 'Set up SLA targets and monitoring.' },
+      { title: 'Manage Quotas', content: 'Define usage quotas for subscription tiers.' },
     ],
     tags: ['sla', 'quotas', 'enterprise'],
+    isCompleted: false,
   },
 ];
+
+interface SandboxState {
+  sandboxes: SandboxConfig[];
+  currentSandbox: SandboxConfig | null;
+  selectedSandbox: SandboxConfig | null;
+  sandboxConfig: SandboxConfig;
+  developerProfile: DeveloperProfile | null;
+  apiKeys: ApiKey[];
+  usageStats: UsageStats | null;
+  usageRecords: UsageMetric[];
+  testSubscriptions: TestSubscription[];
+  subscriptions: TestSubscription[];
+  sandboxSubscriptions: TestSubscription[];
+  transactions: Array<{ id: string; type: string; amount: number; status: string; timestamp: Date }>;
+  metrics: SandboxMetrics;
+  onboardingSteps: OnboardingStepInfo[];
+  integrationGuides: IntegrationGuide[];
+  selectedGuide: IntegrationGuide | null;
+  isLoading: boolean;
+  error: AppError | null;
+
+  fetchSandboxes: (developerId: string) => Promise<void>;
+  createSandbox: (name: string, description: string, environment: SandboxEnvironment) => Promise<void>;
+  selectSandbox: (sandbox: SandboxConfig) => void;
+  deleteSandbox: (id: string) => Promise<void>;
+  pauseSandbox: (id: string) => Promise<void>;
+  resumeSandbox: (id: string) => Promise<void>;
+  toggleSandboxStatus: (id: string) => Promise<void>;
+  generateTestData: (sandboxId?: string) => Promise<void>;
+  resetSandbox: () => void;
+  resetTestData: () => void;
+  refreshMetrics: () => Promise<void>;
+  initializeSandbox: () => void;
+  initializeDeveloperPortal: () => void;
+  switchEnvironment: (env: SandboxEnvironment) => void;
+  addTestSubscription: (name: string, price: number) => void;
+  removeTestSubscription: (id: string) => void;
+  completeOnboardingStep: (stepId: string) => void;
+  createApiKey: (input: { name: string; description?: string; sandboxId: string; scopes: ApiKeyScope[] }) => Promise<void>;
+  revokeApiKey: (id: string) => Promise<void>;
+  reactivateApiKey: (id: string) => Promise<void>;
+  deleteApiKey: (id: string) => Promise<void>;
+  fetchUsageForSandbox: (sandboxId: string) => void;
+  markGuideCompleted: (guideId: string) => void;
+  clearError: () => void;
+}
+
+const defaultSandboxConfig: SandboxConfig = {
+  id: generateId('sandbox'),
+  environment: SandboxEnvironment.DEVELOPMENT,
+  name: 'Development Sandbox',
+  description: 'Primary sandbox for development and testing',
+  isActive: true,
+  dataIsolation: true,
+  rateLimit: DEFAULT_RATE_LIMIT,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
 
 export const useSandboxStore = create<SandboxState>()(
   persist(
     (set, get) => ({
-      sandboxConfig: sandboxService.getConfig(),
-      developerProfile: developerOnboardingService.getProfile(),
+      sandboxes: [],
+      currentSandbox: null,
+      selectedSandbox: null,
+      sandboxConfig: defaultSandboxConfig,
+      developerProfile: null,
       apiKeys: [],
       usageStats: null,
-      testSubscriptions: sandboxService.getTestSubscriptions(),
-      integrationGuides: INTEGRATION_GUIDES,
+      usageRecords: [],
+      testSubscriptions: [],
+      subscriptions: [],
+      sandboxSubscriptions: [],
+      transactions: [],
+      metrics: { totalSubscriptions: 0, totalTransactions: 0, totalVolume: 0, totalApiCalls: 0 },
+      onboardingSteps: DEFAULT_ONBOARDING_STEPS,
+      integrationGuides: DEFAULT_INTEGRATION_GUIDES,
+      selectedGuide: null,
       isLoading: false,
       error: null,
 
-      initializeSandbox: async () => {
-        set({ isLoading: true, error: null });
+      fetchSandboxes: async (_developerId: string) => {
         try {
-          const config = sandboxService.getConfig();
-          const profile = developerOnboardingService.getProfile();
-          const testSubs = sandboxService.getTestSubscriptions();
-
-          let apiKeys: ApiKey[] = [];
-          if (profile) {
-            apiKeys = apiKeyService.getApiKeysByDeveloper(profile.id);
-            usageTrackingService.generateMockUsageData(profile.id, apiKeys[0]?.id || 'default');
+          set({ isLoading: true, error: null });
+          const { sandboxes } = get();
+          if (sandboxes.length > 0) {
+            const active = sandboxes.find((s) => s.isActive) || sandboxes[0];
+            set({ currentSandbox: active });
           }
+          set({ isLoading: false });
+        } catch (err) {
+          set({
+            error: errorHandler.handleError(err as Error, { action: 'fetchSandboxes', timestamp: new Date() }),
+            isLoading: false,
+          });
+        }
+      },
 
-          const usageStats = profile ? usageTrackingService.getUsageStats(profile.id) : null;
+      createSandbox: async (name, description, environment) => {
+        try {
+          set({ isLoading: true, error: null });
+          const sandbox: SandboxConfig = {
+            id: generateId('sandbox'),
+            environment,
+            name,
+            description,
+            isActive: true,
+            status: SandboxStatus.ACTIVE,
+            dataIsolation: true,
+            rateLimit: DEFAULT_RATE_LIMIT,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          };
+          set((state) => ({
+            sandboxes: [...state.sandboxes, sandbox],
+            currentSandbox: state.currentSandbox || sandbox,
+            isLoading: false,
+          }));
+        } catch (err) {
+          set({
+            error: errorHandler.handleError(err as Error, { action: 'createSandbox', timestamp: new Date() }),
+            isLoading: false,
+          });
+        }
+      },
+
+      selectSandbox: (sandbox) => {
+        set({ selectedSandbox: sandbox, currentSandbox: sandbox });
+      },
+
+      deleteSandbox: async (id) => {
+        set((state) => {
+          const remaining = state.sandboxes.filter((s) => s.id !== id);
+          return {
+            sandboxes: remaining,
+            currentSandbox: state.currentSandbox?.id === id ? remaining[0] || null : state.currentSandbox,
+            selectedSandbox: state.selectedSandbox?.id === id ? null : state.selectedSandbox,
+          };
+        });
+      },
+
+      pauseSandbox: async (id) => {
+        set((state) => ({
+          sandboxes: state.sandboxes.map((s) =>
+            s.id === id ? { ...s, isActive: false, status: SandboxStatus.PAUSED, updatedAt: new Date() } : s
+          ),
+          currentSandbox: state.currentSandbox?.id === id
+            ? { ...state.currentSandbox, isActive: false, status: SandboxStatus.PAUSED }
+            : state.currentSandbox,
+        }));
+      },
+
+      resumeSandbox: async (id) => {
+        set((state) => ({
+          sandboxes: state.sandboxes.map((s) =>
+            s.id === id ? { ...s, isActive: true, status: SandboxStatus.ACTIVE, updatedAt: new Date() } : s
+          ),
+          currentSandbox: state.currentSandbox?.id === id
+            ? { ...state.currentSandbox, isActive: true, status: SandboxStatus.ACTIVE }
+            : state.currentSandbox,
+        }));
+      },
+
+      toggleSandboxStatus: async (id) => {
+        const sandbox = get().sandboxes.find((s) => s.id === id);
+        if (!sandbox) return;
+        if (sandbox.isActive) {
+          await get().pauseSandbox(id);
+        } else {
+          await get().resumeSandbox(id);
+        }
+      },
+
+      generateTestData: async (_sandboxId?: string) => {
+        try {
+          set({ isLoading: true, error: null });
+          const names = ['Netflix', 'Spotify', 'Adobe CC', 'Slack Pro', 'GitHub Team', 'Figma Pro', 'Notion Plus', 'Vercel Pro'];
+          const prices = [15.99, 9.99, 54.99, 8.75, 4.0, 12.0, 10.0, 20.0];
+
+          const testSubs: TestSubscription[] = names.map((name, i) => ({
+            id: generateId('test_sub'),
+            name,
+            price: prices[i],
+            currency: 'USD',
+            status: i < 6 ? 'active' : 'paused',
+            billingCycle: 'monthly',
+            nextBillingDate: new Date(Date.now() + (i + 1) * 30 * 24 * 60 * 60 * 1000),
+            createdAt: new Date(Date.now() - (8 - i) * 7 * 24 * 60 * 60 * 1000),
+          }));
+
+          const transactions = Array.from({ length: 15 }, (_, i) => ({
+            id: generateId('tx'),
+            type: i % 3 === 0 ? 'refund' : 'charge',
+            amount: Math.round((Math.random() * 100 + 5) * 100) / 100,
+            status: i < 12 ? 'completed' : 'pending',
+            timestamp: new Date(Date.now() - i * 2 * 24 * 60 * 60 * 1000),
+          }));
 
           set({
-            sandboxConfig: config,
-            developerProfile: profile,
-            apiKeys,
-            usageStats,
             testSubscriptions: testSubs,
+            subscriptions: testSubs,
+            sandboxSubscriptions: testSubs,
+            transactions,
+            metrics: {
+              totalSubscriptions: testSubs.length,
+              totalTransactions: transactions.length,
+              totalVolume: transactions.reduce((sum, t) => sum + t.amount, 0),
+              totalApiCalls: Math.floor(Math.random() * 5000) + 1000,
+            },
             isLoading: false,
           });
-        } catch (error) {
+        } catch (err) {
           set({
-            error: error instanceof Error ? error.message : 'Failed to initialize sandbox',
-            isLoading: false,
-          });
-        }
-      },
-
-      switchEnvironment: async (env: SandboxEnvironment) => {
-        set({ isLoading: true });
-        try {
-          const config = await sandboxService.switchEnvironment(env);
-          set({ sandboxConfig: config, isLoading: false });
-        } catch (error) {
-          set({
-            error: error instanceof Error ? error.message : 'Failed to switch environment',
+            error: errorHandler.handleError(err as Error, { action: 'generateTestData', timestamp: new Date() }),
             isLoading: false,
           });
         }
       },
 
-      createDeveloperProfile: async (name: string, email: string, company?: string) => {
-        set({ isLoading: true });
-        try {
-          const profile = await developerOnboardingService.createProfile(name, email, company);
-          set({ developerProfile: profile, isLoading: false });
-        } catch (error) {
-          set({
-            error: error instanceof Error ? error.message : 'Failed to create profile',
-            isLoading: false,
-          });
-        }
-      },
-
-      completeOnboardingStep: async (step: DeveloperOnboardingStep) => {
-        try {
-          const profile = await developerOnboardingService.completeStep(step);
-          set({ developerProfile: profile });
-        } catch (error) {
-          set({
-            error: error instanceof Error ? error.message : 'Failed to complete step',
-          });
-        }
-      },
-
-      generateApiKey: async (name: string) => {
-        const profile = get().developerProfile;
-        if (!profile) throw new Error('No developer profile');
-
-        set({ isLoading: true });
-        try {
-          const key = await apiKeyService.createApiKey(profile.id, name);
-          const apiKeys = apiKeyService.getApiKeysByDeveloper(profile.id);
-          set({ apiKeys, isLoading: false });
-          return key.key;
-        } catch (error) {
-          set({
-            error: error instanceof Error ? error.message : 'Failed to generate API key',
-            isLoading: false,
-          });
-          throw error;
-        }
-      },
-
-      revokeApiKey: async (keyId: string) => {
-        try {
-          await apiKeyService.revokeApiKey(keyId);
-          const profile = get().developerProfile;
-          if (profile) {
-            const apiKeys = apiKeyService.getApiKeysByDeveloper(profile.id);
-            set({ apiKeys });
-          }
-        } catch (error) {
-          set({
-            error: error instanceof Error ? error.message : 'Failed to revoke API key',
-          });
-        }
-      },
-
-      deleteApiKey: async (keyId: string) => {
-        try {
-          await apiKeyService.deleteApiKey(keyId);
-          const profile = get().developerProfile;
-          if (profile) {
-            const apiKeys = apiKeyService.getApiKeysByDeveloper(profile.id);
-            set({ apiKeys });
-          }
-        } catch (error) {
-          set({
-            error: error instanceof Error ? error.message : 'Failed to delete API key',
-          });
-        }
-      },
-
-      refreshUsageStats: () => {
-        const profile = get().developerProfile;
-        if (profile) {
-          const usageStats = usageTrackingService.getUsageStats(profile.id);
-          set({ usageStats });
-        }
+      resetSandbox: () => {
+        set({
+          testSubscriptions: [],
+          subscriptions: [],
+          sandboxSubscriptions: [],
+          transactions: [],
+          metrics: { totalSubscriptions: 0, totalTransactions: 0, totalVolume: 0, totalApiCalls: 0 },
+          usageRecords: [],
+          usageStats: null,
+        });
       },
 
       resetTestData: () => {
-        sandboxService.resetTestData();
-        const profile = get().developerProfile;
-        if (profile) {
-          usageTrackingService.generateMockUsageData(profile.id, 'default');
-          const usageStats = usageTrackingService.getUsageStats(profile.id);
-          set({ usageStats });
-        }
-        set({ testSubscriptions: sandboxService.getTestSubscriptions() });
+        get().resetSandbox();
       },
 
-      addTestSubscription: (name: string, price: number) => {
-        const sub = sandboxService.addTestSubscription({
+      refreshMetrics: async () => {
+        const { testSubscriptions, transactions } = get();
+        set({
+          metrics: {
+            totalSubscriptions: testSubscriptions.length,
+            totalTransactions: transactions.length,
+            totalVolume: transactions.reduce((sum, t) => sum + t.amount, 0),
+            totalApiCalls: get().metrics.totalApiCalls,
+          },
+        });
+      },
+
+      initializeSandbox: () => {
+        const { sandboxes, testSubscriptions } = get();
+        if (sandboxes.length === 0) {
+          const defaultSandbox: SandboxConfig = {
+            id: generateId('sandbox'),
+            environment: SandboxEnvironment.DEVELOPMENT,
+            name: 'Development Sandbox',
+            description: 'Primary sandbox for development and testing',
+            isActive: true,
+            status: SandboxStatus.ACTIVE,
+            dataIsolation: true,
+            rateLimit: DEFAULT_RATE_LIMIT,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          };
+          set({ sandboxes: [defaultSandbox], currentSandbox: defaultSandbox });
+        }
+        if (testSubscriptions.length === 0) {
+          get().generateTestData();
+        }
+      },
+
+      initializeDeveloperPortal: () => {
+        const { sandboxes } = get();
+        if (sandboxes.length === 0) {
+          set({ sandboxes: [], onboardingSteps: DEFAULT_ONBOARDING_STEPS });
+        }
+      },
+
+      switchEnvironment: (env) => {
+        set((state) => ({
+          sandboxConfig: { ...state.sandboxConfig, environment: env, updatedAt: new Date() },
+        }));
+      },
+
+      addTestSubscription: (name, price) => {
+        const sub: TestSubscription = {
+          id: generateId('test_sub'),
           name,
           price,
           currency: 'USD',
           status: 'active',
           billingCycle: 'monthly',
           nextBillingDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          createdAt: new Date(),
+        };
+        set((state) => ({
+          testSubscriptions: [...state.testSubscriptions, sub],
+          subscriptions: [...state.subscriptions, sub],
+          sandboxSubscriptions: [...state.sandboxSubscriptions, sub],
+        }));
+      },
+
+      removeTestSubscription: (id) => {
+        set((state) => ({
+          testSubscriptions: state.testSubscriptions.filter((s) => s.id !== id),
+          subscriptions: state.subscriptions.filter((s) => s.id !== id),
+          sandboxSubscriptions: state.sandboxSubscriptions.filter((s) => s.id !== id),
+        }));
+      },
+
+      completeOnboardingStep: (stepId) => {
+        set((state) => ({
+          onboardingSteps: state.onboardingSteps.map((s) =>
+            s.id === stepId ? { ...s, completed: true } : s
+          ),
+        }));
+      },
+
+      createApiKey: async (input) => {
+        try {
+          set({ isLoading: true, error: null });
+          const key = generateApiKeyString();
+          const apiKey: ApiKey = {
+            id: generateId('key'),
+            key,
+            name: input.name,
+            description: input.description,
+            sandboxId: input.sandboxId,
+            status: ApiKeyStatus.ACTIVE,
+            scopes: input.scopes,
+            expiresAt: null,
+            lastUsedAt: null,
+            usageCount: 0,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          };
+          set((state) => ({
+            apiKeys: [...state.apiKeys, apiKey],
+            isLoading: false,
+          }));
+          get().completeOnboardingStep('generate-api-key');
+        } catch (err) {
+          set({
+            error: errorHandler.handleError(err as Error, { action: 'createApiKey', timestamp: new Date() }),
+            isLoading: false,
+          });
+        }
+      },
+
+      revokeApiKey: async (id) => {
+        set((state) => ({
+          apiKeys: state.apiKeys.map((k) =>
+            k.id === id ? { ...k, status: ApiKeyStatus.REVOKED, updatedAt: new Date() } : k
+          ),
+        }));
+      },
+
+      reactivateApiKey: async (id) => {
+        set((state) => ({
+          apiKeys: state.apiKeys.map((k) =>
+            k.id === id ? { ...k, status: ApiKeyStatus.ACTIVE, updatedAt: new Date() } : k
+          ),
+        }));
+      },
+
+      deleteApiKey: async (id) => {
+        set((state) => ({
+          apiKeys: state.apiKeys.filter((k) => k.id !== id),
+        }));
+      },
+
+      fetchUsageForSandbox: (sandboxId) => {
+        const records = get().usageRecords.filter((r) => r.sandboxId === sandboxId);
+        const totalRequests = records.length;
+        const successfulRequests = records.filter((r) => r.statusCode >= 200 && r.statusCode < 400).length;
+        const failedRequests = totalRequests - successfulRequests;
+        const avgResponseTime = totalRequests > 0
+          ? records.reduce((sum, r) => sum + r.responseTime, 0) / totalRequests
+          : 0;
+
+        const requestsByEndpoint: Record<string, number> = {};
+        const requestsByDay: Record<string, number> = {};
+        const errorCounts: Record<number, { count: number; message: string }> = {};
+
+        records.forEach((r) => {
+          const endpointKey = `${r.method} ${r.endpoint}`;
+          requestsByEndpoint[endpointKey] = (requestsByEndpoint[endpointKey] || 0) + 1;
+          const day = new Date(r.timestamp).toISOString().split('T')[0];
+          requestsByDay[day] = (requestsByDay[day] || 0) + 1;
+          if (r.statusCode >= 400) {
+            if (!errorCounts[r.statusCode]) {
+              errorCounts[r.statusCode] = { count: 0, message: `HTTP ${r.statusCode}` };
+            }
+            errorCounts[r.statusCode].count++;
+          }
         });
-        set({ testSubscriptions: [...get().testSubscriptions, sub] });
-      },
 
-      removeTestSubscription: (id: string) => {
-        sandboxService.removeTestSubscription(id);
+        const now = new Date();
+        const periodStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
         set({
-          testSubscriptions: get().testSubscriptions.filter((s) => s.id !== id),
+          usageStats: {
+            totalRequests,
+            successfulRequests,
+            failedRequests,
+            averageResponseTime: Math.round(avgResponseTime),
+            totalDataTransferred: records.reduce((sum, r) => sum + (r.requestSize || 0) + (r.responseSize || 0), 0),
+            periodStart,
+            periodEnd: now,
+            requestsByEndpoint,
+            requestsByDay,
+            topErrors: Object.entries(errorCounts).map(([code, data]) => ({
+              code: Number(code),
+              count: data.count,
+              message: data.message,
+            })),
+          },
         });
       },
 
-      updateSandboxConfig: async (updates: Partial<SandboxConfig>) => {
-        const config = await sandboxService.updateConfig(updates);
-        set({ sandboxConfig: config });
-      },
-
-      markGuideCompleted: (guideId: string) => {
-        set({
-          integrationGuides: get().integrationGuides.map((g) =>
+      markGuideCompleted: (guideId) => {
+        set((state) => ({
+          integrationGuides: state.integrationGuides.map((g) =>
             g.id === guideId ? { ...g, isCompleted: true } : g
           ),
-        });
+        }));
       },
+
+      clearError: () => set({ error: null }),
     }),
     {
-      name: 'subtrackr-sandbox',
+      name: STORAGE_KEY,
+      version: STORE_VERSION,
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) => ({
-        sandboxConfig: state.sandboxConfig,
+        sandboxes: state.sandboxes,
+        currentSandbox: state.currentSandbox,
+        apiKeys: state.apiKeys,
+        onboardingSteps: state.onboardingSteps,
         integrationGuides: state.integrationGuides,
+        testSubscriptions: state.testSubscriptions,
+        transactions: state.transactions,
+        metrics: state.metrics,
       }),
     }
   )
