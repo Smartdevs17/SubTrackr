@@ -80,7 +80,7 @@ const DeveloperPortalScreen: React.FC = () => {
   const completedGuides = integrationGuides.filter((g) => g.isCompleted).length;
   const onboardingProgress = developerProfile
     ? Math.round(
-        (developerProfile.completedSteps.length /
+        ((developerProfile.completedSteps?.length || 0) /
           Object.keys(DeveloperOnboardingStep).length) *
           100
       )
@@ -212,8 +212,8 @@ const DeveloperPortalScreen: React.FC = () => {
               stepNumber={index + 1}
               title={step.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}
               description={`Step ${index + 1} of the onboarding process`}
-              isCompleted={developerProfile?.completedSteps.includes(step) || false}
-              isCurrent={developerProfile?.onboardingStep === step}
+              isCompleted={developerProfile?.completedSteps?.includes(step) || false}
+              isCurrent={String(developerProfile?.onboardingStep) === String(step)}
             />
           ))}
         </Card>

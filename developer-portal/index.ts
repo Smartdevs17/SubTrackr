@@ -1,8 +1,15 @@
-export { DeveloperPortalService, developerPortalService } from './services/developerPortalService';
-export { DocumentationService } from './services/documentationService';
+export { DeveloperPortalService } from './services/portalService';
 export { IntegrationGuidesService } from './services/integrationGuidesService';
-export { DeveloperPortalUtils } from './utils/developerPortalUtils';
 export { DeveloperOnboarding } from './components/DeveloperOnboarding';
 export { ApiKeyManager } from './components/ApiKeyManager';
-export * from './types/developer';
-export * from './types/portal';
+export { DashboardPage, ApiKeysPage, DocumentationPage, UsagePage, OnboardingPage } from './pages';
+export type {
+  PortalUser,
+  PortalDashboard,
+  EnvironmentSummary,
+  ActivityEntry,
+  QuickLink,
+  Announcement,
+  IntegrationGuide,
+  IntegrationStep,
+} from './types/portal';

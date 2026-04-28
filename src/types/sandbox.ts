@@ -130,14 +130,15 @@ export interface UsageMetric {
   id: string;
   apiKeyId: string;
   sandboxId: string;
+  developerId?: string;
   endpoint: string;
   method: string;
   statusCode: number;
   responseTime: number;
-  requestSize: number;
-  responseSize: number;
+  requestSize?: number;
+  responseSize?: number;
   timestamp: Date;
-  metadata: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface TestSubscription {
@@ -149,6 +150,10 @@ export interface TestSubscription {
   billingCycle: string;
   nextBillingDate: Date;
   createdAt: Date;
+  category?: string;
+  isActive?: boolean;
+  isCryptoEnabled?: boolean;
+  cryptoToken?: string;
 }
 
 export interface SandboxMetrics {

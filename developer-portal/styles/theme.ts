@@ -1,0 +1,50 @@
+export const portalTheme = {
+  colors: {
+    primary: '#3B82F6',
+    primaryDark: '#2563EB',
+    primaryLight: '#EFF6FF',
+    success: '#22C55E',
+    successLight: '#F0FDF4',
+    warning: '#F59E0B',
+    warningLight: '#FFFBEB',
+    error: '#EF4444',
+    errorLight: '#FEF2F2',
+    background: '#F9FAFB',
+    surface: '#FFFFFF',
+    text: '#111827',
+    textSecondary: '#6B7280',
+    textMuted: '#9CA3AF',
+    border: '#E5E7EB',
+    borderLight: '#F3F4F6',
+  },
+  spacing: {
+    xs: 4,
+    sm: 8,
+    md: 16,
+    lg: 24,
+    xl: 32,
+  },
+  borderRadius: {
+    sm: 6,
+    md: 8,
+    lg: 12,
+    xl: 16,
+  },
+  fontSize: {
+    xs: 12,
+    sm: 14,
+    md: 16,
+    lg: 18,
+    xl: 20,
+    xxl: 24,
+    xxxl: 28,
+  },
+  fontWeight: {
+    normal: '400' as const,
+    medium: '500' as const,
+    semibold: '600' as const,
+    bold: '700' as const,
+  },
+};
+
+export type PortalTheme = typeof portalTheme;
