@@ -220,12 +220,17 @@ const SettingsStack = () => (
       options={{ title: 'Developer Portal', headerShown: true }}
     />
     <Stack.Screen
-      name="Sandbox"
-      component={SandboxScreen}
+      name="ApiKeyManagement"
+      component={ApiKeyManagementScreen}
+      options={{ title: 'API Key Management', headerShown: true }}
+    />
+    <Stack.Screen
+      name="SandboxDashboard"
+      component={SandboxDashboardScreen}
       options={{ title: 'Sandbox Environment', headerShown: true }}
     />
     <Stack.Screen
-      name="Documentation"
+      name="DocumentationPortal"
       component={DocumentationPortalScreen}
       options={{ title: 'Documentation', headerShown: true }}
     />

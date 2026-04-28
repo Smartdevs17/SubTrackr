@@ -1,4 +1,4 @@
-import { ApiKey, Permission, RateLimit, SandboxEnvironment } from '../types/sandbox';
+import { ApiKey, Permission, RateLimit } from '../types/sandbox';
 import { SANDBOX_CONSTANTS, DEFAULT_RATE_LIMITS } from '../config/sandboxConfig';
 
 export class ApiKeyService {
@@ -43,7 +43,7 @@ export class ApiKeyService {
   }
 
   async validateApiKey(key: string): Promise<ApiKeyValidation> {
-    const apiKey = Array.from(this.apiKeys.values()).find(k => k.key === key);
+    const apiKey = Array.from(this.apiKeys.values()).find((k) => k.key === key);
 
     if (!apiKey) {
       return { valid: false, error: 'API key not found' };
@@ -75,7 +75,8 @@ export class ApiKeyService {
       return false;
     }
 
-    return validation.apiKey.permissions.includes(permission);
+    return validation.apiKey.permissions.includes(permission) ||
+      validation.apiKey.permissions.includes('admin');
   }
 
   async revokeApiKey(keyId: string): Promise<boolean> {
@@ -102,7 +103,7 @@ export class ApiKeyService {
   async getApiKeysForEnvironment(environmentId: string): Promise<ApiKey[]> {
     const keyIds = this.environmentKeys.get(environmentId) || [];
     return keyIds
-      .map(id => this.apiKeys.get(id))
+      .map((id) => this.apiKeys.get(id))
       .filter((key): key is ApiKey => key !== undefined);
   }
 

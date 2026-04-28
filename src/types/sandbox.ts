@@ -6,10 +6,26 @@ export enum SandboxEnvironment {
   PRODUCTION = 'production',
 }
 
+export enum SandboxStatus {
+  ACTIVE = 'active',
+  PAUSED = 'paused',
+  EXPIRED = 'expired',
+  DESTROYED = 'destroyed',
+}
+
 export enum ApiKeyStatus {
   ACTIVE = 'active',
   REVOKED = 'revoked',
   EXPIRED = 'expired',
+}
+
+export enum ApiKeyScope {
+  READ = 'read',
+  WRITE = 'write',
+  DELETE = 'delete',
+  ADMIN = 'admin',
+  WEBHOOKS = 'webhooks',
+  ANALYTICS = 'analytics',
 }
 
 export enum DeveloperOnboardingStep {
@@ -30,123 +46,166 @@ export enum IntegrationGuideCategory {
   ADVANCED_FEATURES = 'advanced_features',
 }
 
-export const SandboxConfigSchema = z.object({
-  id: z.string(),
-  environment: z.nativeEnum(SandboxEnvironment),
-  name: z.string(),
-  description: z.string().optional(),
-  isActive: z.boolean(),
-  dataResetInterval: z.enum(['daily', 'weekly', 'monthly', 'manual']),
-  maxTestSubscriptions: z.number(),
-  maxApiCalls: z.number(),
-  allowedFeatures: z.array(z.string()),
-  createdAt: z.union([z.string(), z.date()]),
-  updatedAt: z.union([z.string(), z.date()]),
-});
+export interface RateLimitConfig {
+  requestsPerMinute: number;
+  requestsPerHour: number;
+  requestsPerDay: number;
+  burstLimit: number;
+}
 
-export const ApiKeySchema = z.object({
-  id: z.string(),
-  key: z.string(),
-  name: z.string(),
-  developerId: z.string(),
-  environment: z.nativeEnum(SandboxEnvironment),
-  status: z.nativeEnum(ApiKeyStatus),
-  permissions: z.array(z.string()),
-  rateLimit: z.object({
-    requestsPerMinute: z.number(),
-    requestsPerDay: z.number(),
-  }),
-  lastUsedAt: z.union([z.string(), z.date()]).optional(),
-  expiresAt: z.union([z.string(), z.date()]).optional(),
-  createdAt: z.union([z.string(), z.date()]),
-  updatedAt: z.union([z.string(), z.date()]),
-});
+export interface SandboxConfig {
+  id: string;
+  environment: SandboxEnvironment;
+  name: string;
+  description?: string;
+  isActive: boolean;
+  status?: SandboxStatus;
+  dataIsolation?: boolean;
+  rateLimit: RateLimitConfig;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
-export const DeveloperProfileSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  email: z.string().email(),
-  company: z.string().optional(),
-  website: z.string().url().optional(),
-  onboardingStep: z.nativeEnum(DeveloperOnboardingStep),
-  completedSteps: z.array(z.nativeEnum(DeveloperOnboardingStep)),
-  sandboxConfig: SandboxConfigSchema,
-  apiKeys: z.array(ApiKeySchema),
-  createdAt: z.union([z.string(), z.date()]),
-  updatedAt: z.union([z.string(), z.date()]),
-});
+export interface ApiKeyCreateRequest {
+  name: string;
+  description?: string;
+  sandboxId: string;
+  scopes: ApiKeyScope[];
+  expiresAt?: Date;
+}
 
-export const UsageMetricSchema = z.object({
-  id: z.string(),
-  developerId: z.string(),
-  apiKeyId: z.string(),
-  endpoint: z.string(),
-  method: z.string(),
-  statusCode: z.number(),
-  responseTime: z.number(),
-  timestamp: z.union([z.string(), z.date()]),
-  environment: z.nativeEnum(SandboxEnvironment),
-});
+export interface ApiKey {
+  id: string;
+  key: string;
+  name: string;
+  description?: string;
+  sandboxId: string;
+  developerId?: string;
+  status: ApiKeyStatus;
+  scopes: ApiKeyScope[];
+  environment?: SandboxEnvironment;
+  rateLimit?: number;
+  usageCount: number;
+  lastUsedAt?: Date | null;
+  expiresAt?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
-export const UsageStatsSchema = z.object({
-  totalRequests: z.number(),
-  successfulRequests: z.number(),
-  failedRequests: z.number(),
-  averageResponseTime: z.number(),
-  requestsByEndpoint: z.record(z.number()),
-  requestsByDay: z.record(z.number()),
-  topErrors: z.array(z.object({
-    code: z.number(),
-    count: z.number(),
-    message: z.string(),
-  })),
-});
+export interface DeveloperProfile {
+  id: string;
+  email: string;
+  name: string;
+  company?: string;
+  website?: string;
+  onboardingStep: DeveloperOnboardingStep;
+  completedSteps: DeveloperOnboardingStep[];
+  createdAt: Date;
+  updatedAt: Date;
+}
 
-export const TestSubscriptionSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  price: z.number(),
-  currency: z.string(),
-  status: z.enum(['active', 'paused', 'cancelled']),
-  billingCycle: z.enum(['monthly', 'yearly', 'weekly']),
-  nextBillingDate: z.union([z.string(), z.date()]),
-  createdAt: z.union([z.string(), z.date()]),
-});
+export interface OnboardingStepInfo {
+  id: string;
+  title: string;
+  description: string;
+  step: DeveloperOnboardingStep;
+  completed: boolean;
+  required: boolean;
+}
 
-export const IntegrationGuideSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  description: z.string(),
-  category: z.nativeEnum(IntegrationGuideCategory),
-  difficulty: z.enum(['beginner', 'intermediate', 'advanced']),
-  estimatedTime: z.string(),
-  steps: z.array(z.object({
-    title: z.string(),
-    content: z.string(),
-    codeExample: z.string().optional(),
-  })),
-  tags: z.array(z.string()),
-  isCompleted: z.boolean().optional(),
-});
+export interface TestSubscription {
+  id: string;
+  name: string;
+  price: number;
+  currency: string;
+  status: 'active' | 'paused' | 'cancelled';
+  billingCycle: 'monthly' | 'yearly' | 'weekly';
+  nextBillingDate: Date;
+  createdAt: Date;
+}
 
-export const DocumentationSectionSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  content: z.string(),
-  category: z.string(),
-  order: z.number(),
-  subsections: z.array(z.object({
-    id: z.string(),
-    title: z.string(),
-    content: z.string(),
-  })).optional(),
-});
+export interface TestDataConfig {
+  subscriptions: number;
+  categories: string[];
+  priceRange: { min: number; max: number };
+  billingCycles: string[];
+  currencies: string[];
+  includeInactive: boolean;
+  includeCrypto: boolean;
+}
 
-export type SandboxConfig = z.infer<typeof SandboxConfigSchema>;
-export type ApiKey = z.infer<typeof ApiKeySchema>;
-export type DeveloperProfile = z.infer<typeof DeveloperProfileSchema>;
-export type UsageMetric = z.infer<typeof UsageMetricSchema>;
-export type UsageStats = z.infer<typeof UsageStatsSchema>;
-export type TestSubscription = z.infer<typeof TestSubscriptionSchema>;
-export type IntegrationGuide = z.infer<typeof IntegrationGuideSchema>;
-export type DocumentationSection = z.infer<typeof DocumentationSectionSchema>;
+export interface UsageMetric {
+  id: string;
+  apiKeyId: string;
+  sandboxId?: string;
+  endpoint: string;
+  method: string;
+  statusCode: number;
+  responseTime: number;
+  responseTimeMs?: number;
+  timestamp: Date;
+  environment?: SandboxEnvironment;
+  metadata?: Record<string, unknown>;
+}
+
+export interface UsageStats {
+  totalRequests: number;
+  successfulRequests: number;
+  failedRequests: number;
+  averageResponseTime: number;
+  avgResponseTimeMs?: number;
+  requestsByEndpoint: Record<string, number>;
+  requestsByDay: Record<string, number>;
+  topErrors: Array<{
+    code: number;
+    count: number;
+    message: string;
+  }>;
+  errorRate?: number;
+  periodStart?: Date;
+  periodEnd?: Date;
+}
+
+export interface IntegrationStep {
+  id: string;
+  title: string;
+  content: string;
+  codeExample?: string;
+  code?: string;
+  language?: string;
+}
+
+export interface IntegrationGuide {
+  id: string;
+  title: string;
+  description: string;
+  category: IntegrationGuideCategory;
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  estimatedTime: string;
+  steps: IntegrationStep[];
+  tags: string[];
+  isCompleted?: boolean;
+}
+
+export interface DocumentationSection {
+  id: string;
+  title: string;
+  content: string;
+  category?: string;
+  slug?: string;
+  order?: number;
+  tags?: string[];
+  subsections: Array<{
+    id?: string;
+    title: string;
+    content: string;
+  }>;
+  lastUpdated?: Date;
+}
+
+export interface SandboxMetrics {
+  totalSubscriptions: number;
+  totalTransactions: number;
+  totalVolume: number;
+  totalApiCalls: number;
+}

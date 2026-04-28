@@ -61,24 +61,24 @@ export class UsageTrackingService {
     }
   ): Promise<RequestLogEntry[]> {
     let filtered = this.requestLog.filter(
-      entry => entry.environmentId === environmentId
+      (entry) => entry.environmentId === environmentId
     );
 
     if (options?.startDate) {
       filtered = filtered.filter(
-        entry => entry.timestamp >= options.startDate!
+        (entry) => entry.timestamp >= options.startDate!
       );
     }
 
     if (options?.endDate) {
       filtered = filtered.filter(
-        entry => entry.timestamp <= options.endDate!
+        (entry) => entry.timestamp <= options.endDate!
       );
     }
 
     if (options?.statusCode) {
       filtered = filtered.filter(
-        entry => entry.statusCode === options.statusCode
+        (entry) => entry.statusCode === options.statusCode
       );
     }
 
@@ -95,13 +95,13 @@ export class UsageTrackingService {
     if (!metrics) return null;
 
     const last24Hours = this.requestLog.filter(
-      entry =>
+      (entry) =>
         entry.environmentId === environmentId &&
         entry.timestamp > new Date(Date.now() - 24 * 60 * 60 * 1000)
     );
 
     const last7Days = this.requestLog.filter(
-      entry =>
+      (entry) =>
         entry.environmentId === environmentId &&
         entry.timestamp > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
     );
@@ -125,7 +125,7 @@ export class UsageTrackingService {
   async resetUsage(environmentId: string): Promise<boolean> {
     this.usageData.delete(environmentId);
     this.requestLog = this.requestLog.filter(
-      entry => entry.environmentId !== environmentId
+      (entry) => entry.environmentId !== environmentId
     );
     return true;
   }
@@ -160,7 +160,7 @@ export class UsageTrackingService {
 
   private calculateAverageResponseTime(environmentId: string): number {
     const entries = this.requestLog.filter(
-      entry => entry.environmentId === environmentId
+      (entry) => entry.environmentId === environmentId
     );
 
     if (entries.length === 0) return 0;
@@ -195,7 +195,7 @@ export class UsageTrackingService {
     responseTime: number
   ): void {
     const today = new Date().toISOString().split('T')[0];
-    const dailyData = metrics.last7Days.find(d => d.date === today);
+    const dailyData = metrics.last7Days.find((d) => d.date === today);
 
     if (dailyData) {
       dailyData.requests++;
@@ -216,8 +216,8 @@ export class UsageTrackingService {
     const endpointMap = new Map<string, number>();
 
     this.requestLog
-      .filter(entry => entry.environmentId === environmentId)
-      .forEach(entry => {
+      .filter((entry) => entry.environmentId === environmentId)
+      .forEach((entry) => {
         const key = `${entry.method} ${entry.endpoint}`;
         endpointMap.set(key, (endpointMap.get(key) || 0) + 1);
       });
@@ -233,10 +233,10 @@ export class UsageTrackingService {
 
     this.requestLog
       .filter(
-        entry =>
+        (entry) =>
           entry.environmentId === environmentId && entry.statusCode >= 400
       )
-      .forEach(entry => {
+      .forEach((entry) => {
         errorMap.set(entry.statusCode, (errorMap.get(entry.statusCode) || 0) + 1);
       });
 
