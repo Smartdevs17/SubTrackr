@@ -9,3 +9,5 @@ export { useCalendarStore } from './calendarStore';
 export { useSettingsStore } from './settingsStore';
 export { useMerchantStore } from './merchantStore';
 export { useAffiliateStore } from './affiliateStore';
+export { useLoyaltyStore } from './loyaltyStore';
+export { useCampaignStore } from './campaignStore';
