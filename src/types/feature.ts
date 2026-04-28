@@ -50,6 +50,8 @@ export enum FeatureId {
   API_ACCESS = 'api_access',
   PRIORITY_SUPPORT = 'priority_support',
   WHITE_LABEL = 'white_label',
+  DEVELOPER_PORTAL = 'developer_portal',
+  SANDBOX_ACCESS = 'sandbox_access',
 }
 
 export interface ABTestVariant {

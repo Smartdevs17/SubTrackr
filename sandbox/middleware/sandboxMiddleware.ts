@@ -24,33 +24,70 @@ export interface SandboxResponse {
 }
 
 export class SandboxMiddleware {
-  private rateLimitStore: Map<string, { count: number; resetTime: number }> = new Map();
+  private rateLimitStore: Map<string, { count: number; resetTime: number }> =
+    new Map();
 
   async processRequest(request: SandboxRequest): Promise<SandboxResponse> {
     const startTime = Date.now();
     const requestId = this.generateRequestId();
 
     try {
-      const isValid = await sandboxService.validateAccess(request.environmentId, request.apiKey);
+      const isValid = await sandboxService.validateAccess(
+        request.environmentId,
+        request.apiKey
+      );
       if (!isValid) {
-        return this.createErrorResponse(request, requestId, startTime, 'Invalid API key or environment', 401);
+        return this.createErrorResponse(
+          request,
+          requestId,
+          startTime,
+          'Invalid API key or environment',
+          401
+        );
       }
 
-      const context = await sandboxService.getIsolationContext(request.environmentId);
+      const context = await sandboxService.getIsolationContext(
+        request.environmentId
+      );
       if (!context) {
-        return this.createErrorResponse(request, requestId, startTime, 'Environment not found', 404);
+        return this.createErrorResponse(
+          request,
+          requestId,
+          startTime,
+          'Environment not found',
+          404
+        );
       }
 
       if (!context.isWithinLimits) {
-        return this.createErrorResponse(request, requestId, startTime, 'Resource limits exceeded', 429);
+        return this.createErrorResponse(
+          request,
+          requestId,
+          startTime,
+          'Resource limits exceeded',
+          429
+        );
       }
 
-      const rateLimitResult = await this.checkRateLimit(request.environmentId, context.resourceQuota);
+      const rateLimitResult = await this.checkRateLimit(
+        request.environmentId,
+        context.resourceQuota
+      );
       if (!rateLimitResult.allowed) {
-        return this.createErrorResponse(request, requestId, startTime, 'Rate limit exceeded', 429);
+        return this.createErrorResponse(
+          request,
+          requestId,
+          startTime,
+          'Rate limit exceeded',
+          429
+        );
       }
 
-      await sandboxService.recordRequest(request.environmentId, Date.now() - startTime, false);
+      await sandboxService.recordRequest(
+        request.environmentId,
+        Date.now() - startTime,
+        false
+      );
 
       return {
         success: true,
@@ -64,8 +101,18 @@ export class SandboxMiddleware {
         },
       };
     } catch (error) {
-      await sandboxService.recordRequest(request.environmentId, Date.now() - startTime, true);
-      return this.createErrorResponse(request, requestId, startTime, 'Internal sandbox error', 500);
+      await sandboxService.recordRequest(
+        request.environmentId,
+        Date.now() - startTime,
+        true
+      );
+      return this.createErrorResponse(
+        request,
+        requestId,
+        startTime,
+        'Internal sandbox error',
+        500
+      );
     }
   }
 
@@ -88,7 +135,7 @@ export class SandboxMiddleware {
     if (!context) throw new Error('Environment not found');
 
     return {
-      ...data as object,
+      ...(data as object),
       _sandbox: {
         environmentId: envId,
         namespace: context.dataNamespace,
@@ -97,7 +144,9 @@ export class SandboxMiddleware {
     };
   }
 
-  async enforceResourceLimits(envId: string): Promise<{ withinLimits: boolean; usage: unknown }> {
+  async enforceResourceLimits(
+    envId: string
+  ): Promise<{ withinLimits: boolean; usage: unknown }> {
     const context = await sandboxService.getIsolationContext(envId);
     if (!context) throw new Error('Environment not found');
 
@@ -107,14 +156,20 @@ export class SandboxMiddleware {
     };
   }
 
-  private async checkRateLimit(envId: string, limits: SandboxResourceLimits): Promise<{ allowed: boolean; remaining: number }> {
+  private async checkRateLimit(
+    envId: string,
+    limits: SandboxResourceLimits
+  ): Promise<{ allowed: boolean; remaining: number }> {
     const now = Date.now();
     const key = `rate_${envId}`;
     const entry = this.rateLimitStore.get(key);
 
     if (!entry || now > entry.resetTime) {
       this.rateLimitStore.set(key, { count: 1, resetTime: now + 60000 });
-      return { allowed: true, remaining: limits.maxRequestsPerMinute - 1 };
+      return {
+        allowed: true,
+        remaining: limits.maxRequestsPerMinute - 1,
+      };
     }
 
     if (entry.count >= limits.maxRequestsPerMinute) {
@@ -122,10 +177,19 @@ export class SandboxMiddleware {
     }
 
     entry.count++;
-    return { allowed: true, remaining: limits.maxRequestsPerMinute - entry.count };
+    return {
+      allowed: true,
+      remaining: limits.maxRequestsPerMinute - entry.count,
+    };
   }
 
-  private createErrorResponse(request: SandboxRequest, requestId: string, startTime: number, message: string, status: number): SandboxResponse {
+  private createErrorResponse(
+    request: SandboxRequest,
+    requestId: string,
+    startTime: number,
+    message: string,
+    _status: number
+  ): SandboxResponse {
     return {
       success: false,
       error: message,
@@ -140,7 +204,7 @@ export class SandboxMiddleware {
   }
 
   private generateRequestId(): string {
-    return `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return `req_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   }
 }
 
