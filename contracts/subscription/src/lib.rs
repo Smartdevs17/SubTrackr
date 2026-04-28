@@ -1,5 +1,7 @@
 #![no_std]
-
+mod gas_profiler;
+mod gas_storage;
+mod gas_optimization;
 use soroban_sdk::{token, Address, Env, IntoVal, String, TryFromVal, Val, Vec};
 use subtrackr_types::{Interval, Plan, StorageKey, Subscription, SubscriptionStatus};
 

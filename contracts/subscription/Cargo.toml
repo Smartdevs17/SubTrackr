@@ -8,6 +8,8 @@ description = "SubTrackr subscription implementation contract (Soroban)"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+serde = "1.0"
+
 [dependencies]
 soroban-sdk = "21.0.0"
 subtrackr-types = { path = "../types" }
