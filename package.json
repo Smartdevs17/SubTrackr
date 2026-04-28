@@ -63,7 +63,7 @@
     "graphql": "^16.13.2",
     "i18next": "^26.0.8",
     "react": "19.2.5",
-    "react-i18next": "^17.0.4",
+    "react-i18next": "^17.0.6",
     "react-native": "0.85.2",
     "react-native-gesture-handler": "~2.31.1",
     "react-native-get-random-values": "~1.11.0",
