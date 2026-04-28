@@ -15,13 +15,19 @@ export class SegmentService {
    */
   mapSubscriberData(user: UserProfile, subscriptions: Subscription[]): SubscriberData {
     const activeSubs = subscriptions.filter((s) => s.isActive);
-    
+
     return {
       id: user.id,
       name: user.name,
       email: user.email,
-      totalMonthlySpend: activeSubs.reduce((acc, s) => acc + (s.billingCycle === 'monthly' ? s.price : s.price / 12), 0),
-      totalYearlySpend: activeSubs.reduce((acc, s) => acc + (s.billingCycle === 'yearly' ? s.price : s.price * 12), 0),
+      totalMonthlySpend: activeSubs.reduce(
+        (acc, s) => acc + (s.billingCycle === 'monthly' ? s.price : s.price / 12),
+        0
+      ),
+      totalYearlySpend: activeSubs.reduce(
+        (acc, s) => acc + (s.billingCycle === 'yearly' ? s.price : s.price * 12),
+        0
+      ),
       activeSubscriptionCount: activeSubs.length,
       categories: Array.from(new Set(activeSubs.map((s) => s.category))),
       billingCycles: Array.from(new Set(activeSubs.map((s) => s.billingCycle))),
@@ -64,7 +70,7 @@ export class SegmentService {
         return fieldValue < targetValue;
       case CriteriaOperator.CONTAINS:
         if (Array.isArray(fieldValue)) {
-          return fieldValue.includes(targetValue);
+          return (fieldValue as unknown[]).includes(targetValue as never);
         }
         if (typeof fieldValue === 'string') {
           return fieldValue.toLowerCase().includes(String(targetValue).toLowerCase());
@@ -72,7 +78,7 @@ export class SegmentService {
         return false;
       case CriteriaOperator.IN:
         if (Array.isArray(targetValue)) {
-          return targetValue.includes(fieldValue);
+          return (targetValue as unknown[]).includes(fieldValue as never);
         }
         return false;
       case CriteriaOperator.STARTS_WITH:
@@ -89,17 +95,17 @@ export class SegmentService {
    */
   calculateOverlap(segments: Segment[], subscribers: SubscriberData[]): SegmentOverlap[] {
     const overlaps: SegmentOverlap[] = [];
-    
+
     // Simple version: only calculate 2-way overlaps for now
     for (let i = 0; i < segments.length; i++) {
       for (let j = i + 1; j < segments.length; j++) {
         const segA = segments[i];
         const segB = segments[j];
-        
+
         const intersection = subscribers.filter(
           (sub) => this.isSubscriberInSegment(sub, segA) && this.isSubscriberInSegment(sub, segB)
         );
-        
+
         overlaps.push({
           segmentIds: [segA.id, segB.id],
           subscriberCount: intersection.length,
@@ -107,7 +113,7 @@ export class SegmentService {
         });
       }
     }
-    
+
     return overlaps;
   }
 

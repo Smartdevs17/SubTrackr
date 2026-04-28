@@ -27,7 +27,7 @@ export const formatCurrencyCompact = (amount: number, currency: string = 'USD'):
 
 export const formatCryptoAmount = (
   amount: number,
-  decimals: number = CRYPTO_CONSTANTS.DEFAULT_CRYPTO_DECIMALS
+  decimals: number = FORMATTING_CONSTANTS.DEFAULT_CRYPTO_DECIMALS
 ): string => {
   return amount.toFixed(decimals);
 };
@@ -100,3 +100,19 @@ export const truncateText = (text: string, maxLength: number): string => {
   if (text.length <= maxLength) return text;
   return text.slice(0, maxLength) + '...';
 };
+
+export const getCurrencySymbol = (currency: string): string => {
+  const symbols: Record<string, string> = {
+    USD: '$',
+    EUR: '€',
+    GBP: '£',
+    JPY: '¥',
+    CAD: '$',
+    AUD: '$',
+    INR: '₹',
+    BTC: '₿',
+    ETH: 'Ξ',
+  };
+  return symbols[currency] || currency;
+};
+

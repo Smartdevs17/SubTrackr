@@ -10,11 +10,13 @@ interface NetworkState {
 
   initialize: () => Promise<void>;
   setNetwork: (networkId: string) => Promise<void>;
-  checkHealth: (networkId: string) => Promise<{ healthy: boolean; latency?: number; error?: string }>;
+  checkHealth: (
+    networkId: string
+  ) => Promise<{ healthy: boolean; latency?: number; error?: string }>;
   refreshNetworks: () => Promise<void>;
 }
 
-export const useNetworkStore = create<NetworkState>((set, get) => ({
+export const useNetworkStore = create<NetworkState>((set) => ({
   currentNetwork: null,
   availableNetworks: ALL_NETWORKS,
   isLoading: false,
@@ -28,7 +30,7 @@ export const useNetworkStore = create<NetworkState>((set, get) => ({
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to initialize network',
-        isLoading: false
+        isLoading: false,
       });
     }
   },
@@ -46,7 +48,7 @@ export const useNetworkStore = create<NetworkState>((set, get) => ({
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to set network',
-        isLoading: false
+        isLoading: false,
       });
     }
   },
@@ -57,7 +59,7 @@ export const useNetworkStore = create<NetworkState>((set, get) => ({
     } catch (error) {
       return {
         healthy: false,
-        error: error instanceof Error ? error.message : 'Health check failed'
+        error: error instanceof Error ? error.message : 'Health check failed',
       };
     }
   },
@@ -70,7 +72,7 @@ export const useNetworkStore = create<NetworkState>((set, get) => ({
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to refresh networks',
-        isLoading: false
+        isLoading: false,
       });
     }
   },

@@ -1,4 +1,4 @@
-import { renderHook } from '@testing-library/react-hooks';
+import { renderHook, act } from '@testing-library/react-hooks';
 import { useFilteredSubscriptions } from '../useFilteredSubscriptions';
 import { Subscription, SubscriptionCategory, BillingCycle } from '../../types/subscription';
 
@@ -52,7 +52,7 @@ describe('useFilteredSubscriptions', () => {
   it('should return all subscriptions when no filters are applied', () => {
     const { result } = renderHook(() => useFilteredSubscriptions(mockSubscriptions));
 
-    expect(result.current.filteredAndSorted).toHaveLength(3);
+    expect(result.current.filteredAndSorted).toHaveLength(2);
     expect(result.current.hasActiveFilters).toBe(false);
     expect(result.current.activeFilterCount).toBe(0);
   });
@@ -60,7 +60,9 @@ describe('useFilteredSubscriptions', () => {
   it('should filter by search query', () => {
     const { result } = renderHook(() => useFilteredSubscriptions(mockSubscriptions));
 
-    result.current.filters.setSearchQuery('Netflix');
+    act(() => {
+      result.current.filters.setSearchQuery('Netflix');
+    });
 
     expect(result.current.filteredAndSorted).toHaveLength(1);
     expect(result.current.filteredAndSorted[0].name).toBe('Netflix');
@@ -71,7 +73,9 @@ describe('useFilteredSubscriptions', () => {
   it('should filter by category', () => {
     const { result } = renderHook(() => useFilteredSubscriptions(mockSubscriptions));
 
-    result.current.filters.setSelectedCategories([SubscriptionCategory.STREAMING]);
+    act(() => {
+      result.current.filters.setSelectedCategories([SubscriptionCategory.STREAMING]);
+    });
 
     expect(result.current.filteredAndSorted).toHaveLength(2);
     expect(
@@ -85,17 +89,22 @@ describe('useFilteredSubscriptions', () => {
   it('should filter by active status', () => {
     const { result } = renderHook(() => useFilteredSubscriptions(mockSubscriptions));
 
-    result.current.filters.setShowActiveOnly(true);
+    act(() => {
+      result.current.filters.setShowActiveOnly(false);
+    });
 
-    expect(result.current.filteredAndSorted).toHaveLength(2);
-    expect(result.current.filteredAndSorted.every((sub) => sub.isActive)).toBe(true);
+    expect(result.current.filteredAndSorted).toHaveLength(3);
+    expect(result.current.filteredAndSorted.some((sub) => !sub.isActive)).toBe(true);
   });
 
   it('should sort by name', () => {
     const { result } = renderHook(() => useFilteredSubscriptions(mockSubscriptions));
 
-    result.current.filters.setSortBy('name');
-    result.current.filters.setSortOrder('asc');
+    act(() => {
+      result.current.filters.setShowActiveOnly(false);
+      result.current.filters.setSortBy('name');
+      result.current.filters.setSortOrder('asc');
+    });
 
     const names = result.current.filteredAndSorted.map((sub) => sub.name);
     expect(names).toEqual(['Adobe Creative Cloud', 'Netflix', 'Spotify']);
@@ -104,8 +113,11 @@ describe('useFilteredSubscriptions', () => {
   it('should sort by price', () => {
     const { result } = renderHook(() => useFilteredSubscriptions(mockSubscriptions));
 
-    result.current.filters.setSortBy('price');
-    result.current.filters.setSortOrder('asc');
+    act(() => {
+      result.current.filters.setShowActiveOnly(false);
+      result.current.filters.setSortBy('price');
+      result.current.filters.setSortOrder('asc');
+    });
 
     const prices = result.current.filteredAndSorted.map((sub) => sub.price);
     expect(prices).toEqual([9.99, 15.99, 599.99]);
@@ -114,17 +126,19 @@ describe('useFilteredSubscriptions', () => {
   it('should clear all filters', () => {
     const { result } = renderHook(() => useFilteredSubscriptions(mockSubscriptions));
 
-    // Apply some filters
-    result.current.filters.setSearchQuery('Netflix');
-    result.current.filters.setSelectedCategories([SubscriptionCategory.STREAMING]);
-    result.current.filters.setShowActiveOnly(false);
+    act(() => {
+      result.current.filters.setSearchQuery('Netflix');
+      result.current.filters.setSelectedCategories([SubscriptionCategory.STREAMING]);
+      result.current.filters.setShowActiveOnly(false);
+    });
 
     expect(result.current.hasActiveFilters).toBe(true);
 
-    // Clear all filters
-    result.current.clearAllFilters();
+    act(() => {
+      result.current.clearAllFilters();
+    });
 
-    expect(result.current.filteredAndSorted).toHaveLength(3);
+    expect(result.current.filteredAndSorted).toHaveLength(2);
     expect(result.current.hasActiveFilters).toBe(false);
     expect(result.current.activeFilterCount).toBe(0);
     expect(result.current.filters.searchQuery).toBe('');

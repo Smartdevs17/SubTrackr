@@ -13,24 +13,28 @@ We collect only the minimum data necessary to provide our subscription managemen
 ## 2. User Rights
 
 ### Right of Access & Portability
+
 Users can download a structured JSON file of their profile and activity data directly from the **GDPR Settings** screen in the app.
 
 ### Right to be Forgotten (Deletion/Anonymization)
+
 Users can request account deletion. Due to the immutable nature of blockchain, on-chain records remain, but we:
+
 - Anonymize personal identifiers (names, emails) in our off-chain databases.
 - Remove associations between the wallet address and the person's identity where possible.
 - Soft-delete subscriptions to maintain system integrity for merchants while stopping all user tracking.
 
 ### Right to Restrict Processing
+
 Consent preferences for analytics and marketing can be toggled at any time in the app settings.
 
 ## 3. Data Processing Agreement (DPA)
 
-| Purpose | Data Category | Lawful Basis |
-| :--- | :--- | :--- |
-| Core Service | Wallet, Subscriptions | Contractual Necessity |
-| Billing Alerts | Emails, Notifications | Legitimate Interest |
-| App Improvement | Usage Analytics | Consent (Opt-in) |
+| Purpose         | Data Category         | Lawful Basis          |
+| :-------------- | :-------------------- | :-------------------- |
+| Core Service    | Wallet, Subscriptions | Contractual Necessity |
+| Billing Alerts  | Emails, Notifications | Legitimate Interest   |
+| App Improvement | Usage Analytics       | Consent (Opt-in)      |
 
 ## 4. Retention Policy
 

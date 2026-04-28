@@ -1,12 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  SafeAreaView,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
 import { errorHandler, AppError, ErrorSeverity } from '../services/errorHandler';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { Button } from '../components/common/Button';
@@ -147,11 +140,7 @@ const ErrorFallback: React.FC<ErrorFallbackProps> = ({ error, onRetry }) => {
           )}
 
           <View style={styles.actionsContainer}>
-            <Button
-              title="Try Again"
-              onPress={onRetry}
-              style={styles.retryButton}
-            />
+            <Button title="Try Again" onPress={onRetry} style={styles.retryButton} />
             <TouchableOpacity style={styles.reportButton}>
               <Text style={styles.reportButtonText}>Report Issue</Text>
             </TouchableOpacity>

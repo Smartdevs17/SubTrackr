@@ -1,8 +1,15 @@
 import { useGamificationStore } from '../gamificationStore';
 import { AchievementTrigger } from '../../types/gamification';
 
-// Mocking dependencies if necessary
-// In this case, we just test the store logic directly
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  setItem: jest.fn(() => Promise.resolve()),
+  getItem: jest.fn(() => Promise.resolve(null)),
+  removeItem: jest.fn(() => Promise.resolve()),
+}));
+
+jest.mock('../../services/notificationService', () => ({
+  presentLocalNotification: jest.fn(() => Promise.resolve()),
+}));
 
 describe('GamificationStore', () => {
   beforeEach(() => {
@@ -34,7 +41,7 @@ describe('GamificationStore', () => {
       totalSubscriptions: 1,
       price: 10,
     });
-    
+
     const state = useGamificationStore.getState();
     expect(state.earnedAchievements).toContain('first_sub');
     expect(state.earnedBadges).toContain('novice_tracker');

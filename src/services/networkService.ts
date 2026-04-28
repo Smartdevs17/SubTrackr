@@ -1,12 +1,15 @@
 import { Network, getNetworkById, ALL_NETWORKS } from '../config/networks';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Server } from '@stellar/stellar-sdk';
+
+type StellarServerConnection = {
+  horizonUrl: string;
+};
 
 const SELECTED_NETWORK_KEY = 'selected_network';
 
 export class NetworkService {
   private currentNetwork: Network | null = null;
-  private stellarServer: Server | null = null;
+  private stellarServer: StellarServerConnection | null = null;
 
   constructor() {
     this.initializeDefaultNetwork();
@@ -50,7 +53,7 @@ export class NetworkService {
 
       // Reset Stellar server if switching networks
       if (network.type === 'stellar' && network.horizonUrl) {
-        this.stellarServer = new Server(network.horizonUrl);
+        this.stellarServer = { horizonUrl: network.horizonUrl };
       } else {
         this.stellarServer = null;
       }
@@ -62,11 +65,13 @@ export class NetworkService {
     }
   }
 
-  getStellarServer(): Server | null {
+  getStellarServer(): StellarServerConnection | null {
     return this.stellarServer;
   }
 
-  async checkNetworkHealth(networkId: string): Promise<{ healthy: boolean; latency?: number; error?: string }> {
+  async checkNetworkHealth(
+    networkId: string
+  ): Promise<{ healthy: boolean; latency?: number; error?: string }> {
     const network = getNetworkById(networkId);
     if (!network) {
       return { healthy: false, error: 'Network not found' };
@@ -79,7 +84,6 @@ export class NetworkService {
         // For Stellar, check RPC health
         const response = await fetch(`${network.rpcUrl}/health`, {
           method: 'GET',
-          timeout: 5000,
         });
 
         if (response.ok) {
@@ -101,7 +105,6 @@ export class NetworkService {
             params: [],
             id: 1,
           }),
-          timeout: 5000,
         });
 
         if (response.ok) {
@@ -117,7 +120,11 @@ export class NetworkService {
       return { healthy: false, error: 'Unsupported network type' };
     } catch (error) {
       const latency = Date.now() - startTime;
-      return { healthy: false, latency, error: error instanceof Error ? error.message : 'Unknown error' };
+      return {
+        healthy: false,
+        latency,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
     }
   }
 
@@ -126,7 +133,7 @@ export class NetworkService {
     return ALL_NETWORKS;
   }
 
-  async addCustomNetwork(network: Omit<Network, 'id'> & { id?: string }): Promise<boolean> {
+  async addCustomNetwork(_network: Omit<Network, 'id'> & { id?: string }): Promise<boolean> {
     // For now, custom networks are not persisted
     // In a full implementation, this would save to AsyncStorage or a database
     console.warn('Custom network addition not implemented yet');

@@ -113,7 +113,12 @@ export class GamificationService {
 
     const allEntries = [
       ...mockUsers,
-      { name: currentUserName, points: currentUserPoints, level: Math.floor(currentUserPoints / 250) + 1, isCurrentUser: true },
+      {
+        name: currentUserName,
+        points: currentUserPoints,
+        level: Math.floor(currentUserPoints / 250) + 1,
+        isCurrentUser: true,
+      },
     ].sort((a, b) => b.points - a.points);
 
     return allEntries.map((entry, index) => ({

@@ -14,10 +14,10 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
-import { colors, spacing, typography, borderRadius } from '../utils/constants';
-import { SubscriptionCategory, BillingCycle, SubscriptionFormData } from '../types/subscription';
-import { useSubscriptionStore } from '../store';
+import { useSubscriptionStore, useSettingsStore } from '../store';
 import { Button } from '../components/common/Button';
+import { getCurrencySymbol } from '../utils/formatting';
+
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { errorHandler } from '../services/errorHandler';
 
@@ -28,6 +28,7 @@ interface AddSubscriptionFormData extends SubscriptionFormData {
 const AddSubscriptionScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { addSubscription, isLoading, error } = useSubscriptionStore();
+  const { preferredCurrency } = useSettingsStore();
 
   const [formData, setFormData] = useState<AddSubscriptionFormData>({
     name: '',
@@ -35,7 +36,7 @@ const AddSubscriptionScreen: React.FC = () => {
     category: SubscriptionCategory.OTHER,
     price: 0,
     priceError: '',
-    currency: 'USD',
+    currency: preferredCurrency,
     billingCycle: BillingCycle.MONTHLY,
     nextBillingDate: new Date(),
     notificationsEnabled: true,
@@ -43,6 +44,7 @@ const AddSubscriptionScreen: React.FC = () => {
     cryptoToken: undefined,
     cryptoAmount: undefined,
   });
+
 
   useEffect(() => {
     if (error) {
@@ -55,6 +57,12 @@ const AddSubscriptionScreen: React.FC = () => {
   // Date Picker States
   const [showPicker, setShowPicker] = useState(false);
   const [pickerMode, setPickerMode] = useState<'date' | 'time'>('date');
+  const [selectedCategory, setSelectedCategory] = useState<SubscriptionCategory>(
+    SubscriptionCategory.OTHER
+  );
+  const [selectedBillingCycle, setSelectedBillingCycle] = useState<BillingCycle>(
+    BillingCycle.MONTHLY
+  );
 
   const handleCategorySelect = (category: SubscriptionCategory) => {
     setSelectedCategory(category);
@@ -118,7 +126,9 @@ const AddSubscriptionScreen: React.FC = () => {
       formData.price <= 0 ||
       Number.isNaN(formData.price)
     ) {
-      const validationError = new Error(formData.priceError || 'Invalid price: must be greater than 0');
+      const validationError = new Error(
+        formData.priceError || 'Invalid price: must be greater than 0'
+      );
       const appError = errorHandler.handleError(validationError, {
         action: 'validateSubscription',
         component: 'AddSubscriptionScreen',
@@ -171,17 +181,22 @@ const AddSubscriptionScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} testID="add-subscription-screen">
       <KeyboardAvoidingView
         style={styles.keyboardAvoidingView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView style={styles.scrollView} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
             <View style={styles.headerContent}>
-              <TouchableOpacity onPress={handleCancel} style={styles.cancelButton}>
+              <TouchableOpacity
+                onPress={handleCancel}
+                style={styles.cancelButton}
+                testID="cancel-add-subscription-button">
                 <Text style={styles.cancelText}>Cancel</Text>
               </TouchableOpacity>
-              <Text style={styles.title}>Add Subscription</Text>
+              <Text style={styles.title} testID="subscription-form-title">
+                Add Subscription
+              </Text>
               <View style={styles.placeholderButton} />
             </View>
             <Text style={styles.subtitle}>Track your new subscription</Text>
@@ -202,6 +217,7 @@ const AddSubscriptionScreen: React.FC = () => {
                   accessibilityLabel="Subscription name, required"
                   accessibilityHint="Enter the name of the subscription service"
                   returnKeyType="next"
+                  testID="subscription-name-input"
                 />
               </View>
 
@@ -253,8 +269,9 @@ const AddSubscriptionScreen: React.FC = () => {
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Price *</Text>
                 <View style={styles.priceInputContainer}>
-                  <Text style={styles.currencySymbol}>$</Text>
+                  <Text style={styles.currencySymbol}>{getCurrencySymbol(formData.currency)}</Text>
                   <TextInput
+
                     style={styles.priceInput}
                     value={formData.price > 0 ? formData.price.toString() : ''}
                     onChangeText={(text) => {
@@ -282,12 +299,40 @@ const AddSubscriptionScreen: React.FC = () => {
                     keyboardType="decimal-pad"
                     accessibilityLabel="Price, required"
                     accessibilityHint="Enter the subscription price"
+                    testID="subscription-price-input"
                   />
                 </View>
                 {formData.priceError ? (
                   <Text style={styles.errorText}>{formData.priceError}</Text>
                 ) : null}
               </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Currency</Text>
+                <View style={[styles.categoryGrid, { marginTop: spacing.sm }]}>
+                  {['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'INR'].map((currency) => (
+                    <TouchableOpacity
+                      key={currency}
+                      style={[
+                        styles.categoryItem,
+                        formData.currency === currency && styles.categoryItemSelected,
+                      ]}
+                      onPress={() => handleInputChange('currency', currency)}
+                      accessibilityRole="radio"
+                      accessibilityLabel={currency}
+                      accessibilityState={{ checked: formData.currency === currency }}>
+                      <Text
+                        style={[
+                          styles.categoryText,
+                          formData.currency === currency && styles.categoryTextSelected,
+                        ]}>
+                        {currency}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Next Billing Date *</Text>
@@ -328,6 +373,7 @@ const AddSubscriptionScreen: React.FC = () => {
                         selectedBillingCycle === cycle && styles.billingCycleItemSelected,
                       ]}
                       onPress={() => handleBillingCycleSelect(cycle)}
+                      testID={`billing-cycle-option-${cycle}`}
                       accessibilityRole="radio"
                       accessibilityLabel={cycle.charAt(0).toUpperCase() + cycle.slice(1)}
                       accessibilityState={{ checked: selectedBillingCycle === cycle }}>
@@ -415,6 +461,7 @@ const AddSubscriptionScreen: React.FC = () => {
             loading={isLoading}
             fullWidth
             size="large"
+            testID="save-subscription-button"
           />
         </View>
       </KeyboardAvoidingView>

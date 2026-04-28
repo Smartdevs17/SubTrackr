@@ -1,5 +1,3 @@
-import { z } from 'zod';
-
 // Error classification types
 export enum ErrorType {
   VALIDATION = 'validation',
@@ -100,6 +98,8 @@ const ERROR_MESSAGES = {
   },
 };
 
+type RecoverySuggestionsMap = typeof RECOVERY_SUGGESTIONS;
+
 // Recovery suggestions
 const RECOVERY_SUGGESTIONS = {
   [ErrorType.VALIDATION]: [
@@ -138,11 +138,7 @@ const RECOVERY_SUGGESTIONS = {
     'Restart the app',
     'Reinstall the app if issues persist',
   ],
-  default: [
-    'Try again',
-    'Restart the app',
-    'Contact support if the problem persists',
-  ],
+  default: ['Try again', 'Restart the app', 'Contact support if the problem persists'],
 };
 
 class ErrorHandler {
@@ -150,19 +146,32 @@ class ErrorHandler {
   private readonly maxErrors = 100; // Keep last 100 errors
 
   // Classify error based on error message and context
-  private classifyError(error: Error, context?: Partial<ErrorContext>): ErrorType {
+  private classifyError(error: Error, _context?: Partial<ErrorContext>): ErrorType {
     const message = error.message.toLowerCase();
 
-    if (message.includes('validation') || message.includes('invalid') || message.includes('required')) {
+    if (
+      message.includes('validation') ||
+      message.includes('invalid') ||
+      message.includes('required')
+    ) {
       return ErrorType.VALIDATION;
     }
-    if (message.includes('network') || message.includes('connection') || message.includes('timeout') || message.includes('fetch')) {
+    if (
+      message.includes('network') ||
+      message.includes('connection') ||
+      message.includes('timeout') ||
+      message.includes('fetch')
+    ) {
       return ErrorType.NETWORK;
     }
     if (message.includes('auth') || message.includes('login') || message.includes('session')) {
       return ErrorType.AUTHENTICATION;
     }
-    if (message.includes('permission') || message.includes('forbidden') || message.includes('unauthorized')) {
+    if (
+      message.includes('permission') ||
+      message.includes('forbidden') ||
+      message.includes('unauthorized')
+    ) {
       return ErrorType.AUTHORIZATION;
     }
     if (message.includes('payment') || message.includes('charge') || message.includes('billing')) {
@@ -171,10 +180,18 @@ class ErrorHandler {
     if (message.includes('subscription') || message.includes('renewal')) {
       return ErrorType.SUBSCRIPTION;
     }
-    if (message.includes('storage') || message.includes('asyncstorage') || message.includes('persist')) {
+    if (
+      message.includes('storage') ||
+      message.includes('asyncstorage') ||
+      message.includes('persist')
+    ) {
       return ErrorType.STORAGE;
     }
-    if (message.includes('crypto') || message.includes('blockchain') || message.includes('superfluid')) {
+    if (
+      message.includes('crypto') ||
+      message.includes('blockchain') ||
+      message.includes('superfluid')
+    ) {
       return ErrorType.CRYPTO;
     }
     if (message.includes('wallet') || message.includes('connect')) {
@@ -188,7 +205,7 @@ class ErrorHandler {
   }
 
   // Determine severity based on error type and context
-  private determineSeverity(type: ErrorType, error: Error): ErrorSeverity {
+  private determineSeverity(type: ErrorType, _error: Error): ErrorSeverity {
     switch (type) {
       case ErrorType.AUTHENTICATION:
       case ErrorType.AUTHORIZATION:
@@ -212,7 +229,7 @@ class ErrorHandler {
 
   // Get user-friendly message
   private getUserMessage(type: ErrorType, error: Error): string {
-    const messages = ERROR_MESSAGES[type];
+    const messages = ERROR_MESSAGES[type] as Record<string, string>;
     const message = error.message.toLowerCase();
 
     // Check for specific error patterns
@@ -220,7 +237,10 @@ class ErrorHandler {
       if (message.includes('name') && message.includes('required')) {
         return messages.nameRequired;
       }
-      if (message.includes('price') && (message.includes('invalid') || message.includes('greater'))) {
+      if (
+        message.includes('price') &&
+        (message.includes('invalid') || message.includes('greater'))
+      ) {
         return messages.invalidPrice;
       }
       if (message.includes('date') && message.includes('invalid')) {
@@ -254,15 +274,15 @@ class ErrorHandler {
 
   // Get recovery suggestions
   private getRecoverySuggestions(type: ErrorType): string[] {
-    return RECOVERY_SUGGESTIONS[type] || RECOVERY_SUGGESTIONS.default;
+    return (
+      (RECOVERY_SUGGESTIONS as RecoverySuggestionsMap & Partial<Record<ErrorType, string[]>>)[
+        type
+      ] || RECOVERY_SUGGESTIONS.default
+    );
   }
 
   // Create AppError instance
-  createError(
-    error: Error,
-    context: Partial<ErrorContext> = {},
-    isHandled = false
-  ): AppError {
+  createError(error: Error, context: Partial<ErrorContext> = {}, isHandled = false): AppError {
     const type = this.classifyError(error, context);
     const severity = this.determineSeverity(type, error);
 
@@ -314,12 +334,12 @@ class ErrorHandler {
 
   // Get errors by type
   getErrorsByType(type: ErrorType): AppError[] {
-    return this.errors.filter(error => error.type === type);
+    return this.errors.filter((error) => error.type === type);
   }
 
   // Get errors by severity
   getErrorsBySeverity(severity: ErrorSeverity): AppError[] {
-    return this.errors.filter(error => error.severity === severity);
+    return this.errors.filter((error) => error.severity === severity);
   }
 
   // Clear errors
@@ -336,7 +356,7 @@ class ErrorHandler {
       recent: this.errors.slice(-10), // Last 10 errors
     };
 
-    this.errors.forEach(error => {
+    this.errors.forEach((error) => {
       stats.byType[error.type] = (stats.byType[error.type] || 0) + 1;
       stats.bySeverity[error.severity] = (stats.bySeverity[error.severity] || 0) + 1;
     });

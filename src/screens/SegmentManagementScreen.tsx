@@ -11,7 +11,7 @@ import { SegmentOverlapAnalysis } from '../components/segments/SegmentOverlapAna
 import { useNavigation } from '@react-navigation/native';
 
 export const SegmentManagementScreen: React.FC = () => {
-  const { theme } = useTheme();
+  const theme = useTheme();
   const navigation = useNavigation<any>();
   const { segments, deleteSegment } = useSegmentStore();
   const { subscriptions } = useSubscriptionStore();
@@ -29,8 +29,7 @@ export const SegmentManagementScreen: React.FC = () => {
   const renderSegmentItem = ({ item }: { item: any }) => (
     <Card style={styles.segmentCard}>
       <TouchableOpacity
-        onPress={() => navigation.navigate('SegmentDetail', { segmentId: item.id })}
-      >
+        onPress={() => navigation.navigate('SegmentDetail', { segmentId: item.id })}>
         <View style={styles.segmentHeader}>
           <Text style={[styles.segmentName, { color: theme.colors.text }]}>{item.name}</Text>
           <View style={[styles.logicBadge, { backgroundColor: theme.colors.accent }]}>
@@ -41,9 +40,7 @@ export const SegmentManagementScreen: React.FC = () => {
           {item.description || 'No description'}
         </Text>
         <View style={styles.segmentFooter}>
-          <Text style={{ color: theme.colors.primary }}>
-            {item.criteria.length} Rules
-          </Text>
+          <Text style={{ color: theme.colors.primary }}>{item.criteria.length} Rules</Text>
           <TouchableOpacity onPress={() => deleteSegment(item.id)}>
             <Text style={{ color: theme.colors.error }}>Delete</Text>
           </TouchableOpacity>

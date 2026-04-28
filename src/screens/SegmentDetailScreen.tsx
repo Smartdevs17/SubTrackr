@@ -4,11 +4,11 @@ import { useSegmentStore } from '../store/segmentStore';
 import { useTheme } from '../theme/useTheme';
 import { Button } from '../components/common/Button';
 import { SegmentRuleBuilder } from '../components/segments/SegmentRuleBuilder';
-import { SegmentRule, Segment } from '../types/segment';
+import { SegmentRule } from '../types/segment';
 import { useRoute, useNavigation } from '@react-navigation/native';
 
 export const SegmentDetailScreen: React.FC = () => {
-  const { theme } = useTheme();
+  const theme = useTheme();
   const route = useRoute<any>();
   const navigation = useNavigation();
   const { segmentId } = route.params;
@@ -74,7 +74,11 @@ export const SegmentDetailScreen: React.FC = () => {
 
         <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Description</Text>
         <TextInput
-          style={[styles.input, styles.textArea, { color: theme.colors.text, borderColor: theme.colors.border }]}
+          style={[
+            styles.input,
+            styles.textArea,
+            { color: theme.colors.text, borderColor: theme.colors.border },
+          ]}
           value={description}
           onChangeText={setDescription}
           placeholder="What defines this segment?"
@@ -92,7 +96,9 @@ export const SegmentDetailScreen: React.FC = () => {
 
         <View style={styles.pricingSection}>
           <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Pricing Rules</Text>
-          <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Discount Percentage (%)</Text>
+          <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
+            Discount Percentage (%)
+          </Text>
           <TextInput
             style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.border }]}
             value={discountPercentage}

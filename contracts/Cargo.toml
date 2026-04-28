@@ -4,6 +4,7 @@ members = [
     "proxy",
     "storage",
     "subscription",
+    "invoice",
     "types",
 ]
 

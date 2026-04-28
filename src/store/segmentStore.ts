@@ -1,12 +1,13 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Segment, SegmentRule, SegmentPricingRule } from '../types/segment';
+import { Segment } from '../types/segment';
 import { segmentService } from '../services/segmentService';
 import { useSubscriptionStore } from './subscriptionStore';
 import { useUserStore } from './userStore';
 import { useGamificationStore } from './gamificationStore';
 import { AchievementTrigger } from '../types/gamification';
+import { UserProfile } from '../types/api';
 
 interface SegmentState {
   segments: Segment[];
@@ -18,7 +19,11 @@ interface SegmentState {
   updateSegment: (id: string, segment: Partial<Segment>) => void;
   deleteSegment: (id: string) => void;
   getSegmentsForUser: () => Segment[];
-  getSegmentStats: (id: string) => any;
+  getSegmentStats: (id: string) => {
+    subscriberCount: number;
+    totalMonthlyValue: number;
+    averageValuePerSubscriber: number;
+  } | null;
 }
 
 const STORAGE_KEY = 'subtrackr-segments';
@@ -64,11 +69,11 @@ export const useSegmentStore = create<SegmentState>()(
       getSegmentsForUser: () => {
         const { subscriptions } = useSubscriptionStore.getState();
         const { user } = useUserStore.getState();
-        
+
         if (!user) return [];
-        
-        const subscriberData = segmentService.mapSubscriberData(user, subscriptions);
-        return get().segments.filter((seg) => 
+
+        const subscriberData = segmentService.mapSubscriberData(user as UserProfile, subscriptions);
+        return get().segments.filter((seg) =>
           segmentService.isSubscriberInSegment(subscriberData, seg)
         );
       },
@@ -83,7 +88,7 @@ export const useSegmentStore = create<SegmentState>()(
         const { user } = useUserStore.getState();
         if (!user) return null;
 
-        const subscriberData = segmentService.mapSubscriberData(user, subscriptions);
+        const subscriberData = segmentService.mapSubscriberData(user as UserProfile, subscriptions);
         const isInSegment = segmentService.isSubscriberInSegment(subscriberData, segment);
 
         return {

@@ -1,7 +1,7 @@
 import { act } from 'react';
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-import { useTransactionQueueStore } from '../transactionQueueStore';
+import { ExecuteOrQueueResult, useTransactionQueueStore } from '../transactionQueueStore';
 
 const mockCreateSuperfluidStream = jest.fn();
 const mockCreateSablierStream = jest.fn();
@@ -55,7 +55,7 @@ describe('transactionQueueStore', () => {
   it('queues transactions while offline', async () => {
     useTransactionQueueStore.setState({ isOnline: false });
 
-    let result;
+    let result: ExecuteOrQueueResult | undefined;
     await act(async () => {
       result = await useTransactionQueueStore.getState().executeOrQueueTransaction(samplePayload);
     });
@@ -82,7 +82,10 @@ describe('transactionQueueStore', () => {
   });
 
   it('executes pending transactions when online and clears queue', async () => {
-    mockCreateSuperfluidStream.mockResolvedValue({ streamId: 'stream:1', txHash: '0xhash' });
+    mockCreateSuperfluidStream.mockResolvedValue({
+      streamId: 'stream:1',
+      txHash: '0xhash',
+    } as never);
 
     await act(async () => {
       await useTransactionQueueStore.getState().queueTransaction(samplePayload);

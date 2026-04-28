@@ -43,6 +43,8 @@ export const deleteUserData = async (userId: string, permanent: boolean = false)
 export const anonymizeUserData = async (userId: string) => {
   console.log(`Anonymizing data for user: ${userId}`);
 
+  // await ProfileModel.updateOne({ userId }, updates);
+
   return { success: true, message: 'User data has been anonymized' };
 };
 

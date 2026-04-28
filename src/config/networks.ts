@@ -101,7 +101,7 @@ export const NETWORK_CONTRACT_ADDRESSES: Record<string, ContractAddresses> = {
 };
 
 export function getNetworkById(id: string): Network | undefined {
-  return ALL_NETWORKS.find(network => network.id === id);
+  return ALL_NETWORKS.find((network) => network.id === id);
 }
 
 export function getContractAddresses(networkId: string): ContractAddresses | undefined {

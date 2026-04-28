@@ -13,7 +13,7 @@ export const SegmentOverlapAnalysis: React.FC<SegmentOverlapAnalysisProps> = ({
   segments,
   overlaps,
 }) => {
-  const { theme } = useTheme();
+  const theme = useTheme();
 
   if (segments.length < 2) {
     return (

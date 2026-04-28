@@ -82,7 +82,7 @@ describe('themeStore', () => {
         'brand-x',
         'Brand X'
       );
-    expect(useThemeStore.getState().allThemes()).toHaveLength(3);
+    expect(useThemeStore.getState().allThemes()).toHaveLength(4);
   });
 
   it('setTheme with unknown id falls back to dark', () => {

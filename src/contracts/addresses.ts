@@ -2,7 +2,7 @@
  * Canonical contract addresses by network. Prefer these over literals in services.
  * Supports both EVM and Stellar networks.
  */
-import { Network, getContractAddresses } from '../config/networks';
+import { getContractAddresses } from '../config/networks';
 
 export const CHAIN_IDS = {
   ETHEREUM: 1,
@@ -16,8 +16,6 @@ export type EVMContractKey = 'usdc';
 export type StellarContractKey = 'proxy' | 'storage' | 'subscription';
 
 type EVMChainContracts = Record<EVMContractKey, `0x${string}`>;
-type StellarNetworkContracts = Record<StellarContractKey, string>;
-
 export const EVM_CONTRACT_ADDRESSES: Record<KnownChainId, EVMChainContracts> = {
   [CHAIN_IDS.ETHEREUM]: {
     usdc: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
@@ -42,7 +40,10 @@ export function getEvmContractAddress(chainId: number, key: EVMContractKey): str
   return EVM_CONTRACT_ADDRESSES[chainId][key];
 }
 
-export function getStellarContractAddress(networkId: string, key: StellarContractKey): string | undefined {
+export function getStellarContractAddress(
+  networkId: string,
+  key: StellarContractKey
+): string | undefined {
   const addresses = getContractAddresses(networkId);
   return addresses?.[key];
 }

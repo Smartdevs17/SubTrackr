@@ -6,11 +6,11 @@ Covers contract deployment, app releases, and rollback procedures for all enviro
 
 ## Environments
 
-| Environment | Network | RPC URL | Purpose |
-| ----------- | ------- | ------- | ------- |
-| Local | Local Soroban | `http://localhost:8000` | Development |
-| Testnet | Stellar Testnet | `https://soroban-testnet.stellar.org` | Staging / QA |
-| Mainnet | Stellar Public | `https://soroban.stellar.org` | Production |
+| Environment | Network         | RPC URL                               | Purpose      |
+| ----------- | --------------- | ------------------------------------- | ------------ |
+| Local       | Local Soroban   | `http://localhost:8000`               | Development  |
+| Testnet     | Stellar Testnet | `https://soroban-testnet.stellar.org` | Staging / QA |
+| Mainnet     | Stellar Public  | `https://soroban.stellar.org`         | Production   |
 
 ---
 
@@ -41,11 +41,13 @@ Output: `target/wasm32-unknown-unknown/release/subtrackr.wasm`
 ### 2. Deploy
 
 **Local:**
+
 ```bash
 ./scripts/deploy-local.sh
 ```
 
 **Testnet:**
+
 ```bash
 export SOROBAN_ACCOUNT="your-testnet-account-name"
 export ADMIN_ADDRESS="GB..."
@@ -53,6 +55,7 @@ export ADMIN_ADDRESS="GB..."
 ```
 
 **Mainnet:**
+
 ```bash
 export SOROBAN_ACCOUNT="your-mainnet-account-name"
 export ADMIN_ADDRESS="GD..."
@@ -113,12 +116,12 @@ SOROBAN_NETWORK=public
 
 ### Environment Variables Reference
 
-| Variable | Description | Required |
-| -------- | ----------- | -------- |
-| `CONTRACT_ID` | Deployed Soroban contract ID | Yes |
+| Variable          | Description                         | Required    |
+| ----------------- | ----------------------------------- | ----------- |
+| `CONTRACT_ID`     | Deployed Soroban contract ID        | Yes         |
 | `SOROBAN_ACCOUNT` | Soroban CLI identity for deployment | Deploy only |
-| `ADMIN_ADDRESS` | Contract admin Stellar address | Deploy only |
-| `SOROBAN_RPC_URL` | Override default RPC endpoint | Optional |
+| `ADMIN_ADDRESS`   | Contract admin Stellar address      | Deploy only |
+| `SOROBAN_RPC_URL` | Override default RPC endpoint       | Optional    |
 
 ---
 

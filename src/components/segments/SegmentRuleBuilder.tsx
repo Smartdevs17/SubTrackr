@@ -39,7 +39,7 @@ export const SegmentRuleBuilder: React.FC<SegmentRuleBuilderProps> = ({
   logic,
   onLogicChange,
 }) => {
-  const { theme } = useTheme();
+  const theme = useTheme();
 
   const addRule = () => {
     const newRule: SegmentRule = {
@@ -70,8 +70,7 @@ export const SegmentRuleBuilder: React.FC<SegmentRuleBuilderProps> = ({
               styles.logicButton,
               logic === 'AND' && { backgroundColor: theme.colors.primary },
               { borderColor: theme.colors.border },
-            ]}
-          >
+            ]}>
             <Text style={[styles.logicText, logic === 'AND' && { color: '#fff' }]}>AND</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -80,8 +79,7 @@ export const SegmentRuleBuilder: React.FC<SegmentRuleBuilderProps> = ({
               styles.logicButton,
               logic === 'OR' && { backgroundColor: theme.colors.primary },
               { borderColor: theme.colors.border },
-            ]}
-          >
+            ]}>
             <Text style={[styles.logicText, logic === 'OR' && { color: '#fff' }]}>OR</Text>
           </TouchableOpacity>
         </View>
@@ -108,8 +106,7 @@ export const SegmentRuleBuilder: React.FC<SegmentRuleBuilderProps> = ({
                       styles.chip,
                       rule.field === f.value && { backgroundColor: theme.colors.primary },
                       { borderColor: theme.colors.border },
-                    ]}
-                  >
+                    ]}>
                     <Text style={[styles.chipText, rule.field === f.value && { color: '#fff' }]}>
                       {f.label}
                     </Text>
@@ -131,8 +128,7 @@ export const SegmentRuleBuilder: React.FC<SegmentRuleBuilderProps> = ({
                       styles.chip,
                       rule.operator === o.value && { backgroundColor: theme.colors.accent },
                       { borderColor: theme.colors.border },
-                    ]}
-                  >
+                    ]}>
                     <Text style={[styles.chipText, rule.operator === o.value && { color: '#fff' }]}>
                       {o.label}
                     </Text>

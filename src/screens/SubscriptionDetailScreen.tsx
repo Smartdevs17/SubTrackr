@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,13 +12,17 @@ import {
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { colors, spacing, typography, borderRadius } from '../utils/constants';
-import { useSubscriptionStore } from '../store';
+import { useSubscriptionStore, useSettingsStore } from '../store';
+import { currencyService } from '../services/currencyService';
 import { formatCurrency } from '../utils/formatting';
+import { colors, spacing, typography } from '../utils/constants';
 import { Subscription, SubscriptionCategory } from '../types/subscription';
 import { RootStackParamList } from '../navigation/types';
+
+// Components
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
+import { ScreenTransition, SharedElement } from '../components/common/SharedElement';
 
 type SubscriptionDetailRouteProp = RouteProp<RootStackParamList, 'SubscriptionDetail'>;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -35,88 +39,52 @@ const SubscriptionDetailScreen: React.FC = () => {
     updateSubscription,
     recordBillingOutcome,
   } = useSubscriptionStore();
+  const { preferredCurrency, exchangeRates } = useSettingsStore();
+  const rates = exchangeRates?.rates || {};
 
-  const [subscription, setSubscription] = useState<Subscription | null>(null);
-  const [loading, setLoading] = useState(true);
+
+  const subscription = useMemo(() => subscriptions?.find((s) => s.id === id), [id, subscriptions]);
+
+  const [loading, setLoading] = useState(!subscription);
 
   useEffect(() => {
-    const found = subscriptions?.find((s) => s.id === id);
-    if (found) {
-      setSubscription(found);
+    if (subscription) {
+      setLoading(false);
     }
-    setLoading(false);
-  }, [id, subscriptions]);
+  }, [subscription]);
 
   const handlePauseResume = useCallback(async () => {
     if (!subscription) return;
-
     try {
       await toggleSubscriptionStatus(subscription.id);
       Alert.alert(
-        'Success',
-        subscription.isActive ? 'Subscription paused' : 'Subscription resumed'
+        'Status Updated',
+        `Subscription is now ${!subscription.isActive ? 'active' : 'paused'}.`
       );
     } catch (error) {
-      Alert.alert('Error', 'Failed to update subscription status');
+      Alert.alert('Error', 'Failed to update contract status');
     }
   }, [subscription, toggleSubscriptionStatus]);
 
-  const handleCancel = useCallback(() => {
-    Alert.alert(
-      'Cancel Subscription',
-      'Are you sure you want to cancel this subscription? This action cannot be undone.',
-      [
-        { text: 'No', style: 'cancel' },
-        {
-          text: 'Yes, Cancel',
-          style: 'destructive',
-          onPress: async () => {
-            if (!subscription) return;
-            try {
-              await deleteSubscription(subscription.id);
-              Alert.alert('Success', 'Subscription cancelled', [
-                { text: 'OK', onPress: () => navigation.goBack() },
-              ]);
-            } catch (error) {
-              Alert.alert('Error', 'Failed to cancel subscription');
-            }
-          },
-        },
-      ]
-    );
-  }, [subscription, deleteSubscription, navigation]);
-
-  const handleCryptoPayment = useCallback(() => {
+  const handleStartCancellation = useCallback(() => {
     if (subscription) {
-      navigation.navigate('CryptoPayment', { subscriptionId: subscription.id });
+      navigation.navigate('CancellationFlow', {
+        subscriptionId: subscription.id,
+      });
     }
   }, [subscription, navigation]);
 
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
-      </SafeAreaView>
-    );
-  }
+  const handleCryptoPayment = useCallback(() => {
+    if (subscription) {
+      navigation.navigate('CryptoPayment', {
+        subscriptionId: subscription.id,
+      });
+    }
+  }, [subscription, navigation]);
 
-  if (!subscription) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>Subscription not found</Text>
-          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-            <Text style={styles.backButtonText}>Go Back</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  const getCategoryIcon = (category: SubscriptionCategory): string => {
-    const icons: Record<SubscriptionCategory, string> = {
+  const categoryIcon = useMemo(() => {
+    if (!subscription) return '📦';
+    const icons: Record<string, string> = {
       [SubscriptionCategory.STREAMING]: '🎬',
       [SubscriptionCategory.SOFTWARE]: '💻',
       [SubscriptionCategory.GAMING]: '🎮',
@@ -126,14 +94,34 @@ const SubscriptionDetailScreen: React.FC = () => {
       [SubscriptionCategory.FINANCE]: '💰',
       [SubscriptionCategory.OTHER]: '📦',
     };
-    return icons[category] || '📦';
-  };
+    return icons[subscription.category] || '📦';
+  }, [subscription?.category, subscription]);
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
+  if (!subscription) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>Subscription Record Missing</Text>
+          <Button title="Go Back" onPress={() => navigation.goBack()} />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scrollView}>
-        {/* Header */}
-        <View style={styles.header}>
+      <ScreenTransition type="slide" duration={400}>
+        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+          {/* Header */}
+          <View style={styles.header}>
           <TouchableOpacity
             style={styles.backIcon}
             onPress={() => navigation.goBack()}
@@ -153,7 +141,9 @@ const SubscriptionDetailScreen: React.FC = () => {
           <View style={styles.nameRow}>
             <Text style={styles.categoryIcon}>{getCategoryIcon(subscription.category)}</Text>
             <View style={styles.nameContainer}>
-              <Text style={styles.subscriptionName}>{subscription.name}</Text>
+              <SharedElement id={`subscription-${subscription.id}-name`}>
+                <Text style={styles.subscriptionName}>{subscription.name}</Text>
+              </SharedElement>
               <Text style={styles.categoryText}>
                 {subscription.category.charAt(0).toUpperCase() + subscription.category.slice(1)}
               </Text>
@@ -172,12 +162,26 @@ const SubscriptionDetailScreen: React.FC = () => {
             <View style={styles.priceItem}>
               <Text style={styles.priceLabel}>Amount</Text>
               <Text style={styles.priceValue}>
-                {formatCurrency(subscription.price, subscription.currency)}
+                {formatCurrency(
+                  currencyService.convert(
+                    subscription.price,
+                    subscription.currency,
+                    preferredCurrency,
+                    rates
+                  ),
+                  preferredCurrency
+                )}
               </Text>
+              {subscription.currency !== preferredCurrency && (
+                <Text style={styles.originalPriceDetail}>
+                  Original: {formatCurrency(subscription.price, subscription.currency)}
+                </Text>
+              )}
             </View>
+
             <View style={styles.priceItem}>
               <Text style={styles.priceLabel}>Billing Cycle</Text>
-              <Text style={styles.priceValue}>
+              <Text style={styles.priceValue} testID="subscription-billing-cycle-value">
                 {subscription.billingCycle.charAt(0).toUpperCase() +
                   subscription.billingCycle.slice(1)}
               </Text>
@@ -217,144 +221,120 @@ const SubscriptionDetailScreen: React.FC = () => {
           <View style={styles.simulateRow}>
             <TouchableOpacity
               onPress={() => void recordBillingOutcome(subscription.id, 'success')}
-              style={styles.simulateLink}>
+              style={styles.simulateLink}
+              testID="simulate-charge-success-button">
               <Text style={styles.simulateLinkText}>Simulate successful charge</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={() => void recordBillingOutcome(subscription.id, 'failed')}
-              style={styles.simulateLink}>
-              <Text style={styles.simulateLinkTextDanger}>Simulate failed charge</Text>
+              style={styles.backIcon}
+              onPress={() => navigation.goBack()}
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={styles.backIconText}>←</Text>
             </TouchableOpacity>
+            <Text style={styles.headerTitle}>Details</Text>
+            <View style={styles.placeholder} />
           </View>
-        </Card>
 
-        {/* Status Card */}
-        <Card style={styles.statusCard}>
-          <Text style={styles.sectionTitle}>Status</Text>
-          <View style={styles.statusRow}>
-            <View
-              style={[
-                styles.statusBadge,
-                subscription.isActive ? styles.statusActive : styles.statusInactive,
-              ]}>
-              <Text
+          {/* Main Identity */}
+          <Card style={styles.mainCard}>
+            <View style={styles.nameRow}>
+              <Text style={styles.categoryIconText}>{categoryIcon}</Text>
+              <View style={styles.nameContainer}>
+                <SharedElement id={`subscription-${subscription.id}-name`}>
+                  <Text style={styles.subscriptionName}>{subscription.name}</Text>
+                </SharedElement>
+                <Text style={styles.categoryText}>{subscription.category}</Text>
+              </View>
+              <View
                 style={[
-                  styles.statusText,
-                  subscription.isActive ? styles.statusTextActive : styles.statusTextInactive,
-                ]}>
-                {subscription.isActive ? 'Active' : 'Paused'}
-              </Text>
+                  styles.statusIndicator,
+                  subscription.isActive ? styles.bgSuccess : styles.bgPaused,
+                ]}
+              />
             </View>
-            {subscription.isCryptoEnabled && (
-              <View style={styles.cryptoBadge}>
-                <Text style={styles.cryptoText}>Crypto Enabled</Text>
-              </View>
-            )}
-          </View>
-        </Card>
-
-        {/* Crypto Details */}
-        {subscription.isCryptoEnabled && subscription.cryptoStreamId && (
-          <Card style={styles.cryptoCard}>
-            <Text style={styles.sectionTitle}>Crypto Stream</Text>
-            <View style={styles.cryptoDetailRow}>
-              <Text style={styles.cryptoLabel}>Stream ID</Text>
-              <Text style={styles.cryptoValue} numberOfLines={1}>
-                {subscription.cryptoStreamId}
-              </Text>
-            </View>
-            {subscription.cryptoToken && (
-              <View style={styles.cryptoDetailRow}>
-                <Text style={styles.cryptoLabel}>Token</Text>
-                <Text style={styles.cryptoValue}>{subscription.cryptoToken}</Text>
-              </View>
-            )}
-            {subscription.cryptoAmount && (
-              <View style={styles.cryptoDetailRow}>
-                <Text style={styles.cryptoLabel}>Amount</Text>
-                <Text style={styles.cryptoValue}>
-                  {subscription.cryptoAmount} {subscription.cryptoToken}
-                </Text>
-              </View>
-            )}
-            <Button
-              title="Make Crypto Payment"
-              onPress={handleCryptoPayment}
-              variant="primary"
-              style={styles.paymentButton}
-            />
           </Card>
-        )}
 
-        {/* Gas Tracking Section */}
-        <Card style={styles.statusCard}>
-          <Text style={styles.sectionTitle}>Gas Budget Tracking</Text>
-          <View style={styles.priceRow}>
-            <View style={styles.priceItem}>
-              <Text style={styles.priceLabel}>Avg Gas Cost</Text>
+          {/* Billing Info */}
+          <View style={styles.sectionRow}>
+            <Card style={[styles.flexCard, styles.marginRight]}>
+              <Text style={styles.priceLabel}>Amount</Text>
               <Text style={styles.priceValue}>
-                {subscription.chargeCount && subscription.chargeCount > 0
-                  ? (subscription.totalGasSpent! / subscription.chargeCount).toFixed(4)
-                  : '0.0000'}{' '}
-                XLM
+                {formatCurrency(subscription.price, subscription.currency)}
               </Text>
-            </View>
-            <View style={styles.priceItem}>
-              <Text style={styles.priceLabel}>Total Gas Spent</Text>
-              <Text style={styles.priceValue}>
-                {subscription.totalGasSpent?.toFixed(4) || '0.0000'} XLM
-              </Text>
-            </View>
+            </Card>
+            <Card style={styles.flexCard}>
+              <Text style={styles.priceLabel}>Cycle</Text>
+              <Text style={styles.priceValue}>{subscription.billingCycle}</Text>
+            </Card>
           </View>
 
-          <View style={styles.nextBillingRow}>
-            <View
-              style={{
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}>
-              <Text style={styles.priceLabel}>Gas Budget per Charge</Text>
-              <Text style={[styles.priceValue, { fontSize: 16 }]}>
+          {/* Gas & Network Status (Stellar/Soroban specific) */}
+          <Card style={styles.standardCard}>
+            <Text style={styles.sectionTitle}>Network & Gas</Text>
+            <View style={styles.dataRow}>
+              <Text style={styles.dataLabel}>Gas Budget</Text>
+              <Text style={styles.dataValue}>
                 {subscription.gasBudget?.toFixed(4) || '0.0500'} XLM
               </Text>
             </View>
-          </View>
+            <View style={styles.dataRow}>
+              <Text style={styles.dataLabel}>Total Spent</Text>
+              <Text style={styles.dataValue}>
+                {subscription.totalGasSpent?.toFixed(4) || '0.0000'} XLM
+              </Text>
+            </View>
+          </Card>
 
-          {subscription.lastGasCost &&
-            subscription.chargeCount &&
-            subscription.chargeCount > 1 &&
-            subscription.lastGasCost >
-              (subscription.totalGasSpent! / subscription.chargeCount) * 1.5 && (
-              <View
-                style={[
-                  styles.statusBadge,
-                  styles.statusInactive,
-                  { marginTop: spacing.md, backgroundColor: colors.error + '20' },
-                ]}>
-                <Text style={[styles.statusText, { color: colors.error }]}>
-                  ⚠️ Gas cost spike detected! ({subscription.lastGasCost.toFixed(4)} XLM)
-                </Text>
+          {/* Notifications Toggle */}
+          <Card style={styles.standardCard}>
+            <View style={styles.switchRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.switchTitle}>Charge Alerts</Text>
+                <Text style={styles.switchSubtext}>Get notified before contract execution</Text>
               </View>
-            )}
-        </Card>
+              <Switch
+                value={subscription.notificationsEnabled !== false}
+                onValueChange={(value) =>
+                  updateSubscription(subscription.id, {
+                    notificationsEnabled: value,
+                  })
+                }
+                trackColor={{ false: colors.border, true: colors.primary }}
+              />
+            </View>
+          </Card>
 
-        {/* Actions */}
-        <View style={styles.actionsContainer}>
-          <Button
-            title={subscription.isActive ? 'Pause Subscription' : 'Resume Subscription'}
-            onPress={handlePauseResume}
-            variant="secondary"
-            style={styles.actionButton}
-          />
-          <Button
-            title="Cancel Subscription"
-            onPress={handleCancel}
-            variant="danger"
-            style={styles.actionButton}
-          />
-        </View>
-      </ScrollView>
+          {/* Action Management */}
+          <View style={styles.actionsContainer}>
+            <Text style={styles.actionSectionTitle}>Subscription Management</Text>
+
+            {subscription.isCryptoEnabled && (
+              <Button
+                title="Crypto Payment"
+                onPress={handleCryptoPayment}
+                variant="primary"
+                style={styles.actionButton}
+              />
+            )}
+
+            <Button
+              title={subscription.isActive ? 'Pause Subscription' : 'Resume Subscription'}
+              onPress={handlePauseResume}
+              variant="secondary"
+              style={styles.actionButton}
+            />
+
+            <Button
+              title="Cancel Subscription"
+              variant="danger"
+              onPress={handleStartCancellation}
+              style={styles.cancelButton}
+            />
+          </View>
+        </ScrollView>
+      </ScreenTransition>
     </SafeAreaView>
   );
 };
@@ -367,10 +347,171 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  scrollContent: {
+    paddingBottom: spacing.xl,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: colors.background,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: spacing.lg,
+  },
+  backButton: {
+    padding: spacing.sm,
+  },
+  backIconText: {
+    fontSize: 24,
+    color: colors.text,
+  },
+  headerTitle: {
+    ...typography.h3,
+    color: colors.text,
+  },
+  placeholder: {
+    width: 40,
+  },
+  mainCard: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+    padding: spacing.lg,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  categoryIconText: {
+    fontSize: 40,
+    marginRight: spacing.md,
+  },
+  nameContainer: {
+    flex: 1,
+  },
+  subscriptionName: {
+    ...typography.h2,
+    color: colors.text,
+  },
+  categoryText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+  },
+  statusIndicator: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  bgSuccess: {
+    backgroundColor: colors.success,
+  },
+  bgPaused: {
+    backgroundColor: colors.warning,
+  },
+  sectionRow: {
+    flexDirection: 'row',
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+  },
+  flexCard: {
+    flex: 1,
+    padding: spacing.md,
+    alignItems: 'center',
+  },
+  priceLabel: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+  },
+  priceValue: {
+    ...typography.h3,
+    color: colors.text,
+  },
+  originalPriceDetail: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  },
+  nextBillingRow: {
+
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: spacing.md,
+  },
+  nextBillingDate: {
+    ...typography.body,
+    color: colors.accent,
+    fontWeight: '600',
+    marginTop: spacing.xs,
+  },
+  marginRight: {
+    marginRight: spacing.sm,
+  },
+  standardCard: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+    padding: spacing.md,
+  },
+  sectionTitle: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginBottom: spacing.md,
+    fontWeight: 'bold',
+  },
+  dataRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: spacing.xs,
+  },
+  dataLabel: {
+    ...typography.body,
+    color: colors.textSecondary,
+  },
+  dataValue: {
+    ...typography.body,
+    color: colors.text,
+    fontWeight: '600',
+  },
+  priceLabel: {
+    ...typography.caption,
+    color: colors.textSecondary,
+  },
+  priceValue: {
+    ...typography.h3,
+    color: colors.text,
+    marginTop: 4,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  switchTitle: {
+    ...typography.body,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  switchSubtext: {
+    ...typography.caption,
+    color: colors.textSecondary,
+  },
+  actionsContainer: {
+    marginTop: spacing.lg,
+    paddingHorizontal: spacing.lg,
+  },
+  actionSectionTitle: {
+    ...typography.h3,
+    marginBottom: spacing.md,
+    color: colors.text,
+  },
+  actionButton: {
+    marginBottom: spacing.sm,
+  },
+  cancelButton: {
+    marginTop: spacing.md,
   },
   errorContainer: {
     flex: 1,
@@ -382,220 +523,6 @@ const styles = StyleSheet.create({
     ...typography.h3,
     color: colors.text,
     marginBottom: spacing.lg,
-  },
-  backButton: {
-    backgroundColor: colors.primary,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xl,
-    borderRadius: borderRadius.md,
-  },
-  backButtonText: {
-    ...typography.body,
-    color: colors.text,
-    fontWeight: '600',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: spacing.lg,
-  },
-  backIcon: {
-    padding: spacing.sm,
-  },
-  backIconText: {
-    fontSize: 24,
-    color: colors.text,
-  },
-  title: {
-    ...typography.h2,
-    color: colors.text,
-  },
-  placeholder: {
-    width: 40,
-  },
-  mainCard: {
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.md,
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  categoryIcon: {
-    fontSize: 48,
-    marginRight: spacing.md,
-  },
-  nameContainer: {
-    flex: 1,
-  },
-  subscriptionName: {
-    ...typography.h2,
-    color: colors.text,
-    marginBottom: spacing.xs,
-  },
-  categoryText: {
-    ...typography.body,
-    color: colors.textSecondary,
-  },
-  description: {
-    ...typography.body,
-    color: colors.textSecondary,
-    marginTop: spacing.md,
-  },
-  priceCard: {
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.md,
-  },
-  sectionTitle: {
-    ...typography.h3,
-    color: colors.text,
-    marginBottom: spacing.md,
-  },
-  priceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: spacing.md,
-  },
-  priceItem: {
-    flex: 1,
-  },
-  priceLabel: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginBottom: spacing.xs,
-  },
-  priceValue: {
-    ...typography.h3,
-    color: colors.text,
-  },
-  nextBillingRow: {
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: spacing.md,
-  },
-  nextBillingDate: {
-    ...typography.body,
-    color: colors.accent,
-    fontWeight: '600',
-    marginTop: spacing.xs,
-  },
-  statusCard: {
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.md,
-  },
-  notificationSubtext: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginBottom: spacing.md,
-  },
-  switchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.md,
-  },
-  switchLabel: {
-    ...typography.body,
-    color: colors.text,
-    flex: 1,
-    marginRight: spacing.md,
-  },
-  simulateSectionTitle: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginBottom: spacing.sm,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  simulateRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.md,
-  },
-  simulateLink: {
-    paddingVertical: spacing.xs,
-  },
-  simulateLinkText: {
-    ...typography.caption,
-    color: colors.accent,
-    textDecorationLine: 'underline',
-  },
-  simulateLinkTextDanger: {
-    ...typography.caption,
-    color: colors.error,
-    textDecorationLine: 'underline',
-  },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  statusBadge: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.full,
-  },
-  statusActive: {
-    backgroundColor: colors.success + '20',
-  },
-  statusInactive: {
-    backgroundColor: colors.textSecondary + '20',
-  },
-  statusText: {
-    ...typography.body,
-    fontWeight: '600',
-  },
-  statusTextActive: {
-    color: colors.success,
-  },
-  statusTextInactive: {
-    color: colors.textSecondary,
-  },
-  cryptoBadge: {
-    backgroundColor: colors.accent + '20',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.full,
-  },
-  cryptoText: {
-    ...typography.body,
-    color: colors.accent,
-    fontWeight: '600',
-  },
-  cryptoCard: {
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.md,
-  },
-  cryptoDetailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  cryptoLabel: {
-    ...typography.body,
-    color: colors.textSecondary,
-  },
-  cryptoValue: {
-    ...typography.body,
-    color: colors.text,
-    fontWeight: '600',
-    flex: 1,
-    textAlign: 'right',
-    marginLeft: spacing.md,
-  },
-  paymentButton: {
-    marginTop: spacing.md,
-  },
-  actionsContainer: {
-    padding: spacing.lg,
-    gap: spacing.md,
-  },
-  actionButton: {
-    width: '100%',
   },
 });
 

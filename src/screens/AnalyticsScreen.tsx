@@ -13,6 +13,10 @@ import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { useSubscriptionStore } from '../store';
 import { SubscriptionCategory, BillingCycle } from '../types/subscription';
 import { Card } from '../components/common/Card';
+import { useSettingsStore } from '../store/settingsStore';
+import { currencyService } from '../services/currencyService';
+import { formatCurrency } from '../utils/formatting';
+
 
 const { width: screenWidth } = Dimensions.get('window');
 const CHART_WIDTH = screenWidth - spacing.xl * 2;
@@ -21,11 +25,14 @@ type DateRange = 'week' | 'month' | 'year';
 
 const AnalyticsScreen: React.FC = () => {
   const { subscriptions, stats, calculateStats } = useSubscriptionStore();
+  const { preferredCurrency, exchangeRates } = useSettingsStore();
+  const rates = exchangeRates?.rates || {};
   const [dateRange, setDateRange] = useState<DateRange>('month');
 
   useEffect(() => {
     calculateStats();
-  }, [subscriptions, calculateStats]);
+  }, [subscriptions, calculateStats, preferredCurrency, exchangeRates]);
+
 
   const categoryData = useMemo(() => {
     const categories = Object.values(SubscriptionCategory);
@@ -80,10 +87,17 @@ const AnalyticsScreen: React.FC = () => {
           const monthIndex =
             dateRange === 'week' ? Math.floor(createdAt.getDate() / 7) : createdAt.getMonth();
           if (dateRange === 'year' || monthIndex === index) {
-            if (sub.billingCycle === BillingCycle.MONTHLY) total += sub.price;
-            else if (sub.billingCycle === BillingCycle.YEARLY) total += sub.price / 12;
-            else if (sub.billingCycle === BillingCycle.WEEKLY) total += sub.price * 4;
+            const priceInPreferred = currencyService.convert(
+              sub.price,
+              sub.currency,
+              preferredCurrency,
+              rates
+            );
+            if (sub.billingCycle === BillingCycle.MONTHLY) total += priceInPreferred;
+            else if (sub.billingCycle === BillingCycle.YEARLY) total += priceInPreferred / 12;
+            else if (sub.billingCycle === BillingCycle.WEEKLY) total += priceInPreferred * 4;
           }
+
         }
       });
       return { month, amount: total };
@@ -162,19 +176,35 @@ const AnalyticsScreen: React.FC = () => {
           ))}
         </View>
         <View style={styles.summaryContainer}>
-          <Card
-            style={styles.summaryCard}
-            accessible={true}
-            accessibilityLabel={`Monthly spend, $${stats.totalMonthlySpend.toFixed(2)}`}>
-            <Text style={styles.summaryLabel} accessibilityElementsHidden={true} importantForAccessibility="no">Monthly Spend</Text>
-            <Text style={styles.summaryValue} accessibilityElementsHidden={true} importantForAccessibility="no">${stats.totalMonthlySpend.toFixed(2)}</Text>
+          <Card style={styles.summaryCard}>
+            <Text
+              style={styles.summaryLabel}
+              accessibilityElementsHidden={true}
+              importantForAccessibility="no">
+              Monthly Spend
+            </Text>
+            <Text
+              style={styles.summaryValue}
+              accessibilityElementsHidden={true}
+              importantForAccessibility="no">
+              {formatCurrency(stats.totalMonthlySpend, preferredCurrency)}
+            </Text>
+
           </Card>
-          <Card
-            style={styles.summaryCard}
-            accessible={true}
-            accessibilityLabel={`Yearly estimate, $${stats.totalYearlySpend.toFixed(2)}`}>
-            <Text style={styles.summaryLabel} accessibilityElementsHidden={true} importantForAccessibility="no">Yearly Estimate</Text>
-            <Text style={styles.summaryValue} accessibilityElementsHidden={true} importantForAccessibility="no">${stats.totalYearlySpend.toFixed(2)}</Text>
+          <Card style={styles.summaryCard}>
+            <Text
+              style={styles.summaryLabel}
+              accessibilityElementsHidden={true}
+              importantForAccessibility="no">
+              Yearly Estimate
+            </Text>
+            <Text
+              style={styles.summaryValue}
+              accessibilityElementsHidden={true}
+              importantForAccessibility="no">
+              {formatCurrency(stats.totalYearlySpend, preferredCurrency)}
+            </Text>
+
           </Card>
         </View>
         <Card style={styles.chartCard}>
@@ -228,8 +258,9 @@ const AnalyticsScreen: React.FC = () => {
                       fontSize={10}
                       fill={colors.text}
                       textAnchor="middle">
-                      ${data.amount.toFixed(0)}
+                      {formatCurrency(data.amount, preferredCurrency)}
                     </SvgText>
+
                   )}
                 </G>
               );
@@ -272,16 +303,25 @@ const AnalyticsScreen: React.FC = () => {
           <Text style={styles.chartTitle}>Upcoming Renewals</Text>
           <View style={styles.projectionItem}>
             <Text style={styles.projectionLabel}>Next 30 Days</Text>
-            <Text style={styles.projectionValue}>${stats.totalMonthlySpend.toFixed(2)}</Text>
+            <Text style={styles.projectionValue}>
+              {formatCurrency(stats.totalMonthlySpend, preferredCurrency)}
+            </Text>
           </View>
+
           <View style={styles.projectionItem}>
             <Text style={styles.projectionLabel}>Next 90 Days</Text>
-            <Text style={styles.projectionValue}>${(stats.totalMonthlySpend * 3).toFixed(2)}</Text>
+            <Text style={styles.projectionValue}>
+              {formatCurrency(stats.totalMonthlySpend * 3, preferredCurrency)}
+            </Text>
           </View>
+
           <View style={[styles.projectionItem, styles.projectionItemLast]}>
             <Text style={styles.projectionLabel}>Next 12 Months</Text>
-            <Text style={styles.projectionValue}>${stats.totalYearlySpend.toFixed(2)}</Text>
+            <Text style={styles.projectionValue}>
+              {formatCurrency(stats.totalYearlySpend, preferredCurrency)}
+            </Text>
           </View>
+
         </Card>
       </ScrollView>
     </SafeAreaView>

@@ -1,4 +1,5 @@
 #![no_std]
+#![allow(clippy::too_many_arguments)]
 
 mod storage;
 
@@ -13,11 +14,7 @@ fn current_proxy_address(env: &Env) -> Address {
     env.current_contract_address()
 }
 
-fn invoke_impl<T: TryFromVal<Env, Val>>(
-    env: &Env,
-    func: &str,
-    args: Vec<Val>,
-) -> T {
+fn invoke_impl<T: TryFromVal<Env, Val>>(env: &Env, func: &str, args: Vec<Val>) -> T {
     let impl_addr = proxy_storage::implementation(env);
     env.invoke_contract(&impl_addr, &soroban_sdk::Symbol::new(env, func), args)
 }
@@ -92,11 +89,7 @@ impl UpgradeableProxy {
         let target_version: u32 = env.invoke_contract(
             &implementation,
             &soroban_sdk::Symbol::new(&env, "get_version"),
-            soroban_sdk::vec![
-                &env,
-                proxy_addr.into_val(&env),
-                storage.into_val(&env)
-            ],
+            soroban_sdk::vec![&env, proxy_addr.into_val(&env), storage.into_val(&env)],
         );
         proxy_storage::set_version(&env, target_version);
     }
@@ -133,13 +126,13 @@ impl UpgradeableProxy {
         // Basic interface validation: ensure new implementation supports expected interface.
         let proxy_addr = current_proxy_address(&env);
         let storage_addr = proxy_storage::storage_address(&env);
-        let args: Vec<Val> = soroban_sdk::vec![
-            &env,
-            proxy_addr.into_val(&env),
-            storage_addr.into_val(&env)
-        ];
-        let _target_version: u32 =
-            env.invoke_contract(&implementation, &soroban_sdk::Symbol::new(&env, "get_version"), args);
+        let args: Vec<Val> =
+            soroban_sdk::vec![&env, proxy_addr.into_val(&env), storage_addr.into_val(&env)];
+        let _target_version: u32 = env.invoke_contract(
+            &implementation,
+            &soroban_sdk::Symbol::new(&env, "get_version"),
+            args,
+        );
 
         proxy_storage::set_scheduled_upgrade(
             &env,
@@ -194,7 +187,10 @@ impl UpgradeableProxy {
         );
 
         let now = env.ledger().timestamp();
-        assert!(now >= scheduled.execute_after, "Upgrade timelock not expired");
+        assert!(
+            now >= scheduled.execute_after,
+            "Upgrade timelock not expired"
+        );
 
         let proxy_addr = current_proxy_address(&env);
         let storage_addr = proxy_storage::storage_address(&env);
@@ -471,12 +467,7 @@ impl UpgradeableProxy {
         );
     }
 
-    pub fn pause_by_subscriber(
-        env: Env,
-        subscriber: Address,
-        subscription_id: u64,
-        duration: u64,
-    ) {
+    pub fn pause_by_subscriber(env: Env, subscriber: Address, subscription_id: u64, duration: u64) {
         let proxy_addr = current_proxy_address(&env);
         let storage_addr = proxy_storage::storage_address(&env);
         invoke_impl::<()>(

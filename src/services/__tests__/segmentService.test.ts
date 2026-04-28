@@ -1,10 +1,5 @@
 import { segmentService } from '../segmentService';
-import {
-  Segment,
-  CriteriaOperator,
-  SubscriberData,
-  SegmentRule,
-} from '../../types/segment';
+import { Segment, CriteriaOperator, SubscriberData, SegmentRule } from '../../types/segment';
 import { SubscriptionCategory, BillingCycle } from '../../types/subscription';
 
 describe('SegmentService', () => {
