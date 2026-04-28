@@ -67,18 +67,20 @@ class UsageTrackingService {
     method: string,
     statusCode: number,
     responseTime: number,
-    environment: SandboxEnvironment = SandboxEnvironment.DEVELOPMENT
+    _environment: SandboxEnvironment = SandboxEnvironment.DEVELOPMENT
   ): Promise<UsageMetric> {
     const metric: UsageMetric = {
       id: generateId(),
-      developerId,
       apiKeyId,
+      sandboxId: developerId,
       endpoint,
       method,
       statusCode,
       responseTime,
+      requestSize: 0,
+      responseSize: 0,
       timestamp: new Date(),
-      environment,
+      metadata: {},
     };
 
     this.metrics.push(metric);
@@ -86,7 +88,7 @@ class UsageTrackingService {
     return metric;
   }
 
-  generateMockUsageData(developerId: string, apiKeyId: string, days: number = 30): void {
+  generateMockUsageData(developerId: string, _apiKeyId: string, days: number = 30): void {
     const now = new Date();
     this.metrics = [];
 
@@ -105,14 +107,16 @@ class UsageTrackingService {
 
         this.metrics.push({
           id: generateId(),
-          developerId,
-          apiKeyId,
+          apiKeyId: 'default',
+          sandboxId: developerId,
           endpoint: endpoint.path,
           method: endpoint.method,
           statusCode,
           responseTime,
+          requestSize: Math.floor(Math.random() * 1000),
+          responseSize: Math.floor(Math.random() * 5000),
           timestamp,
-          environment: SandboxEnvironment.DEVELOPMENT,
+          metadata: {},
         });
       }
     }
@@ -121,15 +125,22 @@ class UsageTrackingService {
   }
 
   getUsageStats(developerId: string): UsageStats {
-    const devMetrics = this.metrics.filter((m) => m.developerId === developerId);
+    const devMetrics = this.metrics.filter((m) => m.sandboxId === developerId);
 
     const totalRequests = devMetrics.length;
-    const successfulRequests = devMetrics.filter((m) => m.statusCode >= 200 && m.statusCode < 300).length;
+    const successfulRequests = devMetrics.filter(
+      (m) => m.statusCode >= 200 && m.statusCode < 300
+    ).length;
     const failedRequests = totalRequests - successfulRequests;
     const averageResponseTime =
       totalRequests > 0
         ? devMetrics.reduce((sum, m) => sum + m.responseTime, 0) / totalRequests
         : 0;
+
+    const totalDataTransferred = devMetrics.reduce(
+      (sum, m) => sum + (m.requestSize || 0) + (m.responseSize || 0),
+      0
+    );
 
     const requestsByEndpoint: Record<string, number> = {};
     devMetrics.forEach((m) => {
@@ -139,7 +150,10 @@ class UsageTrackingService {
 
     const requestsByDay: Record<string, number> = {};
     devMetrics.forEach((m) => {
-      const day = m.timestamp instanceof Date ? m.timestamp.toISOString().split('T')[0] : new Date(m.timestamp).toISOString().split('T')[0];
+      const day =
+        m.timestamp instanceof Date
+          ? m.timestamp.toISOString().split('T')[0]
+          : new Date(m.timestamp).toISOString().split('T')[0];
       requestsByDay[day] = (requestsByDay[day] || 0) + 1;
     });
 
@@ -165,11 +179,17 @@ class UsageTrackingService {
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);
 
+    const now = new Date();
+    const periodStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
     return {
       totalRequests,
       successfulRequests,
       failedRequests,
       averageResponseTime: Math.round(averageResponseTime),
+      totalDataTransferred,
+      periodStart,
+      periodEnd: now,
       requestsByEndpoint,
       requestsByDay,
       topErrors,
@@ -178,10 +198,12 @@ class UsageTrackingService {
 
   getRecentMetrics(developerId: string, limit: number = 50): UsageMetric[] {
     return this.metrics
-      .filter((m) => m.developerId === developerId)
+      .filter((m) => m.sandboxId === developerId)
       .sort((a, b) => {
-        const aTime = a.timestamp instanceof Date ? a.timestamp.getTime() : new Date(a.timestamp).getTime();
-        const bTime = b.timestamp instanceof Date ? b.timestamp.getTime() : new Date(b.timestamp).getTime();
+        const aTime =
+          a.timestamp instanceof Date ? a.timestamp.getTime() : new Date(a.timestamp).getTime();
+        const bTime =
+          b.timestamp instanceof Date ? b.timestamp.getTime() : new Date(b.timestamp).getTime();
         return bTime - aTime;
       })
       .slice(0, limit);
@@ -192,7 +214,7 @@ class UsageTrackingService {
   }
 
   async clearMetrics(developerId: string): Promise<void> {
-    this.metrics = this.metrics.filter((m) => m.developerId !== developerId);
+    this.metrics = this.metrics.filter((m) => m.sandboxId !== developerId);
     await this.saveMetrics();
   }
 
@@ -220,7 +242,7 @@ class UsageTrackingService {
       const dateStr = date.toISOString().split('T')[0];
       result.push({
         date: dateStr,
-        count: stats.requestsByDay[dateStr] || 0,
+        count: stats.requestsByDay?.[dateStr] || 0,
       });
     }
 

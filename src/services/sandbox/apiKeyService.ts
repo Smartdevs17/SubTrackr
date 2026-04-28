@@ -43,8 +43,8 @@ class ApiKeyService {
           ...key,
           createdAt: new Date(key.createdAt as string),
           updatedAt: new Date(key.updatedAt as string),
-          lastUsedAt: key.lastUsedAt ? new Date(key.lastUsedAt as string) : undefined,
-          expiresAt: key.expiresAt ? new Date(key.expiresAt as string) : undefined,
+          lastUsedAt: key.lastUsedAt ? new Date(key.lastUsedAt as string) : null,
+          expiresAt: key.expiresAt ? new Date(key.expiresAt as string) : null,
         }));
       }
     } catch {
@@ -82,6 +82,7 @@ class ApiKeyService {
         requestsPerDay: 10000,
       },
       expiresAt,
+      lastUsedAt: null,
       createdAt: now,
       updatedAt: now,
     };

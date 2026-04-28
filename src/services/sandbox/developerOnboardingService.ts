@@ -62,7 +62,7 @@ class DeveloperOnboardingService {
             createdAt: new Date(parsed.sandboxConfig.createdAt),
             updatedAt: new Date(parsed.sandboxConfig.updatedAt),
           },
-          apiKeys: parsed.apiKeys.map((key: Record<string, unknown>) => ({
+          apiKeys: (parsed.apiKeys || []).map((key: Record<string, unknown>) => ({
             ...key,
             createdAt: new Date(key.createdAt as string),
             updatedAt: new Date(key.updatedAt as string),
@@ -134,7 +134,8 @@ class DeveloperOnboardingService {
   async completeStep(step: DeveloperOnboardingStep): Promise<DeveloperProfile> {
     if (!this.profile) throw new Error('No developer profile found');
 
-    const completedSteps = [...new Set([...this.profile.completedSteps, step])];
+    const currentCompleted = this.profile.completedSteps || [];
+    const completedSteps = [...new Set([...currentCompleted, step])];
     const currentIndex = ONBOARDING_STEP_ORDER.indexOf(step);
     const nextStep = ONBOARDING_STEP_ORDER[currentIndex + 1];
 
@@ -150,11 +151,15 @@ class DeveloperOnboardingService {
   }
 
   isStepCompleted(step: DeveloperOnboardingStep): boolean {
-    return this.profile?.completedSteps.includes(step) ?? false;
+    return this.profile?.completedSteps?.includes(step) ?? false;
   }
 
   getCurrentStep(): DeveloperOnboardingStep {
-    return this.profile?.onboardingStep ?? DeveloperOnboardingStep.WELCOME;
+    const step = this.profile?.onboardingStep;
+    if (typeof step === 'number') {
+      return ONBOARDING_STEP_ORDER[step] || DeveloperOnboardingStep.WELCOME;
+    }
+    return step || DeveloperOnboardingStep.WELCOME;
   }
 
   getStepDescription(step: DeveloperOnboardingStep): string {

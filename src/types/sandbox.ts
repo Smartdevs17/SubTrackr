@@ -59,6 +59,10 @@ export interface SandboxConfig {
   isActive: boolean;
   dataIsolation: boolean;
   rateLimit: RateLimitConfig;
+  dataResetInterval?: string;
+  maxTestSubscriptions?: number;
+  maxApiCalls?: number;
+  allowedFeatures?: string[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -68,12 +72,19 @@ export interface ApiKey {
   key: string;
   name: string;
   description?: string;
-  sandboxId: string;
+  sandboxId?: string;
+  developerId?: string;
+  environment?: SandboxEnvironment;
   status: ApiKeyStatus;
-  scopes: ApiKeyScope[];
+  scopes?: ApiKeyScope[];
+  permissions?: string[];
+  rateLimit?: {
+    requestsPerMinute: number;
+    requestsPerDay: number;
+  };
   expiresAt: Date | null;
   lastUsedAt: Date | null;
-  usageCount: number;
+  usageCount?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -160,8 +171,9 @@ export interface DeveloperProfile {
   name: string;
   company?: string;
   website?: string;
-  isOnboarded: boolean;
-  onboardingStep: number;
+  isOnboarded?: boolean;
+  onboardingStep: number | DeveloperOnboardingStep;
+  completedSteps?: DeveloperOnboardingStep[];
   sandboxConfig: SandboxConfig;
   apiKeys: ApiKey[];
   createdAt: Date;
@@ -172,11 +184,12 @@ export interface IntegrationGuide {
   id: string;
   title: string;
   description: string;
-  category: string;
+  category: string | IntegrationGuideCategory;
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   estimatedTime: string;
   steps: IntegrationStep[];
   tags: string[];
+  isCompleted?: boolean;
 }
 
 export interface IntegrationStep {

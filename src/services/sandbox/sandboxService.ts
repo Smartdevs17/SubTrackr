@@ -3,15 +3,16 @@ import {
   SandboxConfig,
   SandboxEnvironment,
   TestSubscription,
+  RateLimitConfig,
 } from '../../types/sandbox';
-import { SubscriptionCategory, BillingCycle } from '../../types/subscription';
 
 const SANDBOX_STORAGE_KEY = '@subtrackr_sandbox_config';
 
-const generateId = (): string => {
-  const timestamp = Date.now().toString(36);
-  const random = Math.random().toString(36).substring(2, 8);
-  return `${timestamp}-${random}`;
+const DEFAULT_RATE_LIMIT: RateLimitConfig = {
+  requestsPerMinute: 60,
+  requestsPerHour: 1000,
+  requestsPerDay: 10000,
+  burstLimit: 100,
 };
 
 const DEFAULT_SANDBOX_CONFIG: SandboxConfig = {
@@ -20,6 +21,8 @@ const DEFAULT_SANDBOX_CONFIG: SandboxConfig = {
   name: 'Development Sandbox',
   description: 'Isolated sandbox environment for testing integrations',
   isActive: true,
+  dataIsolation: true,
+  rateLimit: DEFAULT_RATE_LIMIT,
   dataResetInterval: 'weekly',
   maxTestSubscriptions: 50,
   maxApiCalls: 10000,
@@ -34,6 +37,12 @@ const DEFAULT_SANDBOX_CONFIG: SandboxConfig = {
   ],
   createdAt: new Date(),
   updatedAt: new Date(),
+};
+
+const generateId = (): string => {
+  const timestamp = Date.now().toString(36);
+  const random = Math.random().toString(36).substring(2, 8);
+  return `${timestamp}-${random}`;
 };
 
 class SandboxService {
@@ -109,7 +118,7 @@ class SandboxService {
   }
 
   isFeatureAllowed(feature: string): boolean {
-    return this.config.allowedFeatures.includes(feature);
+    return this.config.allowedFeatures?.includes(feature) ?? true;
   }
 
   generateTestData(): TestSubscription[] {
@@ -126,32 +135,7 @@ class SandboxService {
       'Microsoft 365',
     ];
 
-    const categories = [
-      SubscriptionCategory.STREAMING,
-      SubscriptionCategory.STREAMING,
-      SubscriptionCategory.SOFTWARE,
-      SubscriptionCategory.SOFTWARE,
-      SubscriptionCategory.SOFTWARE,
-      SubscriptionCategory.PRODUCTIVITY,
-      SubscriptionCategory.PRODUCTIVITY,
-      SubscriptionCategory.SOFTWARE,
-      SubscriptionCategory.SOFTWARE,
-      SubscriptionCategory.SOFTWARE,
-    ];
-
     const prices = [15.99, 14.99, 54.99, 4.00, 12.00, 8.00, 12.50, 13.33, 9.99, 6.00];
-    const cycles = [
-      BillingCycle.MONTHLY,
-      BillingCycle.MONTHLY,
-      BillingCycle.MONTHLY,
-      BillingCycle.MONTHLY,
-      BillingCycle.MONTHLY,
-      BillingCycle.MONTHLY,
-      BillingCycle.MONTHLY,
-      BillingCycle.MONTHLY,
-      BillingCycle.MONTHLY,
-      BillingCycle.MONTHLY,
-    ];
 
     this.testSubscriptions = testNames.map((name, index) => {
       const nextBilling = new Date();
@@ -162,8 +146,8 @@ class SandboxService {
         name,
         price: prices[index],
         currency: 'USD',
-        status: 'active' as const,
-        billingCycle: cycles[index],
+        status: 'active',
+        billingCycle: 'monthly',
         nextBillingDate: nextBilling,
         createdAt: new Date(Date.now() - Math.floor(Math.random() * 90 * 24 * 60 * 60 * 1000)),
       };
@@ -213,7 +197,7 @@ class SandboxService {
   async checkRateLimit(_apiKeyId: string): Promise<{ allowed: boolean; remaining: number }> {
     return {
       allowed: true,
-      remaining: this.config.maxApiCalls,
+      remaining: this.config.maxApiCalls ?? 10000,
     };
   }
 
