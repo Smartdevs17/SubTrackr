@@ -1,12 +1,3 @@
-export interface DeveloperPortalConfig {
-  appName: string;
-  version: string;
-  baseUrl: string;
-  supportEmail: string;
-  documentationUrl: string;
-  statusPageUrl: string;
-}
-
 export interface PortalUser {
   id: string;
   email: string;
@@ -35,7 +26,7 @@ export interface EnvironmentSummary {
 
 export interface ActivityEntry {
   id: string;
-  type: 'api_key_created' | 'environment_created' | 'request_made' | 'error_occurred';
+  type: 'api_key_created' | 'environment_created' | 'request_made' | 'error_occurred' | 'webhook_triggered';
   description: string;
   timestamp: Date;
   metadata?: Record<string, unknown>;
@@ -53,27 +44,9 @@ export interface Announcement {
   id: string;
   title: string;
   message: string;
-  type: 'info' | 'warning' | 'success';
+  type: 'info' | 'warning' | 'success' | 'error';
   publishedAt: Date;
   expiresAt?: Date;
-}
-
-export interface DocumentationSection {
-  id: string;
-  title: string;
-  description: string;
-  articles: DocumentationArticle[];
-}
-
-export interface DocumentationArticle {
-  id: string;
-  title: string;
-  slug: string;
-  content: string;
-  category: string;
-  tags: string[];
-  readTime: number;
-  lastUpdated: Date;
 }
 
 export interface IntegrationGuide {
@@ -82,8 +55,8 @@ export interface IntegrationGuide {
   description: string;
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   estimatedTime: number;
-  steps: IntegrationStep[];
   prerequisites: string[];
+  steps: IntegrationStep[];
 }
 
 export interface IntegrationStep {
@@ -94,21 +67,3 @@ export interface IntegrationStep {
   language?: string;
   notes?: string[];
 }
-
-export interface WebhookConfig {
-  id: string;
-  url: string;
-  events: WebhookEvent[];
-  secret: string;
-  status: 'active' | 'inactive';
-  createdAt: Date;
-}
-
-export type WebhookEvent =
-  | 'subscription.created'
-  | 'subscription.updated'
-  | 'subscription.cancelled'
-  | 'payment.completed'
-  | 'payment.failed'
-  | 'api_key.rotated'
-  | 'environment.suspended';
