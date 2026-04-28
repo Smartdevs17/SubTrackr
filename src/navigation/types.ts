@@ -30,10 +30,13 @@ export type RootStackParamList = {
   RevenueReport: undefined;
   UsageDashboard: { subscriptionId: string; planId: string; name: string };
   DeveloperPortal: undefined;
+  Sandbox: undefined;
+  SandboxDetail: undefined;
   SandboxDashboard: undefined;
   ApiKeyManagement: undefined;
   DocumentationPortal: undefined;
   IntegrationGuides: undefined;
+  IntegrationGuideDetail: { guideId: string };
 };
 
 export type TabParamList = {
