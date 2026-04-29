@@ -26,8 +26,7 @@ import ErrorDashboardScreen from '../screens/ErrorDashboardScreen';
 import ImportScreen from '../screens/ImportScreen';
 import ExportScreen from '../screens/ExportScreen';
 import AdminDashboardScreen from '../screens/AdminDashboardScreen';
-import InvoiceListScreen from '../screens/InvoiceListScreen';
-import InvoiceDetailScreen from '../screens/InvoiceDetailScreen';
+import FraudDashboard from '../screens/FraudDashboard';
 import { SegmentManagementScreen } from '../screens/SegmentManagementScreen';
 import { SegmentDetailScreen } from '../screens/SegmentDetailScreen';
 import { GamificationScreen } from '../screens/GamificationScreen';
@@ -178,35 +177,10 @@ const SettingsStack = () => (
       component={ErrorDashboardScreen}
       options={{ title: 'Error Dashboard', headerShown: true }}
     />
-    <Stack.Screen 
-      name="Import" 
-      component={ImportScreen} 
-      options={{ title: 'Import Subscriptions', headerShown: true }} 
-    />
-    <Stack.Screen 
-      name="Export" 
-      component={ExportScreen} 
-      options={{ title: 'Export Subscriptions', headerShown: true }} 
-    />
     <Stack.Screen
-      name="MerchantOnboarding"
-      component={MerchantOnboardingScreen}
-      options={{ title: 'Merchant Onboarding', headerShown: true }}
-    />
-    <Stack.Screen
-      name="AffiliateDashboard"
-      component={AffiliateDashboardScreen}
-      options={{ title: 'Affiliate Dashboard', headerShown: true }}
-    />
-    <Stack.Screen
-      name="LoyaltyDashboard"
-      component={LoyaltyDashboardScreen}
-      options={{ title: 'Loyalty Dashboard', headerShown: true }}
-    />
-    <Stack.Screen
-      name="CampaignManagement"
-      component={CampaignManagementScreen}
-      options={{ title: 'Campaign Management', headerShown: true }}
+      name="FraudDashboard"
+      component={FraudDashboard}
+      options={{ title: 'Fraud Dashboard', headerShown: true }}
     />
   </Stack.Navigator>
 );

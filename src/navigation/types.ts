@@ -27,12 +27,7 @@ export type RootStackParamList = {
   SegmentManagement: undefined;
   SegmentDetail: { segmentId: string };
   Gamification: undefined;
-  RevenueReport: undefined;
-  UsageDashboard: { subscriptionId: string; planId: string; name: string };
-  MerchantOnboarding: undefined;
-  AffiliateDashboard: undefined;
-  LoyaltyDashboard: undefined;
-  CampaignManagement: undefined;
+  FraudDashboard: undefined;
 };
 
 export type TabParamList = {
