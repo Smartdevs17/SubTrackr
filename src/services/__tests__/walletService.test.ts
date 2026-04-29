@@ -25,17 +25,21 @@ jest.mock('ethers', () => {
   };
 });
 
-jest.mock('@superfluid-finance/sdk-core', () => ({
-  Framework: {
-    create: jest.fn(),
-  },
-  SFError: class extends Error {
-    constructor(msg: string) {
-      super(msg);
-      this.name = 'SFError';
-    }
-  },
-}));
+jest.mock(
+  '@superfluid-finance/sdk-core',
+  () => ({
+    Framework: {
+      create: jest.fn(),
+    },
+    SFError: class extends Error {
+      constructor(msg: string) {
+        super(msg);
+        this.name = 'SFError';
+      }
+    },
+  }),
+  { virtual: true }
+);
 
 jest.mock('../../contracts', () => ({
   ERC20__factory: {

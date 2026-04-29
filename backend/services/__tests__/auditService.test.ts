@@ -138,11 +138,14 @@ describe('AuditService', () => {
   // ── Retention policy ──────────────────────────────────────────────────────
 
   it('prunes events older than retention window', () => {
-    const svcShort = new AuditService(SECRET, { maxAgeMs: 0 }); // expire immediately
+    jest.useFakeTimers();
+    const svcShort = new AuditService(SECRET, { maxAgeMs: 1000 });
     svcShort.capture('subscription.created', 'a', 'r', 'subscription');
+    jest.advanceTimersByTime(2000);
     const pruned = svcShort.applyRetention();
     expect(pruned).toBe(1);
     expect(svcShort.query({})).toHaveLength(0);
+    jest.useRealTimers();
   });
 
   it('keeps events within retention window', () => {
