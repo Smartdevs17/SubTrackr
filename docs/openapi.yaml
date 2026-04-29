@@ -600,3 +600,24 @@ tags:
     description: Charge subscriptions, request and manage refunds
   - name: Queries
     description: Read-only data retrieval
+
+x-logging:
+  description: Structured logging system used across SubTrackr backend and client
+  format:
+    level: "debug | info | warn | error"
+    timestamp: ISO-8601 string
+    message: string
+    context:
+      correlationId: string
+      userId: string (optional)
+      subscriptionId: string (optional)
+      txHash: string (optional)
+
+  correlation:
+    description: Used to trace a full user flow across wallet → backend → Soroban
+    type: string
+
+  rules:
+    - Never log private keys or secrets
+    - Always include correlationId for subscription flows
+    - Errors are sent to remote logging service in production

@@ -206,7 +206,52 @@ const SettingsScreen: React.FC = () => {
         </Card>
         <Card style={styles.section}>
           <Text style={styles.sectionTitle} accessibilityRole="header">
-            Developer
+            Merchant & Affiliate
+          </Text>
+          <TouchableOpacity
+            style={styles.linkRow}
+            onPress={() => navigation.navigate('MerchantOnboarding')}
+            accessibilityRole="button"
+            accessibilityLabel="Merchant onboarding">
+            <Text style={styles.linkText}>Merchant Onboarding</Text>
+            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
+              →
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.linkRow}
+            onPress={() => navigation.navigate('AffiliateDashboard')}
+            accessibilityRole="button"
+            accessibilityLabel="Affiliate dashboard">
+            <Text style={styles.linkText}>Affiliate Dashboard</Text>
+            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
+              →
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.linkRow}
+            onPress={() => navigation.navigate('LoyaltyDashboard')}
+            accessibilityRole="button"
+            accessibilityLabel="Loyalty dashboard">
+            <Text style={styles.linkText}>Loyalty Dashboard</Text>
+            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
+              →
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.linkRow, styles.linkRowLast]}
+            onPress={() => navigation.navigate('CampaignManagement')}
+            accessibilityRole="button"
+            accessibilityLabel="Campaign management">
+            <Text style={styles.linkText}>Campaign Management</Text>
+            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
+              →
+            </Text>
+          </TouchableOpacity>
+        </Card>
+        <Card style={styles.section}>
+          <Text style={styles.sectionTitle} accessibilityRole="header">
+            About
           </Text>
           <TouchableOpacity
             style={styles.linkRow}

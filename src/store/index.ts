@@ -7,4 +7,7 @@ export { useCommunityStore } from './communityStore';
 export { useAccountingStore } from './accountingStore';
 export { useCalendarStore } from './calendarStore';
 export { useSettingsStore } from './settingsStore';
-export { useSandboxStore } from './sandboxStore';
+export { useMerchantStore } from './merchantStore';
+export { useAffiliateStore } from './affiliateStore';
+export { useLoyaltyStore } from './loyaltyStore';
+export { useCampaignStore } from './campaignStore';

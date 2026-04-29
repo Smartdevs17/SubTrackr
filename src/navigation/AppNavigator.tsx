@@ -33,14 +33,10 @@ import { SegmentDetailScreen } from '../screens/SegmentDetailScreen';
 import { GamificationScreen } from '../screens/GamificationScreen';
 import RevenueReportScreen from '../screens/RevenueReportScreen';
 import UsageDashboardScreen from '../screens/UsageDashboard';
-import DeveloperPortalScreen from '../screens/DeveloperPortalScreen';
-import SandboxScreen from '../screens/SandboxScreen';
-import SandboxDetailScreen from '../screens/SandboxDetailScreen';
-import SandboxDashboardScreen from '../screens/SandboxDashboardScreen';
-import ApiKeyManagementScreen from '../screens/ApiKeyManagementScreen';
-import DocumentationPortalScreen from '../screens/DocumentationPortalScreen';
-import IntegrationGuidesScreen from '../screens/IntegrationGuidesScreen';
-import IntegrationGuideDetailScreen from '../screens/IntegrationGuideDetailScreen';
+import MerchantOnboardingScreen from '../screens/MerchantOnboardingScreen';
+import AffiliateDashboardScreen from '../screens/AffiliateDashboardScreen';
+import LoyaltyDashboardScreen from '../screens/LoyaltyDashboardScreen';
+import CampaignManagementScreen from '../screens/CampaignManagementScreen';
 import { colors } from '../utils/constants';
 
 import { RootStackParamList, TabParamList } from './types';
@@ -218,44 +214,24 @@ const SettingsStack = () => (
       options={{ title: 'Export Subscriptions', headerShown: true }} 
     />
     <Stack.Screen
-      name="DeveloperPortal"
-      component={DeveloperPortalScreen}
-      options={{ title: 'Developer Portal', headerShown: true }}
+      name="MerchantOnboarding"
+      component={MerchantOnboardingScreen}
+      options={{ title: 'Merchant Onboarding', headerShown: true }}
     />
     <Stack.Screen
-      name="Sandbox"
-      component={SandboxScreen}
-      options={{ title: 'Sandbox Environments', headerShown: true }}
+      name="AffiliateDashboard"
+      component={AffiliateDashboardScreen}
+      options={{ title: 'Affiliate Dashboard', headerShown: true }}
     />
     <Stack.Screen
-      name="SandboxDetail"
-      component={SandboxDetailScreen}
-      options={{ title: 'Sandbox Detail', headerShown: true }}
+      name="LoyaltyDashboard"
+      component={LoyaltyDashboardScreen}
+      options={{ title: 'Loyalty Dashboard', headerShown: true }}
     />
     <Stack.Screen
-      name="SandboxDashboard"
-      component={SandboxDashboardScreen}
-      options={{ title: 'Sandbox Dashboard', headerShown: true }}
-    />
-    <Stack.Screen
-      name="ApiKeyManagement"
-      component={ApiKeyManagementScreen}
-      options={{ title: 'API Key Management', headerShown: true }}
-    />
-    <Stack.Screen
-      name="DocumentationPortal"
-      component={DocumentationPortalScreen}
-      options={{ title: 'Documentation', headerShown: true }}
-    />
-    <Stack.Screen
-      name="IntegrationGuides"
-      component={IntegrationGuidesScreen}
-      options={{ title: 'Integration Guides', headerShown: true }}
-    />
-    <Stack.Screen
-      name="IntegrationGuideDetail"
-      component={IntegrationGuideDetailScreen}
-      options={{ title: 'Guide Detail', headerShown: true }}
+      name="CampaignManagement"
+      component={CampaignManagementScreen}
+      options={{ title: 'Campaign Management', headerShown: true }}
     />
   </Stack.Navigator>
 );
