@@ -14,6 +14,6 @@ export const options = defaultOptions;
 export default function () {
   const scenarioName = __ENV.SCENARIO || 'subscription';
   const scenario = scenarios[scenarioName] || scenarios.subscription;
-  
+
   scenario();
 }

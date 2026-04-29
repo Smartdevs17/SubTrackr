@@ -4,25 +4,40 @@ import { NavigationContainer } from '@react-navigation/native';
 import { navigationRef } from './navigationRef';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { useTranslation } from 'react-i18next';
 import HomeScreen from '../screens/HomeScreen';
 import AddSubscriptionScreen from '../screens/AddSubscriptionScreen';
-import WalletConnectScreen from '../screens/WalletConnectScreen';
+import CancellationFlowScreen from '../screens/CancellationFlowScreen';
+import WalletConnectScreen from '../screens/WalletConnectV2Screen';
 import CryptoPaymentScreen from '../screens/CryptoPaymentScreen';
 import CommunityScreen from '../screens/CommunityScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import SubscriptionDetailScreen from '../screens/SubscriptionDetailScreen';
 import AnalyticsScreen from '../screens/AnalyticsScreen';
+import SlaDashboard from '../screens/SlaDashboard';
 import GDPRSettingsScreen from '../screens/GDPRSettingsScreen';
 import LanguageSettingsScreen from '../screens/LanguageSettingsScreen';
 import SessionManagementScreen from '../screens/SessionManagementScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import CalendarIntegrationScreen from '../screens/CalendarIntegrationScreen';
+import AccountingExportScreen from '../screens/AccountingExportScreen';
+import WebhookSettingsScreen from '../screens/WebhookSettingsScreen';
 import ErrorDashboardScreen from '../screens/ErrorDashboardScreen';
+import ImportScreen from '../screens/ImportScreen';
+import ExportScreen from '../screens/ExportScreen';
 import AdminDashboardScreen from '../screens/AdminDashboardScreen';
 import FraudDashboard from '../screens/FraudDashboard';
 import { SegmentManagementScreen } from '../screens/SegmentManagementScreen';
 import { SegmentDetailScreen } from '../screens/SegmentDetailScreen';
 import { GamificationScreen } from '../screens/GamificationScreen';
+import RevenueReportScreen from '../screens/RevenueReportScreen';
+import UsageDashboardScreen from '../screens/UsageDashboard';
+import MerchantOnboardingScreen from '../screens/MerchantOnboardingScreen';
+import AffiliateDashboardScreen from '../screens/AffiliateDashboardScreen';
+import LoyaltyDashboardScreen from '../screens/LoyaltyDashboardScreen';
+import CampaignManagementScreen from '../screens/CampaignManagementScreen';
 import { colors } from '../utils/constants';
+
 import { RootStackParamList, TabParamList } from './types';
 
 const Tab = createBottomTabNavigator<TabParamList>();
@@ -35,6 +50,11 @@ const HomeStack = () => (
       name="AddSubscription"
       component={AddSubscriptionScreen}
       options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="CancellationFlow"
+      component={CancellationFlowScreen}
+      options={{ title: 'Cancel Subscription', headerShown: true }}
     />
     <Stack.Screen
       name="SubscriptionDetail"
@@ -57,6 +77,11 @@ const HomeStack = () => (
       options={{ title: 'Community', headerShown: true }}
     />
     <Stack.Screen
+      name="SlaDashboard"
+      component={SlaDashboard}
+      options={{ title: 'SLA Dashboard', headerShown: true }}
+    />
+    <Stack.Screen
       name="Profile"
       component={ProfileScreen}
       options={{ title: 'Profile', headerShown: true }}
@@ -76,12 +101,32 @@ const HomeStack = () => (
       component={GamificationScreen}
       options={{ title: 'Achievements', headerShown: true }}
     />
+    <Stack.Screen
+      name="InvoiceList"
+      component={InvoiceListScreen}
+      options={{ title: 'Invoices', headerShown: true }}
+    />
+    <Stack.Screen
+      name="InvoiceDetail"
+      component={InvoiceDetailScreen}
+      options={{ title: 'Invoice Detail', headerShown: true }}
+    />
+    <Stack.Screen
+      name="UsageDashboard"
+      component={UsageDashboardScreen}
+      options={{ headerShown: false }}
+    />
   </Stack.Navigator>
 );
 
 const SettingsStack = () => (
   <Stack.Navigator>
     <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />
+    <Stack.Screen
+      name="CalendarIntegration"
+      component={CalendarIntegrationScreen}
+      options={{ title: 'Calendar Integrations', headerShown: true }}
+    />
     <Stack.Screen
       name="Community"
       component={CommunityScreen}
@@ -103,6 +148,11 @@ const SettingsStack = () => (
       options={{ title: 'Language', headerShown: true }}
     />
     <Stack.Screen
+      name="WebhookSettings"
+      component={WebhookSettingsScreen}
+      options={{ title: 'Webhooks', headerShown: true }}
+    />
+    <Stack.Screen
       name="SessionManagement"
       component={SessionManagementScreen}
       options={{ title: 'Sessions', headerShown: true }}
@@ -111,6 +161,16 @@ const SettingsStack = () => (
       name="AdminDashboard"
       component={AdminDashboardScreen}
       options={{ title: 'Admin Dashboard', headerShown: true }}
+    />
+    <Stack.Screen
+      name="AccountingExport"
+      component={AccountingExportScreen}
+      options={{ title: 'Accounting Export', headerShown: true }}
+    />
+    <Stack.Screen
+      name="SlaDashboard"
+      component={SlaDashboard}
+      options={{ title: 'SLA Dashboard', headerShown: true }}
     />
     <Stack.Screen
       name="ErrorDashboard"
@@ -125,70 +185,84 @@ const SettingsStack = () => (
   </Stack.Navigator>
 );
 
-const TabNavigator = () => (
-  <Tab.Navigator
-    screenOptions={{
-      tabBarStyle: {
-        backgroundColor: colors.surface,
-        borderTopColor: colors.border,
-        borderTopWidth: 1,
-      },
-      tabBarActiveTintColor: colors.primary,
-      tabBarInactiveTintColor: colors.textSecondary,
-      headerShown: false,
-    }}>
-    <Tab.Screen
-      name="HomeTab"
-      component={HomeStack}
-      options={{
-        tabBarLabel: 'Home',
-        tabBarIcon: ({ color, size }) => (
-          <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>🏠</Text>
-        ),
-      }}
-    />
-    <Tab.Screen
-      name="AddTab"
-      component={AddSubscriptionScreen}
-      options={{
-        tabBarLabel: 'Add',
-        tabBarIcon: ({ color, size }) => (
-          <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>➕</Text>
-        ),
-      }}
-    />
-    <Tab.Screen
-      name="WalletTab"
-      component={WalletConnectScreen}
-      options={{
-        tabBarLabel: 'Wallet',
-        tabBarIcon: ({ color, size }) => (
-          <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>🔗</Text>
-        ),
-      }}
-    />
-    <Tab.Screen
-      name="AnalyticsTab"
-      component={AnalyticsScreen}
-      options={{
-        tabBarLabel: 'Analytics',
-        tabBarIcon: ({ color, size }) => (
-          <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>📊</Text>
-        ),
-      }}
-    />
-    <Tab.Screen
-      name="SettingsTab"
-      component={SettingsStack}
-      options={{
-        tabBarLabel: 'Settings',
-        tabBarIcon: ({ color, size }) => (
-          <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>⚙️</Text>
-        ),
-      }}
-    />
-  </Tab.Navigator>
-);
+const TabNavigator = () => {
+  const { t } = useTranslation();
+
+  return (
+    <Tab.Navigator
+      screenOptions={{
+        tabBarStyle: {
+          backgroundColor: colors.surface,
+          borderTopColor: colors.border,
+          borderTopWidth: 1,
+        },
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textSecondary,
+        headerShown: false,
+      }}>
+      <Tab.Screen
+        name="HomeTab"
+        component={HomeStack}
+        options={{
+          tabBarLabel: t('navigation.home'),
+          tabBarIcon: ({ color, size }) => (
+            <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>🏠</Text>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="AddTab"
+        component={AddSubscriptionScreen}
+        options={{
+          tabBarLabel: t('navigation.add'),
+          tabBarIcon: ({ color, size }) => (
+            <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>➕</Text>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="WalletTab"
+        component={WalletConnectScreen}
+        options={{
+          tabBarLabel: t('navigation.wallet'),
+          tabBarIcon: ({ color, size }) => (
+            <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>🔗</Text>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="AnalyticsTab"
+        component={AnalyticsScreen}
+        options={{
+          tabBarLabel: t('navigation.analytics'),
+          tabBarIcon: ({ color, size }) => (
+            <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>📊</Text>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="RevenueTab"
+        component={RevenueReportScreen}
+        options={{
+          tabBarLabel: t('navigation.revenue'),
+          tabBarIcon: ({ color, size }) => (
+            <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>💰</Text>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="SettingsTab"
+        component={SettingsStack}
+        options={{
+          tabBarLabel: t('navigation.settings'),
+          tabBarIcon: ({ color, size }) => (
+            <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>⚙️</Text>
+          ),
+        }}
+      />
+    </Tab.Navigator>
+  );
+};
 
 export const AppNavigator = () => {
   return (

@@ -11,15 +11,15 @@ This dashboard tracks the current security health of the SubTrackr project.
 ## Active Vulnerabilities
 
 | Dependency | Severity | CVE / Advisory | Status | Fix Version |
-| :--- | :--- | :--- | :--- | :--- |
-| None | - | - | - | - |
+| :--------- | :------- | :------------- | :----- | :---------- |
+| None       | -        | -              | -      | -           |
 
 ## Audit History (Recent)
 
-| Date | Type | Result | Action Taken |
-| :--- | :--- | :--- | :--- |
-| 2026-04-22 | npm audit | PASSED | Initial setup of security suite |
-| 2026-04-15 | npm audit | FIXED | Patched minor ReDoS in dev dependency |
+| Date       | Type      | Result | Action Taken                          |
+| :--------- | :-------- | :----- | :------------------------------------ |
+| 2026-04-22 | npm audit | PASSED | Initial setup of security suite       |
+| 2026-04-15 | npm audit | FIXED  | Patched minor ReDoS in dev dependency |
 
 ## Tooling Status
 
@@ -30,4 +30,4 @@ This dashboard tracks the current security health of the SubTrackr project.
 
 ---
 
-*Note: This dashboard is partially updated by CI/CD status and manual triage logs.*
+_Note: This dashboard is partially updated by CI/CD status and manual triage logs._

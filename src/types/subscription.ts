@@ -40,6 +40,26 @@ export enum BillingCycle {
   CUSTOM = 'custom',
 }
 
+export enum SubscriptionTier {
+  FREE = 'free',
+  BASIC = 'basic',
+  PREMIUM = 'premium',
+  ENTERPRISE = 'enterprise',
+}
+
+export interface SubscriptionPlan {
+  id: string;
+  name: string;
+  tier: SubscriptionTier;
+  price: number;
+  currency: string;
+  billingCycle: BillingCycle;
+  features: import('./feature').FeatureId[]; // Feature IDs included in this plan
+  limits: Record<string, number>; // Feature limits (e.g., { 'max_subscriptions': 10 })
+  isPopular?: boolean;
+  description: string;
+}
+
 export interface SubscriptionFormData {
   name: string;
   description?: string;

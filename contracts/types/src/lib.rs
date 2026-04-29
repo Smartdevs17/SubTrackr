@@ -6,6 +6,7 @@ use soroban_sdk::{contracttype, Address, String, Vec};
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
 pub enum Interval {
+    Daily,     // 86400s
     Weekly,    // 604800s
     Monthly,   // 2592000s (30 days)
     Quarterly, // 7776000s (90 days)
@@ -15,6 +16,7 @@ pub enum Interval {
 impl Interval {
     pub fn seconds(&self) -> u64 {
         match self {
+            Interval::Daily => 86_400,
             Interval::Weekly => 604_800,
             Interval::Monthly => 2_592_000,
             Interval::Quarterly => 7_776_000,
@@ -30,6 +32,66 @@ pub enum SubscriptionStatus {
     Paused,
     Cancelled,
     PastDue,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum InvoiceStatus {
+    Draft,
+    Sent,
+    Partial,
+    Paid,
+    Void,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct TimeRange {
+    pub start: Timestamp,
+    pub end: Timestamp,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct InvoiceLineItem {
+    pub description: String,
+    pub quantity: u32,
+    pub unit_price: i128,
+    pub currency: String,
+    /// Exchange rate scaled by 1_000_000 to convert to invoice currency.
+    pub exchange_rate: i128,
+    pub tax_rate_bps: u32,
+    pub line_total: i128,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct Invoice {
+    pub id: u64,
+    pub invoice_number: String,
+    pub subscription_id: u64,
+    pub subscriber: Address,
+    pub merchant: Address,
+    pub period: TimeRange,
+    pub line_items: Vec<InvoiceLineItem>,
+    pub subtotal: i128,
+    pub tax: i128,
+    pub total: i128,
+    pub due_date: Timestamp,
+    pub status: InvoiceStatus,
+    pub currency: String,
+    pub region: String,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct InvoiceConfig {
+    pub numbering_prefix: String,
+    pub numbering_padding: u32,
+    pub default_currency: String,
+    pub default_tax_bps: u32,
+    pub exchange_rate_scale: i128,
+    pub payment_terms_secs: Timestamp,
 }
 
 /// A subscription plan created by a merchant.
@@ -75,6 +137,49 @@ pub enum UpgradeAction {
     Executed,
     RolledBack,
     Cancelled,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum QuotaMetric {
+    ApiCalls,
+    Storage, // in MB
+    Seats,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum RolloverPolicy {
+    NoRollover,
+    RolloverAll,
+    RolloverCap(u64),
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct Quota {
+    pub metric: QuotaMetric,
+    pub limit: u64,
+    pub period: Interval,
+    pub rollover_policy: RolloverPolicy,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct UsageRecord {
+    pub subscription_id: u64,
+    pub metric: QuotaMetric,
+    pub current_usage: u64,
+    pub period_start: u64,
+    pub rollover_balance: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum QuotaStatus {
+    WithinLimit,
+    SoftLimitReached,
+    HardLimitReached,
 }
 
 #[contracttype]
@@ -203,6 +308,15 @@ pub enum StorageKey {
     /// Pending transfer request: subscription_id -> pending recipient
     PendingTransfer(u64),
 
+    // ── Invoice state ──
+    InvoiceCount,
+    Invoice(u64),
+    InvoiceBySubscription(u64),
+    InvoiceConfig,
+    TaxRate(String),
+    ExchangeRate(String),
+    InvoiceContract,
+
     // ── Proxy upgrade state ──
     ProxyImplementation,
     ProxyVersion,
@@ -218,6 +332,32 @@ pub enum StorageKey {
     /// Index: (subscriber, plan_id) -> subscription_id (active/non-cancelled)
     UserPlanIndex(Address, u64),
 
+    // ── Added in storage version 3 ──
+    WebhookCount,
+    Webhook(u64),
+    MerchantWebhooks(Address),
+    WebhookDeliveryCount,
+    WebhookDelivery(u64),
+    WebhookDeliveriesByWebhook(u64),
+
     /// Proxy pointer to the state storage contract.
     ProxyStorage,
+
+    // ── Revenue recognition (added with revenue module) ──
+    /// RevenueRecognitionRule keyed by plan_id.
+    RevenueRecognitionRule(u64),
+    /// RevenueSchedule keyed by subscription_id.
+    RevenueSchedule(u64),
+    /// Cumulative deferred revenue balance for a merchant.
+    RevenueDeferredBalance(Address),
+    /// Cumulative recognised revenue balance for a merchant.
+    RevenueRecognisedBalance(Address),
+    /// List of subscription IDs tracked for a merchant (for analytics).
+    RevenueMerchantSubscriptions(Address),
+
+    // ── Added in storage version 4 (Quota & Usage) ──
+    /// List of quotas for a given plan (plan_id -> Vec<Quota>)
+    PlanQuotas(u64),
+    /// Usage record for a subscription and metric (sub_id, metric -> UsageRecord)
+    SubscriptionUsage(u64, QuotaMetric),
 }

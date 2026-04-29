@@ -3,6 +3,9 @@ import {
   WalletConnection,
   TokenBalance,
   GasEstimate,
+  WalletError,
+  WalletErrorCode,
+  errorTracker,
 } from '../walletService';
 import { ethers } from 'ethers';
 import { getContractAddress, ERC20__factory } from '../../contracts';
@@ -250,42 +253,58 @@ describe('WalletServiceManager', () => {
   });
 
   describe('getWalletSigner (private)', () => {
-    it('throws when no connection', () => {
+    it('throws WalletError with NOT_CONNECTED code when no connection', () => {
       const mgr = freshManager();
-      // Access private via casting
-      expect(() => (mgr as any).getWalletSigner()).toThrow('Wallet is not connected');
+      try {
+        (mgr as any).getWalletSigner();
+        fail('expected to throw');
+      } catch (e) {
+        expect(e).toBeInstanceOf(WalletError);
+        expect((e as WalletError).code).toBe(WalletErrorCode.NOT_CONNECTED);
+        expect((e as WalletError).userMessage).toBe('Wallet is not connected.');
+        expect((e as WalletError).recovery).toBeDefined();
+      }
     });
 
-    it('throws when connection has no eip1193Provider', () => {
+    it('throws WalletError when connection has no eip1193Provider', () => {
       const mgr = freshManager();
       mgr.setConnection(createMockConnection({ eip1193Provider: undefined }));
-      expect(() => (mgr as any).getWalletSigner()).toThrow('does not expose a signing provider');
+      try {
+        (mgr as any).getWalletSigner();
+        fail('expected to throw');
+      } catch (e) {
+        expect(e).toBeInstanceOf(WalletError);
+        expect((e as WalletError).code).toBe(WalletErrorCode.NOT_CONNECTED);
+      }
     });
   });
 
   describe('createSuperfluidStream – user rejection', () => {
-    it('throws friendly error when user rejects transaction', async () => {
+    it('throws WalletError USER_REJECTED when user rejects transaction', async () => {
       const mgr = freshManager();
       const mockSigner = {
         provider: { getNetwork: jest.fn().mockResolvedValue({ chainId: 1 }) },
         getAddress: jest.fn().mockResolvedValue('0xSender'),
       };
       jest.spyOn(mgr as any, 'getWalletSigner').mockReturnValue(mockSigner);
-
-      // Mock buildSuperfluidCreateFlowContext to throw rejection-like error
       jest.spyOn(mgr as any, 'buildSuperfluidCreateFlowContext').mockRejectedValue({
         code: 4001,
         message: 'User rejected',
       });
 
-      await expect(mgr.createSuperfluidStream('ETH', '10', '0xRecipient', 1)).rejects.toThrow(
-        'Transaction was rejected in your wallet.'
-      );
+      try {
+        await mgr.createSuperfluidStream('ETH', '10', '0xRecipient', 1);
+        fail('expected to throw');
+      } catch (e) {
+        expect(e).toBeInstanceOf(WalletError);
+        expect((e as WalletError).code).toBe(WalletErrorCode.USER_REJECTED);
+        expect((e as WalletError).recovery).toBeDefined();
+      }
     });
   });
 
   describe('createSuperfluidStream – user denied (string code)', () => {
-    it('throws friendly error for ACTION_REJECTED code', async () => {
+    it('throws WalletError USER_REJECTED for ACTION_REJECTED code', async () => {
       const mgr = freshManager();
       const mockSigner = {
         provider: { getNetwork: jest.fn().mockResolvedValue({ chainId: 1 }) },
@@ -296,9 +315,13 @@ describe('WalletServiceManager', () => {
         code: 'ACTION_REJECTED',
       });
 
-      await expect(mgr.createSuperfluidStream('ETH', '10', '0xRecipient', 1)).rejects.toThrow(
-        'Transaction was rejected in your wallet.'
-      );
+      try {
+        await mgr.createSuperfluidStream('ETH', '10', '0xRecipient', 1);
+        fail('expected to throw');
+      } catch (e) {
+        expect(e).toBeInstanceOf(WalletError);
+        expect((e as WalletError).code).toBe(WalletErrorCode.USER_REJECTED);
+      }
     });
   });
 
@@ -317,7 +340,7 @@ describe('WalletServiceManager', () => {
   });
 
   describe('createSablierStream – user denied via message', () => {
-    it('throws friendly error for user denied message', async () => {
+    it('throws WalletError USER_REJECTED for user denied message', async () => {
       const mgr = freshManager();
       const mockSigner = {
         provider: { getNetwork: jest.fn().mockResolvedValue({ chainId: 1 }) },
@@ -325,21 +348,78 @@ describe('WalletServiceManager', () => {
       };
       jest.spyOn(mgr as any, 'getWalletSigner').mockReturnValue(mockSigner);
 
-      // Simulate a generic error with "user denied" in message
       jest.spyOn(ethers, 'Contract' as any).mockImplementation(() => {
         throw new Error('user denied transaction');
       });
 
-      await expect(
-        mgr.createSablierStream(
-          '0xToken',
-          '10',
-          Date.now(),
-          Date.now() + 86400000,
-          '0xRecipient',
-          1
-        )
-      ).rejects.toThrow('Transaction was rejected in your wallet.');
+      try {
+        await mgr.createSablierStream('0xToken', '10', Date.now(), Date.now() + 86400000, '0xRecipient', 1);
+        fail('expected to throw');
+      } catch (e) {
+        expect(e).toBeInstanceOf(WalletError);
+        expect((e as WalletError).code).toBe(WalletErrorCode.USER_REJECTED);
+      }
+    });
+  });
+
+  describe('WalletError structure', () => {
+    it('has code, userMessage, and recovery fields', () => {
+      const err = new WalletError(
+        WalletErrorCode.STREAM_CREATION_FAILED,
+        'Stream creation failed.',
+        'Check your token balance and try again.'
+      );
+      expect(err.code).toBe(WalletErrorCode.STREAM_CREATION_FAILED);
+      expect(err.userMessage).toBe('Stream creation failed.');
+      expect(err.recovery).toBe('Check your token balance and try again.');
+      expect(err.name).toBe('WalletError');
+    });
+
+    it('preserves cause stack when cause is an Error', () => {
+      const cause = new Error('rpc timeout');
+      const err = new WalletError(WalletErrorCode.UNKNOWN, 'Something went wrong.', undefined, cause);
+      expect(err.stack).toContain('Caused by:');
+    });
+  });
+
+  describe('errorTracker', () => {
+    beforeEach(() => errorTracker.reset());
+
+    it('records error counts by code', () => {
+      errorTracker.record(WalletErrorCode.USER_REJECTED);
+      errorTracker.record(WalletErrorCode.USER_REJECTED);
+      errorTracker.record(WalletErrorCode.NOT_CONNECTED);
+      const stats = errorTracker.getStats();
+      expect(stats[WalletErrorCode.USER_REJECTED].count).toBe(2);
+      expect(stats[WalletErrorCode.NOT_CONNECTED].count).toBe(1);
+    });
+
+    it('reset clears all counts', () => {
+      errorTracker.record(WalletErrorCode.APPROVAL_FAILED);
+      errorTracker.reset();
+      expect(Object.keys(errorTracker.getStats()).length).toBe(0);
+    });
+  });
+
+  describe('getTokenBalances – structured error', () => {
+    it('throws WalletError BALANCE_FETCH_FAILED when provider fails', async () => {
+      const mgr = freshManager();
+      const mockProvider = {
+        getBalance: jest.fn().mockRejectedValue(new Error('RPC down')),
+        getGasPrice: jest.fn(),
+      };
+      jest
+        .spyOn(ethers.providers, 'JsonRpcProvider')
+        .mockImplementation(() => mockProvider as unknown as ethers.providers.JsonRpcProvider);
+
+      try {
+        await mgr.getTokenBalances('0xAddr', 1);
+        fail('expected to throw');
+      } catch (e) {
+        expect(e).toBeInstanceOf(WalletError);
+        expect((e as WalletError).code).toBe(WalletErrorCode.BALANCE_FETCH_FAILED);
+        expect((e as WalletError).recovery).toBeDefined();
+      }
     });
   });
 });

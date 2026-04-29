@@ -10,15 +10,21 @@ import {
 } from '../types/subscription';
 import { dummySubscriptions } from '../utils/dummyData'; // eslint-disable-line
 import { advanceBillingDate } from '../utils/billingDate';
+import { buildBillingPeriod } from '../utils/invoice';
 import { BILLING_CONVERSIONS, CACHE_CONSTANTS } from '../utils/constants/values';
 import {
   syncRenewalReminders,
   presentChargeSuccessNotification,
   presentChargeFailedNotification,
 } from '../services/notificationService';
+import { useCalendarStore } from './calendarStore';
 import { useGamificationStore } from './gamificationStore';
+import { useInvoiceStore } from './invoiceStore';
 import { AchievementTrigger } from '../types/gamification';
 import { errorHandler, AppError } from '../services/errorHandler';
+import { useSettingsStore } from './settingsStore';
+import { currencyService } from '../services/currencyService';
+
 
 const STORAGE_KEY = 'subtrackr-subscriptions';
 const STORE_VERSION = 1;
@@ -187,6 +193,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
 
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
+          await useCalendarStore.getState().syncSubscriptionToCalendars(newSubscription);
 
           // Gamification Triggers
           const gamificationStore = useGamificationStore.getState();
@@ -221,6 +228,10 @@ export const useSubscriptionStore = create<SubscriptionState>()(
 
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
+          const updatedSubscription = get().subscriptions.find((sub) => sub.id === id);
+          if (updatedSubscription) {
+            await useCalendarStore.getState().syncSubscriptionToCalendars(updatedSubscription);
+          }
         } catch (error) {
           const appError = errorHandler.handleError(error as Error, {
             action: 'updateSubscription',
@@ -244,6 +255,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
 
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
+          await useCalendarStore.getState().removeSubscriptionFromCalendars(id);
         } catch (error) {
           const appError = errorHandler.handleError(error as Error, {
             action: 'deleteSubscription',
@@ -268,6 +280,10 @@ export const useSubscriptionStore = create<SubscriptionState>()(
 
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
+          const updatedSubscription = get().subscriptions.find((sub) => sub.id === id);
+          if (updatedSubscription) {
+            await useCalendarStore.getState().syncSubscriptionToCalendars(updatedSubscription);
+          }
         } catch (error) {
           const appError = errorHandler.handleError(error as Error, {
             action: 'toggleSubscriptionStatus',
@@ -293,6 +309,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         }
 
         if (outcome === 'success') {
+          const billingPeriod = buildBillingPeriod(sub);
           const next = advanceBillingDate(new Date(sub.nextBillingDate), sub.billingCycle);
           const simulatedGas = 0.01 + Math.random() * 0.005; // Simulate 0.01 - 0.015 XLM gas
           set((state) => ({
@@ -312,6 +329,21 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           }));
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
+          const updatedSubscription = get().subscriptions.find((entry) => entry.id === id);
+          if (updatedSubscription) {
+            await useCalendarStore.getState().syncSubscriptionToCalendars(updatedSubscription);
+          }
+
+          await useInvoiceStore.getState().generateInvoiceFromSubscription(
+            {
+              subscription: sub,
+              period: billingPeriod,
+              region: 'GLOBAL',
+              currency: sub.currency,
+              recipientEmail: `${sub.name.toLowerCase().replace(/[^a-z0-9]+/g, '.')}@billing.local`,
+            },
+            0
+          );
         }
       },
 
@@ -323,6 +355,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           set({ isLoading: false });
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
+          await useCalendarStore.getState().syncSubscriptions(get().subscriptions);
         } catch (error) {
           set({
             error: errorHandler.handleError(error as Error, {
@@ -351,22 +384,38 @@ export const useSubscriptionStore = create<SubscriptionState>()(
 
         const activeSubs = subscriptions.filter((sub) => sub.isActive);
 
+        const { preferredCurrency, exchangeRates } = useSettingsStore.getState();
+        const rates = exchangeRates?.rates || {};
+
         const totalMonthlySpend = activeSubs.reduce((total, sub) => {
-          if (sub.billingCycle === 'monthly') return total + sub.price;
-          if (sub.billingCycle === 'yearly') return total + sub.price / 12;
+          const priceInPreferred = currencyService.convert(
+            sub.price,
+            sub.currency,
+            preferredCurrency,
+            rates
+          );
+          if (sub.billingCycle === 'monthly') return total + priceInPreferred;
+          if (sub.billingCycle === 'yearly') return total + priceInPreferred / 12;
           if (sub.billingCycle === 'weekly')
-            return total + sub.price * BILLING_CONVERSIONS.WEEKS_PER_MONTH;
-          return total + sub.price;
+            return total + priceInPreferred * BILLING_CONVERSIONS.WEEKS_PER_MONTH;
+          return total + priceInPreferred;
         }, 0);
 
         const totalYearlySpend = activeSubs.reduce((total, sub) => {
-          if (sub.billingCycle === 'yearly') return total + sub.price;
+          const priceInPreferred = currencyService.convert(
+            sub.price,
+            sub.currency,
+            preferredCurrency,
+            rates
+          );
+          if (sub.billingCycle === 'yearly') return total + priceInPreferred;
           if (sub.billingCycle === 'monthly')
-            return total + sub.price * BILLING_CONVERSIONS.MONTHS_PER_YEAR;
+            return total + priceInPreferred * BILLING_CONVERSIONS.MONTHS_PER_YEAR;
           if (sub.billingCycle === 'weekly')
-            return total + sub.price * BILLING_CONVERSIONS.WEEKS_PER_YEAR;
-          return total + sub.price * BILLING_CONVERSIONS.MONTHS_PER_YEAR;
+            return total + priceInPreferred * BILLING_CONVERSIONS.WEEKS_PER_YEAR;
+          return total + priceInPreferred * BILLING_CONVERSIONS.MONTHS_PER_YEAR;
         }, 0);
+
 
         const categoryBreakdown = activeSubs.reduce(
           (acc, sub) => {
@@ -428,6 +477,9 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         });
         useSubscriptionStore.getState().calculateStats();
         void syncRenewalReminders(useSubscriptionStore.getState().subscriptions);
+        void useCalendarStore
+          .getState()
+          .syncSubscriptions(useSubscriptionStore.getState().subscriptions);
       },
     }
   )

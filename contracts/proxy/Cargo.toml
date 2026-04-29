@@ -6,6 +6,8 @@ authors = ["SubTrackr Team"]
 description = "Upgradeable proxy for SubTrackr (Soroban)"
 
 [lib]
+name = "subtrackr_proxy"
+path = "src/lib.rs"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]

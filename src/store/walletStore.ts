@@ -11,6 +11,11 @@ interface WalletState {
   error: string | null;
 
   connectWallet: () => Promise<void>;
+  syncWalletConnection: (payload: {
+    address: string;
+    chainId: number;
+    network: string;
+  }) => Promise<void>;
   disconnect: () => Promise<void>;
   updateBalance: () => Promise<void>;
   createCryptoStream: (setup: StreamSetup) => Promise<void>;
@@ -87,6 +92,29 @@ export const useWalletStore = create<WalletState>((set, get) => ({
         isLoading: false,
       });
     }
+  },
+
+  syncWalletConnection: async ({ address, chainId, network }) => {
+    const walletData = {
+      address,
+      network,
+      wallet: {
+        address,
+        chainId,
+        isConnected: true,
+        balance: '0',
+        tokens: [],
+      } as Wallet,
+    };
+
+    await AsyncStorage.setItem(WALLET_STORAGE_KEY, JSON.stringify(walletData));
+    set({
+      wallet: walletData.wallet,
+      address,
+      network,
+      isLoading: false,
+      error: null,
+    });
   },
 
   disconnect: async () => {

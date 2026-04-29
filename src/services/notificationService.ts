@@ -9,6 +9,7 @@ export const NOTIFICATION_DATA_TYPE = {
   CHARGE_SUCCESS: 'charge_success',
   CHARGE_FAILED: 'charge_failed',
   TRANSACTION_QUEUE: 'transaction_queue',
+  SLA_BREACH: 'sla_breach',
 } as const;
 
 const ANDROID_CHANNEL_ID = 'billing';
@@ -186,6 +187,33 @@ export async function presentTransactionQueueNotification(
       body,
       data: {
         type: NOTIFICATION_DATA_TYPE.TRANSACTION_QUEUE,
+      },
+      sound: 'default',
+    },
+    trigger: null,
+  });
+}
+
+export async function presentSlaBreachNotification(input: {
+  merchantName: string;
+  uptimeTarget: number;
+  uptimePercentage: number;
+  creditAmount: number;
+}): Promise<void> {
+  if (!isNotificationsSupported()) return;
+  const status = await getPermissionStatus();
+  if (status !== Notifications.PermissionStatus.GRANTED) return;
+
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: `SLA breach: ${input.merchantName}`,
+      body: `Uptime dropped to ${input.uptimePercentage.toFixed(2)}% against a ${input.uptimeTarget}% target. Credit due: ${input.creditAmount}.`,
+      data: {
+        type: NOTIFICATION_DATA_TYPE.SLA_BREACH,
+        merchantName: input.merchantName,
+        uptimeTarget: input.uptimeTarget,
+        uptimePercentage: input.uptimePercentage,
+        creditAmount: input.creditAmount,
       },
       sound: 'default',
     },
