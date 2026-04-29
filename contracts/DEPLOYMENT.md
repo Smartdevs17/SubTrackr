@@ -73,6 +73,42 @@ After deployment, you can verify that the contract is active by running:
 
 Replace `<PROXY_ID>` with the proxy contract ID returned by the deployment script and `<NETWORK>` with `local`, `testnet`, or `public`.
 
+## Migrations
+
+For contract upgrades and cutovers, use the migration framework instead of ad-hoc redeploys:
+
+```bash
+export NETWORK="testnet"
+export SOURCE_ACCOUNT="your-testnet-account-name"
+export ADMIN_ADDRESS="GB..."
+./scripts/run-migration.sh --network "$NETWORK" --source "$SOURCE_ACCOUNT" --admin "$ADMIN_ADDRESS"
+```
+
+What this does:
+- Exports a plan and subscription snapshot from the active contract.
+- Deploys and initializes a replacement contract.
+- Validates the replacement contract's read paths.
+- Updates `contracts/.env.<network>` only after validation passes.
+- Records a rollback-ready history file in `contracts/migrations/history/`.
+
+Dry-run example:
+
+```bash
+export NETWORK="testnet"
+export SOURCE_ACCOUNT="your-testnet-account-name"
+export ADMIN_ADDRESS="GB..."
+./scripts/run-migration.sh --network "$NETWORK" --source "$SOURCE_ACCOUNT" --admin "$ADMIN_ADDRESS" --dry-run
+```
+
+Validate a target contract and inspect the exported snapshot:
+
+```bash
+./scripts/validate-migration.sh \
+  --network testnet \
+  --target-contract <NEW_CONTRACT_ID> \
+  --snapshot-dir contracts/migrations/snapshots/<SNAPSHOT_DIRECTORY>
+```
+
 ### Explorer Source Verification
 
 Some explorers (e.g., Stellar Expert / Soroban explorers) support attaching source bundles for transparency.
@@ -110,7 +146,6 @@ Notes:
 ### 1) Deploy a new implementation
 
 Build and deploy the updated `subtrackr-subscription` contract.
-
 You can use the helper script (deploy + schedule):
 
 ```bash
@@ -166,3 +201,15 @@ Notes:
 
 - Rollback changes the **implementation**, not the already-applied storage schema.
 - Keep older implementations forward-compatible when possible (e.g., additive storage changes).
+
+## Migration History Rollback
+
+The migration framework added in this branch is still useful for operational cutovers that track an
+active contract pointer outside the proxy upgrade path.
+
+Restore the last recorded active contract from migration history with:
+
+```bash
+./scripts/rollback-migration.sh \
+  --history-file contracts/migrations/history/<MIGRATION_HISTORY_FILE>.env
+```

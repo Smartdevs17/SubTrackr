@@ -12,9 +12,9 @@ import {
   Modal,
   FlatList,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
-import { useWalletStore, useNetworkStore } from '../store';
+import { useWalletStore, useNetworkStore, useSettingsStore } from '../store';
+
 import { Card } from '../components/common/Card';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -22,53 +22,29 @@ import { RootStackParamList } from '../navigation/types';
 import { useTranslation } from 'react-i18next';
 
 const APP_VERSION = '1.0.0';
-interface Settings {
-  notificationsEnabled: boolean;
-  defaultCurrency: string;
-}
-const SETTINGS_KEY = '@subtrackr_settings';
 
 const SettingsScreen: React.FC = () => {
   const { t } = useTranslation();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { address, disconnect } = useWalletStore();
   const { currentNetwork, availableNetworks, setNetwork, initialize } = useNetworkStore();
-  const [settings, setSettings] = useState<Settings>({
-    notificationsEnabled: true,
-    defaultCurrency: 'USD',
-  });
+  const { preferredCurrency, notificationsEnabled, setPreferredCurrency, setNotificationsEnabled } =
+    useSettingsStore();
+
   const [networkModalVisible, setNetworkModalVisible] = useState(false);
 
   useEffect(() => {
-    loadSettings();
     initialize();
   }, [initialize]);
 
-  const loadSettings = async () => {
-    try {
-      const savedSettings = await AsyncStorage.getItem(SETTINGS_KEY);
-      if (savedSettings) setSettings(JSON.parse(savedSettings));
-    } catch (error) {
-      console.error('Failed to load settings:', error);
-    }
-  };
-
-  const saveSettings = async (newSettings: Settings) => {
-    try {
-      await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(newSettings));
-      setSettings(newSettings);
-    } catch (error) {
-      console.error('Failed to save settings:', error);
-    }
-  };
-
   const handleNotificationToggle = useCallback(
-    (value: boolean) => saveSettings({ ...settings, notificationsEnabled: value }),
-    [settings]
+    (value: boolean) => setNotificationsEnabled(value),
+    [setNotificationsEnabled]
   );
+
   const handleCurrencyChange = useCallback(
-    (currency: string) => saveSettings({ ...settings, defaultCurrency: currency }),
-    [settings]
+    (currency: string) => setPreferredCurrency(currency),
+    [setPreferredCurrency]
   );
 
   const handleDisconnectWallet = useCallback(() => {
@@ -147,15 +123,26 @@ const SettingsScreen: React.FC = () => {
               <Text style={styles.settingDescription}>{t('settings.billing_reminders_desc')}</Text>
             </View>
             <Switch
-              value={settings.notificationsEnabled}
+              value={notificationsEnabled}
               onValueChange={handleNotificationToggle}
               trackColor={{ false: colors.border, true: colors.primary }}
               thumbColor={colors.text}
               accessibilityLabel={t('settings.billing_reminders')}
               accessibilityRole="switch"
-              accessibilityState={{ checked: settings.notificationsEnabled }}
+              accessibilityState={{ checked: notificationsEnabled }}
             />
           </View>
+          <TouchableOpacity
+            style={[styles.linkRow, styles.linkRowLast]}
+            onPress={() => navigation.navigate('CalendarIntegration')}
+            accessibilityRole="button"
+            accessibilityLabel={t('settings.calendar_sync')}
+            accessibilityHint={t('settings.calendar_sync_hint')}>
+            <Text style={styles.linkText}>{t('settings.calendar_sync')}</Text>
+            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
+              {'>'}
+            </Text>
+          </TouchableOpacity>
         </Card>
         <Card style={styles.section}>
           <Text style={styles.sectionTitle} accessibilityRole="header">
@@ -173,16 +160,16 @@ const SettingsScreen: React.FC = () => {
                 key={currency}
                 style={[
                   styles.currencyButton,
-                  settings.defaultCurrency === currency && styles.currencyButtonActive,
+                  preferredCurrency === currency && styles.currencyButtonActive,
                 ]}
                 onPress={() => handleCurrencyChange(currency)}
                 accessibilityRole="radio"
                 accessibilityLabel={currency}
-                accessibilityState={{ checked: settings.defaultCurrency === currency }}>
+                accessibilityState={{ checked: preferredCurrency === currency }}>
                 <Text
                   style={[
                     styles.currencyButtonText,
-                    settings.defaultCurrency === currency && styles.currencyButtonTextActive,
+                    preferredCurrency === currency && styles.currencyButtonTextActive,
                   ]}>
                   {currency}
                 </Text>
@@ -191,7 +178,9 @@ const SettingsScreen: React.FC = () => {
           </View>
         </Card>
         <Card style={styles.section}>
-          <Text style={styles.sectionTitle} accessibilityRole="header">Data Management</Text>
+          <Text style={styles.sectionTitle} accessibilityRole="header">
+            Data Management
+          </Text>
           <TouchableOpacity
             style={styles.linkRow}
             onPress={() => navigation.navigate('Import')}
@@ -199,7 +188,9 @@ const SettingsScreen: React.FC = () => {
             accessibilityLabel="Import subscriptions"
             accessibilityHint="Opens import screen">
             <Text style={styles.linkText}>Import Subscriptions</Text>
-            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>→</Text>
+            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
+              →
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.linkRow}
@@ -208,11 +199,60 @@ const SettingsScreen: React.FC = () => {
             accessibilityLabel="Export subscriptions"
             accessibilityHint="Opens export screen">
             <Text style={styles.linkText}>Export Subscriptions</Text>
-            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>→</Text>
+            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
+              →
+            </Text>
           </TouchableOpacity>
         </Card>
         <Card style={styles.section}>
-          <Text style={styles.sectionTitle} accessibilityRole="header">About</Text>
+          <Text style={styles.sectionTitle} accessibilityRole="header">
+            Merchant & Affiliate
+          </Text>
+          <TouchableOpacity
+            style={styles.linkRow}
+            onPress={() => navigation.navigate('MerchantOnboarding')}
+            accessibilityRole="button"
+            accessibilityLabel="Merchant onboarding">
+            <Text style={styles.linkText}>Merchant Onboarding</Text>
+            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
+              →
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.linkRow}
+            onPress={() => navigation.navigate('AffiliateDashboard')}
+            accessibilityRole="button"
+            accessibilityLabel="Affiliate dashboard">
+            <Text style={styles.linkText}>Affiliate Dashboard</Text>
+            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
+              →
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.linkRow}
+            onPress={() => navigation.navigate('LoyaltyDashboard')}
+            accessibilityRole="button"
+            accessibilityLabel="Loyalty dashboard">
+            <Text style={styles.linkText}>Loyalty Dashboard</Text>
+            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
+              →
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.linkRow, styles.linkRowLast]}
+            onPress={() => navigation.navigate('CampaignManagement')}
+            accessibilityRole="button"
+            accessibilityLabel="Campaign management">
+            <Text style={styles.linkText}>Campaign Management</Text>
+            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
+              →
+            </Text>
+          </TouchableOpacity>
+        </Card>
+        <Card style={styles.section}>
+          <Text style={styles.sectionTitle} accessibilityRole="header">
+            About
+          </Text>
           <Text style={styles.sectionTitle} accessibilityRole="header">
             {t('settings.sections.about')}
           </Text>

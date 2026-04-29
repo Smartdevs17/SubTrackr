@@ -1,10 +1,7 @@
 #![no_std]
-#![allow(clippy::too_many_arguments)]
-
-pub mod quota;
-pub mod revenue;
-pub mod usage;
-
+mod gas_profiler;
+mod gas_storage;
+mod gas_optimization;
 use soroban_sdk::{token, Address, Env, IntoVal, String, TryFromVal, Val, Vec};
 use subtrackr_types::{
     Interval, Invoice, Plan, StorageKey, Subscription, SubscriptionStatus, TimeRange,

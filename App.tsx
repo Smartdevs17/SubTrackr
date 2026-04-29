@@ -16,8 +16,9 @@ import '@walletconnect/react-native-compat';
 import { createAppKit, defaultConfig, AppKit } from '@reown/appkit-ethers-react-native';
 
 import { EVM_RPC_URLS } from './src/config/evm';
-import { useNetworkStore } from './src/store';
+import { useNetworkStore, useSettingsStore } from './src/store';
 import { sessionService } from './src/services/auth/session';
+
 
 // Get projectId from environment variable
 const projectId = process.env.WALLET_CONNECT_PROJECT_ID || 'YOUR_PROJECT_ID';
@@ -76,10 +77,14 @@ function NotificationBootstrap() {
   useTransactionQueue();
 
   const { initialize } = useNetworkStore();
+  const { initializeSettings } = useSettingsStore();
+
   React.useEffect(() => {
     initialize();
+    void initializeSettings();
     void sessionService.initializeCurrentSession();
-  }, [initialize]);
+  }, [initialize, initializeSettings]);
+
 
   return null;
 }
