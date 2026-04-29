@@ -28,17 +28,21 @@ jest.mock('ethers', () => {
   };
 });
 
-jest.mock('@superfluid-finance/sdk-core', () => ({
-  Framework: {
-    create: jest.fn(),
-  },
-  SFError: class extends Error {
-    constructor(msg: string) {
-      super(msg);
-      this.name = 'SFError';
-    }
-  },
-}));
+jest.mock(
+  '@superfluid-finance/sdk-core',
+  () => ({
+    Framework: {
+      create: jest.fn(),
+    },
+    SFError: class extends Error {
+      constructor(msg: string) {
+        super(msg);
+        this.name = 'SFError';
+      }
+    },
+  }),
+  { virtual: true }
+);
 
 jest.mock('../../contracts', () => ({
   ERC20__factory: {
@@ -217,9 +221,11 @@ describe('WalletServiceManager', () => {
       expect(usdc).toBeUndefined();
     });
 
-    it('throws when provider fails for native balance', async () => {
+    it('throws WalletError BALANCE_FETCH_FAILED when provider fails for native balance', async () => {
       mockProvider.getBalance.mockRejectedValue(new Error('RPC down'));
-      await expect(mgr.getTokenBalances('0xAddr', 1)).rejects.toThrow('RPC down');
+      await expect(mgr.getTokenBalances('0xAddr', 1)).rejects.toThrow(
+        'Unable to fetch token balances.'
+      );
     });
   });
 
@@ -246,9 +252,11 @@ describe('WalletServiceManager', () => {
       expect(parseFloat(estimate.estimatedCost)).toBeGreaterThan(0);
     });
 
-    it('throws when provider fails', async () => {
+    it('throws WalletError GAS_ESTIMATION_FAILED when provider fails', async () => {
       mockProvider.getGasPrice.mockRejectedValue(new Error('network error'));
-      await expect(mgr.estimateGas('0xFrom', '0xTo', '1.0', 1)).rejects.toThrow('network error');
+      await expect(mgr.estimateGas('0xFrom', '0xTo', '1.0', 1)).rejects.toThrow(
+        'Could not retrieve gas price.'
+      );
     });
   });
 
@@ -353,7 +361,14 @@ describe('WalletServiceManager', () => {
       });
 
       try {
-        await mgr.createSablierStream('0xToken', '10', Date.now(), Date.now() + 86400000, '0xRecipient', 1);
+        await mgr.createSablierStream(
+          '0xToken',
+          '10',
+          Date.now(),
+          Date.now() + 86400000,
+          '0xRecipient',
+          1
+        );
         fail('expected to throw');
       } catch (e) {
         expect(e).toBeInstanceOf(WalletError);
@@ -377,7 +392,12 @@ describe('WalletServiceManager', () => {
 
     it('preserves cause stack when cause is an Error', () => {
       const cause = new Error('rpc timeout');
-      const err = new WalletError(WalletErrorCode.UNKNOWN, 'Something went wrong.', undefined, cause);
+      const err = new WalletError(
+        WalletErrorCode.UNKNOWN,
+        'Something went wrong.',
+        undefined,
+        cause
+      );
       expect(err.stack).toContain('Caused by:');
     });
   });
