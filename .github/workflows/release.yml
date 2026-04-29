@@ -7,9 +7,12 @@ on:
   workflow_dispatch:
     inputs:
       deploy:
-        description: 'Deployment target (canary|prod)'
+        description: 'Deployment target (canary|prod|rollback)'
         required: true
         default: 'canary'
+      version:
+        description: 'Version to rollback to (optional, defaults to last tag)'
+        required: false
 
 permissions:
   contents: write
@@ -105,8 +108,13 @@ jobs:
       - name: Checkout previous tag
         run: |
           git fetch --tags
-          PREV_TAG=$(git describe --tags --abbrev=0 HEAD~1)
-          git checkout $PREV_TAG
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            TARGET_TAG="${{ github.event.inputs.version }}"
+          else
+            TARGET_TAG=$(git describe --tags --abbrev=0 HEAD~1)
+          fi
+          echo "Rolling back to $TARGET_TAG"
+          git checkout $TARGET_TAG
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

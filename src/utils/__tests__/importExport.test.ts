@@ -16,6 +16,10 @@ import {
 } from '../importExport';
 import { Subscription, SubscriptionCategory, BillingCycle } from '../../types/subscription';
 
+jest.mock('@react-native-async-storage/async-storage', () =>
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock')
+);
+
 describe('Import/Export Utilities', () => {
   describe('CSV Parsing', () => {
     it('should parse valid CSV data', () => {
