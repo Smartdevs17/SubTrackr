@@ -116,6 +116,31 @@ const HomeStack = () => (
       component={UsageDashboardScreen}
       options={{ headerShown: false }}
     />
+    <Stack.Screen
+      name="DeveloperPortal"
+      component={DeveloperPortalScreen}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="SandboxDashboard"
+      component={SandboxDashboardScreen}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="ApiKeyManagement"
+      component={ApiKeyManagementScreen}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="DocumentationPortal"
+      component={DocumentationPortalScreen}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="IntegrationGuides"
+      component={IntegrationGuidesScreen}
+      options={{ headerShown: false }}
+    />
   </Stack.Navigator>
 );
 

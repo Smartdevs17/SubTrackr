@@ -253,8 +253,43 @@ const SettingsScreen: React.FC = () => {
           <Text style={styles.sectionTitle} accessibilityRole="header">
             About
           </Text>
+          <TouchableOpacity
+            style={styles.linkRow}
+            onPress={() => navigation.navigate('DeveloperPortal')}
+            accessibilityRole="button"
+            accessibilityLabel="Developer Portal"
+            accessibilityHint="Opens developer portal for API integration">
+            <Text style={styles.linkText}>Developer Portal</Text>
+            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
+              →
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.linkRow}
+            onPress={() => navigation.navigate('DocumentationPortal')}
+            accessibilityRole="button"
+            accessibilityLabel="API Documentation"
+            accessibilityHint="Opens API documentation and guides">
+            <Text style={styles.linkText}>API Documentation</Text>
+            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
+              →
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.linkRow, styles.linkRowLast]}
+            onPress={() => navigation.navigate('ApiKeyManagement')}
+            accessibilityRole="button"
+            accessibilityLabel="API Key Management"
+            accessibilityHint="Manage your API keys">
+            <Text style={styles.linkText}>API Key Management</Text>
+            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
+              →
+            </Text>
+          </TouchableOpacity>
+        </Card>
+        <Card style={styles.section}>
           <Text style={styles.sectionTitle} accessibilityRole="header">
-            {t('settings.sections.about')}
+            About
           </Text>
           <View style={styles.settingRow}>
             <Text style={styles.settingLabel}>{t('settings.version')}</Text>
