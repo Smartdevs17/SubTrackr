@@ -7,6 +7,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import HomeScreen from '../screens/HomeScreen';
 import AddSubscriptionScreen from '../screens/AddSubscriptionScreen';
+import CancellationFlowScreen from '../screens/CancellationFlowScreen';
 import WalletConnectScreen from '../screens/WalletConnectV2Screen';
 import CryptoPaymentScreen from '../screens/CryptoPaymentScreen';
 import CommunityScreen from '../screens/CommunityScreen';
@@ -18,9 +19,12 @@ import GDPRSettingsScreen from '../screens/GDPRSettingsScreen';
 import LanguageSettingsScreen from '../screens/LanguageSettingsScreen';
 import SessionManagementScreen from '../screens/SessionManagementScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import CalendarIntegrationScreen from '../screens/CalendarIntegrationScreen';
 import AccountingExportScreen from '../screens/AccountingExportScreen';
 import WebhookSettingsScreen from '../screens/WebhookSettingsScreen';
 import ErrorDashboardScreen from '../screens/ErrorDashboardScreen';
+import ImportScreen from '../screens/ImportScreen';
+import ExportScreen from '../screens/ExportScreen';
 import AdminDashboardScreen from '../screens/AdminDashboardScreen';
 import InvoiceListScreen from '../screens/InvoiceListScreen';
 import InvoiceDetailScreen from '../screens/InvoiceDetailScreen';
@@ -29,6 +33,10 @@ import { SegmentDetailScreen } from '../screens/SegmentDetailScreen';
 import { GamificationScreen } from '../screens/GamificationScreen';
 import RevenueReportScreen from '../screens/RevenueReportScreen';
 import UsageDashboardScreen from '../screens/UsageDashboard';
+import MerchantOnboardingScreen from '../screens/MerchantOnboardingScreen';
+import AffiliateDashboardScreen from '../screens/AffiliateDashboardScreen';
+import LoyaltyDashboardScreen from '../screens/LoyaltyDashboardScreen';
+import CampaignManagementScreen from '../screens/CampaignManagementScreen';
 import { colors } from '../utils/constants';
 
 import { RootStackParamList, TabParamList } from './types';
@@ -43,6 +51,11 @@ const HomeStack = () => (
       name="AddSubscription"
       component={AddSubscriptionScreen}
       options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="CancellationFlow"
+      component={CancellationFlowScreen}
+      options={{ title: 'Cancel Subscription', headerShown: true }}
     />
     <Stack.Screen
       name="SubscriptionDetail"
@@ -111,6 +124,11 @@ const SettingsStack = () => (
   <Stack.Navigator>
     <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />
     <Stack.Screen
+      name="CalendarIntegration"
+      component={CalendarIntegrationScreen}
+      options={{ title: 'Calendar Integrations', headerShown: true }}
+    />
+    <Stack.Screen
       name="Community"
       component={CommunityScreen}
       options={{ title: 'Community', headerShown: true }}
@@ -131,6 +149,11 @@ const SettingsStack = () => (
       options={{ title: 'Language', headerShown: true }}
     />
     <Stack.Screen
+      name="WebhookSettings"
+      component={WebhookSettingsScreen}
+      options={{ title: 'Webhooks', headerShown: true }}
+    />
+    <Stack.Screen
       name="SessionManagement"
       component={SessionManagementScreen}
       options={{ title: 'Sessions', headerShown: true }}
@@ -139,11 +162,6 @@ const SettingsStack = () => (
       name="AdminDashboard"
       component={AdminDashboardScreen}
       options={{ title: 'Admin Dashboard', headerShown: true }}
-    />
-    <Stack.Screen
-      name="WebhookSettings"
-      component={WebhookSettingsScreen}
-      options={{ title: 'Webhooks', headerShown: true }}
     />
     <Stack.Screen
       name="AccountingExport"
@@ -159,6 +177,36 @@ const SettingsStack = () => (
       name="ErrorDashboard"
       component={ErrorDashboardScreen}
       options={{ title: 'Error Dashboard', headerShown: true }}
+    />
+    <Stack.Screen 
+      name="Import" 
+      component={ImportScreen} 
+      options={{ title: 'Import Subscriptions', headerShown: true }} 
+    />
+    <Stack.Screen 
+      name="Export" 
+      component={ExportScreen} 
+      options={{ title: 'Export Subscriptions', headerShown: true }} 
+    />
+    <Stack.Screen
+      name="MerchantOnboarding"
+      component={MerchantOnboardingScreen}
+      options={{ title: 'Merchant Onboarding', headerShown: true }}
+    />
+    <Stack.Screen
+      name="AffiliateDashboard"
+      component={AffiliateDashboardScreen}
+      options={{ title: 'Affiliate Dashboard', headerShown: true }}
+    />
+    <Stack.Screen
+      name="LoyaltyDashboard"
+      component={LoyaltyDashboardScreen}
+      options={{ title: 'Loyalty Dashboard', headerShown: true }}
+    />
+    <Stack.Screen
+      name="CampaignManagement"
+      component={CampaignManagementScreen}
+      options={{ title: 'Campaign Management', headerShown: true }}
     />
   </Stack.Navigator>
 );

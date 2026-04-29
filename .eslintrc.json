@@ -22,7 +22,13 @@
     "android/",
     "ios/",
     ".expo/",
-    "src/contracts/types/"
+    "src/contracts/types/",
+    "app/",
+    "backend/",
+    "acbu-backend/",
+    "src/animations/",
+    "stellarlend/",
+    "stellarlend-pr282/"
   ],
   "settings": {
     "import/resolver": {

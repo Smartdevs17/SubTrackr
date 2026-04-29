@@ -1,5 +1,7 @@
 import { SubscriptionTier } from './subscription';
 
+export { SubscriptionTier } from './subscription';
+
 export interface FeatureFlag {
   id: string;
   name: string;

@@ -7,101 +7,122 @@ interface StatsCardProps {
   totalMonthlySpend: number;
   totalActive: number;
   onWalletPress: () => void;
+  currency?: string;
 }
+
 
 export const StatsCard: React.FC<StatsCardProps> = ({
   totalMonthlySpend,
   totalActive,
   onWalletPress,
+  currency = 'USD',
 }) => {
+
   return (
-    <View style={styles.statsContainer} accessibilityRole="summary">
+    <View style={styles.container} accessibilityRole="summary">
+      {/* Monthly Spend Card - Primary Focus */}
       <View
-        style={styles.statCard}
+        style={[styles.card, styles.primaryCard]}
         accessible={true}
-        accessibilityLabel={`Total monthly spend, ${formatCurrencyCompact(totalMonthlySpend)}`}>
+        accessibilityLabel={`Total monthly spend, ${formatCurrencyCompact(
+          totalMonthlySpend,
+          currency
+        )}`}>
         <Text
           style={styles.statLabel}
           accessibilityElementsHidden={true}
           importantForAccessibility="no">
-          Total Monthly
+          Monthly Spend
         </Text>
         <Text
-          style={styles.statValue}
+          style={[styles.value, styles.primaryValue]}
           numberOfLines={1}
           adjustsFontSizeToFit
           accessibilityElementsHidden={true}
           importantForAccessibility="no">
-          {formatCurrencyCompact(totalMonthlySpend)}
+          {formatCurrencyCompact(totalMonthlySpend, currency)}
         </Text>
+
       </View>
+
+      {/* Active Count Card */}
       <View
-        style={styles.statCard}
+        style={styles.card}
         accessible={true}
-        accessibilityLabel={`Active subscriptions, ${totalActive}`}>
-        <Text
-          style={styles.statLabel}
-          accessibilityElementsHidden={true}
-          importantForAccessibility="no">
-          Active Subs
+        accessibilityLabel={`Active subscriptions: ${totalActive}`}>
+        <Text style={styles.label} accessibilityElementsHidden={true}>
+          Active
         </Text>
-        <Text
-          style={styles.statValue}
-          accessibilityElementsHidden={true}
-          importantForAccessibility="no">
+        <Text style={styles.value} accessibilityElementsHidden={true}>
           {totalActive}
         </Text>
       </View>
-      <View style={styles.statCard}>
-        <TouchableOpacity
-          onPress={onWalletPress}
-          accessibilityRole="button"
-          accessibilityLabel="Connect wallet"
-          accessibilityHint="Opens the wallet connection screen">
-          <Text style={styles.statLabel}>Wallet</Text>
-          <Text
-            style={styles.statValue}
-            accessibilityElementsHidden={true}
-            importantForAccessibility="no">
-            🔗
-          </Text>
-        </TouchableOpacity>
-      </View>
+
+      {/* Wallet Action Card */}
+      <TouchableOpacity
+        onPress={onWalletPress}
+        style={[styles.card, styles.walletCard]}
+        accessibilityRole="button"
+        accessibilityLabel="Connect wallet"
+        accessibilityHint="Opens the wallet connection screen">
+        <Text style={[styles.label, { color: colors.accent }]}>Wallet</Text>
+        <Text style={styles.icon} accessibilityElementsHidden={true}>
+          🔗
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  statsContainer: {
+  container: {
     flexDirection: 'row',
     paddingHorizontal: spacing.lg,
-    marginBottom: spacing.lg,
-    gap: spacing.md,
-    flexWrap: 'wrap',
+    marginVertical: spacing.md,
+    gap: spacing.sm,
   },
-  statCard: {
+  card: {
     flex: 1,
-    minWidth: 100,
     backgroundColor: colors.surface,
-    padding: spacing.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
     borderRadius: borderRadius.lg,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 80,
+    minHeight: 90,
+    borderWidth: 1,
+    borderColor: colors.border,
     ...shadows.sm,
   },
-  statLabel: {
+  primaryCard: {
+    flex: 1.2, // Give the spending card a bit more visual weight
+    borderColor: colors.primary + '30', // Subtle primary tint
+    backgroundColor: colors.surface,
+  },
+  walletCard: {
+    backgroundColor: colors.accent + '10', // Very light tint of accent
+    borderColor: colors.accent + '30',
+  },
+  label: {
     ...typography.caption,
     color: colors.textSecondary,
     marginBottom: spacing.xs,
-    textAlign: 'center',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    fontSize: 10,
+    fontWeight: '600',
   },
-  statValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
+  value: {
+    ...typography.h3,
     color: colors.text,
     textAlign: 'center',
-    lineHeight: 22,
-    minHeight: 22,
+  },
+  primaryValue: {
+    color: colors.primary,
+    fontWeight: '800',
+  },
+  icon: {
+    fontSize: 20,
+    marginTop: 2,
   },
 });
