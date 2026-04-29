@@ -248,6 +248,10 @@ class UsageTrackingService {
 
     return result;
   }
+
+  async loadUsage(_developerId: string): Promise<void> {
+    await this.loadMetrics();
+  }
 }
 
 export const usageTrackingService = UsageTrackingService.getInstance();

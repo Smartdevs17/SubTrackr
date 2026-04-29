@@ -43,12 +43,12 @@ const DEFAULT_RATE_LIMIT = {
 };
 
 const DEFAULT_ONBOARDING_STEPS: OnboardingStepInfo[] = [
-  { id: 'welcome', title: 'Welcome', description: 'Learn about the developer portal', step: DeveloperOnboardingStep.WELCOME, completed: false, required: true },
-  { id: 'create-account', title: 'Create Account', description: 'Set up your developer profile', step: DeveloperOnboardingStep.CREATE_ACCOUNT, completed: false, required: true },
-  { id: 'generate-api-key', title: 'Generate API Key', description: 'Create your sandbox API key', step: DeveloperOnboardingStep.GENERATE_API_KEY, completed: false, required: true },
-  { id: 'explore-sandbox', title: 'Explore Sandbox', description: 'Test the sandbox environment', step: DeveloperOnboardingStep.EXPLORE_SANDBOX, completed: false, required: false },
-  { id: 'build-integration', title: 'Build Integration', description: 'Build your integration', step: DeveloperOnboardingStep.BUILD_INTEGRATION, completed: false, required: false },
-  { id: 'go-live', title: 'Go Live', description: 'Switch to production', step: DeveloperOnboardingStep.GO_LIVE, completed: false, required: false },
+  { id: DeveloperOnboardingStep.WELCOME, title: 'Welcome', description: 'Learn about the developer portal', step: DeveloperOnboardingStep.WELCOME, completed: false, required: true },
+  { id: DeveloperOnboardingStep.CREATE_ACCOUNT, title: 'Create Account', description: 'Set up your developer profile', step: DeveloperOnboardingStep.CREATE_ACCOUNT, completed: false, required: true },
+  { id: DeveloperOnboardingStep.GENERATE_API_KEY, title: 'Generate API Key', description: 'Create your sandbox API key', step: DeveloperOnboardingStep.GENERATE_API_KEY, completed: false, required: true },
+  { id: DeveloperOnboardingStep.EXPLORE_SANDBOX, title: 'Explore Sandbox', description: 'Test the sandbox environment', step: DeveloperOnboardingStep.EXPLORE_SANDBOX, completed: false, required: false },
+  { id: DeveloperOnboardingStep.BUILD_INTEGRATION, title: 'Build Integration', description: 'Build your integration', step: DeveloperOnboardingStep.BUILD_INTEGRATION, completed: false, required: false },
+  { id: DeveloperOnboardingStep.GO_LIVE, title: 'Go Live', description: 'Switch to production', step: DeveloperOnboardingStep.GO_LIVE, completed: false, required: false },
 ];
 
 const DEFAULT_INTEGRATION_GUIDES: IntegrationGuide[] = [
@@ -160,12 +160,12 @@ interface SandboxState {
 
   fetchSandboxes: (developerId: string) => Promise<void>;
   createSandbox: (name: string, description: string, environment: SandboxEnvironment) => Promise<void>;
-  selectSandbox: (sandbox: SandboxConfig) => void;
+  selectSandbox: (sandbox: SandboxConfig | string) => void;
   deleteSandbox: (id: string) => Promise<void>;
   pauseSandbox: (id: string) => Promise<void>;
   resumeSandbox: (id: string) => Promise<void>;
   toggleSandboxStatus: (id: string) => Promise<void>;
-  generateTestData: (sandboxId?: string) => Promise<void>;
+  generateTestData: (sandboxIdOrConfig?: string | { subscriptionCount?: number; transactionCount?: number }) => Promise<void>;
   resetSandbox: () => void;
   resetTestData: () => void;
   refreshMetrics: () => Promise<void>;
@@ -175,6 +175,8 @@ interface SandboxState {
   addTestSubscription: (name: string, price: number) => void;
   removeTestSubscription: (id: string) => void;
   completeOnboardingStep: (stepId: string) => void;
+  createDeveloperProfile: (name: string, email: string, company?: string) => Promise<void>;
+  generateApiKey: (name: string) => Promise<string>;
   createApiKey: (input: { name: string; description?: string; sandboxId: string; scopes: ApiKeyScope[] }) => Promise<void>;
   revokeApiKey: (id: string) => Promise<void>;
   reactivateApiKey: (id: string) => Promise<void>;
@@ -263,7 +265,10 @@ export const useSandboxStore = create<SandboxState>()(
         }
       },
 
-      selectSandbox: (sandbox) => {
+      selectSandbox: (sandboxOrId) => {
+        const sandbox = typeof sandboxOrId === 'string'
+          ? get().sandboxes.find((s) => s.id === sandboxOrId) || null
+          : sandboxOrId;
         set({ selectedSandbox: sandbox, currentSandbox: sandbox });
       },
 
@@ -310,18 +315,20 @@ export const useSandboxStore = create<SandboxState>()(
         }
       },
 
-      generateTestData: async (_sandboxId?: string) => {
+      generateTestData: async (sandboxIdOrConfig?: string | { subscriptionCount?: number; transactionCount?: number }) => {
         try {
           set({ isLoading: true, error: null });
+          const count = typeof sandboxIdOrConfig === 'object' ? sandboxIdOrConfig.subscriptionCount || 8 : 8;
           const names = ['Netflix', 'Spotify', 'Adobe CC', 'Slack Pro', 'GitHub Team', 'Figma Pro', 'Notion Plus', 'Vercel Pro'];
           const prices = [15.99, 9.99, 54.99, 8.75, 4.0, 12.0, 10.0, 20.0];
+          const subCount = Math.min(count, names.length);
 
-          const testSubs: TestSubscription[] = names.map((name, i) => ({
+          const testSubs: TestSubscription[] = names.slice(0, subCount).map((name, i) => ({
             id: generateId('test_sub'),
             name,
             price: prices[i],
             currency: 'USD',
-            status: i < 6 ? 'active' : 'paused',
+            status: i < Math.floor(subCount * 0.75) ? 'active' : 'paused',
             billingCycle: 'monthly',
             nextBillingDate: new Date(Date.now() + (i + 1) * 30 * 24 * 60 * 60 * 1000),
             createdAt: new Date(Date.now() - (8 - i) * 7 * 24 * 60 * 60 * 1000),
@@ -453,6 +460,72 @@ export const useSandboxStore = create<SandboxState>()(
         }));
       },
 
+      createDeveloperProfile: async (name, email, company) => {
+        try {
+          set({ isLoading: true, error: null });
+          const sandboxConfig = get().sandboxConfig;
+          const profile: DeveloperProfile = {
+            id: generateId('dev'),
+            email,
+            name,
+            company,
+            onboardingStep: DeveloperOnboardingStep.CREATE_ACCOUNT,
+            completedSteps: [DeveloperOnboardingStep.WELCOME],
+            sandboxConfig,
+            apiKeys: [],
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          };
+          set((state) => ({
+            developerProfile: profile,
+            onboardingSteps: state.onboardingSteps.map((s) =>
+              s.id === DeveloperOnboardingStep.WELCOME ? { ...s, completed: true } : s
+            ),
+            isLoading: false,
+          }));
+        } catch (err) {
+          set({
+            error: errorHandler.handleError(err as Error, { action: 'createDeveloperProfile', timestamp: new Date() }),
+            isLoading: false,
+          });
+        }
+      },
+
+      generateApiKey: async (name) => {
+        try {
+          set({ isLoading: true, error: null });
+          const key = generateApiKeyString();
+          const sandboxId = get().currentSandbox?.id || get().sandboxConfig.id;
+          const apiKey: ApiKey = {
+            id: generateId('key'),
+            key,
+            name,
+            sandboxId,
+            status: ApiKeyStatus.ACTIVE,
+            scopes: [ApiKeyScope.READ, ApiKeyScope.WRITE],
+            expiresAt: null,
+            lastUsedAt: null,
+            usageCount: 0,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          };
+          set((state) => ({
+            apiKeys: [...state.apiKeys, apiKey],
+            onboardingSteps: state.onboardingSteps.map((s) =>
+              s.id === DeveloperOnboardingStep.GENERATE_API_KEY ? { ...s, completed: true } : s
+            ),
+            isLoading: false,
+          }));
+          return key;
+        } catch (err) {
+          set({
+            error: errorHandler.handleError(err as Error, { action: 'generateApiKey', timestamp: new Date() }),
+            isLoading: false,
+          });
+          throw err;
+        }
+      },
+
       createApiKey: async (input) => {
         try {
           set({ isLoading: true, error: null });
@@ -475,7 +548,7 @@ export const useSandboxStore = create<SandboxState>()(
             apiKeys: [...state.apiKeys, apiKey],
             isLoading: false,
           }));
-          get().completeOnboardingStep('generate-api-key');
+          get().completeOnboardingStep(DeveloperOnboardingStep.GENERATE_API_KEY);
         } catch (err) {
           set({
             error: errorHandler.handleError(err as Error, { action: 'createApiKey', timestamp: new Date() }),
@@ -572,6 +645,7 @@ export const useSandboxStore = create<SandboxState>()(
       partialize: (state) => ({
         sandboxes: state.sandboxes,
         currentSandbox: state.currentSandbox,
+        developerProfile: state.developerProfile,
         apiKeys: state.apiKeys,
         onboardingSteps: state.onboardingSteps,
         integrationGuides: state.integrationGuides,

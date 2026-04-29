@@ -57,7 +57,7 @@ export interface SandboxConfig {
   name: string;
   description: string;
   isActive: boolean;
-  status?: SandboxStatus;
+  status: SandboxStatus;
   dataIsolation?: boolean;
   rateLimit: RateLimitConfig;
   dataResetInterval?: string;

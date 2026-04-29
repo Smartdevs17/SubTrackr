@@ -3,6 +3,7 @@ import {
   DeveloperProfile,
   ApiKey,
   ApiKeyPermission,
+  ApiKeyStatus,
   UsageStats,
   UsageRecord,
   OnboardingStep,
@@ -167,14 +168,15 @@ export const useDeveloperPortalStore = create<DeveloperPortalState>()((set, get)
     }
   },
 
-  createApiKey: async (developerId, name, permissions, options) => {
+  createApiKey: async (developerId, name, permissions, _options) => {
     set({ isLoading: true, error: null });
     try {
+      const permissionStrings = permissions?.map((p) => p.toString()) || ['read', 'write'];
       const apiKey = await apiKeyService.createApiKey(
         developerId,
         name,
-        permissions,
-        options
+        undefined,
+        permissionStrings
       );
       set((state) => ({
         apiKeys: [...state.apiKeys, apiKey],
@@ -205,7 +207,7 @@ export const useDeveloperPortalStore = create<DeveloperPortalState>()((set, get)
       await apiKeyService.revokeApiKey(keyId);
       set((state) => ({
         apiKeys: state.apiKeys.map((k) =>
-          k.id === keyId ? { ...k, status: 'revoked' as const } : k
+          k.id === keyId ? { ...k, status: ApiKeyStatus.REVOKED } : k
         ),
         isLoading: false,
       }));
@@ -257,14 +259,11 @@ export const useDeveloperPortalStore = create<DeveloperPortalState>()((set, get)
     }
   },
 
-  fetchUsageStats: async (developerId, period) => {
+  fetchUsageStats: async (developerId, _period) => {
     set({ isLoading: true, error: null });
     try {
       await usageTrackingService.loadUsage(developerId);
-      const usageStats = await usageTrackingService.getUsageStats(
-        developerId,
-        period
-      );
+      const usageStats = await usageTrackingService.getUsageStats(developerId);
       set({ usageStats, isLoading: false });
     } catch (error) {
       set({
@@ -279,7 +278,7 @@ export const useDeveloperPortalStore = create<DeveloperPortalState>()((set, get)
   fetchRecentUsage: async (developerId, limit) => {
     set({ isLoading: true, error: null });
     try {
-      const recentUsage = await usageTrackingService.getRecentUsage(
+      const recentUsage = await usageTrackingService.getRecentMetrics(
         developerId,
         limit
       );

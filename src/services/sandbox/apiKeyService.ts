@@ -194,6 +194,20 @@ class ApiKeyService {
     if (key.length <= 12) return key;
     return `${key.substring(0, 12)}${'*'.repeat(key.length - 16)}${key.substring(key.length - 4)}`;
   }
+
+  async loadApiKeys(): Promise<void> {
+    await this.loadKeys();
+  }
+
+  async rotateApiKey(keyId: string): Promise<ApiKey | null> {
+    const key = this.apiKeys.find((k) => k.id === keyId);
+    if (!key) return null;
+
+    key.key = generateApiKey();
+    key.updatedAt = new Date();
+    await this.saveKeys();
+    return { ...key };
+  }
 }
 
 export const apiKeyService = ApiKeyService.getInstance();
