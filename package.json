@@ -115,7 +115,7 @@
     "ts-jest": "^29.4.9",
     "typechain": "^8.3.2",
     "typescript": "~5.8.3",
-    "size-limit": "^11.1.4",
+    "size-limit": "^12.1.0",
     "@size-limit/file": "^11.1.4"
   },
   "private": false,
