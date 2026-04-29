@@ -347,6 +347,49 @@ jobs:
           flags: --env SCENARIO=subscription
 
   # ─────────────────────────────────────────────────────────
+  # Bundle Size Monitoring
+  # ─────────────────────────────────────────────────────────
+  bundle-size:
+    name: Bundle Size Check
+    runs-on: ubuntu-latest
+    env:
+      EXPO_NO_TELEMETRY: 1
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Check bundle size (PR)
+        if: github.event_name == 'pull_request'
+        uses: andresz1/size-limit-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          build_script: 'npm run build'
+
+      - name: Build app
+        if: github.event_name != 'pull_request'
+        run: npm run build
+
+      - name: Check bundle size (Push)
+        if: github.event_name != 'pull_request'
+        run: npx size-limit --json > bundle-size-report.json
+
+      - name: Upload bundle size report
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-size-report-${{ github.sha }}
+          path: bundle-size-report.json
+
+  # ─────────────────────────────────────────────────────────
   # Merge Protection (only on PRs)
   # ─────────────────────────────────────────────────────────
   merge-protection:
@@ -366,6 +409,7 @@ jobs:
         rust-tests,
         rust-build,
         load-test,
+        bundle-size,
       ]
     steps:
       - name: All checks passed
@@ -391,6 +435,7 @@ jobs:
         rust-tests,
         rust-build,
         load-test,
+        bundle-size,
       ]
     steps:
       - name: Check for failures
@@ -408,7 +453,8 @@ jobs:
              [ "${{ needs.rust-clippy.result }}" != "success" ] || \
              [ "${{ needs.rust-tests.result }}" != "success" ] || \
              [ "${{ needs.rust-build.result }}" != "success" ] || \
-             [ "${{ needs.load-test.result }}" != "success" ]; then
+             [ "${{ needs.load-test.result }}" != "success" ] || \
+             [ "${{ needs.bundle-size.result }}" != "success" ]; then
             echo "One or more CI checks failed"
             exit 1
           fi

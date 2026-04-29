@@ -1,0 +1,26 @@
+[
+  {
+    "name": "Web JS Bundle",
+    "path": ["dist/_expo/static/js/**/*.js"],
+    "limit": "600 KB",
+    "gzip": true
+  },
+  {
+    "name": "Web Total Assets",
+    "path": ["dist/**/*.{js,css}"],
+    "limit": "900 KB",
+    "gzip": true
+  },
+  {
+    "name": "Native iOS Bundle",
+    "path": ["dist/bundles/ios-*.js", "dist/bundles/*.ios.js"],
+    "limit": "2 MB",
+    "gzip": true
+  },
+  {
+    "name": "Native Android Bundle",
+    "path": ["dist/bundles/android-*.js", "dist/bundles/*.android.js"],
+    "limit": "2 MB",
+    "gzip": true
+  }
+]
