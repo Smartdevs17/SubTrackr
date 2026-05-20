@@ -374,6 +374,17 @@ const SettingsScreen: React.FC = () => {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.linkRow}
+            onPress={() => navigation.navigate('FraudDashboard')}
+            accessibilityRole="button"
+            accessibilityLabel="Fraud dashboard"
+            accessibilityHint="Opens fraud monitoring and manual review controls">
+            <Text style={styles.linkText}>Fraud Dashboard</Text>
+            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
+              →
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.linkRow}
             onPress={() => navigation.navigate('LanguageSettings')}
             accessibilityRole="button"
             accessibilityLabel={t('settings.language')}
