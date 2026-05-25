@@ -14,6 +14,7 @@ env:
   RUST_VERSION: '1.85'
   # Number of proptest cases per property. Increase for deeper fuzzing.
   PROPTEST_CASES: 200
+  PROPTEST_MAX_SHRINK_ITERS: 10000
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────────
@@ -42,18 +43,14 @@ jobs:
         working-directory: ./contracts
         env:
           PROPTEST_CASES: ${{ env.PROPTEST_CASES }}
+          PROPTEST_MAX_SHRINK_ITERS: ${{ env.PROPTEST_MAX_SHRINK_ITERS }}
         run: |
-          if cargo test --test invariants --no-run >/dev/null 2>&1; then
-            cargo test --test invariants -- --nocapture 2>&1 | tee invariant-test-results.txt
-          else
-            echo "::warning::Cargo test target 'invariants' is not registered; running the full contract suite instead." | tee invariant-test-results.txt
-            cargo test --verbose 2>&1 | tee -a invariant-test-results.txt
-          fi
+          cargo test -p subtrackr-subscription --test property_invariants -- --nocapture 2>&1 | tee invariant-test-results.txt
 
       # ── Run all contract tests to ensure nothing regressed ─────────────
       - name: Run full contract test suite
         working-directory: ./contracts
-        run: cargo test --verbose
+        run: cargo test --workspace --lib --verbose
 
       # ── Upload test results as artifact ───────────────────────────────
       - name: Upload invariant test results
@@ -90,8 +87,9 @@ jobs:
         working-directory: ./contracts
         env:
           PROPTEST_CASES: 1000
+          PROPTEST_MAX_SHRINK_ITERS: ${{ env.PROPTEST_MAX_SHRINK_ITERS }}
         run: |
-          cargo test --test invariants -- --nocapture 2>&1 | tee extended-fuzz-results.txt
+          cargo test -p subtrackr-subscription --test property_invariants -- --nocapture 2>&1 | tee extended-fuzz-results.txt
 
       - name: Upload extended fuzz results
         if: always()
