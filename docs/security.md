@@ -28,6 +28,34 @@ The repository is monitored using several automated tools:
 2. **NPM Audit**: Integrated into CI/CD to prevent merging code with high-risk dependencies.
 3. **Audit-CI**: Enforces strict policy-based audits during the build process.
 
+## MEV Threat Model for Subscription Charges
+
+Subscription charge transactions can be visible before inclusion. For large
+charges, this creates room for ordering games, gas bidding, and sandwich-style
+execution around token liquidity or merchant-side accounting hooks.
+
+The subscription contract exposes an opt-in MEV protection configuration:
+
+- `large_charge_threshold` forces charges at or above the threshold through a
+  commit-reveal flow instead of the direct charge path.
+- `max_fee_bps` caps how loose a subscriber's reveal-time maximum charge bound
+  can be, protecting against stale or manipulated charge parameters.
+- `private_mempool_required` lets operators require relayers/private routing for
+  protected reveals when public mempool exposure is unacceptable.
+- `gas_price_alert_threshold` records an on-chain alert counter/event when a
+  reveal reports an unusually high gas price signal.
+
+Recommended operation:
+
+1. Configure conservative thresholds for high-value plans.
+2. Have the subscriber derive a 32-byte commitment with
+   `hash_charge_commitment(subscription_id, max_charge_amount, salt)` and submit
+   it through `commit_charge`.
+3. Reveal after the configured delay with `reveal_charge`, the salt, a strict
+   `max_charge_amount`, observed gas price, and private-route flag.
+4. Monitor `mev_gas_alert` events and `get_mev_alert_count` for gas bidding
+   anomalies.
+
 ## Patching Workflow
 
 1. **Notification**: Dependabot or CI alert triggers a notification.

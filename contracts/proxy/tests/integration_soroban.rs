@@ -1,12 +1,12 @@
 use soroban_sdk::{
     contract, contractimpl,
     testutils::{Address as _, Ledger},
-    token, Address, Env, String,
+    token, Address, BytesN, Env, String,
 };
 use subtrackr_proxy::{UpgradeableProxy, UpgradeableProxyClient};
 use subtrackr_storage::SubTrackrStorage;
 use subtrackr_subscription::SubTrackrSubscription;
-use subtrackr_types::{Interval, SubscriptionStatus};
+use subtrackr_types::{Interval, MevProtectionConfig, SubscriptionStatus};
 
 #[contract]
 pub struct ChargingBot;
@@ -22,6 +22,7 @@ impl ChargingBot {
 struct IntegrationSetup {
     env: Env,
     proxy_id: Address,
+    admin: Address,
     merchant: Address,
     subscriber: Address,
     token_id: Address,
@@ -72,6 +73,7 @@ fn setup_integration() -> IntegrationSetup {
     IntegrationSetup {
         env,
         proxy_id,
+        admin,
         merchant,
         subscriber,
         token_id: token_id.address(),
@@ -127,6 +129,101 @@ fn integration_uses_actual_token_contract_for_charges() {
 
     let sub = proxy.get_subscription(&setup.subscription_id);
     assert_eq!(sub.total_paid, 500);
+    assert_eq!(sub.charge_count, 1);
+}
+
+fn mev_config(threshold: i128, gas_threshold: u64, private_required: bool) -> MevProtectionConfig {
+    MevProtectionConfig {
+        large_charge_threshold: threshold,
+        max_fee_bps: 100,
+        reveal_delay_secs: 30,
+        commit_ttl_secs: 3_600,
+        private_mempool_required: private_required,
+        gas_price_alert_threshold: gas_threshold,
+    }
+}
+
+#[test]
+fn integration_large_charge_uses_commit_reveal_and_fee_bounds() {
+    let setup = setup_integration();
+    let proxy = setup.proxy();
+    let token = setup.token();
+    let salt = BytesN::from_array(&setup.env, &[7u8; 32]);
+    let commitment = proxy.hash_charge_commitment(&setup.subscription_id, &505, &salt);
+
+    proxy.configure_mev_protection(&setup.admin, &mev_config(400, 10, false));
+    setup
+        .env
+        .ledger()
+        .set_timestamp(1_700_000_000 + Interval::Monthly.seconds());
+    proxy.commit_charge(&setup.subscription_id, &commitment);
+
+    let pending = proxy
+        .get_charge_commitment(&setup.subscription_id)
+        .expect("commitment should be stored");
+    assert_eq!(pending.subscription_id, setup.subscription_id);
+    assert_eq!(pending.commitment, commitment);
+
+    setup
+        .env
+        .ledger()
+        .set_timestamp(1_700_000_000 + Interval::Monthly.seconds() + 31);
+
+    let subscriber_before = token.balance(&setup.subscriber);
+    let merchant_before = token.balance(&setup.merchant);
+
+    proxy.reveal_charge(&setup.subscription_id, &salt, &505, &25, &false);
+
+    assert!(proxy
+        .get_charge_commitment(&setup.subscription_id)
+        .is_none());
+    assert_eq!(token.balance(&setup.subscriber), subscriber_before - 500);
+    assert_eq!(token.balance(&setup.merchant), merchant_before + 500);
+    assert_eq!(proxy.get_mev_alert_count(), 1);
+
+    let sub = proxy.get_subscription(&setup.subscription_id);
+    assert_eq!(sub.total_paid, 500);
+    assert_eq!(sub.charge_count, 1);
+}
+
+#[test]
+fn integration_large_direct_charge_requires_commitment() {
+    let setup = setup_integration();
+    let proxy = setup.proxy();
+
+    proxy.configure_mev_protection(&setup.admin, &mev_config(400, u64::MAX, false));
+    setup
+        .env
+        .ledger()
+        .set_timestamp(1_700_000_000 + Interval::Monthly.seconds() + 10);
+
+    let result = proxy.try_charge_subscription(&setup.subscription_id);
+    assert!(result.is_err());
+}
+
+#[test]
+fn integration_private_mempool_requirement_blocks_public_reveal() {
+    let setup = setup_integration();
+    let proxy = setup.proxy();
+    let salt = BytesN::from_array(&setup.env, &[9u8; 32]);
+    let commitment = proxy.hash_charge_commitment(&setup.subscription_id, &505, &salt);
+
+    proxy.configure_mev_protection(&setup.admin, &mev_config(400, u64::MAX, true));
+    setup
+        .env
+        .ledger()
+        .set_timestamp(1_700_000_000 + Interval::Monthly.seconds());
+    proxy.commit_charge(&setup.subscription_id, &commitment);
+    setup
+        .env
+        .ledger()
+        .set_timestamp(1_700_000_000 + Interval::Monthly.seconds() + 31);
+
+    let result = proxy.try_reveal_charge(&setup.subscription_id, &salt, &505, &1, &false);
+    assert!(result.is_err());
+
+    proxy.reveal_charge(&setup.subscription_id, &salt, &505, &1, &true);
+    let sub = proxy.get_subscription(&setup.subscription_id);
     assert_eq!(sub.charge_count, 1);
 }
 

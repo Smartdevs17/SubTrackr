@@ -1,14 +1,23 @@
 #![no_std]
+mod gas_optimization;
 mod gas_profiler;
 mod gas_storage;
-mod gas_optimization;
-use soroban_sdk::{token, Address, Env, IntoVal, String, TryFromVal, Val, Vec};
+mod quota;
+mod revenue;
+mod usage;
+use soroban_sdk::{token, Address, Bytes, BytesN, Env, IntoVal, String, TryFromVal, Val, Vec};
 use subtrackr_types::{
-    Interval, Invoice, Plan, StorageKey, Subscription, SubscriptionStatus, TimeRange,
+    ChargeCommitment, Interval, Invoice, MevAlert, MevProtectionConfig, Plan, StorageKey,
+    Subscription, SubscriptionStatus, TimeRange,
 };
 
 /// Billing interval in seconds.
 const MAX_PAUSE_DURATION: u64 = 2_592_000; // 30 days
+const DEFAULT_COMMIT_REVEAL_THRESHOLD: i128 = i128::MAX;
+const DEFAULT_MAX_FEE_BPS: u32 = 100; // 1%
+const DEFAULT_REVEAL_DELAY_SECS: u64 = 30;
+const DEFAULT_COMMIT_TTL_SECS: u64 = 3_600;
+const DEFAULT_GAS_ALERT_THRESHOLD: u64 = u64::MAX;
 
 const STORAGE_VERSION: u32 = 2;
 
@@ -185,6 +194,204 @@ fn invoice_contract(env: &Env, storage: &Address) -> Option<Address> {
     storage_instance_get(env, storage, StorageKey::InvoiceContract)
 }
 
+fn get_mev_config(env: &Env, storage: &Address) -> MevProtectionConfig {
+    storage_instance_get(env, storage, StorageKey::MevProtectionConfig).unwrap_or(
+        MevProtectionConfig {
+            large_charge_threshold: DEFAULT_COMMIT_REVEAL_THRESHOLD,
+            max_fee_bps: DEFAULT_MAX_FEE_BPS,
+            reveal_delay_secs: DEFAULT_REVEAL_DELAY_SECS,
+            commit_ttl_secs: DEFAULT_COMMIT_TTL_SECS,
+            private_mempool_required: false,
+            gas_price_alert_threshold: DEFAULT_GAS_ALERT_THRESHOLD,
+        },
+    )
+}
+
+fn validate_mev_config(config: &MevProtectionConfig) {
+    assert!(
+        config.large_charge_threshold > 0,
+        "Large charge threshold must be positive"
+    );
+    assert!(config.max_fee_bps <= 10_000, "Max fee bps too high");
+    assert!(
+        config.commit_ttl_secs > config.reveal_delay_secs,
+        "Commit TTL must exceed reveal delay"
+    );
+}
+
+fn max_charge_with_fee_bound(price: i128, max_fee_bps: u32) -> i128 {
+    let fee = price
+        .checked_mul(max_fee_bps as i128)
+        .expect("Fee overflow")
+        .checked_div(10_000)
+        .expect("Fee division failed");
+    price.checked_add(fee).expect("Max charge overflow")
+}
+
+fn build_charge_commitment(
+    env: &Env,
+    subscription_id: u64,
+    max_charge_amount: i128,
+    salt: &BytesN<32>,
+) -> BytesN<32> {
+    let mut payload = Bytes::new(env);
+    payload.extend_from_slice(b"SubTrackr:charge-commitment:v1");
+    payload.extend_from_array(&subscription_id.to_be_bytes());
+    payload.extend_from_array(&max_charge_amount.to_be_bytes());
+    let salt_bytes: Bytes = salt.clone().into();
+    payload.append(&salt_bytes);
+    env.crypto().sha256(&payload).into()
+}
+
+fn record_mev_gas_alert(
+    env: &Env,
+    storage: &Address,
+    subscription_id: u64,
+    observed_gas_price: u64,
+    threshold: u64,
+) {
+    if threshold == u64::MAX || observed_gas_price <= threshold {
+        return;
+    }
+
+    let mut count: u64 = storage_instance_get(env, storage, StorageKey::MevAlertCount).unwrap_or(0);
+    count += 1;
+    storage_instance_set(env, storage, StorageKey::MevAlertCount, count);
+    let alert = MevAlert {
+        id: count,
+        subscription_id,
+        observed_gas_price,
+        threshold,
+        detected_at: env.ledger().timestamp(),
+    };
+    storage_persistent_set(env, storage, StorageKey::MevAlert(count), alert.clone());
+    env.events().publish(
+        (String::from_str(env, "mev_gas_alert"), subscription_id),
+        (observed_gas_price, threshold, alert.detected_at),
+    );
+}
+
+fn charge_subscription_guarded(
+    env: &Env,
+    storage: &Address,
+    subscription_id: u64,
+    max_charge_amount: i128,
+    observed_gas_price: u64,
+    private_mempool: bool,
+    revealed_commitment: bool,
+) {
+    let mut sub: Subscription =
+        storage_persistent_get(env, storage, StorageKey::Subscription(subscription_id))
+            .expect("Subscription not found");
+
+    if sub.subscriber != get_admin(env, storage) {
+        enforce_rate_limit(env, storage, &sub.subscriber, "charge_subscription");
+    }
+
+    sub.subscriber.require_auth();
+
+    if check_and_resume_internal(env, &mut sub) {
+        storage_persistent_set(
+            env,
+            storage,
+            StorageKey::Subscription(subscription_id),
+            sub.clone(),
+        );
+    }
+
+    assert!(
+        sub.status == SubscriptionStatus::Active,
+        "Subscription not active"
+    );
+
+    let now = env.ledger().timestamp();
+    assert!(now >= sub.next_charge_at, "Payment not yet due");
+
+    let plan: Plan = storage_persistent_get(env, storage, StorageKey::Plan(sub.plan_id))
+        .expect("Plan not found");
+    let mev_config = get_mev_config(env, storage);
+
+    if !revealed_commitment && plan.price >= mev_config.large_charge_threshold {
+        panic!("Commit reveal required for large charge");
+    }
+
+    if max_charge_amount != i128::MAX {
+        assert!(max_charge_amount >= plan.price, "Charge exceeds max bound");
+        let configured_bound = max_charge_with_fee_bound(plan.price, mev_config.max_fee_bps);
+        assert!(
+            max_charge_amount <= configured_bound,
+            "Max fee bound exceeds configured tolerance"
+        );
+    }
+
+    if mev_config.private_mempool_required {
+        assert!(private_mempool, "Private mempool route required");
+    }
+
+    record_mev_gas_alert(
+        env,
+        storage,
+        subscription_id,
+        observed_gas_price,
+        mev_config.gas_price_alert_threshold,
+    );
+
+    token::Client::new(env, &plan.token).transfer(&sub.subscriber, &plan.merchant, &plan.price);
+
+    sub.last_charged_at = now;
+    sub.next_charge_at = now + plan.interval.seconds();
+    sub.total_paid += plan.price;
+    sub.total_gas_spent += 100_000;
+    sub.charge_count += 1;
+
+    storage_persistent_set(
+        env,
+        storage,
+        StorageKey::Subscription(subscription_id),
+        sub.clone(),
+    );
+
+    revenue::generate_revenue_schedule(
+        env,
+        storage,
+        subscription_id,
+        sub.plan_id,
+        plan.price,
+        now,
+        plan.interval.seconds(),
+    );
+    revenue::update_merchant_revenue_balances(env, storage, &plan.merchant, 0, plan.price);
+    revenue::track_merchant_subscription(env, storage, &plan.merchant, subscription_id);
+
+    env.events().publish(
+        (
+            String::from_str(env, "subscription_charged"),
+            subscription_id,
+        ),
+        (sub.subscriber.clone(), plan.price, 100_000u64, now),
+    );
+
+    if let Some(invoice_addr) = invoice_contract(env, storage) {
+        let period = TimeRange {
+            start: sub.last_charged_at,
+            end: sub.next_charge_at,
+        };
+        let _invoice: Invoice = env.invoke_contract(
+            &invoice_addr,
+            &soroban_sdk::Symbol::new(env, "generate_invoice"),
+            soroban_sdk::vec![
+                env,
+                storage.clone().into_val(env),
+                subscription_id.into_val(env),
+                period.into_val(env),
+                String::from_str(env, "GLOBAL").into_val(env),
+                String::from_str(env, "").into_val(env),
+            ],
+        );
+        let _ = _invoice;
+    }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Implementation Contract
 // ─────────────────────────────────────────────────────────────────────────────
@@ -298,6 +505,145 @@ impl SubTrackrSubscription {
         let admin = get_admin(&env, &storage);
         admin.require_auth();
         storage_instance_remove(&env, &storage, StorageKey::RateLimit(function));
+    }
+
+    pub fn configure_mev_protection(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        admin: Address,
+        config: MevProtectionConfig,
+    ) {
+        proxy.require_auth();
+        assert!(admin == get_admin(&env, &storage), "Admin mismatch");
+        admin.require_auth();
+        validate_mev_config(&config);
+        storage_instance_set(
+            &env,
+            &storage,
+            StorageKey::MevProtectionConfig,
+            config.clone(),
+        );
+        env.events().publish(
+            (String::from_str(&env, "mev_configured"), admin),
+            (
+                config.large_charge_threshold,
+                config.max_fee_bps,
+                config.private_mempool_required,
+                config.gas_price_alert_threshold,
+            ),
+        );
+    }
+
+    pub fn commit_charge(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscription_id: u64,
+        commitment: BytesN<32>,
+    ) {
+        proxy.require_auth();
+        let sub: Subscription =
+            storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
+                .expect("Subscription not found");
+        sub.subscriber.require_auth();
+
+        let now = env.ledger().timestamp();
+        if let Some(existing) = storage_persistent_get::<ChargeCommitment>(
+            &env,
+            &storage,
+            StorageKey::ChargeCommitment(subscription_id),
+        ) {
+            assert!(
+                now > existing.expires_at,
+                "Pending charge commitment exists"
+            );
+        }
+
+        let config = get_mev_config(&env, &storage);
+        let pending = ChargeCommitment {
+            subscription_id,
+            subscriber: sub.subscriber.clone(),
+            commitment: commitment.clone(),
+            committed_at: now,
+            min_reveal_at: now + config.reveal_delay_secs,
+            expires_at: now + config.commit_ttl_secs,
+        };
+        storage_persistent_set(
+            &env,
+            &storage,
+            StorageKey::ChargeCommitment(subscription_id),
+            pending.clone(),
+        );
+        env.events().publish(
+            (String::from_str(&env, "charge_committed"), subscription_id),
+            (
+                pending.subscriber,
+                pending.min_reveal_at,
+                pending.expires_at,
+            ),
+        );
+    }
+
+    pub fn hash_charge_commitment(
+        env: Env,
+        _proxy: Address,
+        _storage: Address,
+        subscription_id: u64,
+        max_charge_amount: i128,
+        salt: BytesN<32>,
+    ) -> BytesN<32> {
+        build_charge_commitment(&env, subscription_id, max_charge_amount, &salt)
+    }
+
+    pub fn reveal_charge(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscription_id: u64,
+        salt: BytesN<32>,
+        max_charge_amount: i128,
+        observed_gas_price: u64,
+        private_mempool: bool,
+    ) {
+        proxy.require_auth();
+        let pending: ChargeCommitment = storage_persistent_get(
+            &env,
+            &storage,
+            StorageKey::ChargeCommitment(subscription_id),
+        )
+        .expect("Charge commitment not found");
+
+        let now = env.ledger().timestamp();
+        assert!(now >= pending.min_reveal_at, "Reveal delay not met");
+        assert!(now <= pending.expires_at, "Charge commitment expired");
+        let revealed_commitment =
+            build_charge_commitment(&env, subscription_id, max_charge_amount, &salt);
+        assert!(
+            pending.commitment == revealed_commitment,
+            "Commitment mismatch"
+        );
+        pending.subscriber.require_auth();
+
+        storage_persistent_remove(
+            &env,
+            &storage,
+            StorageKey::ChargeCommitment(subscription_id),
+        );
+        env.events().publish(
+            (String::from_str(&env, "charge_revealed"), subscription_id),
+            (max_charge_amount, observed_gas_price, private_mempool, now),
+        );
+
+        charge_subscription_guarded(
+            &env,
+            &storage,
+            subscription_id,
+            max_charge_amount,
+            observed_gas_price,
+            private_mempool,
+            true,
+        );
     }
 
     // ── Plan Management ──
@@ -616,95 +962,7 @@ impl SubTrackrSubscription {
 
     pub fn charge_subscription(env: Env, proxy: Address, storage: Address, subscription_id: u64) {
         proxy.require_auth();
-        let mut sub: Subscription =
-            storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
-                .expect("Subscription not found");
-
-        if sub.subscriber != get_admin(&env, &storage) {
-            enforce_rate_limit(&env, &storage, &sub.subscriber, "charge_subscription");
-        }
-
-        sub.subscriber.require_auth();
-
-        if check_and_resume_internal(&env, &mut sub) {
-            storage_persistent_set(
-                &env,
-                &storage,
-                StorageKey::Subscription(subscription_id),
-                sub.clone(),
-            );
-        }
-
-        assert!(
-            sub.status == SubscriptionStatus::Active,
-            "Subscription not active"
-        );
-
-        let now = env.ledger().timestamp();
-        assert!(now >= sub.next_charge_at, "Payment not yet due");
-
-        let plan: Plan = storage_persistent_get(&env, &storage, StorageKey::Plan(sub.plan_id))
-            .expect("Plan not found");
-
-        token::Client::new(&env, &plan.token).transfer(
-            &sub.subscriber,
-            &plan.merchant,
-            &plan.price,
-        );
-
-        sub.last_charged_at = now;
-        sub.next_charge_at = now + plan.interval.seconds();
-        sub.total_paid += plan.price;
-        sub.total_gas_spent += 100_000;
-        sub.charge_count += 1;
-
-        storage_persistent_set(
-            &env,
-            &storage,
-            StorageKey::Subscription(subscription_id),
-            sub.clone(),
-        );
-
-        // Generate revenue recognition schedule and defer the full charge amount.
-        revenue::generate_revenue_schedule(
-            &env,
-            &storage,
-            subscription_id,
-            sub.plan_id,
-            plan.price,
-            now,
-            plan.interval.seconds(),
-        );
-        revenue::update_merchant_revenue_balances(&env, &storage, &plan.merchant, 0, plan.price);
-        revenue::track_merchant_subscription(&env, &storage, &plan.merchant, subscription_id);
-
-        env.events().publish(
-            (
-                String::from_str(&env, "subscription_charged"),
-                subscription_id,
-            ),
-            (sub.subscriber.clone(), plan.price, 100_000u64, now),
-        );
-
-        if let Some(invoice_addr) = invoice_contract(&env, &storage) {
-            let period = TimeRange {
-                start: sub.last_charged_at,
-                end: sub.next_charge_at,
-            };
-            let _invoice: Invoice = env.invoke_contract(
-                &invoice_addr,
-                &soroban_sdk::Symbol::new(&env, "generate_invoice"),
-                soroban_sdk::vec![
-                    &env,
-                    storage.clone().into_val(&env),
-                    subscription_id.into_val(&env),
-                    period.into_val(&env),
-                    String::from_str(&env, "GLOBAL").into_val(&env),
-                    String::from_str(&env, "").into_val(&env),
-                ],
-            );
-            let _ = _invoice;
-        }
+        charge_subscription_guarded(&env, &storage, subscription_id, i128::MAX, 0, false, false);
     }
 
     pub fn request_refund(
@@ -973,6 +1231,34 @@ impl SubTrackrSubscription {
     pub fn get_subscription_count(env: Env, proxy: Address, storage: Address) -> u64 {
         proxy.require_auth();
         storage_instance_get(&env, &storage, StorageKey::SubscriptionCount).unwrap_or(0)
+    }
+
+    pub fn get_mev_protection_config(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+    ) -> MevProtectionConfig {
+        proxy.require_auth();
+        get_mev_config(&env, &storage)
+    }
+
+    pub fn get_charge_commitment(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscription_id: u64,
+    ) -> Option<ChargeCommitment> {
+        proxy.require_auth();
+        storage_persistent_get(
+            &env,
+            &storage,
+            StorageKey::ChargeCommitment(subscription_id),
+        )
+    }
+
+    pub fn get_mev_alert_count(env: Env, proxy: Address, storage: Address) -> u64 {
+        proxy.require_auth();
+        storage_instance_get(&env, &storage, StorageKey::MevAlertCount).unwrap_or(0)
     }
 
     // ── Revenue Recognition API ──
