@@ -1,7 +1,10 @@
 #![no_std]
+mod gas_optimization;
 mod gas_profiler;
 mod gas_storage;
-mod gas_optimization;
+mod quota;
+mod revenue;
+mod usage;
 use soroban_sdk::{token, Address, Env, IntoVal, String, TryFromVal, Val, Vec};
 use subtrackr_types::{
     Interval, Invoice, Plan, StorageKey, Subscription, SubscriptionStatus, TimeRange,
@@ -11,6 +14,7 @@ use subtrackr_types::{
 const MAX_PAUSE_DURATION: u64 = 2_592_000; // 30 days
 
 const STORAGE_VERSION: u32 = 2;
+const CHARGE_SUBSCRIPTION_LOCK: &str = "charge_subscription";
 
 fn storage_instance_get<V: TryFromVal<Env, Val>>(
     env: &Env,
@@ -183,6 +187,21 @@ fn get_user_plan_index(
 
 fn invoice_contract(env: &Env, storage: &Address) -> Option<Address> {
     storage_instance_get(env, storage, StorageKey::InvoiceContract)
+}
+
+fn enter_reentrancy_guard(env: &Env, storage: &Address, lock_name: &str) {
+    let key = StorageKey::ReentrancyLock(String::from_str(env, lock_name));
+    let locked: bool = storage_instance_get(env, storage, key.clone()).unwrap_or(false);
+    assert!(!locked, "Reentrant charge blocked");
+    storage_instance_set(env, storage, key, true);
+}
+
+fn exit_reentrancy_guard(env: &Env, storage: &Address, lock_name: &str) {
+    storage_instance_remove(
+        env,
+        storage,
+        StorageKey::ReentrancyLock(String::from_str(env, lock_name)),
+    );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -616,6 +635,8 @@ impl SubTrackrSubscription {
 
     pub fn charge_subscription(env: Env, proxy: Address, storage: Address, subscription_id: u64) {
         proxy.require_auth();
+        enter_reentrancy_guard(&env, &storage, CHARGE_SUBSCRIPTION_LOCK);
+
         let mut sub: Subscription =
             storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
                 .expect("Subscription not found");
@@ -646,12 +667,6 @@ impl SubTrackrSubscription {
         let plan: Plan = storage_persistent_get(&env, &storage, StorageKey::Plan(sub.plan_id))
             .expect("Plan not found");
 
-        token::Client::new(&env, &plan.token).transfer(
-            &sub.subscriber,
-            &plan.merchant,
-            &plan.price,
-        );
-
         sub.last_charged_at = now;
         sub.next_charge_at = now + plan.interval.seconds();
         sub.total_paid += plan.price;
@@ -677,6 +692,12 @@ impl SubTrackrSubscription {
         );
         revenue::update_merchant_revenue_balances(&env, &storage, &plan.merchant, 0, plan.price);
         revenue::track_merchant_subscription(&env, &storage, &plan.merchant, subscription_id);
+
+        token::Client::new(&env, &plan.token).transfer(
+            &sub.subscriber,
+            &plan.merchant,
+            &plan.price,
+        );
 
         env.events().publish(
             (
@@ -705,6 +726,8 @@ impl SubTrackrSubscription {
             );
             let _ = _invoice;
         }
+
+        exit_reentrancy_guard(&env, &storage, CHARGE_SUBSCRIPTION_LOCK);
     }
 
     pub fn request_refund(

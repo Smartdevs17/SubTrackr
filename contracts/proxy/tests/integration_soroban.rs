@@ -1,12 +1,13 @@
+use proptest::prelude::*;
 use soroban_sdk::{
-    contract, contractimpl,
+    contract, contractimpl, contracttype,
     testutils::{Address as _, Ledger},
-    token, Address, Env, String,
+    token, Address, Env, IntoVal, String, Symbol,
 };
 use subtrackr_proxy::{UpgradeableProxy, UpgradeableProxyClient};
 use subtrackr_storage::SubTrackrStorage;
 use subtrackr_subscription::SubTrackrSubscription;
-use subtrackr_types::{Interval, SubscriptionStatus};
+use subtrackr_types::{Interval, StorageKey, SubscriptionStatus};
 
 #[contract]
 pub struct ChargingBot;
@@ -19,9 +20,99 @@ impl ChargingBot {
     }
 }
 
+#[contracttype]
+#[derive(Clone)]
+enum ReentrantTokenKey {
+    Proxy,
+    SubscriptionId,
+    Entered,
+    Balance(Address),
+}
+
+#[contract]
+pub struct ReentrantToken;
+
+fn reentrant_token_balance(env: &Env, owner: &Address) -> i128 {
+    env.storage()
+        .instance()
+        .get(&ReentrantTokenKey::Balance(owner.clone()))
+        .unwrap_or(0)
+}
+
+fn set_reentrant_token_balance(env: &Env, owner: &Address, amount: i128) {
+    env.storage()
+        .instance()
+        .set(&ReentrantTokenKey::Balance(owner.clone()), &amount);
+}
+
+#[contractimpl]
+impl ReentrantToken {
+    pub fn init(env: Env, proxy: Address, subscription_id: u64) {
+        env.storage()
+            .instance()
+            .set(&ReentrantTokenKey::Proxy, &proxy);
+        env.storage()
+            .instance()
+            .set(&ReentrantTokenKey::SubscriptionId, &subscription_id);
+        env.storage()
+            .instance()
+            .set(&ReentrantTokenKey::Entered, &false);
+    }
+
+    pub fn mint(env: Env, to: Address, amount: i128) {
+        assert!(amount >= 0, "Amount must be non-negative");
+        let balance = reentrant_token_balance(&env, &to);
+        set_reentrant_token_balance(&env, &to, balance + amount);
+    }
+
+    pub fn balance(env: Env, id: Address) -> i128 {
+        reentrant_token_balance(&env, &id)
+    }
+
+    pub fn transfer(env: Env, from: Address, to: Address, amount: i128) {
+        assert!(amount >= 0, "Amount must be non-negative");
+        from.require_auth();
+
+        let entered: bool = env
+            .storage()
+            .instance()
+            .get(&ReentrantTokenKey::Entered)
+            .unwrap_or(false);
+        if !entered {
+            env.storage()
+                .instance()
+                .set(&ReentrantTokenKey::Entered, &true);
+
+            let proxy: Address = env
+                .storage()
+                .instance()
+                .get(&ReentrantTokenKey::Proxy)
+                .expect("Proxy not configured");
+            let subscription_id: u64 = env
+                .storage()
+                .instance()
+                .get(&ReentrantTokenKey::SubscriptionId)
+                .expect("Subscription not configured");
+            let proxy_client = UpgradeableProxyClient::new(&env, &proxy);
+            proxy_client.charge_subscription(&subscription_id);
+
+            env.storage()
+                .instance()
+                .set(&ReentrantTokenKey::Entered, &false);
+        }
+
+        let from_balance = reentrant_token_balance(&env, &from);
+        assert!(from_balance >= amount, "Insufficient balance");
+        let to_balance = reentrant_token_balance(&env, &to);
+        set_reentrant_token_balance(&env, &from, from_balance - amount);
+        set_reentrant_token_balance(&env, &to, to_balance + amount);
+    }
+}
+
 struct IntegrationSetup {
     env: Env,
     proxy_id: Address,
+    storage_id: Address,
     merchant: Address,
     subscriber: Address,
     token_id: Address,
@@ -72,6 +163,7 @@ fn setup_integration() -> IntegrationSetup {
     IntegrationSetup {
         env,
         proxy_id,
+        storage_id,
         merchant,
         subscriber,
         token_id: token_id.address(),
@@ -195,4 +287,127 @@ fn integration_multiple_contract_interactions_work() {
 
     assert_eq!(token.balance(&setup.merchant), 500);
     assert_eq!(second_token.balance(&second_merchant), 900);
+}
+
+#[test]
+#[should_panic]
+fn integration_blocks_reentrant_token_transfer_callback() {
+    let env = Env::default();
+    env.mock_all_auths_allowing_non_root_auth();
+    env.ledger().set_timestamp(1_700_000_000);
+
+    let admin = Address::generate(&env);
+    let merchant = Address::generate(&env);
+    let subscriber = Address::generate(&env);
+
+    let storage_id = env.register_contract(None, SubTrackrStorage);
+    let implementation_id = env.register_contract(None, SubTrackrSubscription);
+    let proxy_id = env.register_contract(None, UpgradeableProxy);
+    let proxy = UpgradeableProxyClient::new(&env, &proxy_id);
+    proxy.initialize(&admin, &storage_id, &implementation_id, &0u64, &0u64);
+
+    let token_id = env.register_contract(None, ReentrantToken);
+    let token = ReentrantTokenClient::new(&env, &token_id);
+    token.mint(&subscriber, &50_000);
+
+    let plan_id = proxy.create_plan(
+        &merchant,
+        &String::from_str(&env, "Reentrant Plan"),
+        &500,
+        &token_id,
+        &Interval::Monthly,
+    );
+    let subscription_id = proxy.subscribe(&subscriber, &plan_id);
+    token.init(&proxy_id, &subscription_id);
+
+    env.ledger()
+        .set_timestamp(1_700_000_000 + Interval::Monthly.seconds() + 40);
+
+    proxy.charge_subscription(&subscription_id);
+}
+
+#[test]
+fn integration_existing_charge_lock_rejects_entry_before_transfer() {
+    let setup = setup_integration();
+    let proxy = setup.proxy();
+    let token = setup.token();
+
+    force_charge_lock(&setup.env, &setup.storage_id);
+    setup
+        .env
+        .ledger()
+        .set_timestamp(1_700_000_000 + Interval::Monthly.seconds() + 50);
+
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        proxy.charge_subscription(&setup.subscription_id);
+    }));
+
+    assert!(result.is_err());
+    assert_eq!(token.balance(&setup.subscriber), 50_000);
+    assert_eq!(token.balance(&setup.merchant), 0);
+    let sub = proxy.get_subscription(&setup.subscription_id);
+    assert_eq!(sub.charge_count, 0);
+    assert_eq!(sub.total_paid, 0);
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig {
+        cases: 8,
+        failure_persistence: None,
+        ..ProptestConfig::default()
+    })]
+
+    #[test]
+    fn prop_reentrant_token_charge_reverts_before_double_transfer(
+        price in 1i128..5_000i128,
+        due_offset in 1u64..10_000u64,
+    ) {
+        let env = Env::default();
+        env.mock_all_auths_allowing_non_root_auth();
+        env.ledger().set_timestamp(1_700_000_000);
+
+        let admin = Address::generate(&env);
+        let merchant = Address::generate(&env);
+        let subscriber = Address::generate(&env);
+
+        let storage_id = env.register_contract(None, SubTrackrStorage);
+        let implementation_id = env.register_contract(None, SubTrackrSubscription);
+        let proxy_id = env.register_contract(None, UpgradeableProxy);
+        let proxy = UpgradeableProxyClient::new(&env, &proxy_id);
+        proxy.initialize(&admin, &storage_id, &implementation_id, &0u64, &0u64);
+
+        let token_id = env.register_contract(None, ReentrantToken);
+        let token = ReentrantTokenClient::new(&env, &token_id);
+        token.mint(&subscriber, &(price * 10));
+
+        let plan_id = proxy.create_plan(
+            &merchant,
+            &String::from_str(&env, "Reentrant Property Plan"),
+            &price,
+            &token_id,
+            &Interval::Monthly,
+        );
+        let subscription_id = proxy.subscribe(&subscriber, &plan_id);
+        token.init(&proxy_id, &subscription_id);
+
+        env.ledger()
+            .set_timestamp(1_700_000_000 + Interval::Monthly.seconds() + due_offset);
+
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            proxy.charge_subscription(&subscription_id);
+        }));
+        prop_assert!(result.is_err());
+    }
+}
+
+fn force_charge_lock(env: &Env, storage_id: &Address) {
+    env.invoke_contract::<()>(
+        storage_id,
+        &Symbol::new(env, "instance_set"),
+        soroban_sdk::vec![
+            env,
+            StorageKey::ReentrancyLock(String::from_str(env, "charge_subscription")).into_val(env),
+            true.into_val(env)
+        ],
+    );
 }

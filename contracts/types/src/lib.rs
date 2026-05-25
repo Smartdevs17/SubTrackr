@@ -360,4 +360,8 @@ pub enum StorageKey {
     PlanQuotas(u64),
     /// Usage record for a subscription and metric (sub_id, metric -> UsageRecord)
     SubscriptionUsage(u64, QuotaMetric),
+
+    // Reentrancy guards
+    /// Shared implementation lock keyed by function name.
+    ReentrancyLock(String),
 }
