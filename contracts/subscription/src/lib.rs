@@ -2,6 +2,9 @@
 mod gas_profiler;
 mod gas_storage;
 mod gas_optimization;
+mod quota;
+mod revenue;
+mod usage;
 use soroban_sdk::{token, Address, Env, IntoVal, String, TryFromVal, Val, Vec};
 use subtrackr_types::{
     Interval, Invoice, Plan, StorageKey, Subscription, SubscriptionStatus, TimeRange,

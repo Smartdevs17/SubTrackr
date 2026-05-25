@@ -1,70 +1,112 @@
-name: Subscription Contract Fuzzing Tests
+name: Subscription Contract Fuzzing
 
 on:
-  push:
-    branches: [main, develop]
-    paths:
-      - 'contracts/subscription/**'
-      - '.github/workflows/fuzz-test.yml'
   pull_request:
     branches: [main, develop]
     paths:
-      - 'contracts/subscription/**'
+      - "contracts/subscription/**"
+      - "contracts/proxy/**"
+      - "contracts/storage/**"
+      - "contracts/types/**"
+      - "contracts/fuzz/**"
+      - ".github/workflows/fuzz-test.yml"
+  push:
+    branches: [main, develop]
+    paths:
+      - "contracts/subscription/**"
+      - "contracts/proxy/**"
+      - "contracts/storage/**"
+      - "contracts/types/**"
+      - "contracts/fuzz/**"
+      - ".github/workflows/fuzz-test.yml"
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+    inputs:
+      fuzz_seconds:
+        description: "Seconds per fuzz target"
+        required: false
+        default: "1800"
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  FUZZ_SECONDS: ${{ github.event.inputs.fuzz_seconds || '1800' }}
 
 jobs:
   fuzz:
+    name: coverage-guided fuzzing
     runs-on: ubuntu-latest
-    name: Run Fuzzing Tests
+    timeout-minutes: 45
+
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - subscription_lifecycle
+          - subscription_pricing
+          - subscription_rate_limits
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-          profile: minimal
+        uses: dtolnay/rust-toolchain@nightly
 
-      - name: Cache cargo registry
-        uses: actions/cache@v3
+      - name: Cache cargo
+        uses: actions/cache@v4
         with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/registry
+            ~/.cargo/git
+            contracts/target
+            contracts/fuzz/target
+          key: ${{ runner.os }}-cargo-fuzz-${{ hashFiles('contracts/**/Cargo.lock', 'contracts/**/Cargo.toml') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-registry-
+            ${{ runner.os }}-cargo-fuzz-
 
-      - name: Cache cargo index
-        uses: actions/cache@v3
-        with:
-          path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-git-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-git-
-
-      - name: Cache cargo build
-        uses: actions/cache@v3
-        with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-build-target-
-
-      - name: Run contract fuzz smoke suite
+      - name: Install cargo-fuzz
         run: |
-          cd contracts
-          cargo test --lib
-          for target in fuzz pricing_fuzz rate_limit_fuzz; do
-            if cargo test --test "$target" --no-run >/dev/null 2>&1; then
-              cargo test --test "$target"
-            else
-              echo "::warning::Cargo test target '$target' is not registered; running workspace tests instead."
-            fi
-          done
-          cargo test --verbose
+          if ! command -v cargo-fuzz >/dev/null 2>&1; then
+            cargo +nightly install cargo-fuzz --locked
+          fi
 
-      - name: Print test results
+      - name: Build subscription fuzz smoke test
+        run: cargo +nightly test --manifest-path contracts/subscription/Cargo.toml --test fuzz_smoke --no-run
+
+      - name: Run subscription fuzz smoke test
+        run: cargo +nightly test --manifest-path contracts/subscription/Cargo.toml --test fuzz_smoke -- --nocapture
+
+      - name: List fuzz targets
+        working-directory: contracts
+        run: cargo +nightly fuzz list
+
+      - name: Generate seed corpus
+        shell: bash
+        run: |
+          mkdir -p "contracts/fuzz/corpus/${{ matrix.target }}"
+          printf "seed:%s:%s\n" "${{ matrix.target }}" "${{ github.sha }}" \
+            > "contracts/fuzz/corpus/${{ matrix.target }}/ci-generated.seed"
+
+      - name: Run cargo-fuzz target
+        working-directory: contracts
+        run: |
+          mkdir -p fuzz/artifacts/${{ matrix.target }}
+          cargo +nightly fuzz run "${{ matrix.target }}" \
+            "fuzz/corpus/${{ matrix.target }}" \
+            -- \
+            -max_total_time="${FUZZ_SECONDS}" \
+            -artifact_prefix="fuzz/artifacts/${{ matrix.target }}/" \
+            -print_final_stats=1
+
+      - name: Upload corpus and crashes
         if: always()
-        run: |
-          echo "Fuzzing tests completed!"
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-${{ matrix.target }}-${{ github.run_id }}
+          path: |
+            contracts/fuzz/corpus/${{ matrix.target }}
+            contracts/fuzz/artifacts/${{ matrix.target }}
+          if-no-files-found: ignore
