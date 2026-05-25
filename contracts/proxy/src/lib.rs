@@ -3,11 +3,11 @@
 
 mod storage;
 
-use soroban_sdk::{Address, Env, IntoVal, String, TryFromVal, Val, Vec};
+use soroban_sdk::{Address, BytesN, Env, IntoVal, String, TryFromVal, Val, Vec};
 use storage as proxy_storage;
 use subtrackr_types::{
-    Interval, Plan, ScheduledUpgrade, StorageKey, Subscription, Timestamp, UpgradeAction,
-    UpgradeEvent,
+    ChargeCommitment, Interval, MevProtectionConfig, Plan, ScheduledUpgrade, StorageKey,
+    Subscription, Timestamp, UpgradeAction, UpgradeEvent,
 };
 
 fn current_proxy_address(env: &Env) -> Address {
@@ -377,6 +377,86 @@ impl UpgradeableProxy {
         );
     }
 
+    pub fn configure_mev_protection(env: Env, admin: Address, config: MevProtectionConfig) {
+        let proxy_addr = current_proxy_address(&env);
+        let storage_addr = proxy_storage::storage_address(&env);
+        invoke_impl::<()>(
+            &env,
+            "configure_mev_protection",
+            soroban_sdk::vec![
+                &env,
+                proxy_addr.into_val(&env),
+                storage_addr.into_val(&env),
+                admin.into_val(&env),
+                config.into_val(&env)
+            ],
+        );
+    }
+
+    pub fn commit_charge(env: Env, subscription_id: u64, commitment: BytesN<32>) {
+        let proxy_addr = current_proxy_address(&env);
+        let storage_addr = proxy_storage::storage_address(&env);
+        invoke_impl::<()>(
+            &env,
+            "commit_charge",
+            soroban_sdk::vec![
+                &env,
+                proxy_addr.into_val(&env),
+                storage_addr.into_val(&env),
+                subscription_id.into_val(&env),
+                commitment.into_val(&env)
+            ],
+        );
+    }
+
+    pub fn hash_charge_commitment(
+        env: Env,
+        subscription_id: u64,
+        max_charge_amount: i128,
+        salt: BytesN<32>,
+    ) -> BytesN<32> {
+        let proxy_addr = current_proxy_address(&env);
+        let storage_addr = proxy_storage::storage_address(&env);
+        invoke_impl(
+            &env,
+            "hash_charge_commitment",
+            soroban_sdk::vec![
+                &env,
+                proxy_addr.into_val(&env),
+                storage_addr.into_val(&env),
+                subscription_id.into_val(&env),
+                max_charge_amount.into_val(&env),
+                salt.into_val(&env)
+            ],
+        )
+    }
+
+    pub fn reveal_charge(
+        env: Env,
+        subscription_id: u64,
+        salt: BytesN<32>,
+        max_charge_amount: i128,
+        observed_gas_price: u64,
+        private_mempool: bool,
+    ) {
+        let proxy_addr = current_proxy_address(&env);
+        let storage_addr = proxy_storage::storage_address(&env);
+        invoke_impl::<()>(
+            &env,
+            "reveal_charge",
+            soroban_sdk::vec![
+                &env,
+                proxy_addr.into_val(&env),
+                storage_addr.into_val(&env),
+                subscription_id.into_val(&env),
+                salt.into_val(&env),
+                max_charge_amount.into_val(&env),
+                observed_gas_price.into_val(&env),
+                private_mempool.into_val(&env)
+            ],
+        );
+    }
+
     pub fn create_plan(
         env: Env,
         merchant: Address,
@@ -669,6 +749,41 @@ impl UpgradeableProxy {
         invoke_impl(
             &env,
             "get_subscription_count",
+            soroban_sdk::vec![&env, proxy_addr.into_val(&env), storage_addr.into_val(&env)],
+        )
+    }
+
+    pub fn get_mev_protection_config(env: Env) -> MevProtectionConfig {
+        let proxy_addr = current_proxy_address(&env);
+        let storage_addr = proxy_storage::storage_address(&env);
+        invoke_impl(
+            &env,
+            "get_mev_protection_config",
+            soroban_sdk::vec![&env, proxy_addr.into_val(&env), storage_addr.into_val(&env)],
+        )
+    }
+
+    pub fn get_charge_commitment(env: Env, subscription_id: u64) -> Option<ChargeCommitment> {
+        let proxy_addr = current_proxy_address(&env);
+        let storage_addr = proxy_storage::storage_address(&env);
+        invoke_impl(
+            &env,
+            "get_charge_commitment",
+            soroban_sdk::vec![
+                &env,
+                proxy_addr.into_val(&env),
+                storage_addr.into_val(&env),
+                subscription_id.into_val(&env)
+            ],
+        )
+    }
+
+    pub fn get_mev_alert_count(env: Env) -> u64 {
+        let proxy_addr = current_proxy_address(&env);
+        let storage_addr = proxy_storage::storage_address(&env);
+        invoke_impl(
+            &env,
+            "get_mev_alert_count",
             soroban_sdk::vec![&env, proxy_addr.into_val(&env), storage_addr.into_val(&env)],
         )
     }

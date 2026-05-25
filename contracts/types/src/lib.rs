@@ -1,6 +1,6 @@
 #![no_std]
 
-use soroban_sdk::{contracttype, Address, String, Vec};
+use soroban_sdk::{contracttype, Address, BytesN, String, Vec};
 
 /// Billing interval in seconds.
 #[contracttype]
@@ -287,6 +287,47 @@ pub struct FraudReport {
     pub recent_cases: Vec<FraudCase>,
 }
 
+/// MEV protection settings for subscription charges.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct MevProtectionConfig {
+    /// Charges at or above this amount must use commit-reveal.
+    pub large_charge_threshold: i128,
+    /// Maximum subscriber-defined fee/price buffer in basis points.
+    pub max_fee_bps: u32,
+    /// Minimum delay between commit and reveal.
+    pub reveal_delay_secs: Timestamp,
+    /// Maximum lifetime of a pending commitment.
+    pub commit_ttl_secs: Timestamp,
+    /// Require the reveal transaction to come through the configured private path.
+    pub private_mempool_required: bool,
+    /// Gas price above this value records an MEV alert.
+    pub gas_price_alert_threshold: u64,
+}
+
+/// Pending commit-reveal envelope for a subscription charge.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ChargeCommitment {
+    pub subscription_id: SubscriptionId,
+    pub subscriber: Address,
+    pub commitment: BytesN<32>,
+    pub committed_at: Timestamp,
+    pub min_reveal_at: Timestamp,
+    pub expires_at: Timestamp,
+}
+
+/// Monitoring record for suspicious fee/gas conditions around a charge.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct MevAlert {
+    pub id: u64,
+    pub subscription_id: SubscriptionId,
+    pub observed_gas_price: u64,
+    pub threshold: u64,
+    pub detected_at: Timestamp,
+}
+
 /// Storage keys for the proxy contract state.
 ///
 /// IMPORTANT: Never reorder existing variants. Append new variants only.
@@ -360,4 +401,10 @@ pub enum StorageKey {
     PlanQuotas(u64),
     /// Usage record for a subscription and metric (sub_id, metric -> UsageRecord)
     SubscriptionUsage(u64, QuotaMetric),
+
+    // Added for MEV-resistant subscription charging
+    MevProtectionConfig,
+    ChargeCommitment(u64),
+    MevAlertCount,
+    MevAlert(u64),
 }
