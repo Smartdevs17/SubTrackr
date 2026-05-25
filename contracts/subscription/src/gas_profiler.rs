@@ -1,7 +1,6 @@
 /// Gas Profiling Module for SubTrackr Subscription Contract
 /// Tracks gas consumption for each contract function and provides optimization insights
-
-use soroban_sdk::{Address, Env, String, Symbol,Vec};
+use soroban_sdk::{Address, Env, String, Symbol, Vec};
 
 /// Gas profile entry for a function call
 #[derive(Clone)]
@@ -27,10 +26,10 @@ pub struct GasMetrics {
 
 /// Function complexity categories
 pub enum FunctionCategory {
-    Read,      // Simple read operations, < 50k gas
-    Write,     // Storage write operations, 50k-150k gas
-    Transfer,  // Token transfers, 100k-200k gas
-    Complex,   // Multi-step operations, > 200k gas
+    Read,     // Simple read operations, < 50k gas
+    Write,    // Storage write operations, 50k-150k gas
+    Transfer, // Token transfers, 100k-200k gas
+    Complex,  // Multi-step operations, > 200k gas
 }
 
 impl FunctionCategory {
@@ -63,14 +62,14 @@ impl FunctionCategory {
 
 /// Storage keys for gas profiling data
 pub enum GasStorageKey {
-    Profile(String),                           // Function name -> GasProfile
-    Metrics(String),                           // Function name -> GasMetrics
-    DailyGasUsage(u64),                        // day timestamp -> total gas
-    WeeklyGasUsage(u64),                       // week timestamp -> total gas
-    MonthlyGasUsage(u64),                      // month timestamp -> total gas
-    TotalGasUsed,                              // u64: cumulative gas used
-    CallCount,                                 // u64: total number of calls
-    GasAlertTriggered(String, u64),           // alert type -> count
+    Profile(String),                // Function name -> GasProfile
+    Metrics(String),                // Function name -> GasMetrics
+    DailyGasUsage(u64),             // day timestamp -> total gas
+    WeeklyGasUsage(u64),            // week timestamp -> total gas
+    MonthlyGasUsage(u64),           // month timestamp -> total gas
+    TotalGasUsed,                   // u64: cumulative gas used
+    CallCount,                      // u64: total number of calls
+    GasAlertTriggered(String, u64), // alert type -> count
 }
 
 /// Gas profiler implementation
@@ -86,17 +85,17 @@ impl GasProfiler {
         category: FunctionCategory,
     ) {
         let fname = function_name.clone();
-        
+
         // Record function profile
         Self::update_profile(env, storage, &fname, gas_used);
-        
+
         // Update daily/weekly/monthly tracking
         let now = env.ledger().timestamp();
         Self::update_time_series(env, storage, now, gas_used);
-        
+
         // Check if gas usage exceeds thresholds
         Self::check_gas_thresholds(env, storage, &fname, gas_used, category);
-        
+
         // Update total counters
         Self::increment_counters(env, storage, gas_used);
     }
@@ -104,7 +103,7 @@ impl GasProfiler {
     /// Update function profile statistics
     fn update_profile(env: &Env, storage: &Address, function_name: &String, gas_used: u64) {
         let key = GasStorageKey::Profile(function_name.clone());
-        
+
         let mut profile: GasProfile = match Self::get_profile(env, storage, function_name) {
             Some(p) => p,
             None => GasProfile {
@@ -120,8 +119,16 @@ impl GasProfiler {
 
         profile.call_count += 1;
         profile.total_gas += gas_used;
-        profile.min_gas = if gas_used < profile.min_gas { gas_used } else { profile.min_gas };
-        profile.max_gas = if gas_used > profile.max_gas { gas_used } else { profile.max_gas };
+        profile.min_gas = if gas_used < profile.min_gas {
+            gas_used
+        } else {
+            profile.min_gas
+        };
+        profile.max_gas = if gas_used > profile.max_gas {
+            gas_used
+        } else {
+            profile.max_gas
+        };
         profile.avg_gas = profile.total_gas / profile.call_count;
         profile.last_updated = env.ledger().timestamp();
 
@@ -129,11 +136,7 @@ impl GasProfiler {
     }
 
     /// Get gas profile for a function
-    pub fn get_profile(
-        env: &Env,
-        storage: &Address,
-        function_name: &String,
-    ) -> Option<GasProfile> {
+    pub fn get_profile(env: &Env, storage: &Address, function_name: &String) -> Option<GasProfile> {
         // This would retrieve from storage
         // Simplified for demonstration
         None
@@ -168,13 +171,19 @@ impl GasProfiler {
         if gas_used > error_threshold {
             // Trigger error alert
             env.events().publish(
-                (String::from_str(env, "gas_error_alert"), function_name.clone()),
+                (
+                    String::from_str(env, "gas_error_alert"),
+                    function_name.clone(),
+                ),
                 (gas_used, error_threshold, category.to_string()),
             );
         } else if gas_used > warning_threshold {
             // Trigger warning alert
             env.events().publish(
-                (String::from_str(env, "gas_warning_alert"), function_name.clone()),
+                (
+                    String::from_str(env, "gas_warning_alert"),
+                    function_name.clone(),
+                ),
                 (gas_used, warning_threshold, category.to_string()),
             );
         }
@@ -233,10 +242,7 @@ impl GasProfiler {
     }
 
     /// Get optimization recommendations
-    pub fn get_optimization_recommendations(
-        env: &Env,
-        storage: &Address,
-    ) -> Vec<String> {
+    pub fn get_optimization_recommendations(env: &Env, storage: &Address) -> Vec<String> {
         // Returns array of optimization suggestions based on profiling data
         soroban_sdk::vec![env]
     }
@@ -289,8 +295,8 @@ impl Drop for GasTrackGuard {
     fn drop(&mut self) {
         // Record gas usage on scope exit
         let start = self.env.ledger().timestamp();
-       let end = self.env.ledger().sequence();
-       let gas_delta = end - start as u32; // Simplified for demonstration
+        let end = self.env.ledger().sequence();
+        let gas_delta = end - start as u32; // Simplified for demonstration
         GasProfiler::record_call(
             &self.env,
             &self.storage,

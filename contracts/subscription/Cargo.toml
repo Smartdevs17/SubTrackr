@@ -18,3 +18,5 @@ subtrackr-types = { path = "../types" }
 
 [dev-dependencies]
 soroban-sdk = { version = "21.0.0", features = ["testutils"] }
+subtrackr-storage = { path = "../storage" }
+proptest = "1.4.0"
