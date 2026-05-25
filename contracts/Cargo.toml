@@ -7,6 +7,7 @@ members = [
     "fraud",
     "types",
 ]
+exclude = ["fuzz"]
 
 [profile.release]
 opt-level = "z"

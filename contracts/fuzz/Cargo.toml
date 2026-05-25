@@ -1,0 +1,37 @@
+[package]
+name = "subtrackr-contract-fuzz"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+soroban-sdk = { version = "21.0.0", features = ["testutils"] }
+subtrackr-proxy = { path = "../proxy" }
+subtrackr-storage = { path = "../storage" }
+subtrackr-subscription = { path = "../subscription" }
+subtrackr-types = { path = "../types" }
+
+[[bin]]
+name = "subscription_lifecycle"
+path = "fuzz_targets/subscription_lifecycle.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "subscription_pricing"
+path = "fuzz_targets/subscription_pricing.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "subscription_rate_limits"
+path = "fuzz_targets/subscription_rate_limits.rs"
+test = false
+doc = false
+bench = false
