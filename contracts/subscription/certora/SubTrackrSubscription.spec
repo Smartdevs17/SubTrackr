@@ -25,3 +25,10 @@ rule refundBoundedByTotalPaid(uint64 subscription_id) {
     // Placeholder invariant: refund request <= total paid.
     true;
 }
+
+rule chargeSubscriptionIsNonReentrant(uint64 subscription_id) {
+    // Placeholder reentrancy invariant for the harness:
+    // while ReentrancyLock("charge_subscription") is set, any nested
+    // charge_subscription call must revert before token transfer side effects.
+    true;
+}

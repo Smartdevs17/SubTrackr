@@ -22,6 +22,16 @@ This spec covers core safety properties for:
 2. `total_paid` is monotonically non-decreasing except when explicit refunds are approved.
 3. `refund_requested_amount` never exceeds `total_paid`.
 
+## Reentrancy Threat Model
+
+`charge_subscription` crosses trust boundaries when it invokes the plan token contract and the optional invoice contract. A malicious token or invoice implementation can call back into the proxy before the outer charge completes. The implementation therefore stores a shared `ReentrancyLock("charge_subscription")` in the state storage contract for the full charge flow.
+
+Safety requirements:
+
+1. A nested `charge_subscription` call must abort before a second token transfer can execute.
+2. Subscription accounting and revenue state are written before external token or invoice calls.
+3. The lock is removed after a successful charge and is reverted automatically if the transaction aborts.
+
 ## State Transition Rules
 
 Allowed transitions:
