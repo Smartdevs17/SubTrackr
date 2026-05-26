@@ -1,161 +1,160 @@
-#[cfg(test)]
-mod batch_tests {
-    use soroban_sdk::{testutils::*, Address, Env, String, Vec};
-    use subtrackr_batch::{
-        SubTrackrBatch, BatchOperation, BatchResult, estimate_batch_gas,
-        validate_batch_operations,
+#![cfg(test)]
+//! Integration tests for the batch operations contract.
+
+use soroban_sdk::{testutils::Address as _, vec, Address, Env, Vec};
+use subtrackr_batch::{
+    estimate_batch_gas, validate_batch_operation, BatchError, BatchOperation, BatchState,
+    OperationType, SubTrackrBatch, SubTrackrBatchClient,
+};
+
+fn setup() -> (Env, SubTrackrBatchClient<'static>, Address) {
+    let env = Env::default();
+    env.mock_all_auths();
+    let id = env.register_contract(None, SubTrackrBatch);
+    let client = SubTrackrBatchClient::new(&env, &id);
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+    (env, client, admin)
+}
+
+fn op(env: &Env, kind: OperationType, ids: &[u64], params: &[i128]) -> BatchOperation {
+    let mut sub_ids = Vec::new(env);
+    for id in ids {
+        sub_ids.push_back(*id);
+    }
+    let mut p = Vec::new(env);
+    for v in params {
+        p.push_back(*v);
+    }
+    BatchOperation {
+        operation_type: kind,
+        subscription_ids: sub_ids,
+        params: p,
+    }
+}
+
+#[test]
+fn validates_batch_size() {
+    let env = Env::default();
+    // Empty batch is invalid.
+    let empty = op(&env, OperationType::Create, &[], &[]);
+    assert!(!validate_batch_operation(&empty));
+
+    // One operation is valid.
+    let one = op(&env, OperationType::Create, &[1], &[]);
+    assert!(validate_batch_operation(&one));
+
+    // 101 operations exceed the max of 100.
+    let ids: Vec<u64> = {
+        let mut v = Vec::new(&env);
+        for i in 0..101u64 {
+            v.push_back(i);
+        }
+        v
     };
+    let too_big = BatchOperation {
+        operation_type: OperationType::Create,
+        subscription_ids: ids,
+        params: Vec::new(&env),
+    };
+    assert!(!validate_batch_operation(&too_big));
+}
 
-    #[test]
-    fn test_add_operations() {
-        let env = Env::default();
-        let mut operations: Vec<BatchOperation> = Vec::new(&env);
+#[test]
+fn estimates_gas() {
+    let env = Env::default();
+    let five = op(&env, OperationType::Create, &[0, 1, 2, 3, 4], &[]);
+    // 50,000 base + 5 * 100,000.
+    assert_eq!(estimate_batch_gas(&five), 550_000);
+}
 
-        // Add 3 operations
-        for i in 0..3 {
-            operations.push_back(BatchOperation {
-                function_name: String::from_str(&env, &format!("subscribe_{}", i)),
-                params: Vec::new(&env),
-                depends_on: None,
-                required: true,
-            });
-        }
+#[test]
+fn creates_and_executes_batch_successfully() {
+    let (env, client, _admin) = setup();
+    let owner = Address::generate(&env);
 
-        assert_eq!(operations.len(), 3);
-    }
+    let create = op(&env, OperationType::Create, &[1, 2, 3], &[]);
+    let id = client.create_batch_operation(&owner, &create, &false);
 
-    #[test]
-    fn test_validate_batch() {
-        let env = Env::default();
-        let operations: Vec<BatchOperation> = Vec::new(&env);
+    let result = client.execute_batch(&id);
+    assert_eq!(result.total_operations, 3);
+    assert_eq!(result.successful_operations, 3);
+    assert_eq!(result.failed_operations, 0);
+    assert_eq!(result.gas_estimate, 350_000);
+    assert!(!result.rolled_back);
 
-        // Empty batch should fail
-        assert!(!validate_batch_operations(&operations));
+    let status = client.get_batch_status(&id);
+    assert_eq!(status.state, BatchState::Completed);
+    assert!(client.get_subscription(&1).is_some());
+}
 
-        // Add one operation
-        let mut ops = Vec::new(&env);
-        ops.push_back(BatchOperation {
-            function_name: String::from_str(&env, "subscribe"),
-            params: Vec::new(&env),
-            depends_on: None,
-            required: true,
-        });
+#[test]
+fn non_atomic_batch_allows_partial_success() {
+    let (env, client, _admin) = setup();
+    let owner = Address::generate(&env);
 
-        assert!(validate_batch_operations(&ops));
-    }
+    // Only subscription 1 exists; charging 1, 2, 3 should partially succeed.
+    client.seed_subscription(&1);
+    let charge = op(&env, OperationType::Charge, &[1, 2, 3], &[100, 100, 100]);
+    let id = client.create_batch_operation(&owner, &charge, &false);
 
-    #[test]
-    fn test_gas_estimation() {
-        let env = Env::default();
-        let mut operations: Vec<BatchOperation> = Vec::new(&env);
+    let result = client.execute_batch(&id);
+    assert_eq!(result.successful_operations, 1);
+    assert_eq!(result.failed_operations, 2);
+    assert!(!result.rolled_back);
 
-        // Add 5 operations
-        for i in 0..5 {
-            operations.push_back(BatchOperation {
-                function_name: String::from_str(&env, &format!("op_{}", i)),
-                params: Vec::new(&env),
-                depends_on: None,
-                required: true,
-            });
-        }
+    let status = client.get_batch_status(&id);
+    assert_eq!(status.state, BatchState::PartiallyCompleted);
+    // The one chargeable subscription was actually charged.
+    assert_eq!(client.get_subscription(&1).unwrap().charged, 100);
+}
 
-        // Estimate: 50,000 base + (5 * 100,000) per op = 550,000
-        let estimated_gas = estimate_batch_gas(&operations);
-        assert_eq!(estimated_gas, 550_000);
-    }
+#[test]
+fn atomic_batch_rolls_back_on_any_failure() {
+    let (env, client, _admin) = setup();
+    let owner = Address::generate(&env);
 
-    #[test]
-    fn test_execute_batch_success() {
-        let env = Env::default();
-        let proxy = Address::random(&env);
-        let user = Address::random(&env);
-        
-        let contract = SubTrackrBatch {};
-        let operations: Vec<BatchOperation> = Vec::new(&env);
+    client.seed_subscription(&1);
+    let charge = op(&env, OperationType::Charge, &[1, 2], &[100, 100]);
+    let id = client.create_batch_operation(&owner, &charge, &true); // atomic
 
-        // Empty batch for now (would need actual implementation)
-        // This demonstrates the structure
-    }
+    let result = client.execute_batch(&id);
+    assert!(result.rolled_back);
+    assert_eq!(result.successful_operations, 0);
+    assert_eq!(result.failed_operations, 1);
 
-    #[test]
-    fn test_simulate_batch() {
-        let env = Env::default();
-        let mut operations: Vec<BatchOperation> = Vec::new(&env);
+    let status = client.get_batch_status(&id);
+    assert_eq!(status.state, BatchState::Failed);
+    // Rollback: subscription 1 was NOT charged despite being chargeable.
+    assert_eq!(client.get_subscription(&1).unwrap().charged, 0);
+}
 
-        // Add 3 operations
-        for i in 0..3 {
-            operations.push_back(BatchOperation {
-                function_name: String::from_str(&env, &format!("op_{}", i)),
-                params: Vec::new(&env),
-                depends_on: None,
-                required: true,
-            });
-        }
+#[test]
+fn rejects_double_execution() {
+    let (env, client, _admin) = setup();
+    let owner = Address::generate(&env);
+    let create = op(&env, OperationType::Create, &[1], &[]);
+    let id = client.create_batch_operation(&owner, &create, &false);
+    client.execute_batch(&id);
+    let res = client.try_execute_batch(&id);
+    assert_eq!(res, Err(Ok(BatchError::AlreadyExecuted)));
+}
 
-        let contract = SubTrackrBatch {};
-        let result = contract.simulate_batch(env, operations);
+#[test]
+fn rejects_invalid_batch_creation() {
+    let (env, client, _admin) = setup();
+    let owner = Address::generate(&env);
+    let empty = op(&env, OperationType::Create, &[], &[]);
+    let res = client.try_create_batch_operation(&owner, &empty, &false);
+    assert_eq!(res, Err(Ok(BatchError::InvalidBatch)));
+}
 
-        assert_eq!(result.total_operations, 3);
-        assert_eq!(result.successful_operations, 3);
-        assert_eq!(result.failed_operations, 0);
-        // Gas: 50,000 + (3 * 100,000) = 350,000
-        assert_eq!(result.gas_estimate, 350_000);
-    }
-
-    #[test]
-    fn test_batch_with_dependencies() {
-        let env = Env::default();
-        let mut operations: Vec<BatchOperation> = Vec::new(&env);
-
-        // Operation 0: subscribe to plan
-        operations.push_back(BatchOperation {
-            function_name: String::from_str(&env, "subscribe"),
-            params: Vec::new(&env),
-            depends_on: None,
-            required: true,
-        });
-
-        // Operation 1: pause subscription (depends on op 0)
-        operations.push_back(BatchOperation {
-            function_name: String::from_str(&env, "pause_subscription"),
-            params: Vec::new(&env),
-            depends_on: Some(0),
-            required: true,
-        });
-
-        assert_eq!(operations.len(), 2);
-        assert_eq!(operations.get(1).depends_on, Some(0));
-    }
-
-    #[test]
-    fn test_batch_too_large() {
-        let env = Env::default();
-        let mut operations: Vec<BatchOperation> = Vec::new(&env);
-
-        // Try to add 101 operations (max is 100)
-        for i in 0..101 {
-            operations.push_back(BatchOperation {
-                function_name: String::from_str(&env, &format!("op_{}", i)),
-                params: Vec::new(&env),
-                depends_on: None,
-                required: true,
-            });
-        }
-
-        // Should fail validation
-        assert!(!validate_batch_operations(&operations));
-    }
-
-    #[test]
-    fn test_batch_atomic_mode() {
-        let env = Env::default();
-        let proxy = Address::random(&env);
-        let user = Address::random(&env);
-
-        let operations: Vec<BatchOperation> = Vec::new(&env);
-        let contract = SubTrackrBatch {};
-
-        // Atomic mode = all or nothing
-        // If any operation fails, stop execution
-    }
+#[test]
+fn records_audit_history() {
+    let (env, client, _admin) = setup();
+    let owner = Address::generate(&env);
+    let a = client.create_batch_operation(&owner, &op(&env, OperationType::Create, &[1], &[]), &false);
+    let b = client.create_batch_operation(&owner, &op(&env, OperationType::Create, &[2], &[]), &false);
+    let history = client.get_batch_history();
+    assert_eq!(history, vec![&env, a, b]);
 }
