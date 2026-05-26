@@ -8,6 +8,7 @@ members = [
     "types",
     "oracle",
     "batch",
+    "credit",
 ]
 
 [profile.release]
