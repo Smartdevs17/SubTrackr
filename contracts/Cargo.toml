@@ -6,6 +6,7 @@ members = [
     "subscription",
     "fraud",
     "types",
+    "oracle",
 ]
 
 [profile.release]
