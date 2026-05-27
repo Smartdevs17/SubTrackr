@@ -24,7 +24,9 @@ import { AchievementTrigger } from '../types/gamification';
 import { errorHandler, AppError } from '../services/errorHandler';
 import { useSettingsStore } from './settingsStore';
 import { currencyService } from '../services/currencyService';
-
+import { useSupportStore } from './supportStore';
+import { buildSupportEventMessage } from '../services/ticketingService';
+import { SubscriptionSupportContext, TicketIssueType } from '../types/support';
 
 const STORAGE_KEY = 'subtrackr-subscriptions';
 const STORE_VERSION = 1;
@@ -70,6 +72,44 @@ const normalizeSubscription = (raw: Partial<Subscription>): Subscription => {
     cryptoAmount: raw.cryptoAmount,
     createdAt: toValidDate(raw.createdAt, now),
     updatedAt: toValidDate(raw.updatedAt, now),
+  };
+};
+
+const buildSupportContext = (
+  subscription: Subscription,
+  history: string[]
+): SubscriptionSupportContext => ({
+  subscriptionName: subscription.name,
+  planName: subscription.name,
+  planTier: subscription.category,
+  billingCycle: subscription.billingCycle,
+  status: subscription.isActive ? 'active' : 'paused',
+  amount: subscription.price,
+  currency: subscription.currency,
+  createdAt: subscription.createdAt.toISOString(),
+  nextBillingDate:
+    subscription.nextBillingDate?.toISOString?.() ??
+    new Date(subscription.nextBillingDate).toISOString(),
+  failedPayments: subscription.chargeCount ? Math.max(subscription.chargeCount - 1, 0) : 0,
+  chargeCount: subscription.chargeCount ?? 0,
+  history,
+});
+
+const createSupportEvent = (
+  subscription: Subscription,
+  issueType: TicketIssueType,
+  history: string[],
+  actorId = 'system'
+) => {
+  const context = buildSupportContext(subscription, history);
+  return {
+    subscriptionId: subscription.id,
+    issueType,
+    message: buildSupportEventMessage(context, issueType),
+    occurredAt: new Date(),
+    context,
+    dedupeKey: `${subscription.id}:${issueType}`,
+    actorId,
   };
 };
 
@@ -248,6 +288,18 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       deleteSubscription: async (id: string) => {
         set({ isLoading: true, error: null });
         try {
+          const current = get().subscriptions.find((sub) => sub.id === id);
+          if (current) {
+            useSupportStore
+              .getState()
+              .createTicket(
+                createSupportEvent(current, 'cancellation', [
+                  'Cancellation requested from subscription management',
+                  'Subscription marked for removal',
+                ])
+              );
+          }
+
           set((state) => ({
             subscriptions: state.subscriptions.filter((sub) => sub.id !== id),
             isLoading: false,
@@ -344,6 +396,16 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             },
             0
           );
+        } else {
+          useSupportStore
+            .getState()
+            .createTicket(
+              createSupportEvent(sub, 'failed_charge', [
+                'Payment failure recorded during billing run',
+                `Next billing date remains ${sub.nextBillingDate.toISOString()}`,
+                `Notifications ${sub.notificationsEnabled === false ? 'disabled' : 'enabled'}`,
+              ])
+            );
         }
       },
 
@@ -415,7 +477,6 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             return total + priceInPreferred * BILLING_CONVERSIONS.WEEKS_PER_YEAR;
           return total + priceInPreferred * BILLING_CONVERSIONS.MONTHS_PER_YEAR;
         }, 0);
-
 
         const categoryBreakdown = activeSubs.reduce(
           (acc, sub) => {

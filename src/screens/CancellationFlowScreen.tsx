@@ -6,11 +6,13 @@ import { Card } from '../components/common/Card';
 import { colors, spacing, typography } from '../utils/constants';
 import { RootStackParamList } from '../navigation/types';
 import { useCancellationStore } from '../store/cancellationStore';
+import { useSubscriptionStore } from '../store';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CancellationFlow'>;
 
 const CancellationFlowScreen: React.FC<Props> = ({ route, navigation }) => {
   const { currentStep, setReason, setStep, acceptOffer, reset } = useCancellationStore();
+  const { deleteSubscription } = useSubscriptionStore();
 
   const { subscriptionId } = route.params;
 
@@ -64,7 +66,10 @@ const CancellationFlowScreen: React.FC<Props> = ({ route, navigation }) => {
             <Button
               title="Confirm Cancellation"
               variant="danger"
-              onPress={() => setStep('SUCCESS')}
+              onPress={async () => {
+                await deleteSubscription(subscriptionId);
+                setStep('SUCCESS');
+              }}
             />
           </View>
         );
