@@ -2,6 +2,7 @@ export { AuditService } from './auditService';
 export { DunningService, dunningService } from './dunningService';
 export { PricingService } from './pricingService';
 export { OracleMonitorService, oracleMonitorService } from './oracleMonitorService';
+export { RateLimitingService, rateLimitingService } from './rateLimitingService';
 export type {
   AuditAction,
   AuditEvent,
