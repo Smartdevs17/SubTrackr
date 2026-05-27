@@ -329,6 +329,71 @@ pub struct UpgradeEvent {
 
 pub type SubscriptionId = u64;
 pub type MerchantId = Address;
+pub type PaymentMethodId = u64;
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum TokenType {
+    XLM,
+    USDC,
+    ETH,
+    Native,
+    MATIC,
+    ARB,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum PaymentPriority {
+    Primary,
+    Backup,
+    Fallback,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PaymentMethod {
+    pub id: PaymentMethodId,
+    pub user: Address,
+    pub token_type: TokenType,
+    pub token_address: Address,
+    pub chain_id: u64,
+    pub label: String,
+    pub priority: PaymentPriority,
+    pub max_spend_per_interval: i128,
+    pub is_verified: bool,
+    pub is_active: bool,
+    pub expires_at: u64,
+    pub last_used_at: u64,
+    pub created_at: u64,
+    pub updated_at: u64,
+    pub metadata: Vec<(String, String)>,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum PaymentAttemptStatus {
+    Pending,
+    Success,
+    Failed,
+    FallbackTriggered,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PaymentAttempt {
+    pub id: u64,
+    pub payment_method_id: PaymentMethodId,
+    pub subscription_id: u64,
+    pub amount: i128,
+    pub token_type: TokenType,
+    pub status: PaymentAttemptStatus,
+    pub failure_reason: String,
+    pub gas_price: i128,
+    pub gas_used: u64,
+    pub attempted_at: u64,
+    pub resolved_at: u64,
+}
 
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
@@ -554,4 +619,5 @@ pub enum StorageKey {
     TaxRateChangeLog(u64),
     TaxRateChangeLogCount,
     NexusRegion(String),
+
 }

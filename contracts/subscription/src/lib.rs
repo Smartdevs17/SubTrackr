@@ -2,9 +2,11 @@
 mod gas_profiler;
 mod gas_storage;
 mod gas_optimization;
+mod payment_methods;
 use soroban_sdk::{token, Address, Env, IntoVal, String, TryFromVal, Val, Vec};
 use subtrackr_types::{
-    Interval, Invoice, Plan, StorageKey, Subscription, SubscriptionStatus, TimeRange,
+    Interval, Invoice, PaymentMethod, PaymentMethodId, PaymentPriority, Plan, StorageKey,
+    Subscription, SubscriptionStatus, TimeRange, TokenType,
 };
 
 /// Billing interval in seconds.
@@ -1121,5 +1123,146 @@ impl SubTrackrSubscription {
             storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
                 .expect("Subscription not found");
         usage::check_quota(&env, &storage, subscription_id, sub.plan_id, metric)
+    }
+
+    // ── Payment Method API ──
+    // Added in storage version 6
+
+    pub fn add_payment_method(
+        env: Env,
+        proxy: Address,
+        _storage: Address,
+        user: Address,
+        token_type: TokenType,
+        token_address: Address,
+        chain_id: u64,
+        label: String,
+        priority: PaymentPriority,
+        max_spend_per_interval: i128,
+    ) -> PaymentMethodId {
+        proxy.require_auth();
+        user.require_auth();
+        payment_methods::add_payment_method(
+            &env, &user, token_type, token_address, chain_id, label, priority, max_spend_per_interval,
+        )
+    }
+
+    pub fn remove_payment_method(
+        env: Env,
+        proxy: Address,
+        _storage: Address,
+        user: Address,
+        method_id: PaymentMethodId,
+    ) {
+        proxy.require_auth();
+        user.require_auth();
+        payment_methods::remove_payment_method(&env, &user, method_id);
+    }
+
+    pub fn verify_payment_method(
+        env: Env,
+        proxy: Address,
+        _storage: Address,
+        user: Address,
+        method_id: PaymentMethodId,
+    ) {
+        proxy.require_auth();
+        user.require_auth();
+        payment_methods::verify_payment_method(&env, &user, method_id);
+    }
+
+    pub fn set_payment_method_priority(
+        env: Env,
+        proxy: Address,
+        _storage: Address,
+        user: Address,
+        method_id: PaymentMethodId,
+        priority: PaymentPriority,
+    ) {
+        proxy.require_auth();
+        user.require_auth();
+        payment_methods::set_payment_method_priority(&env, &user, method_id, priority);
+    }
+
+    pub fn set_payment_method_expiry(
+        env: Env,
+        proxy: Address,
+        _storage: Address,
+        user: Address,
+        method_id: PaymentMethodId,
+        expires_at: u64,
+    ) {
+        proxy.require_auth();
+        user.require_auth();
+        payment_methods::set_payment_method_expiry(&env, &user, method_id, expires_at);
+    }
+
+    pub fn charge_with_fallback(
+        env: Env,
+        proxy: Address,
+        _storage: Address,
+        user: Address,
+        merchant: Address,
+        token_address: Address,
+        amount: i128,
+        subscription_id: u64,
+    ) -> bool {
+        proxy.require_auth();
+        user.require_auth();
+        payment_methods::charge_with_fallback(
+            &env, &user, &merchant, &token_address, amount, subscription_id,
+        )
+    }
+
+    pub fn get_payment_method(
+        env: Env,
+        proxy: Address,
+        _storage: Address,
+        user: Address,
+        method_id: PaymentMethodId,
+    ) -> PaymentMethod {
+        proxy.require_auth();
+        payment_methods::get_payment_method(&env, &user, method_id)
+    }
+
+    pub fn list_payment_methods(
+        env: Env,
+        proxy: Address,
+        _storage: Address,
+        user: Address,
+    ) -> Vec<PaymentMethod> {
+        proxy.require_auth();
+        payment_methods::list_payment_methods(&env, &user)
+    }
+
+    pub fn get_expired_methods(
+        env: Env,
+        proxy: Address,
+        _storage: Address,
+        user: Address,
+    ) -> Vec<PaymentMethodId> {
+        proxy.require_auth();
+        payment_methods::get_expired_methods(&env, &user)
+    }
+
+    pub fn get_expiring_soon_methods(
+        env: Env,
+        proxy: Address,
+        _storage: Address,
+        user: Address,
+    ) -> Vec<PaymentMethodId> {
+        proxy.require_auth();
+        payment_methods::get_expiring_soon_methods(&env, &user)
+    }
+
+    pub fn deactivate_expired_methods(
+        env: Env,
+        proxy: Address,
+        _storage: Address,
+        user: Address,
+    ) -> u32 {
+        proxy.require_auth();
+        user.require_auth();
+        payment_methods::deactivate_expired_methods(&env, &user)
     }
 }
