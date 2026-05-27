@@ -1,4 +1,5 @@
 export { AuditService } from './auditService';
+export { CampaignService } from './campaignService';
 export { DunningService, dunningService } from './dunningService';
 export { PricingService } from './pricingService';
 export { OracleMonitorService, oracleMonitorService } from './oracleMonitorService';
