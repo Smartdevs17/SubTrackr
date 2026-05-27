@@ -11,7 +11,7 @@ use soroban_sdk::{Address, Bytes, Env, IntoVal, String, TryFromVal, Val, Vec};
 use subtrackr_types::{
     CustomerTaxStatus, DigitalGoodsClass, Invoice, InvoiceConfig, InvoiceLineItem, InvoiceStatus,
     Plan, StorageKey, Subscription, TaxRateChangeEvent, TaxRateEntry, TaxRemittanceLineItem,
-    TaxRemittanceReport, TaxType, TaxJurisdiction, TimeRange, TaxReportLineItem, RemittanceStatus,
+    TaxType, TaxJurisdiction, TimeRange,
 };
 
 const DEFAULT_RATE_SCALE: i128 = 1_000_000;
@@ -720,120 +720,9 @@ impl SubTrackrInvoice {
         threshold == 0
     }
 
-    // ── Tax Remittance Report Generation ──
+    // ── Nexus Determination ──
 
-    pub fn generate_tax_remittance_report(
-        env: Env,
-        admin: Address,
-        merchant: Address,
-        period_start: u64,
-        period_end: u64,
-    ) -> TaxRemittanceReport {
-        let stored_admin = get_admin(&env);
-        assert!(admin == stored_admin, "Admin mismatch");
-        stored_admin.require_auth();
-
-        let mut counter: u64 =
-            storage_instance_get(&env, StorageKey::TaxRemittanceReportCount).unwrap_or(0);
-        counter += 1;
-        storage_instance_set(&env, StorageKey::TaxRemittanceReportCount, counter);
-
-        let invoice_count: u64 =
-            storage_instance_get(&env, StorageKey::InvoiceCount).unwrap_or(0);
-
-        let mut total_tax: i128 = 0;
-        let mut total_taxable: i128 = 0;
-        let mut tx_count: u32 = 0;
-        let mut report_lines: Vec<TaxReportLineItem> = Vec::new(&env);
-
-        let mut i: u64 = 1;
-        while i <= invoice_count {
-            let invoice: Option<Invoice> =
-                storage_persistent_get(&env, StorageKey::Invoice(i));
-            if let Some(inv) = invoice {
-                if inv.merchant == merchant
-                    && inv.due_date >= period_start
-                    && inv.due_date <= period_end
-                {
-                    total_tax += inv.tax;
-                    total_taxable += inv.subtotal;
-                    tx_count += 1;
-
-                    report_lines.push_back(TaxReportLineItem {
-                        invoice_id: inv.id,
-                        invoice_number: inv.invoice_number.clone(),
-                        subscription_id: inv.subscription_id,
-                        customer: inv.subscriber.clone(),
-                        taxable_amount: inv.subtotal,
-                        tax_rate_bps: if inv.subtotal > 0 {
-                            ((inv.tax * 10_000) / inv.subtotal) as u32
-                        } else {
-                            0
-                        },
-                        tax_amount: inv.tax,
-                        digital_goods_category: subtrackr_types::DigitalGoodsCategory::Saas,
-                        invoice_date: inv.due_date,
-                    });
-                }
-            }
-            i += 1;
-        }
-
-        let jurisdiction = TaxJurisdiction {
-            country: String::from_str(&env, ""),
-            state: String::from_str(&env, ""),
-            city: String::from_str(&env, ""),
-            postal_code: String::from_str(&env, ""),
-            tax_type: TaxType::None,
-            rate_bps: 0,
-            label: String::from_str(&env, "Multi-jurisdiction"),
-            effective_date: 0,
-        };
-
-        let report = TaxRemittanceReport {
-            id: counter,
-            period: TimeRange {
-                start: period_start,
-                end: period_end,
-            },
-            jurisdiction,
-            merchant: merchant.clone(),
-            total_taxable_amount: total_taxable,
-            total_tax_collected: total_tax,
-            total_tax_remitted: 0,
-            transaction_count: tx_count,
-            line_items: report_lines,
-            generated_at: env.ledger().timestamp(),
-            submitted_at: 0,
-            status: RemittanceStatus::Draft,
-            notes: String::from_str(&env, ""),
-        };
-
-        storage_persistent_set(
-            &env,
-            StorageKey::TaxRemittanceReport(counter),
-            report.clone(),
-        );
-
-        report
-    }
-
-    pub fn get_tax_remittance_report(env: Env, report_id: u64) -> TaxRemittanceReport {
-        storage_persistent_get(&env, StorageKey::TaxRemittanceReport(report_id))
-            .expect("Tax remittance report not found")
-    }
-
-    pub fn get_tax_rate_change_log(
-        env: Env,
-        jurisdiction_key: String,
-    ) -> Vec<TaxRateChangeEvent> {
-        storage_persistent_get(
-            &env,
-            StorageKey::TaxRateChangeLogByJdx(jurisdiction_key),
-        )
-        .unwrap_or(Vec::new(&env))
-    }
-}
+    pub fn check_nexus(
 
 #[cfg(test)]
 mod tests {
@@ -1162,56 +1051,6 @@ mod tests {
         );
 
         assert!(invoice.region.to_string().contains("RC"));
-    }
-
-    #[test]
-    fn tax_remittance_report() {
-        let (env, admin, storage, invoice_contract) = setup_env();
-        let contract = SubTrackrInvoiceClient::new(&env, &invoice_contract);
-        contract.initialize(&admin);
-
-        let merchant = Address::generate(&env);
-        let subscriber = Address::generate(&env);
-        setup_subscription(&env, &storage, &merchant, &subscriber);
-
-        contract.set_tax_jurisdiction(
-            &admin,
-            &String::from_str(&env, "US"),
-            &str_empty(&env),
-            &str_empty(&env),
-            &TaxType::SalesTax,
-            &800,
-            &String::from_str(&env, "US Tax"),
-            &0u64,
-            &0u64,
-            &true,
-            &false,
-            &0i128,
-        );
-
-        let _invoice = contract.generate_invoice(
-            &storage,
-            &1u64,
-            &TimeRange {
-                start: 1_750_000_000,
-                end: 1_750_000_000 + 2_592_000,
-            },
-            &str_empty(&env),
-            &String::from_str(&env, "USD"),
-            &String::from_str(&env, "US"),
-            &str_empty(&env),
-            &str_empty(&env),
-        );
-
-        let report = contract.generate_tax_remittance_report(
-            &admin,
-            &merchant,
-            &1_749_000_000u64,
-            &1_760_000_000u64,
-        );
-
-        assert_eq!(report.total_tax_collected, 800);
-        assert_eq!(report.transaction_count, 1);
     }
 
     #[test]
