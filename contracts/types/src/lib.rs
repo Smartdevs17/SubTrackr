@@ -360,4 +360,24 @@ pub enum StorageKey {
     PlanQuotas(u64),
     /// Usage record for a subscription and metric (sub_id, metric -> UsageRecord)
     SubscriptionUsage(u64, QuotaMetric),
+
+    // ── Added in storage version 5 (Oracle Integration) ──
+    /// Address of the oracle contract for price feeds.
+    OracleContract,
+    /// Price bounds for slippage protection, keyed by plan_id.
+    PriceBounds(u64),
+    /// Mapping from token address to symbol name (for oracle lookups).
+    TokenSymbol(Address),
+}
+
+/// Slippage protection bounds for oracle-based pricing.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PriceBounds {
+    /// Maximum allowed price as basis points of the stored plan price (e.g. 10500 = +5%).
+    pub max_price_bps: u32,
+    /// Minimum allowed price as basis points of the stored plan price (e.g. 9500 = -5%).
+    pub min_price_bps: u32,
+    /// Quote currency symbol used for price lookup (e.g. "USD").
+    pub quote: String,
 }
