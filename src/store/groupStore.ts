@@ -6,8 +6,15 @@ import {
   inviteGroupMember,
   joinGroupWithInvite,
   removeGroupMember,
+  updateGroupMemberRole,
 } from '../services/groupService';
-import { GroupAnalytics, GroupConfig, GroupId, SubscriptionGroup } from '../types/group';
+import {
+  GroupAnalytics,
+  GroupConfig,
+  GroupId,
+  GroupMemberRole,
+  SubscriptionGroup,
+} from '../types/group';
 
 interface GroupState {
   groups: SubscriptionGroup[];
@@ -18,6 +25,7 @@ interface GroupState {
   inviteMember: (groupId: GroupId, inviteeAddress: string, invitedBy: string) => void;
   joinGroup: (groupId: GroupId, inviteId: string, displayName?: string) => void;
   removeMember: (groupId: GroupId, memberAddress: string) => void;
+  updateMemberRole: (groupId: GroupId, memberAddress: string, role: GroupMemberRole) => void;
   chargeGroup: (groupId: GroupId, amount: number) => void;
   getAnalytics: (groupId: GroupId) => GroupAnalytics | undefined;
   selectGroup: (groupId?: GroupId) => void;
@@ -76,6 +84,14 @@ export const useGroupStore = create<GroupState>((set, get) => ({
     } catch (error) {
       set({ error: (error as Error).message });
     }
+  },
+
+  updateMemberRole: (groupId, memberAddress, role) => {
+    set((state) => ({
+      groups: updateGroup(state.groups, groupId, (group) =>
+        updateGroupMemberRole(group, memberAddress, role)
+      ),
+    }));
   },
 
   chargeGroup: (groupId, amount) => {

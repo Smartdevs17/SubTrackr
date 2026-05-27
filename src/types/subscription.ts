@@ -23,6 +23,8 @@ export interface Subscription {
   fiatCurrency?: string;
   fiatPriceUpdatedAt?: Date;
   oraclePriceDeviationBps?: number;
+  groupId?: string;
+  groupMemberAddress?: string;
   timezone?: string;
   createdAt: Date;
   updatedAt: Date;

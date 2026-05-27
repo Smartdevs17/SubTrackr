@@ -3,7 +3,10 @@ import { BillingCycle } from './subscription';
 export type WebhookEventType =
   | 'subscription.created'
   | 'subscription.updated'
+  | 'subscription.renewed'
   | 'subscription.cancelled'
+  | 'subscription.payment_failed'
+  | 'subscription.upgraded'
   | 'subscription.paused'
   | 'subscription.resumed'
   | 'subscription.charged'
@@ -27,6 +30,7 @@ export interface WebhookConfig {
   events: WebhookEventType[];
   secretKey: string;
   retryPolicy: WebhookRetryPolicy;
+  rateLimitPerMinute?: number;
   isPaused: boolean;
   createdAt: number;
   updatedAt: number;
@@ -129,4 +133,5 @@ export interface WebhookAnalytics {
   avgAttempts: number;
   lastSuccessAt?: number;
   lastFailureAt?: number;
+  avgLatencyMs?: number;
 }

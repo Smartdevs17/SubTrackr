@@ -19,3 +19,13 @@ export {
   isWebhookEventAllowed,
 } from './webhook';
 export type { RegisterWebhookInput, WebhookDeliveryResult, WebhookEventInput } from './webhook';
+export {
+  SubscriptionEventStore,
+  subscriptionEventStore,
+} from './subscriptionEventStore';
+export type {
+  SubscriptionEvent,
+  SubscriptionEventPage,
+  SubscriptionEventQuery,
+  SubscriptionEventType,
+} from './subscriptionEventStore';

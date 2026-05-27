@@ -4,6 +4,7 @@ import {
   GroupConfig,
   GroupInvite,
   GroupMember,
+  GroupMemberRole,
   GroupPlanSharingRules,
   SubscriptionGroup,
 } from '../types/group';
@@ -22,6 +23,7 @@ export const createSubscriptionGroup = (owner: string, config: GroupConfig): Sub
   const ownerMember: GroupMember = {
     address: owner,
     role: 'owner',
+    permissions: ['invite', 'remove', 'billing', 'analytics'],
     joinedAt: now,
     outstandingBalance: 0,
     usageUnits: 0,
@@ -84,6 +86,7 @@ export const joinGroupWithInvite = (
     address: invite.inviteeAddress,
     displayName,
     role: 'member',
+    permissions: ['view'],
     joinedAt: new Date(),
     outstandingBalance: 0,
     usageUnits: 0,
@@ -116,8 +119,9 @@ export const removeGroupMember = (group: SubscriptionGroup, memberAddress: strin
 export const chargeGroup = (group: SubscriptionGroup, amount: number): GroupChargeResult => {
   if (amount <= 0) throw new Error('Charge amount must be greater than zero');
 
+  const billableAmount = group.planSharingRules.familyPlanPrice ?? amount;
   const payer = group.planSharingRules.ownerPaysForMembers ? group.owner : 'members';
-  const memberShare = amount / Math.max(group.members.length, 1);
+  const memberShare = billableAmount / Math.max(group.members.length, 1);
   const breakdown = group.members.map((member) => ({
     memberAddress: member.address,
     amount: group.planSharingRules.ownerPaysForMembers ? 0 : Number(memberShare.toFixed(2)),
@@ -130,7 +134,7 @@ export const chargeGroup = (group: SubscriptionGroup, amount: number): GroupChar
   return {
     groupId: group.groupId,
     payer,
-    amount,
+    amount: billableAmount,
     breakdown,
     chargedAt: new Date(),
   };
@@ -143,4 +147,32 @@ export const getGroupAnalytics = (group: SubscriptionGroup): GroupAnalytics => (
   totalUsage: group.members.reduce((sum, member) => sum + member.usageUnits, 0),
   usagePoolLimit: group.planSharingRules.usagePoolLimit,
   outstandingBalance: group.members.reduce((sum, member) => sum + member.outstandingBalance, 0),
+  totalSpend: group.charges.reduce((sum, charge) => sum + charge.amount, 0),
+  memberActivity: group.members.reduce(
+    (activity, member) => ({ ...activity, [member.address]: member.usageUnits }),
+    {}
+  ),
+});
+
+export const updateGroupMemberRole = (
+  group: SubscriptionGroup,
+  memberAddress: string,
+  role: GroupMemberRole
+): SubscriptionGroup => ({
+  ...group,
+  members: group.members.map((member) =>
+    member.address === memberAddress
+      ? {
+          ...member,
+          role,
+          permissions:
+            role === 'admin'
+              ? ['invite', 'remove', 'analytics']
+              : role === 'owner'
+                ? ['invite', 'remove', 'billing', 'analytics']
+                : ['view'],
+        }
+      : member
+  ),
+  updatedAt: new Date(),
 });
