@@ -9,6 +9,7 @@ import {
   InvoiceTotals,
 } from '../types/invoice';
 import { formatCurrency, formatDate } from './formatting';
+import { ProrationPreview, buildProrationLineItem } from './proration';
 
 const SECOND = 1000;
 const DAY = 24 * 60 * 60 * SECOND;
@@ -152,4 +153,56 @@ export const generateInvoicePdfPreview = (invoice: Invoice): string => {
   ];
 
   return lines.join('\n');
+};
+
+//added new function:
+export const buildProratedInvoice = (
+  subscription: Subscription,
+  sequence: number,
+  period: InvoicePeriod,
+  prorationPreview: ProrationPreview | null,
+  config: InvoiceConfig = DEFAULT_INVOICE_CONFIG,
+  taxRateBps = config.defaultTaxRateBps,
+  exchangeRate = config.exchangeRateScale,
+  region = config.defaultRegion,
+  recipientEmail?: string,
+  notes?: string
+): Invoice => {
+  const lineItems: InvoiceLineItem[] = [];
+  
+  // Base subscription line item
+  const baseLineItem = buildInvoiceLineItem(subscription, config, exchangeRate, taxRateBps);
+  lineItems.push(baseLineItem);
+  
+  // Add proration line item if applicable
+  if (prorationPreview && prorationPreview.amount > 0) {
+    const prorationLineItem = buildProrationLineItem(prorationPreview, config.defaultCurrency);
+    lineItems.push(prorationLineItem);
+  }
+  
+  const totals = calculateInvoiceTotals(lineItems, taxRateBps);
+  const createdAt = new Date();
+  const dueDate = new Date(period.end.getTime() + config.paymentTermsDays * DAY);
+  
+  return {
+    id: `${subscription.id}-${sequence}`,
+    invoiceNumber: formatInvoiceNumber(sequence, config),
+    subscriptionId: subscription.id,
+    subscriptionName: subscription.name,
+    merchantName: subscription.description ?? subscription.name,
+    lineItems,
+    tax: totals.tax,
+    total: totals.total,
+    subtotal: totals.subtotal,
+    dueDate,
+    status: InvoiceStatus.DRAFT,
+    currency: config.defaultCurrency,
+    region,
+    exchangeRate,
+    period,
+    createdAt,
+    updatedAt: createdAt,
+    recipientEmail,
+    notes: notes ?? (prorationPreview?.description),
+  };
 };
