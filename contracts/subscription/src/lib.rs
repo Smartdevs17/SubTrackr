@@ -13,6 +13,46 @@ const MAX_PAUSE_DURATION: u64 = 2_592_000; // 30 days
 
 const STORAGE_VERSION: u32 = 2;
 
+#[soroban_sdk::contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum GroupMemberRole {
+    Owner,
+    Admin,
+    Member,
+}
+
+#[soroban_sdk::contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct GroupMember {
+    pub address: Address,
+    pub role: GroupMemberRole,
+    pub joined_at: u64,
+    pub usage_units: u64,
+    pub outstanding_balance: i128,
+}
+
+#[soroban_sdk::contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct FamilyPlanRules {
+    pub seat_limit: u32,
+    pub family_plan_price: i128,
+    pub owner_pays_for_members: bool,
+    pub allow_member_overages: bool,
+}
+
+#[soroban_sdk::contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct SubscriptionGroup {
+    pub id: u64,
+    pub owner: Address,
+    pub name: String,
+    pub members: Vec<GroupMember>,
+    pub rules: FamilyPlanRules,
+    pub billing_address: String,
+    pub created_at: u64,
+    pub updated_at: u64,
+}
+
 fn storage_instance_get<V: TryFromVal<Env, Val>>(
     env: &Env,
     storage: &Address,

@@ -15,6 +15,7 @@ import { SubscriptionCategory, BillingCycle } from '../types/subscription';
 import { Card } from '../components/common/Card';
 import { useSettingsStore } from '../store/settingsStore';
 import { currencyService } from '../services/currencyService';
+import { calculateSubscriptionAnalytics } from '../services/analyticsService';
 import { formatCurrency } from '../utils/formatting';
 
 
@@ -47,6 +48,11 @@ const AnalyticsScreen: React.FC = () => {
       }))
       .filter((d) => d.count > 0);
   }, [stats]);
+
+  const subscriptionAnalytics = useMemo(
+    () => calculateSubscriptionAnalytics(subscriptions || []),
+    [subscriptions]
+  );
 
   const monthlyData = useMemo(() => {
     if (!subscriptions?.length)
@@ -207,6 +213,41 @@ const AnalyticsScreen: React.FC = () => {
 
           </Card>
         </View>
+        <View style={styles.summaryContainer}>
+          <Card style={styles.summaryCard}>
+            <Text style={styles.summaryLabel}>MRR</Text>
+            <Text style={styles.summaryValue}>
+              {formatCurrency(subscriptionAnalytics.mrr, preferredCurrency)}
+            </Text>
+          </Card>
+          <Card style={styles.summaryCard}>
+            <Text style={styles.summaryLabel}>ARR</Text>
+            <Text style={styles.summaryValue}>
+              {formatCurrency(subscriptionAnalytics.arr, preferredCurrency)}
+            </Text>
+          </Card>
+        </View>
+        <Card style={styles.chartCard}>
+          <Text style={styles.chartTitle}>Revenue Health</Text>
+          <View style={styles.projectionItem}>
+            <Text style={styles.projectionLabel}>Gross churn</Text>
+            <Text style={styles.projectionValue}>
+              {(subscriptionAnalytics.churn.grossChurnRate * 100).toFixed(1)}%
+            </Text>
+          </View>
+          <View style={styles.projectionItem}>
+            <Text style={styles.projectionLabel}>Net churn</Text>
+            <Text style={styles.projectionValue}>
+              {(subscriptionAnalytics.churn.netChurnRate * 100).toFixed(1)}%
+            </Text>
+          </View>
+          <View style={[styles.projectionItem, styles.projectionItemLast]}>
+            <Text style={styles.projectionLabel}>LTV</Text>
+            <Text style={styles.projectionValue}>
+              {formatCurrency(subscriptionAnalytics.ltv, preferredCurrency)}
+            </Text>
+          </View>
+        </Card>
         <Card style={styles.chartCard}>
           <Text style={styles.chartTitle}>
             {dateRange === 'week' ? 'Weekly' : dateRange === 'month' ? 'Monthly' : 'Yearly'}{' '}
@@ -266,6 +307,33 @@ const AnalyticsScreen: React.FC = () => {
               );
             })}
           </Svg>
+        </Card>
+        <Card style={styles.chartCard}>
+          <Text style={styles.chartTitle}>Cohorts</Text>
+          {subscriptionAnalytics.cohorts.slice(-4).map((cohort) => (
+            <View key={cohort.cohort} style={styles.projectionItem}>
+              <Text style={styles.projectionLabel}>{cohort.cohort}</Text>
+              <Text style={styles.projectionValue}>
+                {(cohort.retentionRate * 100).toFixed(0)}% retained
+              </Text>
+            </View>
+          ))}
+        </Card>
+        <Card style={styles.chartCard}>
+          <Text style={styles.chartTitle}>Forecast</Text>
+          {subscriptionAnalytics.forecast.map((point, index) => (
+            <View
+              key={point.label}
+              style={[
+                styles.projectionItem,
+                index === subscriptionAnalytics.forecast.length - 1 && styles.projectionItemLast,
+              ]}>
+              <Text style={styles.projectionLabel}>{point.label}</Text>
+              <Text style={styles.projectionValue}>
+                {formatCurrency(point.expectedRevenue, preferredCurrency)}
+              </Text>
+            </View>
+          ))}
         </Card>
         <Card style={styles.chartCard}>
           <Text style={styles.chartTitle}>Category Breakdown</Text>
