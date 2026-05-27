@@ -17,8 +17,8 @@
 mod batch;
 
 pub use batch::{
-    estimate_batch_gas, validate_batch_operation, BatchOperation, BatchResult, BatchState,
-    BatchStatus, OperationResult, OperationType,
+    estimate_batch_gas, validate_batch_operation, BatchFilter, BatchOperation, BatchResult,
+    BatchState, BatchStatus, CancelReason, OperationResult, OperationType,
 };
 
 use batch::{SubRecord, SubStatus};
@@ -194,6 +194,7 @@ impl SubTrackrBatch {
             total_operations: stored.total,
             successful_operations: if rolled_back { 0 } else { succeeded },
             failed_operations: failed,
+            skipped_operations: 0,
             results,
             atomic: stored.atomic,
             rolled_back,
