@@ -1,6 +1,6 @@
 export { AuditService } from './auditService';
 export { PricingService } from './pricingService';
-export { TaxService } from './taxService';
+export { OracleMonitorService, oracleMonitorService } from './oracleMonitorService';
 export type {
   AuditAction,
   AuditEvent,
