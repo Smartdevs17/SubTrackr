@@ -25,6 +25,7 @@ import WebhookSettingsScreen from '../screens/WebhookSettingsScreen';
 import ErrorDashboardScreen from '../screens/ErrorDashboardScreen';
 import ImportScreen from '../screens/ImportScreen';
 import ExportScreen from '../screens/ExportScreen';
+import { BatchOperationsScreen } from '../../app/screens/BatchOperationsScreen';
 import AdminDashboardScreen from '../screens/AdminDashboardScreen';
 import FraudDashboard from '../screens/FraudDashboard';
 import { SegmentManagementScreen } from '../screens/SegmentManagementScreen';
@@ -153,34 +154,19 @@ const SettingsStack = () => (
       options={{ title: 'Calendar Integrations', headerShown: true }}
     />
     <Stack.Screen
-      name="Community"
-      component={CommunityScreen}
-      options={{ title: 'Community', headerShown: true }}
+      name="Import"
+      component={ImportScreen}
+      options={{ title: 'Import', headerShown: true }}
     />
     <Stack.Screen
-      name="Profile"
-      component={ProfileScreen}
-      options={{ title: 'Profile', headerShown: true }}
+      name="Export"
+      component={ExportScreen}
+      options={{ title: 'Export', headerShown: true }}
     />
     <Stack.Screen
-      name="GDPRSettings"
-      component={GDPRSettingsScreen}
-      options={{ title: 'Privacy Settings', headerShown: true }}
-    />
-    <Stack.Screen
-      name="LanguageSettings"
-      component={LanguageSettingsScreen}
-      options={{ title: 'Language', headerShown: true }}
-    />
-    <Stack.Screen
-      name="WebhookSettings"
-      component={WebhookSettingsScreen}
-      options={{ title: 'Webhooks', headerShown: true }}
-    />
-    <Stack.Screen
-      name="SessionManagement"
-      component={SessionManagementScreen}
-      options={{ title: 'Sessions', headerShown: true }}
+      name="BatchOperations"
+      component={BatchOperationsScreen}
+      options={{ title: 'Batch Operations', headerShown: true }}
     />
     <Stack.Screen
       name="AdminDashboard"

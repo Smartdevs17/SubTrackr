@@ -11,6 +11,7 @@ import {
   FlatList,
   Modal,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
@@ -34,6 +35,7 @@ import { useSubscriptionStore } from '../store';
 
 const ImportScreen: React.FC = () => {
   const { subscriptions, addSubscription, updateSubscription } = useSubscriptionStore();
+  const navigation = useNavigation<any>();
 
   const [importMode, setImportMode] = useState<ImportMode>('upsert');
   const [importText, setImportText] = useState('');
@@ -295,8 +297,8 @@ const ImportScreen: React.FC = () => {
         </View>
         <FlatList
           data={importHistory}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
+          keyExtractor={(item: ImportHistoryEntry) => item.id}
+          renderItem={({ item }: { item: ImportHistoryEntry }) => (
             <Card style={styles.historyCard}>
               <View style={styles.historyRow}>
                 <Text style={styles.historyFile}>{item.fileName}</Text>
@@ -356,6 +358,15 @@ const ImportScreen: React.FC = () => {
           <Text style={styles.title}>Import Subscriptions</Text>
           <Text style={styles.subtitle}>Import subscription data from CSV or JSON</Text>
         </View>
+
+        <TouchableOpacity
+          style={styles.batchBanner}
+          onPress={() => navigation.navigate('BatchOperations')}>
+          <Text style={styles.batchBannerTitle}>Batch Operations</Text>
+          <Text style={styles.batchBannerSubtext}>
+            Bulk create, update, cancel, or charge multiple subscriptions at once
+          </Text>
+        </TouchableOpacity>
 
         {renderModeSelector()}
 
@@ -645,6 +656,24 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   templateButtonSubtext: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  },
+  batchBanner: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.lg,
+    padding: spacing.md,
+    backgroundColor: colors.primary + '20',
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.primary + '40',
+  },
+  batchBannerTitle: {
+    ...typography.h3,
+    color: colors.primary,
+  },
+  batchBannerSubtext: {
     ...typography.caption,
     color: colors.textSecondary,
     marginTop: spacing.xs,
