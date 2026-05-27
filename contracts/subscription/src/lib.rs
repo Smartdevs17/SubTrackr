@@ -2,9 +2,10 @@
 mod gas_profiler;
 mod gas_storage;
 mod gas_optimization;
-use soroban_sdk::{token, Address, Env, IntoVal, String, TryFromVal, Val, Vec};
+use soroban_sdk::{token, Address, Env, IntoVal, String, Symbol, TryFromVal, Val, Vec};
+use subtrackr_oracle::{SubTrackrOracleClient, OracleError};
 use subtrackr_types::{
-    Interval, Invoice, Plan, StorageKey, Subscription, SubscriptionStatus, TimeRange,
+    Interval, Invoice, Plan, PriceBounds, StorageKey, Subscription, SubscriptionStatus, TimeRange,
 };
 
 /// Billing interval in seconds.
@@ -185,6 +186,65 @@ fn invoice_contract(env: &Env, storage: &Address) -> Option<Address> {
     storage_instance_get(env, storage, StorageKey::InvoiceContract)
 }
 
+fn resolve_charge_price(env: &Env, storage: &Address, plan: &Plan) -> i128 {
+    let oracle_opt: Option<Address> =
+        storage_instance_get(env, storage, StorageKey::OracleContract);
+    let bounds_opt: Option<PriceBounds> =
+        storage_persistent_get(env, storage, StorageKey::PriceBounds(plan.id));
+
+    if oracle_opt.is_none() || bounds_opt.is_none() {
+        return plan.price;
+    }
+
+    let oracle = oracle_opt.unwrap();
+    let bounds = bounds_opt.unwrap();
+
+    let token_sym_opt: Option<Symbol> =
+        storage_instance_get(env, storage, StorageKey::TokenSymbol(plan.token.clone()));
+
+    if token_sym_opt.is_none() {
+        return plan.price;
+    }
+
+    let token_sym = token_sym_opt.unwrap();
+    let quote_sym = Symbol::new(env, &string_to_symbol_str(env, &bounds.quote));
+
+    let client = SubTrackrOracleClient::new(env, &oracle);
+
+    if let Ok(price) = client.try_get_price_with_cache(&token_sym, &quote_sym, &600) {
+        let oracle_value = price.value;
+        if oracle_value <= 0 {
+            return plan.price;
+        }
+
+        let max_price = (plan.price as u128)
+            .saturating_mul(bounds.max_price_bps as u128)
+            / 10_000;
+        let min_price = (plan.price as u128)
+            .saturating_mul(bounds.min_price_bps as u128)
+            / 10_000;
+
+        if oracle_value > max_price as i128 {
+            max_price as i128
+        } else if oracle_value < min_price as i128 {
+            min_price as i128
+        } else {
+            oracle_value
+        }
+    } else {
+        plan.price
+    }
+}
+
+fn string_to_symbol_str(env: &Env, s: &String) -> soroban_sdk::Vec<u8> {
+    let bytes = s.as_bytes();
+    let mut result: soroban_sdk::Vec<u8> = soroban_sdk::Vec::new(env);
+    for i in 0..bytes.len() {
+        result.push_back(bytes.get(i).unwrap());
+    }
+    result
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Implementation Contract
 // ─────────────────────────────────────────────────────────────────────────────
@@ -271,6 +331,115 @@ impl SubTrackrSubscription {
         let admin = get_admin(&env, &storage);
         admin.require_auth();
         storage_instance_remove(&env, &storage, StorageKey::InvoiceContract);
+    }
+
+    // ── Oracle Integration ──
+
+    pub fn set_oracle_contract(env: Env, proxy: Address, storage: Address, oracle: Address) {
+        proxy.require_auth();
+        let admin = get_admin(&env, &storage);
+        admin.require_auth();
+        storage_instance_set(&env, &storage, StorageKey::OracleContract, oracle);
+    }
+
+    pub fn clear_oracle_contract(env: Env, proxy: Address, storage: Address) {
+        proxy.require_auth();
+        let admin = get_admin(&env, &storage);
+        admin.require_auth();
+        storage_instance_remove(&env, &storage, StorageKey::OracleContract);
+    }
+
+    pub fn get_oracle_contract(env: Env, proxy: Address, storage: Address) -> Option<Address> {
+        proxy.require_auth();
+        storage_instance_get(&env, &storage, StorageKey::OracleContract)
+    }
+
+    /// Set slippage protection bounds for a plan. When set, `charge_subscription`
+    /// will verify the oracle price against these bounds before executing payment.
+    pub fn set_price_bounds(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        merchant: Address,
+        plan_id: u64,
+        bounds: PriceBounds,
+    ) {
+        proxy.require_auth();
+        merchant.require_auth();
+        let plan: Plan = storage_persistent_get(&env, &storage, StorageKey::Plan(plan_id))
+            .expect("Plan not found");
+        assert!(plan.merchant == merchant, "Only plan owner can set bounds");
+        assert!(
+            bounds.max_price_bps >= bounds.min_price_bps,
+            "Max must be >= min"
+        );
+        assert!(bounds.max_price_bps > 0, "Max must be positive");
+        storage_persistent_set(
+            &env,
+            &storage,
+            StorageKey::PriceBounds(plan_id),
+            bounds,
+        );
+    }
+
+    pub fn clear_price_bounds(env: Env, proxy: Address, storage: Address, merchant: Address, plan_id: u64) {
+        proxy.require_auth();
+        merchant.require_auth();
+        let plan: Plan = storage_persistent_get(&env, &storage, StorageKey::Plan(plan_id))
+            .expect("Plan not found");
+        assert!(plan.merchant == merchant, "Only plan owner can clear bounds");
+        storage_persistent_remove(&env, &storage, StorageKey::PriceBounds(plan_id));
+    }
+
+    pub fn get_price_bounds(env: Env, proxy: Address, storage: Address, plan_id: u64) -> Option<PriceBounds> {
+        proxy.require_auth();
+        storage_persistent_get(&env, &storage, StorageKey::PriceBounds(plan_id))
+    }
+
+    /// Look up the current oracle price for a token/quote pair, using cached read.
+    pub fn get_oracle_price(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        token: Symbol,
+        quote: Symbol,
+        ttl: u64,
+    ) -> Result<i128, OracleError> {
+        proxy.require_auth();
+        let oracle: Address = storage_instance_get(&env, &storage, StorageKey::OracleContract)
+            .expect("Oracle contract not set");
+        let client = SubTrackrOracleClient::new(&env, &oracle);
+        let price = client.get_price_with_cache(&token, &quote, &ttl);
+        Ok(price.value)
+    }
+
+    /// Register the symbol name for a token address so the oracle can look it up.
+    pub fn set_token_symbol(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        admin: Address,
+        token: Address,
+        symbol: Symbol,
+    ) {
+        proxy.require_auth();
+        admin.require_auth();
+        let stored_admin = get_admin(&env, &storage);
+        assert!(admin == stored_admin, "Only admin can set token symbols");
+        storage_instance_set(&env, &storage, StorageKey::TokenSymbol(token), symbol);
+    }
+
+    pub fn remove_token_symbol(env: Env, proxy: Address, storage: Address, admin: Address, token: Address) {
+        proxy.require_auth();
+        admin.require_auth();
+        let stored_admin = get_admin(&env, &storage);
+        assert!(admin == stored_admin, "Only admin can remove token symbols");
+        storage_instance_remove(&env, &storage, StorageKey::TokenSymbol(token));
+    }
+
+    pub fn get_token_symbol(env: Env, proxy: Address, storage: Address, token: Address) -> Option<Symbol> {
+        proxy.require_auth();
+        storage_instance_get(&env, &storage, StorageKey::TokenSymbol(token))
     }
 
     // ── Rate Limiting Admin ──
@@ -646,15 +815,17 @@ impl SubTrackrSubscription {
         let plan: Plan = storage_persistent_get(&env, &storage, StorageKey::Plan(sub.plan_id))
             .expect("Plan not found");
 
+        let charge_price = Self::resolve_charge_price(&env, &storage, &plan);
+
         token::Client::new(&env, &plan.token).transfer(
             &sub.subscriber,
             &plan.merchant,
-            &plan.price,
+            &charge_price,
         );
 
         sub.last_charged_at = now;
         sub.next_charge_at = now + plan.interval.seconds();
-        sub.total_paid += plan.price;
+        sub.total_paid += charge_price;
         sub.total_gas_spent += 100_000;
         sub.charge_count += 1;
 
@@ -671,11 +842,11 @@ impl SubTrackrSubscription {
             &storage,
             subscription_id,
             sub.plan_id,
-            plan.price,
+            charge_price,
             now,
             plan.interval.seconds(),
         );
-        revenue::update_merchant_revenue_balances(&env, &storage, &plan.merchant, 0, plan.price);
+        revenue::update_merchant_revenue_balances(&env, &storage, &plan.merchant, 0, charge_price);
         revenue::track_merchant_subscription(&env, &storage, &plan.merchant, subscription_id);
 
         env.events().publish(
@@ -683,7 +854,7 @@ impl SubTrackrSubscription {
                 String::from_str(&env, "subscription_charged"),
                 subscription_id,
             ),
-            (sub.subscriber.clone(), plan.price, 100_000u64, now),
+            (sub.subscriber.clone(), charge_price, 100_000u64, now),
         );
 
         if let Some(invoice_addr) = invoice_contract(&env, &storage) {
