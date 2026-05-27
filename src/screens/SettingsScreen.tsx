@@ -220,6 +220,36 @@ const SettingsScreen: React.FC = () => {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.linkRow}
+            onPress={() => navigation.navigate('TaxSettings')}
+            accessibilityRole="button"
+            accessibilityLabel="Tax settings">
+            <Text style={styles.linkText}>Tax Settings</Text>
+            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
+              →
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.linkRow}
+            onPress={() => navigation.navigate('GroupManagement')}
+            accessibilityRole="button"
+            accessibilityLabel="Subscription groups">
+            <Text style={styles.linkText}>Subscription Groups</Text>
+            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
+              →
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.linkRow, styles.linkRowLast]}
+            onPress={() => navigation.navigate('SupportDashboard')}
+            accessibilityRole="button"
+            accessibilityLabel="Support dashboard">
+            <Text style={styles.linkText}>Support Dashboard</Text>
+            <Text style={styles.linkArrow} accessibilityElementsHidden={true}>
+              →
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.linkRow}
             onPress={() => navigation.navigate('AffiliateDashboard')}
             accessibilityRole="button"
             accessibilityLabel="Affiliate dashboard">
