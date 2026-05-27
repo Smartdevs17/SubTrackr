@@ -229,6 +229,7 @@ pub enum RiskSignalKind {
     Chargeback,
     PatternShift,
     DeviceMismatch,
+    GeolocationAnomaly,
 }
 
 #[contracttype]
@@ -242,6 +243,16 @@ pub struct RiskSignal {
 
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
+pub struct FraudEvidence {
+    pub label: String,
+    pub value: String,
+    pub source: String,
+    pub captured_at: Timestamp,
+    pub confidence: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
 pub struct RiskScore {
     pub subscriber: Address,
     pub subscription_id: SubscriptionId,
@@ -250,10 +261,14 @@ pub struct RiskScore {
     pub velocity_score: u32,
     pub anomaly_score: u32,
     pub chargeback_score: u32,
+    pub device_mismatch_score: u32,
+    pub geolocation_score: u32,
+    pub pattern_shift_score: u32,
     pub action: FraudAction,
     pub reason: String,
     pub assessed_at: Timestamp,
     pub signals: Vec<RiskSignal>,
+    pub evidence: Vec<FraudEvidence>,
 }
 
 #[contracttype]
@@ -269,6 +284,8 @@ pub struct FraudCase {
     pub reason: String,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
+    pub evidence: Vec<FraudEvidence>,
+    pub reviewed_at: Timestamp,
 }
 
 #[contracttype]
@@ -282,8 +299,11 @@ pub struct FraudReport {
     pub average_risk: u32,
     pub velocity_alerts: u32,
     pub anomaly_alerts: u32,
+    pub geolocation_alerts: u32,
     pub chargeback_predictions: u32,
     pub high_risk_subscribers: u32,
+    pub pending_evidence_count: u32,
+    pub false_positive_feedback_count: u32,
     pub recent_cases: Vec<FraudCase>,
 }
 
