@@ -1,5 +1,6 @@
 export { AuditService } from './auditService';
 export { PricingService } from './pricingService';
+export { RateLimitingService, rateLimitingService } from './rateLimitingService';
 export type {
   AuditAction,
   AuditEvent,
