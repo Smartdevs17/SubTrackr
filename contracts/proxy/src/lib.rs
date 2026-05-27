@@ -68,7 +68,7 @@ impl UpgradeableProxy {
         proxy_storage::set_rollback_delay_secs(&env, rollback_delay_secs);
         env.storage()
             .instance()
-            .set(&StorageKey::ProxyPreviousImplementationCount, &0u32);
+            .set(&StorageKey::ProxyPrevImplCount, &0u32);
         env.storage()
             .instance()
             .set(&StorageKey::ProxyUpgradeHistoryCount, &0u32);

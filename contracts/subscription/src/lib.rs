@@ -701,6 +701,9 @@ impl SubTrackrSubscription {
                     period.into_val(&env),
                     String::from_str(&env, "GLOBAL").into_val(&env),
                     String::from_str(&env, "").into_val(&env),
+                    String::from_str(&env, "").into_val(&env),
+                    String::from_str(&env, "").into_val(&env),
+                    String::from_str(&env, "").into_val(&env),
                 ],
             );
             let _ = _invoice;
