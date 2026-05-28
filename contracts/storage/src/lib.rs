@@ -67,6 +67,19 @@ impl SubTrackrStorage {
         authorized_implementation(&env)
     }
 
+    pub fn set_access_control(env: Env, admin: Address, access_control: Address) {
+        let stored_admin = stored_admin(&env);
+        assert!(admin == stored_admin, "Admin mismatch");
+        stored_admin.require_auth();
+        env.storage()
+            .instance()
+            .set(&StorageKey::AccessControl, &access_control);
+    }
+
+    pub fn get_access_control(env: Env) -> Option<Address> {
+        env.storage().instance().get(&StorageKey::AccessControl)
+    }
+
     // ── Generic storage bridge ──
     //
     // Reads are public for easier introspection and validations.
