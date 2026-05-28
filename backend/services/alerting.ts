@@ -3,6 +3,7 @@
  * Channels are pluggable; add as many as needed.
  */
 
+import { logger } from './logging';
 import type { Alert, AlertChannelConfig } from './types';
 
 export interface AlertDispatcher {
@@ -15,7 +16,11 @@ class ConsoleDispatcher implements AlertDispatcher {
   async send(alert: Alert): Promise<void> {
     const prefix =
       alert.severity === 'critical' ? '🚨' : alert.severity === 'warning' ? '⚠️' : 'ℹ️';
-    console.log(`${prefix} [${alert.severity.toUpperCase()}] ${alert.title}: ${alert.message}`);
+    logger.info(`${prefix} [${alert.severity.toUpperCase()}] ${alert.title}: ${alert.message}`, {
+      correlationId: alert.correlationId,
+      alertId: alert.id,
+      severity: alert.severity,
+    });
   }
 }
 
