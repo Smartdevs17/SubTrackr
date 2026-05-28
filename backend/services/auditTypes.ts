@@ -11,7 +11,16 @@ export type AuditAction =
   | 'plan.created'
   | 'plan.updated'
   | 'plan.deactivated'
-  | 'admin.action';
+  | 'admin.action'
+  | 'pii.viewed'
+  | 'pii.exported'
+  | 'pii.updated'
+  | 'pii.deleted'
+  | 'pii.anonymized'
+  | 'pii.encrypted'
+  | 'pii.decrypted'
+  | 'pii.reencrypted'
+  | 'pii.searched';
 
 export interface AuditEvent {
   id: string;

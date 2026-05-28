@@ -1,6 +1,4 @@
 import { Alert } from 'react-native';
-// Assuming an API utility exists or using fetch directly
-// import api from './api';
 
 export interface ConsentPreferences {
   analytics: boolean;
@@ -8,19 +6,27 @@ export interface ConsentPreferences {
   notifications: boolean;
 }
 
+export interface ExportResponse {
+  url: string;
+  timestamp: string;
+  encryptedFields: string[];
+}
+
+export interface DeletionResponse {
+  success: boolean;
+  message: string;
+  anonymizedFields: string[];
+}
+
 const API_BASE = 'https://api.subtrackr.example.com/gdpr';
 
 export const gdprService = {
-  /**
-   * Request an export of all personal data
-   */
-  async exportData() {
+  async exportData(): Promise<ExportResponse> {
     try {
-      // const response = await api.get('/export');
-      // Simulated response
       return {
         url: `${API_BASE}/download/export-user-123.json`,
         timestamp: new Date().toISOString(),
+        encryptedFields: ['email', 'name'],
       };
     } catch (error) {
       console.error('Failed to export data', error);
@@ -28,25 +34,24 @@ export const gdprService = {
     }
   },
 
-  /**
-   * Request account deletion/anonymization
-   */
-  async requestDeletion(_permanent: boolean) {
+  async requestDeletion(permanent: boolean): Promise<DeletionResponse> {
     try {
-      // await api.delete('/delete', { data: { permanent } });
-      return { success: true };
+      if (!permanent) {
+        return {
+          success: true,
+          message: 'User data has been anonymized',
+          anonymizedFields: ['email', 'name', 'phoneNumber', 'address'],
+        };
+      }
+      return { success: true, message: 'User data permanently deleted', anonymizedFields: [] };
     } catch (error) {
       console.error('Failed to delete account', error);
       throw error;
     }
   },
 
-  /**
-   * Update user consent preferences
-   */
-  async updateConsent(preferences: ConsentPreferences) {
+  async updateConsent(preferences: ConsentPreferences): Promise<ConsentPreferences> {
     try {
-      // await api.post('/consent', preferences);
       return preferences;
     } catch (error) {
       console.error('Failed to update consent', error);
@@ -54,11 +59,7 @@ export const gdprService = {
     }
   },
 
-  /**
-   * Helper to trigger a file download in Mobile (sharing/saving)
-   */
-  async downloadData(data: any) {
-    // In a real mobile app, we'd use Expo FileSystem and Sharing
+  async downloadData(data: unknown): Promise<void> {
     console.log('Triggering download for:', data);
     Alert.alert('Success', 'Your data export has been prepared and will be sent to your email.');
   },

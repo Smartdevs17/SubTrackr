@@ -15,6 +15,7 @@ serde = "1.0"
 [dependencies]
 soroban-sdk = "21.0.0"
 subtrackr-types = { path = "../types" }
+subtrackr-oracle = { path = "../oracle" }
 
 [dev-dependencies]
 soroban-sdk = { version = "21.0.0", features = ["testutils"] }
