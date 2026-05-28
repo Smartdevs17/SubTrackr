@@ -1,3 +1,11 @@
+// ── Connection pool (#414) ────────────────────────────────────────────────────
+export { ConnectionPool, getPool, stellarPool } from './connectionPool';
+export type { PoolConfig, PoolMetrics } from './connectionPool';
+
+// ── Repository pattern (#405) ─────────────────────────────────────────────────
+export * from './repositories';
+
+// ── Existing services ─────────────────────────────────────────────────────────
 export { AuditService } from './auditService';
 export { CampaignService } from './campaignService';
 export { DunningService, dunningService } from './dunningService';
