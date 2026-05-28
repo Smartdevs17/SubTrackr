@@ -490,6 +490,16 @@ pub enum PointTxType {
     StreakBonus,
     Achievement,
 }
+// ── Access Control Types ──
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum Role {
+    Admin,
+    Merchant,
+    Subscriber,
+    Auditor,
+}
 
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
@@ -501,6 +511,39 @@ pub struct LoyaltyTierConfig {
     pub reduced_fees_bps: u32,
 }
 
+pub enum Permission {
+    GrantRole,
+    RevokeRole,
+    DelegatePermission,
+    CreatePlan,
+    DeactivatePlan,
+    SetPlanQuotas,
+    SetRevenueRule,
+    Subscribe,
+    CancelSubscription,
+    PauseSubscription,
+    ResumeSubscription,
+    ChargeSubscription,
+    RequestRefund,
+    ApproveRefund,
+    RejectRefund,
+    RequestTransfer,
+    AcceptTransfer,
+    SetRateLimit,
+    RemoveRateLimit,
+    SetInvoiceContract,
+    ClearInvoiceContract,
+    UpgradeContract,
+    MigrateContract,
+    ViewAnalytics,
+    ViewAuditLog,
+    ViewPlans,
+    ViewSubscriptions,
+    SetEmergencyAdmin,
+    PauseEmergency,
+    SetAccessControl,
+}
+
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
 pub struct LoyaltyConfig {
@@ -508,6 +551,10 @@ pub struct LoyaltyConfig {
     pub expiration_days: u64,
     pub tiers: Vec<LoyaltyTierConfig>,
     pub streak_bonus_threshold: u64,
+}
+pub enum RoleChangeAction {
+    Granted,
+    Revoked,
 }
 
 #[contracttype]
@@ -531,6 +578,15 @@ pub struct RewardsRedemption {
     pub discount_amount: i128,
     pub timestamp: u64,
 }
+pub struct RoleChangeEntry {
+    pub id: u64,
+    pub user: Address,
+    pub role: Role,
+    pub action: RoleChangeAction,
+    pub changed_by: Address,
+    pub timestamp: u64,
+}
+
 // ── Tax System Types (extended) ──
 
 /// Classification of digital goods for tax purposes (extended beyond DigitalGoodsCategory).
@@ -584,6 +640,8 @@ pub struct TaxRemittanceLineItem {
     pub currency: String,
 }
 
+
+// ── Storage Keys ──
 /// Storage keys for the proxy contract state.
 ///
 /// IMPORTANT: Never reorder existing variants. Append new variants only.
@@ -683,6 +741,9 @@ pub enum StorageKey {
     RedemptionCount,
     /// Individual redemption record.
     Redemption(u64),
+    // ── Added in storage version 5 (Access Control) ──
+    /// Address of the access_control contract for RBAC.
+    AccessControl,
     // ── Added in storage version 5 (Oracle Integration) ──
     /// Address of the oracle contract for price feeds.
     OracleContract,

@@ -10,6 +10,7 @@ members = [
     "batch",
     "credit",
     "metering",
+    "access_control",
 ]
 
 [profile.release]
