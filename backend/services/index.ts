@@ -1,6 +1,8 @@
 export { AuditService } from './auditService';
+export { DunningService, dunningService } from './dunningService';
 export { PricingService } from './pricingService';
-export { TaxService } from './taxService';
+export { OracleMonitorService, oracleMonitorService } from './oracleMonitorService';
+export { RateLimitingService, rateLimitingService } from './rateLimitingService';
 export type {
   AuditAction,
   AuditEvent,
@@ -33,50 +35,13 @@ export {
   isWebhookEventAllowed,
 } from './webhook';
 export type { RegisterWebhookInput, WebhookDeliveryResult, WebhookEventInput } from './webhook';
-
 export {
-  encryptField,
-  decryptField,
-  generateBlindIndexTokens,
-  searchBlindIndex,
-  maskField,
-  maskObject,
-  generateKey,
-  generateEncryptionKey,
-  isPiiField,
-  getPiiFields,
-  reEncryptField,
-} from './encryption';
+  SubscriptionEventStore,
+  subscriptionEventStore,
+} from './subscriptionEventStore';
 export type {
-  EncryptionKey,
-  EncryptedField,
-  BlindIndex,
-  DecryptedField,
-  Environment,
-} from './encryption';
-
-export { KeyManager, keyManager } from './keyManager';
-export type { KeyStoreEntry, KeyRotationResult } from './keyManager';
-
-export { PiiAuditService, piiAuditService } from './piiAudit';
-export type { PiiAccessAction, PiiAccessRecord } from './piiAudit';
-
-export {
-  generateComplianceReport,
-  formatComplianceReport,
-} from './complianceReport';
-export type {
-  ComplianceReport,
-  EncryptionStatus,
-  KeyManagementStatus,
-  PiiAccessSummary,
-  DataMaskingStatus,
-} from './complianceReport';
-
-export {
-  exportUserData,
-  deleteUserData,
-  anonymizeUserData,
-  updateConsent,
-} from './gdpr';
-export type { UserConsent, ExportResult, DeletionResult, AnonymizationResult } from './gdpr';
+  SubscriptionEvent,
+  SubscriptionEventPage,
+  SubscriptionEventQuery,
+  SubscriptionEventType,
+} from './subscriptionEventStore';

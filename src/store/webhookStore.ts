@@ -9,6 +9,7 @@ import {
   WebhookEventType,
   WebhookRetryPolicy,
 } from '../types/webhook';
+import { BillingCycle } from '../types/subscription';
 
 const STORAGE_KEY = 'subtrackr-webhooks';
 const DEFAULT_RETRY_POLICY: WebhookRetryPolicy = {
@@ -35,6 +36,9 @@ const calculateAnalytics = (webhookId: string, deliveries: WebhookDelivery[]): W
   const avgAttempts = totalDeliveries
     ? scoped.reduce((sum, delivery) => sum + delivery.attempts, 0) / totalDeliveries
     : 0;
+  const latencySamples = scoped
+    .map((delivery) => delivery.latencyMs)
+    .filter((latency): latency is number => typeof latency === 'number');
 
   return {
     webhookId,
@@ -45,6 +49,9 @@ const calculateAnalytics = (webhookId: string, deliveries: WebhookDelivery[]): W
     pendingDeliveries,
     successRate: totalDeliveries ? successfulDeliveries / totalDeliveries : 0,
     avgAttempts,
+    avgLatencyMs: latencySamples.length
+      ? latencySamples.reduce((sum, latency) => sum + latency, 0) / latencySamples.length
+      : 0,
     lastSuccessAt: scoped
       .filter((delivery) => delivery.status === 'delivered' && delivery.deliveredAt)
       .map((delivery) => delivery.deliveredAt as number)
@@ -74,6 +81,7 @@ interface WebhookState {
     delivery: Omit<WebhookDelivery, 'id' | 'createdAt' | 'updatedAt'>
   ) => Promise<WebhookDelivery>;
   retryDelivery: (deliveryId: string) => Promise<WebhookDelivery>;
+  sendTestEvent: (webhookId: string, eventType?: WebhookEventType) => Promise<WebhookDelivery>;
   getWebhookDeliveries: (webhookId: string, limit?: number) => WebhookDelivery[];
   getAnalytics: (webhookId: string) => WebhookAnalytics;
   refreshAnalytics: (webhookId?: string) => void;
@@ -192,6 +200,61 @@ export const useWebhookStore = create<WebhookState>()(
         return next;
       },
 
+      sendTestEvent: async (webhookId, eventType = 'subscription.created') => {
+        const webhook = get().webhooks.find((entry) => entry.id === webhookId);
+        if (!webhook) throw new Error(`Webhook ${webhookId} not found`);
+        return get().recordDelivery({
+          webhookId,
+          eventId: createId('evt'),
+          eventType,
+          url: webhook.url,
+          payload: {
+            id: createId('evt'),
+            webhookId,
+            eventType,
+            occurredAt: now(),
+            merchantId: webhook.merchantId,
+            previousStatus: 'none',
+            currentStatus: 'active',
+            payloadVersion: 1,
+            subscription: {
+              id: 'sample_subscription',
+              planId: 'sample_plan',
+              subscriberId: 'sample_customer',
+              status: 'active',
+              startedAt: now(),
+              lastChargedAt: now(),
+              nextChargeAt: now() + 2_592_000_000,
+              totalPaid: 49,
+              totalGasSpent: 0,
+              chargeCount: 1,
+              pausedAt: 0,
+              pauseDuration: 0,
+              refundRequestedAmount: 0,
+            },
+            plan: {
+              id: 'sample_plan',
+              merchantId: webhook.merchantId,
+              name: 'Sample plan',
+              price: 49,
+              token: 'USD',
+              interval: BillingCycle.MONTHLY,
+              active: true,
+              subscriberCount: 1,
+              createdAt: now(),
+            },
+          },
+          status: 'delivered',
+          attempts: 1,
+          maxAttempts: webhook.retryPolicy.maxRetries,
+          deliveredAt: now(),
+          responseCode: 200,
+          signature: 'sample-signature',
+          idempotencyKey: createId('idem'),
+          latencyMs: 120,
+        });
+      },
+
       getWebhookDeliveries: (webhookId, limit = 25) =>
         get()
           .deliveries.filter((delivery) => delivery.webhookId === webhookId)
@@ -240,7 +303,10 @@ export const useWebhookStore = create<WebhookState>()(
 export const webhookEventTypes: WebhookEventType[] = [
   'subscription.created',
   'subscription.updated',
+  'subscription.renewed',
   'subscription.cancelled',
+  'subscription.payment_failed',
+  'subscription.upgraded',
   'subscription.paused',
   'subscription.resumed',
   'subscription.charged',

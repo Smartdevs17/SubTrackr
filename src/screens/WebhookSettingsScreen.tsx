@@ -36,13 +36,14 @@ const WebhookSettingsScreen: React.FC = () => {
     pauseWebhook,
     resumeWebhook,
     retryDelivery,
+    sendTestEvent,
     refreshAnalytics,
   } = useWebhookStore();
 
   const [form, setForm] = useState(emptyWebhookForm);
   const [selectedEvents, setSelectedEvents] = useState<WebhookEventType[]>([
     'subscription.created',
-    'subscription.updated',
+    'subscription.renewed',
     'subscription.cancelled',
   ]);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -53,7 +54,7 @@ const WebhookSettingsScreen: React.FC = () => {
 
   const resetForm = () => {
     setForm(emptyWebhookForm);
-    setSelectedEvents(['subscription.created', 'subscription.updated', 'subscription.cancelled']);
+    setSelectedEvents(['subscription.created', 'subscription.renewed', 'subscription.cancelled']);
     setEditingId(null);
   };
 
@@ -207,6 +208,9 @@ const WebhookSettingsScreen: React.FC = () => {
                 </Text>
                 <Text style={styles.analyticsLabel}>success rate</Text>
               </View>
+              <Text style={styles.webhookMeta}>
+                Avg latency: {Math.round(webhookAnalytics?.avgLatencyMs ?? 0)}ms
+              </Text>
 
               <View style={styles.actionRow}>
                 <TouchableOpacity
@@ -220,6 +224,11 @@ const WebhookSettingsScreen: React.FC = () => {
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.actionButton} onPress={() => startEdit(webhook)}>
                   <Text style={styles.actionButtonText}>Edit</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={() => sendTestEvent(webhook.id, webhook.events[0])}>
+                  <Text style={styles.actionButtonText}>Send test</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.actionButtonDanger}

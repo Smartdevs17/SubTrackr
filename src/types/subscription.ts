@@ -18,6 +18,14 @@ export interface Subscription {
   totalGasSpent?: number;
   chargeCount?: number;
   lastGasCost?: number;
+  /** Oracle-sourced fiat equivalent price for display purposes */
+  fiatPrice?: number;
+  fiatCurrency?: string;
+  fiatPriceUpdatedAt?: Date;
+  oraclePriceDeviationBps?: number;
+  groupId?: string;
+  groupMemberAddress?: string;
+  timezone?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -80,4 +88,6 @@ export interface SubscriptionStats {
   totalYearlySpend: number;
   categoryBreakdown: Record<SubscriptionCategory, number>;
   totalGasSpent?: number;
+  totalFiatMonthlySpend?: number;
+  fiatCurrency?: string;
 }

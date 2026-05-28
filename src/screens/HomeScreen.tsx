@@ -122,6 +122,16 @@ const HomeScreen: React.FC = () => {
               style={styles.toolButtonOutline}>
               <Text style={styles.toolButtonTextOutline}>Invoices</Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('GroupManagement')}
+              style={styles.toolButtonOutline}>
+              <Text style={styles.toolButtonTextOutline}>Groups</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('SupportDashboard')}
+              style={styles.toolButtonOutline}>
+              <Text style={styles.toolButtonTextOutline}>Support</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -233,6 +243,7 @@ const styles = StyleSheet.create({
   },
   toolsRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.sm,
     marginTop: spacing.sm,
   },

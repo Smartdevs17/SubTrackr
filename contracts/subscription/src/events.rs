@@ -1,8 +1,67 @@
-use soroban_sdk::{Address, Env};
+use soroban_sdk::{contracttype, Address, Env, String, Vec};
 use subtrackr_types::{
     Plan, Subscription, SubscriptionStatus, WebhookEventPayload, WebhookEventType,
     WebhookPlanSnapshot, WebhookSubscriptionSnapshot,
 };
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum SubscriptionEventType {
+    Created,
+    Updated,
+    Renewed,
+    Cancelled,
+    PaymentFailed,
+    Upgraded,
+    Paused,
+    Resumed,
+    RefundRequested,
+    RefundApproved,
+    RefundRejected,
+    TransferRequested,
+    TransferAccepted,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct SubscriptionAuditEvent {
+    pub id: u64,
+    pub subscription_id: u64,
+    pub sequence: u64,
+    pub event_type: SubscriptionEventType,
+    pub actor: Address,
+    pub occurred_at: u64,
+    pub schema_version: u32,
+    pub payload_hash: String,
+}
+
+pub(crate) fn build_audit_event(
+    env: &Env,
+    subscription_id: u64,
+    sequence: u64,
+    event_type: SubscriptionEventType,
+    actor: &Address,
+    payload_hash: String,
+) -> SubscriptionAuditEvent {
+    SubscriptionAuditEvent {
+        id: env.ledger().sequence() as u64,
+        subscription_id,
+        sequence,
+        event_type,
+        actor: actor.clone(),
+        occurred_at: env.ledger().timestamp(),
+        schema_version: 1,
+        payload_hash,
+    }
+}
+
+pub(crate) fn replay_state(events: Vec<SubscriptionAuditEvent>) -> Option<SubscriptionEventType> {
+    let mut latest: Option<SubscriptionEventType> = None;
+    for event in events.iter() {
+        latest = Some(event.event_type);
+    }
+    latest
+}
 
 pub(crate) fn subscription_snapshot(sub: &Subscription) -> WebhookSubscriptionSnapshot {
     WebhookSubscriptionSnapshot {
