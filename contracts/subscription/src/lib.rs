@@ -2,6 +2,7 @@
 mod gas_profiler;
 mod gas_storage;
 mod gas_optimization;
+mod loyalty;
 use soroban_sdk::{token, Address, Env, IntoVal, String, TryFromVal, Val, Vec};
 use subtrackr_types::{
     Interval, Invoice, Plan, StorageKey, Subscription, SubscriptionStatus, TimeRange,
@@ -686,6 +687,15 @@ impl SubTrackrSubscription {
             (sub.subscriber.clone(), plan.price, 100_000u64, now),
         );
 
+        // Accumulate loyalty points after successful charge.
+        loyalty::accumulate_points(
+            &env,
+            &storage,
+            &sub.subscriber,
+            plan.price,
+            now,
+        );
+
         if let Some(invoice_addr) = invoice_contract(&env, &storage) {
             let period = TimeRange {
                 start: sub.last_charged_at,
@@ -1043,6 +1053,140 @@ impl SubTrackrSubscription {
     ) -> Option<revenue::RevenueSchedule> {
         proxy.require_auth();
         revenue::get_revenue_schedule(&env, &storage, subscription_id)
+    }
+
+    // ── Loyalty & Rewards API ──
+
+    pub fn initialize_loyalty(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        config: subtrackr_types::LoyaltyConfig,
+    ) {
+        proxy.require_auth();
+        get_admin(&env, &storage).require_auth();
+        loyalty::set_loyalty_config(&env, &storage, &config);
+    }
+
+    pub fn update_loyalty_config(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        config: subtrackr_types::LoyaltyConfig,
+    ) {
+        proxy.require_auth();
+        get_admin(&env, &storage).require_auth();
+        loyalty::set_loyalty_config(&env, &storage, &config);
+    }
+
+    pub fn get_loyalty_config(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+    ) -> Option<subtrackr_types::LoyaltyConfig> {
+        proxy.require_auth();
+        loyalty::get_loyalty_config(&env, &storage)
+    }
+
+    pub fn get_points(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscriber: Address,
+    ) -> u64 {
+        proxy.require_auth();
+        loyalty::get_eligible_points(&env, &storage, &subscriber)
+    }
+
+    pub fn get_lifetime_points(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscriber: Address,
+    ) -> u64 {
+        proxy.require_auth();
+        loyalty::get_lifetime_points(&env, &storage, &subscriber)
+    }
+
+    pub fn get_streak(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscriber: Address,
+    ) -> u64 {
+        proxy.require_auth();
+        loyalty::get_streak(&env, &storage, &subscriber)
+    }
+
+    pub fn get_loyalty_status(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscriber: Address,
+    ) -> (u64, u64, u64, i128, Option<subtrackr_types::LoyaltyTierConfig>) {
+        proxy.require_auth();
+        let points = loyalty::get_eligible_points(&env, &storage, &subscriber);
+        let lifetime = loyalty::get_lifetime_points(&env, &storage, &subscriber);
+        let streak = loyalty::get_streak(&env, &storage, &subscriber);
+        let spent = loyalty::get_total_spent(&env, &storage, &subscriber);
+        let tier = loyalty::get_current_tier(&env, &storage, &subscriber);
+        (points, lifetime, streak, spent, tier)
+    }
+
+    pub fn redeem_loyalty_points(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscriber: Address,
+        points: u64,
+        charge_amount: i128,
+    ) -> i128 {
+        proxy.require_auth();
+        subscriber.require_auth();
+        let now = env.ledger().timestamp();
+        loyalty::redeem_points(&env, &storage, &subscriber, points, charge_amount, now)
+    }
+
+    pub fn earn_referral_bonus(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        referrer: Address,
+    ) {
+        proxy.require_auth();
+        let now = env.ledger().timestamp();
+        loyalty::earn_referral_bonus(&env, &storage, &referrer, now);
+    }
+
+    pub fn expire_points(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscriber: Address,
+    ) {
+        proxy.require_auth();
+        get_admin(&env, &storage).require_auth();
+        loyalty::expire_points(&env, &storage, &subscriber);
+    }
+
+    pub fn get_point_transactions(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscriber: Address,
+    ) -> Vec<subtrackr_types::PointTransaction> {
+        proxy.require_auth();
+        loyalty::get_point_transactions(&env, &storage, &subscriber)
+    }
+
+    pub fn get_redemption(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        redemption_id: u64,
+    ) -> Option<subtrackr_types::RewardsRedemption> {
+        proxy.require_auth();
+        loyalty::get_redemption(&env, &storage, redemption_id)
     }
 
     // ── Quota & Usage API ──
