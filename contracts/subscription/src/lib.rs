@@ -2,9 +2,9 @@
 mod gas_profiler;
 mod gas_storage;
 mod gas_optimization;
-use soroban_sdk::{token, Address, Env, IntoVal, String, TryFromVal, Val, Vec};
+use soroban_sdk::{token, Address, Env, IntoVal, String, Symbol, TryFromVal, Val, Vec};
 use subtrackr_types::{
-    Interval, Invoice, Plan, StorageKey, Subscription, SubscriptionStatus, TimeRange,
+    Interval, Invoice, Permission, Plan, StorageKey, Subscription, SubscriptionStatus, TimeRange,
 };
 
 /// Billing interval in seconds.
@@ -90,6 +90,27 @@ fn storage_persistent_remove(env: &Env, storage: &Address, key: StorageKey) {
 
 fn get_admin(env: &Env, storage: &Address) -> Address {
     storage_instance_get(env, storage, StorageKey::Admin).expect("Admin not set")
+}
+
+fn get_access_control(env: &Env, storage: &Address) -> Option<Address> {
+    storage_instance_get(env, storage, StorageKey::AccessControl)
+}
+
+fn require_permission(env: &Env, storage: &Address, caller: &Address, permission: Permission) {
+    let ac_opt: Option<Address> = get_access_control(env, storage);
+    if let Some(ac_addr) = ac_opt {
+        let args: Vec<Val> = soroban_sdk::vec![
+            env,
+            caller.clone().into_val(env),
+            permission.into_val(env)
+        ];
+        let has_perm: bool = env.invoke_contract(
+            &ac_addr,
+            &Symbol::new(env, "has_permission"),
+            args,
+        );
+        assert!(has_perm, "Unauthorized: missing required permission");
+    }
 }
 
 fn enforce_rate_limit(env: &Env, storage: &Address, caller: &Address, function_name: &str) {
@@ -259,17 +280,31 @@ impl SubTrackrSubscription {
         storage_instance_remove(&env, &storage, StorageKey::InvoiceContract);
     }
 
+    pub fn set_access_control(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        admin: Address,
+        access_control: Address,
+    ) {
+        proxy.require_auth();
+        let stored_admin = get_admin(&env, &storage);
+        assert!(admin == stored_admin, "Admin mismatch");
+        admin.require_auth();
+        storage_instance_set(&env, &storage, StorageKey::AccessControl, access_control);
+    }
+
     pub fn set_invoice_contract(env: Env, proxy: Address, storage: Address, invoice: Address) {
         proxy.require_auth();
         let admin = get_admin(&env, &storage);
-        admin.require_auth();
+        require_permission(&env, &storage, &admin, Permission::SetInvoiceContract);
         storage_instance_set(&env, &storage, StorageKey::InvoiceContract, invoice);
     }
 
     pub fn clear_invoice_contract(env: Env, proxy: Address, storage: Address) {
         proxy.require_auth();
         let admin = get_admin(&env, &storage);
-        admin.require_auth();
+        require_permission(&env, &storage, &admin, Permission::ClearInvoiceContract);
         storage_instance_remove(&env, &storage, StorageKey::InvoiceContract);
     }
 
@@ -284,7 +319,7 @@ impl SubTrackrSubscription {
     ) {
         proxy.require_auth();
         let admin = get_admin(&env, &storage);
-        admin.require_auth();
+        require_permission(&env, &storage, &admin, Permission::SetRateLimit);
         storage_instance_set(
             &env,
             &storage,
@@ -296,7 +331,7 @@ impl SubTrackrSubscription {
     pub fn remove_rate_limit(env: Env, proxy: Address, storage: Address, function: String) {
         proxy.require_auth();
         let admin = get_admin(&env, &storage);
-        admin.require_auth();
+        require_permission(&env, &storage, &admin, Permission::RemoveRateLimit);
         storage_instance_remove(&env, &storage, StorageKey::RateLimit(function));
     }
 
@@ -752,7 +787,7 @@ impl SubTrackrSubscription {
                 .expect("Subscription not found");
 
         let admin = get_admin(&env, &storage);
-        admin.require_auth();
+        require_permission(&env, &storage, &admin, Permission::ApproveRefund);
 
         let amount = sub.refund_requested_amount;
         assert!(amount > 0, "No pending refund request");
@@ -783,7 +818,7 @@ impl SubTrackrSubscription {
                 .expect("Subscription not found");
 
         let admin = get_admin(&env, &storage);
-        admin.require_auth();
+        require_permission(&env, &storage, &admin, Permission::RejectRefund);
 
         assert!(sub.refund_requested_amount > 0, "No pending refund request");
         sub.refund_requested_amount = 0;
