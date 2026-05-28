@@ -287,6 +287,72 @@ pub struct FraudReport {
     pub recent_cases: Vec<FraudCase>,
 }
 
+// ── Access Control Types ──
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum Role {
+    Admin,
+    Merchant,
+    Subscriber,
+    Auditor,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum Permission {
+    GrantRole,
+    RevokeRole,
+    DelegatePermission,
+    CreatePlan,
+    DeactivatePlan,
+    SetPlanQuotas,
+    SetRevenueRule,
+    Subscribe,
+    CancelSubscription,
+    PauseSubscription,
+    ResumeSubscription,
+    ChargeSubscription,
+    RequestRefund,
+    ApproveRefund,
+    RejectRefund,
+    RequestTransfer,
+    AcceptTransfer,
+    SetRateLimit,
+    RemoveRateLimit,
+    SetInvoiceContract,
+    ClearInvoiceContract,
+    UpgradeContract,
+    MigrateContract,
+    ViewAnalytics,
+    ViewAuditLog,
+    ViewPlans,
+    ViewSubscriptions,
+    SetEmergencyAdmin,
+    PauseEmergency,
+    SetAccessControl,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum RoleChangeAction {
+    Granted,
+    Revoked,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct RoleChangeEntry {
+    pub id: u64,
+    pub user: Address,
+    pub role: Role,
+    pub action: RoleChangeAction,
+    pub changed_by: Address,
+    pub timestamp: u64,
+}
+
+// ── Storage Keys ──
+
 /// Storage keys for the proxy contract state.
 ///
 /// IMPORTANT: Never reorder existing variants. Append new variants only.
@@ -360,4 +426,8 @@ pub enum StorageKey {
     PlanQuotas(u64),
     /// Usage record for a subscription and metric (sub_id, metric -> UsageRecord)
     SubscriptionUsage(u64, QuotaMetric),
+
+    // ── Added in storage version 5 (Access Control) ──
+    /// Address of the access_control contract for RBAC.
+    AccessControl,
 }
