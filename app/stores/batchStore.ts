@@ -1,105 +1,133 @@
 // ════════════════════════════════════════════════════════════════
-// BATCH STORE - client state for bulk subscription operations
+// BATCH STORE - Full client state for bulk subscription operations
 // ════════════════════════════════════════════════════════════════
 //
-// Mirrors the `subtrackr-batch` Soroban contract: the user assembles a batch of
-// one operation type applied across many subscriptions, then creates + executes
-// it. The store tracks progress, partial success, rollback (atomic), and keeps
-// an audit history of past batches.
+// Supports: batch create from CSV/JSON, batch update with filtering,
+// batch cancel with reason collection, batch charge for manual billing,
+// per-item status tracking, idempotent retry, result export, and
+// audit history of past batches.
 
 import { create } from 'zustand';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  BatchTransactionService,
+  BatchOperationType,
+  BatchState,
+  BatchExecutionResult,
+  PerItemResult,
+  CancelReason,
+  UpdateFilter,
+  BatchUpdateParams,
+  BatchCreateInput,
+  PerItemStatus,
+  BatchProgress,
+  BatchHistoryEntry,
+  parseBatchCreateCsv,
+  parseBatchCancelCsv,
+  parseBatchChargeCsv,
+  exportBatchResultToJson,
+  exportBatchResultToCsv,
+  getBatchHistory,
+  saveBatchHistory,
+  clearBatchHistory,
+} from '../services/batchTransactionService';
 
-export type OperationType = 'create' | 'update' | 'charge' | 'pause' | 'resume' | 'cancel';
+const HISTORY_STORE_KEY = 'subtrackr-batch-store-history';
+const MAX_STORE_HISTORY = 100;
 
-export type BatchState = 'pending' | 'running' | 'completed' | 'partial' | 'failed';
+// ════════════════════════════════════════════════════════════════
+// Types
+// ════════════════════════════════════════════════════════════════
 
-export interface BatchOperation {
-  operationType: OperationType;
-  subscriptionIds: string[];
-  /** Per-subscription scalar argument (e.g. charge amount); missing entries default to 0. */
-  params: number[];
+export type { BatchOperationType, BatchState, PerItemStatus, CancelReason, UpdateFilter, BatchUpdateParams, BatchCreateInput, PerItemResult, BatchProgress, BatchHistoryEntry };
+export { exportBatchResultToJson, exportBatchResultToCsv, getBatchHistory, saveBatchHistory, clearBatchHistory };
+
+export interface BatchDraft {
+  operationType: BatchOperationType;
   atomic: boolean;
+  createInputs: BatchCreateInput[];
+  updateIds: string[];
+  updateParams: BatchUpdateParams;
+  updateFilter?: UpdateFilter;
+  cancelIds: string[];
+  cancelReasons: CancelReason[];
+  chargeItems: Array<{ subscriptionId: string; amount: number }>;
+  csvContent: string;
+  chunkSize: number;
 }
 
-export interface OperationResult {
-  subscriptionId: string;
-  success: boolean;
-  message?: string;
-}
-
-export interface BatchRecord {
-  id: string;
-  operation: BatchOperation;
-  state: BatchState;
-  total: number;
-  succeeded: number;
-  failed: number;
-  rolledBack: boolean;
-  results: OperationResult[];
-  createdAt: number;
-}
-
-/** Executes a single item; resolves a result. Injected so the store can be
- * backed by the contract, an API, or a mock in tests. Defaults to a no-op
- * success so the UI is usable without a backend. */
 export type ItemExecutor = (
-  op: OperationType,
+  operationType: BatchOperationType,
   subscriptionId: string,
-  param: number,
-) => Promise<OperationResult>;
+  param: number | string,
+  reason?: CancelReason,
+) => Promise<{ success: boolean; id?: string; error?: string }>;
 
-const MAX_BATCH_SIZE = 100;
-const BASE_GAS = 50_000;
-const GAS_PER_OP = 100_000;
+const MAX_BATCH_SIZE = 500;
+const DEFAULT_CHUNK_SIZE = 50;
 
-export const estimateBatchGas = (count: number): number => BASE_GAS + count * GAS_PER_OP;
+export const estimateBatchGas = (count: number): number => 50_000 + count * 100_000;
 
-export const validateBatch = (op: BatchOperation): boolean =>
-  op.subscriptionIds.length > 0 && op.subscriptionIds.length <= MAX_BATCH_SIZE;
+export const validateBatchSize = (count: number): boolean =>
+  count > 0 && count <= MAX_BATCH_SIZE;
 
-/** Builds a batch operation from a CSV template of `subscriptionId,param` rows. */
-export const parseCsvTemplate = (
-  csv: string,
-  operationType: OperationType,
-  atomic = false,
-): BatchOperation => {
-  const subscriptionIds: string[] = [];
-  const params: number[] = [];
-  csv
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0 && !l.toLowerCase().startsWith('subscription'))
-    .forEach((line) => {
-      const [id, param] = line.split(',').map((c) => c.trim());
-      if (!id) return;
-      subscriptionIds.push(id);
-      params.push(param ? Number(param) : 0);
-    });
-  return { operationType, subscriptionIds, params, atomic };
-};
+// ════════════════════════════════════════════════════════════════
+// Store
+// ════════════════════════════════════════════════════════════════
 
 interface BatchStoreState {
-  draft: BatchOperation;
-  current?: BatchRecord;
-  history: BatchRecord[];
+  draft: BatchDraft;
+  currentResult: BatchExecutionResult | null;
+  history: BatchHistoryEntry[];
+  service: BatchTransactionService | null;
   executor: ItemExecutor;
+  isRunning: boolean;
+  progress: BatchProgress | null;
 
+  // Actions
   setExecutor: (executor: ItemExecutor) => void;
-  setDraft: (patch: Partial<BatchOperation>) => void;
-  loadFromCsv: (csv: string, operationType: OperationType, atomic?: boolean) => void;
-  resetDraft: () => void;
+  setDraft: (patch: Partial<BatchDraft>) => void;
+  setOperationType: (op: BatchOperationType) => void;
+  toggleAtomic: () => void;
+  setChunkSize: (size: number) => void;
+
+  // CSV loading
+  loadCreateCsv: (csv: string) => void;
+  loadCancelCsv: (csv: string) => void;
+  loadChargeCsv: (csv: string) => void;
+  loadUpdateCsv: (csv: string) => void;
+  setCsvContent: (csv: string) => void;
+
+  // Execute
+  executeBatch: () => Promise<BatchExecutionResult | null>;
+  retryFailed: () => Promise<BatchExecutionResult | null>;
+
+  // Export
+  exportResultJson: () => string | null;
+  exportResultCsv: () => string | null;
+
+  // History
+  loadHistory: () => Promise<void>;
+  addHistoryEntry: (entry: BatchHistoryEntry) => Promise<void>;
+
+  // Helpers
   gasEstimate: () => number;
-  /** Validates + materializes the draft into a pending batch record. */
-  createBatch: () => BatchRecord | null;
-  /** Runs the current batch, applying partial-success / atomic-rollback rules. */
-  executeBatch: () => Promise<BatchRecord | null>;
+  resetDraft: () => void;
+  clearResult: () => void;
 }
 
-const emptyDraft = (): BatchOperation => ({
-  operationType: 'charge',
-  subscriptionIds: [],
-  params: [],
+const emptyDraft = (): BatchDraft => ({
+  operationType: 'create',
   atomic: false,
+  createInputs: [],
+  updateIds: [],
+  updateParams: {},
+  updateFilter: undefined,
+  cancelIds: [],
+  cancelReasons: [],
+  chargeItems: [],
+  csvContent: '',
+  chunkSize: DEFAULT_CHUNK_SIZE,
 });
 
 const defaultExecutor: ItemExecutor = async (_op, subscriptionId) => ({
@@ -109,80 +137,275 @@ const defaultExecutor: ItemExecutor = async (_op, subscriptionId) => ({
 
 export const useBatchStore = create<BatchStoreState>()((set, get) => ({
   draft: emptyDraft(),
-  current: undefined,
+  currentResult: null,
   history: [],
+  service: null,
   executor: defaultExecutor,
+  isRunning: false,
+  progress: null,
 
   setExecutor: (executor) => set({ executor }),
+
   setDraft: (patch) => set((s) => ({ draft: { ...s.draft, ...patch } })),
-  loadFromCsv: (csv, operationType, atomic = false) =>
-    set({ draft: parseCsvTemplate(csv, operationType, atomic) }),
-  resetDraft: () => set({ draft: emptyDraft() }),
 
-  gasEstimate: () => estimateBatchGas(get().draft.subscriptionIds.length),
+  setOperationType: (op) =>
+    set((s) => ({
+      draft: { ...s.draft, operationType: op, csvContent: '' },
+    })),
 
-  createBatch: () => {
-    const { draft } = get();
-    if (!validateBatch(draft)) return null;
-    const record: BatchRecord = {
-      id: `batch_${Date.now()}`,
-      operation: { ...draft },
-      state: 'pending',
-      total: draft.subscriptionIds.length,
-      succeeded: 0,
-      failed: 0,
-      rolledBack: false,
-      results: [],
-      createdAt: Date.now(),
-    };
-    set({ current: record });
-    return record;
+  toggleAtomic: () =>
+    set((s) => ({ draft: { ...s.draft, atomic: !s.draft.atomic } })),
+
+  setChunkSize: (size) =>
+    set((s) => ({
+      draft: { ...s.draft, chunkSize: Math.min(size, MAX_BATCH_SIZE) },
+    })),
+
+  // ── CSV Loading ──────────────────────────────────────────────
+
+  setCsvContent: (csv) => set((s) => ({ draft: { ...s.draft, csvContent: csv } })),
+
+  loadCreateCsv: (csv) => {
+    const inputs = parseBatchCreateCsv(csv);
+    set((s) => ({
+      draft: {
+        ...s.draft,
+        csvContent: csv,
+        operationType: 'create',
+        createInputs: inputs,
+      },
+    }));
   },
+
+  loadCancelCsv: (csv) => {
+    const parsed = parseBatchCancelCsv(csv);
+    const ids = parsed.map((r) => r.subscriptionId);
+    const reasons: CancelReason[] = parsed.map((r) => ({
+      subscriptionId: r.subscriptionId,
+      reason: (['too_expensive', 'no_longer_needed', 'found_alternative', 'poor_service', 'other'].includes(r.reason)
+        ? r.reason
+        : 'other') as CancelReason['reason'],
+      notes: r.notes,
+    }));
+    set((s) => ({
+      draft: {
+        ...s.draft,
+        csvContent: csv,
+        operationType: 'cancel',
+        cancelIds: ids,
+        cancelReasons: reasons,
+      },
+    }));
+  },
+
+  loadChargeCsv: (csv) => {
+    const items = parseBatchChargeCsv(csv);
+    set((s) => ({
+      draft: {
+        ...s.draft,
+        csvContent: csv,
+        operationType: 'charge',
+        chargeItems: items,
+      },
+    }));
+  },
+
+  loadUpdateCsv: (csv) => {
+    const lines = csv.split(/\r?\n/).filter((l) => l.trim());
+    if (lines.length < 2) return;
+    const ids: string[] = [];
+    for (let i = 1; i < lines.length; i++) {
+      const id = lines[i].split(',')[0]?.trim();
+      if (id) ids.push(id);
+    }
+    set((s) => ({
+      draft: {
+        ...s.draft,
+        csvContent: csv,
+        operationType: 'update',
+        updateIds: ids,
+      },
+    }));
+  },
+
+  // ── Execute ──────────────────────────────────────────────────
 
   executeBatch: async () => {
-    const { current, executor } = get();
-    if (!current || current.state !== 'pending') return null;
+    const { draft, executor } = get();
+    const service = new BatchTransactionService(draft.chunkSize);
+    set({ isRunning: true, currentResult: null, progress: null });
 
-    set({ current: { ...current, state: 'running' } });
+    let result: BatchExecutionResult | null = null;
 
-    const op = current.operation;
-    const results: OperationResult[] = [];
-    let succeeded = 0;
-    let failed = 0;
+    try {
+      switch (draft.operationType) {
+        case 'create': {
+          if (draft.createInputs.length === 0) break;
+          result = await service.executeBatchCreate(
+            draft.createInputs,
+            async (input) => {
+              const r = await executor('create', input.name, input.price);
+              return r;
+            },
+            { atomic: draft.atomic },
+          );
+          break;
+        }
 
-    for (let i = 0; i < op.subscriptionIds.length; i++) {
-      const subId = op.subscriptionIds[i];
-      const param = op.params[i] ?? 0;
-      let result: OperationResult;
-      try {
-        result = await executor(op.operationType, subId, param);
-      } catch (e) {
-        result = { subscriptionId: subId, success: false, message: String(e) };
+        case 'update': {
+          if (draft.updateIds.length === 0) break;
+          result = await service.executeBatchUpdate(
+            draft.updateIds,
+            draft.updateParams,
+            async (id, updates) => {
+              const r = await executor('update', id, JSON.stringify(updates));
+              return r;
+            },
+            { atomic: draft.atomic, filter: draft.updateFilter },
+          );
+          break;
+        }
+
+        case 'cancel': {
+          if (draft.cancelIds.length === 0) break;
+          result = await service.executeBatchCancel(
+            draft.cancelIds,
+            draft.cancelReasons,
+            async (id, reason) => {
+              const r = await executor('cancel', id, reason.reason, reason);
+              return r;
+            },
+            { atomic: draft.atomic },
+          );
+          break;
+        }
+
+        case 'charge': {
+          if (draft.chargeItems.length === 0) break;
+          result = await service.executeBatchCharge(
+            draft.chargeItems,
+            async (id, amount) => {
+              const r = await executor('charge', id, amount);
+              return r;
+            },
+            { atomic: draft.atomic },
+          );
+          break;
+        }
       }
-      results.push(result);
-      result.success ? succeeded++ : failed++;
-      // Progress reporting: surface incremental counts as we go.
-      set({
-        current: { ...get().current!, results: [...results], succeeded, failed },
-      });
+    } catch (err) {
+      console.error('Batch execution error:', err);
     }
 
-    const rolledBack = op.atomic && failed > 0;
-    const state: BatchState = rolledBack
-      ? 'failed'
-      : failed === 0
-        ? 'completed'
-        : 'partial';
+    set((s) => ({
+      currentResult: result,
+      isRunning: false,
+      progress: service.getProgress(),
+      service,
+    }));
 
-    const finished: BatchRecord = {
-      ...current,
-      state,
-      results,
-      succeeded: rolledBack ? 0 : succeeded,
-      failed,
-      rolledBack,
-    };
-    set((s) => ({ current: finished, history: [...s.history, finished] }));
-    return finished;
+    if (result) {
+      const entry: BatchHistoryEntry = {
+        batchId: result.batchId,
+        operationType: result.operationType,
+        state: result.state,
+        totalItems: result.totalItems,
+        successfulItems: result.successfulItems,
+        failedItems: result.failedItems,
+        timestamp: new Date().toISOString(),
+        summary: `${result.operationType}: ${result.successfulItems}/${result.totalItems} succeeded`,
+      };
+      await get().addHistoryEntry(entry);
+    }
+
+    return result;
   },
+
+  // ── Retry ────────────────────────────────────────────────────
+
+  retryFailed: async () => {
+    const { service, currentResult, executor } = get();
+    if (!service || !currentResult) return null;
+
+    set({ isRunning: true });
+
+    const result = await service.retryFailedItems(async (item) => {
+      const r = await executor(
+        currentResult.operationType,
+        item.subscriptionId,
+        0,
+        item.cancelReason,
+      );
+      return r;
+    });
+
+    set((s) => ({
+      currentResult: result,
+      isRunning: false,
+      progress: service.getProgress(),
+    }));
+
+    return result;
+  },
+
+  // ── Export ───────────────────────────────────────────────────
+
+  exportResultJson: () => {
+    const { currentResult } = get();
+    if (!currentResult) return null;
+    return exportBatchResultToJson(currentResult);
+  },
+
+  exportResultCsv: () => {
+    const { currentResult } = get();
+    if (!currentResult) return null;
+    return exportBatchResultToCsv(currentResult);
+  },
+
+  // ── History ──────────────────────────────────────────────────
+
+  loadHistory: async () => {
+    try {
+      const json = await AsyncStorage.getItem(HISTORY_STORE_KEY);
+      if (json) {
+        set({ history: JSON.parse(json) });
+      }
+    } catch {
+      // ignore
+    }
+  },
+
+  addHistoryEntry: async (entry) => {
+    set((s) => {
+      const next = [entry, ...s.history].slice(0, MAX_STORE_HISTORY);
+      AsyncStorage.setItem(HISTORY_STORE_KEY, JSON.stringify(next)).catch(() => {});
+      return { history: next };
+    });
+  },
+
+  // ── Helpers ─────────────────────────────────────────────────
+
+  gasEstimate: () => {
+    const { draft } = get();
+    const count =
+      draft.createInputs.length ||
+      draft.updateIds.length ||
+      draft.cancelIds.length ||
+      draft.chargeItems.length ||
+      0;
+    return estimateBatchGas(count);
+  },
+
+  resetDraft: () =>
+    set({
+      draft: emptyDraft(),
+      currentResult: null,
+      progress: null,
+    }),
+
+  clearResult: () =>
+    set({
+      currentResult: null,
+      progress: null,
+    }),
 }));

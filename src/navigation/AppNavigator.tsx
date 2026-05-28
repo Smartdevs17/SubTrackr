@@ -27,6 +27,7 @@ import WebhookSettingsScreen from '../screens/WebhookSettingsScreen';
 import ErrorDashboardScreen from '../screens/ErrorDashboardScreen';
 import ImportScreen from '../screens/ImportScreen';
 import ExportScreen from '../screens/ExportScreen';
+import { BatchOperationsScreen } from '../../app/screens/BatchOperationsScreen';
 import AdminDashboardScreen from '../screens/AdminDashboardScreen';
 import FraudDashboard from '../screens/FraudDashboard';
 import GroupManagementScreen from '../screens/GroupManagementScreen';
@@ -203,14 +204,14 @@ const SettingsStack = () => (
       options={{ title: 'Language', headerShown: true }}
     />
     <Stack.Screen
-      name="WebhookSettings"
-      component={WebhookSettingsScreen}
-      options={{ title: 'Webhooks', headerShown: true }}
+      name="Export"
+      component={ExportScreen}
+      options={{ title: 'Export', headerShown: true }}
     />
     <Stack.Screen
-      name="SessionManagement"
-      component={SessionManagementScreen}
-      options={{ title: 'Sessions', headerShown: true }}
+      name="BatchOperations"
+      component={BatchOperationsScreen}
+      options={{ title: 'Batch Operations', headerShown: true }}
     />
     <Stack.Screen
       name="AdminDashboard"
