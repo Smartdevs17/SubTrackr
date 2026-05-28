@@ -73,3 +73,67 @@ export interface ChainInfo {
     decimals: number;
   };
 }
+
+export enum TokenType {
+  XLM = 'XLM',
+  USDC = 'USDC',
+  ETH = 'ETH',
+  NATIVE = 'NATIVE',
+  MATIC = 'MATIC',
+  ARB = 'ARB',
+}
+
+export enum PaymentPriority {
+  PRIMARY = 'primary',
+  BACKUP = 'backup',
+  FALLBACK = 'fallback',
+}
+
+export interface PaymentMethod {
+  id: string;
+  userId: string;
+  tokenType: TokenType;
+  tokenAddress: string;
+  chainId: number;
+  label: string;
+  priority: PaymentPriority;
+  maxSpendPerInterval: string;
+  isVerified: boolean;
+  isActive: boolean;
+  expiresAt: Date | null;
+  lastUsedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  metadata: Record<string, string>;
+}
+
+export interface PaymentMethodFormData {
+  tokenType: TokenType;
+  tokenAddress: string;
+  chainId: number;
+  label: string;
+  priority: PaymentPriority;
+  maxSpendPerInterval: string;
+}
+
+export interface PaymentAttempt {
+  id: string;
+  paymentMethodId: string;
+  subscriptionId: string;
+  amount: string;
+  tokenType: TokenType;
+  status: 'pending' | 'success' | 'failed' | 'fallback_triggered';
+  failureReason?: string;
+  gasPrice?: string;
+  gasUsed?: string;
+  attemptedAt: Date;
+  resolvedAt?: Date;
+}
+
+export interface PaymentMethodValidationResult {
+  isValid: boolean;
+  errors: string[];
+  warnings: string[];
+  requiresVerification: boolean;
+  estimatedGas: GasEstimate | null;
+}
