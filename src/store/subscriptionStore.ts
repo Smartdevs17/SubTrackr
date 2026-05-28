@@ -16,6 +16,11 @@ import {
   syncRenewalReminders,
   presentChargeSuccessNotification,
   presentChargeFailedNotification,
+  presentDunningRetryNotification,
+  presentDunningWarningNotification,
+  presentDunningSuspendedNotification,
+  presentDunningCancelledNotification,
+  presentDunningRecoveryNotification,
 } from '../services/notificationService';
 import { useCalendarStore } from './calendarStore';
 import { useGamificationStore } from './gamificationStore';
@@ -300,15 +305,46 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         const sub = get().subscriptions.find((s) => s.id === id);
         if (!sub) return;
 
-        if (sub.notificationsEnabled !== false) {
-          if (outcome === 'success') {
-            await presentChargeSuccessNotification(sub);
-          } else {
+        if (outcome === 'failed') {
+          const dunningEntries = JSON.parse(
+            (await AsyncStorage.getItem('subtrackr-dunning-entries')) || '{}'
+          );
+          const entry = dunningEntries[id];
+          const attempt = (entry?.failedAttempts ?? 0) + 1;
+
+          dunningEntries[id] = {
+            failedAttempts: attempt,
+            lastFailureAt: new Date().toISOString(),
+            currentStage: attempt <= 3 ? 'retry' : attempt <= 5 ? 'warn' : attempt <= 7 ? 'suspend' : 'cancel',
+          };
+          await AsyncStorage.setItem('subtrackr-dunning-entries', JSON.stringify(dunningEntries));
+
+          if (sub.notificationsEnabled !== false) {
             await presentChargeFailedNotification(sub);
+            if (attempt <= 3) {
+              await presentDunningRetryNotification(sub, attempt, 3);
+            } else if (attempt <= 5) {
+              await presentDunningWarningNotification(sub, attempt);
+            } else if (attempt <= 7) {
+              await presentDunningSuspendedNotification(sub);
+            } else {
+              await presentDunningCancelledNotification(sub);
+            }
           }
+
+          set({ isLoading: false });
+          return;
         }
 
         if (outcome === 'success') {
+          const hasDunningEntry = await AsyncStorage.getItem('subtrackr-dunning-entries');
+          if (hasDunningEntry) {
+            await AsyncStorage.removeItem('subtrackr-dunning-entries');
+            if (sub.notificationsEnabled !== false) {
+              await presentDunningRecoveryNotification(sub);
+            }
+          }
+          await presentChargeSuccessNotification(sub);
           const billingPeriod = buildBillingPeriod(sub);
           const next = advanceBillingDate(new Date(sub.nextBillingDate), sub.billingCycle);
           const simulatedGas = 0.01 + Math.random() * 0.005; // Simulate 0.01 - 0.015 XLM gas

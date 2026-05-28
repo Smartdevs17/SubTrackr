@@ -13,6 +13,8 @@ import CryptoPaymentScreen from '../screens/CryptoPaymentScreen';
 import CommunityScreen from '../screens/CommunityScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import SubscriptionDetailScreen from '../screens/SubscriptionDetailScreen';
+import InvoiceListScreen from '../screens/InvoiceListScreen';
+import InvoiceDetailScreen from '../screens/InvoiceDetailScreen';
 import AnalyticsScreen from '../screens/AnalyticsScreen';
 import SlaDashboard from '../screens/SlaDashboard';
 import GDPRSettingsScreen from '../screens/GDPRSettingsScreen';
@@ -28,6 +30,9 @@ import ExportScreen from '../screens/ExportScreen';
 import { BatchOperationsScreen } from '../../app/screens/BatchOperationsScreen';
 import AdminDashboardScreen from '../screens/AdminDashboardScreen';
 import FraudDashboard from '../screens/FraudDashboard';
+import GroupManagementScreen from '../screens/GroupManagementScreen';
+import TaxSettingsScreen from '../screens/TaxSettingsScreen';
+import SupportDashboardScreen from '../screens/SupportDashboardScreen';
 import { SegmentManagementScreen } from '../screens/SegmentManagementScreen';
 import { SegmentDetailScreen } from '../screens/SegmentDetailScreen';
 import { GamificationScreen } from '../screens/GamificationScreen';
@@ -37,6 +42,11 @@ import MerchantOnboardingScreen from '../screens/MerchantOnboardingScreen';
 import AffiliateDashboardScreen from '../screens/AffiliateDashboardScreen';
 import LoyaltyDashboardScreen from '../screens/LoyaltyDashboardScreen';
 import CampaignManagementScreen from '../screens/CampaignManagementScreen';
+import DeveloperPortalScreen from '../screens/DeveloperPortalScreen';
+import SandboxDashboardScreen from '../screens/SandboxDashboardScreen';
+import ApiKeyManagementScreen from '../screens/ApiKeyManagementScreen';
+import DocumentationPortalScreen from '../screens/DocumentationPortalScreen';
+import IntegrationGuidesScreen from '../screens/IntegrationGuidesScreen';
 import { colors } from '../utils/constants';
 
 import { RootStackParamList, TabParamList } from './types';
@@ -113,6 +123,16 @@ const HomeStack = () => (
       options={{ title: 'Invoice Detail', headerShown: true }}
     />
     <Stack.Screen
+      name="GroupManagement"
+      component={GroupManagementScreen}
+      options={{ title: 'Groups', headerShown: true }}
+    />
+    <Stack.Screen
+      name="SupportDashboard"
+      component={SupportDashboardScreen}
+      options={{ title: 'Support', headerShown: true }}
+    />
+    <Stack.Screen
       name="UsageDashboard"
       component={UsageDashboardScreen}
       options={{ headerShown: false }}
@@ -156,7 +176,32 @@ const SettingsStack = () => (
     <Stack.Screen
       name="Import"
       component={ImportScreen}
-      options={{ title: 'Import', headerShown: true }}
+      options={{ title: 'Import Subscriptions', headerShown: true }}
+    />
+    <Stack.Screen
+      name="Export"
+      component={ExportScreen}
+      options={{ title: 'Export Subscriptions', headerShown: true }}
+    />
+    <Stack.Screen
+      name="Community"
+      component={CommunityScreen}
+      options={{ title: 'Community', headerShown: true }}
+    />
+    <Stack.Screen
+      name="Profile"
+      component={ProfileScreen}
+      options={{ title: 'Profile', headerShown: true }}
+    />
+    <Stack.Screen
+      name="GDPRSettings"
+      component={GDPRSettingsScreen}
+      options={{ title: 'Privacy Settings', headerShown: true }}
+    />
+    <Stack.Screen
+      name="LanguageSettings"
+      component={LanguageSettingsScreen}
+      options={{ title: 'Language', headerShown: true }}
     />
     <Stack.Screen
       name="Export"
@@ -192,6 +237,56 @@ const SettingsStack = () => (
       name="FraudDashboard"
       component={FraudDashboard}
       options={{ title: 'Fraud Dashboard', headerShown: true }}
+    />
+    <Stack.Screen
+      name="TaxSettings"
+      component={TaxSettingsScreen}
+      options={{ title: 'Tax Settings', headerShown: true }}
+    />
+    <Stack.Screen
+      name="SupportDashboard"
+      component={SupportDashboardScreen}
+      options={{ title: 'Support', headerShown: true }}
+    />
+    <Stack.Screen
+      name="GroupManagement"
+      component={GroupManagementScreen}
+      options={{ title: 'Groups', headerShown: true }}
+    />
+    <Stack.Screen
+      name="MerchantOnboarding"
+      component={MerchantOnboardingScreen}
+      options={{ title: 'Merchant Onboarding', headerShown: true }}
+    />
+    <Stack.Screen
+      name="AffiliateDashboard"
+      component={AffiliateDashboardScreen}
+      options={{ title: 'Affiliates', headerShown: true }}
+    />
+    <Stack.Screen
+      name="LoyaltyDashboard"
+      component={LoyaltyDashboardScreen}
+      options={{ title: 'Loyalty', headerShown: true }}
+    />
+    <Stack.Screen
+      name="CampaignManagement"
+      component={CampaignManagementScreen}
+      options={{ title: 'Campaigns', headerShown: true }}
+    />
+    <Stack.Screen
+      name="DeveloperPortal"
+      component={DeveloperPortalScreen}
+      options={{ title: 'Developer Portal', headerShown: true }}
+    />
+    <Stack.Screen
+      name="DocumentationPortal"
+      component={DocumentationPortalScreen}
+      options={{ title: 'API Documentation', headerShown: true }}
+    />
+    <Stack.Screen
+      name="ApiKeyManagement"
+      component={ApiKeyManagementScreen}
+      options={{ title: 'API Keys', headerShown: true }}
     />
   </Stack.Navigator>
 );
