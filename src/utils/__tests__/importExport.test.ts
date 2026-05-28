@@ -1,3 +1,60 @@
+import {
+  parseCSV,
+  detectFormat,
+  parseJSON,
+  validateImport,
+  processImport,
+  ImportData,
+  ImportMode,
+} from '../importExport';
+
+describe('importExport utilities', () => {
+  test('detectFormat identifies csv and json', () => {
+    const csv = 'name,price\nNetflix,9.99';
+    const json = JSON.stringify([{ id: '1', name: 'Netflix' }]);
+    expect(detectFormat(csv)).toBe('csv');
+    expect(detectFormat(json)).toBe('json');
+  });
+
+  test('parseCSV parses CSV rows', () => {
+    const csv = 'name,price,currency\nTest Service,12.5,USD\nOther,0,EUR';
+    const parsed = parseCSV(csv);
+    expect(parsed).toHaveLength(2);
+    expect(parsed[0].name).toBe('Test Service');
+    expect(parsed[0].price).toBeCloseTo(12.5);
+  });
+
+  test('validateImport finds missing required fields', () => {
+    const data: ImportData = {
+      subscriptions: [
+        { name: '', category: 'other', price: 10, currency: 'USD', billingCycle: 'monthly', nextBillingDate: '2026-01-01' },
+        { name: 'Valid', category: 'other', price: -5, currency: 'USD', billingCycle: 'monthly', nextBillingDate: 'invalid-date' },
+      ],
+      mode: 'create' as ImportMode,
+    };
+
+    const validation = validateImport(data);
+    expect(validation.isValid).toBe(false);
+    expect(validation.errors.length).toBeGreaterThan(0);
+  });
+
+  test('processImport creates and updates subscriptions correctly', () => {
+    const existing = [
+      { id: 'a', name: 'Existing', description: '', category: 'other', price: 5, currency: 'USD', billingCycle: 'monthly', nextBillingDate: '2026-05-01', isActive: true, notificationsEnabled: true, isCryptoEnabled: false, createdAt: new Date(), updatedAt: new Date() },
+    ];
+
+    const data: ImportData = {
+      subscriptions: [
+        { id: 'a', name: 'Existing', category: 'other', price: 7, currency: 'USD', billingCycle: 'monthly', nextBillingDate: '2026-06-01' },
+        { name: 'NewSub', category: 'other', price: 3.5, currency: 'USD', billingCycle: 'monthly', nextBillingDate: '2026-07-01' },
+      ],
+      mode: 'upsert' as ImportMode,
+    };
+
+    const result = processImport(data, existing as any);
+    expect(result.imported + result.updated).toBeGreaterThanOrEqual(2);
+  });
+});
 /**
  * Import/Export Tests
  */

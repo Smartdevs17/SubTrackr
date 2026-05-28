@@ -25,6 +25,7 @@ import {
   getCSVTemplate,
   getJSONTemplate,
   detectFormat,
+  CSV_COLUMN_MAPPING,
   ImportMode,
   ImportResult,
   ValidationResult,
@@ -45,6 +46,10 @@ const ImportScreen: React.FC = () => {
   const [showHistory, setShowHistory] = useState(false);
   const [importHistory, setImportHistory] = useState<ImportHistoryEntry[]>([]);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [showMappingModal, setShowMappingModal] = useState(false);
+  const [detectedHeaders, setDetectedHeaders] = useState<string[]>([]);
+  const [columnMapping, setColumnMapping] = useState<Record<string, keyof SubscriptionInput | ''>>({});
+  const [progress, setProgress] = useState<{ current: number; total: number; message?: string } | null>(null);
 
   const handleImport = useCallback(async () => {
     if (!importText.trim()) {
@@ -61,7 +66,19 @@ const ImportScreen: React.FC = () => {
       let parsedData: SubscriptionInput[];
 
       if (format === 'csv') {
-        parsedData = parseCSV(importText);
+        // Detect headers for optional mapping
+        const firstLine = importText.split(/\r?\n/).find((l) => l && l.trim());
+        if (firstLine) {
+          const rawHeaders = firstLine.split(',').map((h) => h.replace(/^\"|\"$/g, '').trim());
+          setDetectedHeaders(rawHeaders);
+        }
+
+        // If a mapping exists, transform CSV using mapping, else use parseCSV fallback
+        if (Object.keys(columnMapping).length > 0) {
+          parsedData = parseCSVWithMapping(importText, columnMapping);
+        } else {
+          parsedData = parseCSV(importText);
+        }
       } else if (format === 'json') {
         parsedData = parseJSON(importText);
       } else {
@@ -110,53 +127,149 @@ const ImportScreen: React.FC = () => {
     }
   }, [importText, importMode]);
 
+  // Simple CSV line parser (handles quoted fields)
+  function parseLine(line: string): string[] {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      if (char === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    result.push(current.trim());
+    return result;
+  }
+
+  function parseCSVWithMapping(content: string, mapping: Record<string, keyof SubscriptionInput | ''>): SubscriptionInput[] {
+    const lines = content.split(/\r?\n/).filter((l) => l.trim());
+    if (lines.length < 2) return [];
+    const rawHeaders = parseLine(lines[0]);
+    const headerIndex: Record<string, number> = {};
+    rawHeaders.forEach((h, i) => (headerIndex[h.toLowerCase()] = i));
+
+    const result: SubscriptionInput[] = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const values = parseLine(lines[i]);
+      if (values.every((v) => !v)) continue;
+
+      const row: Partial<SubscriptionInput> = {};
+
+      for (const raw of Object.keys(mapping)) {
+        const target = mapping[raw];
+        if (!target) continue;
+        const idx = headerIndex[raw.toLowerCase()];
+        const rawValue = typeof idx === 'number' && values[idx] ? values[idx] : '';
+        (row as any)[target] = rawValue;
+      }
+
+      // ensure required defaults
+      if (!row.name && values[0]) row.name = values[0];
+
+      // Cast numeric-ish fields
+      if (row.price !== undefined) row.price = Number(row.price as any) || 0;
+
+      if (row.nextBillingDate && typeof row.nextBillingDate !== 'string') {
+        row.nextBillingDate = String(row.nextBillingDate);
+      }
+
+      result.push(row as SubscriptionInput);
+    }
+
+    return result;
+  }
+
+  const openMappingModal = () => {
+    if (detectedHeaders.length === 0) {
+      Alert.alert('No headers detected', 'Please paste a CSV with headers first');
+      return;
+    }
+
+    const initial: Record<string, keyof SubscriptionInput | ''> = {};
+    detectedHeaders.forEach((h) => {
+      initial[h] = columnMapping[h] ?? '';
+    });
+    setColumnMapping(initial);
+    setShowMappingModal(true);
+  };
+
+  const cycleMappingFor = (header: string) => {
+    const options = ['','name','description','category','price','currency','billingCycle','nextBillingDate','isActive','notificationsEnabled','isCryptoEnabled','cryptoToken','cryptoAmount'] as (keyof SubscriptionInput | '')[];
+    const current = columnMapping[header] ?? '';
+    const idx = options.indexOf(current);
+    const next = options[(idx + 1) % options.length];
+    setColumnMapping((m) => ({ ...m, [header]: next }));
+  };
+
   const executeImport = async (parsedData: SubscriptionInput[]) => {
     setIsProcessing(true);
-
     try {
       const result = processImport({ subscriptions: parsedData, mode: importMode }, subscriptions);
 
       setImportResult(result);
 
-      // Apply the import
+      // Apply the import with progress and rollback support
       if (result.imported > 0 || result.updated > 0) {
-        for (const sub of parsedData) {
-          const existing = subscriptions.find(
-            (s) => s.name.toLowerCase() === sub.name.toLowerCase()
-          );
+        const snapshot = useSubscriptionStore.getState().subscriptions.map((s) => ({ ...s }));
+        let processed = 0;
+        try {
+          for (const sub of parsedData) {
+            setProgress({ current: processed + 1, total: parsedData.length, message: `Processing ${sub.name}` });
+            const existing = useSubscriptionStore.getState().subscriptions.find(
+              (s) => s.name.toLowerCase() === sub.name.toLowerCase()
+            );
 
-          if (existing) {
-            // Update existing
-            await updateSubscription(existing.id, {
-              name: sub.name,
-              description: sub.description,
-              category: sub.category as any,
-              price: sub.price,
-              currency: sub.currency,
-              billingCycle: sub.billingCycle as any,
-              nextBillingDate: new Date(sub.nextBillingDate),
-              isActive: sub.isActive ?? true,
-              notificationsEnabled: sub.notificationsEnabled ?? true,
-              isCryptoEnabled: sub.isCryptoEnabled ?? false,
-              cryptoToken: sub.cryptoToken,
-              cryptoAmount: sub.cryptoAmount,
-            });
-          } else {
-            // Add new
-            await addSubscription({
-              name: sub.name,
-              description: sub.description,
-              category: sub.category as any,
-              price: sub.price,
-              currency: sub.currency,
-              billingCycle: sub.billingCycle as any,
-              nextBillingDate: new Date(sub.nextBillingDate),
-              notificationsEnabled: sub.notificationsEnabled ?? true,
-              isCryptoEnabled: sub.isCryptoEnabled ?? false,
-              cryptoToken: sub.cryptoToken,
-              cryptoAmount: sub.cryptoAmount,
-            });
+            if (existing) {
+              await updateSubscription(existing.id, {
+                name: sub.name,
+                description: sub.description,
+                category: sub.category as any,
+                price: sub.price,
+                currency: sub.currency,
+                billingCycle: sub.billingCycle as any,
+                nextBillingDate: new Date(sub.nextBillingDate),
+                isActive: sub.isActive ?? true,
+                notificationsEnabled: sub.notificationsEnabled ?? true,
+                isCryptoEnabled: sub.isCryptoEnabled ?? false,
+                cryptoToken: sub.cryptoToken,
+                cryptoAmount: sub.cryptoAmount,
+              });
+            } else {
+              await addSubscription({
+                name: sub.name,
+                description: sub.description,
+                category: sub.category as any,
+                price: sub.price,
+                currency: sub.currency,
+                billingCycle: sub.billingCycle as any,
+                nextBillingDate: new Date(sub.nextBillingDate),
+                notificationsEnabled: sub.notificationsEnabled ?? true,
+                isCryptoEnabled: sub.isCryptoEnabled ?? false,
+                cryptoToken: sub.cryptoToken,
+                cryptoAmount: sub.cryptoAmount,
+              });
+            }
+            processed += 1;
+            setProgress({ current: processed, total: parsedData.length, message: `Processed ${processed}/${parsedData.length}` });
           }
+        } catch (applyErr) {
+          // Rollback to snapshot on failure
+          useSubscriptionStore.setState({ subscriptions: snapshot });
+          useSubscriptionStore.getState().calculateStats();
+          throw applyErr;
         }
       }
 
@@ -171,6 +284,7 @@ const ImportScreen: React.FC = () => {
       Alert.alert('Error', error instanceof Error ? error.message : 'Failed to complete import');
     } finally {
       setIsProcessing(false);
+      setProgress(null);
     }
   };
 
@@ -373,9 +487,14 @@ const ImportScreen: React.FC = () => {
         <Card style={styles.inputCard}>
           <View style={styles.inputHeader}>
             <Text style={styles.sectionTitle}>Import Data</Text>
-            <TouchableOpacity onPress={() => setShowTemplateModal(true)}>
-              <Text style={styles.templateLink}>Load Template</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity onPress={() => setShowTemplateModal(true)}>
+                <Text style={styles.templateLink}>Load Template</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => openMappingModal()}>
+                <Text style={styles.templateLink}>Map Columns</Text>
+              </TouchableOpacity>
+            </View>
           </View>
           <TextInput
             style={styles.textArea}
@@ -407,6 +526,14 @@ const ImportScreen: React.FC = () => {
           />
         </View>
 
+        {progress && (
+          <Card style={[styles.resultCard, { marginHorizontal: spacing.lg }]}> 
+            <Text style={styles.resultTitle}>Import Progress</Text>
+            <Text style={styles.resultLabel}>{progress.message}</Text>
+            <Text style={styles.resultValue}>{progress.current} / {progress.total}</Text>
+          </Card>
+        )}
+
         <TouchableOpacity style={styles.historyLink} onPress={loadHistory}>
           <Text style={styles.historyLinkText}>View Import History</Text>
         </TouchableOpacity>
@@ -414,6 +541,42 @@ const ImportScreen: React.FC = () => {
 
       {renderHistoryModal()}
       {renderTemplateModal()}
+      {/* Column mapping modal */}
+      <Modal
+        visible={showMappingModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowMappingModal(false)}>
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Map CSV Columns</Text>
+            <TouchableOpacity onPress={() => setShowMappingModal(false)}>
+              <Text style={styles.closeButton}>Close</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={{ padding: spacing.lg }}>
+            <Text style={styles.sectionTitle}>Detected Headers</Text>
+            <FlatList
+              data={detectedHeaders}
+              keyExtractor={(item) => item}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={{ padding: spacing.md, borderBottomWidth: 1, borderColor: colors.border }}
+                  onPress={() => cycleMappingFor(item)}>
+                  <Text style={typography.body}>{item}</Text>
+                  <Text style={[typography.caption, { color: colors.textSecondary }]}>Mapping: {String(columnMapping[item] || '(none)')}</Text>
+                </TouchableOpacity>
+              )}
+            />
+            <View style={{ marginTop: spacing.md }}>
+              <Button title="Apply Mapping" onPress={() => setShowMappingModal(false)} />
+            </View>
+            <View style={{ marginTop: spacing.sm }}>
+              <Text style={typography.caption}>Tap a header to cycle through target fields.</Text>
+            </View>
+          </View>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 };

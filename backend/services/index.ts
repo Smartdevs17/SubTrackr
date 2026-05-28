@@ -40,6 +40,7 @@ export {
   SubscriptionEventStore,
   subscriptionEventStore,
 } from './subscriptionEventStore';
+export { fetchStripeSubscriptions, fetchChargebeeSubscriptions } from './importService';
 export type {
   SubscriptionEvent,
   SubscriptionEventPage,
