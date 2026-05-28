@@ -92,6 +92,23 @@ Use error only for actual failures
 Avoid logging sensitive data (private keys, auth tokens)
 Use debug for internal state inspection only
 Keep logs structured (never plain strings only)
+
+### Log Aggregation
+The backend supports forwarding structured events to a centralized endpoint using `LOG_REMOTE_ENDPOINT`.
+Set `BACKEND_LOG_LEVEL` and `BACKEND_LOG_LEVELS` to tune verbosity globally or per module.
+
+### Queryable Log Buffer
+A local query API is available in backend services for dashboard-style filtering:
+```ts
+import { queryLogs } from '../backend/services/logging';
+const logs = queryLogs({
+  level: 'error',
+  module: 'backend:gdpr',
+  correlationId: 'corr-id-123',
+  text: 'export',
+});
+```
+
 Backend Logging Coverage
 
 Logging should be used in:

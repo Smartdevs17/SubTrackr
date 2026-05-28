@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 import { Framework, SFError } from '@superfluid-finance/sdk-core';
 
+import { logger } from './logging';
 import { ERC20__factory, getContractAddress } from '../contracts';
 import { getEvmRpcUrl } from '../config/evm';
 import {
@@ -161,7 +162,7 @@ function toWalletError(
 ): WalletError {
   errorTracker.record(code);
   // Log full detail for debugging without leaking to the user
-  console.error(`[WalletError] ${code}:`, error);
+  logger.error(`WalletError ${code}`, { error, code, userMessage, recovery });
   return new WalletError(code, userMessage, recovery, error);
 }
 
@@ -182,9 +183,9 @@ export class WalletServiceManager {
 
   async initialize(): Promise<void> {
     try {
-      console.log('WalletServiceManager initialized successfully');
+      logger.info('WalletServiceManager initialized successfully');
     } catch (error) {
-      console.error('Failed to initialize WalletServiceManager:', error);
+      logger.error('Failed to initialize WalletServiceManager', { error });
       throw error;
     }
   }
@@ -217,9 +218,9 @@ export class WalletServiceManager {
     try {
       this.connection = null;
       this.notifyListeners();
-      console.log('Wallet disconnected');
+      logger.info('Wallet disconnected');
     } catch (error) {
-      console.error('Failed to disconnect wallet:', error);
+      logger.error('Failed to disconnect wallet', { error });
       throw error;
     }
   }
@@ -263,7 +264,7 @@ export class WalletServiceManager {
             decimals: CRYPTO_CONSTANTS.USDC_DECIMALS,
           });
         } catch {
-          console.log('USDC not available on this chain');
+          logger.warn('USDC not available on this chain', { chainId });
         }
       }
 
@@ -318,7 +319,7 @@ export class WalletServiceManager {
             : CRYPTO_CONSTANTS.DEFAULT_GAS_BUFFER_MULTIPLIER;
         gasLimit = estimated.mul(bufferMultiplier).div(100);
       } catch (err) {
-        console.warn('Gas estimation failed, using safe fallback:', err);
+        logger.warn('Gas estimation failed, using safe fallback', { error: err });
         gasLimit = ethers.BigNumber.from(CRYPTO_CONSTANTS.FALLBACK_GAS_LIMIT);
       }
     }
@@ -628,8 +629,7 @@ export class WalletServiceManager {
           : CRYPTO_CONSTANTS.DEFAULT_GAS_BUFFER_MULTIPLIER;
       gasLimit = estimated.mul(bufferMultiplier).div(100);
     } catch (err) {
-      console.warn('Approve gas estimation failed, using fallback:', err);
-      gasLimit = ethers.BigNumber.from(CRYPTO_CONSTANTS.FALLBACK_GAS_LIMIT);
+      logger.warn('Approve gas estimation failed, using fallback', { error: err });
     }
 
     const estimatedCost = gasPrice.mul(gasLimit);

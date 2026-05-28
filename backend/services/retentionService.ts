@@ -274,7 +274,11 @@ function triggerWinBackCampaign(record: CancellationRecord): void {
   const delayMs = new Date(record.coolOffEndsAt).getTime() - Date.now();
   setTimeout(() => {
     // In production: call campaignService.createWinBackCampaign(record)
-    console.log(`[RetentionService] Win-back campaign triggered for user ${record.userId}, sub ${record.subscriptionId}`);
+    logger.info('Win-back campaign triggered', {
+      userId: record.userId,
+      subscriptionId: record.subscriptionId,
+      coolOffEndsAt: record.coolOffEndsAt,
+    });
   }, Math.max(0, delayMs));
 }
 

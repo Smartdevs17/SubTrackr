@@ -15,6 +15,8 @@ export interface NotificationPreferences {
   };
 }
 
+import { logger } from '../logging';
+
 export class NotificationPreferenceService {
   async getPreferences(userId: string): Promise<NotificationPreferences | null> {
     // Mock database fetch
@@ -23,7 +25,7 @@ export class NotificationPreferenceService {
 
   async updatePreferences(userId: string, prefs: Partial<NotificationPreferences>): Promise<boolean> {
     // Cross-device synchronization logic
-    console.log(`Updated preferences for user ${userId}`);
+    logger.info('Updated notification preferences for user', { userId, prefs });
     return true;
   }
 
