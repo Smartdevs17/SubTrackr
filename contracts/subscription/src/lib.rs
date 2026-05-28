@@ -1475,3 +1475,185 @@ impl SubTrackrSubscription {
         payment_methods::deactivate_expired_methods(&env, &user)
     }
 }
+
+//  Proration & Plan Changes 
+
+/// Preview proration before confirming a plan change
+pub fn preview_proration(
+    env: Env,
+    proxy: Address,
+    storage: Address,
+    subscription_id: u64,
+    new_plan_id: u64,
+    effective_date: u64, // 0 = Immediate, 1 = EndOfPeriod
+) -> ProrationResult {
+    proxy.require_auth();
+    
+    let sub: Subscription = storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
+        .expect("Subscription not found");
+    
+    let old_plan: Plan = storage_persistent_get(&env, &storage, StorageKey::Plan(sub.plan_id))
+        .expect("Old plan not found");
+    let new_plan: Plan = storage_persistent_get(&env, &storage, StorageKey::Plan(new_plan_id))
+        .expect("New plan not found");
+    
+    let effective = if effective_date == 0 {
+        EffectiveDate::Immediate
+    } else {
+        EffectiveDate::EndOfPeriod
+    };
+    
+    proration::preview_proration(&env, &sub, old_plan.price, new_plan.price, effective)
+}
+
+/// Execute a plan change with proration
+pub fn change_plan(
+    env: Env,
+    proxy: Address,
+    storage: Address,
+    subscriber: Address,
+    subscription_id: u64,
+    new_plan_id: u64,
+    effective_date: u64,
+) {
+    proxy.require_auth();
+    subscriber.require_auth();
+    
+    let mut sub: Subscription = storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
+        .expect("Subscription not found");
+    
+    assert!(sub.subscriber == subscriber, "Only subscriber can change plan");
+    assert!(
+        sub.status == SubscriptionStatus::Active || sub.status == SubscriptionStatus::Paused,
+        "Subscription must be active to change plan"
+    );
+    
+    let old_plan: Plan = storage_persistent_get(&env, &storage, StorageKey::Plan(sub.plan_id))
+        .expect("Old plan not found");
+    let new_plan: Plan = storage_persistent_get(&env, &storage, StorageKey::Plan(new_plan_id))
+        .expect("New plan not found");
+    
+    assert!(new_plan.active, "New plan is not active");
+    
+    let effective = if effective_date == 0 {
+        EffectiveDate::Immediate
+    } else {
+        EffectiveDate::EndOfPeriod
+    };
+    
+    let proration_result = proration::calculate_proration(&env, &sub, old_plan.price, new_plan.price, effective);
+    
+    // Handle proration payment or credit
+    if proration_result.amount > 0 {
+        if proration_result.is_credit {
+            // Generate credit memo for downgrade
+            let memo = proration::generate_credit_memo(
+                &env,
+                subscription_id,
+                proration_result.amount,
+                proration_result.description.clone(),
+            );
+            // Store credit memo
+            storage_persistent_set(
+                &env,
+                &storage,
+                StorageKey::CreditMemo(subscription_id),
+                memo,
+            );
+        } else {
+            // Charge prorated amount for upgrade
+            token::Client::new(&env, &new_plan.token).transfer(
+                &subscriber,
+                &new_plan.merchant,
+                &proration_result.amount,
+            );
+        }
+    }
+    
+    // Update subscription
+    let now = env.ledger().timestamp();
+    
+    if effective == EffectiveDate::Immediate {
+        // Reset billing cycle from now
+        sub.last_charged_at = now;
+        sub.next_charge_at = now + new_plan.interval.seconds();
+    }
+    // For EndOfPeriod, keep current billing dates
+    
+    sub.plan_id = new_plan_id;
+    sub.total_paid += if proration_result.is_credit { 0 } else { proration_result.amount };
+    
+    storage_persistent_set(
+        &env,
+        &storage,
+        StorageKey::Subscription(subscription_id),
+        sub.clone(),
+    );
+    
+    // Update user plan index
+    remove_user_plan_index(&env, &storage, &subscriber, old_plan.id);
+    set_user_plan_index(&env, &storage, &subscriber, new_plan_id, subscription_id);
+    
+    // Update plan subscriber counts
+    let mut old_plan_mut = old_plan.clone();
+    if old_plan_mut.subscriber_count > 0 {
+        old_plan_mut.subscriber_count -= 1;
+    }
+    storage_persistent_set(&env, &storage, StorageKey::Plan(old_plan.id), old_plan_mut);
+    
+    let mut new_plan_mut = new_plan.clone();
+    new_plan_mut.subscriber_count += 1;
+    storage_persistent_set(&env, &storage, StorageKey::Plan(new_plan_id), new_plan_mut);
+    
+    env.events().publish(
+        (
+            String::from_str(&env, "plan_changed"),
+            subscription_id,
+        ),
+        (
+            subscriber,
+            old_plan.id,
+            new_plan_id,
+            proration_result.amount,
+            proration_result.is_credit,
+        ),
+    );
+}
+
+/// Get stored credit memo for a subscription
+pub fn get_credit_memo(
+    env: Env,
+    proxy: Address,
+    storage: Address,
+    subscription_id: u64,
+) -> Option<CreditMemo> {
+    proxy.require_auth();
+    storage_persistent_get(&env, &storage, StorageKey::CreditMemo(subscription_id))
+}
+
+/// Apply credit memo to next charge
+pub fn apply_credit_memo_to_charge(
+    env: Env,
+    proxy: Address,
+    storage: Address,
+    subscription_id: u64,
+) -> i128 {
+    proxy.require_auth();
+    
+    let mut sub: Subscription = storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
+        .expect("Subscription not found");
+    
+    let mut memo: CreditMemo = storage_persistent_get(&env, &storage, StorageKey::CreditMemo(subscription_id))
+        .expect("No credit memo found");
+    
+    let plan: Plan = storage_persistent_get(&env, &storage, StorageKey::Plan(sub.plan_id))
+        .expect("Plan not found");
+    
+    let charge_price = Self::resolve_charge_price(&env, &storage, &plan);
+    let final_charge = proration::apply_credit_memo(charge_price, &mut memo);
+    
+    // Update stored memo
+    storage_persistent_set(&env, &storage, StorageKey::CreditMemo(subscription_id), memo);
+    
+    final_charge
+}
