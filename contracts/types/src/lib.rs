@@ -287,6 +287,60 @@ pub struct FraudReport {
     pub recent_cases: Vec<FraudCase>,
 }
 
+// ── Loyalty & Rewards types ──
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum PointTxType {
+    Earned,
+    Redeemed,
+    Expired,
+    ReferralBonus,
+    StreakBonus,
+    Achievement,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct LoyaltyTierConfig {
+    pub name: String,
+    pub points_threshold: u64,
+    pub discount_rate_bps: u32,
+    pub priority_support: bool,
+    pub reduced_fees_bps: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct LoyaltyConfig {
+    pub points_per_dollar: u64,
+    pub expiration_days: u64,
+    pub tiers: Vec<LoyaltyTierConfig>,
+    pub streak_bonus_threshold: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PointTransaction {
+    pub id: u64,
+    pub subscriber: Address,
+    pub amount: i128,
+    pub tx_type: PointTxType,
+    pub timestamp: u64,
+    pub reference_id: u64,
+    pub description: String,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct RewardsRedemption {
+    pub id: u64,
+    pub subscriber: Address,
+    pub points_cost: u64,
+    pub discount_amount: i128,
+    pub timestamp: u64,
+}
+
 /// Storage keys for the proxy contract state.
 ///
 /// IMPORTANT: Never reorder existing variants. Append new variants only.
@@ -360,4 +414,30 @@ pub enum StorageKey {
     PlanQuotas(u64),
     /// Usage record for a subscription and metric (sub_id, metric -> UsageRecord)
     SubscriptionUsage(u64, QuotaMetric),
+
+    // ── Added in storage version 5 (Loyalty & Rewards) ──
+    /// Global loyalty program config.
+    LoyaltyConfig,
+    /// Current points balance for a subscriber.
+    LoyaltyPoints(Address),
+    /// Lifetime points earned for a subscriber.
+    LifetimePoints(Address),
+    /// Total amount spent by a subscriber.
+    TotalSpent(Address),
+    /// When the subscriber enrolled in the loyalty program.
+    MemberSince(Address),
+    /// Current consecutive on-time charge streak.
+    Streak(Address),
+    /// Timestamp of the last charge processed (for streak calculation).
+    LastChargeAt(Address),
+    /// When the subscriber's current points balance expires.
+    PointsExpiration(Address),
+    /// Counter for point transaction IDs.
+    PointTxCount,
+    /// Individual point transaction record.
+    PointTx(u64),
+    /// Counter for redemption IDs.
+    RedemptionCount,
+    /// Individual redemption record.
+    Redemption(u64),
 }
