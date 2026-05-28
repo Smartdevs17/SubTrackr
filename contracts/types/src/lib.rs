@@ -329,6 +329,71 @@ pub struct UpgradeEvent {
 
 pub type SubscriptionId = u64;
 pub type MerchantId = Address;
+pub type PaymentMethodId = u64;
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum TokenType {
+    XLM,
+    USDC,
+    ETH,
+    Native,
+    MATIC,
+    ARB,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum PaymentPriority {
+    Primary,
+    Backup,
+    Fallback,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PaymentMethod {
+    pub id: PaymentMethodId,
+    pub user: Address,
+    pub token_type: TokenType,
+    pub token_address: Address,
+    pub chain_id: u64,
+    pub label: String,
+    pub priority: PaymentPriority,
+    pub max_spend_per_interval: i128,
+    pub is_verified: bool,
+    pub is_active: bool,
+    pub expires_at: u64,
+    pub last_used_at: u64,
+    pub created_at: u64,
+    pub updated_at: u64,
+    pub metadata: Vec<(String, String)>,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum PaymentAttemptStatus {
+    Pending,
+    Success,
+    Failed,
+    FallbackTriggered,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PaymentAttempt {
+    pub id: u64,
+    pub payment_method_id: PaymentMethodId,
+    pub subscription_id: u64,
+    pub amount: i128,
+    pub token_type: TokenType,
+    pub status: PaymentAttemptStatus,
+    pub failure_reason: String,
+    pub gas_price: i128,
+    pub gas_used: u64,
+    pub attempted_at: u64,
+    pub resolved_at: u64,
+}
 
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
@@ -540,18 +605,23 @@ pub enum StorageKey {
     /// Usage record for a subscription and metric (sub_id, metric -> UsageRecord)
     SubscriptionUsage(u64, QuotaMetric),
 
-    // ── Added in storage version 5 (Tax System) ──
-    TaxJurisdiction(String),
-    TaxExemption(u64),
-    TaxExemptionCount,
-    CustomerTaxExemption(Address),
-    TaxRecord(u64),
-    TaxRecordCount,
-    TaxRecordByJurisdiction(String),
-    TaxRemittanceReport(u64),
-    TaxRemittanceReportCount,
-    TaxRemittanceReportByJdx(String),
-    TaxRateChangeLog(u64),
-    TaxRateChangeLogCount,
-    NexusRegion(String),
+    // ── Added in storage version 5 (Oracle Integration) ──
+    /// Address of the oracle contract for price feeds.
+    OracleContract,
+    /// Price bounds for slippage protection, keyed by plan_id.
+    PriceBounds(u64),
+    /// Mapping from token address to symbol name (for oracle lookups).
+    TokenSymbol(Address),
+}
+
+/// Slippage protection bounds for oracle-based pricing.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PriceBounds {
+    /// Maximum allowed price as basis points of the stored plan price (e.g. 10500 = +5%).
+    pub max_price_bps: u32,
+    /// Minimum allowed price as basis points of the stored plan price (e.g. 9500 = -5%).
+    pub min_price_bps: u32,
+    /// Quote currency symbol used for price lookup (e.g. "USD").
+    pub quote: String,
 }

@@ -20,6 +20,7 @@ export interface RegisterWebhookInput {
   events: WebhookEventType[];
   secretKey: string;
   retryPolicy?: Partial<WebhookRetryPolicy>;
+  rateLimitPerMinute?: number;
   isPaused?: boolean;
 }
 
@@ -94,6 +95,7 @@ export class WebhookDeliveryService {
   private readonly webhooks = new Map<string, WebhookConfig>();
   private readonly deliveries = new Map<string, WebhookDelivery>();
   private readonly deliveredKeys = new Set<string>();
+  private readonly rateLimitWindows = new Map<string, number[]>();
 
   constructor(options: { fetchImpl?: FetchLike; sleepImpl?: (ms: number) => Promise<void> } = {}) {
     this.fetchImpl = options.fetchImpl ?? fetch;
@@ -110,6 +112,7 @@ export class WebhookDeliveryService {
       events: [...input.events],
       secretKey: input.secretKey,
       retryPolicy: clampRetryPolicy(input.retryPolicy),
+      rateLimitPerMinute: input.rateLimitPerMinute,
       isPaused: input.isPaused ?? false,
       createdAt,
       updatedAt: createdAt,
@@ -136,6 +139,7 @@ export class WebhookDeliveryService {
       events: input.events ? [...input.events] : existing.events,
       secretKey: input.secretKey ?? existing.secretKey,
       retryPolicy: clampRetryPolicy(input.retryPolicy ?? existing.retryPolicy),
+      rateLimitPerMinute: input.rateLimitPerMinute ?? existing.rateLimitPerMinute,
       isPaused: input.isPaused ?? existing.isPaused,
       updatedAt: now(),
     };
@@ -193,6 +197,9 @@ export class WebhookDeliveryService {
     const avgAttempts = totalDeliveries
       ? deliveries.reduce((sum, d) => sum + d.attempts, 0) / totalDeliveries
       : 0;
+    const latencySamples = deliveries
+      .map((delivery) => delivery.latencyMs)
+      .filter((latency): latency is number => typeof latency === 'number');
 
     return {
       webhookId,
@@ -203,6 +210,9 @@ export class WebhookDeliveryService {
       pendingDeliveries,
       successRate: totalDeliveries ? successfulDeliveries / totalDeliveries : 0,
       avgAttempts,
+      avgLatencyMs: latencySamples.length
+        ? latencySamples.reduce((sum, latency) => sum + latency, 0) / latencySamples.length
+        : 0,
       lastSuccessAt: deliveries
         .filter((delivery) => delivery.status === 'delivered' && delivery.deliveredAt)
         .map((delivery) => delivery.deliveredAt as number)
@@ -265,6 +275,28 @@ export class WebhookDeliveryService {
         updatedAt: now(),
         signature,
         idempotencyKey,
+      };
+      this.deliveries.set(delivery.id, delivery);
+      return { delivery };
+    }
+
+    if (this.isRateLimited(webhook)) {
+      const delivery: WebhookDelivery = {
+        id: createId('del'),
+        webhookId: webhook.id,
+        eventId: payload.id,
+        eventType: payload.eventType,
+        url: webhook.url,
+        payload,
+        status: 'retrying',
+        attempts: 0,
+        maxAttempts: webhook.retryPolicy.maxRetries,
+        createdAt: now(),
+        updatedAt: now(),
+        signature,
+        idempotencyKey,
+        errorMessage: 'Webhook endpoint rate limited',
+        nextRetryAt: now() + 60_000,
       };
       this.deliveries.set(delivery.id, delivery);
       return { delivery };
@@ -375,6 +407,7 @@ export class WebhookDeliveryService {
             status: 'delivered',
             responseCode: response.status,
             deliveredAt: now(),
+            latencyMs: now() - attemptAt,
           },
           response
         );
@@ -441,6 +474,21 @@ export class WebhookDeliveryService {
     const factor = policy.backoffFactor ?? DEFAULT_RETRY_POLICY.backoffFactor ?? 2;
     const rawDelay = Math.floor(policy.initialDelayMs * Math.pow(factor, Math.max(0, attempt - 1)));
     return Math.min(rawDelay, policy.maxDelayMs);
+  }
+
+  private isRateLimited(webhook: WebhookConfig): boolean {
+    if (!webhook.rateLimitPerMinute || webhook.rateLimitPerMinute <= 0) return false;
+    const windowStart = now() - 60_000;
+    const current = (this.rateLimitWindows.get(webhook.id) ?? []).filter(
+      (timestamp) => timestamp >= windowStart
+    );
+    if (current.length >= webhook.rateLimitPerMinute) {
+      this.rateLimitWindows.set(webhook.id, current);
+      return true;
+    }
+    current.push(now());
+    this.rateLimitWindows.set(webhook.id, current);
+    return false;
   }
 }
 
