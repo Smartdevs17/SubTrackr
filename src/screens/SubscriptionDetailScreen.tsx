@@ -102,7 +102,7 @@ const SubscriptionDetailScreen: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} testID="subscription-detail-screen">
       <ScreenTransition type="slide" duration={400}>
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
           {/* Header */}
@@ -278,6 +278,7 @@ const SubscriptionDetailScreen: React.FC = () => {
               onPress={handlePauseResume}
               variant="secondary"
               style={styles.actionButton}
+              testID="pause-resume-subscription-button"
             />
 
             <Button
@@ -285,6 +286,7 @@ const SubscriptionDetailScreen: React.FC = () => {
               variant="danger"
               onPress={handleStartCancellation}
               style={styles.cancelButton}
+              testID="cancel-subscription-button"
             />
           </View>
         </ScrollView>
