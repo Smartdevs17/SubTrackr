@@ -1,3 +1,24 @@
+// ── API Response Envelope (Issue #401) ──────────────────────────────────────
+export {
+  ok,
+  fail,
+  fromError,
+  buildMeta,
+  ERROR_HTTP_STATUS_MAP,
+  API_VERSION_HEADER,
+  API_VERSION_VALUE,
+  REQUEST_ID_HEADER,
+} from './apiResponse';
+export type {
+  ApiResponse,
+  ApiSuccessResponse,
+  ApiErrorResponse,
+  ApiError,
+  ErrorCode,
+  ResponseMeta,
+  PaginationMeta,
+} from './apiResponse';
+
 export { AuditService } from './auditService';
 export { CampaignService } from './campaignService';
 export { DunningService, dunningService } from './dunningService';
