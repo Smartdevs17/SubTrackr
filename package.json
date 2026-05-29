@@ -64,7 +64,7 @@
     "expo-application": "~6.1.5",
     "expo-clipboard": "~7.1.5",
     "expo-notifications": "^0.31.5",
-    "expo-status-bar": "~2.2.3",
+    "expo-status-bar": "~56.0.4",
     "graphql": "^16.13.2",
     "i18next": "^26.0.8",
     "react": "19.2.5",
