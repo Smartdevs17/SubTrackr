@@ -3,6 +3,9 @@
 use soroban_sdk::{Address, Env, Val};
 use subtrackr_types::StorageKey;
 
+#[cfg(test)]
+mod transient_storage_tests;
+
 fn is_initialized(env: &Env) -> bool {
     env.storage().instance().has(&StorageKey::Admin)
 }
@@ -111,5 +114,48 @@ impl SubTrackrStorage {
     pub fn persistent_remove(env: Env, key: StorageKey) {
         require_implementation_auth(&env);
         env.storage().persistent().remove(&key);
+    }
+
+    // ── Temporary (transient) storage bridge ──
+    //
+    // Temporary storage entries auto-expire after the TTL set at write time.
+    // They cost less than persistent storage and are ideal for short-lived
+    // computation state such as rate-limit timestamps and charge nonces.
+    //
+    // Reads are public (same as instance/persistent reads above).
+    // Writes are restricted to the authorised implementation contract.
+
+    /// Read a value from temporary storage.  Returns None if the key has
+    /// expired or was never written.
+    pub fn temporary_get(env: Env, key: StorageKey) -> Option<Val> {
+        env.storage().temporary().get(&key)
+    }
+
+    /// Write a value to temporary storage with an explicit TTL (in ledgers).
+    ///
+    /// `ttl_ledgers` is the number of ledger closes after which the entry
+    /// expires automatically.  Pass 0 to use the minimum TTL (1 ledger).
+    pub fn temporary_set(env: Env, key: StorageKey, value: Val, ttl_ledgers: u32) {
+        require_implementation_auth(&env);
+        let effective_ttl = if ttl_ledgers == 0 { 1 } else { ttl_ledgers };
+        env.storage().temporary().set(&key, &value);
+        env.storage()
+            .temporary()
+            .extend_ttl(&key, effective_ttl, effective_ttl);
+    }
+
+    /// Remove a value from temporary storage before it expires naturally.
+    pub fn temporary_remove(env: Env, key: StorageKey) {
+        require_implementation_auth(&env);
+        env.storage().temporary().remove(&key);
+    }
+
+    /// Extend the TTL of an existing temporary entry without changing its value.
+    /// Useful when a rate-limit window is refreshed mid-interval.
+    pub fn temporary_extend_ttl(env: Env, key: StorageKey, threshold: u32, extend_to: u32) {
+        require_implementation_auth(&env);
+        env.storage()
+            .temporary()
+            .extend_ttl(&key, threshold, extend_to);
     }
 }

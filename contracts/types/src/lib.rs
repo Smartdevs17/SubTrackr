@@ -595,7 +595,6 @@ pub struct TaxRemittanceLineItem {
     pub currency: String,
 }
 
-
 // ── Storage Keys ──
 /// Storage keys for the proxy contract state.
 ///
@@ -681,6 +680,26 @@ pub enum StorageKey {
     PriceBounds(u64),
     /// Mapping from token address to symbol name (for oracle lookups).
     TokenSymbol(Address),
+
+    // ── Added in storage version 6 (Transient / Temporary storage) ──
+    //
+    // Keys in this block are stored with env.storage().temporary() so they
+    // auto-expire after a TTL and cost less than persistent storage.
+    //
+    // IMPORTANT: Never use these keys with instance or persistent storage.
+    // The naming prefix "Tmp" makes the intent explicit at the call site.
+    /// Temporary rate-limit timestamp: last time `caller` invoked `function`.
+    /// TTL is set to the configured min_interval_secs for that function.
+    /// Replaces the previous StorageKey::LastCall which used instance storage.
+    TmpLastCall(Address, String),
+
+    /// Temporary computation scratch-pad for a pending plan-change proration.
+    /// Keyed by subscription_id; expires after one billing interval.
+    TmpProrationScratch(u64),
+
+    /// Temporary nonce used to deduplicate rapid charge attempts within a
+    /// single ledger sequence window.  Expires after one ledger close (~5 s).
+    TmpChargeNonce(u64),
 }
 
 /// Slippage protection bounds for oracle-based pricing.
