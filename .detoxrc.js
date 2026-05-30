@@ -7,6 +7,7 @@ module.exports = {
     args: {
       $0: 'jest',
       config: 'e2e/jest.config.js',
+      maxWorkers: process.env.E2E_MAX_WORKERS || 1,
     },
     jest: {
       setupTimeout: 120000,
@@ -81,6 +82,15 @@ module.exports = {
     'android.emu.release': {
       device: 'emulator',
       app: 'android.release',
+    },
+  },
+  behavior: {
+    init: {
+      exposeGlobals: true,
+      reinstallApp: true,
+    },
+    cleanup: {
+      shutdownDevice: false,
     },
   },
   artifacts: {

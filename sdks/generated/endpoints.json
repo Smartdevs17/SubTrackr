@@ -1,0 +1,91 @@
+{
+  "source": "docs/openapi.yaml",
+  "generatedBy": "scripts/generate-sdks.js",
+  "endpoints": [
+    {
+      "path": "/initialize",
+      "method": "POST",
+      "operation": "initialize"
+    },
+    {
+      "path": "/create_plan",
+      "method": "POST",
+      "operation": "createPlan"
+    },
+    {
+      "path": "/deactivate_plan",
+      "method": "POST",
+      "operation": "deactivatePlan"
+    },
+    {
+      "path": "/subscribe",
+      "method": "POST",
+      "operation": "subscribe"
+    },
+    {
+      "path": "/cancel_subscription",
+      "method": "POST",
+      "operation": "cancelSubscription"
+    },
+    {
+      "path": "/pause_subscription",
+      "method": "POST",
+      "operation": "pauseSubscription"
+    },
+    {
+      "path": "/resume_subscription",
+      "method": "POST",
+      "operation": "resumeSubscription"
+    },
+    {
+      "path": "/charge_subscription",
+      "method": "POST",
+      "operation": "chargeSubscription"
+    },
+    {
+      "path": "/request_refund",
+      "method": "POST",
+      "operation": "requestRefund"
+    },
+    {
+      "path": "/approve_refund",
+      "method": "POST",
+      "operation": "approveRefund"
+    },
+    {
+      "path": "/reject_refund",
+      "method": "POST",
+      "operation": "rejectRefund"
+    },
+    {
+      "path": "/get_plan",
+      "method": "POST",
+      "operation": "getPlan"
+    },
+    {
+      "path": "/get_subscription",
+      "method": "POST",
+      "operation": "getSubscription"
+    },
+    {
+      "path": "/get_user_subscriptions",
+      "method": "POST",
+      "operation": "getUserSubscriptions"
+    },
+    {
+      "path": "/get_merchant_plans",
+      "method": "POST",
+      "operation": "getMerchantPlans"
+    },
+    {
+      "path": "/get_plan_count",
+      "method": "POST",
+      "operation": "getPlanCount"
+    },
+    {
+      "path": "/get_subscription_count",
+      "method": "POST",
+      "operation": "getSubscriptionCount"
+    }
+  ]
+}

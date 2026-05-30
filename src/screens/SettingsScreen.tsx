@@ -1,16 +1,22 @@
 import React, { useState } from 'react';
-import { View, Text, Switch, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, Switch, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../navigation/types';
+
+type SettingsNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export const SettingsScreen = () => {
+  const navigation = useNavigation<SettingsNavigationProp>();
   const [pushEnabled, setPushEnabled] = useState(true);
   const [emailEnabled, setEmailEnabled] = useState(false);
   const [smsEnabled, setSmsEnabled] = useState(false);
   const [quietHoursEnabled, setQuietHoursEnabled] = useState(false);
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} testID="settings-screen">
       <Text style={styles.header}>Notification Preferences</Text>
-      
+
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Delivery Channels</Text>
         <View style={styles.row}>
@@ -34,6 +40,18 @@ export const SettingsScreen = () => {
           <Switch value={quietHoursEnabled} onValueChange={setQuietHoursEnabled} />
         </View>
       </View>
+
+      {__DEV__ && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Developer</Text>
+          <TouchableOpacity
+            style={styles.debugButton}
+            testID="performance-dashboard-link"
+            onPress={() => navigation.navigate('PerformanceDashboard')}>
+            <Text style={styles.debugButtonText}>Performance Dashboard</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </ScrollView>
   );
 };
@@ -43,5 +61,17 @@ const styles = StyleSheet.create({
   header: { fontSize: 24, fontWeight: 'bold', marginBottom: 20 },
   section: { marginBottom: 24 },
   sectionTitle: { fontSize: 18, fontWeight: '600', marginBottom: 12 },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  debugButton: {
+    backgroundColor: '#111827',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  debugButtonText: { color: '#fff', fontWeight: '700' },
 });
