@@ -1,6 +1,13 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Text } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import {
+  NavigationContainer,
+  LinkingOptions,
+  getStateFromPath,
+  NavigationState,
+  PartialState,
+  Route,
+} from '@react-navigation/native';
 import { navigationRef } from './navigationRef';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -49,11 +56,166 @@ import DocumentationPortalScreen from '../screens/DocumentationPortalScreen';
 import IntegrationGuidesScreen from '../screens/IntegrationGuidesScreen';
 import PerformanceDashboardScreen from '../screens/PerformanceDashboardScreen';
 import { colors } from '../utils/constants';
+import { useUserStore } from '../store/userStore';
+import { FeatureId } from '../types/feature';
+import { featureFlagsService } from '../services/featureFlags';
 
 import { RootStackParamList, TabParamList } from './types';
+import type { SubscriptionTier } from '../types/subscription';
 
 const Tab = createBottomTabNavigator<TabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
+
+const routeFeatureMap: Partial<Record<keyof RootStackParamList, FeatureId>> = {
+  CryptoPayment: FeatureId.CRYPTO_INTEGRATION,
+  Analytics: FeatureId.ADVANCED_ANALYTICS,
+  Export: FeatureId.EXPORT_DATA,
+  DeveloperPortal: FeatureId.DEVELOPER_PORTAL,
+  SandboxDashboard: FeatureId.SANDBOX_ACCESS,
+  ApiKeyManagement: FeatureId.API_ACCESS,
+};
+
+const authRequiredRoutes: Set<keyof RootStackParamList> = new Set([
+  'Profile',
+  'AdminDashboard',
+  'ApiKeyManagement',
+  'DeveloperPortal',
+  'SandboxDashboard',
+  'MerchantOnboarding',
+  'AffiliateDashboard',
+  'LoyaltyDashboard',
+  'CampaignManagement',
+]);
+
+const requiredParamsByRoute: Partial<Record<keyof RootStackParamList, string[]>> = {
+  SubscriptionDetail: ['id'],
+  CancellationFlow: ['subscriptionId'],
+  InvoiceDetail: ['id'],
+  SegmentDetail: ['segmentId'],
+};
+
+const getActiveRoute = (
+  route: Route<string, object | undefined> | undefined
+): Route<string, object | undefined> | undefined => {
+  if (!route || !('state' in route) || !route.state || !Array.isArray(route.state.routes)) {
+    return route;
+  }
+
+  const nested = route.state.routes[route.state.index ?? 0] as Route<string, object | undefined>;
+  return getActiveRoute(nested);
+};
+
+const hasValidRequiredParams = (route: Route<string, object | undefined> | undefined): boolean => {
+  if (!route) return false;
+  const expected = requiredParamsByRoute[route.name as keyof RootStackParamList];
+  if (!expected) return true;
+
+  const params = route.params as Record<string, unknown> | undefined;
+  return expected.every((key) => typeof params?.[key] === 'string' && params?.[key]);
+};
+
+const getStateFromPathSafe = (path: string, options?: any) => {
+  const state = getStateFromPath(path, options);
+  if (!state || !state.routes?.length) return undefined;
+
+  const activeRoute = getActiveRoute(state.routes[state.index ?? 0] as Route<string, object | undefined>);
+  if (!hasValidRequiredParams(activeRoute)) return undefined;
+
+  return state;
+};
+
+const isRouteAllowed = (
+  route: Route<string, object | undefined> | undefined,
+  isAuthenticated: boolean,
+  subscriptionTier: SubscriptionTier
+): boolean => {
+  if (!route) return false;
+
+  if (authRequiredRoutes.has(route.name as keyof RootStackParamList) && !isAuthenticated) {
+    return false;
+  }
+
+  const featureId = routeFeatureMap[route.name as keyof RootStackParamList];
+  if (featureId) {
+    const feature = featureFlagsService.getFeature(featureId);
+    if (!feature || !feature.enabled) {
+      return false;
+    }
+
+    if (!feature.tierAccess.includes(subscriptionTier)) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
+const linking: LinkingOptions<TabParamList> = {
+  prefixes: ['subtrackr://', 'https://subtrackr.app'],
+  config: {
+    screens: {
+      HomeTab: {
+        path: '',
+        screens: {
+          Home: 'home',
+          AddSubscription: 'subscriptions/add',
+          SubscriptionDetail: 'subscriptions/:id',
+          CancellationFlow: 'subscriptions/:subscriptionId/cancel',
+          WalletConnect: 'wallet/connect',
+          CryptoPayment: 'crypto-payment/:subscriptionId?',
+          Community: 'community',
+          Profile: 'profile/:subscriber?',
+          Analytics: 'analytics',
+          SlaDashboard: 'sla',
+          InvoiceList: 'invoices',
+          InvoiceDetail: 'invoices/:id',
+          GDPRSettings: 'settings/privacy',
+          LanguageSettings: 'settings/language',
+          ErrorDashboard: 'errors',
+          SegmentManagement: 'segments',
+          SegmentDetail: 'segments/:segmentId',
+          Gamification: 'gamification',
+          FraudDashboard: 'fraud',
+          GroupManagement: 'groups',
+          SupportDashboard: 'support',
+          UsageDashboard: 'usage/:subscriptionId?/:planId?/:name?',
+          DeveloperPortal: 'developer',
+          SandboxDashboard: 'sandbox',
+          ApiKeyManagement: 'api-keys',
+          DocumentationPortal: 'docs',
+          IntegrationGuides: 'integration-guides',
+        },
+      },
+      AddTab: 'add',
+      WalletTab: 'wallet',
+      AnalyticsTab: 'analytics',
+      RevenueTab: 'revenue',
+      SettingsTab: {
+        path: 'settings',
+        screens: {
+          Settings: '',
+          CalendarIntegration: 'calendar',
+          WebhookSettings: 'webhooks',
+          AccountingExport: 'accounting',
+          BatchOperations: 'batch',
+          AdminDashboard: 'admin',
+          FraudDashboard: 'fraud',
+          TaxSettings: 'tax',
+          SupportDashboard: 'support',
+          GroupManagement: 'groups',
+          MerchantOnboarding: 'merchant-onboarding',
+          AffiliateDashboard: 'affiliate',
+          LoyaltyDashboard: 'loyalty',
+          CampaignManagement: 'campaigns',
+          DeveloperPortal: 'developer',
+          DocumentationPortal: 'docs',
+          ApiKeyManagement: 'api-keys',
+        },
+      },
+    },
+  },
+  getStateFromPath: getStateFromPathSafe,
+};
 
 const HomeStack = () => (
   <Stack.Navigator>
@@ -203,11 +365,6 @@ const SettingsStack = () => (
       name="LanguageSettings"
       component={LanguageSettingsScreen}
       options={{ title: 'Language', headerShown: true }}
-    />
-    <Stack.Screen
-      name="Export"
-      component={ExportScreen}
-      options={{ title: 'Export', headerShown: true }}
     />
     <Stack.Screen
       name="BatchOperations"
@@ -387,8 +544,31 @@ const TabNavigator = () => {
 };
 
 export const AppNavigator = () => {
+  const user = useUserStore((state) => state.user);
+  const subscriptionTier = useUserStore((state) => state.subscriptionTier);
+
+  const handleStateChange = useCallback(
+    (state?: PartialState<NavigationState> | undefined) => {
+      if (!state) return;
+      const activeRoute = getActiveRoute(state.routes[state.index ?? 0] as Route<string, object | undefined>);
+      const isAuthenticated = Boolean(user);
+      if (!isRouteAllowed(activeRoute, isAuthenticated, subscriptionTier)) {
+        console.warn(
+          `Blocked navigation to ${activeRoute?.name}. Falling back to HomeTab due to auth/feature gating.`
+        );
+        if (navigationRef.isReady()) {
+          navigationRef.reset({ index: 0, routes: [{ name: 'HomeTab' }] });
+        }
+      }
+    },
+    [subscriptionTier, user]
+  );
+
   return (
-    <NavigationContainer ref={navigationRef}>
+    <NavigationContainer
+      ref={navigationRef}
+      linking={linking}
+      onStateChange={handleStateChange}>
       <TabNavigator />
     </NavigationContainer>
   );

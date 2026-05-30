@@ -8,11 +8,11 @@ import { useTheme } from '../theme/useTheme';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { SegmentOverlapAnalysis } from '../components/segments/SegmentOverlapAnalysis';
-import { useNavigation } from '@react-navigation/native';
+import { useAppNavigation } from '../navigation/types';
 
 export const SegmentManagementScreen: React.FC = () => {
   const theme = useTheme();
-  const navigation = useNavigation<any>();
+  const navigation = useAppNavigation<'SegmentManagement'>();
   const { segments, deleteSegment } = useSegmentStore();
   const { subscriptions } = useSubscriptionStore();
   const { user } = useUserStore();

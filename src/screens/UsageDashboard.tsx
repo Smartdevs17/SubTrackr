@@ -1,15 +1,15 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView } from 'react-native';
-import { useRoute, useNavigation } from '@react-navigation/native';
+import { useAppRoute, useAppNavigation } from '../navigation/types';
 import { colors, spacing, typography, borderRadius, shadows } from '../utils/constants';
 import { useUsageStore } from '../store/usageStore';
 import { Button } from '../components/common/Button';
 import { Ionicons } from '@expo/vector-icons';
 
 const UsageDashboard: React.FC = () => {
-  const route = useRoute<any>();
-  const navigation = useNavigation();
-  const { subscriptionId, planId, name } = route.params || {};
+  const route = useAppRoute<'UsageDashboard'>();
+  const navigation = useAppNavigation<'UsageDashboard'>();
+  const { subscriptionId, planId, name } = route.params ?? {};
   const { fetchUsage } = useUsageStore();
 
   useEffect(() => {

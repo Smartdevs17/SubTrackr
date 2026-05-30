@@ -5,12 +5,12 @@ import { useTheme } from '../theme/useTheme';
 import { Button } from '../components/common/Button';
 import { SegmentRuleBuilder } from '../components/segments/SegmentRuleBuilder';
 import { SegmentRule } from '../types/segment';
-import { useRoute, useNavigation } from '@react-navigation/native';
+import { useAppRoute, useAppNavigation } from '../navigation/types';
 
 export const SegmentDetailScreen: React.FC = () => {
   const theme = useTheme();
-  const route = useRoute<any>();
-  const navigation = useNavigation();
+  const route = useAppRoute<'SegmentDetail'>();
+  const navigation = useAppNavigation<'SegmentDetail'>();
   const { segmentId } = route.params;
   const { segments, addSegment, updateSegment } = useSegmentStore();
 
