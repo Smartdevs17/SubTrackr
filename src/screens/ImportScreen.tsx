@@ -35,7 +35,7 @@ import {
 import { useSubscriptionStore } from '../store';
 
 const ImportScreen: React.FC = () => {
-  const { subscriptions, addSubscription, updateSubscription } = useSubscriptionStore();
+  const { subscriptions, addSubscription, updateSubscription, deleteSubscription } = useSubscriptionStore();
   const navigation = useNavigation<any>();
 
   const [importMode, setImportMode] = useState<ImportMode>('upsert');
@@ -173,14 +173,24 @@ const ImportScreen: React.FC = () => {
         if (!target) continue;
         const idx = headerIndex[raw.toLowerCase()];
         const rawValue = typeof idx === 'number' && values[idx] ? values[idx] : '';
-        (row as any)[target] = rawValue;
+        let value: unknown = rawValue;
+
+        if (target === 'price' || target === 'cryptoAmount') {
+          value = Number(rawValue) || 0;
+        } else if (
+          target === 'isActive' ||
+          target === 'notificationsEnabled' ||
+          target === 'isCryptoEnabled'
+        ) {
+          const normalized = rawValue.toString().trim().toLowerCase();
+          value = normalized === 'true' || normalized === '1' || normalized === 'yes';
+        }
+
+        (row as any)[target] = value;
       }
 
       // ensure required defaults
       if (!row.name && values[0]) row.name = values[0];
-
-      // Cast numeric-ish fields
-      if (row.price !== undefined) row.price = Number(row.price as any) || 0;
 
       if (row.nextBillingDate && typeof row.nextBillingDate !== 'string') {
         row.nextBillingDate = String(row.nextBillingDate);
@@ -207,7 +217,7 @@ const ImportScreen: React.FC = () => {
   };
 
   const cycleMappingFor = (header: string) => {
-    const options = ['','name','description','category','price','currency','billingCycle','nextBillingDate','isActive','notificationsEnabled','isCryptoEnabled','cryptoToken','cryptoAmount'] as (keyof SubscriptionInput | '')[];
+    const options = ['','name','description','category','price','currency','billingCycle','nextBillingDate','isActive','notificationsEnabled','isCryptoEnabled','cryptoToken','cryptoAmount','externalId','externalSource'] as (keyof SubscriptionInput | '')[];
     const current = columnMapping[header] ?? '';
     const idx = options.indexOf(current);
     const next = options[(idx + 1) % options.length];
@@ -218,52 +228,71 @@ const ImportScreen: React.FC = () => {
     setIsProcessing(true);
     try {
       const result = processImport({ subscriptions: parsedData, mode: importMode }, subscriptions);
-
       setImportResult(result);
 
+      const actions = result.actions ?? [];
+
       // Apply the import with progress and rollback support
-      if (result.imported > 0 || result.updated > 0) {
+      if (actions.length > 0) {
         const snapshot = useSubscriptionStore.getState().subscriptions.map((s) => ({ ...s }));
         let processed = 0;
-        try {
-          for (const sub of parsedData) {
-            setProgress({ current: processed + 1, total: parsedData.length, message: `Processing ${sub.name}` });
-            const existing = useSubscriptionStore.getState().subscriptions.find(
-              (s) => s.name.toLowerCase() === sub.name.toLowerCase()
-            );
+        const appliedIds = new Set<string>();
 
-            if (existing) {
-              await updateSubscription(existing.id, {
-                name: sub.name,
-                description: sub.description,
-                category: sub.category as any,
-                price: sub.price,
-                currency: sub.currency,
-                billingCycle: sub.billingCycle as any,
-                nextBillingDate: new Date(sub.nextBillingDate),
-                isActive: sub.isActive ?? true,
-                notificationsEnabled: sub.notificationsEnabled ?? true,
-                isCryptoEnabled: sub.isCryptoEnabled ?? false,
-                cryptoToken: sub.cryptoToken,
-                cryptoAmount: sub.cryptoAmount,
+        try {
+          for (const action of actions) {
+            const subscription = action.subscription;
+            if (!subscription) continue;
+
+            setProgress({ current: processed + 1, total: actions.length, message: `Processing ${subscription.name}` });
+
+            if (action.type === 'update' && action.existingId) {
+              await updateSubscription(action.existingId, {
+                name: subscription.name,
+                description: subscription.description,
+                category: subscription.category as any,
+                price: subscription.price,
+                currency: subscription.currency,
+                billingCycle: subscription.billingCycle as any,
+                nextBillingDate: new Date(subscription.nextBillingDate),
+                isActive: subscription.isActive,
+                notificationsEnabled: subscription.notificationsEnabled,
+                isCryptoEnabled: subscription.isCryptoEnabled,
+                cryptoToken: subscription.cryptoToken,
+                cryptoAmount: subscription.cryptoAmount,
+                externalId: subscription.externalId,
+                externalSource: subscription.externalSource,
               });
-            } else {
+              appliedIds.add(action.existingId);
+            } else if (action.type === 'create') {
               await addSubscription({
-                name: sub.name,
-                description: sub.description,
-                category: sub.category as any,
-                price: sub.price,
-                currency: sub.currency,
-                billingCycle: sub.billingCycle as any,
-                nextBillingDate: new Date(sub.nextBillingDate),
-                notificationsEnabled: sub.notificationsEnabled ?? true,
-                isCryptoEnabled: sub.isCryptoEnabled ?? false,
-                cryptoToken: sub.cryptoToken,
-                cryptoAmount: sub.cryptoAmount,
+                id: subscription.id,
+                name: subscription.name,
+                description: subscription.description,
+                category: subscription.category as any,
+                price: subscription.price,
+                currency: subscription.currency,
+                billingCycle: subscription.billingCycle as any,
+                nextBillingDate: new Date(subscription.nextBillingDate),
+                notificationsEnabled: subscription.notificationsEnabled ?? true,
+                isCryptoEnabled: subscription.isCryptoEnabled ?? false,
+                cryptoToken: subscription.cryptoToken,
+                cryptoAmount: subscription.cryptoAmount,
+                externalId: subscription.externalId,
+                externalSource: subscription.externalSource,
               });
+              appliedIds.add(subscription.id);
             }
+
             processed += 1;
-            setProgress({ current: processed, total: parsedData.length, message: `Processed ${processed}/${parsedData.length}` });
+            setProgress({ current: processed, total: actions.length, message: `Processed ${processed}/${actions.length}` });
+          }
+
+          if (importMode === 'replace') {
+            const currentSubscriptions = useSubscriptionStore.getState().subscriptions;
+            const toDelete = currentSubscriptions.filter((sub) => !appliedIds.has(sub.id));
+            for (const sub of toDelete) {
+              await deleteSubscription(sub.id);
+            }
           }
         } catch (applyErr) {
           // Rollback to snapshot on failure

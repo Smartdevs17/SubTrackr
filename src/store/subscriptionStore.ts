@@ -164,7 +164,7 @@ interface SubscriptionState {
   creditMemos: Record<string, CreditMemo>;
 
   // Actions
-  addSubscription: (data: SubscriptionFormData) => Promise<void>;
+  addSubscription: (data: SubscriptionFormData & { id?: string; externalId?: string; externalSource?: string }) => Promise<void>;
   updateSubscription: (id: string, data: Partial<Subscription>) => Promise<void>;
   deleteSubscription: (id: string) => Promise<void>;
   toggleSubscriptionStatus: (id: string) => Promise<void>;
@@ -273,11 +273,11 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       isLoading: true,
       error: null,
 
-      addSubscription: async (data: SubscriptionFormData) => {
+      addSubscription: async (data: SubscriptionFormData & { id?: string; externalId?: string; externalSource?: string }) => {
         set({ isLoading: true, error: null });
         try {
           const newSubscription: Subscription = {
-            id: generateUniqueId(),
+            id: data.id ?? generateUniqueId(),
             ...data,
             isActive: true,
             notificationsEnabled: data.notificationsEnabled !== false,

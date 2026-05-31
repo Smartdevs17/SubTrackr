@@ -410,6 +410,70 @@ Spotify,Music streaming,streaming,9.99,USD,monthly,2026-05-15`;
       const result = processImport(data, existing);
       expect(result.imported).toBe(0);
       expect(result.failed).toBe(1);
+      expect(result.actions).toHaveLength(0);
+    });
+
+    it('should preserve externalId during import', () => {
+      const data = {
+        subscriptions: [
+          {
+            name: 'Stripe Plan',
+            externalId: 'stripe_123',
+            externalSource: 'stripe',
+            category: 'streaming',
+            price: 15.99,
+            currency: 'USD',
+            billingCycle: 'monthly',
+            nextBillingDate: '2026-05-01',
+          },
+        ],
+        mode: 'create' as ImportMode,
+      };
+
+      const result = processImport(data, []);
+      expect(result.success).toBe(true);
+      expect(result.imported).toBe(1);
+      expect(result.actions?.[0].subscription?.externalId).toBe('stripe_123');
+      expect(result.actions?.[0].subscription?.externalSource).toBe('stripe');
+    });
+
+    it('should replace existing subscriptions when replace mode is selected', () => {
+      const existing: Subscription[] = [
+        {
+          id: '1',
+          name: 'Old Service',
+          category: SubscriptionCategory.OTHER,
+          price: 5,
+          currency: 'USD',
+          billingCycle: BillingCycle.MONTHLY,
+          nextBillingDate: new Date('2026-05-01'),
+          isActive: true,
+          notificationsEnabled: true,
+          isCryptoEnabled: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ];
+
+      const data = {
+        subscriptions: [
+          {
+            name: 'New Service',
+            category: 'software',
+            price: 20,
+            currency: 'USD',
+            billingCycle: 'monthly',
+            nextBillingDate: '2026-06-01',
+          },
+        ],
+        mode: 'replace' as ImportMode,
+      };
+
+      const result = processImport(data, existing);
+      expect(result.success).toBe(true);
+      expect(result.imported).toBe(1);
+      expect(result.updated).toBe(0);
+      expect(result.actions?.[0].type).toBe('create');
     });
   });
 
