@@ -700,6 +700,14 @@ pub enum StorageKey {
     /// Temporary nonce used to deduplicate rapid charge attempts within a
     /// single ledger sequence window.  Expires after one ledger close (~5 s).
     TmpChargeNonce(u64),
+
+    // ── Added in storage version 7 (transient pending operations) ──
+    /// Pending subscription-transfer authorization keyed by subscription_id.
+    /// Holds the recipient address that is temporarily authorized to accept
+    /// the transfer.  Stored in TEMPORARY storage so an unaccepted transfer
+    /// offer auto-expires (default 7 days) instead of lingering forever in
+    /// instance storage.  Replaces the instance-backed StorageKey::PendingTransfer.
+    TmpPendingTransfer(u64),
 }
 
 /// Slippage protection bounds for oracle-based pricing.
