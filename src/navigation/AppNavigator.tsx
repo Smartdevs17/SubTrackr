@@ -11,7 +11,7 @@ import { RootStackParamList, TabParamList } from './types';
 
 // Eagerly loaded primary entrypoints for instant rendering
 import HomeScreen from '../screens/HomeScreen';
-import SettingsScreen from '../screens/SettingsScreen';
+import { SettingsScreen } from '../screens/SettingsScreen';
 
 // Lazy loaded auxiliary and heavy screens with suspense/retry support
 const AddSubscriptionScreen = lazyScreen(() => import('../screens/AddSubscriptionScreen'));

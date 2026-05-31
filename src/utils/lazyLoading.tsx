@@ -109,7 +109,7 @@ export class LazyErrorBoundary extends React.Component<ErrorBoundaryProps, Error
 /**
  * Factory function that wraps a dynamic import into a lazy-loaded screen protected by Suspense and an Error Boundary.
  */
-export function lazyScreen<T extends React.ComponentType<Record<string, unknown>>>(
+export function lazyScreen<T extends React.ComponentType<any>>(
   importFn: () => Promise<{ default: T }>
 ) {
   const LazyComponent = lazyWithRetry(importFn);
