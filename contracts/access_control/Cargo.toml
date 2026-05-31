@@ -1,0 +1,16 @@
+[package]
+name = "subtrackr-access-control"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "subtrackr_access_control"
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+soroban-sdk = "21.0.0"
+subtrackr-types = { path = "../types" }
+
+[dev-dependencies]
+soroban-sdk = { version = "21.0.0", features = ["testutils"] }

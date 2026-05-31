@@ -20,6 +20,7 @@ import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { getCategoryIcon } from '../utils/subscriptionHelpers';
 import { RootStackParamList } from '../navigation/types';
 import { CreditPaymentMethod } from '../types/credit';
+import { useGroupStore } from '../store/groupStore';
 
 // Components
 import { Button } from '../components/common/Button';
@@ -54,6 +55,9 @@ const SubscriptionDetailScreen: React.FC = () => {
     expireCredits,
     setCreditPolicy,
   } = useSubscriptionStore();
+  const { subscriptions, toggleSubscriptionStatus, updateSubscription, recordBillingOutcome } =
+    useSubscriptionStore();
+  const { groups } = useGroupStore();
   const { preferredCurrency, exchangeRates } = useSettingsStore();
   const { user } = useUserStore();
   const invoices = useInvoiceStore((state) => state.invoices);
@@ -71,6 +75,10 @@ const SubscriptionDetailScreen: React.FC = () => {
   const [transferRecipient, setTransferRecipient] = useState('');
   const [transferAmount, setTransferAmount] = useState('10');
   const [creditReference, setCreditReference] = useState('');
+  const subscriptionGroup = useMemo(
+    () => groups.find((group) => group.groupId === subscription?.groupId),
+    [groups, subscription?.groupId]
+  );
 
   const [loading, setLoading] = useState(!subscription);
 
@@ -238,7 +246,7 @@ const SubscriptionDetailScreen: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} testID="subscription-detail-screen">
       <ScreenTransition type="slide" duration={400}>
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
           {/* Header */}
@@ -320,6 +328,30 @@ const SubscriptionDetailScreen: React.FC = () => {
               </Text>
             </View>
           </Card>
+
+          {subscriptionGroup ? (
+            <Card style={styles.standardCard}>
+              <Text style={styles.sectionTitle}>Group plan</Text>
+              <View style={styles.dataRow}>
+                <Text style={styles.dataLabel}>Group</Text>
+                <Text style={styles.dataValue}>{subscriptionGroup.name}</Text>
+              </View>
+              <View style={styles.dataRow}>
+                <Text style={styles.dataLabel}>Seats</Text>
+                <Text style={styles.dataValue}>
+                  {subscriptionGroup.members.length}/{subscriptionGroup.planSharingRules.seatLimit}
+                </Text>
+              </View>
+              <View style={styles.dataRow}>
+                <Text style={styles.dataLabel}>Billing</Text>
+                <Text style={styles.dataValue}>
+                  {subscriptionGroup.planSharingRules.ownerPaysForMembers
+                    ? 'Consolidated'
+                    : 'Member split'}
+                </Text>
+              </View>
+            </Card>
+          ) : null}
 
           {/* Notifications */}
           <Card style={styles.statusCard}>
@@ -586,6 +618,7 @@ const SubscriptionDetailScreen: React.FC = () => {
               onPress={handlePauseResume}
               variant="secondary"
               style={styles.actionButton}
+              testID="pause-resume-subscription-button"
             />
 
             <Button
@@ -593,6 +626,7 @@ const SubscriptionDetailScreen: React.FC = () => {
               variant="danger"
               onPress={handleStartCancellation}
               style={styles.cancelButton}
+              testID="cancel-subscription-button"
             />
           </View>
         </ScrollView>

@@ -1,11 +1,16 @@
+import { BillingCycle } from '../types/subscription';
 import type { Subscription } from '../types/subscription';
 import type {
+  CalendarExportPayload,
   CalendarOAuthCallbackPayload,
   CalendarEventTemplate,
   CalendarIntegration,
   CalendarProvider,
   CalendarSyncedEvent,
+  OneTimeScheduledPayment,
   PendingCalendarAuthorization,
+  ProratedAdjustment,
+  ScheduleConflict,
 } from '../types/calendar';
 
 const DEFAULT_REDIRECT_URI = 'subtrackr://calendar/callback';
@@ -239,4 +244,237 @@ export async function syncToCalendar(
 
 export async function disconnectCalendar(connectionId: string): Promise<{ connectionId: string }> {
   return { connectionId };
+}
+
+// ── iCal Export ────────────────────────────────────────────────────────────
+
+function escapeICalText(text: string): string {
+  return text
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\n/g, '\\n');
+}
+
+function formatICalDate(isoString: string): string {
+  const d = new Date(isoString);
+  return d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+}
+
+export function generateICalendarExport(
+  events: CalendarEventTemplate[],
+  timezone?: string
+): CalendarExportPayload {
+  const now = new Date().toISOString();
+  const lines: string[] = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//SubTrackr//Subscription Calendar//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+  ];
+
+  if (timezone) {
+    lines.push('BEGIN:VTIMEZONE');
+    lines.push(`TZID:${escapeICalText(timezone)}`);
+    lines.push('END:VTIMEZONE');
+  }
+
+  for (const event of events) {
+    const uid = `${event.kind}_${event.startAt}_${Math.random().toString(36).slice(2, 8)}`;
+    lines.push('BEGIN:VEVENT');
+    lines.push(`UID:${uid}@subtrackr`);
+    lines.push(`DTSTAMP:${formatICalDate(now)}`);
+    lines.push(`DTSTART:${formatICalDate(event.startAt)}`);
+    lines.push(`DTEND:${formatICalDate(event.endAt)}`);
+    lines.push(`SUMMARY:${escapeICalText(event.title)}`);
+    lines.push(`DESCRIPTION:${escapeICalText(event.notes)}`);
+
+    if (timezone) {
+      lines.push(`TZID:${escapeICalText(timezone)}`);
+    }
+
+    for (const offsetMinutes of event.reminderOffsets) {
+      const trigger = offsetMinutes > 0 ? `-PT${offsetMinutes}M` : `PT${Math.abs(offsetMinutes)}M`;
+      lines.push('BEGIN:VALARM');
+      lines.push('ACTION:DISPLAY');
+      lines.push(`TRIGGER:${trigger}`);
+      lines.push(`DESCRIPTION:Reminder: ${escapeICalText(event.title)}`);
+      lines.push('END:VALARM');
+    }
+
+    lines.push('END:VEVENT');
+  }
+
+  lines.push('END:VCALENDAR');
+
+  return {
+    ical: lines.join('\r\n'),
+    filename: `subtrackr_events_${Date.now()}.ics`,
+    events,
+  };
+}
+
+// ── Schedule Conflict Detection ────────────────────────────────────────────
+
+export function detectScheduleConflicts(
+  subscriptions: Subscription[],
+  existingEvents: CalendarSyncedEvent[]
+): ScheduleConflict[] {
+  const conflictsByDate = new Map<string, ScheduleConflict>();
+
+  for (const sub of subscriptions) {
+    if (!sub.isActive) continue;
+    const dateKey = new Date(sub.nextBillingDate).toISOString().split('T')[0];
+
+    if (!conflictsByDate.has(dateKey)) {
+      conflictsByDate.set(dateKey, {
+        date: dateKey,
+        conflictingSubscriptions: [],
+        totalAmount: 0,
+      });
+    }
+
+    const entry = conflictsByDate.get(dateKey)!;
+    entry.conflictingSubscriptions.push({
+      id: sub.id,
+      name: sub.name,
+      amount: sub.price,
+      currency: sub.currency,
+    });
+    entry.totalAmount += sub.price;
+  }
+
+  return Array.from(conflictsByDate.values()).filter((c) => c.conflictingSubscriptions.length > 1);
+}
+
+// ── Prorated Adjustment ────────────────────────────────────────────────────
+
+export function calculateProratedAdjustment(
+  subscription: Subscription,
+  newDate: Date,
+  reason: string
+): ProratedAdjustment {
+  const now = new Date();
+  const nextBilling = new Date(subscription.nextBillingDate);
+  const daysInCycle = getDaysInCycle(subscription.billingCycle);
+
+  const msPerDay = 24 * 60 * 60 * 1000;
+  const daysRemaining = Math.max(0, Math.round((nextBilling.getTime() - now.getTime()) / msPerDay));
+
+  const proratedAmount = Number(
+    ((subscription.price / daysInCycle) * daysRemaining).toFixed(2)
+  );
+
+  return {
+    originalAmount: subscription.price,
+    proratedAmount,
+    daysRemaining,
+    daysInCycle,
+    effectiveDate: newDate.toISOString(),
+    reason,
+  };
+}
+
+function getDaysInCycle(cycle: BillingCycle): number {
+  switch (cycle) {
+    case BillingCycle.WEEKLY:
+      return 7;
+    case BillingCycle.MONTHLY:
+      return 30;
+    case BillingCycle.YEARLY:
+      return 365;
+    default:
+      return 30;
+  }
+}
+
+// ── One-Time Scheduled Payment ─────────────────────────────────────────────
+
+export function scheduleOneTimePayment(
+  subscriptionId: string,
+  amount: number,
+  currency: string,
+  scheduledDate: Date,
+  description: string
+): OneTimeScheduledPayment {
+  return {
+    id: `onetime_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+    subscriptionId,
+    amount,
+    currency,
+    scheduledDate: scheduledDate.toISOString(),
+    description,
+    status: 'pending',
+    createdAt: new Date().toISOString(),
+  };
+}
+
+// ── Timezone-Aware Event Building ─────────────────────────────────────────
+
+export function buildTimezoneAwareEvent(
+  subscription: Subscription,
+  reminderOffsets: number[]
+): CalendarEventTemplate {
+  const event = buildSubscriptionCalendarEvent(subscription, reminderOffsets);
+  const tz = subscription.timezone || 'UTC';
+
+  if (tz !== 'UTC') {
+    const start = new Date(event.startAt);
+    const end = new Date(event.endAt);
+    event.notes += ` Timezone: ${tz}.`;
+    event.startAt = start.toISOString();
+    event.endAt = end.toISOString();
+  }
+
+  return event;
+}
+
+export function formatDateInTimezone(isoString: string, timezone: string): string {
+  try {
+    const date = new Date(isoString);
+    return date.toLocaleString('en-US', { timeZone: timezone });
+  } catch {
+    return new Date(isoString).toLocaleString();
+  }
+}
+
+export function convertToTimezone(isoString: string, targetTimezone: string): string {
+  const date = new Date(isoString);
+  const offset = getTimezoneOffset(date, targetTimezone);
+  const adjusted = new Date(date.getTime() + offset);
+  return adjusted.toISOString();
+}
+
+function getTimezoneOffset(date: Date, timezone: string): number {
+  try {
+    const tzDate = new Date(date.toLocaleString('en-US', { timeZone: timezone }));
+    return tzDate.getTime() - date.getTime();
+  } catch {
+    return 0;
+  }
+}
+
+// ── Check for DST Transition ──────────────────────────────────────────────
+
+export function isDSTTransitionPeriod(date: Date, timezone: string): boolean {
+  const oneWeekLater = new Date(date.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const currentOffset = getTimezoneOffset(date, timezone);
+  const laterOffset = getTimezoneOffset(oneWeekLater, timezone);
+  return currentOffset !== laterOffset;
+}
+
+export function adjustForDST(event: CalendarEventTemplate, timezone: string): CalendarEventTemplate {
+  const startDate = new Date(event.startAt);
+  if (isDSTTransitionPeriod(startDate, timezone)) {
+    const offset = getTimezoneOffset(startDate, timezone);
+    const adjusted = new Date(startDate.getTime() - offset);
+    return {
+      ...event,
+      startAt: adjusted.toISOString(),
+      endAt: new Date(adjusted.getTime() + 30 * 60 * 1000).toISOString(),
+      notes: `${event.notes} (DST adjusted for ${timezone})`,
+    };
+  }
+  return event;
 }

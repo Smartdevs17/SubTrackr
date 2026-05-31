@@ -85,6 +85,35 @@ class ChurnPredictionModel:
         else:
             return "Offer a 1-month free subscription to retain user."
 
+
+class RevenueForecastModel:
+    def forecast(self, observations: List[Dict], horizon: int = 3) -> List[Dict]:
+        values = [float(item.get("revenue", 0)) for item in observations]
+        if not values:
+            return []
+
+        latest = values[-1]
+        deltas = [values[index] - values[index - 1] for index in range(1, len(values))]
+        average_delta = sum(deltas) / len(deltas) if deltas else 0
+        variance = (
+            sum((delta - average_delta) ** 2 for delta in deltas) / len(deltas)
+            if deltas
+            else max(latest * 0.05, 1)
+        )
+        deviation = math.sqrt(variance)
+
+        forecast = []
+        for step in range(1, horizon + 1):
+            expected = max(0, latest + average_delta * step)
+            confidence = deviation * math.sqrt(step) * 1.96
+            forecast.append({
+                "period": f"forecast_{step}",
+                "expected_revenue": round(expected, 2),
+                "lower_bound": round(max(0, expected - confidence), 2),
+                "upper_bound": round(expected + confidence, 2),
+            })
+        return forecast
+
 if __name__ == "__main__":
     model = ChurnPredictionModel()
     test_data = {

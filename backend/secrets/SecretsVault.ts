@@ -1,4 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHmac,
+  randomBytes,
+  timingSafeEqual,
+} from 'crypto';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -12,16 +19,16 @@ export interface SecretMetadata {
   version: number;
   createdAt: number;
   rotatedAt: number | null;
-  /** Rotation interval in ms; null = no auto-rotation */
   rotationIntervalMs: number | null;
-  /** Whether this secret has been soft-deleted */
   deleted: boolean;
 }
 
 export interface SecretEntry {
   meta: SecretMetadata;
-  /** Obfuscated value stored in AsyncStorage (base64) */
-  value: string;
+  ciphertext: string;
+  iv: string;
+  authTag: string;
+  algorithm: 'aes-256-gcm';
 }
 
 export interface AuditEvent {
@@ -48,18 +55,69 @@ const VAULT_PREFIX = '@subtrackr:secrets:';
 const AUDIT_KEY = '@subtrackr:secrets:audit';
 const INDEX_KEY = '@subtrackr:secrets:index';
 const MAX_AUDIT_EVENTS = 1000;
+const ALGORITHM = 'aes-256-gcm';
+const IV_LENGTH = 16;
+const TAG_LENGTH = 16;
+const VAULT_MASTER_KEY_KEY = '@subtrackr:secrets:vault_key';
+const HMAC_ALGORITHM = 'sha256';
 
 // ---------------------------------------------------------------------------
-// Minimal obfuscation (base64) — keeps values out of plain-text logs.
-// For production-grade encryption, replace with expo-crypto AES-GCM.
+// AES-256-GCM encryption for secrets at rest
 // ---------------------------------------------------------------------------
 
-function encode(value: string): string {
-  return Buffer.from(value, 'utf8').toString('base64');
+async function getOrCreateMasterKey(): Promise<Buffer> {
+  const existing = await AsyncStorage.getItem(VAULT_MASTER_KEY_KEY);
+  if (existing) return Buffer.from(existing, 'base64');
+  const key = randomBytes(32);
+  await AsyncStorage.setItem(VAULT_MASTER_KEY_KEY, key.toString('base64'));
+  return key;
 }
 
-function decode(encoded: string): string {
-  return Buffer.from(encoded, 'base64').toString('utf8');
+function deriveVaultKey(masterKey: Buffer): { encKey: Buffer; hmacKey: Buffer } {
+  const hmac1 = createHmac(HMAC_ALGORITHM, masterKey);
+  hmac1.update('vault-encryption');
+  const encKey = hmac1.digest();
+
+  const hmac2 = createHmac(HMAC_ALGORITHM, masterKey);
+  hmac2.update('vault-integrity');
+  const hmacKey = hmac2.digest();
+
+  return { encKey, hmacKey };
+}
+
+async function encrypt(value: string): Promise<{ ciphertext: string; iv: string; authTag: string }> {
+  const masterKey = await getOrCreateMasterKey();
+  const { encKey } = deriveVaultKey(masterKey);
+  const iv = randomBytes(IV_LENGTH);
+
+  const cipher = createCipheriv(ALGORITHM, encKey, iv, { authTagLength: TAG_LENGTH });
+  const encrypted = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]);
+  const authTag = cipher.getAuthTag();
+
+  return {
+    ciphertext: encrypted.toString('base64'),
+    iv: iv.toString('base64'),
+    authTag: authTag.toString('base64'),
+  };
+}
+
+async function decrypt(
+  ciphertext: string,
+  iv: string,
+  authTag: string
+): Promise<string> {
+  const masterKey = await getOrCreateMasterKey();
+  const { encKey } = deriveVaultKey(masterKey);
+
+  const ivBuf = Buffer.from(iv, 'base64');
+  const authTagBuf = Buffer.from(authTag, 'base64');
+  const ciphertextBuf = Buffer.from(ciphertext, 'base64');
+
+  const decipher = createDecipheriv(ALGORITHM, encKey, ivBuf, { authTagLength: TAG_LENGTH });
+  decipher.setAuthTag(authTagBuf);
+  const decrypted = Buffer.concat([decipher.update(ciphertextBuf), decipher.final()]);
+
+  return decrypted.toString('utf8');
 }
 
 function storageKey(key: string, env: Environment): string {
@@ -98,7 +156,14 @@ export class SecretsVault {
       deleted: false,
     };
 
-    const entry: SecretEntry = { meta, value: encode(value) };
+    const { ciphertext, iv, authTag } = await encrypt(value);
+    const entry: SecretEntry = {
+      meta,
+      ciphertext,
+      iv,
+      authTag,
+      algorithm: ALGORITHM,
+    };
     await AsyncStorage.setItem(storageKey(key, env), JSON.stringify(entry));
     await this._updateIndex(meta);
     await this._audit({ action: version > 1 ? 'rotate' : 'set', key, env, success: true });
@@ -119,7 +184,7 @@ export class SecretsVault {
       return null;
     }
     await this._audit({ action: 'get', key, env: resolvedEnv, success: true });
-    return decode(entry.value);
+    return decrypt(entry.ciphertext, entry.iv, entry.authTag);
   }
 
   // ── Rotation ──────────────────────────────────────────────────────────────

@@ -6,6 +6,8 @@ export interface GroupMember {
   address: string;
   displayName?: string;
   role: GroupMemberRole;
+  permissions?: string[];
+  paymentMethodId?: string;
   joinedAt: Date;
   outstandingBalance: number;
   usageUnits: number;
@@ -26,6 +28,7 @@ export interface GroupPlanSharingRules {
   usagePoolLimit?: number;
   ownerPaysForMembers: boolean;
   allowMemberOverages: boolean;
+  familyPlanPrice?: number;
 }
 
 export interface GroupBillingLineItem {
@@ -49,6 +52,8 @@ export interface GroupAnalytics {
   totalUsage: number;
   usagePoolLimit?: number;
   outstandingBalance: number;
+  totalSpend: number;
+  memberActivity: Record<string, number>;
 }
 
 export interface GroupConfig {
@@ -63,6 +68,7 @@ export interface SubscriptionGroup {
   members: GroupMember[];
   invites: GroupInvite[];
   planSharingRules: GroupPlanSharingRules;
+  billingAddress?: string;
   charges: GroupChargeResult[];
   createdAt: Date;
   updatedAt: Date;

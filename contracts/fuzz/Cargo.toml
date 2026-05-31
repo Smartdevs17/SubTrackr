@@ -1,0 +1,17 @@
+[package]
+name = "subtrackr-fuzz"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+soroban-sdk = { version = "21.0.0", features = ["testutils"] }
+subtrackr-subscription = { path = "../subscription" }
+subtrackr-types = { path = "../types" }
+
+[workspace]
+members = ["."]
