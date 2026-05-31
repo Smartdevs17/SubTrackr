@@ -35,7 +35,7 @@ export interface ForecastPoint {
 
 export class PredictionService {
   // Path for future Python bridge integration
-  private static readonly _PYTHON_PATH = path.join(__dirname, '../ml/churnModel.py');
+  private static readonly _PYTHON_PATH = path.join(__dirname, '../../ml/churnModel.py');
 
   /**
    * Predicts the likelihood of a subscriber churning and assigns a risk score.

@@ -17,7 +17,7 @@ export interface RecommendationContext {
 
 export class RecommendationService {
   // Path for future Python bridge integration
-  private static readonly _PYTHON_PATH = path.join(__dirname, '../ml/recommendationModel.py');
+  private static readonly _PYTHON_PATH = path.join(__dirname, '../../ml/recommendationModel.py');
 
   /**
    * Fetches subscription recommendations for a given subscriber using the ML model.

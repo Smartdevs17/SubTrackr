@@ -8,9 +8,9 @@ import type {
   WebhookEventPayload,
   WebhookEventType,
   WebhookRetryPolicy,
-} from '../../src/types/webhook';
+} from '../../../src/types/webhook';
 
-export type { WebhookEventInput } from '../../src/types/webhook';
+export type { WebhookEventInput } from '../../../src/types/webhook';
 
 type FetchLike = typeof fetch;
 

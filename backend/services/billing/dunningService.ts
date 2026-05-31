@@ -6,8 +6,8 @@ import type {
   DunningEntry,
   DunningStage,
   DunningStageConfig,
-} from '../../src/types/dunning';
-import { DEFAULT_DUNNING_STAGES, DUNNING_TEMPLATES } from '../../src/types/dunning';
+} from '../../../src/types/dunning';
+import { DEFAULT_DUNNING_STAGES, DUNNING_TEMPLATES } from '../../../src/types/dunning';
 
 const ONE_HOUR_MS = 3_600_000;
 

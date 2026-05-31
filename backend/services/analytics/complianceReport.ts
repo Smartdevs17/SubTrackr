@@ -1,6 +1,4 @@
-import { getPiiFields, maskField, type Environment } from './encryption';
-import { keyManager } from './keyManager';
-import { piiAuditService } from './piiAudit';
+import { getPiiFields, maskField, type Environment, keyManager, piiAuditService } from '../shared';
 
 export interface ComplianceReport {
   generatedAt: number;
