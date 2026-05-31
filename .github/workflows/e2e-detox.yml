@@ -41,6 +41,21 @@ jobs:
           npm run e2e:test-ios -- --testPathPattern="subscription-lifecycle\\.test"
         env:
           E2E_MAX_WORKERS: 1
+      - name: Test Detox iOS — visual regression
+        run: |
+          npm run e2e:test-ios -- --testPathPattern="visual-regression\\.test" || \
+          npm run e2e:test-ios -- --testPathPattern="visual-regression\\.test"
+        env:
+          E2E_MAX_WORKERS: 1
+      - name: Upload iOS visual artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-ios-visual-artifacts
+          path: |
+            artifacts/
+            e2e/fixtures/visual-baselines.json
+          retention-days: 14
       - name: Upload E2E artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -92,6 +107,27 @@ jobs:
             npm run e2e:test-android -- --testPathPattern="subscription-lifecycle\\.test"
         env:
           E2E_MAX_WORKERS: 1
+      - name: Detox Android — visual regression
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: default
+          arch: x86_64
+          profile: pixel_4
+          script: |
+            npm run e2e:test-android -- --testPathPattern="visual-regression\\.test" || \
+            npm run e2e:test-android -- --testPathPattern="visual-regression\\.test"
+        env:
+          E2E_MAX_WORKERS: 1
+      - name: Upload Android visual artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-android-visual-artifacts
+          path: |
+            artifacts/
+            e2e/fixtures/visual-baselines.json
+          retention-days: 14
       - name: Upload E2E artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v4
