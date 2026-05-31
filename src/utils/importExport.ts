@@ -17,6 +17,8 @@ export interface ImportData {
 
 export interface SubscriptionInput {
   id?: string;
+  externalId?: string;
+  externalSource?: string;
   name: string;
   description?: string;
   category: string;
@@ -33,6 +35,14 @@ export interface SubscriptionInput {
 
 export type ImportMode = 'create' | 'upsert' | 'replace';
 
+export interface ImportAction {
+  type: 'create' | 'update' | 'skip';
+  row: number;
+  subscription?: Subscription;
+  existingId?: string;
+  message?: string;
+}
+
 export interface ImportResult {
   success: boolean;
   imported: number;
@@ -40,6 +50,7 @@ export interface ImportResult {
   failed: number;
   errors: ImportError[];
   warnings: ImportWarning[];
+  actions?: ImportAction[];
 }
 
 export interface ImportError {
@@ -116,6 +127,7 @@ export const CSV_COLUMN_MAPPING: ColumnMapping[] = [
   },
   { csvColumn: 'cryptoToken', fieldName: 'cryptoToken', required: false },
   { csvColumn: 'cryptoAmount', fieldName: 'cryptoAmount', required: false, transform: parseFloat },
+  { csvColumn: 'externalId', fieldName: 'externalId', required: false },
 ];
 
 export const VALID_CATEGORIES = Object.values(SubscriptionCategory);
@@ -180,28 +192,185 @@ function normalizeBillingCycle(value: string): BillingCycle {
 }
 
 function parseDate(value: string): Date {
-  const parsed = new Date(value);
+  const normalized = value?.toString().trim();
+  if (!normalized) {
+    return new Date();
+  }
+
+  const numeric = Number(normalized);
+  if (!Number.isNaN(numeric)) {
+    return normalized.length >= 13 ? new Date(numeric) : new Date(numeric * 1000);
+  }
+
+  const parsed = new Date(normalized);
   if (!Number.isNaN(parsed.getTime())) {
     return parsed;
   }
-  // Try common formats
+
+  const dateOnlyMatch = normalized.match(/^\d{4}-\d{2}-\d{2}$/);
+  if (dateOnlyMatch) {
+    return new Date(`${normalized}T00:00:00Z`);
+  }
+
   const formats = [
-    /^(\d{4})-(\d{2})-(\d{2})$/, // YYYY-MM-DD
-    /^(\d{2})\/(\d{2})\/(\d{4})$/, // MM/DD/YYYY
-    /^(\d{2})-(\d{2})-(\d{4})$/, // DD-MM-YYYY
+    /^(\d{2})\/(\d{2})\/(\d{4})$/,
+    /^(\d{2})-(\d{2})-(\d{4})$/,
   ];
 
   for (const format of formats) {
-    const match = value.match(format);
+    const match = normalized.match(format);
     if (match) {
-      const date = new Date(value);
+      const date = new Date(normalized);
       if (!Number.isNaN(date.getTime())) {
         return date;
       }
     }
   }
 
-  return new Date(); // Default to current date
+  return new Date();
+}
+
+function parseSubscriptionField(field: keyof SubscriptionInput, rawValue?: string): unknown {
+  if (rawValue === undefined || rawValue === null) {
+    return undefined;
+  }
+
+  const trimmed = rawValue.toString().trim();
+  if (trimmed === '') {
+    return undefined;
+  }
+
+  switch (field) {
+    case 'price':
+    case 'cryptoAmount':
+      return Number(trimmed);
+    case 'isActive':
+    case 'notificationsEnabled':
+    case 'isCryptoEnabled':
+      return parseBoolean(trimmed);
+    default:
+      return trimmed;
+  }
+}
+
+function buildSubscriptionFromInput(input: SubscriptionInput, existing?: Subscription): Subscription {
+  const now = new Date();
+  const id = existing?.id ?? input.id ?? generateUniqueId();
+
+  return {
+    id,
+    name: input.name,
+    description: input.description,
+    category: normalizeCategory(input.category),
+    price: input.price,
+    currency: input.currency?.toUpperCase() || 'USD',
+    billingCycle: normalizeBillingCycle(input.billingCycle),
+    nextBillingDate: parseDate(input.nextBillingDate),
+    isActive: input.isActive ?? existing?.isActive ?? true,
+    notificationsEnabled: input.notificationsEnabled ?? existing?.notificationsEnabled ?? true,
+    isCryptoEnabled: input.isCryptoEnabled ?? existing?.isCryptoEnabled ?? false,
+    cryptoToken: input.cryptoToken ?? existing?.cryptoToken,
+    cryptoAmount: input.cryptoAmount ?? existing?.cryptoAmount,
+    externalId: input.externalId ?? existing?.externalId,
+    externalSource: input.externalSource ?? existing?.externalSource,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+  };
+}
+
+function buildImportActions(data: ImportData, existingSubscriptions: Subscription[]): {
+  actions: ImportAction[];
+  errors: ImportError[];
+  warnings: ImportWarning[];
+} {
+  const validation = validateImport(data);
+  const existingByName = new Map<string, Subscription>();
+  const existingById = new Map<string, Subscription>();
+  const existingByExternalId = new Map<string, Subscription>();
+
+  existingSubscriptions.forEach((sub) => {
+    existingByName.set(sub.name.toLowerCase(), sub);
+    if (sub.id) existingById.set(sub.id, sub);
+    if (sub.externalId) existingByExternalId.set(sub.externalId, sub);
+  });
+
+  const seenNames = new Set<string>();
+  const seenIds = new Set<string>();
+  const seenExternalIds = new Set<string>();
+  const actions: ImportAction[] = [];
+  const errors = [...validation.errors];
+  const warnings = [...validation.warnings];
+
+  validation.validRows.forEach((input, index) => {
+    const rowNum = index + 1;
+    const normalizedName = input.name.toLowerCase().trim();
+
+    if (seenNames.has(normalizedName)) {
+      errors.push({
+        row: rowNum,
+        field: 'name',
+        message: 'Duplicate subscription name found in import file',
+        value: input.name,
+      });
+      return;
+    }
+
+    if (input.id && seenIds.has(input.id)) {
+      errors.push({
+        row: rowNum,
+        field: 'id',
+        message: 'Duplicate subscription id found in import file',
+        value: input.id,
+      });
+      return;
+    }
+
+    if (input.externalId && seenExternalIds.has(input.externalId)) {
+      errors.push({
+        row: rowNum,
+        field: 'externalId',
+        message: 'Duplicate external id found in import file',
+        value: input.externalId,
+      });
+      return;
+    }
+
+    seenNames.add(normalizedName);
+    if (input.id) seenIds.add(input.id);
+    if (input.externalId) seenExternalIds.add(input.externalId);
+
+    const existingByIdMatch = input.id ? existingById.get(input.id) : undefined;
+    const existingByExternalIdMatch = input.externalId
+      ? existingByExternalId.get(input.externalId)
+      : undefined;
+    const existingByNameMatch = existingByName.get(normalizedName);
+    const existing = existingByIdMatch || existingByExternalIdMatch || existingByNameMatch;
+
+    if (data.mode === 'create') {
+      if (existing) {
+        errors.push({
+          row: rowNum,
+          field: existingByIdMatch ? 'id' : existingByExternalIdMatch ? 'externalId' : 'name',
+          message: 'Duplicate subscription found; create mode skips existing items',
+          value: existingByIdMatch ? input.id : input.externalId || input.name,
+        });
+        return;
+      }
+
+      actions.push({ type: 'create', row: rowNum, subscription: buildSubscriptionFromInput(input) });
+      return;
+    }
+
+    const subscription = buildSubscriptionFromInput(input, existing);
+    if (existing) {
+      actions.push({ type: 'update', row: rowNum, existingId: existing.id, subscription });
+      return;
+    }
+
+    actions.push({ type: 'create', row: rowNum, subscription });
+  });
+
+  return { actions, errors, warnings };
 }
 
 // ============================================
@@ -241,7 +410,9 @@ export function parseCSV(csvContent: string): SubscriptionInput[] {
       const columnIndex = headerMap.get(mapping.csvColumn.toLowerCase());
       if (columnIndex !== undefined && values[columnIndex]) {
         const rawValue = values[columnIndex];
-        const value = mapping.transform ? String(mapping.transform(rawValue)) : rawValue;
+        const value = mapping.transform
+          ? mapping.transform(rawValue)
+          : parseSubscriptionField(mapping.fieldName, rawValue);
 
         (subscription as Record<string, unknown>)[mapping.fieldName] = value;
       }
@@ -357,6 +528,8 @@ export function parseJSON(jsonContent: string): SubscriptionInput[] {
 
   return subscriptions.map((sub) => ({
     id: sub.id,
+    externalId: (sub as any).externalId,
+    externalSource: (sub as any).externalSource,
     name: sub.name,
     description: sub.description,
     category: typeof sub.category === 'string' ? sub.category : SubscriptionCategory.OTHER,
@@ -515,109 +688,24 @@ export function processImport(
   data: ImportData,
   existingSubscriptions: Subscription[]
 ): ImportResult {
-  const validation = validateImport(data);
-
-  if (validation.validRows.length === 0 && validation.errors.length > 0) {
-    return {
-      success: false,
-      imported: 0,
-      updated: 0,
-      failed: data.subscriptions.length,
-      errors: validation.errors,
-      warnings: validation.warnings,
-    };
-  }
+  const { actions, errors, warnings } = buildImportActions(data, existingSubscriptions);
 
   let imported = 0;
   let updatedCount = 0;
-  const errors: ImportError[] = [...validation.errors];
-  const warnings: ImportWarning[] = [...validation.warnings];
 
-  // Create lookup for existing subscriptions
-  const existingByName = new Map<string, Subscription>();
-  const existingById = new Map<string, Subscription>();
-
-  existingSubscriptions.forEach((sub) => {
-    existingByName.set(sub.name.toLowerCase(), sub);
-    if (sub.id) {
-      existingById.set(sub.id, sub);
-    }
-  });
-
-  const processedSubscriptions: Subscription[] = [];
-
-  validation.validRows.forEach((input, index) => {
-    const rowNum = index + 1;
-    const now = new Date();
-
-    try {
-      // Check for duplicates
-      const existingByNameMatch = existingByName.get(input.name.toLowerCase());
-      const existingByIdMatch = input.id ? existingById.get(input.id) : null;
-      const isUpdate = (existingByNameMatch || existingByIdMatch) && data.mode === 'upsert';
-      const isReplace = data.mode === 'replace';
-
-      if (isUpdate || isReplace) {
-        // Update existing
-        const existing = existingByIdMatch || existingByNameMatch;
-        if (existing) {
-          const merged: Subscription = {
-            ...existing,
-            name: input.name,
-            description: input.description,
-            category: normalizeCategory(input.category),
-            price: input.price,
-            currency: input.currency?.toUpperCase() || 'USD',
-            billingCycle: normalizeBillingCycle(input.billingCycle),
-            nextBillingDate: parseDate(input.nextBillingDate),
-            isActive: input.isActive ?? existing.isActive,
-            notificationsEnabled: input.notificationsEnabled ?? existing.notificationsEnabled,
-            isCryptoEnabled: input.isCryptoEnabled ?? existing.isCryptoEnabled,
-            cryptoToken: input.cryptoToken ?? existing.cryptoToken,
-            cryptoAmount: input.cryptoAmount ?? existing.cryptoAmount,
-            updatedAt: now,
-          };
-          processedSubscriptions.push(merged);
-          updatedCount++;
-        }
-      } else {
-        // Create new
-        const newSubscription: Subscription = {
-          id: input.id || generateUniqueId(),
-          name: input.name,
-          description: input.description,
-          category: normalizeCategory(input.category),
-          price: input.price,
-          currency: input.currency?.toUpperCase() || 'USD',
-          billingCycle: normalizeBillingCycle(input.billingCycle),
-          nextBillingDate: parseDate(input.nextBillingDate),
-          isActive: input.isActive ?? true,
-          notificationsEnabled: input.notificationsEnabled ?? true,
-          isCryptoEnabled: input.isCryptoEnabled ?? false,
-          cryptoToken: input.cryptoToken,
-          cryptoAmount: input.cryptoAmount,
-          createdAt: now,
-          updatedAt: now,
-        };
-        processedSubscriptions.push(newSubscription);
-        imported++;
-      }
-    } catch (err) {
-      errors.push({
-        row: rowNum,
-        field: 'general',
-        message: err instanceof Error ? err.message : 'Unknown error',
-      });
-    }
+  actions.forEach((action) => {
+    if (action.type === 'create') imported += 1;
+    if (action.type === 'update') updatedCount += 1;
   });
 
   return {
     success: errors.length === 0,
     imported,
     updated: updatedCount,
-    failed: data.subscriptions.length - imported - updatedCount,
+    failed: errors.length,
     errors,
     warnings,
+    actions,
   };
 }
 
