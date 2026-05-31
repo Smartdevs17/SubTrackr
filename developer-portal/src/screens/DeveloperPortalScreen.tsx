@@ -70,34 +70,29 @@ const DeveloperPortalScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   const handleQuickCreateApiKey = async () => {
     if (!developer) return;
 
-    Alert.prompt(
-      'Create API Key',
-      'Enter a name for your new API key',
-      async (name) => {
-        if (name && name.trim()) {
-          try {
-            const newKey = await createApiKey(
-              developer.id,
-              name.trim(),
-              [ApiKeyPermission.READ, ApiKeyPermission.WRITE]
-            );
-            Alert.alert(
-              'API Key Created',
-              `Your new API key has been created:\n\n${newKey.key}\n\nCopy it now - it won't be shown again.`,
-              [
-                {
-                  text: 'View All Keys',
-                  onPress: () => navigation.navigate('ApiKeyManagement'),
-                },
-                { text: 'OK' },
-              ]
-            );
-          } catch (err) {
-            Alert.alert('Error', 'Failed to create API key');
-          }
+    Alert.prompt('Create API Key', 'Enter a name for your new API key', async (name) => {
+      if (name && name.trim()) {
+        try {
+          const newKey = await createApiKey(developer.id, name.trim(), [
+            ApiKeyPermission.READ,
+            ApiKeyPermission.WRITE,
+          ]);
+          Alert.alert(
+            'API Key Created',
+            `Your new API key has been created:\n\n${newKey.key}\n\nCopy it now - it won't be shown again.`,
+            [
+              {
+                text: 'View All Keys',
+                onPress: () => navigation.navigate('ApiKeyManagement'),
+              },
+              { text: 'OK' },
+            ]
+          );
+        } catch (err) {
+          Alert.alert('Error', 'Failed to create API key');
         }
       }
-    );
+    });
   };
 
   if (!developer) {
@@ -105,9 +100,7 @@ const DeveloperPortalScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
       <SafeAreaView style={styles.container}>
         <View style={styles.centerContent}>
           <Text style={styles.title}>Welcome to Developer Portal</Text>
-          <Text style={styles.subtitle}>
-            Please register to access the developer portal
-          </Text>
+          <Text style={styles.subtitle}>Please register to access the developer portal</Text>
           <TouchableOpacity
             style={styles.primaryButton}
             onPress={() => navigation.navigate('DeveloperRegistration')}>
@@ -303,9 +296,7 @@ const DeveloperPortalScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
             <Text style={styles.resourceIcon}>💬</Text>
             <View style={styles.resourceContent}>
               <Text style={styles.resourceTitle}>Developer Support</Text>
-              <Text style={styles.resourceDescription}>
-                Get help from our developer community
-              </Text>
+              <Text style={styles.resourceDescription}>Get help from our developer community</Text>
             </View>
             <Text style={styles.resourceArrow}>→</Text>
           </TouchableOpacity>

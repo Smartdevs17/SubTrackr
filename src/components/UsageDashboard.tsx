@@ -5,7 +5,7 @@ export const UsageDashboard = () => {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Usage & Billing</Text>
-      
+
       <View style={styles.card}>
         <Text style={styles.metricTitle}>API Calls</Text>
         <Text style={styles.metricValue}>85,000 / 100,000</Text>

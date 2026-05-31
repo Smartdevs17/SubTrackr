@@ -3,7 +3,7 @@ import {
   buildWebhookPayload,
   signWebhookPayload,
   verifyWebhookSignature,
-} from '../webhook';
+} from '../notification/webhook';
 import type {
   WebhookEventInput,
   WebhookPlanSnapshot,

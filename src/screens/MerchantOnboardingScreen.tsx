@@ -79,10 +79,7 @@ const MerchantOnboardingScreen: React.FC = () => {
                   isCompleted && styles.stepCircleCompleted,
                 ]}>
                 <Text
-                  style={[
-                    styles.stepNumber,
-                    (isActive || isCompleted) && styles.stepNumberActive,
-                  ]}>
+                  style={[styles.stepNumber, (isActive || isCompleted) && styles.stepNumberActive]}>
                   {isCompleted ? '✓' : index + 1}
                 </Text>
               </View>
@@ -222,9 +219,7 @@ const MerchantOnboardingScreen: React.FC = () => {
         </View>
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Documents</Text>
-          <Text style={styles.summaryValue}>
-            {onboarding?.documents.length || 0} uploaded
-          </Text>
+          <Text style={styles.summaryValue}>{onboarding?.documents.length || 0} uploaded</Text>
         </View>
       </Card>
 
@@ -264,9 +259,7 @@ const MerchantOnboardingScreen: React.FC = () => {
           <>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Verification Tier</Text>
-              <Text style={styles.summaryValue}>
-                {onboarding.verificationResult.tier}
-              </Text>
+              <Text style={styles.summaryValue}>{onboarding.verificationResult.tier}</Text>
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Monthly Limit</Text>
@@ -302,21 +295,16 @@ const MerchantOnboardingScreen: React.FC = () => {
       <ScrollView style={styles.scrollView}>
         <View style={styles.header}>
           <Text style={styles.title}>Merchant Onboarding</Text>
-          <Text style={styles.subtitle}>
-            Complete verification to start accepting payments
-          </Text>
+          <Text style={styles.subtitle}>Complete verification to start accepting payments</Text>
         </View>
 
         {onboarding ? (
           <>
             {renderStepIndicator()}
             {renderStatus()}
-            {onboarding.currentStep === OnboardingStep.BUSINESS_INFO &&
-              renderBusinessInfoStep()}
-            {onboarding.currentStep === OnboardingStep.ID_DOCUMENT &&
-              renderDocumentStep()}
-            {onboarding.currentStep === OnboardingStep.BUSINESS_LICENSE &&
-              renderDocumentStep()}
+            {onboarding.currentStep === OnboardingStep.BUSINESS_INFO && renderBusinessInfoStep()}
+            {onboarding.currentStep === OnboardingStep.ID_DOCUMENT && renderDocumentStep()}
+            {onboarding.currentStep === OnboardingStep.BUSINESS_LICENSE && renderDocumentStep()}
             {onboarding.currentStep === OnboardingStep.REVIEW && renderReviewStep()}
 
             <View style={styles.navigationButtons}>
@@ -344,8 +332,7 @@ const MerchantOnboardingScreen: React.FC = () => {
           <Card style={styles.startCard}>
             <Text style={styles.startTitle}>Get Started</Text>
             <Text style={styles.startDescription}>
-              Complete our merchant verification process to start accepting
-              subscription payments
+              Complete our merchant verification process to start accepting subscription payments
             </Text>
             <TouchableOpacity
               style={styles.startButton}

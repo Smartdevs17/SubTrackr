@@ -198,7 +198,8 @@ export const FEATURE_CONFIG: FeatureConfig = {
     [FeatureId.DEVELOPER_PORTAL]: {
       id: FeatureId.DEVELOPER_PORTAL,
       name: 'Developer Portal',
-      description: 'Access the developer portal with API documentation, integration guides, and sandbox environment',
+      description:
+        'Access the developer portal with API documentation, integration guides, and sandbox environment',
       enabled: true,
       tierAccess: [SubscriptionTier.ENTERPRISE],
       rolloutPercentage: 100,

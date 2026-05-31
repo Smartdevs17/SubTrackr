@@ -591,9 +591,7 @@ class DeveloperPortalService {
     return INTEGRATION_GUIDES.find((g) => g.id === id) || null;
   }
 
-  getIntegrationGuidesByDifficulty(
-    difficulty: IntegrationGuide['difficulty']
-  ): IntegrationGuide[] {
+  getIntegrationGuidesByDifficulty(difficulty: IntegrationGuide['difficulty']): IntegrationGuide[] {
     return INTEGRATION_GUIDES.filter((g) => g.difficulty === difficulty);
   }
 
@@ -639,9 +637,7 @@ class DeveloperPortalService {
       }
 
       for (const [id] of this.developers) {
-        const stepsData = await AsyncStorage.getItem(
-          `${DEVELOPER_STORAGE_KEY}-onboarding-${id}`
-        );
+        const stepsData = await AsyncStorage.getItem(`${DEVELOPER_STORAGE_KEY}-onboarding-${id}`);
         if (stepsData) {
           this.onboardingSteps.set(id, JSON.parse(stepsData));
         } else {

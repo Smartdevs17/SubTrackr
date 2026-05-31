@@ -174,10 +174,7 @@ const SandboxScreen: React.FC = () => {
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Your Sandboxes</Text>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => setShowCreateModal(true)}
-        >
+        <TouchableOpacity style={styles.addButton} onPress={() => setShowCreateModal(true)}>
           <Text style={styles.addButtonText}>+ New</Text>
         </TouchableOpacity>
       </View>
@@ -188,10 +185,7 @@ const SandboxScreen: React.FC = () => {
           <Text style={styles.emptyStateSubtext}>
             Create a sandbox to start testing your integration
           </Text>
-          <TouchableOpacity
-            style={styles.primaryButton}
-            onPress={() => setShowCreateModal(true)}
-          >
+          <TouchableOpacity style={styles.primaryButton} onPress={() => setShowCreateModal(true)}>
             <Text style={styles.primaryButtonText}>Create Sandbox</Text>
           </TouchableOpacity>
         </View>
@@ -203,18 +197,12 @@ const SandboxScreen: React.FC = () => {
               styles.sandboxCard,
               currentSandbox?.id === sandbox.id && styles.sandboxCardActive,
             ]}
-            onPress={() => handleSelectSandbox(sandbox.id)}
-          >
+            onPress={() => handleSelectSandbox(sandbox.id)}>
             <View style={styles.sandboxCardHeader}>
               <View style={styles.sandboxNameContainer}>
                 <Text style={styles.sandboxName}>{sandbox.name}</Text>
                 <View style={styles.badgeContainer}>
-                  <View
-                    style={[
-                      styles.badge,
-                      { backgroundColor: `${colors.primary}20` },
-                    ]}
-                  >
+                  <View style={[styles.badge, { backgroundColor: `${colors.primary}20` }]}>
                     <Text style={[styles.badgeText, { color: colors.primary }]}>
                       {getEnvironmentLabel(sandbox.environment)}
                     </Text>
@@ -223,14 +211,8 @@ const SandboxScreen: React.FC = () => {
                     style={[
                       styles.badge,
                       { backgroundColor: `${getStatusColor(sandbox.status)}20` },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.badgeText,
-                        { color: getStatusColor(sandbox.status) },
-                      ]}
-                    >
+                    ]}>
+                    <Text style={[styles.badgeText, { color: getStatusColor(sandbox.status) }]}>
                       {sandbox.status}
                     </Text>
                   </View>
@@ -239,21 +221,15 @@ const SandboxScreen: React.FC = () => {
               <View style={styles.sandboxActions}>
                 <TouchableOpacity
                   style={styles.iconButton}
-                  onPress={() =>
-                    handleToggleSandbox(sandbox.id, sandbox.status)
-                  }
-                >
+                  onPress={() => handleToggleSandbox(sandbox.id, sandbox.status)}>
                   <Text style={styles.iconButtonText}>
                     {sandbox.status === SandboxStatus.ACTIVE ? '⏸' : '▶'}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.iconButton, styles.iconButtonDanger]}
-                  onPress={() => handleDeleteSandbox(sandbox.id)}
-                >
-                  <Text style={[styles.iconButtonText, styles.iconButtonTextDanger]}>
-                    ✕
-                  </Text>
+                  onPress={() => handleDeleteSandbox(sandbox.id)}>
+                  <Text style={[styles.iconButtonText, styles.iconButtonTextDanger]}>✕</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -285,9 +261,7 @@ const SandboxScreen: React.FC = () => {
             <Text style={styles.metricLabel}>Transactions</Text>
           </View>
           <View style={styles.metricCard}>
-            <Text style={styles.metricValue}>
-              ${metrics.totalVolume.toFixed(2)}
-            </Text>
+            <Text style={styles.metricValue}>${metrics.totalVolume.toFixed(2)}</Text>
             <Text style={styles.metricLabel}>Total Volume</Text>
           </View>
           <View style={styles.metricCard}>
@@ -299,17 +273,13 @@ const SandboxScreen: React.FC = () => {
         <View style={styles.actionRow}>
           <TouchableOpacity
             style={styles.secondaryButton}
-            onPress={() => setShowTestDataModal(true)}
-          >
+            onPress={() => setShowTestDataModal(true)}>
             <Text style={styles.secondaryButtonText}>Generate Data</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.secondaryButton, styles.dangerButton]}
-            onPress={handleResetSandbox}
-          >
-            <Text style={[styles.secondaryButtonText, styles.dangerButtonText]}>
-              Reset
-            </Text>
+            onPress={handleResetSandbox}>
+            <Text style={[styles.secondaryButtonText, styles.dangerButtonText]}>Reset</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -321,9 +291,7 @@ const SandboxScreen: React.FC = () => {
 
     return (
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          Test Subscriptions ({subscriptions.length})
-        </Text>
+        <Text style={styles.sectionTitle}>Test Subscriptions ({subscriptions.length})</Text>
         {subscriptions.slice(0, 5).map((sub) => (
           <View key={sub.id} style={styles.listItem}>
             <View style={styles.listItemContent}>
@@ -341,9 +309,7 @@ const SandboxScreen: React.FC = () => {
           </View>
         ))}
         {subscriptions.length > 5 && (
-          <Text style={styles.moreText}>
-            +{subscriptions.length - 5} more subscriptions
-          </Text>
+          <Text style={styles.moreText}>+{subscriptions.length - 5} more subscriptions</Text>
         )}
       </View>
     );
@@ -354,8 +320,7 @@ const SandboxScreen: React.FC = () => {
       visible={showCreateModal}
       animationType="slide"
       transparent
-      onRequestClose={() => setShowCreateModal(false)}
-    >
+      onRequestClose={() => setShowCreateModal(false)}>
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <Text style={styles.modalTitle}>Create Sandbox</Text>
@@ -378,15 +343,12 @@ const SandboxScreen: React.FC = () => {
                   styles.environmentOption,
                   selectedEnvironment === env && styles.environmentOptionActive,
                 ]}
-                onPress={() => setSelectedEnvironment(env)}
-              >
+                onPress={() => setSelectedEnvironment(env)}>
                 <Text
                   style={[
                     styles.environmentOptionText,
-                    selectedEnvironment === env &&
-                      styles.environmentOptionTextActive,
-                  ]}
-                >
+                    selectedEnvironment === env && styles.environmentOptionTextActive,
+                  ]}>
                   {getEnvironmentLabel(env)}
                 </Text>
               </TouchableOpacity>
@@ -396,14 +358,10 @@ const SandboxScreen: React.FC = () => {
           <View style={styles.modalActions}>
             <TouchableOpacity
               style={styles.secondaryButton}
-              onPress={() => setShowCreateModal(false)}
-            >
+              onPress={() => setShowCreateModal(false)}>
               <Text style={styles.secondaryButtonText}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.primaryButton}
-              onPress={handleCreateSandbox}
-            >
+            <TouchableOpacity style={styles.primaryButton} onPress={handleCreateSandbox}>
               <Text style={styles.primaryButtonText}>Create</Text>
             </TouchableOpacity>
           </View>
@@ -417,8 +375,7 @@ const SandboxScreen: React.FC = () => {
       visible={showTestDataModal}
       animationType="slide"
       transparent
-      onRequestClose={() => setShowTestDataModal(false)}
-    >
+      onRequestClose={() => setShowTestDataModal(false)}>
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <Text style={styles.modalTitle}>Generate Test Data</Text>
@@ -436,14 +393,10 @@ const SandboxScreen: React.FC = () => {
           <View style={styles.modalActions}>
             <TouchableOpacity
               style={styles.secondaryButton}
-              onPress={() => setShowTestDataModal(false)}
-            >
+              onPress={() => setShowTestDataModal(false)}>
               <Text style={styles.secondaryButtonText}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.primaryButton}
-              onPress={handleGenerateTestData}
-            >
+            <TouchableOpacity style={styles.primaryButton} onPress={handleGenerateTestData}>
               <Text style={styles.primaryButtonText}>Generate</Text>
             </TouchableOpacity>
           </View>
@@ -462,13 +415,10 @@ const SandboxScreen: React.FC = () => {
             onRefresh={onRefresh}
             tintColor={colors.primary}
           />
-        }
-      >
+        }>
         <View style={styles.header}>
           <Text style={styles.title}>Sandbox</Text>
-          <Text style={styles.subtitle}>
-            Test your integration in an isolated environment
-          </Text>
+          <Text style={styles.subtitle}>Test your integration in an isolated environment</Text>
         </View>
 
         {isLoading && !refreshing ? (

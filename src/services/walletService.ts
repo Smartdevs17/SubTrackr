@@ -37,12 +37,7 @@ export class WalletError extends Error {
   readonly userMessage: string;
   readonly recovery?: string;
 
-  constructor(
-    code: WalletErrorCode,
-    userMessage: string,
-    recovery?: string,
-    cause?: unknown
-  ) {
+  constructor(code: WalletErrorCode, userMessage: string, recovery?: string, cause?: unknown) {
     super(userMessage);
     this.name = 'WalletError';
     this.code = code;
@@ -756,7 +751,14 @@ const MAX_PAYMENT_METHODS_PER_USER = 10;
 const EXPIRY_WARNING_DAYS = 30;
 const TOKEN_TYPE_TO_NATIVE_SYMBOL: Record<number, Record<TokenType, string>> = {
   [CHAIN_IDS.ETHEREUM]: { XLM: '', USDC: 'USDC', ETH: 'ETH', NATIVE: 'ETH', MATIC: '', ARB: '' },
-  [CHAIN_IDS.POLYGON]: { XLM: '', USDC: 'USDC', ETH: 'ETH', NATIVE: 'MATIC', MATIC: 'MATIC', ARB: '' },
+  [CHAIN_IDS.POLYGON]: {
+    XLM: '',
+    USDC: 'USDC',
+    ETH: 'ETH',
+    NATIVE: 'MATIC',
+    MATIC: 'MATIC',
+    ARB: '',
+  },
   [CHAIN_IDS.ARBITRUM]: { XLM: '', USDC: 'USDC', ETH: 'ETH', NATIVE: 'ETH', MATIC: '', ARB: 'ARB' },
 };
 
@@ -820,7 +822,11 @@ export class PaymentMethodService {
       errors.push('Label is required');
     }
 
-    if (!data.maxSpendPerInterval || isNaN(Number(data.maxSpendPerInterval)) || Number(data.maxSpendPerInterval) <= 0) {
+    if (
+      !data.maxSpendPerInterval ||
+      isNaN(Number(data.maxSpendPerInterval)) ||
+      Number(data.maxSpendPerInterval) <= 0
+    ) {
       errors.push('Max spend per interval must be a positive number');
     }
 
@@ -858,7 +864,10 @@ export class PaymentMethodService {
 
     try {
       const provider = new ethers.providers.JsonRpcProvider(getEvmRpcUrl(method.chainId));
-      const erc20Abi = ['function decimals() view returns (uint8)', 'function symbol() view returns (string)'];
+      const erc20Abi = [
+        'function decimals() view returns (uint8)',
+        'function symbol() view returns (string)',
+      ];
       const contract = new ethers.Contract(method.tokenAddress, erc20Abi, provider);
 
       const decimals = await contract.decimals();
@@ -895,15 +904,21 @@ export class PaymentMethodService {
   }
 
   getPrimaryMethods(methods: PaymentMethod[]): PaymentMethod[] {
-    return methods.filter((m) => m.priority === PaymentPriority.PRIMARY && m.isActive && m.isVerified);
+    return methods.filter(
+      (m) => m.priority === PaymentPriority.PRIMARY && m.isActive && m.isVerified
+    );
   }
 
   getBackupMethods(methods: PaymentMethod[]): PaymentMethod[] {
-    return methods.filter((m) => m.priority === PaymentPriority.BACKUP && m.isActive && m.isVerified);
+    return methods.filter(
+      (m) => m.priority === PaymentPriority.BACKUP && m.isActive && m.isVerified
+    );
   }
 
   getFallbackMethods(methods: PaymentMethod[]): PaymentMethod[] {
-    return methods.filter((m) => m.priority === PaymentPriority.FALLBACK && m.isActive && m.isVerified);
+    return methods.filter(
+      (m) => m.priority === PaymentPriority.FALLBACK && m.isActive && m.isVerified
+    );
   }
 
   getActiveVerifiedMethods(methods: PaymentMethod[]): PaymentMethod[] {
@@ -976,7 +991,10 @@ export class PaymentMethodService {
         balance = await contract.balanceOf(conn.address);
       }
 
-      const required = ethers.utils.parseUnits(requiredAmount, method.tokenType === TokenType.USDC ? 6 : 18);
+      const required = ethers.utils.parseUnits(
+        requiredAmount,
+        method.tokenType === TokenType.USDC ? 6 : 18
+      );
       return {
         sufficient: balance.gte(required),
         balance: balance.toString(),
@@ -1091,7 +1109,10 @@ export class PaymentMethodService {
           continue;
         }
 
-        if (method.maxSpendPerInterval && ethers.BigNumber.from(amount).gt(method.maxSpendPerInterval)) {
+        if (
+          method.maxSpendPerInterval &&
+          ethers.BigNumber.from(amount).gt(method.maxSpendPerInterval)
+        ) {
           attempt.status = 'failed';
           attempt.failureReason = `Amount ${amount} exceeds max spend per interval ${method.maxSpendPerInterval}`;
           attempt.resolvedAt = new Date();

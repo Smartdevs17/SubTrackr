@@ -115,10 +115,8 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
   };
 
   const togglePermission = (permission: string) => {
-    setSelectedPermissions(prev =>
-      prev.includes(permission)
-        ? prev.filter(p => p !== permission)
-        : [...prev, permission]
+    setSelectedPermissions((prev) =>
+      prev.includes(permission) ? prev.filter((p) => p !== permission) : [...prev, permission]
     );
   };
 
@@ -135,14 +133,13 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
             item.status === 'active' && styles.statusActive,
             item.status === 'revoked' && styles.statusRevoked,
             item.status === 'expired' && styles.statusExpired,
-          ]}
-        >
+          ]}>
           <Text style={styles.statusText}>{item.status}</Text>
         </View>
       </View>
 
       <View style={styles.permissionsContainer}>
-        {item.permissions.map(permission => (
+        {item.permissions.map((permission) => (
           <View key={permission} style={styles.permissionBadge}>
             <Text style={styles.permissionText}>{permission}</Text>
           </View>
@@ -150,13 +147,9 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
       </View>
 
       <View style={styles.keyMeta}>
-        <Text style={styles.metaText}>
-          Created: {item.createdAt.toLocaleDateString()}
-        </Text>
+        <Text style={styles.metaText}>Created: {item.createdAt.toLocaleDateString()}</Text>
         {item.lastUsedAt && (
-          <Text style={styles.metaText}>
-            Last used: {item.lastUsedAt.toLocaleDateString()}
-          </Text>
+          <Text style={styles.metaText}>Last used: {item.lastUsedAt.toLocaleDateString()}</Text>
         )}
       </View>
 
@@ -164,14 +157,12 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
         <View style={styles.keyActions}>
           <TouchableOpacity
             style={[styles.actionButton, styles.rotateButton]}
-            onPress={() => handleRotateKey(item.id, item.name)}
-          >
+            onPress={() => handleRotateKey(item.id, item.name)}>
             <Text style={styles.actionButtonText}>Rotate</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.actionButton, styles.revokeButton]}
-            onPress={() => handleRevokeKey(item.id, item.name)}
-          >
+            onPress={() => handleRevokeKey(item.id, item.name)}>
             <Text style={styles.revokeButtonText}>Revoke</Text>
           </TouchableOpacity>
         </View>
@@ -183,10 +174,7 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>API Keys</Text>
-        <TouchableOpacity
-          style={styles.createButton}
-          onPress={() => setModalVisible(true)}
-        >
+        <TouchableOpacity style={styles.createButton} onPress={() => setModalVisible(true)}>
           <Text style={styles.createButtonText}>+ Create Key</Text>
         </TouchableOpacity>
       </View>
@@ -194,7 +182,7 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
       <FlatList
         data={apiKeys}
         renderItem={renderApiKey}
-        keyExtractor={item => item.id}
+        keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContainer}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
@@ -210,8 +198,7 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
         visible={modalVisible}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => setModalVisible(false)}
-      >
+        onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Create API Key</Text>
@@ -227,23 +214,20 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
 
             <Text style={styles.inputLabel}>Permissions</Text>
             <View style={styles.permissionsList}>
-              {AVAILABLE_PERMISSIONS.map(permission => (
+              {AVAILABLE_PERMISSIONS.map((permission) => (
                 <TouchableOpacity
                   key={permission}
                   style={[
                     styles.permissionOption,
-                    selectedPermissions.includes(permission) &&
-                      styles.permissionOptionSelected,
+                    selectedPermissions.includes(permission) && styles.permissionOptionSelected,
                   ]}
-                  onPress={() => togglePermission(permission)}
-                >
+                  onPress={() => togglePermission(permission)}>
                   <Text
                     style={[
                       styles.permissionOptionText,
                       selectedPermissions.includes(permission) &&
                         styles.permissionOptionTextSelected,
-                    ]}
-                  >
+                    ]}>
                     {permission}
                   </Text>
                 </TouchableOpacity>
@@ -253,15 +237,13 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
             <View style={styles.modalActions}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => setModalVisible(false)}
-              >
+                onPress={() => setModalVisible(false)}>
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalButton, styles.confirmButton]}
                 onPress={handleCreateKey}
-                disabled={loading}
-              >
+                disabled={loading}>
                 <Text style={styles.confirmButtonText}>
                   {loading ? 'Creating...' : 'Create Key'}
                 </Text>

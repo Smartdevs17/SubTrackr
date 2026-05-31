@@ -100,10 +100,7 @@ export const useDeveloperPortalStore = create<DeveloperPortalState>()((set, get)
   fetchDeveloper: async (developerId: string) => {
     set({ isLoading: true, error: null });
     try {
-      await Promise.all([
-        developerPortalService.loadDevelopers(),
-        apiKeyService.loadApiKeys(),
-      ]);
+      await Promise.all([developerPortalService.loadDevelopers(), apiKeyService.loadApiKeys()]);
 
       const developer = await developerPortalService.getDeveloper(developerId);
       if (!developer) {
@@ -137,10 +134,7 @@ export const useDeveloperPortalStore = create<DeveloperPortalState>()((set, get)
 
     set({ isLoading: true, error: null });
     try {
-      const updated = await developerPortalService.updateDeveloper(
-        developer.id,
-        updates
-      );
+      const updated = await developerPortalService.updateDeveloper(developer.id, updates);
       set({ developer: updated, isLoading: false });
     } catch (error) {
       set({
@@ -183,10 +177,7 @@ export const useDeveloperPortalStore = create<DeveloperPortalState>()((set, get)
         isLoading: false,
       }));
 
-      await developerPortalService.completeOnboardingStep(
-        developerId,
-        'generate-api-key'
-      );
+      await developerPortalService.completeOnboardingStep(developerId, 'generate-api-key');
 
       const steps = await developerPortalService.getOnboardingSteps(developerId);
       set({ onboardingSteps: steps });
@@ -278,10 +269,7 @@ export const useDeveloperPortalStore = create<DeveloperPortalState>()((set, get)
   fetchRecentUsage: async (developerId, limit) => {
     set({ isLoading: true, error: null });
     try {
-      const recentUsage = await usageTrackingService.getRecentMetrics(
-        developerId,
-        limit
-      );
+      const recentUsage = await usageTrackingService.getRecentMetrics(developerId, limit);
       set({ recentUsage, isLoading: false });
     } catch (error) {
       set({
@@ -304,10 +292,7 @@ export const useDeveloperPortalStore = create<DeveloperPortalState>()((set, get)
 
   completeOnboardingStep: async (developerId, stepId) => {
     try {
-      const steps = await developerPortalService.completeOnboardingStep(
-        developerId,
-        stepId
-      );
+      const steps = await developerPortalService.completeOnboardingStep(developerId, stepId);
       if (steps) {
         set({ onboardingSteps: steps });
       }

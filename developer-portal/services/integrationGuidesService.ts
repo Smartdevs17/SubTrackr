@@ -298,19 +298,19 @@ const subtrackr = new SubTrackr({
   }
 
   async getGuide(guideId: string): Promise<IntegrationGuide | null> {
-    return this.guides.find(g => g.id === guideId) || null;
+    return this.guides.find((g) => g.id === guideId) || null;
   }
 
   async getGuidesByDifficulty(
     difficulty: IntegrationGuide['difficulty']
   ): Promise<IntegrationGuide[]> {
-    return this.guides.filter(g => g.difficulty === difficulty);
+    return this.guides.filter((g) => g.difficulty === difficulty);
   }
 
   async searchGuides(query: string): Promise<IntegrationGuide[]> {
     const lowerQuery = query.toLowerCase();
     return this.guides.filter(
-      guide =>
+      (guide) =>
         guide.title.toLowerCase().includes(lowerQuery) ||
         guide.description.toLowerCase().includes(lowerQuery)
     );
