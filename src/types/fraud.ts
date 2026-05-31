@@ -1,6 +1,11 @@
 export type FraudAction = 'approve' | 'flag' | 'block';
 export type FraudReviewStatus = 'pending' | 'reviewed' | 'dismissed' | 'escalated';
-export type FraudSignalType = 'velocity' | 'usage-anomaly' | 'chargeback' | 'pattern-shift' | 'device-mismatch';
+export type FraudSignalType =
+  | 'velocity'
+  | 'usage-anomaly'
+  | 'chargeback'
+  | 'pattern-shift'
+  | 'device-mismatch';
 
 export interface FraudSignal {
   kind: FraudSignalType;

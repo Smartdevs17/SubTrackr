@@ -106,9 +106,7 @@ export const ApiKeysPage: React.FC<ApiKeysPageProps> = ({ environmentId }) => {
         status: 'active',
         lastUsedAt: null,
         createdAt: new Date(),
-        expiresAt: new Date(
-          Date.now() + parseInt(expirationDays) * 86400000
-        ),
+        expiresAt: new Date(Date.now() + parseInt(expirationDays) * 86400000),
       };
 
       setApiKeys((prev) => [...prev, key]);
@@ -135,9 +133,7 @@ export const ApiKeysPage: React.FC<ApiKeysPageProps> = ({ environmentId }) => {
           style: 'destructive',
           onPress: () => {
             setApiKeys((prev) =>
-              prev.map((k) =>
-                k.id === keyId ? { ...k, status: 'revoked' as const } : k
-              )
+              prev.map((k) => (k.id === keyId ? { ...k, status: 'revoked' as const } : k))
             );
           },
         },
@@ -156,11 +152,7 @@ export const ApiKeysPage: React.FC<ApiKeysPageProps> = ({ environmentId }) => {
           onPress: () => {
             const newKey = `sk_test_${Math.random().toString(36).substring(2, 38)}`;
             setApiKeys((prev) =>
-              prev.map((k) =>
-                k.id === keyId
-                  ? { ...k, key: newKey, lastUsedAt: null }
-                  : k
-              )
+              prev.map((k) => (k.id === keyId ? { ...k, key: newKey, lastUsedAt: null } : k))
             );
             setGeneratedKey(newKey);
             setShowKeyModal(true);
@@ -177,9 +169,7 @@ export const ApiKeysPage: React.FC<ApiKeysPageProps> = ({ environmentId }) => {
 
   const togglePermission = (permission: string) => {
     setSelectedPermissions((prev) =>
-      prev.includes(permission)
-        ? prev.filter((p) => p !== permission)
-        : [...prev, permission]
+      prev.includes(permission) ? prev.filter((p) => p !== permission) : [...prev, permission]
     );
   };
 
@@ -202,8 +192,7 @@ export const ApiKeysPage: React.FC<ApiKeysPageProps> = ({ environmentId }) => {
             item.status === 'active' && styles.statusActive,
             item.status === 'revoked' && styles.statusRevoked,
             item.status === 'expired' && styles.statusExpired,
-          ]}
-        >
+          ]}>
           <Text style={styles.statusText}>{item.status}</Text>
         </View>
       </View>
@@ -217,18 +206,12 @@ export const ApiKeysPage: React.FC<ApiKeysPageProps> = ({ environmentId }) => {
       </View>
 
       <View style={styles.keyMeta}>
-        <Text style={styles.metaText}>
-          Created: {item.createdAt.toLocaleDateString()}
-        </Text>
+        <Text style={styles.metaText}>Created: {item.createdAt.toLocaleDateString()}</Text>
         {item.lastUsedAt && (
-          <Text style={styles.metaText}>
-            Last used: {item.lastUsedAt.toLocaleDateString()}
-          </Text>
+          <Text style={styles.metaText}>Last used: {item.lastUsedAt.toLocaleDateString()}</Text>
         )}
         {item.expiresAt && (
-          <Text style={styles.metaText}>
-            Expires: {item.expiresAt.toLocaleDateString()}
-          </Text>
+          <Text style={styles.metaText}>Expires: {item.expiresAt.toLocaleDateString()}</Text>
         )}
       </View>
 
@@ -236,14 +219,12 @@ export const ApiKeysPage: React.FC<ApiKeysPageProps> = ({ environmentId }) => {
         <View style={styles.keyActions}>
           <TouchableOpacity
             style={[styles.actionButton, styles.rotateButton]}
-            onPress={() => handleRotateKey(item.id, item.name)}
-          >
+            onPress={() => handleRotateKey(item.id, item.name)}>
             <Text style={styles.rotateButtonText}>Rotate</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.actionButton, styles.revokeButton]}
-            onPress={() => handleRevokeKey(item.id, item.name)}
-          >
+            onPress={() => handleRevokeKey(item.id, item.name)}>
             <Text style={styles.revokeButtonText}>Revoke</Text>
           </TouchableOpacity>
         </View>
@@ -256,14 +237,9 @@ export const ApiKeysPage: React.FC<ApiKeysPageProps> = ({ environmentId }) => {
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>API Keys</Text>
-          <Text style={styles.subtitle}>
-            Manage your API keys for sandbox access
-          </Text>
+          <Text style={styles.subtitle}>Manage your API keys for sandbox access</Text>
         </View>
-        <TouchableOpacity
-          style={styles.createButton}
-          onPress={() => setModalVisible(true)}
-        >
+        <TouchableOpacity style={styles.createButton} onPress={() => setModalVisible(true)}>
           <Text style={styles.createButtonText}>+ Create Key</Text>
         </TouchableOpacity>
       </View>
@@ -271,8 +247,8 @@ export const ApiKeysPage: React.FC<ApiKeysPageProps> = ({ environmentId }) => {
       <View style={styles.infoBox}>
         <Text style={styles.infoTitle}>API Key Security</Text>
         <Text style={styles.infoText}>
-          Keep your API keys secure. Never share them in public repositories or
-          client-side code. Use environment variables for production keys.
+          Keep your API keys secure. Never share them in public repositories or client-side code.
+          Use environment variables for production keys.
         </Text>
       </View>
 
@@ -296,8 +272,7 @@ export const ApiKeysPage: React.FC<ApiKeysPageProps> = ({ environmentId }) => {
         visible={modalVisible}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => setModalVisible(false)}
-      >
+        onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <ScrollView style={styles.modalScroll}>
             <View style={styles.modalContent}>
@@ -312,9 +287,7 @@ export const ApiKeysPage: React.FC<ApiKeysPageProps> = ({ environmentId }) => {
                 placeholderTextColor="#9CA3AF"
               />
 
-              <Text style={styles.inputLabel}>
-                Expiration (days)
-              </Text>
+              <Text style={styles.inputLabel}>Expiration (days)</Text>
               <TextInput
                 style={styles.input}
                 value={expirationDays}
@@ -334,16 +307,14 @@ export const ApiKeysPage: React.FC<ApiKeysPageProps> = ({ environmentId }) => {
                       selectedPermissions.includes(permission.id) &&
                         styles.permissionOptionSelected,
                     ]}
-                    onPress={() => togglePermission(permission.id)}
-                  >
+                    onPress={() => togglePermission(permission.id)}>
                     <View style={styles.permissionOptionContent}>
                       <Text
                         style={[
                           styles.permissionOptionText,
                           selectedPermissions.includes(permission.id) &&
                             styles.permissionOptionTextSelected,
-                        ]}
-                      >
+                        ]}>
                         {permission.label}
                       </Text>
                       <Text style={styles.permissionOptionDescription}>
@@ -360,15 +331,13 @@ export const ApiKeysPage: React.FC<ApiKeysPageProps> = ({ environmentId }) => {
               <View style={styles.modalActions}>
                 <TouchableOpacity
                   style={[styles.modalButton, styles.cancelButton]}
-                  onPress={() => setModalVisible(false)}
-                >
+                  onPress={() => setModalVisible(false)}>
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.modalButton, styles.confirmButton]}
                   onPress={handleCreateKey}
-                  disabled={loading}
-                >
+                  disabled={loading}>
                   <Text style={styles.confirmButtonText}>
                     {loading ? 'Creating...' : 'Create Key'}
                   </Text>
@@ -383,14 +352,12 @@ export const ApiKeysPage: React.FC<ApiKeysPageProps> = ({ environmentId }) => {
         visible={showKeyModal}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => setShowKeyModal(false)}
-      >
+        onRequestClose={() => setShowKeyModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>API Key Created</Text>
             <Text style={styles.keyCreatedText}>
-              Your API key has been created. Copy it now - you won't be able to
-              see it again!
+              Your API key has been created. Copy it now - you won't be able to see it again!
             </Text>
             <View style={styles.keyDisplay}>
               <Text style={styles.keyDisplayText} selectable>
@@ -402,8 +369,7 @@ export const ApiKeysPage: React.FC<ApiKeysPageProps> = ({ environmentId }) => {
               onPress={() => {
                 copyToClipboard(generatedKey);
                 setShowKeyModal(false);
-              }}
-            >
+              }}>
               <Text style={styles.confirmButtonText}>Copy & Close</Text>
             </TouchableOpacity>
           </View>

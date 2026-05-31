@@ -35,7 +35,9 @@ export const useSupportStore = create<SupportState>((set, get) => ({
 
   createTicket: (event) => {
     const relatedTicketIds = get()
-      .tickets.filter((ticket) => ticket.subscriptionId === event.subscriptionId && ticket.status !== 'closed')
+      .tickets.filter(
+        (ticket) => ticket.subscriptionId === event.subscriptionId && ticket.status !== 'closed'
+      )
       .map((ticket) => ticket.id);
     const ticket = createTicketFromEvent(event, relatedTicketIds);
     set((state) => ({ tickets: [...state.tickets, ticket] }));
@@ -43,7 +45,9 @@ export const useSupportStore = create<SupportState>((set, get) => ({
   },
 
   assignTicket: (ticketId, assignee) =>
-    set((state) => ({ tickets: mapTicket(state.tickets, ticketId, (ticket) => assignTicket(ticket, assignee)) })),
+    set((state) => ({
+      tickets: mapTicket(state.tickets, ticketId, (ticket) => assignTicket(ticket, assignee)),
+    })),
 
   updateTicketStatus: (ticketId, status) =>
     set((state) => ({

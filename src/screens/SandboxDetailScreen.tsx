@@ -43,10 +43,7 @@ export default function SandboxDetailScreen() {
     return (
       <View style={styles.emptyContainer}>
         <Text style={styles.emptyText}>No sandbox selected</Text>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Text style={styles.backButtonText}>Go Back</Text>
         </TouchableOpacity>
       </View>
@@ -96,8 +93,7 @@ export default function SandboxDetailScreen() {
             style={[
               styles.statusBadge,
               selectedSandbox.isActive ? styles.statusActive : styles.statusInactive,
-            ]}
-          >
+            ]}>
             <Text style={styles.statusText}>
               {selectedSandbox.isActive ? 'Active' : 'Inactive'}
             </Text>
@@ -175,9 +171,7 @@ export default function SandboxDetailScreen() {
         )}
       </TouchableOpacity>
 
-      <Text style={styles.sectionTitle}>
-        {sandboxSubscriptions.length} Test Subscriptions
-      </Text>
+      <Text style={styles.sectionTitle}>{sandboxSubscriptions.length} Test Subscriptions</Text>
 
       {sandboxSubscriptions.length === 0 ? (
         <View style={styles.emptyState}>
@@ -199,9 +193,7 @@ export default function SandboxDetailScreen() {
             <Text style={styles.dataCategory}>{sub.category}</Text>
             <View style={styles.dataMeta}>
               <Text style={styles.dataMetaItem}>{sub.billingCycle}</Text>
-              <Text style={styles.dataMetaItem}>
-                {sub.isActive ? 'Active' : 'Inactive'}
-              </Text>
+              <Text style={styles.dataMetaItem}>{sub.isActive ? 'Active' : 'Inactive'}</Text>
               {sub.isCryptoEnabled && (
                 <Text style={styles.dataMetaItem}>Crypto: {sub.cryptoToken}</Text>
               )}
@@ -224,9 +216,7 @@ export default function SandboxDetailScreen() {
         <View style={styles.emptyState}>
           <Text style={styles.emptyStateIcon}>📈</Text>
           <Text style={styles.emptyStateTitle}>No Usage Data</Text>
-          <Text style={styles.emptyStateText}>
-            Start making API calls to see usage statistics
-          </Text>
+          <Text style={styles.emptyStateText}>Start making API calls to see usage statistics</Text>
         </View>
       ) : (
         <>
@@ -261,8 +251,7 @@ export default function SandboxDetailScreen() {
                   style={[
                     styles.usageStatus,
                     record.statusCode < 400 ? styles.statusSuccess : styles.statusError,
-                  ]}
-                >
+                  ]}>
                   {record.statusCode}
                 </Text>
                 <Text style={styles.usageTime}>{record.responseTime}ms</Text>
@@ -281,8 +270,7 @@ export default function SandboxDetailScreen() {
     <View>
       <TouchableOpacity
         style={styles.generateButton}
-        onPress={() => navigation.navigate('ApiKeyManagement' as any)}
-      >
+        onPress={() => navigation.navigate('ApiKeyManagement' as any)}>
         <Text style={styles.generateButtonText}>Manage API Keys</Text>
       </TouchableOpacity>
 
@@ -319,35 +307,27 @@ export default function SandboxDetailScreen() {
       <View style={styles.tabContainer}>
         <TouchableOpacity
           style={[styles.tab, activeTab === 'overview' && styles.tabActive]}
-          onPress={() => setActiveTab('overview')}
-        >
+          onPress={() => setActiveTab('overview')}>
           <Text style={[styles.tabText, activeTab === 'overview' && styles.tabTextActive]}>
             Overview
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, activeTab === 'data' && styles.tabActive]}
-          onPress={() => setActiveTab('data')}
-        >
+          onPress={() => setActiveTab('data')}>
           <Text style={[styles.tabText, activeTab === 'data' && styles.tabTextActive]}>
             Test Data
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, activeTab === 'usage' && styles.tabActive]}
-          onPress={() => setActiveTab('usage')}
-        >
-          <Text style={[styles.tabText, activeTab === 'usage' && styles.tabTextActive]}>
-            Usage
-          </Text>
+          onPress={() => setActiveTab('usage')}>
+          <Text style={[styles.tabText, activeTab === 'usage' && styles.tabTextActive]}>Usage</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, activeTab === 'keys' && styles.tabActive]}
-          onPress={() => setActiveTab('keys')}
-        >
-          <Text style={[styles.tabText, activeTab === 'keys' && styles.tabTextActive]}>
-            Keys
-          </Text>
+          onPress={() => setActiveTab('keys')}>
+          <Text style={[styles.tabText, activeTab === 'keys' && styles.tabTextActive]}>Keys</Text>
         </TouchableOpacity>
       </View>
 

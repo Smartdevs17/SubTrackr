@@ -64,7 +64,9 @@ const SandboxDashboardScreen = lazyScreen(() => import('../screens/SandboxDashbo
 const ApiKeyManagementScreen = lazyScreen(() => import('../screens/ApiKeyManagementScreen'));
 const DocumentationPortalScreen = lazyScreen(() => import('../screens/DocumentationPortalScreen'));
 const IntegrationGuidesScreen = lazyScreen(() => import('../screens/IntegrationGuidesScreen'));
-const PerformanceDashboardScreen = lazyScreen(() => import('../screens/PerformanceDashboardScreen'));
+const PerformanceDashboardScreen = lazyScreen(
+  () => import('../screens/PerformanceDashboardScreen')
+);
 
 const Tab = createBottomTabNavigator<TabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();

@@ -1,12 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  RefreshControl,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
 
 interface UsageStats {
   totalRequests: number;
@@ -37,9 +30,7 @@ export const UsagePage: React.FC<UsagePageProps> = ({ environmentId }) => {
   const [stats, setStats] = useState<UsageStats | null>(null);
   const [topEndpoints, setTopEndpoints] = useState<EndpointUsage[]>([]);
   const [hourlyData, setHourlyData] = useState<HourlyData[]>([]);
-  const [selectedPeriod, setSelectedPeriod] = useState<'24h' | '7d' | '30d'>(
-    '24h'
-  );
+  const [selectedPeriod, setSelectedPeriod] = useState<'24h' | '7d' | '30d'>('24h');
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
@@ -95,33 +86,23 @@ export const UsagePage: React.FC<UsagePageProps> = ({ environmentId }) => {
   return (
     <ScrollView
       style={styles.container}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    >
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
       <View style={styles.header}>
         <Text style={styles.title}>Usage Analytics</Text>
-        <Text style={styles.subtitle}>
-          Monitor your API usage and performance
-        </Text>
+        <Text style={styles.subtitle}>Monitor your API usage and performance</Text>
       </View>
 
       <View style={styles.periodSelector}>
         {(['24h', '7d', '30d'] as const).map((period) => (
           <TouchableOpacity
             key={period}
-            style={[
-              styles.periodButton,
-              selectedPeriod === period && styles.periodButtonActive,
-            ]}
-            onPress={() => setSelectedPeriod(period)}
-          >
+            style={[styles.periodButton, selectedPeriod === period && styles.periodButtonActive]}
+            onPress={() => setSelectedPeriod(period)}>
             <Text
               style={[
                 styles.periodButtonText,
                 selectedPeriod === period && styles.periodButtonTextActive,
-              ]}
-            >
+              ]}>
               {period}
             </Text>
           </TouchableOpacity>
@@ -132,9 +113,7 @@ export const UsagePage: React.FC<UsagePageProps> = ({ environmentId }) => {
         <>
           <View style={styles.statsGrid}>
             <View style={styles.statCard}>
-              <Text style={styles.statValue}>
-                {stats.totalRequests.toLocaleString()}
-              </Text>
+              <Text style={styles.statValue}>{stats.totalRequests.toLocaleString()}</Text>
               <Text style={styles.statLabel}>Total Requests</Text>
             </View>
             <View style={styles.statCard}>
@@ -166,15 +145,12 @@ export const UsagePage: React.FC<UsagePageProps> = ({ environmentId }) => {
                         styles.bar,
                         {
                           height: getBarHeight(data.requests, maxRequests),
-                          backgroundColor:
-                            data.errors > 5 ? '#EF4444' : '#3B82F6',
+                          backgroundColor: data.errors > 5 ? '#EF4444' : '#3B82F6',
                         },
                       ]}
                     />
                   </View>
-                  {data.hour % 4 === 0 && (
-                    <Text style={styles.barLabel}>{data.hour}h</Text>
-                  )}
+                  {data.hour % 4 === 0 && <Text style={styles.barLabel}>{data.hour}h</Text>}
                 </View>
               ))}
             </View>
@@ -187,21 +163,12 @@ export const UsagePage: React.FC<UsagePageProps> = ({ environmentId }) => {
                 <View style={styles.endpointHeader}>
                   <Text style={styles.endpointRank}>#{index + 1}</Text>
                   <Text style={styles.endpointName}>{endpoint.endpoint}</Text>
-                  <Text style={styles.endpointCount}>
-                    {endpoint.count.toLocaleString()}
-                  </Text>
+                  <Text style={styles.endpointCount}>{endpoint.count.toLocaleString()}</Text>
                 </View>
                 <View style={styles.progressBar}>
-                  <View
-                    style={[
-                      styles.progressFill,
-                      { width: `${endpoint.percentage}%` },
-                    ]}
-                  />
+                  <View style={[styles.progressFill, { width: `${endpoint.percentage}%` }]} />
                 </View>
-                <Text style={styles.endpointPercentage}>
-                  {endpoint.percentage}% of total
-                </Text>
+                <Text style={styles.endpointPercentage}>{endpoint.percentage}% of total</Text>
               </View>
             ))}
           </View>
@@ -223,9 +190,7 @@ export const UsagePage: React.FC<UsagePageProps> = ({ environmentId }) => {
               </View>
               <View style={styles.metricRow}>
                 <Text style={styles.metricLabel}>Uptime</Text>
-                <Text style={[styles.metricValue, { color: '#22C55E' }]}>
-                  99.95%
-                </Text>
+                <Text style={[styles.metricValue, { color: '#22C55E' }]}>99.95%</Text>
               </View>
             </View>
           </View>
