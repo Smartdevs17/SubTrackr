@@ -104,10 +104,7 @@ const CampaignManagementScreen: React.FC = () => {
             <Text style={styles.campaignName}>{campaign.name}</Text>
             <View style={styles.campaignMeta}>
               <View
-                style={[
-                  styles.statusBadge,
-                  { backgroundColor: getStatusColor(campaign.status) },
-                ]}>
+                style={[styles.statusBadge, { backgroundColor: getStatusColor(campaign.status) }]}>
                 <Text style={styles.statusBadgeText}>{campaign.status}</Text>
               </View>
               <Text style={styles.campaignType}>{getTypeLabel(campaign.type)}</Text>
@@ -148,9 +145,7 @@ const CampaignManagementScreen: React.FC = () => {
         {analytics && (
           <View style={styles.analyticsGrid}>
             <View style={styles.analyticsItem}>
-              <Text style={styles.analyticsValue}>
-                {analytics.totalRecipients}
-              </Text>
+              <Text style={styles.analyticsValue}>{analytics.totalRecipients}</Text>
               <Text style={styles.analyticsLabel}>Recipients</Text>
             </View>
             <View style={styles.analyticsItem}>
@@ -281,8 +276,7 @@ const CampaignManagementScreen: React.FC = () => {
                   key={channel}
                   style={[
                     styles.channelOption,
-                    newCampaign.channels.includes(channel) &&
-                      styles.channelOptionSelected,
+                    newCampaign.channels.includes(channel) && styles.channelOptionSelected,
                   ]}
                   onPress={() => {
                     const channels = newCampaign.channels.includes(channel)
@@ -293,8 +287,7 @@ const CampaignManagementScreen: React.FC = () => {
                   <Text
                     style={[
                       styles.channelOptionText,
-                      newCampaign.channels.includes(channel) &&
-                        styles.channelOptionTextSelected,
+                      newCampaign.channels.includes(channel) && styles.channelOptionTextSelected,
                     ]}>
                     {channel}
                   </Text>
@@ -303,9 +296,7 @@ const CampaignManagementScreen: React.FC = () => {
             </View>
           </View>
 
-          <TouchableOpacity
-            style={styles.createButton}
-            onPress={handleCreateCampaign}>
+          <TouchableOpacity style={styles.createButton} onPress={handleCreateCampaign}>
             <Text style={styles.createButtonText}>Create Campaign</Text>
           </TouchableOpacity>
         </ScrollView>
@@ -329,9 +320,7 @@ const CampaignManagementScreen: React.FC = () => {
       <ScrollView style={styles.scrollView}>
         <View style={styles.header}>
           <Text style={styles.title}>Campaign Management</Text>
-          <Text style={styles.subtitle}>
-            Create and manage marketing campaigns
-          </Text>
+          <Text style={styles.subtitle}>Create and manage marketing campaigns</Text>
         </View>
 
         <TouchableOpacity
@@ -345,9 +334,7 @@ const CampaignManagementScreen: React.FC = () => {
         {campaigns.length === 0 ? (
           <Card style={styles.emptyCard}>
             <Text style={styles.emptyText}>No campaigns yet</Text>
-            <Text style={styles.emptySubtext}>
-              Create your first campaign to get started
-            </Text>
+            <Text style={styles.emptySubtext}>Create your first campaign to get started</Text>
           </Card>
         ) : (
           campaigns.map(renderCampaignItem)

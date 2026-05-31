@@ -49,7 +49,60 @@ import DocumentationPortalScreen from '../screens/DocumentationPortalScreen';
 import IntegrationGuidesScreen from '../screens/IntegrationGuidesScreen';
 import { colors } from '../utils/constants';
 
-import { RootStackParamList, TabParamList } from './types';
+// Lazy loaded auxiliary and heavy screens with suspense/retry support
+const AddSubscriptionScreen = lazyScreen(() => import('../screens/AddSubscriptionScreen'));
+const CancellationFlowScreen = lazyScreen(() => import('../screens/CancellationFlowScreen'));
+const WalletConnectScreen = lazyScreen(() => import('../screens/WalletConnectV2Screen'));
+const CryptoPaymentScreen = lazyScreen(() => import('../screens/CryptoPaymentScreen'));
+const CommunityScreen = lazyScreen(() => import('../screens/CommunityScreen'));
+const ProfileScreen = lazyScreen(() => import('../screens/ProfileScreen'));
+const SubscriptionDetailScreen = lazyScreen(() => import('../screens/SubscriptionDetailScreen'));
+const InvoiceListScreen = lazyScreen(() => import('../screens/InvoiceListScreen'));
+const InvoiceDetailScreen = lazyScreen(() => import('../screens/InvoiceDetailScreen'));
+const AnalyticsScreen = lazyScreen(() => import('../screens/AnalyticsScreen'));
+const SlaDashboard = lazyScreen(() => import('../screens/SlaDashboard'));
+const GDPRSettingsScreen = lazyScreen(() => import('../screens/GDPRSettingsScreen'));
+const LanguageSettingsScreen = lazyScreen(() => import('../screens/LanguageSettingsScreen'));
+const SessionManagementScreen = lazyScreen(() => import('../screens/SessionManagementScreen'));
+const CalendarIntegrationScreen = lazyScreen(() => import('../screens/CalendarIntegrationScreen'));
+const AccountingExportScreen = lazyScreen(() => import('../screens/AccountingExportScreen'));
+const WebhookSettingsScreen = lazyScreen(() => import('../screens/WebhookSettingsScreen'));
+const ErrorDashboardScreen = lazyScreen(() => import('../screens/ErrorDashboardScreen'));
+const ImportScreen = lazyScreen(() => import('../screens/ImportScreen'));
+const ExportScreen = lazyScreen(() => import('../screens/ExportScreen'));
+const BatchOperationsScreen = lazyScreen(() =>
+  import('../../app/screens/BatchOperationsScreen').then((m) => ({
+    default: m.BatchOperationsScreen,
+  }))
+);
+const AdminDashboardScreen = lazyScreen(() => import('../screens/AdminDashboardScreen'));
+const FraudDashboard = lazyScreen(() => import('../screens/FraudDashboard'));
+const GroupManagementScreen = lazyScreen(() => import('../screens/GroupManagementScreen'));
+const TaxSettingsScreen = lazyScreen(() => import('../screens/TaxSettingsScreen'));
+const SupportDashboardScreen = lazyScreen(() => import('../screens/SupportDashboardScreen'));
+const SegmentManagementScreen = lazyScreen(() =>
+  import('../screens/SegmentManagementScreen').then((m) => ({ default: m.SegmentManagementScreen }))
+);
+const SegmentDetailScreen = lazyScreen(() =>
+  import('../screens/SegmentDetailScreen').then((m) => ({ default: m.SegmentDetailScreen }))
+);
+const GamificationScreen = lazyScreen(() =>
+  import('../screens/GamificationScreen').then((m) => ({ default: m.GamificationScreen }))
+);
+const RevenueReportScreen = lazyScreen(() => import('../screens/RevenueReportScreen'));
+const UsageDashboardScreen = lazyScreen(() => import('../screens/UsageDashboard'));
+const MerchantOnboardingScreen = lazyScreen(() => import('../screens/MerchantOnboardingScreen'));
+const AffiliateDashboardScreen = lazyScreen(() => import('../screens/AffiliateDashboardScreen'));
+const LoyaltyDashboardScreen = lazyScreen(() => import('../screens/LoyaltyDashboardScreen'));
+const CampaignManagementScreen = lazyScreen(() => import('../screens/CampaignManagementScreen'));
+const DeveloperPortalScreen = lazyScreen(() => import('../screens/DeveloperPortalScreen'));
+const SandboxDashboardScreen = lazyScreen(() => import('../screens/SandboxDashboardScreen'));
+const ApiKeyManagementScreen = lazyScreen(() => import('../screens/ApiKeyManagementScreen'));
+const DocumentationPortalScreen = lazyScreen(() => import('../screens/DocumentationPortalScreen'));
+const IntegrationGuidesScreen = lazyScreen(() => import('../screens/IntegrationGuidesScreen'));
+const PerformanceDashboardScreen = lazyScreen(
+  () => import('../screens/PerformanceDashboardScreen')
+);
 
 const Tab = createBottomTabNavigator<TabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();

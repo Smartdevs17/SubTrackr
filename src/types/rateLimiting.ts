@@ -112,7 +112,10 @@ export const TIER_RATE_LIMITS: Record<SubscriptionTier, TierRateLimit> = {
 
 export const SOFT_LIMIT_WARNINGS = [0.8, 0.95] as const;
 
-export const TIER_UPGRADE_THRESHOLDS: Record<SubscriptionTier, { usagePercent: number; sustainedHours: number }> = {
+export const TIER_UPGRADE_THRESHOLDS: Record<
+  SubscriptionTier,
+  { usagePercent: number; sustainedHours: number }
+> = {
   [SubscriptionTier.FREE]: { usagePercent: 0.8, sustainedHours: 48 },
   [SubscriptionTier.BASIC]: { usagePercent: 0.8, sustainedHours: 48 },
   [SubscriptionTier.PREMIUM]: { usagePercent: 0.9, sustainedHours: 72 },

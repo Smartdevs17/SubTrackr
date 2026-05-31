@@ -6,7 +6,11 @@ export class DeveloperPortalUtils {
     return emailRegex.test(email);
   }
 
-  static validateApiKey(key: string): { valid: boolean; type?: 'test' | 'production'; error?: string } {
+  static validateApiKey(key: string): {
+    valid: boolean;
+    type?: 'test' | 'production';
+    error?: string;
+  } {
     if (!key) {
       return { valid: false, error: 'API key is required' };
     }
@@ -31,7 +35,10 @@ export class DeveloperPortalUtils {
     return apiKey.permissions.includes(permission);
   }
 
-  static checkRateLimit(apiKey: ApiKey, currentUsage: { requestsPerMinute: number; requestsPerHour: number; requestsPerDay: number }): { allowed: boolean; retryAfter?: number } {
+  static checkRateLimit(
+    apiKey: ApiKey,
+    currentUsage: { requestsPerMinute: number; requestsPerHour: number; requestsPerDay: number }
+  ): { allowed: boolean; retryAfter?: number } {
     if (currentUsage.requestsPerMinute >= apiKey.rateLimit.requestsPerMinute) {
       return { allowed: false, retryAfter: 60 };
     }
@@ -62,13 +69,15 @@ export class DeveloperPortalUtils {
     avgResponseTime: string;
     errorRate: string;
   } {
-    const successRate = metrics.totalRequests > 0
-      ? ((metrics.successfulRequests / metrics.totalRequests) * 100).toFixed(2)
-      : '0.00';
+    const successRate =
+      metrics.totalRequests > 0
+        ? ((metrics.successfulRequests / metrics.totalRequests) * 100).toFixed(2)
+        : '0.00';
 
-    const errorRate = metrics.totalRequests > 0
-      ? ((metrics.failedRequests / metrics.totalRequests) * 100).toFixed(2)
-      : '0.00';
+    const errorRate =
+      metrics.totalRequests > 0
+        ? ((metrics.failedRequests / metrics.totalRequests) * 100).toFixed(2)
+        : '0.00';
 
     return {
       totalRequests: metrics.totalRequests.toLocaleString(),
@@ -78,7 +87,9 @@ export class DeveloperPortalUtils {
     };
   }
 
-  static generateOnboardingChecklist(developer: Developer): Array<{ step: string; completed: boolean; description: string }> {
+  static generateOnboardingChecklist(
+    developer: Developer
+  ): Array<{ step: string; completed: boolean; description: string }> {
     return [
       {
         step: 'register',
@@ -142,7 +153,14 @@ export class DeveloperPortalUtils {
           maxApiKeys: 50,
           maxSandboxEnvironments: 10,
           maxRequestsPerMonth: 1000000,
-          features: ['priority_support', 'custom_sla', 'dedicated_account_manager', 'advanced_analytics', 'webhooks', 'team_management'],
+          features: [
+            'priority_support',
+            'custom_sla',
+            'dedicated_account_manager',
+            'advanced_analytics',
+            'webhooks',
+            'team_management',
+          ],
         };
       case 'pro':
         return {
@@ -180,9 +198,9 @@ export class DeveloperPortalUtils {
   }
 
   static generateWebhookSecret(): string {
-    return 'whsec_' + Array.from({ length: 32 }, () =>
-      Math.random().toString(36).charAt(2)
-    ).join('');
+    return (
+      'whsec_' + Array.from({ length: 32 }, () => Math.random().toString(36).charAt(2)).join('')
+    );
   }
 
   static formatCurrency(amount: number, currency: string = 'USD'): string {

@@ -79,7 +79,7 @@ const LoyaltyDashboardScreen: React.FC = () => {
 
   const getNextTierInfo = (): TierBenefits | null => {
     if (!program || !loyaltyStatus) return null;
-    const currentTierIndex = program.tiers.findIndex(t => t.tier === loyaltyStatus.tier);
+    const currentTierIndex = program.tiers.findIndex((t) => t.tier === loyaltyStatus.tier);
     if (currentTierIndex >= program.tiers.length - 1) return null;
     return program.tiers[currentTierIndex + 1];
   };
@@ -89,33 +89,22 @@ const LoyaltyDashboardScreen: React.FC = () => {
       return (
         <Card style={styles.statusCard}>
           <Text style={styles.emptyText}>No loyalty status yet</Text>
-          <Text style={styles.emptySubtext}>
-            Start subscribing to earn rewards!
-          </Text>
+          <Text style={styles.emptySubtext}>Start subscribing to earn rewards!</Text>
         </Card>
       );
     }
 
     const nextTier = getNextTierInfo();
-    const pointsToNextTier = nextTier
-      ? nextTier.pointsThreshold - loyaltyStatus.lifetimePoints
-      : 0;
+    const pointsToNextTier = nextTier ? nextTier.pointsThreshold - loyaltyStatus.lifetimePoints : 0;
 
     return (
       <Card style={styles.statusCard}>
         <View style={styles.tierHeader}>
-          <View
-            style={[
-              styles.tierBadge,
-              { backgroundColor: getTierColor(loyaltyStatus.tier) },
-            ]}>
-            <Text style={styles.tierBadgeText}>
-              {loyaltyStatus.tier.toUpperCase()}
-            </Text>
+          <View style={[styles.tierBadge, { backgroundColor: getTierColor(loyaltyStatus.tier) }]}>
+            <Text style={styles.tierBadgeText}>{loyaltyStatus.tier.toUpperCase()}</Text>
           </View>
           <Text style={styles.memberSince}>
-            Member since{' '}
-            {new Date(loyaltyStatus.memberSince).toLocaleDateString()}
+            Member since {new Date(loyaltyStatus.memberSince).toLocaleDateString()}
           </Text>
         </View>
 
@@ -146,15 +135,11 @@ const LoyaltyDashboardScreen: React.FC = () => {
 
         <View style={styles.statsGrid}>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>
-              {loyaltyStatus.lifetimePoints.toLocaleString()}
-            </Text>
+            <Text style={styles.statValue}>{loyaltyStatus.lifetimePoints.toLocaleString()}</Text>
             <Text style={styles.statLabel}>Lifetime Points</Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>
-              ${loyaltyStatus.totalSpent.toFixed(0)}
-            </Text>
+            <Text style={styles.statValue}>${loyaltyStatus.totalSpent.toFixed(0)}</Text>
             <Text style={styles.statLabel}>Total Spent</Text>
           </View>
         </View>
@@ -234,17 +219,10 @@ const LoyaltyDashboardScreen: React.FC = () => {
         {program.tiers.map((tier) => (
           <View key={tier.tier} style={styles.tierItem}>
             <View style={styles.tierInfo}>
-              <View
-                style={[
-                  styles.tierDot,
-                  { backgroundColor: getTierColor(tier.tier) },
-                ]}
-              />
+              <View style={[styles.tierDot, { backgroundColor: getTierColor(tier.tier) }]} />
               <Text style={styles.tierName}>{tier.tier.toUpperCase()}</Text>
             </View>
-            <Text style={styles.tierThreshold}>
-              {tier.pointsThreshold.toLocaleString()} pts
-            </Text>
+            <Text style={styles.tierThreshold}>{tier.pointsThreshold.toLocaleString()} pts</Text>
           </View>
         ))}
       </Card>
@@ -284,9 +262,7 @@ const LoyaltyDashboardScreen: React.FC = () => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Redeem Reward</Text>
-            <Text style={styles.modalSubtitle}>
-              Select a reward to redeem your points
-            </Text>
+            <Text style={styles.modalSubtitle}>Select a reward to redeem your points</Text>
 
             <FlatList
               data={rewards.filter((r) => r.isActive)}
@@ -302,9 +278,7 @@ const LoyaltyDashboardScreen: React.FC = () => {
                     <Text style={styles.rewardOptionName}>{reward.name}</Text>
                     <Text style={styles.rewardOptionDesc}>{reward.description}</Text>
                   </View>
-                  <Text style={styles.rewardOptionCost}>
-                    {reward.pointsCost} pts
-                  </Text>
+                  <Text style={styles.rewardOptionCost}>{reward.pointsCost} pts</Text>
                 </TouchableOpacity>
               )}
             />
@@ -318,9 +292,7 @@ const LoyaltyDashboardScreen: React.FC = () => {
                 }}>
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.confirmButton}
-                onPress={handleRedeemReward}>
+              <TouchableOpacity style={styles.confirmButton} onPress={handleRedeemReward}>
                 <Text style={styles.confirmButtonText}>Redeem</Text>
               </TouchableOpacity>
             </View>

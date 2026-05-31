@@ -92,9 +92,8 @@ beforeEach(() => {
   (AsyncStorage.setItem as jest.Mock).mockClear();
   (AsyncStorage.getItem as jest.Mock).mockClear();
   (AsyncStorage.removeItem as jest.Mock).mockClear();
-  const notify = (
-    jest.requireMock('../../services/notificationService') as NotificationServiceMock
-  ).presentSlaBreachNotification;
+  const notify = (jest.requireMock('../../services/notificationService') as NotificationServiceMock)
+    .presentSlaBreachNotification;
   notify.mockClear();
   resetStore();
 });

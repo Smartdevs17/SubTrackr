@@ -1,8 +1,4 @@
-import {
-  UsageMetrics,
-  HourlyUsage,
-  DailyUsage,
-} from '../types/sandbox';
+import { UsageMetrics, HourlyUsage, DailyUsage } from '../types/sandbox';
 
 export class UsageTrackingService {
   private usageData: Map<string, UsageMetrics> = new Map();
@@ -60,26 +56,18 @@ export class UsageTrackingService {
       statusCode?: number;
     }
   ): Promise<RequestLogEntry[]> {
-    let filtered = this.requestLog.filter(
-      (entry) => entry.environmentId === environmentId
-    );
+    let filtered = this.requestLog.filter((entry) => entry.environmentId === environmentId);
 
     if (options?.startDate) {
-      filtered = filtered.filter(
-        (entry) => entry.timestamp >= options.startDate!
-      );
+      filtered = filtered.filter((entry) => entry.timestamp >= options.startDate!);
     }
 
     if (options?.endDate) {
-      filtered = filtered.filter(
-        (entry) => entry.timestamp <= options.endDate!
-      );
+      filtered = filtered.filter((entry) => entry.timestamp <= options.endDate!);
     }
 
     if (options?.statusCode) {
-      filtered = filtered.filter(
-        (entry) => entry.statusCode === options.statusCode
-      );
+      filtered = filtered.filter((entry) => entry.statusCode === options.statusCode);
     }
 
     filtered.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
@@ -111,9 +99,7 @@ export class UsageTrackingService {
       successfulRequests: metrics.successfulRequests,
       failedRequests: metrics.failedRequests,
       successRate:
-        metrics.totalRequests > 0
-          ? (metrics.successfulRequests / metrics.totalRequests) * 100
-          : 0,
+        metrics.totalRequests > 0 ? (metrics.successfulRequests / metrics.totalRequests) * 100 : 0,
       averageResponseTime: metrics.averageResponseTime,
       requestsLast24Hours: last24Hours.length,
       requestsLast7Days: last7Days.length,
@@ -124,9 +110,7 @@ export class UsageTrackingService {
 
   async resetUsage(environmentId: string): Promise<boolean> {
     this.usageData.delete(environmentId);
-    this.requestLog = this.requestLog.filter(
-      (entry) => entry.environmentId !== environmentId
-    );
+    this.requestLog = this.requestLog.filter((entry) => entry.environmentId !== environmentId);
     return true;
   }
 
@@ -159,9 +143,7 @@ export class UsageTrackingService {
   }
 
   private calculateAverageResponseTime(environmentId: string): number {
-    const entries = this.requestLog.filter(
-      (entry) => entry.environmentId === environmentId
-    );
+    const entries = this.requestLog.filter((entry) => entry.environmentId === environmentId);
 
     if (entries.length === 0) return 0;
 
@@ -169,11 +151,7 @@ export class UsageTrackingService {
     return Math.round(total / entries.length);
   }
 
-  private updateHourlyUsage(
-    metrics: UsageMetrics,
-    statusCode: number,
-    responseTime: number
-  ): void {
+  private updateHourlyUsage(metrics: UsageMetrics, statusCode: number, responseTime: number): void {
     const currentHour = new Date().getHours();
     const hourlyData = metrics.last24Hours[currentHour];
 
@@ -189,11 +167,7 @@ export class UsageTrackingService {
     }
   }
 
-  private updateDailyUsage(
-    metrics: UsageMetrics,
-    statusCode: number,
-    responseTime: number
-  ): void {
+  private updateDailyUsage(metrics: UsageMetrics, statusCode: number, responseTime: number): void {
     const today = new Date().toISOString().split('T')[0];
     const dailyData = metrics.last7Days.find((d) => d.date === today);
 
@@ -203,16 +177,12 @@ export class UsageTrackingService {
         dailyData.errors++;
       }
       dailyData.avgResponseTime = Math.round(
-        (dailyData.avgResponseTime * (dailyData.requests - 1) + responseTime) /
-          dailyData.requests
+        (dailyData.avgResponseTime * (dailyData.requests - 1) + responseTime) / dailyData.requests
       );
     }
   }
 
-  private getTopEndpoints(
-    environmentId: string,
-    limit: number
-  ): EndpointUsage[] {
+  private getTopEndpoints(environmentId: string, limit: number): EndpointUsage[] {
     const endpointMap = new Map<string, number>();
 
     this.requestLog
@@ -232,10 +202,7 @@ export class UsageTrackingService {
     const errorMap = new Map<number, number>();
 
     this.requestLog
-      .filter(
-        (entry) =>
-          entry.environmentId === environmentId && entry.statusCode >= 400
-      )
+      .filter((entry) => entry.environmentId === environmentId && entry.statusCode >= 400)
       .forEach((entry) => {
         errorMap.set(entry.statusCode, (errorMap.get(entry.statusCode) || 0) + 1);
       });

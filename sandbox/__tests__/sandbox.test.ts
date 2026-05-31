@@ -135,22 +135,12 @@ describe('SandboxIsolationService', () => {
 
   describe('updateOnboardingStep', () => {
     it('should update onboarding step', async () => {
-      const developer = await service.registerDeveloper(
-        'test@example.com',
-        'Test Dev',
-        'Test Co'
-      );
+      const developer = await service.registerDeveloper('test@example.com', 'Test Dev', 'Test Co');
 
-      const updated = await service.updateOnboardingStep(
-        developer.id,
-        'create-sandbox',
-        true
-      );
+      const updated = await service.updateOnboardingStep(developer.id, 'create-sandbox', true);
 
       expect(updated).toBeDefined();
-      const step = updated?.onboardingStatus.steps.find(
-        (s) => s.id === 'create-sandbox'
-      );
+      const step = updated?.onboardingStatus.steps.find((s) => s.id === 'create-sandbox');
       expect(step?.completed).toBe(true);
     });
   });
@@ -179,9 +169,9 @@ describe('ApiKeyService', () => {
         await service.generateApiKey('env-1', `Key ${i}`, ['read']);
       }
 
-      await expect(
-        service.generateApiKey('env-1', 'Extra Key', ['read'])
-      ).rejects.toThrow('Maximum API keys limit reached');
+      await expect(service.generateApiKey('env-1', 'Extra Key', ['read'])).rejects.toThrow(
+        'Maximum API keys limit reached'
+      );
     });
   });
 
