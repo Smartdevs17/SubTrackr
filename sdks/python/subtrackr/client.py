@@ -2,7 +2,7 @@ import requests
 from typing import List, Dict, Any, Optional
 from .auth import AuthManager
 from .errors import ApiError
-from .types import Subscription, Webhook
+from .types import Plan, Subscription, Webhook
 
 class SubTrackrClient:
     def __init__(self, api_key: str, environment: str = "production", base_url: Optional[str] = None):
@@ -35,6 +35,83 @@ class SubTrackrClient:
             raise ApiError(message, response.status_code, code)
 
         return response.json()
+
+    def initialize(self, admin: str) -> None:
+        return self._request("POST", "/initialize", json={"admin": admin})
+
+    def create_plan(self, merchant: str, name: str, price: int, token: str, interval: str) -> int:
+        return self._request(
+            "POST",
+            "/create_plan",
+            json={
+                "merchant": merchant,
+                "name": name,
+                "price": price,
+                "token": token,
+                "interval": interval,
+            },
+        )
+
+    def deactivate_plan(self, merchant: str, plan_id: int) -> None:
+        return self._request("POST", "/deactivate_plan", json={"merchant": merchant, "plan_id": plan_id})
+
+    def subscribe(self, subscriber: str, plan_id: int) -> int:
+        return self._request("POST", "/subscribe", json={"subscriber": subscriber, "plan_id": plan_id})
+
+    def cancel_subscription(self, subscriber: str, subscription_id: int) -> None:
+        return self._request(
+            "POST",
+            "/cancel_subscription",
+            json={"subscriber": subscriber, "subscription_id": subscription_id},
+        )
+
+    def pause_subscription(self, subscriber: str, subscription_id: int) -> None:
+        return self._request(
+            "POST",
+            "/pause_subscription",
+            json={"subscriber": subscriber, "subscription_id": subscription_id},
+        )
+
+    def resume_subscription(self, subscriber: str, subscription_id: int) -> None:
+        return self._request(
+            "POST",
+            "/resume_subscription",
+            json={"subscriber": subscriber, "subscription_id": subscription_id},
+        )
+
+    def charge_subscription(self, subscription_id: int) -> None:
+        return self._request("POST", "/charge_subscription", json={"subscription_id": subscription_id})
+
+    def request_refund(self, subscription_id: int, amount: int) -> None:
+        return self._request(
+            "POST",
+            "/request_refund",
+            json={"subscription_id": subscription_id, "amount": amount},
+        )
+
+    def approve_refund(self, subscription_id: int) -> None:
+        return self._request("POST", "/approve_refund", json={"subscription_id": subscription_id})
+
+    def reject_refund(self, subscription_id: int) -> None:
+        return self._request("POST", "/reject_refund", json={"subscription_id": subscription_id})
+
+    def get_plan(self, plan_id: int) -> Plan:
+        return self._request("POST", "/get_plan", json={"plan_id": plan_id})
+
+    def get_subscription(self, subscription_id: int) -> Subscription:
+        return self._request("POST", "/get_subscription", json={"subscription_id": subscription_id})
+
+    def get_user_subscriptions(self, subscriber: str) -> List[int]:
+        return self._request("POST", "/get_user_subscriptions", json={"subscriber": subscriber})
+
+    def get_merchant_plans(self, merchant: str) -> List[int]:
+        return self._request("POST", "/get_merchant_plans", json={"merchant": merchant})
+
+    def get_plan_count(self) -> int:
+        return self._request("POST", "/get_plan_count")
+
+    def get_subscription_count(self) -> int:
+        return self._request("POST", "/get_subscription_count")
 
     def get_subscriptions(self) -> List[Subscription]:
         return self._request("GET", "/v1/subscriptions")

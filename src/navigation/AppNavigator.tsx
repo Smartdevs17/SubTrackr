@@ -47,6 +47,7 @@ import SandboxDashboardScreen from '../screens/SandboxDashboardScreen';
 import ApiKeyManagementScreen from '../screens/ApiKeyManagementScreen';
 import DocumentationPortalScreen from '../screens/DocumentationPortalScreen';
 import IntegrationGuidesScreen from '../screens/IntegrationGuidesScreen';
+import PerformanceDashboardScreen from '../screens/PerformanceDashboardScreen';
 import { colors } from '../utils/constants';
 
 // Lazy loaded auxiliary and heavy screens with suspense/retry support
@@ -287,6 +288,16 @@ const SettingsStack = () => (
       options={{ title: 'Error Dashboard', headerShown: true }}
     />
     <Stack.Screen
+      name="WebhookSettings"
+      component={WebhookSettingsScreen}
+      options={{ title: 'Webhooks', headerShown: true }}
+    />
+    <Stack.Screen
+      name="SessionManagement"
+      component={SessionManagementScreen}
+      options={{ title: 'Sessions', headerShown: true }}
+    />
+    <Stack.Screen
       name="FraudDashboard"
       component={FraudDashboard}
       options={{ title: 'Fraud Dashboard', headerShown: true }}
@@ -340,6 +351,11 @@ const SettingsStack = () => (
       name="ApiKeyManagement"
       component={ApiKeyManagementScreen}
       options={{ title: 'API Keys', headerShown: true }}
+    />
+    <Stack.Screen
+      name="PerformanceDashboard"
+      component={PerformanceDashboardScreen}
+      options={{ title: 'Performance', headerShown: true }}
     />
   </Stack.Navigator>
 );
