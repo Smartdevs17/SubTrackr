@@ -27,8 +27,10 @@ const AnalyticsScreen = lazyScreen(() => import('../screens/AnalyticsScreen'));
 const SlaDashboard = lazyScreen(() => import('../screens/SlaDashboard'));
 const GDPRSettingsScreen = lazyScreen(() => import('../screens/GDPRSettingsScreen'));
 const LanguageSettingsScreen = lazyScreen(() => import('../screens/LanguageSettingsScreen'));
+const SessionManagementScreen = lazyScreen(() => import('../screens/SessionManagementScreen'));
 const CalendarIntegrationScreen = lazyScreen(() => import('../screens/CalendarIntegrationScreen'));
 const AccountingExportScreen = lazyScreen(() => import('../screens/AccountingExportScreen'));
+const WebhookSettingsScreen = lazyScreen(() => import('../screens/WebhookSettingsScreen'));
 const ErrorDashboardScreen = lazyScreen(() => import('../screens/ErrorDashboardScreen'));
 const ImportScreen = lazyScreen(() => import('../screens/ImportScreen'));
 const ExportScreen = lazyScreen(() => import('../screens/ExportScreen'));
@@ -62,6 +64,7 @@ const SandboxDashboardScreen = lazyScreen(() => import('../screens/SandboxDashbo
 const ApiKeyManagementScreen = lazyScreen(() => import('../screens/ApiKeyManagementScreen'));
 const DocumentationPortalScreen = lazyScreen(() => import('../screens/DocumentationPortalScreen'));
 const IntegrationGuidesScreen = lazyScreen(() => import('../screens/IntegrationGuidesScreen'));
+const PerformanceDashboardScreen = lazyScreen(() => import('../screens/PerformanceDashboardScreen'));
 
 const Tab = createBottomTabNavigator<TabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -246,6 +249,16 @@ const SettingsStack = () => (
       options={{ title: 'Error Dashboard', headerShown: true }}
     />
     <Stack.Screen
+      name="WebhookSettings"
+      component={WebhookSettingsScreen}
+      options={{ title: 'Webhooks', headerShown: true }}
+    />
+    <Stack.Screen
+      name="SessionManagement"
+      component={SessionManagementScreen}
+      options={{ title: 'Sessions', headerShown: true }}
+    />
+    <Stack.Screen
       name="FraudDashboard"
       component={FraudDashboard}
       options={{ title: 'Fraud Dashboard', headerShown: true }}
@@ -299,6 +312,11 @@ const SettingsStack = () => (
       name="ApiKeyManagement"
       component={ApiKeyManagementScreen}
       options={{ title: 'API Keys', headerShown: true }}
+    />
+    <Stack.Screen
+      name="PerformanceDashboard"
+      component={PerformanceDashboardScreen}
+      options={{ title: 'Performance', headerShown: true }}
     />
   </Stack.Navigator>
 );
