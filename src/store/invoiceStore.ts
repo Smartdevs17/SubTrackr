@@ -461,10 +461,7 @@ export const useInvoiceStore = create<InvoiceState>()(
       calculateTotals: (id) => {
         const invoice = get().invoices.find((entry) => entry.id === id);
         if (!invoice) return null;
-        return calculateInvoiceTotals(
-          invoice.lineItems,
-          invoice.lineItems[0]?.taxRateBps ?? 0
-        );
+        return calculateInvoiceTotals(invoice.lineItems, invoice.lineItems[0]?.taxRateBps ?? 0);
       },
 
       setCustomerTaxStatus: (subscriberId, status) => {

@@ -28,14 +28,25 @@ export class OraclePriceService {
     const cacheKey = `${token}:${quote}`;
     const cached = this.cache.get(cacheKey);
     if (cached && Date.now() - cached.fetchedAt < cached.ttl) {
-      return { token, quote, price: cached.price, decimals: 7, timestamp: cached.fetchedAt, source: 'primary' };
+      return {
+        token,
+        quote,
+        price: cached.price,
+        decimals: 7,
+        timestamp: cached.fetchedAt,
+        source: 'primary',
+      };
     }
 
     try {
       const response = await fetch(`${this.baseUrl}/price/${token}/${quote}`);
       if (!response.ok) return null;
       const data: OraclePrice = await response.json();
-      this.cache.set(cacheKey, { price: data.price, fetchedAt: Date.now(), ttl: this.defaultTtlMs });
+      this.cache.set(cacheKey, {
+        price: data.price,
+        fetchedAt: Date.now(),
+        ttl: this.defaultTtlMs,
+      });
       return data;
     } catch {
       return null;
@@ -52,9 +63,10 @@ export class OraclePriceService {
 
     const cryptoAmount = subscription.cryptoAmount ?? subscription.price;
     const fiatPrice = (cryptoAmount * oraclePrice.price) / 10 ** oraclePrice.decimals;
-    const deviationBps = subscription.price > 0
-      ? Math.abs(Math.round(((fiatPrice - subscription.price) / subscription.price) * 10000))
-      : 0;
+    const deviationBps =
+      subscription.price > 0
+        ? Math.abs(Math.round(((fiatPrice - subscription.price) / subscription.price) * 10000))
+        : 0;
 
     return {
       ...subscription,

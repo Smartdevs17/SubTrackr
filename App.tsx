@@ -19,7 +19,6 @@ import { EVM_RPC_URLS } from './src/config/evm';
 import { useNetworkStore, useSettingsStore } from './src/store';
 import { sessionService } from './src/services/auth/session';
 
-
 // Get projectId from environment variable
 const projectId = process.env.WALLET_CONNECT_PROJECT_ID || 'YOUR_PROJECT_ID';
 
@@ -84,7 +83,6 @@ function NotificationBootstrap() {
     void initializeSettings();
     void sessionService.initializeCurrentSession();
   }, [initialize, initializeSettings]);
-
 
   return null;
 }

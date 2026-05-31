@@ -7,9 +7,9 @@
  */
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { MonitoringService } from '../../../backend/services/monitoring';
-import { AlertingService, createDispatcher } from '../../../backend/services/alerting';
-import type { TransactionEvent, AlertRule, Alert } from '../../../backend/services/types';
+import { MonitoringService } from '../../services/shared/monitoring';
+import { AlertingService, createDispatcher } from '../../services/notification/alerting';
+import type { TransactionEvent, AlertRule, Alert } from '../../services/shared/types';
 
 // ── Factories ─────────────────────────────────────────────────────────────────
 let _txCounter = 0;

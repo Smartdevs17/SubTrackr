@@ -65,10 +65,7 @@ const defaultPrograms: AffiliateProgram[] = [
   },
 ];
 
-const calculateTieredCommission = (
-  amount: number,
-  config: CommissionConfig
-): number => {
+const calculateTieredCommission = (amount: number, config: CommissionConfig): number => {
   if (config.type !== CommissionType.TIERED || !config.tierThresholds || !config.tierRates) {
     return amount * (config.rate / 100);
   }
@@ -139,9 +136,7 @@ export const useAffiliateStore = create<AffiliateState>()(
 
           set({
             affiliates: affiliates.map((a) =>
-              a.id === affiliateId
-                ? { ...a, totalReferrals: a.totalReferrals + 1 }
-                : a
+              a.id === affiliateId ? { ...a, totalReferrals: a.totalReferrals + 1 } : a
             ),
             commissions: [
               ...get().commissions,
@@ -227,9 +222,7 @@ export const useAffiliateStore = create<AffiliateState>()(
 
       updateAffiliateStatus: async (affiliateId: string, status: AffiliateStatus) => {
         set((state) => ({
-          affiliates: state.affiliates.map((a) =>
-            a.id === affiliateId ? { ...a, status } : a
-          ),
+          affiliates: state.affiliates.map((a) => (a.id === affiliateId ? { ...a, status } : a)),
         }));
       },
 

@@ -9,6 +9,7 @@ The Feature Gating System provides subscription-based access control for SubTrac
 ### Core Components
 
 #### 1. **Feature Flags Service** (`featureFlags.ts`)
+
 The main service that handles all feature access logic.
 
 ```typescript
@@ -29,6 +30,7 @@ if (result.hasAccess) {
 ```
 
 **Key Methods:**
+
 - `checkFeatureAccess()` - Check if user can access a feature
 - `getAvailableFeatures()` - Get all features for a tier
 - `getFeature()` - Get feature details
@@ -37,6 +39,7 @@ if (result.hasAccess) {
 - `getRemainingUsage()` - Get remaining usage for a limit
 
 #### 2. **Feature Configuration** (`config/features.ts`)
+
 Defines all features, their tiers, limits, and settings.
 
 ```typescript
@@ -44,10 +47,7 @@ export const FEATURE_CONFIG: FeatureConfig = {
   globalRolloutPercentage: 100,
   abTestEnabled: true,
   plans: {
-    [SubscriptionTier.FREE]: [
-      FeatureId.BASIC_SUBSCRIPTION_TRACKING,
-      FeatureId.BASIC_ANALYTICS,
-    ],
+    [SubscriptionTier.FREE]: [FeatureId.BASIC_SUBSCRIPTION_TRACKING, FeatureId.BASIC_ANALYTICS],
     [SubscriptionTier.PREMIUM]: [
       // ... premium features
     ],
@@ -68,6 +68,7 @@ export const FEATURE_CONFIG: FeatureConfig = {
 ```
 
 #### 3. **React Hooks** (`hooks/useFeatureAccess.ts`)
+
 Custom hooks for easy integration in React components.
 
 ```typescript
@@ -90,10 +91,11 @@ const { hasExceededLimit, getRemainingUsage } = useFeatureLimits();
 #### 4. **UI Components**
 
 ##### FeatureGate Component
+
 Conditionally renders content based on feature access.
 
 ```typescript
-<FeatureGate 
+<FeatureGate
   feature={FeatureId.CRYPTO_INTEGRATION}
   showUpgradePrompt={true}
   upgradeMessage="Upgrade to enable crypto payments"
@@ -103,6 +105,7 @@ Conditionally renders content based on feature access.
 ```
 
 ##### FeatureLimitGate Component
+
 Enforces usage limits on features.
 
 ```typescript
@@ -116,10 +119,11 @@ Enforces usage limits on features.
 ```
 
 ##### FeatureManagement Component
+
 Admin dashboard for managing features.
 
 ```typescript
-<FeatureManagement 
+<FeatureManagement
   onFeatureUpdate={(featureId, updates) => {
     // Handle feature updates
   }}
@@ -127,10 +131,11 @@ Admin dashboard for managing features.
 ```
 
 ##### SubscriptionPlans Component
+
 Display available subscription plans.
 
 ```typescript
-<SubscriptionPlans 
+<SubscriptionPlans
   showCurrentPlan={true}
   onSelectPlan={(plan) => {
     // Handle plan selection
@@ -141,6 +146,7 @@ Display available subscription plans.
 ## Subscription Tiers
 
 ### FREE Tier
+
 - **Price:** $0/month
 - **Max Subscriptions:** 5
 - **Max Categories:** 3
@@ -150,6 +156,7 @@ Display available subscription plans.
   - Push notifications
 
 ### BASIC Tier
+
 - **Price:** $4.99/month
 - **Max Subscriptions:** 25
 - **Max Categories:** 8
@@ -159,6 +166,7 @@ Display available subscription plans.
   - All FREE features
 
 ### PREMIUM Tier
+
 - **Price:** $9.99/month
 - **Max Subscriptions:** 100
 - **Max Categories:** 20
@@ -169,6 +177,7 @@ Display available subscription plans.
   - All BASIC features
 
 ### ENTERPRISE Tier
+
 - **Price:** $29.99/month
 - **Max Subscriptions:** Unlimited
 - **Max Categories:** Unlimited
@@ -183,6 +192,7 @@ Display available subscription plans.
 ## Key Features
 
 ### 1. Tier-Based Access Control
+
 Features are assigned to subscription tiers. Users can only access features their tier includes.
 
 ```typescript
@@ -191,6 +201,7 @@ const feature = FEATURE_CONFIG.features[FeatureId.ADVANCED_ANALYTICS];
 ```
 
 ### 2. Gradual Rollout
+
 Roll out features to a percentage of users within a tier.
 
 ```typescript
@@ -201,11 +212,13 @@ const feature = {
 ```
 
 **How it works:**
+
 - Uses deterministic hashing of user IDs
 - Ensures consistent experience across sessions
 - Prevents flicker when user reloads
 
 ### 3. A/B Testing
+
 Test feature variations with different user groups.
 
 ```typescript
@@ -219,10 +232,12 @@ const { abTestGroup, isInAbTest } = await featureFlagsService.checkFeatureAccess
 ```
 
 **Storage:**
+
 - A/B test assignments are persisted in AsyncStorage
 - Consistent assignment across app restarts
 
 ### 4. Feature Dependencies
+
 Features can depend on other features being available first.
 
 ```typescript
@@ -234,6 +249,7 @@ const feature = {
 ```
 
 ### 5. Usage Limits
+
 Enforce per-tier limits on feature usage.
 
 ```typescript
@@ -250,6 +266,7 @@ const exceeded = featureFlagsService.hasExceededLimit(
 ## Usage Examples
 
 ### Example 1: Gating a Feature in a Screen
+
 ```typescript
 import { useFeatureAccess } from '../hooks/useFeatureAccess';
 import { FeatureGate } from '../components/common/FeatureGate';
@@ -257,7 +274,7 @@ import { FeatureId } from '../types/feature';
 
 export const AnalyticsScreen = () => {
   return (
-    <FeatureGate 
+    <FeatureGate
       feature={FeatureId.ADVANCED_ANALYTICS}
       fallback={<UpgradePrompt feature={FeatureId.ADVANCED_ANALYTICS} />}
     >
@@ -268,6 +285,7 @@ export const AnalyticsScreen = () => {
 ```
 
 ### Example 2: Checking Multiple Features
+
 ```typescript
 import { useMultipleFeatureAccess } from '../hooks/useFeatureAccess';
 
@@ -291,6 +309,7 @@ export const PaymentMethodsScreen = () => {
 ```
 
 ### Example 3: Enforcing Usage Limits
+
 ```typescript
 import { useFeatureLimits } from '../hooks/useFeatureAccess';
 import { FeatureLimitGate } from '../components/common/FeatureGate';
@@ -322,6 +341,7 @@ export const AddSubscriptionButton = () => {
 ```
 
 ### Example 4: Admin Feature Management
+
 ```typescript
 import { FeatureManagement } from '../components/admin/FeatureManagement';
 
@@ -340,6 +360,7 @@ export const AdminPanel = () => {
 ## Best Practices
 
 ### 1. Always Use Feature Gates for New Features
+
 Wrap new features in FeatureGate components, even if all tiers initially have access.
 
 ```typescript
@@ -349,6 +370,7 @@ Wrap new features in FeatureGate components, even if all tiers initially have ac
 ```
 
 ### 2. Provide Clear Upgrade Prompts
+
 When a feature is not accessible, show users what they need to upgrade to.
 
 ```typescript
@@ -359,6 +381,7 @@ When a feature is not accessible, show users what they need to upgrade to.
 ```
 
 ### 3. Test with Different Tiers
+
 During development, test your features with each subscription tier.
 
 ```typescript
@@ -370,20 +393,22 @@ useUserStore.setState({ subscriptionTier: SubscriptionTier.PREMIUM });
 ```
 
 ### 4. Monitor Rollout Percentages
+
 Start with low rollout percentages and gradually increase.
 
 ```typescript
 // Day 1: 10% of premium users
-rolloutPercentage: 10
+rolloutPercentage: 10;
 
 // Day 3: 50% of premium users
-rolloutPercentage: 50
+rolloutPercentage: 50;
 
 // Day 7: 100% rollout
-rolloutPercentage: 100
+rolloutPercentage: 100;
 ```
 
 ### 5. Set Up Dependencies Carefully
+
 Document feature dependencies to prevent access issues.
 
 ```typescript
@@ -396,6 +421,7 @@ const dependencies = {
 ## Adding New Features
 
 ### Step 1: Add Feature ID
+
 ```typescript
 // src/types/feature.ts
 export enum FeatureId {
@@ -405,6 +431,7 @@ export enum FeatureId {
 ```
 
 ### Step 2: Configure Feature
+
 ```typescript
 // src/config/features.ts
 [FeatureId.NEW_FEATURE]: {
@@ -420,6 +447,7 @@ export enum FeatureId {
 ```
 
 ### Step 3: Add to Plans
+
 ```typescript
 // src/config/features.ts
 plans: {
@@ -432,6 +460,7 @@ plans: {
 ```
 
 ### Step 4: Use in Components
+
 ```typescript
 <FeatureGate feature={FeatureId.NEW_FEATURE}>
   <NewFeatureComponent />
@@ -441,18 +470,21 @@ plans: {
 ## Troubleshooting
 
 ### Feature Not Showing Up
+
 1. Check if feature is enabled: `feature.enabled === true`
 2. Verify user tier includes feature: `tierAccess.includes(userTier)`
 3. Check rollout percentage: `rolloutPercentage >= 100` during testing
 4. Check dependencies are met
 
 ### A/B Test Not Working
+
 1. Ensure `abTestEnabled: true` in FEATURE_CONFIG
 2. Verify A/B test groups are defined
 3. Check AsyncStorage permissions
 4. Verify user ID is set: `featureFlagsService.setUserId(userId)`
 
 ### Usage Limits Not Enforcing
+
 1. Check limit key exists in `getFeatureLimits()`
 2. Verify current usage calculation is accurate
 3. Ensure FeatureLimitGate is wrapping the component
@@ -463,12 +495,15 @@ plans: {
 ### FeatureFlagsService
 
 #### `setUserId(userId: string): void`
+
 Set the current user ID for rollout and A/B test calculations.
 
 #### `async checkFeatureAccess(featureId: FeatureId, userTier: SubscriptionTier, userId?: string): Promise<FeatureAccessResult>`
+
 Check if a user has access to a feature.
 
 **Returns:**
+
 ```typescript
 {
   hasAccess: boolean;
@@ -480,21 +515,27 @@ Check if a user has access to a feature.
 ```
 
 #### `getAvailableFeatures(userTier: SubscriptionTier): FeatureId[]`
+
 Get all features available to a tier.
 
 #### `getFeature(featureId: FeatureId): FeatureFlag | null`
+
 Get feature details.
 
 #### `getAllFeatures(): Record<string, FeatureFlag>`
+
 Get all features.
 
 #### `getFeatureLimits(userTier: SubscriptionTier): Record<string, number>`
+
 Get usage limits for a tier. Returns -1 for unlimited.
 
 #### `hasExceededLimit(userTier: SubscriptionTier, limitKey: string, currentUsage: number): boolean`
+
 Check if a usage limit is exceeded.
 
 #### `getRemainingUsage(userTier: SubscriptionTier, limitKey: string, currentUsage: number): number`
+
 Get remaining usage before limit is hit. Returns -1 for unlimited.
 
 ## Related Files
