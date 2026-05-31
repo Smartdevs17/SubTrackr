@@ -30,4 +30,4 @@ export type {
   ReconciliationResult,
 } from './accountingExportService';
 export type { IMeteringService, IPricingService, ITaxService, IDunningService, IAccountingExportService } from './interfaces';
-export { BillingError } from './errors';
+export { BillingError, BillingErrorCode } from './errors';

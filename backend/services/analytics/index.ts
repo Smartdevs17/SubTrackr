@@ -11,4 +11,4 @@ export type { Recommendation, RecommendationContext } from './recommendationServ
 export { RetentionService } from './retentionService';
 export { OracleMonitorService, oracleMonitorService } from './oracleMonitorService';
 export type { IPredictionService, IRecommendationService, IComplianceReportService, ICampaignService } from './interfaces';
-export { AnalyticsError } from './errors';
+export { AnalyticsError, AnalyticsErrorCode } from './errors';
