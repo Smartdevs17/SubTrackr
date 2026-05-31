@@ -67,3 +67,8 @@ export type {
   SubscriptionEventQuery,
   SubscriptionEventType,
 } from './subscriptionEventStore';
+
+// ── Affiliate Module ──────────────────────────────────────────────────────────
+export { AffiliateService } from './affiliate/AffiliateService';
+export type { ReferralClick, AttributionEvent } from './affiliate/AffiliateService';
+

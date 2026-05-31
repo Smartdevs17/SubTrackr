@@ -26,6 +26,16 @@ export interface Commission {
   status: 'pending' | 'approved' | 'paid';
   createdAt: Date;
   paidAt?: Date;
+  isClawbacked?: boolean;
+}
+
+export interface PayoutRecord {
+  id: string;
+  amount: number;
+  currency: string;
+  status: 'pending' | 'paid' | 'failed';
+  requestedAt: Date;
+  paidAt?: Date;
 }
 
 export interface Affiliate {
@@ -39,6 +49,13 @@ export interface Affiliate {
   totalEarnings: number;
   pendingPayout: number;
   createdAt: Date;
+  // Extended fields
+  referralCode?: string;
+  referralLink?: string;
+  clicksCount?: number;
+  fraudRiskScore?: number; // 0 to 100
+  fraudStatus?: 'safe' | 'suspicious' | 'flagged';
+  payoutHistory?: PayoutRecord[];
 }
 
 export interface AffiliateProgram {
@@ -48,6 +65,7 @@ export interface AffiliateProgram {
   commissionConfig: CommissionConfig;
   attributionWindowDays: number;
   isActive: boolean;
+  attributionModel?: 'first-touch' | 'last-touch' | 'linear';
 }
 
 export interface AffiliateMetrics {
@@ -56,4 +74,6 @@ export interface AffiliateMetrics {
   totalEarnings: number;
   pendingPayout: number;
   conversionRate: number;
+  // Extended fields
+  totalClicks?: number;
 }
