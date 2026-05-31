@@ -1,5 +1,30 @@
+// ── API Response Envelope (Issue #401) ──────────────────────────────────────
+export {
+  ok,
+  fail,
+  fromError,
+  buildMeta,
+  ERROR_HTTP_STATUS_MAP,
+  API_VERSION_HEADER,
+  API_VERSION_VALUE,
+  REQUEST_ID_HEADER,
+} from './apiResponse';
+export type {
+  ApiResponse,
+  ApiSuccessResponse,
+  ApiErrorResponse,
+  ApiError,
+  ErrorCode,
+  ResponseMeta,
+  PaginationMeta,
+} from './apiResponse';
+
 export { AuditService } from './auditService';
+export { CampaignService } from './campaignService';
+export { DunningService, dunningService } from './dunningService';
 export { PricingService } from './pricingService';
+export { OracleMonitorService, oracleMonitorService } from './oracleMonitorService';
+export { RateLimitingService, rateLimitingService } from './rateLimitingService';
 export type {
   AuditAction,
   AuditEvent,
@@ -7,6 +32,22 @@ export type {
   ExportFormat,
   RetentionPolicy,
 } from './auditTypes';
+export type {
+  TaxType,
+  TaxJurisdiction,
+  TaxRateEntry,
+  TaxRateChangeEvent,
+  CustomerTaxStatus,
+  TaxRemittanceLineItem,
+  TaxRemittanceReport,
+  TaxCalculationResult,
+  TaxInvoiceContext,
+  NexusReport,
+  MidCycleTaxChange,
+  DigitalGoodsClass,
+  DigitalGoodsTaxRule,
+  TaxRemittanceReportRequest,
+} from './taxTypes';
 export {
   WebhookDeliveryService,
   webhookDeliveryService,
@@ -33,3 +74,12 @@ export type {
   SupportTicketContext,
   SupportTicketRecord,
 } from './supportAutomation';
+  SubscriptionEventStore,
+  subscriptionEventStore,
+} from './subscriptionEventStore';
+export type {
+  SubscriptionEvent,
+  SubscriptionEventPage,
+  SubscriptionEventQuery,
+  SubscriptionEventType,
+} from './subscriptionEventStore';

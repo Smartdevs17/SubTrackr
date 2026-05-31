@@ -27,6 +27,7 @@ import WebhookSettingsScreen from '../screens/WebhookSettingsScreen';
 import ErrorDashboardScreen from '../screens/ErrorDashboardScreen';
 import ImportScreen from '../screens/ImportScreen';
 import ExportScreen from '../screens/ExportScreen';
+import { BatchOperationsScreen } from '../../app/screens/BatchOperationsScreen';
 import AdminDashboardScreen from '../screens/AdminDashboardScreen';
 import FraudDashboard from '../screens/FraudDashboard';
 import GroupManagementScreen from '../screens/GroupManagementScreen';
@@ -46,6 +47,7 @@ import SandboxDashboardScreen from '../screens/SandboxDashboardScreen';
 import ApiKeyManagementScreen from '../screens/ApiKeyManagementScreen';
 import DocumentationPortalScreen from '../screens/DocumentationPortalScreen';
 import IntegrationGuidesScreen from '../screens/IntegrationGuidesScreen';
+import PerformanceDashboardScreen from '../screens/PerformanceDashboardScreen';
 import { colors } from '../utils/constants';
 
 import { RootStackParamList, TabParamList } from './types';
@@ -203,14 +205,14 @@ const SettingsStack = () => (
       options={{ title: 'Language', headerShown: true }}
     />
     <Stack.Screen
-      name="WebhookSettings"
-      component={WebhookSettingsScreen}
-      options={{ title: 'Webhooks', headerShown: true }}
+      name="Export"
+      component={ExportScreen}
+      options={{ title: 'Export', headerShown: true }}
     />
     <Stack.Screen
-      name="SessionManagement"
-      component={SessionManagementScreen}
-      options={{ title: 'Sessions', headerShown: true }}
+      name="BatchOperations"
+      component={BatchOperationsScreen}
+      options={{ title: 'Batch Operations', headerShown: true }}
     />
     <Stack.Screen
       name="AdminDashboard"
@@ -231,6 +233,16 @@ const SettingsStack = () => (
       name="ErrorDashboard"
       component={ErrorDashboardScreen}
       options={{ title: 'Error Dashboard', headerShown: true }}
+    />
+    <Stack.Screen
+      name="WebhookSettings"
+      component={WebhookSettingsScreen}
+      options={{ title: 'Webhooks', headerShown: true }}
+    />
+    <Stack.Screen
+      name="SessionManagement"
+      component={SessionManagementScreen}
+      options={{ title: 'Sessions', headerShown: true }}
     />
     <Stack.Screen
       name="FraudDashboard"
@@ -286,6 +298,11 @@ const SettingsStack = () => (
       name="ApiKeyManagement"
       component={ApiKeyManagementScreen}
       options={{ title: 'API Keys', headerShown: true }}
+    />
+    <Stack.Screen
+      name="PerformanceDashboard"
+      component={PerformanceDashboardScreen}
+      options={{ title: 'Performance', headerShown: true }}
     />
   </Stack.Navigator>
 );

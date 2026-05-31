@@ -123,6 +123,9 @@ jobs:
       - name: Run TypeScript type check
         run: npx tsc --noEmit
 
+      - name: Validate performance budgets
+        run: npm run performance:ci
+
   typescript-tests:
     name: TypeScript Tests (Sharded)
     runs-on: ubuntu-latest

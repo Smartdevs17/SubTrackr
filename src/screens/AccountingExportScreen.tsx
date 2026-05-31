@@ -48,6 +48,8 @@ const sourceFields: AccountingSourceField[] = [
 ];
 
 const formatLabels: Record<AccountingFormat, string> = {
+  csv: 'CSV',
+  json: 'JSON',
   quickbooks: 'QuickBooks',
   xero: 'Xero',
 };
@@ -196,6 +198,15 @@ const AccountingExportScreen: React.FC = () => {
     Alert.alert('Scheduled exports checked', `${runs.length} due export(s) completed.`);
   }, [loadExportState, subscriptions]);
 
+  const handleRedownload = useCallback(async (entry: ExportHistoryEntry) => {
+    if (!entry.content) {
+      Alert.alert('Not available', 'Content was not stored for this export.');
+      return;
+    }
+    await Clipboard.setStringAsync(entry.content);
+    Alert.alert('Re-downloaded', `${entry.fileName ?? 'Export'} copied to clipboard.`);
+  }, []);
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
@@ -233,7 +244,7 @@ const AccountingExportScreen: React.FC = () => {
 
           <Text style={styles.inputLabel}>Format</Text>
           <View style={styles.optionRow}>
-            {(['quickbooks', 'xero'] as AccountingFormat[]).map((item) => (
+            {(['csv', 'json', 'quickbooks', 'xero'] as AccountingFormat[]).map((item) => (
               <TouchableOpacity
                 key={item}
                 style={[styles.optionButton, format === item && styles.optionButtonActive]}
@@ -377,7 +388,10 @@ const AccountingExportScreen: React.FC = () => {
             <Text style={styles.emptyText}>No exports have been recorded yet.</Text>
           ) : (
             history.map((entry) => (
-              <View key={entry.id} style={styles.recordRow}>
+              <TouchableOpacity
+                key={entry.id}
+                style={styles.recordRow}
+                onPress={() => handleRedownload(entry)}>
                 <View style={styles.recordCopy}>
                   <Text style={styles.recordTitle}>
                     {formatLabels[entry.format]} - {entry.itemCount} item(s)
@@ -391,7 +405,7 @@ const AccountingExportScreen: React.FC = () => {
                   style={[styles.statusPill, entry.status === 'failed' && styles.statusPillError]}>
                   {entry.status}
                 </Text>
-              </View>
+              </TouchableOpacity>
             ))
           )}
         </Card>

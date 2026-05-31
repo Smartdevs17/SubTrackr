@@ -24,6 +24,7 @@ export type RootStackParamList = {
   ErrorDashboard: undefined;
   Import: undefined;
   Export: undefined;
+  BatchOperations: undefined;
   SegmentManagement: undefined;
   SegmentDetail: { segmentId: string };
   Gamification: undefined;
@@ -41,6 +42,7 @@ export type RootStackParamList = {
   AffiliateDashboard: undefined;
   LoyaltyDashboard: undefined;
   CampaignManagement: undefined;
+  PerformanceDashboard: undefined;
 };
 
 export type TabParamList = {

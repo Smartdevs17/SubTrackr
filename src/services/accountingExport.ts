@@ -2,10 +2,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BillingCycle, Subscription } from '../types/subscription';
 
 export type MerchantId = string;
-export type AccountingFormat = 'quickbooks' | 'xero';
+export type AccountingFormat = 'csv' | 'json' | 'quickbooks' | 'xero';
 export type ExportFrequency = 'daily' | 'weekly' | 'monthly';
 export type ExportDestination = 'download' | 'email' | 'webhook';
 export type ExportStatus = 'success' | 'failed';
+export type TransactionType = 'revenue' | 'refund' | 'credit' | 'fee';
 
 export type AccountingSourceField =
   | 'merchantId'
@@ -41,6 +42,7 @@ export interface ExportSchedule {
   includeInactive: boolean;
   fieldMappings: AccountingFieldMapping[];
   customFields: Record<string, string>;
+  transactionTypes?: TransactionType[];
   nextRunAt: number;
   lastRunAt?: number;
   createdAt: number;
@@ -56,6 +58,7 @@ export type ExportScheduleInput = {
   includeInactive?: boolean;
   fieldMappings?: AccountingFieldMapping[];
   customFields?: Record<string, string>;
+  transactionTypes?: TransactionType[];
   nextRunAt?: number;
 };
 
@@ -69,6 +72,8 @@ export interface ExportHistoryEntry {
   checksum?: string;
   scheduleId?: string;
   error?: string;
+  /** Stored content for re-download. */
+  content?: string;
   createdAt: number;
 }
 
@@ -78,7 +83,7 @@ export interface ExportResult {
   format: AccountingFormat;
   status: ExportStatus;
   fileName: string;
-  mimeType: 'text/csv';
+  mimeType: 'text/csv' | 'application/json';
   content: string;
   itemCount: number;
   checksum: string;
@@ -92,6 +97,16 @@ export interface ExportOptions {
   customFields?: Record<string, string>;
   scheduleId?: string;
   now?: number;
+  /** Filter by transaction type(s). Defaults to all types. */
+  transactionTypes?: TransactionType[];
+  /** Only include subscriptions with nextBillingDate >= dateFrom (Unix ms). */
+  dateFrom?: number;
+  /** Only include subscriptions with nextBillingDate <= dateTo (Unix ms). */
+  dateTo?: number;
+  /** Include deferred revenue column (GAAP). */
+  includeDeferredRevenue?: boolean;
+  /** Deferred revenue per subscriptionId for GAAP column. */
+  deferredRevenueMap?: Record<string, number>;
 }
 
 export interface ScheduledExportRun {
@@ -247,7 +262,8 @@ function buildRows(
 
 function buildFileName(merchantId: MerchantId, format: AccountingFormat, now: number): string {
   const safeMerchant = merchantId.replace(/[^a-z0-9_-]/gi, '-').toLowerCase();
-  return `${safeMerchant}-${format}-subscription-export-${formatDate(now)}.csv`;
+  const ext = format === 'json' ? 'json' : 'csv';
+  return `${safeMerchant}-${format}-subscription-export-${formatDate(now)}.${ext}`;
 }
 
 function nextRunAtForFrequency(frequency: ExportFrequency, from: number): number {
@@ -283,21 +299,97 @@ export function getAccountingDefaultMapping(format: AccountingFormat): Accountin
   return getDefaultMapping(format).map((mapping) => ({ ...mapping }));
 }
 
+/** Filter subscriptions by active status, date range, and transaction types. */
+function filterSubscriptions(
+  subscriptions: Subscription[],
+  options: Pick<ExportOptions, 'includeInactive' | 'dateFrom' | 'dateTo' | 'transactionTypes'>
+): Subscription[] {
+  let result = options.includeInactive
+    ? subscriptions
+    : subscriptions.filter((s) => s.isActive);
+
+  if (options.dateFrom !== undefined) {
+    result = result.filter(
+      (s) => s.nextBillingDate && new Date(s.nextBillingDate).getTime() >= options.dateFrom!
+    );
+  }
+  if (options.dateTo !== undefined) {
+    result = result.filter(
+      (s) => s.nextBillingDate && new Date(s.nextBillingDate).getTime() <= options.dateTo!
+    );
+  }
+  // Transaction type filter: map subscription state to type
+  if (options.transactionTypes?.length) {
+    result = result.filter((s) => {
+      const type: TransactionType = s.isActive ? 'revenue' : 'refund';
+      return options.transactionTypes!.includes(type);
+    });
+  }
+  return result;
+}
+
 export function buildAccountingExportCsv(
   subscriptions: Subscription[],
   merchantId: MerchantId,
   format: AccountingFormat,
-  options: Pick<ExportOptions, 'fieldMappings' | 'customFields' | 'includeInactive'> = {}
+  options: Pick<
+    ExportOptions,
+    | 'fieldMappings'
+    | 'customFields'
+    | 'includeInactive'
+    | 'dateFrom'
+    | 'dateTo'
+    | 'transactionTypes'
+    | 'includeDeferredRevenue'
+    | 'deferredRevenueMap'
+  > = {}
 ): string {
-  const selectedSubscriptions = options.includeInactive
-    ? subscriptions
-    : subscriptions.filter((subscription) => subscription.isActive);
+  const selected = filterSubscriptions(subscriptions, options);
   const mappings = options.fieldMappings?.length
     ? options.fieldMappings
     : getDefaultMapping(format);
-  const headers = mappings.map((mapping) => mapping.targetField);
-  const rows = buildRows(selectedSubscriptions, merchantId, mappings, options.customFields ?? {});
+  const headers = mappings.map((m) => m.targetField);
+  const rows = buildRows(selected, merchantId, mappings, options.customFields ?? {});
+
+  if (options.includeDeferredRevenue) {
+    headers.push('DeferredRevenue');
+    selected.forEach((s, i) => {
+      rows[i].push(
+        Number(options.deferredRevenueMap?.[s.id] ?? 0).toFixed(2)
+      );
+    });
+  }
+
   return buildCsv(headers, rows);
+}
+
+/** Build a JSON export payload for accounting software. */
+function buildAccountingExportJson(
+  subscriptions: Subscription[],
+  merchantId: MerchantId,
+  options: ExportOptions
+): string {
+  const selected = filterSubscriptions(subscriptions, options);
+  const records = selected.map((s) => ({
+    merchantId,
+    subscriptionId: s.id,
+    subscriptionName: s.name,
+    description: s.description ?? '',
+    category: s.category,
+    transactionType: (s.isActive ? 'revenue' : 'refund') as TransactionType,
+    price: s.price,
+    currency: s.currency?.toUpperCase() ?? 'USD',
+    billingCycle: formatBillingCycle(s.billingCycle),
+    nextBillingDate: formatDate(s.nextBillingDate),
+    status: s.isActive ? 'active' : 'inactive',
+    createdAt: formatDate(s.createdAt),
+    updatedAt: formatDate(s.updatedAt),
+    ...(options.includeDeferredRevenue
+      ? { deferredRevenue: Number(options.deferredRevenueMap?.[s.id] ?? 0).toFixed(2) }
+      : {}),
+    ...(options.customFields ?? {}),
+  }));
+  return JSON.stringify(records, null, 2);
 }
 
 export async function export_to_accounting(
@@ -309,10 +401,13 @@ export async function export_to_accounting(
   const subscriptions = options.subscriptions ?? [];
 
   try {
-    const content = buildAccountingExportCsv(subscriptions, merchant_id, format, options);
-    const selectedCount = options.includeInactive
-      ? subscriptions.length
-      : subscriptions.filter((subscription) => subscription.isActive).length;
+    const isJson = format === 'json';
+    const content = isJson
+      ? buildAccountingExportJson(subscriptions, merchant_id, options)
+      : buildAccountingExportCsv(subscriptions, merchant_id, format, options);
+
+    const selected = filterSubscriptions(subscriptions, options);
+    const selectedCount = selected.length;
     const exportId = generateId('accounting_export', now);
     const fileName = buildFileName(merchant_id, format, now);
     const contentChecksum = checksum(content);
@@ -325,6 +420,7 @@ export async function export_to_accounting(
       fileName,
       checksum: contentChecksum,
       scheduleId: options.scheduleId,
+      content, // stored for re-download
       createdAt: now,
     };
 
@@ -336,7 +432,7 @@ export async function export_to_accounting(
       format,
       status: 'success',
       fileName,
-      mimeType: 'text/csv',
+      mimeType: isJson ? 'application/json' : 'text/csv',
       content,
       itemCount: selectedCount,
       checksum: contentChecksum,

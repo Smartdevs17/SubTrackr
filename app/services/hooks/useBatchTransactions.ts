@@ -3,128 +3,156 @@
 // ════════════════════════════════════════════════════════════════
 
 import { useState, useCallback } from 'react';
-import BatchTransactionService, { BatchExecutionResult } from '../batchTransactionService';
+import {
+  BatchTransactionService,
+  BatchExecutionResult,
+  BatchCreateInput,
+  BatchUpdateParams,
+  UpdateFilter,
+  CancelReason,
+  PerItemResult,
+  BatchProgress,
+} from '../batchTransactionService';
 
 interface UseBatchTransactionsProps {
-  maxBatchSize?: number;
+  chunkSize?: number;
 }
 
-/**
- * React hook for managing batch transactions
- */
-export function useBatchTransactions({ maxBatchSize = 10 }: UseBatchTransactionsProps = {}) {
-  const [service] = useState(() => new BatchTransactionService(maxBatchSize));
-
-  const [pending, setPending] = useState(0);
-  const [executing, setExecuting] = useState(false);
+export function useBatchTransactions({ chunkSize = 50 }: UseBatchTransactionsProps = {}) {
+  const [service] = useState(() => new BatchTransactionService(chunkSize));
+  const [isRunning, setIsRunning] = useState(false);
   const [lastResult, setLastResult] = useState<BatchExecutionResult | null>(null);
+  const [progress, setProgress] = useState<BatchProgress | null>(null);
 
-  /**
-   * Add transaction to batch
-   */
-  const addTransaction = useCallback(
-    (functionName: string, params: any[], required: boolean = true) => {
-      const added = service.addTransaction(functionName, params, required);
-      if (added) {
-        setPending(service.getPendingCount());
-      }
-      return added;
-    },
-    [service]
-  );
-
-  /**
-   * Add transaction with dependency
-   */
-  const addTransactionWithDependency = useCallback(
-    (functionName: string, params: any[], dependsOn: number, required: boolean = true) => {
-      const added = service.addTransactionWithDependency(functionName, params, dependsOn, required);
-      if (added) {
-        setPending(service.getPendingCount());
-      }
-      return added;
-    },
-    [service]
-  );
-
-  /**
-   * Simulate batch
-   */
-  const simulateBatch = useCallback(async () => {
-    const result = await service.simulateBatch();
-    setLastResult(result);
-    return result;
-  }, [service]);
-
-  /**
-   * Execute batch
-   */
-  const executeBatch = useCallback(
-    async (atomic: boolean = true) => {
-      setExecuting(true);
+  const executeCreate = useCallback(
+    async (
+      inputs: BatchCreateInput[],
+      addFn: (input: BatchCreateInput) => Promise<{ success: boolean; id?: string; error?: string }>,
+      atomic?: boolean,
+    ) => {
+      setIsRunning(true);
       try {
-        const result = await service.executeBatch(atomic);
+        const result = await service.executeBatchCreate(inputs, addFn, { atomic });
         setLastResult(result);
-        setPending(0);
+        setProgress(service.getProgress());
         return result;
       } catch (error) {
-        console.error('❌ Batch execution failed:', error);
+        console.error('Batch create failed:', error);
         throw error;
       } finally {
-        setExecuting(false);
+        setIsRunning(false);
       }
     },
-    [service]
+    [service],
   );
 
-  /**
-   * Clear batch
-   */
-  const clearBatch = useCallback(() => {
-    service.clearBatch();
-    setPending(0);
-  }, [service]);
+  const executeUpdate = useCallback(
+    async (
+      subscriptionIds: string[],
+      updates: BatchUpdateParams,
+      updateFn: (id: string, updates: BatchUpdateParams) => Promise<{ success: boolean; error?: string }>,
+      options?: { atomic?: boolean; filter?: UpdateFilter },
+    ) => {
+      setIsRunning(true);
+      try {
+        const result = await service.executeBatchUpdate(subscriptionIds, updates, updateFn, options);
+        setLastResult(result);
+        setProgress(service.getProgress());
+        return result;
+      } catch (error) {
+        console.error('Batch update failed:', error);
+        throw error;
+      } finally {
+        setIsRunning(false);
+      }
+    },
+    [service],
+  );
 
-  /**
-   * Get gas estimate
-   */
-  const getGasEstimate = useCallback(() => {
-    return service.getGasEstimate();
-  }, [service]);
+  const executeCancel = useCallback(
+    async (
+      subscriptionIds: string[],
+      cancelReasons: CancelReason[],
+      cancelFn: (id: string, reason: CancelReason) => Promise<{ success: boolean; error?: string }>,
+      atomic?: boolean,
+    ) => {
+      setIsRunning(true);
+      try {
+        const result = await service.executeBatchCancel(subscriptionIds, cancelReasons, cancelFn, { atomic });
+        setLastResult(result);
+        setProgress(service.getProgress());
+        return result;
+      } catch (error) {
+        console.error('Batch cancel failed:', error);
+        throw error;
+      } finally {
+        setIsRunning(false);
+      }
+    },
+    [service],
+  );
 
-  /**
-   * Get batch summary
-   */
-  const getBatchSummary = useCallback(() => {
-    return service.getBatchSummary();
-  }, [service]);
+  const executeCharge = useCallback(
+    async (
+      chargeItems: Array<{ subscriptionId: string; amount: number }>,
+      chargeFn: (id: string, amount: number) => Promise<{ success: boolean; error?: string }>,
+      atomic?: boolean,
+    ) => {
+      setIsRunning(true);
+      try {
+        const result = await service.executeBatchCharge(chargeItems, chargeFn, { atomic });
+        setLastResult(result);
+        setProgress(service.getProgress());
+        return result;
+      } catch (error) {
+        console.error('Batch charge failed:', error);
+        throw error;
+      } finally {
+        setIsRunning(false);
+      }
+    },
+    [service],
+  );
 
-  /**
-   * Get gas savings
-   */
-  const getGasSavings = useCallback(() => {
-    return service.calculateGasSavings();
+  const retryFailed = useCallback(
+    async (
+      retryFn: (item: PerItemResult) => Promise<{ success: boolean; error?: string }>,
+    ) => {
+      setIsRunning(true);
+      try {
+        const result = await service.retryFailedItems(retryFn);
+        setLastResult(result);
+        setProgress(service.getProgress());
+        return result;
+      } catch (error) {
+        console.error('Retry failed:', error);
+        throw error;
+      } finally {
+        setIsRunning(false);
+      }
+    },
+    [service],
+  );
+
+  const clearResult = useCallback(() => {
+    service.clearResult();
+    setLastResult(null);
+    setProgress(null);
   }, [service]);
 
   return {
-    // State
-    pending,
-    executing,
+    isRunning,
     lastResult,
-
-    // Actions
-    addTransaction,
-    addTransactionWithDependency,
-    simulateBatch,
-    executeBatch,
-    clearBatch,
-    getGasEstimate,
-    getBatchSummary,
-    getGasSavings,
-
-    // Helpers
-    isBatchReady: () => service.isBatchReady(),
-    isRunning: executing,
+    progress,
+    executeCreate,
+    executeUpdate,
+    executeCancel,
+    executeCharge,
+    retryFailed,
+    clearResult,
+    getGasEstimate: (count: number) => service.getGasEstimate(count),
+    setChunkSize: (size: number) => service.setChunkSize(size),
+    getProgress: () => service.getProgress(),
   };
 }
 

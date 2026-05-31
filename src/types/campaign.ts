@@ -73,8 +73,111 @@ export interface CampaignAnalytics {
   revenue: number;
   startDate: Date;
   endDate?: Date;
+
+  // Promotional analytics
+  couponRedemptions?: number;
+  totalDiscountGiven?: number;
+  averageOrderValue?: number;
+  conversionRate?: number;
+  revenueImpact?: number;
+  newCustomerAcquisitions?: number;
+  dailyMetrics?: {
+    date: Date;
+    redemptions: number;
+    revenue: number;
+    discountGiven: number;
+  }[];
 }
 
+// New enums for promotional campaigns
+export enum DiscountType {
+  PERCENTAGE = 'percentage',
+  FIXED_AMOUNT = 'fixed_amount',
+  FREE_MONTHS = 'free_months',
+}
+
+export enum TargetAudience {
+  NEW_CUSTOMERS = 'new_customers',
+  EXISTING_CUSTOMERS = 'existing_customers',
+  ALL_CUSTOMERS = 'all_customers',
+  SPECIFIC_SEGMENTS = 'specific_segments',
+  SPECIFIC_PLANS = 'specific_plans',
+}
+
+export enum StackingRule {
+  NO_STACKING = 'no_stacking',
+  STACK_WITH_SEGMENT = 'stack_with_segment',
+  STACK_WITH_COUPON = 'stack_with_coupon',
+  FULL_STACKING = 'full_stacking',
+}
+
+// Coupon interface
+export interface CouponCode {
+  id: string;
+  code: string;
+  campaignId: string;
+  maxUses: number;
+  usedCount: number;
+  maxUsesPerUser: number;
+  expiresAt?: Date;
+  isActive: boolean;
+  createdAt: Date;
+}
+
+// Promotion rule interface
+export interface PromotionRule {
+  discountType: DiscountType;
+  discountValue: number; // percentage (0-100) or fixed amount or months
+  appliesTo: 'plan' | 'subscription' | 'both';
+  planIds?: string[];
+  segmentIds?: string[];
+  minPurchaseAmount?: number;
+  maxDiscountAmount?: number;
+  firstBillingOnly?: boolean; // Apply only to first billing cycle
+}
+
+// Targeting rules interface
+export interface CampaignTargeting {
+  audience: TargetAudience;
+  segmentIds?: string[];
+  planIds?: string[];
+  isNewCustomerOnly?: boolean;
+  minTenureDays?: number;
+  maxTenureDays?: number;
+  excludedSegmentIds?: string[];
+  excludedPlanIds?: string[];
+}
+
+// Stacking configuration
+export interface StackingConfig {
+  rule: StackingRule;
+  priority: number; // Lower number = higher priority
+  canStackWithSegmentDiscounts: boolean;
+  canStackWithOtherCoupons: boolean;
+  maxStackingDepth?: number;
+}
+
+// Campaign overlap interface
+export interface CampaignOverlap {
+  campaignId: string;
+  overlappingCampaignId: string;
+  overlapType: 'plan' | 'segment' | 'audience';
+  overlapDetails: string;
+  severity: 'warning' | 'error';
+}
+
+// Coupon validation result
+export interface CouponValidation {
+  isValid: boolean;
+  campaign?: Campaign;
+  coupon?: CouponCode;
+  discountAmount?: number;
+  finalPrice?: number;
+  error?: string;
+  warnings?: string[];
+}
+
+// Enhanced Campaign interface
 export interface Campaign {
   id: string;
   name: string;
@@ -89,4 +192,12 @@ export interface Campaign {
   analytics?: CampaignAnalytics;
   createdAt: Date;
   updatedAt: Date;
+
+  // Promotional fields
+  promotionRule?: PromotionRule;
+  targeting?: CampaignTargeting;
+  stackingConfig?: StackingConfig;
+  couponCodes?: CouponCode[];
+  maxRedemptions?: number;
+  currentRedemptions?: number;
 }

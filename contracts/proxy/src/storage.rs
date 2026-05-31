@@ -80,27 +80,38 @@ pub(crate) fn set_rollback_delay_secs(env: &Env, delay_secs: u64) {
 }
 
 pub(crate) fn scheduled_upgrade(env: &Env) -> Option<ScheduledUpgrade> {
+    // Issue #395: ProxyScheduledUpgrade is short-lived (exists only until the
+    // upgrade is executed or cancelled) so temporary storage is appropriate.
+    // We use a generous TTL of ~7 days (≈ 120 960 ledgers at 5 s/ledger) to
+    // ensure the entry survives the upgrade delay window.
     env.storage()
-        .instance()
+        .temporary()
         .get(&StorageKey::ProxyScheduledUpgrade)
 }
 
 pub(crate) fn set_scheduled_upgrade(env: &Env, upgrade: &ScheduledUpgrade) {
+    // TTL: 7 days in ledgers (7 * 24 * 3600 / 5 = 120 960).
+    const UPGRADE_TTL_LEDGERS: u32 = 120_960;
     env.storage()
-        .instance()
+        .temporary()
         .set(&StorageKey::ProxyScheduledUpgrade, upgrade);
+    env.storage().temporary().extend_ttl(
+        &StorageKey::ProxyScheduledUpgrade,
+        UPGRADE_TTL_LEDGERS,
+        UPGRADE_TTL_LEDGERS,
+    );
 }
 
 pub(crate) fn clear_scheduled_upgrade(env: &Env) {
     env.storage()
-        .instance()
+        .temporary()
         .remove(&StorageKey::ProxyScheduledUpgrade);
 }
 
 pub(crate) fn previous_count(env: &Env) -> u32 {
     env.storage()
         .instance()
-        .get(&StorageKey::ProxyPreviousImplementationCount)
+        .get(&StorageKey::ProxyPrevImplCount)
         .unwrap_or(0)
 }
 
@@ -122,7 +133,7 @@ pub(crate) fn push_previous(env: &Env, implementation: &Address) {
     );
     env.storage()
         .instance()
-        .set(&StorageKey::ProxyPreviousImplementationCount, &(count + 1));
+        .set(&StorageKey::ProxyPrevImplCount, &(count + 1));
 }
 
 pub(crate) fn swap_previous_top(env: &Env, new_top: &Address) -> Address {

@@ -1,0 +1,5 @@
+{
+  "renderMs": 250,
+  "apiLatencyMs": 1200,
+  "memoryBytes": 262144000
+}
