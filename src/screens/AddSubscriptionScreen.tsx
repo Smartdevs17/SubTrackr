@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Keyboard,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -36,6 +37,11 @@ const AddSubscriptionScreen: React.FC = () => {
   const { addSubscription, isLoading, error } = useSubscriptionStore();
   const { preferredCurrency } = useSettingsStore();
 
+  // Ref for the name input — used for delayed focus instead of autoFocus,
+  // so the screen has time to fully render before the keyboard opens.
+  const nameInputRef = useRef<TextInput>(null);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
   const [formData, setFormData] = useState<AddSubscriptionFormData>({
     name: '',
     description: '',
@@ -58,6 +64,32 @@ const AddSubscriptionScreen: React.FC = () => {
       // Note: In a real app, you might want to clear errors in the store
     }
   }, [error]);
+
+  // Delay focus so the screen finishes rendering before the keyboard opens.
+  // A 300 ms delay gives the navigation transition time to complete on both
+  // iOS and Android, preventing the keyboard from obscuring UI elements.
+  useEffect(() => {
+    const focusTimer = setTimeout(() => {
+      nameInputRef.current?.focus();
+    }, 300);
+
+    return () => clearTimeout(focusTimer);
+  }, []);
+
+  // Track keyboard visibility so the ScrollView can adjust its content
+  // inset and keep form fields accessible when the keyboard is open.
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, () => setIsKeyboardVisible(true));
+    const hideSub = Keyboard.addListener(hideEvent, () => setIsKeyboardVisible(false));
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   // Date Picker States
   const [showPicker, setShowPicker] = useState(false);
@@ -203,8 +235,12 @@ const AddSubscriptionScreen: React.FC = () => {
     <SafeAreaView style={styles.container} testID="add-subscription-screen">
       <KeyboardAvoidingView
         style={styles.keyboardAvoidingView}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <ScrollView style={styles.scrollView} keyboardShouldPersistTaps="handled">
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}>
+        <ScrollView
+          style={styles.scrollView}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={isKeyboardVisible ? styles.scrollContentKeyboardOpen : undefined}>
           <View style={styles.header}>
             <View style={styles.headerContent}>
               <TouchableOpacity
@@ -227,12 +263,12 @@ const AddSubscriptionScreen: React.FC = () => {
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Name *</Text>
                 <TextInput
+                  ref={nameInputRef}
                   style={styles.textInput}
                   value={formData.name}
                   onChangeText={(text) => handleInputChange('name', text)}
                   placeholder="Enter subscription name"
                   placeholderTextColor={colors.textSecondary}
-                  autoFocus
                   accessibilityLabel="Subscription name, required"
                   accessibilityHint="Enter the name of the subscription service"
                   returnKeyType="next"
@@ -496,6 +532,9 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  scrollContentKeyboardOpen: {
+    paddingBottom: 120,
   },
   header: {
     padding: spacing.lg,
