@@ -48,6 +48,7 @@ import ApiKeyManagementScreen from '../screens/ApiKeyManagementScreen';
 import DocumentationPortalScreen from '../screens/DocumentationPortalScreen';
 import IntegrationGuidesScreen from '../screens/IntegrationGuidesScreen';
 import PerformanceDashboardScreen from '../screens/PerformanceDashboardScreen';
+import TransactionHistoryScreen from '../screens/TransactionHistoryScreen';
 import { colors } from '../utils/constants';
 
 import { RootStackParamList, TabParamList } from './types';
@@ -303,6 +304,11 @@ const SettingsStack = () => (
       name="PerformanceDashboard"
       component={PerformanceDashboardScreen}
       options={{ title: 'Performance', headerShown: true }}
+    />
+    <Stack.Screen
+      name="TransactionHistory"
+      component={TransactionHistoryScreen}
+      options={{ headerShown: false }}
     />
   </Stack.Navigator>
 );
