@@ -12,7 +12,7 @@ import {
   Platform,
   Keyboard,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { useSubscriptionStore, useSettingsStore } from '../store';
@@ -25,6 +25,7 @@ import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/dat
 import { errorHandler } from '../services/errorHandler';
 import type { SubscriptionFormData } from '../types/subscription';
 import { BillingCycle, SubscriptionCategory } from '../types/subscription';
+import { validateAddSubscriptionParams } from '../utils/deepLinkValidator';
 
 interface AddSubscriptionFormData extends SubscriptionFormData {
   priceError: string;
@@ -34,8 +35,13 @@ const getDefaultNextBillingDate = (cycle: BillingCycle) => advanceBillingDate(ne
 
 const AddSubscriptionScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const colors = useThemeColors();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const { addSubscription, isLoading, error } = useSubscriptionStore();
   const { preferredCurrency } = useSettingsStore();
+  const validation = validateAddSubscriptionParams(route.params ?? {});
+  const validationErrors = validation.errors;
+  const initialFormData = buildInitialFormData(preferredCurrency, validation.sanitised);
 
   // Ref for the name input — used for delayed focus instead of autoFocus,
   // so the screen has time to fully render before the keyboard opens.
@@ -95,10 +101,10 @@ const AddSubscriptionScreen: React.FC = () => {
   const [showPicker, setShowPicker] = useState(false);
   const [pickerMode, setPickerMode] = useState<'date' | 'time'>('date');
   const [selectedCategory, setSelectedCategory] = useState<SubscriptionCategory>(
-    SubscriptionCategory.OTHER
+    initialFormData.category
   );
   const [selectedBillingCycle, setSelectedBillingCycle] = useState<BillingCycle>(
-    BillingCycle.MONTHLY
+    initialFormData.billingCycle
   );
 
   const handleCategorySelect = (category: SubscriptionCategory) => {
@@ -522,10 +528,11 @@ const AddSubscriptionScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.background.primary,
   },
   keyboardAvoidingView: {
     flex: 1,
@@ -589,7 +596,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   errorText: {
-    color: colors.error || '#e74c3c',
+    color: colors.error,
     fontSize: 12,
     marginTop: spacing.xs,
   },
@@ -712,7 +719,7 @@ const styles = StyleSheet.create({
   toggleKnob: {
     width: 24,
     height: 24,
-    backgroundColor: colors.text,
+    backgroundColor: colors.background.card,
     borderRadius: borderRadius.full,
   },
   toggleKnobActive: {
@@ -736,8 +743,9 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    backgroundColor: colors.background,
+    backgroundColor: colors.background.primary,
   },
 });
+}
 
 export default AddSubscriptionScreen;

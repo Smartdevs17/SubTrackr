@@ -9,9 +9,10 @@ import {
   BillingCycle, // eslint-disable-line
 } from '../types/subscription';
 import { dummySubscriptions } from '../utils/dummyData'; // eslint-disable-line
+import { calculateSubscriptionStats } from '../utils/stats';
 import { advanceBillingDate } from '../utils/billingDate';
 import { buildBillingPeriod } from '../utils/invoice';
-import { BILLING_CONVERSIONS, CACHE_CONSTANTS } from '../utils/constants/values';
+import { CACHE_CONSTANTS } from '../utils/constants/values';
 import {
   syncRenewalReminders,
   presentChargeSuccessNotification,
@@ -166,6 +167,7 @@ interface SubscriptionState {
   updateSubscription: (id: string, data: Partial<Subscription>) => Promise<void>;
   deleteSubscription: (id: string) => Promise<void>;
   toggleSubscriptionStatus: (id: string) => Promise<void>;
+  // new actions added
   previewPlanChange: (
     id: string,
     newPrice: number,
@@ -193,8 +195,6 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         totalYearlySpend: 0,
         categoryBreakdown: {} as Record<string, number>,
       },
-      isLoading: true,
-      error: null,
       prorationPreview: null,
       creditMemos: {},
 
@@ -269,7 +269,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         const memo = get().creditMemos[id];
         if (!sub || !memo || memo.applied) return;
 
-        const { finalCharge, updatedMemo } = applyCreditMemo(sub.price, memo);
+        const { updatedMemo } = applyCreditMemo(sub.price, memo);
 
         set((state) => ({
           creditMemos: {
@@ -277,10 +277,11 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             [id]: updatedMemo,
           },
         }));
-
-        // Could trigger a reduced charge here
-        console.log(`Applied credit: final charge ${finalCharge}`);
       },
+
+      // Hydration state: keep loading true until persisted state is read.
+      isLoading: true,
+      error: null,
 
       addSubscription: async (data: SubscriptionFormData) => {
         set({ isLoading: true, error: null });
@@ -508,7 +509,6 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       calculateStats: () => {
         const { subscriptions } = get();
 
-        // Safety check: ensure subscriptions is an array
         if (!subscriptions || !Array.isArray(subscriptions)) {
           set({
             stats: {
@@ -521,62 +521,15 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           return;
         }
 
-        const activeSubs = subscriptions.filter((sub) => sub.isActive);
-
         const { preferredCurrency, exchangeRates } = useSettingsStore.getState();
         const rates = exchangeRates?.rates || {};
 
-        const totalMonthlySpend = activeSubs.reduce((total, sub) => {
-          const priceInPreferred = currencyService.convert(
-            sub.price,
-            sub.currency,
-            preferredCurrency,
-            rates
-          );
-          if (sub.billingCycle === 'monthly') return total + priceInPreferred;
-          if (sub.billingCycle === 'yearly') return total + priceInPreferred / 12;
-          if (sub.billingCycle === 'weekly')
-            return total + priceInPreferred * BILLING_CONVERSIONS.WEEKS_PER_MONTH;
-          return total + priceInPreferred;
-        }, 0);
-
-        const totalYearlySpend = activeSubs.reduce((total, sub) => {
-          const priceInPreferred = currencyService.convert(
-            sub.price,
-            sub.currency,
-            preferredCurrency,
-            rates
-          );
-          if (sub.billingCycle === 'yearly') return total + priceInPreferred;
-          if (sub.billingCycle === 'monthly')
-            return total + priceInPreferred * BILLING_CONVERSIONS.MONTHS_PER_YEAR;
-          if (sub.billingCycle === 'weekly')
-            return total + priceInPreferred * BILLING_CONVERSIONS.WEEKS_PER_YEAR;
-          return total + priceInPreferred * BILLING_CONVERSIONS.MONTHS_PER_YEAR;
-        }, 0);
-
-        const categoryBreakdown = activeSubs.reduce(
-          (acc, sub) => {
-            acc[sub.category] = (acc[sub.category] || 0) + 1;
-            return acc;
-          },
-          {} as Record<string, number>
+        const stats = calculateSubscriptionStats(
+          subscriptions,
+          (price, currency) => currencyService.convert(price, currency, preferredCurrency, rates)
         );
 
-        const totalGasSpent = activeSubs.reduce(
-          (total, sub) => total + (sub.totalGasSpent || 0),
-          0
-        );
-
-        set({
-          stats: {
-            totalActive: activeSubs.length,
-            totalMonthlySpend,
-            totalYearlySpend,
-            categoryBreakdown,
-            totalGasSpent,
-          },
-        });
+        set({ stats });
       },
     }),
     {
