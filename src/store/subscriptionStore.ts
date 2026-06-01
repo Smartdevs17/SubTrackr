@@ -162,12 +162,14 @@ interface SubscriptionState {
   error: AppError | null;
   prorationPreview: ProrationPreview | null;
   creditMemos: Record<string, CreditMemo>;
+  
 
   // Actions
   addSubscription: (data: SubscriptionFormData) => Promise<void>;
   updateSubscription: (id: string, data: Partial<Subscription>) => Promise<void>;
   deleteSubscription: (id: string) => Promise<void>;
   toggleSubscriptionStatus: (id: string) => Promise<void>;
+  reassignCategory: (fromCategoryId: string, toCategoryId: string) => Promise<void>;
   // new actions added
   previewPlanChange: (id: string, newPrice: number, effectiveDate: 'immediate' | 'end_of_period') => ProrationPreview;
   executePlanChange: (id: string, newPlanData: Partial<Subscription>, effectiveDate: 'immediate' | 'end_of_period') => Promise<void>;
@@ -189,6 +191,29 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         categoryBreakdown: {} as Record<string, number>,
         prorationPreview: null,
       creditMemos: {},
+
+      reassignCategory: async (fromCategoryId: string, toCategoryId: string) => {
+  set({ isLoading: true, error: null });
+  try {
+    set((state) => ({
+      subscriptions: state.subscriptions.map((sub) =>
+        sub.category === fromCategoryId
+          ? { ...sub, category: toCategoryId, updatedAt: new Date() }
+          : sub
+      ),
+      isLoading: false,
+    }));
+
+    get().calculateStats();
+    await syncRenewalReminders(get().subscriptions);
+  } catch (error) {
+    const appError = errorHandler.handleError(error as Error, {
+      action: 'reassignCategory',
+      metadata: { fromCategoryId, toCategoryId },
+    });
+    set({ error: appError, isLoading: false });
+  }
+},
       
       previewPlanChange: (id: string, newPrice: number, effectiveDate: 'immediate' | 'end_of_period') => {
         const sub = get().subscriptions.find((s) => s.id === id);
