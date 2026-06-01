@@ -115,7 +115,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: spacing.sm,
   },
-  detailLabel: { ...typography.caption, color: colors.textSecondary, textTransform: 'uppercase', marginBottom: 2 },
+  detailLabel: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    marginBottom: 2,
+  },
   detailValue: { ...typography.body, color: colors.text },
   totalValue: { ...typography.h3, color: colors.accent },
 });
