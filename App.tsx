@@ -1,14 +1,16 @@
 import React from 'react';
-import { View } from 'react-native';
+import { View, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { useNotifications } from './src/hooks/useNotifications';
 import { useTransactionQueue } from './src/hooks/useTransactionQueue';
 import ErrorBoundary from './src/components/ErrorBoundary';
+import CrashRecoveryModal from './src/components/CrashRecoveryModal';
 import { initI18n } from './src/i18n/config';
 import i18n from './src/i18n/config';
 import { I18nextProvider } from 'react-i18next';
+import { crashReporter, CrashRecord } from './src/services/crashReporter';
 
 // Import WalletConnect compatibility layer
 import '@walletconnect/react-native-compat';
@@ -87,14 +89,51 @@ function NotificationBootstrap() {
   return null;
 }
 
+function AppShell() {
+  const { isDark, colors } = useTheme();
+
+  return (
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background.primary }}>
+      <View style={{ flex: 1, backgroundColor: colors.background.primary }} testID="app-root">
+        <StatusBar style={isDark ? 'light' : 'dark'} backgroundColor={colors.background.primary} />
+        <ErrorBoundary>
+          <I18nextProvider i18n={i18n}>
+            <NotificationBootstrap />
+            <AppNavigator />
+          </I18nextProvider>
+        </ErrorBoundary>
+        <AppKit />
+      </View>
+    </GestureHandlerRootView>
+  );
+}
+
 export default function App() {
   const [i18nReady, setI18nReady] = React.useState(false);
+  const [pendingCrash, setPendingCrash] = React.useState<CrashRecord | null>(null);
+  const [showRecoveryModal, setShowRecoveryModal] = React.useState(false);
 
   React.useEffect(() => {
     let cancelled = false;
     const run = async () => {
       try {
         await initI18n();
+
+        // Initialize crash reporter — returns the previous crash if one exists
+        const previousCrash = await crashReporter.initialize({
+          // Preserve user settings and auth tokens across a recovery wipe
+          preservedStorageKeys: [
+            '@subtrackr/settings',
+            '@subtrackr/auth_token',
+            '@subtrackr/preferred_currency',
+          ],
+          installGlobalHandler: true,
+        });
+
+        if (previousCrash && !cancelled) {
+          setPendingCrash(previousCrash);
+          setShowRecoveryModal(true);
+        }
       } finally {
         if (!cancelled) setI18nReady(true);
       }
@@ -104,6 +143,29 @@ export default function App() {
       cancelled = true;
     };
   }, []);
+
+  const handleRecover = async () => {
+    if (pendingCrash) {
+      const success = await crashReporter.attemptDataRecovery(pendingCrash.id);
+      await crashReporter.markNotified(pendingCrash.id);
+      setShowRecoveryModal(false);
+      setPendingCrash(null);
+      if (!success) {
+        Alert.alert(
+          'Recovery Incomplete',
+          'Some data could not be restored. The app will continue with a fresh state.'
+        );
+      }
+    }
+  };
+
+  const handleDismissRecovery = async () => {
+    if (pendingCrash) {
+      await crashReporter.markNotified(pendingCrash.id);
+    }
+    setShowRecoveryModal(false);
+    setPendingCrash(null);
+  };
 
   if (!i18nReady) return null;
 
@@ -118,6 +180,12 @@ export default function App() {
           </I18nextProvider>
         </ErrorBoundary>
         <AppKit />
+        <CrashRecoveryModal
+          visible={showRecoveryModal}
+          crash={pendingCrash}
+          onRecover={handleRecover}
+          onDismiss={handleDismissRecovery}
+        />
       </View>
     </GestureHandlerRootView>
   );

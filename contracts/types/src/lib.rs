@@ -1,6 +1,35 @@
+//! Shared types crate for the SubTrackr smart-contract workspace — Issue #404.
+//!
+//! # Purpose
+//! Provides a single, versioned source of truth for all data structures shared
+//! across contract crates (`subscription`, `invoice`, `oracle`, `batch`, …).
+//! Every contract crate must import types from here rather than re-defining them.
+//!
+//! # Versioning
+//! The `TYPES_VERSION` constant is incremented whenever a **breaking** change
+//! is introduced (field removal, type change, variant reordering).  Non-breaking
+//! additions (new optional fields, new enum variants appended at the end) do
+//! **not** require a version bump.
+//!
+//! See `docs/TYPES_MIGRATION.md` for the migration guide and backward
+//! compatibility policy.
+//!
+//! # Re-export policy
+//! All public items in this crate are re-exported from each contract crate's
+//! root via `pub use subtrackr_types::*;` so downstream users only need one
+//! import path.
+
 #![no_std]
 
 use soroban_sdk::{contracttype, Address, String, Symbol, Vec};
+
+/// Current schema version of this types crate.
+///
+/// Increment this constant whenever a backward-incompatible change is made
+/// (field removal, type narrowing, enum variant reordering).  All deployed
+/// contracts embed this value in their storage so a version mismatch can be
+/// detected at upgrade time.
+pub const TYPES_VERSION: u32 = 1;
 
 /// Billing interval in seconds.
 #[contracttype]

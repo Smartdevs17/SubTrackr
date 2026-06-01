@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 
-import { borderRadius, colors, shadows, spacing, typography } from '../../utils/constants';
+import { borderRadius, shadows, spacing, typography } from '../../utils/constants';
 import {
   buildGestureDebugLabel,
   GestureDirection,
@@ -17,6 +17,7 @@ import {
   triggerGestureFeedback,
   validateHorizontalSwipe,
 } from '../../services/gestureService';
+import { useThemeColors } from '../../hooks/useThemeColors';
 
 interface SwipeableCardProps {
   children: React.ReactNode;
@@ -43,6 +44,8 @@ export const SwipeableCard: React.FC<SwipeableCardProps> = ({
   accessibilityLabel,
   debugEnabled = false,
 }) => {
+  const colors = useThemeColors();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const translateX = useRef(new Animated.Value(0)).current;
   const draggingRef = useRef(false);
   const longPressTriggeredRef = useRef(false);

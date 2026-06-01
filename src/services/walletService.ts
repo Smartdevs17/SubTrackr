@@ -264,11 +264,11 @@ export class WalletServiceManager {
 
       return balances;
     } catch (error) {
-      throw toWalletError(
-        error,
-        WalletErrorCode.BALANCE_FETCH_FAILED,
+      throw new NetworkError(
+        NetworkErrorCode.RPC_ERROR,
         'Unable to fetch token balances.',
-        'Check your network connection and try again.'
+        'Check your network connection and try again.',
+        error
       );
     }
   }
@@ -287,11 +287,11 @@ export class WalletServiceManager {
       provider = this.getProvider(chainId);
       gasPrice = await this.resolveGasPrice(provider);
     } catch (error) {
-      throw toWalletError(
-        error,
-        WalletErrorCode.GAS_ESTIMATION_FAILED,
+      throw new NetworkError(
+        NetworkErrorCode.RPC_ERROR,
         'Could not retrieve gas price.',
-        'Check your network connection and try again.'
+        'Check your network connection and try again.',
+        error
       );
     }
 
@@ -393,35 +393,51 @@ export class WalletServiceManager {
     chainId: number
   ): Promise<GasEstimate> {
     const signer = this.getWalletSigner();
-    const network = await signer.provider!.getNetwork();
-    if (network.chainId !== chainId) {
-      throw new Error(
-        `Wallet network (${network.chainId}) does not match selected chain (${chainId}). Switch network in your wallet.`
+    try {
+      const network = await signer.provider!.getNetwork();
+      if (network.chainId !== chainId) {
+        throw new WalletError(
+          WalletErrorCode.NETWORK_MISMATCH,
+          `Wallet network (${network.chainId}) does not match selected chain (${chainId}). Switch network in your wallet.`
+        );
+      }
+
+      const { createOp } = await this.buildSuperfluidCreateFlowContext(
+        tokenSymbol,
+        amountPerMonth,
+        recipient,
+        chainId,
+        signer
+      );
+
+      const populated = await createOp.getPopulatedTransactionRequest(signer, 1.2);
+      const gasLimit = populated.gasLimit;
+      if (!gasLimit) {
+        throw new ContractError(
+          ContractErrorCode.EXECUTION_FAILED,
+          'Could not estimate gas for Superfluid createFlow'
+        );
+      }
+
+      const gasPrice = await signer.provider!.getGasPrice();
+      const estimatedCostWei = gasPrice.mul(gasLimit);
+
+      return {
+        gasLimit: gasLimit.toString(),
+        gasPrice: ethers.utils.formatUnits(gasPrice, 'gwei'),
+        estimatedCost: ethers.utils.formatEther(estimatedCostWei),
+      };
+    } catch (error) {
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw new ContractError(
+        ContractErrorCode.EXECUTION_FAILED,
+        'Superfluid gas estimation failed.',
+        'Check your token balance and try again.',
+        error
       );
     }
-
-    const { createOp } = await this.buildSuperfluidCreateFlowContext(
-      tokenSymbol,
-      amountPerMonth,
-      recipient,
-      chainId,
-      signer
-    );
-
-    const populated = await createOp.getPopulatedTransactionRequest(signer, 1.2);
-    const gasLimit = populated.gasLimit;
-    if (!gasLimit) {
-      throw new Error('Could not estimate gas for Superfluid createFlow');
-    }
-
-    const gasPrice = await signer.provider!.getGasPrice();
-    const estimatedCostWei = gasPrice.mul(gasLimit);
-
-    return {
-      gasLimit: gasLimit.toString(),
-      gasPrice: ethers.utils.formatUnits(gasPrice, 'gwei'),
-      estimatedCost: ethers.utils.formatEther(estimatedCostWei),
-    };
   }
 
   async createSuperfluidStream(
@@ -471,11 +487,11 @@ export class WalletServiceManager {
           'Open your wallet and approve the transaction to continue.'
         );
       }
-      throw toWalletError(
-        error,
-        WalletErrorCode.STREAM_CREATION_FAILED,
+      throw new ContractError(
+        ContractErrorCode.EXECUTION_FAILED,
         'Stream creation failed.',
-        'Check your token balance and try again.'
+        'Check your token balance and try again.',
+        error
       );
     }
   }
@@ -563,11 +579,11 @@ export class WalletServiceManager {
           'Open your wallet and approve the transaction to continue.'
         );
       }
-      throw toWalletError(
-        error,
-        WalletErrorCode.STREAM_CREATION_FAILED,
+      throw new ContractError(
+        ContractErrorCode.EXECUTION_FAILED,
         'Stream creation failed.',
-        'Check your token balance and allowance, then try again.'
+        'Check your token balance and allowance, then try again.',
+        error
       );
     }
   }
@@ -659,11 +675,11 @@ export class WalletServiceManager {
           'Open your wallet and approve the request to continue.'
         );
       }
-      throw toWalletError(
-        error,
-        WalletErrorCode.APPROVAL_FAILED,
+      throw new ContractError(
+        ContractErrorCode.EXECUTION_FAILED,
         'Token approval failed.',
-        'Check your wallet connection and try again.'
+        'Check your wallet connection and try again.',
+        error
       );
     }
   }
@@ -725,25 +741,16 @@ export enum PaymentMethodErrorCode {
   FALLBACK_FAILED = 'FALLBACK_FAILED',
 }
 
-export class PaymentMethodError extends Error {
-  readonly code: PaymentMethodErrorCode;
-  readonly userMessage: string;
-  readonly recovery?: string;
-
+export class PaymentMethodError extends AppError {
   constructor(
-    code: PaymentMethodErrorCode,
+    code: PaymentMethodErrorCode | string,
     userMessage: string,
     recovery?: string,
     cause?: unknown
   ) {
-    super(userMessage);
+    super(code, userMessage, recovery, cause);
     this.name = 'PaymentMethodError';
-    this.code = code;
-    this.userMessage = userMessage;
-    this.recovery = recovery;
-    if (cause instanceof Error && cause.stack) {
-      this.stack = `${this.stack}\nCaused by: ${cause.stack}`;
-    }
+    Object.setPrototypeOf(this, new.target.prototype);
   }
 }
 

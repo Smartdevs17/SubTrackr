@@ -489,7 +489,6 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.sm,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: 'transparent',
   },
   roleToggleActive: {
     backgroundColor: colors.surfaceVariant,

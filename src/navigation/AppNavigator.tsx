@@ -13,6 +13,7 @@ import CryptoPaymentScreen from '../screens/CryptoPaymentScreen';
 import CommunityScreen from '../screens/CommunityScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import SubscriptionDetailScreen from '../screens/SubscriptionDetailScreen';
+import EditSubscriptionScreen from '../screens/EditSubscriptionScreen';
 import InvoiceListScreen from '../screens/InvoiceListScreen';
 import InvoiceDetailScreen from '../screens/InvoiceDetailScreen';
 import AnalyticsScreen from '../screens/AnalyticsScreen';
@@ -48,6 +49,7 @@ import ApiKeyManagementScreen from '../screens/ApiKeyManagementScreen';
 import DocumentationPortalScreen from '../screens/DocumentationPortalScreen';
 import IntegrationGuidesScreen from '../screens/IntegrationGuidesScreen';
 import PerformanceDashboardScreen from '../screens/PerformanceDashboardScreen';
+import BillingSettingsScreen from '../screens/BillingSettingsScreen';
 import { colors } from '../utils/constants';
 
 import { RootStackParamList, TabParamList } from './types';
@@ -71,6 +73,11 @@ const HomeStack = () => (
     <Stack.Screen
       name="SubscriptionDetail"
       component={SubscriptionDetailScreen}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="EditSubscription"
+      component={EditSubscriptionScreen}
       options={{ headerShown: false }}
     />
     <Stack.Screen
@@ -304,22 +311,28 @@ const SettingsStack = () => (
       component={PerformanceDashboardScreen}
       options={{ title: 'Performance', headerShown: true }}
     />
+    <Stack.Screen
+      name="BillingSettings"
+      component={BillingSettingsScreen}
+      options={{ title: 'Billing Settings', headerShown: true }}
+    />
   </Stack.Navigator>
 );
 
 const TabNavigator = () => {
   const { t } = useTranslation();
+  const { colors } = useTheme();
 
   return (
     <Tab.Navigator
       screenOptions={{
         tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
+          backgroundColor: colors.navigation.tabBar,
+          borderTopColor: colors.navigation.tabBarBorder,
           borderTopWidth: 1,
         },
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textSecondary,
+        tabBarActiveTintColor: colors.navigation.activeTab,
+        tabBarInactiveTintColor: colors.navigation.inactiveTab,
         headerShown: false,
       }}>
       <Tab.Screen
@@ -387,8 +400,10 @@ const TabNavigator = () => {
 };
 
 export const AppNavigator = () => {
+  const { isDark } = useTheme();
+
   return (
-    <NavigationContainer ref={navigationRef}>
+    <NavigationContainer ref={navigationRef} theme={isDark ? darkNavigationTheme : lightNavigationTheme}>
       <TabNavigator />
     </NavigationContainer>
   );
