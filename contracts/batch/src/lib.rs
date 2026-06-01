@@ -200,7 +200,7 @@ impl SubTrackrBatch {
             .get(&DataKey::BatchAtomic(batch_id))
             .unwrap_or(false);
 
-        let total = op.subscription_ids.len() as u32;
+        let total = op.subscription_ids.len();
         let gas_estimate = estimate_batch_gas(&op);
 
         let mut successful: u32 = 0;

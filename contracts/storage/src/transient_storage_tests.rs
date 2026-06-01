@@ -8,9 +8,8 @@
 ///
 /// Run with:
 ///   cargo test -p subtrackr-storage -- transient --nocapture
-
 #[cfg(test)]
-mod transient_storage_tests {
+mod tests {
     use crate::{SubTrackrStorage, SubTrackrStorageClient};
     use soroban_sdk::{
         testutils::{Address as _, Ledger, LedgerInfo},

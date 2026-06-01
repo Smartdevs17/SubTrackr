@@ -1,4 +1,5 @@
 #![no_std]
+#![allow(clippy::too_many_arguments)]
 mod gas_optimization;
 mod gas_profiler;
 mod gas_storage;
@@ -192,6 +193,7 @@ fn storage_temporary_set<V: IntoVal<Env, Val>>(
     );
 }
 
+#[allow(dead_code)]
 fn storage_temporary_remove(env: &Env, storage: &Address, key: StorageKey) {
     let args: Vec<Val> = soroban_sdk::vec![env, key.into_val(env)];
     env.invoke_contract::<()>(
