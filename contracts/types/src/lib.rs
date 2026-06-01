@@ -35,21 +35,29 @@ pub const TYPES_VERSION: u32 = 1;
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
 pub enum Interval {
-    Daily,     // 86400s
-    Weekly,    // 604800s
-    Monthly,   // 2592000s (30 days)
-    Quarterly, // 7776000s (90 days)
-    Yearly,    // 31536000s (365 days)
+    Daily,         // 86400s
+    Weekly,        // 604800s
+    BiWeekly,      // 1209600s (14 days)
+    Monthly,       // 2592000s (30 days)
+    BiMonthly,     // 5184000s (60 days)
+    Quarterly,     // 7776000s (90 days)
+    SemiAnnually,  // 15724800s (182 days)
+    Yearly,        // 31536000s (365 days)
+    Custom(u64),   // Custom interval in seconds
 }
 
 impl Interval {
     pub fn seconds(&self) -> u64 {
         match self {
-            Interval::Daily => 86_400,
-            Interval::Weekly => 604_800,
-            Interval::Monthly => 2_592_000,
-            Interval::Quarterly => 7_776_000,
-            Interval::Yearly => 31_536_000,
+            Interval::Daily        => 86_400,
+            Interval::Weekly       => 604_800,
+            Interval::BiWeekly     => 1_209_600,
+            Interval::Monthly      => 2_592_000,
+            Interval::BiMonthly    => 5_184_000,
+            Interval::Quarterly    => 7_776_000,
+            Interval::SemiAnnually => 15_724_800,
+            Interval::Yearly       => 31_536_000,
+            Interval::Custom(secs) => *secs,
         }
     }
 }
@@ -281,6 +289,62 @@ pub struct Subscription {
     pub paused_at: u64,
     pub pause_duration: u64,
     pub refund_requested_amount: i128,
+}
+
+/// Configuration for flexible billing schedules (Issue #170).
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct BillingSchedule {
+    pub interval: Interval,
+    /// Timestamp of the billing cycle start (0 = first charge date).
+    pub start_date: u64,
+    /// Trial period in days before first charge.
+    pub trial_period_days: u32,
+    /// Promotional rate applied during the promotional period (0 = no promo).
+    pub promotional_rate: i128,
+    /// Duration in days the promotional rate is active (0 = no promo).
+    pub promotional_duration_days: u32,
+    /// Preferred day of month for invoice generation (1-31, 0 = use interval).
+    pub custom_invoice_day: u32,
+}
+
+/// State of a multi-step charge attempt (Issue #169).
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum ChargeStatus {
+    Pending,
+    Attempting,
+    Failed,
+    Retrying,
+    Completed,
+    Exhausted,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ChargeAttempt {
+    pub id: u64,
+    pub subscription_id: u64,
+    pub status: ChargeStatus,
+    pub amount: i128,
+    pub attempted_at: u64,
+    pub completed_at: u64,
+    pub error_message: String,
+    pub retry_count: u32,
+    pub max_retries: u32,
+    pub next_retry_at: u64,
+    pub circuit_breaker_until: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct RetryConfig {
+    pub max_retries: u32,
+    pub base_delay_secs: u64,
+    pub max_delay_secs: u64,
+    pub backoff_factor: u32,
+    pub circuit_breaker_threshold: u32,
+    pub circuit_breaker_cooldown_secs: u64,
 }
 
 pub type Timestamp = u64;

@@ -2,6 +2,12 @@
 mod gas_optimization;
 mod gas_profiler;
 mod gas_storage;
+mod events;
+mod errors;
+mod event_store;
+mod state;
+mod billing;
+mod charging;
 use soroban_sdk::{token, Address, Env, IntoVal, String, Symbol, TryFromVal, Val, Vec};
 use subtrackr_oracle::{OracleError, SubTrackrOracleClient};
 use subtrackr_types::{
@@ -800,6 +806,19 @@ impl SubTrackrSubscription {
         plan.subscriber_count += 1;
         storage_persistent_set(&env, &storage, StorageKey::Plan(plan_id), plan);
 
+        let metadata = event_store::build_event_metadata(&env, &subscriber);
+        event_store::record_event(
+            &env,
+            sub_count,
+            plan_id,
+            events::SubscriptionEventType::Created,
+            metadata,
+            &SubscriptionStatus::Active,
+            &SubscriptionStatus::Active,
+            plan_id,
+            0,
+        );
+
         sub_count
     }
 
@@ -826,6 +845,8 @@ impl SubTrackrSubscription {
             "Subscription not active"
         );
 
+        let prior_status = sub.status.clone();
+
         sub.status = SubscriptionStatus::Cancelled;
         storage_persistent_set(
             &env,
@@ -843,6 +864,19 @@ impl SubTrackrSubscription {
             plan.subscriber_count -= 1;
         }
         storage_persistent_set(&env, &storage, StorageKey::Plan(sub.plan_id), plan);
+
+        let metadata = event_store::build_event_metadata(&env, &subscriber);
+        event_store::record_event(
+            &env,
+            subscription_id,
+            sub.plan_id,
+            events::SubscriptionEventType::Cancelled,
+            metadata,
+            &prior_status,
+            &SubscriptionStatus::Cancelled,
+            sub.plan_id,
+            0,
+        );
     }
 
     pub fn pause_subscription(
@@ -909,6 +943,19 @@ impl SubTrackrSubscription {
             (String::from_str(&env, "subscription_paused"), subscriber),
             (subscription_id, sub.paused_at, duration),
         );
+
+        let metadata = event_store::build_event_metadata(&env, &subscriber);
+        event_store::record_event(
+            &env,
+            subscription_id,
+            sub.plan_id,
+            events::SubscriptionEventType::Paused,
+            metadata,
+            &SubscriptionStatus::Active,
+            &SubscriptionStatus::Paused,
+            sub.plan_id,
+            0,
+        );
     }
 
     pub fn resume_subscription(
@@ -927,6 +974,8 @@ impl SubTrackrSubscription {
         let mut sub: Subscription =
             storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
                 .expect("Subscription not found");
+
+        let prior_status = sub.status.clone();
 
         assert!(sub.subscriber == subscriber, "Only subscriber can resume");
         assert!(
@@ -953,6 +1002,19 @@ impl SubTrackrSubscription {
         env.events().publish(
             (String::from_str(&env, "subscription_resumed"), subscriber),
             subscription_id,
+        );
+
+        let metadata = event_store::build_event_metadata(&env, &subscriber);
+        event_store::record_event(
+            &env,
+            subscription_id,
+            sub.plan_id,
+            events::SubscriptionEventType::Resumed,
+            metadata,
+            &prior_status,
+            &SubscriptionStatus::Active,
+            sub.plan_id,
+            0,
         );
     }
 
@@ -1032,6 +1094,19 @@ impl SubTrackrSubscription {
             (sub.subscriber.clone(), charge_price, 100_000u64, now),
         );
 
+        let metadata = event_store::build_event_metadata(&env, &sub.subscriber);
+        event_store::record_event(
+            &env,
+            subscription_id,
+            sub.plan_id,
+            events::SubscriptionEventType::Charged,
+            metadata,
+            &SubscriptionStatus::Active,
+            &SubscriptionStatus::Active,
+            sub.plan_id,
+            charge_price,
+        );
+
         // Accumulate loyalty points after successful charge.
         loyalty::accumulate_points(
             &env,
@@ -1101,6 +1176,19 @@ impl SubTrackrSubscription {
             (String::from_str(&env, "refund_requested"), subscription_id),
             (sub.subscriber.clone(), amount),
         );
+
+        let metadata = event_store::build_event_metadata(&env, &sub.subscriber);
+        event_store::record_event(
+            &env,
+            subscription_id,
+            sub.plan_id,
+            events::SubscriptionEventType::RefundRequested,
+            metadata,
+            &sub.status,
+            &sub.status,
+            sub.plan_id,
+            amount,
+        );
     }
 
     pub fn approve_refund(env: Env, proxy: Address, storage: Address, subscription_id: u64) {
@@ -1132,6 +1220,19 @@ impl SubTrackrSubscription {
             (String::from_str(&env, "refund_approved"), subscription_id),
             (sub.subscriber.clone(), amount),
         );
+
+        let metadata = event_store::build_event_metadata(&env, &admin);
+        event_store::record_event(
+            &env,
+            subscription_id,
+            sub.plan_id,
+            events::SubscriptionEventType::RefundApproved,
+            metadata,
+            &sub.status,
+            &sub.status,
+            sub.plan_id,
+            amount,
+        );
     }
 
     pub fn reject_refund(env: Env, proxy: Address, storage: Address, subscription_id: u64) {
@@ -1156,6 +1257,19 @@ impl SubTrackrSubscription {
         env.events().publish(
             (String::from_str(&env, "refund_rejected"), subscription_id),
             sub.subscriber.clone(),
+        );
+
+        let metadata = event_store::build_event_metadata(&env, &admin);
+        event_store::record_event(
+            &env,
+            subscription_id,
+            sub.plan_id,
+            events::SubscriptionEventType::RefundRejected,
+            metadata,
+            &sub.status,
+            &sub.status,
+            sub.plan_id,
+            0,
         );
     }
 
@@ -1197,6 +1311,19 @@ impl SubTrackrSubscription {
                 subscription_id,
             ),
             (sub.subscriber.clone(), recipient),
+        );
+
+        let metadata = event_store::build_event_metadata(&env, &sub.subscriber);
+        event_store::record_event(
+            &env,
+            subscription_id,
+            sub.plan_id,
+            events::SubscriptionEventType::TransferRequested,
+            metadata,
+            &sub.status,
+            &sub.status,
+            sub.plan_id,
+            0,
         );
     }
 
@@ -1276,6 +1403,19 @@ impl SubTrackrSubscription {
         env.events().publish(
             (String::from_str(&env, "transfer_accepted"), subscription_id),
             (old, recipient),
+        );
+
+        let metadata = event_store::build_event_metadata(&env, &recipient);
+        event_store::record_event(
+            &env,
+            subscription_id,
+            sub.plan_id,
+            events::SubscriptionEventType::TransferAccepted,
+            metadata,
+            &sub.status,
+            &sub.status,
+            sub.plan_id,
+            0,
         );
     }
 
@@ -1764,6 +1904,220 @@ impl SubTrackrSubscription {
         user.require_auth();
         payment_methods::deactivate_expired_methods(&env, &user)
     }
+
+    // ── Event Sourcing & Audit Trail ──
+
+    pub fn set_retention_policy(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        max_events_per_subscription: u32,
+        max_events_per_merchant: u32,
+        retention_days: u64,
+        auto_prune_enabled: bool,
+    ) {
+        proxy.require_auth();
+        get_admin(&env, &storage).require_auth();
+
+        let policy = events::EventRetentionPolicy {
+            max_events_per_subscription,
+            max_events_per_merchant,
+            retention_days,
+            auto_prune_enabled,
+        };
+        event_store::set_retention_policy(&env, policy);
+    }
+
+    pub fn get_retention_policy(
+        env: Env,
+        _storage: Address,
+    ) -> Option<events::EventRetentionPolicy> {
+        event_store::get_retention_policy(&env)
+    }
+
+    pub fn get_events(
+        env: Env,
+        _storage: Address,
+        subscription_id: u64,
+        filter_type: Option<u32>,
+        start_time: u64,
+        end_time: u64,
+        limit: u32,
+        offset: u32,
+    ) -> Vec<events::StoredEvent> {
+        let event_types = filter_type.map(|t| {
+            let mut types: Vec<events::SubscriptionEventType> = Vec::new(&env);
+            types.push_back(events::SubscriptionEventType::Created);
+            types
+        });
+
+        let filter = events::EventFilter {
+            subscription_id: Some(subscription_id),
+            event_types: None,
+            date_range: if start_time > 0 || end_time > 0 {
+                Some(TimeRange {
+                    start: start_time,
+                    end: end_time,
+                })
+            } else {
+                None
+            },
+            actor: None,
+            limit: if limit == 0 { 100 } else { limit },
+            offset,
+        };
+
+        event_store::get_events(&env, filter)
+    }
+
+    pub fn get_event(
+        env: Env,
+        _storage: Address,
+        event_id: u64,
+    ) -> Option<events::StoredEvent> {
+        event_store::get_event(&env, event_id)
+    }
+
+    pub fn get_event_count(
+        env: Env,
+        _storage: Address,
+        subscription_id: u64,
+    ) -> u64 {
+        event_store::get_event_count(&env, subscription_id)
+    }
+
+    pub fn reconstruct_subscription_state(
+        env: Env,
+        _storage: Address,
+        subscription_id: u64,
+    ) -> Option<Subscription> {
+        state::reconstruct_state(&env, subscription_id)
+    }
+
+    pub fn reconstruct_subscription_state_at(
+        env: Env,
+        _storage: Address,
+        subscription_id: u64,
+        target_timestamp: u64,
+    ) -> Option<Subscription> {
+        state::reconstruct_state_at(&env, subscription_id, target_timestamp)
+    }
+
+    pub fn export_events(
+        env: Env,
+        _storage: Address,
+        proxy: Address,
+        _merchant: Address,
+        plan_id: u64,
+        start_time: u64,
+        end_time: u64,
+    ) -> Result<Vec<events::StoredEvent>, errors::ContractError> {
+        proxy.require_auth();
+        let range = TimeRange {
+            start: start_time,
+            end: end_time,
+        };
+        event_store::export_events(&env, plan_id, range)
+    }
+
+    // ── Billing Schedules ──
+
+    pub fn set_billing_schedule(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscription_id: u64,
+        interval: subtrackr_types::Interval,
+        start_date: u64,
+        trial_period_days: u32,
+        promotional_rate: i128,
+        promotional_duration_days: u32,
+        custom_invoice_day: u32,
+    ) {
+        proxy.require_auth();
+        let sub: Subscription =
+            storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
+                .expect("Subscription not found");
+        sub.subscriber.require_auth();
+
+        let schedule = subtrackr_types::BillingSchedule {
+            interval,
+            start_date,
+            trial_period_days,
+            promotional_rate,
+            promotional_duration_days,
+            custom_invoice_day,
+        };
+        billing::set_billing_schedule(&env, subscription_id, &schedule);
+    }
+
+    pub fn get_billing_schedule(
+        env: Env,
+        _storage: Address,
+        subscription_id: u64,
+    ) -> Option<subtrackr_types::BillingSchedule> {
+        billing::get_billing_schedule(&env, subscription_id)
+    }
+
+    pub fn get_billing_preview(
+        env: Env,
+        _storage: Address,
+        subscription_id: u64,
+        price: i128,
+        periods: u32,
+    ) -> Vec<billing::BillingPreviewItem> {
+        let schedule = billing::get_billing_schedule(&env, subscription_id)
+            .unwrap_or(subtrackr_types::BillingSchedule {
+                interval: subtrackr_types::Interval::Monthly,
+                start_date: 0,
+                trial_period_days: 0,
+                promotional_rate: 0,
+                promotional_duration_days: 0,
+                custom_invoice_day: 0,
+            });
+        let now = env.ledger().timestamp();
+        billing::get_billing_preview(&env, &schedule, price, now, periods)
+    }
+
+    // ── Multi-step Charging with Retry ──
+
+    pub fn start_charge(
+        env: Env,
+        _storage: Address,
+        subscription_id: u64,
+        amount: i128,
+    ) -> subtrackr_types::ChargeAttempt {
+        charging::start_charge(&env, subscription_id, amount)
+    }
+
+    pub fn retry_charge(
+        env: Env,
+        _storage: Address,
+        charge_id: u64,
+    ) -> Option<subtrackr_types::ChargeAttempt> {
+        let config = charging::default_retry_config();
+        charging::retry_charge(&env, charge_id, &config)
+    }
+
+    pub fn get_charge_history(
+        env: Env,
+        _storage: Address,
+        subscription_id: u64,
+    ) -> Vec<subtrackr_types::ChargeAttempt> {
+        charging::get_charge_history(&env, subscription_id)
+    }
+
+    pub fn abort_charge(
+        env: Env,
+        _storage: Address,
+        proxy: Address,
+        charge_id: u64,
+    ) {
+        proxy.require_auth();
+        let mut attempt = charging::get_charge_attempt(&env, charge_id)
+            .expect("Charge attempt not found");
+        charging::abort_charge(&env, &mut attempt);
+    }
 }
 
 //  Proration & Plan Changes
@@ -1914,6 +2268,24 @@ pub fn change_plan(
             proration_result.amount,
             proration_result.is_credit,
         ),
+    );
+
+    let event_type = if new_plan.price >= old_plan.price {
+        events::SubscriptionEventType::Upgraded
+    } else {
+        events::SubscriptionEventType::Downgraded
+    };
+    let metadata = event_store::build_event_metadata(&env, &subscriber);
+    event_store::record_event(
+        &env,
+        subscription_id,
+        new_plan_id,
+        event_type,
+        metadata,
+        &sub.status,
+        &sub.status,
+        new_plan_id,
+        proration_result.amount,
     );
 }
 
