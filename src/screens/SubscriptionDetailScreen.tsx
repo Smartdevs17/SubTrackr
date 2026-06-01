@@ -19,6 +19,8 @@ import { colors, spacing, typography } from '../utils/constants';
 import { getCategoryIcon } from '../utils/subscriptionHelpers';
 import { RootStackParamList } from '../navigation/types';
 import { useGroupStore } from '../store/groupStore';
+import { shareSubscriptionLink } from '../utils/shareLink';
+import { validateSubscriptionId } from '../utils/deepLinkValidator';
 
 // Components
 import { Button } from '../components/common/Button';
@@ -31,7 +33,8 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 const SubscriptionDetailScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<SubscriptionDetailRouteProp>();
-  const { id } = route.params;
+  const validation = validateSubscriptionId(route.params?.id);
+  const id = route.params?.id;
 
   const { subscriptions, toggleSubscriptionStatus, updateSubscription, recordBillingOutcome } =
     useSubscriptionStore();
@@ -48,8 +51,24 @@ const SubscriptionDetailScreen: React.FC = () => {
   const [loading, setLoading] = useState(!subscription);
 
   useEffect(() => {
+    if (!validation.isValid) {
+      navigation.replace('NotFound', { reason: validation.error });
+    }
+  }, [navigation, validation.error, validation.isValid]);
+
+  useEffect(() => {
     if (subscription) {
       setLoading(false);
+    }
+  }, [subscription]);
+
+  const handleShare = useCallback(async () => {
+    if (!subscription) return;
+
+    try {
+      await shareSubscriptionLink(subscription.id, subscription.name);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to share subscription link');
     }
   }, [subscription]);
 
@@ -88,6 +107,10 @@ const SubscriptionDetailScreen: React.FC = () => {
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
+  }
+
+  if (!validation.isValid) {
+    return null;
   }
 
   if (!subscription) {
@@ -263,6 +286,13 @@ const SubscriptionDetailScreen: React.FC = () => {
           {/* Action Management */}
           <View style={styles.actionsContainer}>
             <Text style={styles.actionSectionTitle}>Subscription Management</Text>
+
+            <Button
+              title="Share Subscription"
+              onPress={handleShare}
+              variant="outline"
+              style={styles.actionButton}
+            />
 
             {subscription.isCryptoEnabled && (
               <Button

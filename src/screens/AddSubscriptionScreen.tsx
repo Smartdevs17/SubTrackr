@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { useSubscriptionStore, useSettingsStore } from '../store';
@@ -23,30 +23,42 @@ import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/dat
 import { errorHandler } from '../services/errorHandler';
 import type { SubscriptionFormData } from '../types/subscription';
 import { BillingCycle, SubscriptionCategory } from '../types/subscription';
+import { validateAddSubscriptionParams } from '../utils/deepLinkValidator';
 
 interface AddSubscriptionFormData extends SubscriptionFormData {
   priceError: string;
 }
 
+type AddSubscriptionRouteProp = RouteProp<RootStackParamList, 'AddSubscription'>;
+
+const buildInitialFormData = (
+  preferredCurrency: string,
+  prefill: { name?: string; amount?: number; cycle?: BillingCycle }
+): AddSubscriptionFormData => ({
+  name: prefill.name ?? '',
+  description: '',
+  category: SubscriptionCategory.OTHER,
+  price: prefill.amount ?? 0,
+  priceError: '',
+  currency: preferredCurrency,
+  billingCycle: prefill.cycle ?? BillingCycle.MONTHLY,
+  nextBillingDate: new Date(),
+  notificationsEnabled: true,
+  isCryptoEnabled: false,
+  cryptoToken: undefined,
+  cryptoAmount: undefined,
+});
+
 const AddSubscriptionScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const route = useRoute<AddSubscriptionRouteProp>();
   const { addSubscription, isLoading, error } = useSubscriptionStore();
   const { preferredCurrency } = useSettingsStore();
+  const validation = validateAddSubscriptionParams(route.params ?? {});
+  const validationErrors = validation.errors;
+  const initialFormData = buildInitialFormData(preferredCurrency, validation.sanitised);
 
-  const [formData, setFormData] = useState<AddSubscriptionFormData>({
-    name: '',
-    description: '',
-    category: SubscriptionCategory.OTHER,
-    price: 0,
-    priceError: '',
-    currency: preferredCurrency,
-    billingCycle: BillingCycle.MONTHLY,
-    nextBillingDate: new Date(),
-    notificationsEnabled: true,
-    isCryptoEnabled: false,
-    cryptoToken: undefined,
-    cryptoAmount: undefined,
-  });
+  const [formData, setFormData] = useState<AddSubscriptionFormData>(initialFormData);
 
   useEffect(() => {
     if (error) {
@@ -56,14 +68,20 @@ const AddSubscriptionScreen: React.FC = () => {
     }
   }, [error]);
 
+  useEffect(() => {
+    if (validationErrors.length > 0) {
+      console.warn('Invalid add subscription deep link params', validationErrors);
+    }
+  }, [validationErrors]);
+
   // Date Picker States
   const [showPicker, setShowPicker] = useState(false);
   const [pickerMode, setPickerMode] = useState<'date' | 'time'>('date');
   const [selectedCategory, setSelectedCategory] = useState<SubscriptionCategory>(
-    SubscriptionCategory.OTHER
+    initialFormData.category
   );
   const [selectedBillingCycle, setSelectedBillingCycle] = useState<BillingCycle>(
-    BillingCycle.MONTHLY
+    initialFormData.billingCycle
   );
 
   const handleCategorySelect = (category: SubscriptionCategory) => {
