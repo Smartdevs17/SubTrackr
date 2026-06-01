@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Keyboard,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -18,6 +19,7 @@ import { useSubscriptionStore, useSettingsStore } from '../store';
 import { Button } from '../components/common/Button';
 import { getCurrencySymbol } from '../utils/formatting';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
+import { advanceBillingDate } from '../utils/billingDate';
 
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { errorHandler } from '../services/errorHandler';
@@ -28,10 +30,19 @@ interface AddSubscriptionFormData extends SubscriptionFormData {
   priceError: string;
 }
 
+const getDefaultNextBillingDate = (cycle: BillingCycle) => advanceBillingDate(new Date(), cycle);
+
 const AddSubscriptionScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const colors = useThemeColors();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const { addSubscription, isLoading, error } = useSubscriptionStore();
   const { preferredCurrency } = useSettingsStore();
+
+  // Ref for the name input — used for delayed focus instead of autoFocus,
+  // so the screen has time to fully render before the keyboard opens.
+  const nameInputRef = useRef<TextInput>(null);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   const [formData, setFormData] = useState<AddSubscriptionFormData>({
     name: '',
@@ -41,7 +52,7 @@ const AddSubscriptionScreen: React.FC = () => {
     priceError: '',
     currency: preferredCurrency,
     billingCycle: BillingCycle.MONTHLY,
-    nextBillingDate: new Date(),
+    nextBillingDate: getDefaultNextBillingDate(BillingCycle.MONTHLY),
     notificationsEnabled: true,
     isCryptoEnabled: false,
     cryptoToken: undefined,
@@ -55,6 +66,32 @@ const AddSubscriptionScreen: React.FC = () => {
       // Note: In a real app, you might want to clear errors in the store
     }
   }, [error]);
+
+  // Delay focus so the screen finishes rendering before the keyboard opens.
+  // A 300 ms delay gives the navigation transition time to complete on both
+  // iOS and Android, preventing the keyboard from obscuring UI elements.
+  useEffect(() => {
+    const focusTimer = setTimeout(() => {
+      nameInputRef.current?.focus();
+    }, 300);
+
+    return () => clearTimeout(focusTimer);
+  }, []);
+
+  // Track keyboard visibility so the ScrollView can adjust its content
+  // inset and keep form fields accessible when the keyboard is open.
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, () => setIsKeyboardVisible(true));
+    const hideSub = Keyboard.addListener(hideEvent, () => setIsKeyboardVisible(false));
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   // Date Picker States
   const [showPicker, setShowPicker] = useState(false);
@@ -73,7 +110,11 @@ const AddSubscriptionScreen: React.FC = () => {
 
   const handleBillingCycleSelect = (cycle: BillingCycle) => {
     setSelectedBillingCycle(cycle);
-    setFormData((prev) => ({ ...prev, billingCycle: cycle }));
+    setFormData((prev) => ({
+      ...prev,
+      billingCycle: cycle,
+      nextBillingDate: getDefaultNextBillingDate(cycle),
+    }));
   };
 
   const handleInputChange = (
@@ -139,6 +180,16 @@ const AddSubscriptionScreen: React.FC = () => {
       return;
     }
 
+    if (formData.nextBillingDate.getTime() < Date.now()) {
+      const validationError = new Error('Next billing date cannot be in the past');
+      const appError = errorHandler.handleError(validationError, {
+        action: 'validateSubscription',
+        component: 'AddSubscriptionScreen',
+      });
+      Alert.alert('Validation Error', appError.userMessage);
+      return;
+    }
+
     try {
       await addSubscription(formData);
 
@@ -186,8 +237,12 @@ const AddSubscriptionScreen: React.FC = () => {
     <SafeAreaView style={styles.container} testID="add-subscription-screen">
       <KeyboardAvoidingView
         style={styles.keyboardAvoidingView}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <ScrollView style={styles.scrollView} keyboardShouldPersistTaps="handled">
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}>
+        <ScrollView
+          style={styles.scrollView}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={isKeyboardVisible ? styles.scrollContentKeyboardOpen : undefined}>
           <View style={styles.header}>
             <View style={styles.headerContent}>
               <TouchableOpacity
@@ -210,12 +265,12 @@ const AddSubscriptionScreen: React.FC = () => {
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Name *</Text>
                 <TextInput
+                  ref={nameInputRef}
                   style={styles.textInput}
                   value={formData.name}
                   onChangeText={(text) => handleInputChange('name', text)}
                   placeholder="Enter subscription name"
                   placeholderTextColor={colors.textSecondary}
-                  autoFocus
                   accessibilityLabel="Subscription name, required"
                   accessibilityHint="Enter the name of the subscription service"
                   returnKeyType="next"
@@ -469,16 +524,20 @@ const AddSubscriptionScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.background.primary,
   },
   keyboardAvoidingView: {
     flex: 1,
   },
   scrollView: {
     flex: 1,
+  },
+  scrollContentKeyboardOpen: {
+    paddingBottom: 120,
   },
   header: {
     padding: spacing.lg,
@@ -533,7 +592,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   errorText: {
-    color: colors.error || '#e74c3c',
+    color: colors.error,
     fontSize: 12,
     marginTop: spacing.xs,
   },
@@ -656,7 +715,7 @@ const styles = StyleSheet.create({
   toggleKnob: {
     width: 24,
     height: 24,
-    backgroundColor: colors.text,
+    backgroundColor: colors.background.card,
     borderRadius: borderRadius.full,
   },
   toggleKnobActive: {
@@ -680,8 +739,9 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    backgroundColor: colors.background,
+    backgroundColor: colors.background.primary,
   },
 });
+}
 
 export default AddSubscriptionScreen;

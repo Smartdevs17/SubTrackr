@@ -56,13 +56,14 @@ const CancellationFlowScreen: React.FC<Props> = ({ route, navigation }) => {
   };
 
   const renderReasonStep = () => (
-    <View>
+    <View testID="cancellation-reason-step">
       <Text style={styles.stepLabel}>Step 1 of 3</Text>
       <Text style={styles.heading}>Why are you cancelling?</Text>
       <Text style={styles.subheading}>Your feedback helps us improve.</Text>
       {CANCELLATION_REASONS.map((r) => (
         <TouchableOpacity
           key={r}
+          testID={`cancellation-reason-${r.toLowerCase().replace(/\s+/g, '-')}`}
           style={[styles.reasonOption, reason === r && styles.reasonOptionSelected]}
           onPress={() => selectReason(r)}
           accessibilityRole="radio"
@@ -99,7 +100,7 @@ const CancellationFlowScreen: React.FC<Props> = ({ route, navigation }) => {
   );
 
   const renderOffersStep = () => (
-    <View>
+    <View testID="cancellation-offers-step">
       <Text style={styles.stepLabel}>Step 2 of 3</Text>
       <Text style={styles.heading}>Wait — we have something for you</Text>
       <Text style={styles.subheading}>
@@ -118,13 +119,14 @@ const CancellationFlowScreen: React.FC<Props> = ({ route, navigation }) => {
         fullWidth
         onPress={declineOffers}
         style={styles.declineBtn}
+        testID="decline-offers-button"
         accessibilityLabel="Decline all offers and continue to cancellation"
       />
     </View>
   );
 
   const renderConfirmStep = () => (
-    <View>
+    <View testID="cancellation-confirm-step">
       <Text style={styles.stepLabel}>Step 3 of 3</Text>
       <Text style={styles.heading}>Confirm Cancellation</Text>
       <Card variant="outlined" style={styles.confirmCard}>
@@ -143,6 +145,7 @@ const CancellationFlowScreen: React.FC<Props> = ({ route, navigation }) => {
         fullWidth
         onPress={handleConfirmCancellation}
         style={styles.confirmBtn}
+        testID="confirm-cancellation-button"
         accessibilityLabel="Confirm subscription cancellation"
       />
       <Button
@@ -158,7 +161,7 @@ const CancellationFlowScreen: React.FC<Props> = ({ route, navigation }) => {
   const renderSuccessStep = () => {
     const offerAccepted = acceptedOfferId !== null;
     return (
-      <View style={styles.successContainer}>
+      <View style={styles.successContainer} testID="cancellation-success-step">
         <Text style={styles.successIcon}>{offerAccepted ? '🎉' : '✅'}</Text>
         <Text style={styles.heading}>
           {offerAccepted ? 'Offer Applied!' : 'Cancellation Confirmed'}
@@ -207,7 +210,10 @@ const CancellationFlowScreen: React.FC<Props> = ({ route, navigation }) => {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      contentContainerStyle={styles.container}
+      keyboardShouldPersistTaps="handled"
+      testID="cancellation-flow-screen">
       {isLoading && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color={colors.primary} />

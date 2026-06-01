@@ -1,6 +1,35 @@
+//! Shared types crate for the SubTrackr smart-contract workspace — Issue #404.
+//!
+//! # Purpose
+//! Provides a single, versioned source of truth for all data structures shared
+//! across contract crates (`subscription`, `invoice`, `oracle`, `batch`, …).
+//! Every contract crate must import types from here rather than re-defining them.
+//!
+//! # Versioning
+//! The `TYPES_VERSION` constant is incremented whenever a **breaking** change
+//! is introduced (field removal, type change, variant reordering).  Non-breaking
+//! additions (new optional fields, new enum variants appended at the end) do
+//! **not** require a version bump.
+//!
+//! See `docs/TYPES_MIGRATION.md` for the migration guide and backward
+//! compatibility policy.
+//!
+//! # Re-export policy
+//! All public items in this crate are re-exported from each contract crate's
+//! root via `pub use subtrackr_types::*;` so downstream users only need one
+//! import path.
+
 #![no_std]
 
 use soroban_sdk::{contracttype, Address, BytesN, String, Vec};
+
+/// Current schema version of this types crate.
+///
+/// Increment this constant whenever a backward-incompatible change is made
+/// (field removal, type narrowing, enum variant reordering).  All deployed
+/// contracts embed this value in their storage so a version mismatch can be
+/// detected at upgrade time.
+pub const TYPES_VERSION: u32 = 1;
 
 /// Billing interval in seconds.
 #[contracttype]
@@ -478,6 +507,70 @@ pub struct FraudReport {
     pub recent_cases: Vec<FraudCase>,
 }
 
+// ── Access Control Types ──
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum Role {
+    Admin,
+    Merchant,
+    Subscriber,
+    Auditor,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum Permission {
+    GrantRole,
+    RevokeRole,
+    DelegatePermission,
+    CreatePlan,
+    DeactivatePlan,
+    SetPlanQuotas,
+    SetRevenueRule,
+    Subscribe,
+    CancelSubscription,
+    PauseSubscription,
+    ResumeSubscription,
+    ChargeSubscription,
+    RequestRefund,
+    ApproveRefund,
+    RejectRefund,
+    RequestTransfer,
+    AcceptTransfer,
+    SetRateLimit,
+    RemoveRateLimit,
+    SetInvoiceContract,
+    ClearInvoiceContract,
+    UpgradeContract,
+    MigrateContract,
+    ViewAnalytics,
+    ViewAuditLog,
+    ViewPlans,
+    ViewSubscriptions,
+    SetEmergencyAdmin,
+    PauseEmergency,
+    SetAccessControl,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum RoleChangeAction {
+    Granted,
+    Revoked,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct RoleChangeEntry {
+    pub id: u64,
+    pub user: Address,
+    pub role: Role,
+    pub action: RoleChangeAction,
+    pub changed_by: Address,
+    pub timestamp: u64,
+}
+
 // ── Tax System Types (extended) ──
 
 /// Classification of digital goods for tax purposes (extended beyond DigitalGoodsCategory).
@@ -531,6 +624,7 @@ pub struct TaxRemittanceLineItem {
     pub currency: String,
 }
 
+// ── Storage Keys ──
 /// Storage keys for the proxy contract state.
 ///
 /// IMPORTANT: Never reorder existing variants. Append new variants only.
@@ -616,12 +710,36 @@ pub enum StorageKey {
     RateLimitDay(u64, u64),
     ApiUsage(u64, u64),
    // ── Added in storage version 5 (Oracle Integration) ──
+    // ── Added in storage version 5 (Access Control) ──
+    /// Address of the access_control contract for RBAC.
+    AccessControl,
+    // ── Added in storage version 5 (Oracle Integration) ──
     /// Address of the oracle contract for price feeds.
     OracleContract,
     /// Price bounds for slippage protection, keyed by plan_id.
     PriceBounds(u64),
     /// Mapping from token address to symbol name (for oracle lookups).
     TokenSymbol(Address),
+
+    // ── Added in storage version 6 (Transient / Temporary storage) ──
+    //
+    // Keys in this block are stored with env.storage().temporary() so they
+    // auto-expire after a TTL and cost less than persistent storage.
+    //
+    // IMPORTANT: Never use these keys with instance or persistent storage.
+    // The naming prefix "Tmp" makes the intent explicit at the call site.
+    /// Temporary rate-limit timestamp: last time `caller` invoked `function`.
+    /// TTL is set to the configured min_interval_secs for that function.
+    /// Replaces the previous StorageKey::LastCall which used instance storage.
+    TmpLastCall(Address, String),
+
+    /// Temporary computation scratch-pad for a pending plan-change proration.
+    /// Keyed by subscription_id; expires after one billing interval.
+    TmpProrationScratch(u64),
+
+    /// Temporary nonce used to deduplicate rapid charge attempts within a
+    /// single ledger sequence window.  Expires after one ledger close (~5 s).
+    TmpChargeNonce(u64),
 }
 
 pub type ApiKeyId = u64;
