@@ -1,13 +1,26 @@
 #![no_std]
+
+extern crate alloc;
+
+mod payment_methods;
+mod proration;
+mod revenue;
 mod gas_optimization;
 mod gas_profiler;
 mod gas_storage;
+mod quota;   
+mod usage;
 use soroban_sdk::{token, Address, Env, IntoVal, String, Symbol, TryFromVal, Val, Vec};
 use subtrackr_oracle::{OracleError, SubTrackrOracleClient};
 use subtrackr_types::{
     Interval, Invoice, Permission, Plan, PriceBounds, StorageKey, Subscription, SubscriptionStatus,
     TimeRange,
 };
+mod reentrancy;
+use reentrancy::ReentrancyGuard;
+use crate::proration::ProrationResult;
+use crate::proration::{EffectiveDate, CreditMemo};
+use subtrackr_types::{PaymentMethod, PaymentMethodId, PaymentPriority, TokenType};
 
 /// Billing interval in seconds.
 const MAX_PAUSE_DURATION: u64 = 2_592_000; // 30 days
@@ -352,12 +365,15 @@ fn resolve_charge_price(env: &Env, storage: &Address, plan: &Plan) -> i128 {
     }
 
     let token_sym = token_sym_opt.unwrap();
-    let quote_sym = Symbol::new(env, &string_to_symbol_str(env, &bounds.quote));
-
+    
+    // Clean string-to-symbol conversion using our helper
+    let quote_str = string_to_symbol_str(env, &bounds.quote);
+    let quote_sym = Symbol::new(env, &quote_str);
+    
     let client = SubTrackrOracleClient::new(env, &oracle);
 
     if let Ok(price) = client.try_get_price_with_cache(&token_sym, &quote_sym, &600) {
-        let oracle_value = price.value;
+        let oracle_value = price.unwrap().value;
         if oracle_value <= 0 {
             return plan.price;
         }
@@ -377,13 +393,23 @@ fn resolve_charge_price(env: &Env, storage: &Address, plan: &Plan) -> i128 {
     }
 }
 
-fn string_to_symbol_str(env: &Env, s: &String) -> soroban_sdk::Vec<u8> {
-    let bytes = s.as_bytes();
-    let mut result: soroban_sdk::Vec<u8> = soroban_sdk::Vec::new(env);
-    for i in 0..bytes.len() {
-        result.push_back(bytes.get(i).unwrap());
-    }
-    result
+// 1. Helper to convert Soroban String for Symbol creation
+fn string_to_symbol_str(_env: &Env, s: &String) -> alloc::string::String {
+    let mut str_buf = [0u8; 32]; // Symbols have a max length of 32
+    let str_len = s.len() as usize;
+    s.copy_into_slice(&mut str_buf[..str_len]);
+    
+    let str_slice = core::str::from_utf8(&str_buf[..str_len]).expect("Invalid UTF-8");
+    alloc::string::String::from(str_slice)
+}
+
+// 2. Helper to convert Soroban String to Soroban Bytes
+fn convert_to_bytes(env: &Env, s: &String) -> soroban_sdk::Bytes {
+    let mut str_buf = [0u8; 256]; 
+    let str_len = s.len() as usize;
+    s.copy_into_slice(&mut str_buf[..str_len]);
+    
+    soroban_sdk::Bytes::from_slice(env, &str_buf[..str_len])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -959,6 +985,10 @@ impl SubTrackrSubscription {
     // ── Payment Processing ──
 
     pub fn charge_subscription(env: Env, proxy: Address, storage: Address, subscription_id: u64) {
+        // 0. REENTRANCY GUARD
+        // Lock the instance to prevent recursive cross-contract calls
+        let _guard = ReentrancyGuard::new(&env);
+        
         proxy.require_auth();
         let mut sub: Subscription =
             storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
@@ -979,6 +1009,7 @@ impl SubTrackrSubscription {
             );
         }
 
+        // 1. CHECKS
         assert!(
             sub.status == SubscriptionStatus::Active,
             "Subscription not active"
@@ -990,14 +1021,10 @@ impl SubTrackrSubscription {
         let plan: Plan = storage_persistent_get(&env, &storage, StorageKey::Plan(sub.plan_id))
             .expect("Plan not found");
 
-        let charge_price = Self::resolve_charge_price(&env, &storage, &plan);
+        let charge_price = resolve_charge_price(&env, &storage, &plan);
 
-        token::Client::new(&env, &plan.token).transfer(
-            &sub.subscriber,
-            &plan.merchant,
-            &charge_price,
-        );
-
+        // 2. EFFECTS
+        // Update the state BEFORE making the external token transfer
         sub.last_charged_at = now;
         sub.next_charge_at = now + plan.interval.seconds();
         sub.total_paid += charge_price;
@@ -1032,7 +1059,18 @@ impl SubTrackrSubscription {
             (sub.subscriber.clone(), charge_price, 100_000u64, now),
         );
 
+        // 3. INTERACTIONS 
+        // Execute the token transfer. If this fails or attempts to re-enter, 
+        // the transaction panics and all preceding storage changes safely roll back.
+        token::Client::new(&env, &plan.token).transfer(
+            &sub.subscriber,
+            &plan.merchant,
+            &charge_price,
+        );
+
         if let Some(invoice_addr) = invoice_contract(&env, &storage) {
+            // Note: If you want to be extremely strict about CEI, ensure `generate_invoice`
+            // cannot make re-entrant state changes either, as we invoke it here. 
             let period = TimeRange {
                 start: sub.last_charged_at,
                 end: sub.next_charge_at,
@@ -1694,7 +1732,7 @@ pub fn change_plan(
     };
 
     let proration_result =
-        proration::calculate_proration(&env, &sub, old_plan.price, new_plan.price, effective);
+        proration::calculate_proration(&env, &sub, old_plan.price, new_plan.price, effective.clone());
 
     // Handle proration payment or credit
     if proration_result.amount > 0 {
@@ -1805,7 +1843,7 @@ pub fn apply_credit_memo_to_charge(
     let plan: Plan = storage_persistent_get(&env, &storage, StorageKey::Plan(sub.plan_id))
         .expect("Plan not found");
 
-    let charge_price = Self::resolve_charge_price(&env, &storage, &plan);
+    let charge_price = resolve_charge_price(&env, &storage, &plan);
     let final_charge = proration::apply_credit_memo(charge_price, &mut memo);
 
     // Update stored memo
