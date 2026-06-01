@@ -1,5 +1,6 @@
 [![Security](https://github.com/Smartdevs17/SubTrackr/actions/workflows/security-scan.yml/badge.svg)](https://github.com/Smartdevs17/SubTrackr/actions/workflows/security-scan.yml)
 [![Dependabot Status](https://img.shields.io/badge/Dependabot-active-brightgreen.svg)](https://github.com/Smartdevs17/SubTrackr/security/dependabot)
+[![Mutation Testing](https://github.com/Smartdevs17/SubTrackr/actions/workflows/mutation-testing.yml/badge.svg)](https://github.com/Smartdevs17/SubTrackr/actions/workflows/mutation-testing.yml)
 
 # SubTrackr - On-Chain Subscription Management on Stellar
 
@@ -173,9 +174,20 @@ Run the test suite to ensure everything is working correctly:
 # Run unit tests
 npm test
 
+# Run tests with coverage
+npm run test:coverage
+
 # Run lint checks
 npm run lint
+
+# Run mutation tests (evaluates test quality)
+npm run mutation:test
+
+# Run mutation tests incrementally (faster, only changed files)
+npm run mutation:test:incremental
 ```
+
+For more details on mutation testing, see [Mutation Testing Documentation](docs/mutation-testing.md).
 
 ### Troubleshooting
 
@@ -206,11 +218,23 @@ Types of contributions we're looking for:
 - **Soroban contract features** — billing cycle logic, grace periods, merchant management
 - **Mobile UI/UX** — new screens, improved flows, accessibility
 - **Wallet integration** — Freighter deep linking, transaction signing
-- **Testing** — unit tests, integration tests, contract tests
+- **Testing** — unit tests, integration tests, mutation tests, contract tests
 - **Documentation** — setup guides, architecture docs, API references
 - **Notification system** — push notifications, billing alerts
 
 Look for issues tagged `good first issue` or `Stellar Wave` to get started.
+
+### Quality Standards
+
+All contributions must meet the following quality gates:
+
+- ✅ **Code coverage**: >80% test coverage required
+- ✅ **Mutation score**: >75% mutation testing score required
+- ✅ **Linting**: All ESLint and Prettier checks must pass
+- ✅ **Type safety**: No TypeScript errors
+- ✅ **Conventional commits**: Follow commit message format
+
+See [docs/mutation-testing.md](docs/mutation-testing.md) for details on writing high-quality tests.
 
 ## Automated Releases
 

@@ -70,6 +70,12 @@ logs/
 coverage/
 .nyc_output/
 
+# Mutation testing
+.stryker-tmp/
+mutation-reports/
+*.mutation-report.json
+*.mutation-report.html
+
 # VS Code
 .vscode/settings.json
 !.vscode/extensions.json

@@ -305,3 +305,113 @@ cd contracts && cargo test --verbose
 - Do not commit tests that are skipped (`test.skip`, `xit`) without a comment explaining why
 - Mock only what is strictly necessary; prefer testing real behaviour
 - Keep test descriptions specific enough to diagnose failures without reading the test body
+
+### Mutation Testing
+
+SubTrackr uses **Stryker** for mutation testing to ensure test quality beyond code coverage. Mutation tests are automatically run in CI on pull requests.
+
+#### Running Mutation Tests Locally
+
+```bash
+# Run all mutation tests (frontend + backend)
+npm run mutation:test
+
+# Run only frontend mutation tests
+npm run mutation:test:frontend
+
+# Run only backend mutation tests
+npm run mutation:test:backend
+
+# Run incremental (faster, only changed files)
+npm run mutation:test:incremental
+
+# Generate report and summary
+npm run mutation:test:report
+
+# Analyze survived mutants for equivalents
+npm run mutation:analyze
+```
+
+#### Mutation Testing Requirements
+
+**Quality Gate**: Minimum **75% mutation score** required for PR approval
+
+**What Mutation Testing Checks**:
+- Are your tests actually verifying behavior?
+- Do tests catch real bugs (not just code execution)?
+- Are edge cases and boundary conditions tested?
+- Are assertions specific enough?
+
+#### Viewing Mutation Reports
+
+After running mutation tests, view the reports:
+
+```bash
+# Frontend HTML report
+open mutation-reports/frontend/index.html
+
+# Backend HTML report
+open mutation-reports/backend/index.html
+
+# Markdown summary
+cat mutation-reports/mutation-summary.md
+```
+
+#### Fixing Survived Mutants
+
+When mutants survive (tests don't catch mutations), improve your tests:
+
+**Example - Weak Test** (mutant survives):
+```typescript
+test('validates age', () => {
+  expect(validateAge(20)).toBe(true);
+  // Problem: Doesn't test boundary (>= vs >)
+});
+```
+
+**Example - Strong Test** (kills mutant):
+```typescript
+test('validates age at boundaries', () => {
+  expect(validateAge(18)).toBe(true);   // exactly 18
+  expect(validateAge(17)).toBe(false);  // below threshold
+  expect(validateAge(19)).toBe(true);   // above threshold
+});
+```
+
+#### Best Practices
+
+**✅ DO**:
+- Assert exact values, not just truthiness (`toBe(6)` not `toBeTruthy()`)
+- Test boundary conditions (0, -1, max, min)
+- Test both branches of conditionals
+- Test error cases and exceptions
+- Use specific assertions
+
+**❌ DON'T**:
+- Rely solely on snapshot tests
+- Use weak assertions like `toBeDefined()`, `toBeTruthy()`
+- Test only happy paths
+- Mock everything (test real behavior when possible)
+
+#### Handling Equivalent Mutants
+
+Some mutants are "equivalent" (don't change behavior):
+
+```bash
+# Analyze potential equivalent mutants
+npm run mutation:analyze
+```
+
+If you determine a mutant is truly equivalent, you can:
+1. Add inline ignore comment: `// Stryker disable next-line MutatorName`
+2. Exclude file pattern in `stryker*.conf.json`
+3. Document why in PR comments
+
+#### CI Integration
+
+- **Pull Requests**: Incremental mutation testing on changed files
+- **Main Branch**: Full mutation testing with historical tracking
+- **PR Comments**: Automatic report posted to PR with recommendations
+
+See [docs/mutation-testing.md](docs/mutation-testing.md) and [MUTATION_TESTING_QUICKREF.md](MUTATION_TESTING_QUICKREF.md) for detailed guides.
+
