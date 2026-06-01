@@ -40,6 +40,14 @@ if (report.memoryMaxBytes > budget.memoryBytes) {
   failures.push(`memory max ${report.memoryMaxBytes} bytes exceeds ${budget.memoryBytes} bytes`);
 }
 
+if (report.androidStartupMs && report.androidStartupMs > budget.androidStartupMs) {
+  failures.push(`Android startup ${report.androidStartupMs}ms exceeds ${budget.androidStartupMs}ms`);
+}
+
+if (report.androidFps && report.androidFps < budget.androidFrameRateFps) {
+  failures.push(`Android FPS ${report.androidFps}fps below target ${budget.androidFrameRateFps}fps`);
+}
+
 if (failures.length) {
   console.error(`Performance budget failed:\n- ${failures.join('\n- ')}`);
   process.exit(1);

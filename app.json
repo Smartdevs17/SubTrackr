@@ -40,7 +40,9 @@
           ],
           "category": ["BROWSABLE", "DEFAULT"]
         }
-      ]
+      ],
+      "jsEngine": "hermes",
+      "hermesFlags": ["-g", "--minify", "--inline-store-on-put", "--allocation-profile"]
     },
     "web": {
       "favicon": "./assets/subtrackr-icon.png",

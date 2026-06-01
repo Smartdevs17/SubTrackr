@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Alert } from 'react-native';
+import { View, Alert, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AppNavigator } from './src/navigation/AppNavigator';
@@ -13,12 +13,11 @@ import { I18nextProvider } from 'react-i18next';
 import { crashReporter, CrashRecord } from './src/services/crashReporter';
 import * as Sentry from '@sentry/react-native';
 
-// Validate all environment variables at startup — fails fast in production
-// and warns in development/staging if any vars are missing or malformed.
 import './src/config/env';
 
-// Import WalletConnect compatibility layer
 import '@walletconnect/react-native-compat';
+
+import { initHermesOptimizations } from './src/utils/startupTimeOptimizer';
 
 import { createAppKit, defaultConfig, AppKit } from '@reown/appkit-ethers-react-native';
 
@@ -26,10 +25,8 @@ import { EVM_RPC_URLS } from './src/config/evm';
 import { useNetworkStore, useSettingsStore, useWalletStore } from './src/store';
 import { sessionService } from './src/services/auth/session';
 
-// Get projectId from validated environment
 const projectId = env.WALLET_CONNECT_PROJECT_ID;
 
-// Initialize Sentry (DSN provided via env var)
 try {
   Sentry.init({
     dsn: process.env.SENTRY_DSN || '',
@@ -38,12 +35,9 @@ try {
     environment: process.env.NODE_ENV || 'production',
   });
 } catch (e) {
-  // Fail gracefully if Sentry cannot initialize in some environments
-  // eslint-disable-next-line no-console
   console.warn('Sentry init failed', e);
 }
 
-// Create metadata
 const metadata = {
   name: 'SubTrackr',
   description: 'Subscription Management with Crypto Payments',
@@ -56,7 +50,6 @@ const metadata = {
 
 const config = defaultConfig({ metadata });
 
-// Define supported chains
 const mainnet = {
   chainId: 1,
   name: 'Ethereum',
@@ -83,7 +76,6 @@ const arbitrum = {
 
 const chains = [mainnet, polygon, arbitrum];
 
-// Create AppKit
 createAppKit({
   projectId,
   metadata,
@@ -102,11 +94,13 @@ function NotificationBootstrap() {
   const { initializeSettings } = useSettingsStore();
 
   React.useEffect(() => {
+    if (Platform.OS === 'android') {
+      initHermesOptimizations();
+    }
     initialize();
     void initializeSettings();
     void (async () => {
       const session = await sessionService.initializeCurrentSession();
-      // Attach session context to Sentry for better diagnostics
       try {
         Sentry.setContext('session', { id: session.id, deviceName: session.deviceName });
         if (wallet?.address) {
@@ -117,7 +111,6 @@ function NotificationBootstrap() {
       }
     })();
   }, [initialize, initializeSettings]);
-
 
   return null;
 }
@@ -152,9 +145,7 @@ export default function App() {
       try {
         await initI18n();
 
-        // Initialize crash reporter — returns the previous crash if one exists
         const previousCrash = await crashReporter.initialize({
-          // Preserve user settings and auth tokens across a recovery wipe
           preservedStorageKeys: [
             '@subtrackr/settings',
             '@subtrackr/auth_token',
