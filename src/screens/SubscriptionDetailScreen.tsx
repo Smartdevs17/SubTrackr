@@ -9,7 +9,9 @@ import {
   Alert,
   ActivityIndicator,
   Switch,
+  RefreshControl,
 } from 'react-native';
+import useRefresh from '../hooks/useRefresh';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSubscriptionStore, useSettingsStore } from '../store';
@@ -47,11 +49,17 @@ const SubscriptionDetailScreen: React.FC = () => {
 
   const [loading, setLoading] = useState(!subscription);
 
+  const { refreshing, refresh } = useRefresh();
+
   useEffect(() => {
     if (subscription) {
       setLoading(false);
     }
   }, [subscription]);
+
+  const handleEdit = useCallback(() => {
+    navigation.navigate('EditSubscription', { id: subscription.id });
+  }, [subscription, navigation]);
 
   const handlePauseResume = useCallback(async () => {
     if (!subscription) return;
@@ -104,7 +112,20 @@ const SubscriptionDetailScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container} testID="subscription-detail-screen">
       <ScreenTransition type="slide" duration={400}>
-        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() =>
+                void refresh({
+                  clearBefore: () => useSubscriptionStore.setState({ subscriptions: [] }),
+                  fetcher: () => useSubscriptionStore.getState().fetchSubscriptions(),
+                })
+              }
+            />
+          }>
           {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity
@@ -118,7 +139,14 @@ const SubscriptionDetailScreen: React.FC = () => {
             <Text style={styles.title} accessibilityRole="header">
               Subscription Details
             </Text>
-            <View style={styles.placeholder} />
+            <TouchableOpacity
+              onPress={handleEdit}
+              style={styles.editButton}
+              accessibilityRole="button"
+              accessibilityLabel="Edit subscription"
+              testID="edit-subscription-button">
+              <Text style={styles.editButtonText}>Edit</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Main Info Card */}
@@ -331,6 +359,16 @@ const styles = StyleSheet.create({
   },
   placeholder: {
     width: 40,
+  },
+  editButton: {
+    padding: spacing.sm,
+    width: 40,
+    alignItems: 'flex-end',
+  },
+  editButtonText: {
+    ...typography.body,
+    color: colors.primary,
+    fontWeight: '500',
   },
   backIcon: {
     padding: spacing.sm,
