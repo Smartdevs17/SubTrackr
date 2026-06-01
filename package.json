@@ -66,7 +66,6 @@
     "@shopify/flash-list": "latest",
     "@stellar/stellar-sdk": "^12.0.0",
     "@superfluid-finance/sdk-core": "^0.9.0",
-    "@testing-library/react-hooks": "^8.0.1",
     "@walletconnect/react-native-compat": "^2.23.9",
     "@walletconnect/utils": "^2.23.9",
     "ethers": "^5.8.0",
@@ -76,7 +75,6 @@
     "expo-dev-client": "~5.2.4",
     "expo-notifications": "^0.31.5",
     "expo-status-bar": "~2.2.3",
-    "graphql": "^16.13.2",
     "i18next": "^26.0.8",
     "react": "19.2.5",
     "react-i18next": "^17.0.6",
@@ -130,7 +128,9 @@
     "ts-jest": "^29.4.11",
     "typechain": "^8.3.2",
     "typescript": "~5.8.3",
-    "metro-bundle-analyzer": "^0.2.0"
+    "metro-bundle-analyzer": "^0.2.0",
+    "@testing-library/react-hooks": "^8.0.1",
+    "graphql": "^16.13.2"
   },
   "private": false,
   "repository": {
