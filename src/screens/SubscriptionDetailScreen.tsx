@@ -7,7 +7,6 @@ import {
   SafeAreaView,
   TouchableOpacity,
   Alert,
-  ActivityIndicator,
   Switch,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -24,6 +23,7 @@ import { useGroupStore } from '../store/groupStore';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
 import { ScreenTransition, SharedElement } from '../components/common/SharedElement';
+import { SubscriptionDetailSkeleton } from '../components/common/SkeletonLoader';
 
 type SubscriptionDetailRouteProp = RouteProp<RootStackParamList, 'SubscriptionDetail'>;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -88,9 +88,9 @@ const SubscriptionDetailScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
+      <SafeAreaView style={styles.container}>
+        <SubscriptionDetailSkeleton />
+      </SafeAreaView>
     );
   }
 
