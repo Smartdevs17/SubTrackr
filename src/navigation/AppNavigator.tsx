@@ -13,6 +13,7 @@ import CryptoPaymentScreen from '../screens/CryptoPaymentScreen';
 import CommunityScreen from '../screens/CommunityScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import SubscriptionDetailScreen from '../screens/SubscriptionDetailScreen';
+import EditSubscriptionScreen from '../screens/EditSubscriptionScreen';
 import InvoiceListScreen from '../screens/InvoiceListScreen';
 import InvoiceDetailScreen from '../screens/InvoiceDetailScreen';
 import AnalyticsScreen from '../screens/AnalyticsScreen';
@@ -48,8 +49,8 @@ import ApiKeyManagementScreen from '../screens/ApiKeyManagementScreen';
 import DocumentationPortalScreen from '../screens/DocumentationPortalScreen';
 import IntegrationGuidesScreen from '../screens/IntegrationGuidesScreen';
 import PerformanceDashboardScreen from '../screens/PerformanceDashboardScreen';
-import { useTheme } from '../context/ThemeContext';
-import { darkNavigationTheme, lightNavigationTheme } from '../theme/navigationTheme';
+import BillingSettingsScreen from '../screens/BillingSettingsScreen';
+import { colors } from '../utils/constants';
 
 import { RootStackParamList, TabParamList } from './types';
 
@@ -72,6 +73,11 @@ const HomeStack = () => (
     <Stack.Screen
       name="SubscriptionDetail"
       component={SubscriptionDetailScreen}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="EditSubscription"
+      component={EditSubscriptionScreen}
       options={{ headerShown: false }}
     />
     <Stack.Screen
@@ -304,6 +310,11 @@ const SettingsStack = () => (
       name="PerformanceDashboard"
       component={PerformanceDashboardScreen}
       options={{ title: 'Performance', headerShown: true }}
+    />
+    <Stack.Screen
+      name="BillingSettings"
+      component={BillingSettingsScreen}
+      options={{ title: 'Billing Settings', headerShown: true }}
     />
   </Stack.Navigator>
 );

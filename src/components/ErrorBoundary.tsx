@@ -1,8 +1,8 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
 import { errorHandler, AppError, ErrorSeverity } from '../services/errorHandler';
-import { spacing, typography, borderRadius } from '../utils/constants';
-import { useThemeColors } from '../hooks/useThemeColors';
+import { crashReporter } from '../services/crashReporter';
+import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { Button } from '../components/common/Button';
 
 interface Props {
@@ -49,6 +49,12 @@ class ErrorBoundary extends Component<Props, State> {
         componentStack: errorInfo.componentStack,
       };
     }
+
+    // Persist crash record so the next launch can detect and recover from it
+    void crashReporter.recordCrash(error, {
+      component: this.state.error?.context.component ?? 'ErrorBoundary',
+      metadata: { componentStack: errorInfo.componentStack ?? '' },
+    });
 
     // Call onError callback if provided
     if (this.props.onError && this.state.error) {

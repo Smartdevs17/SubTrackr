@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import { useSegmentStore } from '../store/segmentStore';
 import { useSubscriptionStore } from '../store/subscriptionStore';
 import { useUserStore } from '../store/userStore';
@@ -52,8 +53,8 @@ export const SegmentManagementScreen: React.FC = () => {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background.primary }]}>
-      <FlatList
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <FlashList
         data={segments}
         keyExtractor={(item) => item.id}
         renderItem={renderSegmentItem}

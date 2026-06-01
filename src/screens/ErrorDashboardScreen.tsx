@@ -1,13 +1,6 @@
 import React, { useMemo } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  SafeAreaView,
-  TouchableOpacity,
-  FlatList,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
@@ -127,7 +120,7 @@ const ErrorDashboardScreen: React.FC = () => {
           </View>
 
           {recentErrors.length > 0 ? (
-            <FlatList
+            <FlashList
               data={recentErrors}
               renderItem={renderErrorItem}
               keyExtractor={(item) => item.id}

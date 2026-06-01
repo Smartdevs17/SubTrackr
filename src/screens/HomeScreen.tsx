@@ -34,9 +34,7 @@ type HomeNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation<HomeNavigationProp>();
-  const colors = useThemeColors();
-  const styles = useMemo(() => createStyles(colors), [colors]);
-  const { subscriptions, stats, fetchSubscriptions, calculateStats, toggleSubscriptionStatus } =
+  const { subscriptions, stats, fetchSubscriptions, calculateStats, toggleSubscriptionStatus, deleteSubscription } =
     useSubscriptionStore();
 
   const isOnline = useTransactionQueueStore((state) => state.isOnline);
@@ -76,6 +74,10 @@ const HomeScreen: React.FC = () => {
 
   const handleToggleStatus = async (id: string) => {
     await toggleSubscriptionStatus(id);
+  };
+
+  const handleDelete = async (id: string) => {
+    await deleteSubscription(id);
   };
 
   return (
@@ -172,6 +174,7 @@ const HomeScreen: React.FC = () => {
           totalCount={subscriptions.length}
           onSubscriptionPress={(sub) => navigation.navigate('SubscriptionDetail', { id: sub.id })}
           onToggleStatus={handleToggleStatus}
+          onDelete={handleDelete}
           onAddFirstPress={() => navigation.navigate('AddSubscription')}
         />
       </ScrollView>
