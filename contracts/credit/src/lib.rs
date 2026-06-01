@@ -167,7 +167,14 @@ impl SubTrackrCredit {
         };
         account.lots.push_back(lot);
         account.balance += amount;
-        Self::record(&env, &mut account, CreditTxKind::Issue, amount, reason, None);
+        Self::record(
+            &env,
+            &mut account,
+            CreditTxKind::Issue,
+            amount,
+            reason,
+            None,
+        );
         Self::save(&env, &account);
         env.events()
             .publish((symbol_short!("issue"), subscriber), amount);
@@ -193,7 +200,14 @@ impl SubTrackrCredit {
         if applied > 0 {
             account.balance -= applied;
             let reason = String::from_str(&env, "charge_application");
-            Self::record(&env, &mut account, CreditTxKind::Apply, -applied, reason, None);
+            Self::record(
+                &env,
+                &mut account,
+                CreditTxKind::Apply,
+                -applied,
+                reason,
+                None,
+            );
         }
         Self::save(&env, &account);
 
@@ -251,7 +265,14 @@ impl SubTrackrCredit {
             },
         });
         recipient.balance += moved;
-        Self::record(&env, &mut recipient, CreditTxKind::TransferIn, moved, reason, Some(from));
+        Self::record(
+            &env,
+            &mut recipient,
+            CreditTxKind::TransferIn,
+            moved,
+            reason,
+            Some(from),
+        );
         Self::save(&env, &recipient);
         Ok(())
     }
@@ -356,7 +377,14 @@ impl SubTrackrCredit {
         if expired_total > 0 {
             account.balance -= expired_total;
             let reason = String::from_str(env, "expired");
-            Self::record(env, account, CreditTxKind::Expire, -expired_total, reason, None);
+            Self::record(
+                env,
+                account,
+                CreditTxKind::Expire,
+                -expired_total,
+                reason,
+                None,
+            );
         }
     }
 

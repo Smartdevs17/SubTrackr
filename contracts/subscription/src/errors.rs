@@ -41,6 +41,11 @@
 //! | 28   | TransactionNotRecoverable      | Transaction is not in a recoverable state.             |
 //! | 29   | InvalidTimeoutConfig           | Timeout configuration values are out of allowed range. |
 //! | 30   | ChainReorgDetected             | Chain reorganisation detected during timeout window.   |
+//! | 31   | SlippageExceeded               | Charge price exceeds configured slippage bounds.       |
+//! | 32   | CommitmentExpired              | Commit-reveal deadline has passed.                     |
+//! | 33   | CommitmentMismatch             | Revealed values do not match the commitment.           |
+//! | 34   | MaxGasExceeded                 | Gas cost exceeds subscriber's configured maximum.      |
+//! | 35   | PrivateMempoolRequired         | This charge requires a private mempool submission.     |
 
 use soroban_sdk::contracterror;
 
@@ -108,6 +113,16 @@ pub enum ContractError {
     InvalidTimeoutConfig = 29,
     /// Chain reorganisation detected during the timeout window; recovery aborted.
     ChainReorgDetected = 30,
+    /// Charge price exceeds configured slippage bounds.
+    SlippageExceeded = 31,
+    /// Commit-reveal deadline has passed.
+    CommitmentExpired = 32,
+    /// Revealed values do not match the commitment.
+    CommitmentMismatch = 33,
+    /// Gas cost exceeds subscriber's configured maximum.
+    MaxGasExceeded = 34,
+    /// This charge requires a private mempool submission.
+    PrivateMempoolRequired = 35,
 }
 
 impl ContractError {
@@ -117,36 +132,45 @@ impl ContractError {
     /// discriminant to a localised string in their i18n bundle.
     pub fn user_message(self) -> &'static str {
         match self {
-            Self::Unauthorized             => "You are not authorised to perform this action.",
-            Self::PlanNotFound             => "The requested plan does not exist.",
-            Self::PlanInactive             => "This plan is no longer accepting new subscribers.",
-            Self::SubscriptionNotFound     => "No active subscription found for this account.",
-            Self::AlreadySubscribed        => "You are already subscribed to this plan.",
-            Self::SubscriptionNotActive    => "This subscription is not currently active.",
+            Self::Unauthorized => "You are not authorised to perform this action.",
+            Self::PlanNotFound => "The requested plan does not exist.",
+            Self::PlanInactive => "This plan is no longer accepting new subscribers.",
+            Self::SubscriptionNotFound => "No active subscription found for this account.",
+            Self::AlreadySubscribed => "You are already subscribed to this plan.",
+            Self::SubscriptionNotActive => "This subscription is not currently active.",
             Self::SubscriptionAlreadyCancelled => "This subscription has already been cancelled.",
             Self::SubscriptionAlreadyPaused => "This subscription is already paused.",
-            Self::SubscriptionNotPaused    => "This subscription is not paused.",
-            Self::PaymentNotYetDue         => "The next payment is not due yet.",
-            Self::InsufficientAllowance    => "Insufficient token allowance to process payment.",
-            Self::InvalidAmount            => "Amount must be greater than zero.",
-            Self::InvalidInterval          => "Billing interval must be positive.",
-            Self::InvalidPriceBounds       => "Price bounds are invalid (max must be > min > 0).",
-            Self::MaxPauseDurationExceeded => "Pause duration exceeds the allowed maximum of 30 days.",
-            Self::RateLimited              => "Too many requests. Please wait before retrying.",
-            Self::OracleUnavailable        => "Price oracle is temporarily unavailable.",
-            Self::StorageVersionMismatch   => "Storage schema version mismatch; run migration first.",
-            Self::InvalidMigrationPath     => "Unsupported migration path.",
-            Self::RefundExceedsTotalPaid   => "Refund amount exceeds total amount paid.",
-            Self::PlanOwnerMismatch        => "Only the plan owner can perform this action.",
-            Self::EventNotFound            => "The requested event does not exist.",
-            Self::EventStoreFull           => "Event store has reached maximum capacity.",
-            Self::InvalidEventSequence     => "Invalid event sequence for subscription state.",
-            Self::ExportWindowExceeded     => "Export range exceeds the maximum allowed window.",
-            Self::PaymentTimedOut          => "Payment transaction timed out waiting for confirmation.",
-            Self::RecoveryAttemptsExhausted => "All automatic recovery attempts have been exhausted.",
+            Self::SubscriptionNotPaused => "This subscription is not paused.",
+            Self::PaymentNotYetDue => "The next payment is not due yet.",
+            Self::InsufficientAllowance => "Insufficient token allowance to process payment.",
+            Self::InvalidAmount => "Amount must be greater than zero.",
+            Self::InvalidInterval => "Billing interval must be positive.",
+            Self::InvalidPriceBounds => "Price bounds are invalid (max must be > min > 0).",
+            Self::MaxPauseDurationExceeded => {
+                "Pause duration exceeds the allowed maximum of 30 days."
+            }
+            Self::RateLimited => "Too many requests. Please wait before retrying.",
+            Self::OracleUnavailable => "Price oracle is temporarily unavailable.",
+            Self::StorageVersionMismatch => "Storage schema version mismatch; run migration first.",
+            Self::InvalidMigrationPath => "Unsupported migration path.",
+            Self::RefundExceedsTotalPaid => "Refund amount exceeds total amount paid.",
+            Self::PlanOwnerMismatch => "Only the plan owner can perform this action.",
+            Self::EventNotFound => "The requested event does not exist.",
+            Self::EventStoreFull => "Event store has reached maximum capacity.",
+            Self::InvalidEventSequence => "Invalid event sequence for subscription state.",
+            Self::ExportWindowExceeded => "Export range exceeds the maximum allowed window.",
+            Self::PaymentTimedOut => "Payment transaction timed out waiting for confirmation.",
+            Self::RecoveryAttemptsExhausted => {
+                "All automatic recovery attempts have been exhausted."
+            }
             Self::TransactionNotRecoverable => "Transaction is not in a recoverable state.",
-            Self::InvalidTimeoutConfig     => "Timeout configuration values are out of allowed range.",
-            Self::ChainReorgDetected       => "Chain reorganisation detected during timeout window.",
+            Self::InvalidTimeoutConfig => "Timeout configuration values are out of allowed range.",
+            Self::ChainReorgDetected => "Chain reorganisation detected during timeout window.",
+            Self::SlippageExceeded => "Charge price exceeds configured slippage bounds.",
+            Self::CommitmentExpired => "Commit-reveal deadline has passed.",
+            Self::CommitmentMismatch => "Revealed values do not match the commitment.",
+            Self::MaxGasExceeded => "Gas cost exceeds subscriber's configured maximum.",
+            Self::PrivateMempoolRequired => "This charge requires a private mempool submission.",
         }
     }
 
@@ -171,6 +195,20 @@ mod tests {
         assert_eq!(ContractError::PaymentNotYetDue as u32, 10);
         assert_eq!(ContractError::RefundExceedsTotalPaid as u32, 20);
         assert_eq!(ContractError::PlanOwnerMismatch as u32, 21);
+        assert_eq!(ContractError::EventNotFound as u32, 22);
+        assert_eq!(ContractError::EventStoreFull as u32, 23);
+        assert_eq!(ContractError::InvalidEventSequence as u32, 24);
+        assert_eq!(ContractError::ExportWindowExceeded as u32, 25);
+        assert_eq!(ContractError::PaymentTimedOut as u32, 26);
+        assert_eq!(ContractError::RecoveryAttemptsExhausted as u32, 27);
+        assert_eq!(ContractError::TransactionNotRecoverable as u32, 28);
+        assert_eq!(ContractError::InvalidTimeoutConfig as u32, 29);
+        assert_eq!(ContractError::ChainReorgDetected as u32, 30);
+        assert_eq!(ContractError::SlippageExceeded as u32, 31);
+        assert_eq!(ContractError::CommitmentExpired as u32, 32);
+        assert_eq!(ContractError::CommitmentMismatch as u32, 33);
+        assert_eq!(ContractError::MaxGasExceeded as u32, 34);
+        assert_eq!(ContractError::PrivateMempoolRequired as u32, 35);
     }
 
     /// Every variant must have a non-empty user_message.
@@ -178,15 +216,37 @@ mod tests {
     fn all_variants_have_user_messages() {
         use ContractError::*;
         let variants = [
-            Unauthorized, PlanNotFound, PlanInactive, SubscriptionNotFound,
-            AlreadySubscribed, SubscriptionNotActive, SubscriptionAlreadyCancelled,
-            SubscriptionAlreadyPaused, SubscriptionNotPaused, PaymentNotYetDue,
-            InsufficientAllowance, InvalidAmount, InvalidInterval, InvalidPriceBounds,
-            MaxPauseDurationExceeded, RateLimited, OracleUnavailable,
-            StorageVersionMismatch, InvalidMigrationPath, RefundExceedsTotalPaid,
-            PlanOwnerMismatch, EventNotFound, EventStoreFull, InvalidEventSequence,
-            ExportWindowExceeded, PaymentTimedOut, RecoveryAttemptsExhausted,
-            TransactionNotRecoverable, InvalidTimeoutConfig, ChainReorgDetected,
+            Unauthorized,
+            PlanNotFound,
+            PlanInactive,
+            SubscriptionNotFound,
+            AlreadySubscribed,
+            SubscriptionNotActive,
+            SubscriptionAlreadyCancelled,
+            SubscriptionAlreadyPaused,
+            SubscriptionNotPaused,
+            PaymentNotYetDue,
+            InsufficientAllowance,
+            InvalidAmount,
+            InvalidInterval,
+            InvalidPriceBounds,
+            MaxPauseDurationExceeded,
+            RateLimited,
+            OracleUnavailable,
+            StorageVersionMismatch,
+            InvalidMigrationPath,
+            RefundExceedsTotalPaid,
+            ExportWindowExceeded,
+            PaymentTimedOut,
+            RecoveryAttemptsExhausted,
+            TransactionNotRecoverable,
+            InvalidTimeoutConfig,
+            ChainReorgDetected,
+            SlippageExceeded,
+            CommitmentExpired,
+            CommitmentMismatch,
+            MaxGasExceeded,
+            PrivateMempoolRequired,
         ];
         for v in variants {
             let msg = v.user_message();

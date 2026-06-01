@@ -21,7 +21,7 @@
 
 #![no_std]
 
-use soroban_sdk::{contracttype, Address, BytesN, String, Vec};
+use soroban_sdk::{contracttype, Address, Bytes, BytesN, String, Vec};
 
 /// Current schema version of this types crate.
 ///
@@ -35,28 +35,28 @@ pub const TYPES_VERSION: u32 = 1;
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
 pub enum Interval {
-    Daily,         // 86400s
-    Weekly,        // 604800s
-    BiWeekly,      // 1209600s (14 days)
-    Monthly,       // 2592000s (30 days)
-    BiMonthly,     // 5184000s (60 days)
-    Quarterly,     // 7776000s (90 days)
-    SemiAnnually,  // 15724800s (182 days)
-    Yearly,        // 31536000s (365 days)
-    Custom(u64),   // Custom interval in seconds
+    Daily,        // 86400s
+    Weekly,       // 604800s
+    BiWeekly,     // 1209600s (14 days)
+    Monthly,      // 2592000s (30 days)
+    BiMonthly,    // 5184000s (60 days)
+    Quarterly,    // 7776000s (90 days)
+    SemiAnnually, // 15724800s (182 days)
+    Yearly,       // 31536000s (365 days)
+    Custom(u64),  // Custom interval in seconds
 }
 
 impl Interval {
     pub fn seconds(&self) -> u64 {
         match self {
-            Interval::Daily        => 86_400,
-            Interval::Weekly       => 604_800,
-            Interval::BiWeekly     => 1_209_600,
-            Interval::Monthly      => 2_592_000,
-            Interval::BiMonthly    => 5_184_000,
-            Interval::Quarterly    => 7_776_000,
+            Interval::Daily => 86_400,
+            Interval::Weekly => 604_800,
+            Interval::BiWeekly => 1_209_600,
+            Interval::Monthly => 2_592_000,
+            Interval::BiMonthly => 5_184_000,
+            Interval::Quarterly => 7_776_000,
             Interval::SemiAnnually => 15_724_800,
-            Interval::Yearly       => 31_536_000,
+            Interval::Yearly => 31_536_000,
             Interval::Custom(secs) => *secs,
         }
     }
@@ -820,7 +820,7 @@ pub enum StorageKey {
     RateLimitHour(u64, u64),
     RateLimitDay(u64, u64),
     ApiUsage(u64, u64),
-   // ── Added in storage version 5 (Oracle Integration) ──
+    // ── Added in storage version 5 (Oracle Integration) ──
     // ── Added in storage version 5 (Loyalty & Rewards) ──
     /// Global loyalty program config.
     LoyaltyConfig,
@@ -879,11 +879,12 @@ pub enum StorageKey {
 
     // ── Added in storage version 7 (transient pending operations) ──
     /// Pending subscription-transfer authorization keyed by subscription_id.
-    /// Holds the recipient address that is temporarily authorized to accept
-    /// the transfer.  Stored in TEMPORARY storage so an unaccepted transfer
-    /// offer auto-expires (default 7 days) instead of lingering forever in
-    /// instance storage.  Replaces the instance-backed StorageKey::PendingTransfer.
     TmpPendingTransfer(u64),
+
+    // ── Added in storage version 6 (MEV Protection) ──
+    /// MEV state for a subscription (ChargeCommitment, MevChargeConfig, GasPriceSnapshot
+    /// are wrapped inside a single MevStorageValue enum keyed by subscription_id).
+    MevState(u64),
 }
 
 pub type ApiKeyId = u64;
@@ -938,8 +939,8 @@ impl UsageTier {
     pub fn price_per_thousand(&self) -> i128 {
         match self {
             UsageTier::Free => 0,
-            UsageTier::Basic => 1,    // 0.001 per 1k requests (in stroops)
-            UsageTier::Pro => 5,      // 0.005 per 1k
+            UsageTier::Basic => 1,       // 0.001 per 1k requests (in stroops)
+            UsageTier::Pro => 5,         // 0.005 per 1k
             UsageTier::Enterprise => 10, // 0.01 per 1k
         }
     }
@@ -1030,4 +1031,78 @@ pub struct PriceBounds {
     pub min_price_bps: u32,
     /// Quote currency symbol used for price lookup (e.g. "USD").
     pub quote: String,
+}
+
+// ── MEV Protection Types ──
+
+/// A blinded commitment for the commit-reveal charge scheme.
+/// Stores a hash of (price, nonce) so the actual charge amount is
+/// hidden until the reveal phase.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ChargeCommitment {
+    /// Hash of (amount, nonce, subscriber) — opaque until reveal.
+    pub commitment_hash: Bytes,
+    /// Maximum fee the subscriber is willing to pay (in stroops).
+    pub max_gas_fee: i128,
+    /// Timestamp after which this commitment expires.
+    pub deadline: u64,
+    /// Subscriber that created this commitment.
+    pub subscriber: Address,
+}
+
+/// Per-subscription MEV protection configuration.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct MevChargeConfig {
+    /// If true, charge is only submitted via private mempool.
+    pub use_private_mempool: bool,
+    /// Maximum per-gas fee the subscriber accepts (in stroops).
+    pub max_gas_fee: i128,
+    /// Maximum total gas the subscriber accepts for one charge.
+    pub max_gas: u64,
+}
+
+/// Snapshot of gas / ledger conditions captured at charge time.
+/// Note: SDK v21 does not expose `base_fee` — tracking added as a
+/// placeholder for future SDK versions that support it.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct GasPriceSnapshot {
+    /// Ledger sequence number when the snapshot was taken.
+    pub ledger_seq: u32,
+    /// Ledger timestamp at charge time.
+    pub timestamp: u64,
+    /// Actual gas used by the charge transaction.
+    pub gas_used: u64,
+    /// Price that was charged.
+    pub amount_charged: i128,
+}
+
+/// Single storage wrapper for all MEV subscription state.
+/// Reduces StorageKey enum variants to avoid XDR length limits.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum MevStorageValue {
+    ChargeCommitment(ChargeCommitment),
+    MevChargeConfig(MevChargeConfig),
+    GasPriceSnapshot(GasPriceSnapshot),
+}
+
+/// Events emitted by the MEV protection subsystem.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum MevEventKind {
+    /// A charge commitment was created.
+    Committed,
+    /// A charge commitment was revealed and executed.
+    Revealed,
+    /// A commitment expired without being revealed.
+    Expired,
+    /// Gas price exceeded the subscriber's configured max.
+    GasPriceAnomaly,
+    /// Charge was submitted via private mempool.
+    PrivateMempoolSubmitted,
+    /// Slippage was detected and protected.
+    SlippageProtected,
 }

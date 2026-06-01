@@ -1,7 +1,5 @@
 use soroban_sdk::Env;
-use subtrackr_types::{
-    ApiKey, ApiKeyId, ApiUsageRecord, RateLimitStatus, TimeRange, UsageReport,
-};
+use subtrackr_types::{ApiKey, ApiKeyId, ApiUsageRecord, RateLimitStatus, TimeRange, UsageReport};
 
 use crate::DataKey;
 
@@ -20,17 +18,17 @@ fn bump_window(env: &Env, key: DataKey, now: u64, period: u64) -> (u32, u64) {
         Some(r) if r.window_start == ws => r.count + 1,
         _ => 1,
     };
-    env.storage()
-        .instance()
-        .set(&key, &ApiUsageRecord { window_start: ws, count });
+    env.storage().instance().set(
+        &key,
+        &ApiUsageRecord {
+            window_start: ws,
+            count,
+        },
+    );
     (count, ws + period)
 }
 
-pub fn check_rate_limit(
-    env: &Env,
-    key: &ApiKey,
-    now: u64,
-) -> RateLimitStatus {
+pub fn check_rate_limit(env: &Env, key: &ApiKey, now: u64) -> RateLimitStatus {
     let cfg = &key.rate_limit;
 
     let (min_count, min_reset) = bump_window(
@@ -88,11 +86,7 @@ pub fn check_rate_limit(
     }
 }
 
-pub fn get_api_usage(
-    env: &Env,
-    key_id: ApiKeyId,
-    period: TimeRange,
-) -> UsageReport {
+pub fn get_api_usage(env: &Env, key_id: ApiKeyId, period: TimeRange) -> UsageReport {
     let mut total: u32 = 0;
     let mut ws = window_start(period.start, SECS_PER_MINUTE);
     let end = period.end;
@@ -114,11 +108,7 @@ pub fn get_api_usage(
     }
 }
 
-pub fn calculate_api_charge(
-    env: &Env,
-    key: &ApiKey,
-    period: TimeRange,
-) -> i128 {
+pub fn calculate_api_charge(env: &Env, key: &ApiKey, period: TimeRange) -> i128 {
     let usage = get_api_usage(env, key.id, period);
     let billable = usage.total_requests.saturating_sub(1000);
     let price_per_k = key.usage_tier.price_per_thousand();
