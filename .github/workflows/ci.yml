@@ -50,6 +50,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -69,7 +72,30 @@ jobs:
         run: npm ci --legacy-peer-deps
 
       - name: Check formatting (Prettier)
+        id: prettier-check
         run: npm run format:check
+        continue-on-error: true
+
+      - name: Auto-fix formatting issues
+        if: steps.prettier-check.outcome == 'failure'
+        run: |
+          echo "Formatting inconsistencies detected. Executing auto-fixer..."
+          npm run format:write || npx prettier --write "src/**/*.{ts,tsx,js,json,md}"
+
+      - name: Commit and Push formatting fixes
+        if: steps.prettier-check.outcome == 'failure'
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: automated code formatting fixes via CI pipeline"
+          commit_user_name: "github-actions[bot]"
+          commit_user_email: "github-actions[bot]@users.noreply.github.com"
+
+      - name: Enforce strict layout check
+        if: steps.prettier-check.outcome == 'failure'
+        run: |
+          echo "❌ Code styles were inconsistent. Automated modifications have been pushed to your branch."
+          echo "Please pull latest changes locally or wait for the subsequent workflow run execution pass."
+          exit 1
 
       - name: Run ESLint
         run: npm run lint
@@ -265,9 +291,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
+            ~/cargo/registry/index/
+            ~/cargo/registry/cache/
+            ~/cargo/git/db/
             contracts/target/
           key: ${{ runner.os }}-cargo-${{ env.RUST_VERSION }}-${{ hashFiles('contracts/Cargo.lock') }}
           restore-keys: |
@@ -293,9 +319,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
+            ~/cargo/registry/index/
+            ~/cargo/registry/cache/
+            ~/cargo/git/db/
             contracts/target/
           key: ${{ runner.os }}-cargo-${{ env.RUST_VERSION }}-${{ hashFiles('contracts/Cargo.lock') }}
           restore-keys: |
@@ -321,9 +347,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
+            ~/cargo/registry/index/
+            ~/cargo/registry/cache/
+            ~/cargo/git/db/
             contracts/target/
           key: ${{ runner.os }}-cargo-${{ env.RUST_VERSION }}-${{ hashFiles('contracts/Cargo.lock') }}
           restore-keys: |
