@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { View, Animated, StyleSheet } from 'react-native';
-import { colors, spacing, borderRadius, shadows } from '../../utils/constants';
+import { spacing, borderRadius, shadows } from '../../utils/constants';
+import { useThemeColors } from '../../hooks/useThemeColors';
 import { animations, useAnimatedValue } from '../../utils/animations';
 
 interface SkeletonProps {
@@ -16,6 +17,8 @@ export const Skeleton: React.FC<SkeletonProps> = ({
   borderRadius: borderRadiusProp,
   style,
 }) => {
+  const colors = useThemeColors();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const animatedValue = useAnimatedValue(0);
 
   useEffect(() => {
@@ -55,6 +58,8 @@ interface SubscriptionCardSkeletonProps {
 }
 
 export const SubscriptionCardSkeleton: React.FC<SubscriptionCardSkeletonProps> = ({ style }) => {
+  const colors = useThemeColors();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const fadeAnim = useAnimatedValue(0);
 
   useEffect(() => {
@@ -97,6 +102,8 @@ export const SubscriptionListSkeleton: React.FC<SubscriptionListSkeletonProps> =
   count = 3,
   style,
 }) => {
+  const colors = useThemeColors();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const items = Array.from({ length: count }, (_, index) => (
     <SubscriptionCardSkeleton key={index} />
   ));
@@ -104,68 +111,70 @@ export const SubscriptionListSkeleton: React.FC<SubscriptionListSkeletonProps> =
   return <View style={[styles.listContainer, style]}>{items}</View>;
 };
 
-const styles = StyleSheet.create({
-  skeleton: {
-    backgroundColor: colors.surfaceVariant,
-  },
-  cardContainer: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.md,
-    ...shadows.sm,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  iconSkeleton: {
-    marginRight: spacing.sm,
-  },
-  titleContainer: {
-    flex: 1,
-    marginRight: spacing.sm,
-  },
-  titleSkeleton: {
-    marginBottom: spacing.xs,
-  },
-  categorySkeleton: {
-    opacity: 0.7,
-  },
-  statusSkeleton: {
-    alignSelf: 'flex-start',
-  },
-  details: {
-    marginBottom: spacing.sm,
-  },
-  priceContainer: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    marginBottom: spacing.xs,
-  },
-  priceSkeleton: {
-    marginRight: spacing.xs,
-  },
-  cycleSkeleton: {
-    opacity: 0.8,
-  },
-  billingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  labelSkeleton: {
-    marginRight: spacing.xs,
-    opacity: 0.7,
-  },
-  dateSkeleton: {
-    opacity: 0.8,
-  },
-  buttonSkeleton: {
-    marginTop: spacing.sm,
-    opacity: 0.6,
-  },
-  listContainer: {
-    padding: spacing.sm,
-  },
-});
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+    skeleton: {
+      backgroundColor: colors.background.secondary,
+    },
+    cardContainer: {
+      backgroundColor: colors.background.card,
+      borderRadius: borderRadius.lg,
+      padding: spacing.md,
+      marginBottom: spacing.md,
+      ...shadows.sm,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: spacing.sm,
+    },
+    iconSkeleton: {
+      marginRight: spacing.sm,
+    },
+    titleContainer: {
+      flex: 1,
+      marginRight: spacing.sm,
+    },
+    titleSkeleton: {
+      marginBottom: spacing.xs,
+    },
+    categorySkeleton: {
+      opacity: 0.7,
+    },
+    statusSkeleton: {
+      alignSelf: 'flex-start',
+    },
+    details: {
+      marginBottom: spacing.sm,
+    },
+    priceContainer: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      marginBottom: spacing.xs,
+    },
+    priceSkeleton: {
+      marginRight: spacing.xs,
+    },
+    cycleSkeleton: {
+      opacity: 0.8,
+    },
+    billingContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    labelSkeleton: {
+      marginRight: spacing.xs,
+      opacity: 0.7,
+    },
+    dateSkeleton: {
+      opacity: 0.8,
+    },
+    buttonSkeleton: {
+      marginTop: spacing.sm,
+      opacity: 0.6,
+    },
+    listContainer: {
+      padding: spacing.sm,
+    },
+  });
+}

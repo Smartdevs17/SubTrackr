@@ -1,5 +1,6 @@
 import { Subscription, SubscriptionCategory, BillingCycle } from '../types/subscription';
-import { TIME_CONSTANTS, BILLING_CONVERSIONS, CACHE_CONSTANTS } from './constants/values';
+import { TIME_CONSTANTS, CACHE_CONSTANTS } from './constants/values';
+import { toMonthlyPrice } from './stats';
 
 export const dummySubscriptions: Subscription[] = [
   {
@@ -212,24 +213,5 @@ export const getTotalMonthlySpending = (subscriptions: Subscription[]): number =
 
   return subscriptions
     .filter((sub) => sub.isActive)
-    .reduce((total, sub) => {
-      let monthlyAmount = sub.price;
-
-      switch (sub.billingCycle) {
-        case BillingCycle.YEARLY:
-          monthlyAmount = sub.price / 12;
-          break;
-        case BillingCycle.WEEKLY:
-          monthlyAmount = sub.price * BILLING_CONVERSIONS.WEEKS_PER_MONTH; // Average weeks per month
-          break;
-        case BillingCycle.CUSTOM:
-          // For custom cycles, assume monthly for now
-          monthlyAmount = sub.price;
-          break;
-        default:
-          monthlyAmount = sub.price;
-      }
-
-      return total + monthlyAmount;
-    }, 0);
+    .reduce((total, sub) => total + toMonthlyPrice(sub.price, sub.billingCycle), 0);
 };

@@ -1,9 +1,11 @@
 import { NavigatorScreenParams } from '@react-navigation/native';
+import { BillingCycle } from '../types/subscription';
 
 export type RootStackParamList = {
   Home: undefined;
   AddSubscription: undefined;
   SubscriptionDetail: { id: string };
+  EditSubscription: { id: string };
   CancellationFlow: { subscriptionId: string };
   WalletConnect: undefined;
   CryptoPayment: { subscriptionId?: string } | undefined;
@@ -43,7 +45,7 @@ export type RootStackParamList = {
   LoyaltyDashboard: undefined;
   CampaignManagement: undefined;
   PerformanceDashboard: undefined;
-  DunningDashboard: undefined;
+  BillingSettings: undefined;
 };
 
 export type TabParamList = {
@@ -52,5 +54,5 @@ export type TabParamList = {
   WalletTab: undefined;
   AnalyticsTab: undefined;
   RevenueTab: undefined;
-  SettingsTab: undefined;
+  SettingsTab: NavigatorScreenParams<RootStackParamList> | undefined;
 };
