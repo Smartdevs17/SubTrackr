@@ -6,6 +6,7 @@ import { AppNavigator } from './src/navigation/AppNavigator';
 import { useNotifications } from './src/hooks/useNotifications';
 import { useTransactionQueue } from './src/hooks/useTransactionQueue';
 import ErrorBoundary from './src/components/ErrorBoundary';
+import BiometricGate from './src/components/BiometricGate';
 import { initI18n } from './src/i18n/config';
 import i18n from './src/i18n/config';
 import { I18nextProvider } from 'react-i18next';
@@ -114,10 +115,12 @@ export default function App() {
       <View style={{ flex: 1 }} testID="app-root">
         <StatusBar style="light" />
         <ErrorBoundary>
-          <I18nextProvider i18n={i18n}>
-            <NotificationBootstrap />
-            <AppNavigator />
-          </I18nextProvider>
+          <BiometricGate>
+            <I18nextProvider i18n={i18n}>
+              <NotificationBootstrap />
+              <AppNavigator />
+            </I18nextProvider>
+          </BiometricGate>
         </ErrorBoundary>
         <AppKit />
       </View>
