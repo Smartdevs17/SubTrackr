@@ -52,7 +52,8 @@
     "sdk:test:python": "PYTHONPATH=sdks/python python3 -m unittest discover sdks/python/tests",
     "sdk:test:go": "cd sdks/go && go test ./...",
     "bundle-size": "size-limit",
-    "bundle-size:why": "size-limit --why"
+    "bundle-size:why": "size-limit --why",
+    "bundle-analyze": "EXPO_BUNDLE_ANALYZE=true npx expo export"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.1.2",
@@ -128,7 +129,8 @@
     "size-limit": "^11.1.4",
     "ts-jest": "^29.4.11",
     "typechain": "^8.3.2",
-    "typescript": "~5.8.3"
+    "typescript": "~5.8.3",
+    "metro-bundle-analyzer": "^0.2.0"
   },
   "private": false,
   "repository": {
