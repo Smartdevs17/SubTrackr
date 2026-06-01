@@ -67,3 +67,5 @@ export type {
   SubscriptionEventQuery,
   SubscriptionEventType,
 } from './subscriptionEventStore';
+export { BatchChargeService } from './batchChargeService';
+export type { BatchChargeCandidate, BatchChargeOptions, BatchChargeResult } from './batchChargeService';
