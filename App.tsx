@@ -11,6 +11,7 @@ import { initI18n } from './src/i18n/config';
 import i18n from './src/i18n/config';
 import { I18nextProvider } from 'react-i18next';
 import { crashReporter, CrashRecord } from './src/services/crashReporter';
+import * as Sentry from '@sentry/react-native';
 
 // Import WalletConnect compatibility layer
 import '@walletconnect/react-native-compat';
@@ -18,12 +19,26 @@ import '@walletconnect/react-native-compat';
 import { createAppKit, defaultConfig, AppKit } from '@reown/appkit-ethers-react-native';
 
 import { EVM_RPC_URLS } from './src/config/evm';
-import { useNetworkStore, useSettingsStore } from './src/store';
+import { useNetworkStore, useSettingsStore, useWalletStore } from './src/store';
 import { sessionService } from './src/services/auth/session';
 
 
 // Get projectId from environment variable
 const projectId = process.env.WALLET_CONNECT_PROJECT_ID || 'YOUR_PROJECT_ID';
+
+// Initialize Sentry (DSN provided via env var)
+try {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN || '',
+    enableAutoSessionTracking: true,
+    tracesSampleRate: Number(process.env.SENTRY_TRACES_SAMPLE_RATE || 0.05),
+    environment: process.env.NODE_ENV || 'production',
+  });
+} catch (e) {
+  // Fail gracefully if Sentry cannot initialize in some environments
+  // eslint-disable-next-line no-console
+  console.warn('Sentry init failed', e);
+}
 
 // Create metadata
 const metadata = {
@@ -78,13 +93,26 @@ function NotificationBootstrap() {
   useNotifications();
   useTransactionQueue();
 
+  const wallet = useWalletStore();
+
   const { initialize } = useNetworkStore();
   const { initializeSettings } = useSettingsStore();
 
   React.useEffect(() => {
     initialize();
     void initializeSettings();
-    void sessionService.initializeCurrentSession();
+    void (async () => {
+      const session = await sessionService.initializeCurrentSession();
+      // Attach session context to Sentry for better diagnostics
+      try {
+        Sentry.setContext('session', { id: session.id, deviceName: session.deviceName });
+        if (wallet?.address) {
+          Sentry.setUser({ id: wallet.address });
+        }
+      } catch (e) {
+        // ignore
+      }
+    })();
   }, [initialize, initializeSettings]);
 
 
