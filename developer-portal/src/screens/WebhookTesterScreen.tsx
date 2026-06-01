@@ -114,9 +114,7 @@ const WebhookTesterScreen: React.FC = () => {
             autoCapitalize="none"
             keyboardType="url"
           />
-          <Text style={styles.hint}>
-            Enter the URL where you want to receive webhook events
-          </Text>
+          <Text style={styles.hint}>Enter the URL where you want to receive webhook events</Text>
         </View>
 
         {/* Event Types */}
@@ -147,9 +145,7 @@ const WebhookTesterScreen: React.FC = () => {
                   styles.checkbox,
                   selectedEvents.includes(event.value) && styles.checkboxSelected,
                 ]}>
-                {selectedEvents.includes(event.value) && (
-                  <Text style={styles.checkmark}>✓</Text>
-                )}
+                {selectedEvents.includes(event.value) && <Text style={styles.checkmark}>✓</Text>}
               </View>
             </TouchableOpacity>
           ))}
@@ -171,9 +167,7 @@ const WebhookTesterScreen: React.FC = () => {
               <Text style={styles.generateButtonText}>Generate</Text>
             </TouchableOpacity>
           </View>
-          <Text style={styles.hint}>
-            Use this secret to verify webhook signatures
-          </Text>
+          <Text style={styles.hint}>Use this secret to verify webhook signatures</Text>
         </View>
 
         {/* Signature Option */}
@@ -235,9 +229,7 @@ const WebhookTesterScreen: React.FC = () => {
                   {new Date(testResults.timestamp).toLocaleString()}
                 </Text>
               )}
-              {testResults.error && (
-                <Text style={styles.resultsError}>{testResults.error}</Text>
-              )}
+              {testResults.error && <Text style={styles.resultsError}>{testResults.error}</Text>}
             </View>
           </View>
         )}

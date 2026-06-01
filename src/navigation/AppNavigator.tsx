@@ -20,7 +20,7 @@ import SlaDashboard from '../screens/SlaDashboard';
 import GDPRSettingsScreen from '../screens/GDPRSettingsScreen';
 import LanguageSettingsScreen from '../screens/LanguageSettingsScreen';
 import SessionManagementScreen from '../screens/SessionManagementScreen';
-import SettingsScreen from '../screens/SettingsScreen';
+import { SettingsScreen } from '../screens/SettingsScreen';
 import CalendarIntegrationScreen from '../screens/CalendarIntegrationScreen';
 import AccountingExportScreen from '../screens/AccountingExportScreen';
 import WebhookSettingsScreen from '../screens/WebhookSettingsScreen';

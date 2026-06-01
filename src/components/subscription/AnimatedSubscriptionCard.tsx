@@ -46,7 +46,6 @@ export const AnimatedSubscriptionCard: React.FC<AnimatedSubscriptionCardProps> =
   const scaleAnim = useAnimatedValue(1);
   const priceAnim = useAnimatedValue(0);
   const statusAnim = useAnimatedValue(subscription.isActive ? 1 : 0);
-  const fallbackSharedElementAnim = useAnimatedValue(1);
 
   // Shared element transition
   const fallbackSharedElementAnim = useAnimatedValue(1);

@@ -31,7 +31,6 @@ import { useSettingsStore } from './settingsStore';
 import { currencyService } from '../services/currencyService';
 import {
   previewProration,
-  calculateNetProration,
   generateCreditMemo,
   applyCreditMemo,
   ProrationPreview,
@@ -169,8 +168,16 @@ interface SubscriptionState {
   deleteSubscription: (id: string) => Promise<void>;
   toggleSubscriptionStatus: (id: string) => Promise<void>;
   // new actions added
-  previewPlanChange: (id: string, newPrice: number, effectiveDate: 'immediate' | 'end_of_period') => ProrationPreview;
-  executePlanChange: (id: string, newPlanData: Partial<Subscription>, effectiveDate: 'immediate' | 'end_of_period') => Promise<void>;
+  previewPlanChange: (
+    id: string,
+    newPrice: number,
+    effectiveDate: 'immediate' | 'end_of_period'
+  ) => ProrationPreview;
+  executePlanChange: (
+    id: string,
+    newPlanData: Partial<Subscription>,
+    effectiveDate: 'immediate' | 'end_of_period'
+  ) => Promise<void>;
   applyCreditToSubscription: (id: string) => Promise<void>;
   /** Simulate or record a billing result (fires local notifications when enabled for this sub). */
   recordBillingOutcome: (id: string, outcome: 'success' | 'failed') => Promise<void>;
@@ -186,59 +193,67 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         totalActive: 0,
         totalMonthlySpend: 0,
         totalYearlySpend: 0,
-        categoryBreakdown: {} as Record<string, number>,
-        prorationPreview: null,
+        categoryBreakdown: {} as Record<SubscriptionCategory, number>,
+      },
+      isLoading: true,
+      error: null,
+      prorationPreview: null,
       creditMemos: {},
-      
-      previewPlanChange: (id: string, newPrice: number, effectiveDate: 'immediate' | 'end_of_period') => {
+
+      previewPlanChange: (
+        id: string,
+        newPrice: number,
+        effectiveDate: 'immediate' | 'end_of_period'
+      ) => {
         const sub = get().subscriptions.find((s) => s.id === id);
         if (!sub) {
           throw new Error('Subscription not found');
-      }
+        }
 
-      const preview = previewProration(sub, newPrice, effectiveDate);
+        const preview = previewProration(sub, newPrice, effectiveDate);
         set({ prorationPreview: preview });
         return preview;
       },
 
-      executePlanChange: async (id: string, newPlanData: Partial<Subscription>, effectiveDate: 'immediate' | 'end_of_period') => {
+      executePlanChange: async (
+        id: string,
+        newPlanData: Partial<Subscription>,
+        effectiveDate: 'immediate' | 'end_of_period'
+      ) => {
         set({ isLoading: true, error: null });
         try {
           const sub = get().subscriptions.find((s) => s.id === id);
           if (!sub) throw new Error('Subscription not found');
-          
+
           const preview = previewProration(sub, newPlanData.price ?? sub.price, effectiveDate);
-        
-          // Generate credit memo if downgrade
-          let updatedCreditMemos = { ...get().creditMemos };
+
+          const updatedCreditMemos = { ...get().creditMemos };
           if (preview.isCredit && preview.amount > 0) {
             const memo = generateCreditMemo(id, preview.amount, preview.description);
             updatedCreditMemos[id] = memo;
           }
-          
-          // Update subscription
+
           const updates: Partial<Subscription> = {
             ...newPlanData,
             updatedAt: new Date(),
           };
-          
+
           if (effectiveDate === 'immediate') {
-            // Reset billing cycle
-            updates.nextBillingDate = advanceBillingDate(new Date(), newPlanData.billingCycle ?? sub.billingCycle);
+            updates.nextBillingDate = advanceBillingDate(
+              new Date(),
+              newPlanData.billingCycle ?? sub.billingCycle
+            );
           }
-          
+
           set((state) => ({
-            subscriptions: state.subscriptions.map((s) =>
-              s.id === id ? { ...s, ...updates } : s
-            ),
+            subscriptions: state.subscriptions.map((s) => (s.id === id ? { ...s, ...updates } : s)),
             creditMemos: updatedCreditMemos,
             prorationPreview: null,
             isLoading: false,
           }));
-          
+
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
-          
         } catch (error) {
           const appError = errorHandler.handleError(error as Error, {
             action: 'executePlanChange',
@@ -247,31 +262,23 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           set({ error: appError, isLoading: false });
         }
       },
-      
+
       applyCreditToSubscription: async (id: string) => {
         const sub = get().subscriptions.find((s) => s.id === id);
         const memo = get().creditMemos[id];
         if (!sub || !memo || memo.applied) return;
-        
+
         const { finalCharge, updatedMemo } = applyCreditMemo(sub.price, memo);
-        
+
         set((state) => ({
           creditMemos: {
             ...state.creditMemos,
             [id]: updatedMemo,
           },
         }));
-        
-        // Could trigger a reduced charge here
+
         console.log(`Applied credit: final charge ${finalCharge}`);
       },
-    }),
-    // ... persist config ...
-  )
-);
-      // Hydration state: keep loading true until persisted state is read.
-      isLoading: true,
-      error: null,
 
       addSubscription: async (data: SubscriptionFormData) => {
         set({ isLoading: true, error: null });
@@ -409,7 +416,8 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           dunningEntries[id] = {
             failedAttempts: attempt,
             lastFailureAt: new Date().toISOString(),
-            currentStage: attempt <= 3 ? 'retry' : attempt <= 5 ? 'warn' : attempt <= 7 ? 'suspend' : 'cancel',
+            currentStage:
+              attempt <= 3 ? 'retry' : attempt <= 5 ? 'warn' : attempt <= 7 ? 'suspend' : 'cancel',
           };
           await AsyncStorage.setItem('subtrackr-dunning-entries', JSON.stringify(dunningEntries));
 
@@ -545,7 +553,6 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             return total + priceInPreferred * BILLING_CONVERSIONS.WEEKS_PER_YEAR;
           return total + priceInPreferred * BILLING_CONVERSIONS.MONTHS_PER_YEAR;
         }, 0);
-
 
         const categoryBreakdown = activeSubs.reduce(
           (acc, sub) => {

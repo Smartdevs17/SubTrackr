@@ -43,12 +43,54 @@ const DEFAULT_RATE_LIMIT = {
 };
 
 const DEFAULT_ONBOARDING_STEPS: OnboardingStepInfo[] = [
-  { id: DeveloperOnboardingStep.WELCOME, title: 'Welcome', description: 'Learn about the developer portal', step: DeveloperOnboardingStep.WELCOME, completed: false, required: true },
-  { id: DeveloperOnboardingStep.CREATE_ACCOUNT, title: 'Create Account', description: 'Set up your developer profile', step: DeveloperOnboardingStep.CREATE_ACCOUNT, completed: false, required: true },
-  { id: DeveloperOnboardingStep.GENERATE_API_KEY, title: 'Generate API Key', description: 'Create your sandbox API key', step: DeveloperOnboardingStep.GENERATE_API_KEY, completed: false, required: true },
-  { id: DeveloperOnboardingStep.EXPLORE_SANDBOX, title: 'Explore Sandbox', description: 'Test the sandbox environment', step: DeveloperOnboardingStep.EXPLORE_SANDBOX, completed: false, required: false },
-  { id: DeveloperOnboardingStep.BUILD_INTEGRATION, title: 'Build Integration', description: 'Build your integration', step: DeveloperOnboardingStep.BUILD_INTEGRATION, completed: false, required: false },
-  { id: DeveloperOnboardingStep.GO_LIVE, title: 'Go Live', description: 'Switch to production', step: DeveloperOnboardingStep.GO_LIVE, completed: false, required: false },
+  {
+    id: DeveloperOnboardingStep.WELCOME,
+    title: 'Welcome',
+    description: 'Learn about the developer portal',
+    step: DeveloperOnboardingStep.WELCOME,
+    completed: false,
+    required: true,
+  },
+  {
+    id: DeveloperOnboardingStep.CREATE_ACCOUNT,
+    title: 'Create Account',
+    description: 'Set up your developer profile',
+    step: DeveloperOnboardingStep.CREATE_ACCOUNT,
+    completed: false,
+    required: true,
+  },
+  {
+    id: DeveloperOnboardingStep.GENERATE_API_KEY,
+    title: 'Generate API Key',
+    description: 'Create your sandbox API key',
+    step: DeveloperOnboardingStep.GENERATE_API_KEY,
+    completed: false,
+    required: true,
+  },
+  {
+    id: DeveloperOnboardingStep.EXPLORE_SANDBOX,
+    title: 'Explore Sandbox',
+    description: 'Test the sandbox environment',
+    step: DeveloperOnboardingStep.EXPLORE_SANDBOX,
+    completed: false,
+    required: false,
+  },
+  {
+    id: DeveloperOnboardingStep.BUILD_INTEGRATION,
+    title: 'Build Integration',
+    description: 'Build your integration',
+    step: DeveloperOnboardingStep.BUILD_INTEGRATION,
+    completed: false,
+    required: false,
+  },
+  {
+    id: DeveloperOnboardingStep.GO_LIVE,
+    title: 'Go Live',
+    description: 'Switch to production',
+    step: DeveloperOnboardingStep.GO_LIVE,
+    completed: false,
+    required: false,
+  },
 ];
 
 const DEFAULT_INTEGRATION_GUIDES: IntegrationGuide[] = [
@@ -60,9 +102,24 @@ const DEFAULT_INTEGRATION_GUIDES: IntegrationGuide[] = [
     difficulty: 'beginner',
     estimatedTime: '15 minutes',
     steps: [
-      { title: 'Install SDK', content: 'npm install @subtrackr/sdk', codeExample: 'npm install @subtrackr/sdk', language: 'bash' },
-      { title: 'Initialize Client', content: 'Create a SubTrackr client with your API key.', codeExample: `const client = new SubTrackr({\n  apiKey: 'sk_sandbox_your_key',\n});`, language: 'typescript' },
-      { title: 'Make First Request', content: 'List subscriptions to verify setup.', codeExample: `const subs = await client.subscriptions.list();\nconsole.log(subs.data);`, language: 'typescript' },
+      {
+        title: 'Install SDK',
+        content: 'npm install @subtrackr/sdk',
+        codeExample: 'npm install @subtrackr/sdk',
+        language: 'bash',
+      },
+      {
+        title: 'Initialize Client',
+        content: 'Create a SubTrackr client with your API key.',
+        codeExample: `const client = new SubTrackr({\n  apiKey: 'sk_sandbox_your_key',\n});`,
+        language: 'typescript',
+      },
+      {
+        title: 'Make First Request',
+        content: 'List subscriptions to verify setup.',
+        codeExample: `const subs = await client.subscriptions.list();\nconsole.log(subs.data);`,
+        language: 'typescript',
+      },
     ],
     tags: ['setup', 'quickstart'],
     isCompleted: false,
@@ -75,7 +132,12 @@ const DEFAULT_INTEGRATION_GUIDES: IntegrationGuide[] = [
     difficulty: 'intermediate',
     estimatedTime: '30 minutes',
     steps: [
-      { title: 'Create Subscription', content: 'Use POST to create subscriptions.', codeExample: `const sub = await client.subscriptions.create({\n  name: 'Pro Plan',\n  price: 29.99,\n  currency: 'USD',\n  billingCycle: 'monthly',\n});`, language: 'typescript' },
+      {
+        title: 'Create Subscription',
+        content: 'Use POST to create subscriptions.',
+        codeExample: `const sub = await client.subscriptions.create({\n  name: 'Pro Plan',\n  price: 29.99,\n  currency: 'USD',\n  billingCycle: 'monthly',\n});`,
+        language: 'typescript',
+      },
       { title: 'Update Status', content: 'Pause, resume, or cancel subscriptions.' },
     ],
     tags: ['subscriptions', 'billing'],
@@ -116,9 +178,7 @@ const DEFAULT_INTEGRATION_GUIDES: IntegrationGuide[] = [
     category: IntegrationGuideCategory.ANALYTICS_REPORTING,
     difficulty: 'intermediate',
     estimatedTime: '20 minutes',
-    steps: [
-      { title: 'Fetch Analytics', content: 'Retrieve subscription metrics via API.' },
-    ],
+    steps: [{ title: 'Fetch Analytics', content: 'Retrieve subscription metrics via API.' }],
     tags: ['analytics', 'reporting'],
     isCompleted: false,
   },
@@ -150,7 +210,13 @@ interface SandboxState {
   testSubscriptions: TestSubscription[];
   subscriptions: TestSubscription[];
   sandboxSubscriptions: TestSubscription[];
-  transactions: Array<{ id: string; type: string; amount: number; status: string; timestamp: Date }>;
+  transactions: {
+    id: string;
+    type: string;
+    amount: number;
+    status: string;
+    timestamp: Date;
+  }[];
   metrics: SandboxMetrics;
   onboardingSteps: OnboardingStepInfo[];
   integrationGuides: IntegrationGuide[];
@@ -159,13 +225,19 @@ interface SandboxState {
   error: AppError | null;
 
   fetchSandboxes: (developerId: string) => Promise<void>;
-  createSandbox: (name: string, description: string, environment: SandboxEnvironment) => Promise<void>;
+  createSandbox: (
+    name: string,
+    description: string,
+    environment: SandboxEnvironment
+  ) => Promise<void>;
   selectSandbox: (sandbox: SandboxConfig | string) => void;
   deleteSandbox: (id: string) => Promise<void>;
   pauseSandbox: (id: string) => Promise<void>;
   resumeSandbox: (id: string) => Promise<void>;
   toggleSandboxStatus: (id: string) => Promise<void>;
-  generateTestData: (sandboxIdOrConfig?: string | { subscriptionCount?: number; transactionCount?: number }) => Promise<void>;
+  generateTestData: (
+    sandboxIdOrConfig?: string | { subscriptionCount?: number; transactionCount?: number }
+  ) => Promise<void>;
   resetSandbox: () => void;
   resetTestData: () => void;
   refreshMetrics: () => Promise<void>;
@@ -177,7 +249,12 @@ interface SandboxState {
   completeOnboardingStep: (stepId: string) => void;
   createDeveloperProfile: (name: string, email: string, company?: string) => Promise<void>;
   generateApiKey: (name: string) => Promise<string>;
-  createApiKey: (input: { name: string; description?: string; sandboxId: string; scopes: ApiKeyScope[] }) => Promise<void>;
+  createApiKey: (input: {
+    name: string;
+    description?: string;
+    sandboxId: string;
+    scopes: ApiKeyScope[];
+  }) => Promise<void>;
   revokeApiKey: (id: string) => Promise<void>;
   reactivateApiKey: (id: string) => Promise<void>;
   deleteApiKey: (id: string) => Promise<void>;
@@ -191,6 +268,7 @@ const defaultSandboxConfig: SandboxConfig = {
   environment: SandboxEnvironment.DEVELOPMENT,
   name: 'Development Sandbox',
   description: 'Primary sandbox for development and testing',
+  status: SandboxStatus.ACTIVE,
   isActive: true,
   dataIsolation: true,
   rateLimit: DEFAULT_RATE_LIMIT,
@@ -231,7 +309,10 @@ export const useSandboxStore = create<SandboxState>()(
           set({ isLoading: false });
         } catch (err) {
           set({
-            error: errorHandler.handleError(err as Error, { action: 'fetchSandboxes', timestamp: new Date() }),
+            error: errorHandler.handleError(err as Error, {
+              action: 'fetchSandboxes',
+              timestamp: new Date(),
+            }),
             isLoading: false,
           });
         }
@@ -259,16 +340,20 @@ export const useSandboxStore = create<SandboxState>()(
           }));
         } catch (err) {
           set({
-            error: errorHandler.handleError(err as Error, { action: 'createSandbox', timestamp: new Date() }),
+            error: errorHandler.handleError(err as Error, {
+              action: 'createSandbox',
+              timestamp: new Date(),
+            }),
             isLoading: false,
           });
         }
       },
 
       selectSandbox: (sandboxOrId) => {
-        const sandbox = typeof sandboxOrId === 'string'
-          ? get().sandboxes.find((s) => s.id === sandboxOrId) || null
-          : sandboxOrId;
+        const sandbox =
+          typeof sandboxOrId === 'string'
+            ? get().sandboxes.find((s) => s.id === sandboxOrId) || null
+            : sandboxOrId;
         set({ selectedSandbox: sandbox, currentSandbox: sandbox });
       },
 
@@ -277,7 +362,8 @@ export const useSandboxStore = create<SandboxState>()(
           const remaining = state.sandboxes.filter((s) => s.id !== id);
           return {
             sandboxes: remaining,
-            currentSandbox: state.currentSandbox?.id === id ? remaining[0] || null : state.currentSandbox,
+            currentSandbox:
+              state.currentSandbox?.id === id ? remaining[0] || null : state.currentSandbox,
             selectedSandbox: state.selectedSandbox?.id === id ? null : state.selectedSandbox,
           };
         });
@@ -286,22 +372,28 @@ export const useSandboxStore = create<SandboxState>()(
       pauseSandbox: async (id) => {
         set((state) => ({
           sandboxes: state.sandboxes.map((s) =>
-            s.id === id ? { ...s, isActive: false, status: SandboxStatus.PAUSED, updatedAt: new Date() } : s
+            s.id === id
+              ? { ...s, isActive: false, status: SandboxStatus.PAUSED, updatedAt: new Date() }
+              : s
           ),
-          currentSandbox: state.currentSandbox?.id === id
-            ? { ...state.currentSandbox, isActive: false, status: SandboxStatus.PAUSED }
-            : state.currentSandbox,
+          currentSandbox:
+            state.currentSandbox?.id === id
+              ? { ...state.currentSandbox, isActive: false, status: SandboxStatus.PAUSED }
+              : state.currentSandbox,
         }));
       },
 
       resumeSandbox: async (id) => {
         set((state) => ({
           sandboxes: state.sandboxes.map((s) =>
-            s.id === id ? { ...s, isActive: true, status: SandboxStatus.ACTIVE, updatedAt: new Date() } : s
+            s.id === id
+              ? { ...s, isActive: true, status: SandboxStatus.ACTIVE, updatedAt: new Date() }
+              : s
           ),
-          currentSandbox: state.currentSandbox?.id === id
-            ? { ...state.currentSandbox, isActive: true, status: SandboxStatus.ACTIVE }
-            : state.currentSandbox,
+          currentSandbox:
+            state.currentSandbox?.id === id
+              ? { ...state.currentSandbox, isActive: true, status: SandboxStatus.ACTIVE }
+              : state.currentSandbox,
         }));
       },
 
@@ -315,11 +407,23 @@ export const useSandboxStore = create<SandboxState>()(
         }
       },
 
-      generateTestData: async (sandboxIdOrConfig?: string | { subscriptionCount?: number; transactionCount?: number }) => {
+      generateTestData: async (
+        sandboxIdOrConfig?: string | { subscriptionCount?: number; transactionCount?: number }
+      ) => {
         try {
           set({ isLoading: true, error: null });
-          const count = typeof sandboxIdOrConfig === 'object' ? sandboxIdOrConfig.subscriptionCount || 8 : 8;
-          const names = ['Netflix', 'Spotify', 'Adobe CC', 'Slack Pro', 'GitHub Team', 'Figma Pro', 'Notion Plus', 'Vercel Pro'];
+          const count =
+            typeof sandboxIdOrConfig === 'object' ? sandboxIdOrConfig.subscriptionCount || 8 : 8;
+          const names = [
+            'Netflix',
+            'Spotify',
+            'Adobe CC',
+            'Slack Pro',
+            'GitHub Team',
+            'Figma Pro',
+            'Notion Plus',
+            'Vercel Pro',
+          ];
           const prices = [15.99, 9.99, 54.99, 8.75, 4.0, 12.0, 10.0, 20.0];
           const subCount = Math.min(count, names.length);
 
@@ -357,7 +461,10 @@ export const useSandboxStore = create<SandboxState>()(
           });
         } catch (err) {
           set({
-            error: errorHandler.handleError(err as Error, { action: 'generateTestData', timestamp: new Date() }),
+            error: errorHandler.handleError(err as Error, {
+              action: 'generateTestData',
+              timestamp: new Date(),
+            }),
             isLoading: false,
           });
         }
@@ -369,7 +476,12 @@ export const useSandboxStore = create<SandboxState>()(
           subscriptions: [],
           sandboxSubscriptions: [],
           transactions: [],
-          metrics: { totalSubscriptions: 0, totalTransactions: 0, totalVolume: 0, totalApiCalls: 0 },
+          metrics: {
+            totalSubscriptions: 0,
+            totalTransactions: 0,
+            totalVolume: 0,
+            totalApiCalls: 0,
+          },
           usageRecords: [],
           usageStats: null,
         });
@@ -485,7 +597,10 @@ export const useSandboxStore = create<SandboxState>()(
           }));
         } catch (err) {
           set({
-            error: errorHandler.handleError(err as Error, { action: 'createDeveloperProfile', timestamp: new Date() }),
+            error: errorHandler.handleError(err as Error, {
+              action: 'createDeveloperProfile',
+              timestamp: new Date(),
+            }),
             isLoading: false,
           });
         }
@@ -519,7 +634,10 @@ export const useSandboxStore = create<SandboxState>()(
           return key;
         } catch (err) {
           set({
-            error: errorHandler.handleError(err as Error, { action: 'generateApiKey', timestamp: new Date() }),
+            error: errorHandler.handleError(err as Error, {
+              action: 'generateApiKey',
+              timestamp: new Date(),
+            }),
             isLoading: false,
           });
           throw err;
@@ -551,7 +669,10 @@ export const useSandboxStore = create<SandboxState>()(
           get().completeOnboardingStep(DeveloperOnboardingStep.GENERATE_API_KEY);
         } catch (err) {
           set({
-            error: errorHandler.handleError(err as Error, { action: 'createApiKey', timestamp: new Date() }),
+            error: errorHandler.handleError(err as Error, {
+              action: 'createApiKey',
+              timestamp: new Date(),
+            }),
             isLoading: false,
           });
         }
@@ -582,11 +703,14 @@ export const useSandboxStore = create<SandboxState>()(
       fetchUsageForSandbox: (sandboxId) => {
         const records = get().usageRecords.filter((r) => r.sandboxId === sandboxId);
         const totalRequests = records.length;
-        const successfulRequests = records.filter((r) => r.statusCode >= 200 && r.statusCode < 400).length;
+        const successfulRequests = records.filter(
+          (r) => r.statusCode >= 200 && r.statusCode < 400
+        ).length;
         const failedRequests = totalRequests - successfulRequests;
-        const avgResponseTime = totalRequests > 0
-          ? records.reduce((sum, r) => sum + r.responseTime, 0) / totalRequests
-          : 0;
+        const avgResponseTime =
+          totalRequests > 0
+            ? records.reduce((sum, r) => sum + r.responseTime, 0) / totalRequests
+            : 0;
 
         const requestsByEndpoint: Record<string, number> = {};
         const requestsByDay: Record<string, number> = {};
@@ -614,7 +738,10 @@ export const useSandboxStore = create<SandboxState>()(
             successfulRequests,
             failedRequests,
             averageResponseTime: Math.round(avgResponseTime),
-            totalDataTransferred: records.reduce((sum, r) => sum + (r.requestSize || 0) + (r.responseSize || 0), 0),
+            totalDataTransferred: records.reduce(
+              (sum, r) => sum + (r.requestSize || 0) + (r.responseSize || 0),
+              0
+            ),
             periodStart,
             periodEnd: now,
             requestsByEndpoint,

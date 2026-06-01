@@ -75,8 +75,10 @@ export class ApiKeyService {
       return false;
     }
 
-    return validation.apiKey.permissions.includes(permission) ||
-      validation.apiKey.permissions.includes('admin');
+    return (
+      validation.apiKey.permissions.includes(permission) ||
+      validation.apiKey.permissions.includes('admin')
+    );
   }
 
   async revokeApiKey(keyId: string): Promise<boolean> {

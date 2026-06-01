@@ -1,12 +1,6 @@
 import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-} from 'react-native';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { useSandboxStore } from '../store/sandboxStore';
@@ -23,10 +17,7 @@ export default function IntegrationGuideDetailScreen() {
     return (
       <View style={styles.emptyContainer}>
         <Text style={styles.emptyText}>No guide selected</Text>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Text style={styles.backButtonText}>Go Back</Text>
         </TouchableOpacity>
       </View>
@@ -79,14 +70,12 @@ export default function IntegrationGuideDetailScreen() {
             style={[
               styles.difficultyBadge,
               { backgroundColor: getDifficultyColor(selectedGuide.difficulty) + '20' },
-            ]}
-          >
+            ]}>
             <Text
               style={[
                 styles.difficultyText,
                 { color: getDifficultyColor(selectedGuide.difficulty) },
-              ]}
-            >
+              ]}>
               {selectedGuide.difficulty}
             </Text>
           </View>
