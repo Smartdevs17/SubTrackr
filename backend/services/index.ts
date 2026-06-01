@@ -67,3 +67,18 @@ export type {
   SubscriptionEventQuery,
   SubscriptionEventType,
 } from './subscriptionEventStore';
+
+// ── Parallel block indexer (Issue #413) ──────────────────────────────────────
+export { BlockIndexer, createBlockIndexer } from './blockIndexer';
+export type {
+  BlockEvent,
+  BlockRange,
+  IndexerCheckpoint,
+  IndexerConfig,
+  IndexingStats,
+  WorkerResult,
+} from './blockIndexer';
+export { IndexingMonitor } from './indexingMonitor';
+export type { MonitorSnapshot } from './indexingMonitor';
+export { DataPipelineService } from './dataPipeline';
+export type { PipelineConfig, PipelineStatus } from './dataPipeline';
