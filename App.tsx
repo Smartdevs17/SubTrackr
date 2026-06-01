@@ -9,6 +9,7 @@ import ErrorBoundary from './src/components/ErrorBoundary';
 import { initI18n } from './src/i18n/config';
 import i18n from './src/i18n/config';
 import { I18nextProvider } from 'react-i18next';
+import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 
 // Import WalletConnect compatibility layer
 import '@walletconnect/react-native-compat';
@@ -89,6 +90,25 @@ function NotificationBootstrap() {
   return null;
 }
 
+function AppShell() {
+  const { isDark, colors } = useTheme();
+
+  return (
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background.primary }}>
+      <View style={{ flex: 1, backgroundColor: colors.background.primary }} testID="app-root">
+        <StatusBar style={isDark ? 'light' : 'dark'} backgroundColor={colors.background.primary} />
+        <ErrorBoundary>
+          <I18nextProvider i18n={i18n}>
+            <NotificationBootstrap />
+            <AppNavigator />
+          </I18nextProvider>
+        </ErrorBoundary>
+        <AppKit />
+      </View>
+    </GestureHandlerRootView>
+  );
+}
+
 export default function App() {
   const [i18nReady, setI18nReady] = React.useState(false);
 
@@ -110,17 +130,8 @@ export default function App() {
   if (!i18nReady) return null;
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <View style={{ flex: 1 }} testID="app-root">
-        <StatusBar style="light" />
-        <ErrorBoundary>
-          <I18nextProvider i18n={i18n}>
-            <NotificationBootstrap />
-            <AppNavigator />
-          </I18nextProvider>
-        </ErrorBoundary>
-        <AppKit />
-      </View>
-    </GestureHandlerRootView>
+    <ThemeProvider>
+      <AppShell />
+    </ThemeProvider>
   );
 }

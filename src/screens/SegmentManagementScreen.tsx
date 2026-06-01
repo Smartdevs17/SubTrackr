@@ -31,18 +31,20 @@ export const SegmentManagementScreen: React.FC = () => {
       <TouchableOpacity
         onPress={() => navigation.navigate('SegmentDetail', { segmentId: item.id })}>
         <View style={styles.segmentHeader}>
-          <Text style={[styles.segmentName, { color: theme.colors.text }]}>{item.name}</Text>
+          <Text style={[styles.segmentName, { color: theme.colors.text.primary }]}>{item.name}</Text>
           <View style={[styles.logicBadge, { backgroundColor: theme.colors.accent }]}>
-            <Text style={styles.logicBadgeText}>{item.logic}</Text>
+            <Text style={[styles.logicBadgeText, { color: theme.colors.onPrimary }]}>
+              {item.logic}
+            </Text>
           </View>
         </View>
-        <Text style={[styles.segmentDesc, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+        <Text style={[styles.segmentDesc, { color: theme.colors.text.secondary }]} numberOfLines={1}>
           {item.description || 'No description'}
         </Text>
         <View style={styles.segmentFooter}>
-          <Text style={{ color: theme.colors.primary }}>{item.criteria.length} Rules</Text>
+          <Text style={{ color: theme.colors.brand.primary }}>{item.criteria.length} Rules</Text>
           <TouchableOpacity onPress={() => deleteSegment(item.id)}>
-            <Text style={{ color: theme.colors.error }}>Delete</Text>
+            <Text style={{ color: theme.colors.status.error }}>Delete</Text>
           </TouchableOpacity>
         </View>
       </TouchableOpacity>
@@ -50,7 +52,7 @@ export const SegmentManagementScreen: React.FC = () => {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background.primary }]}>
       <FlatList
         data={segments}
         keyExtractor={(item) => item.id}
@@ -58,7 +60,7 @@ export const SegmentManagementScreen: React.FC = () => {
         ListHeaderComponent={
           <>
             <View style={styles.header}>
-              <Text style={[styles.title, { color: theme.colors.text }]}>Segments</Text>
+              <Text style={[styles.title, { color: theme.colors.text.primary }]}>Segments</Text>
               <Button
                 title="+ New Segment"
                 onPress={() => navigation.navigate('SegmentDetail', { segmentId: 'new' })}
@@ -70,7 +72,7 @@ export const SegmentManagementScreen: React.FC = () => {
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={{ color: theme.colors.textSecondary }}>No segments created yet.</Text>
+            <Text style={{ color: theme.colors.text.secondary }}>No segments created yet.</Text>
           </View>
         }
         contentContainerStyle={styles.listContent}
@@ -116,7 +118,6 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   logicBadgeText: {
-    color: '#fff',
     fontSize: 10,
     fontWeight: 'bold',
   },

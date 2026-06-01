@@ -124,6 +124,7 @@
     "jest-expo": "~53.0.5",
     "lint-staged": "^16.4.0",
     "prettier": "^3.8.3",
+    "react-test-renderer": "^19.2.5",
     "semantic-release": "^24.2.9",
     "size-limit": "^11.1.4",
     "ts-jest": "^29.4.11",
