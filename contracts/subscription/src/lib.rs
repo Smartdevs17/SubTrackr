@@ -6,6 +6,8 @@ mod events;
 mod errors;
 mod event_store;
 mod state;
+mod billing;
+mod charging;
 use soroban_sdk::{token, Address, Env, IntoVal, String, Symbol, TryFromVal, Val, Vec};
 use subtrackr_oracle::{OracleError, SubTrackrOracleClient};
 use subtrackr_types::{
@@ -2016,6 +2018,105 @@ impl SubTrackrSubscription {
             end: end_time,
         };
         event_store::export_events(&env, plan_id, range)
+    }
+
+    // ── Billing Schedules ──
+
+    pub fn set_billing_schedule(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscription_id: u64,
+        interval: subtrackr_types::Interval,
+        start_date: u64,
+        trial_period_days: u32,
+        promotional_rate: i128,
+        promotional_duration_days: u32,
+        custom_invoice_day: u32,
+    ) {
+        proxy.require_auth();
+        let sub: Subscription =
+            storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
+                .expect("Subscription not found");
+        sub.subscriber.require_auth();
+
+        let schedule = subtrackr_types::BillingSchedule {
+            interval,
+            start_date,
+            trial_period_days,
+            promotional_rate,
+            promotional_duration_days,
+            custom_invoice_day,
+        };
+        billing::set_billing_schedule(&env, subscription_id, &schedule);
+    }
+
+    pub fn get_billing_schedule(
+        env: Env,
+        _storage: Address,
+        subscription_id: u64,
+    ) -> Option<subtrackr_types::BillingSchedule> {
+        billing::get_billing_schedule(&env, subscription_id)
+    }
+
+    pub fn get_billing_preview(
+        env: Env,
+        _storage: Address,
+        subscription_id: u64,
+        price: i128,
+        periods: u32,
+    ) -> Vec<billing::BillingPreviewItem> {
+        let schedule = billing::get_billing_schedule(&env, subscription_id)
+            .unwrap_or(subtrackr_types::BillingSchedule {
+                interval: subtrackr_types::Interval::Monthly,
+                start_date: 0,
+                trial_period_days: 0,
+                promotional_rate: 0,
+                promotional_duration_days: 0,
+                custom_invoice_day: 0,
+            });
+        let now = env.ledger().timestamp();
+        billing::get_billing_preview(&env, &schedule, price, now, periods)
+    }
+
+    // ── Multi-step Charging with Retry ──
+
+    pub fn start_charge(
+        env: Env,
+        _storage: Address,
+        subscription_id: u64,
+        amount: i128,
+    ) -> subtrackr_types::ChargeAttempt {
+        charging::start_charge(&env, subscription_id, amount)
+    }
+
+    pub fn retry_charge(
+        env: Env,
+        _storage: Address,
+        charge_id: u64,
+    ) -> Option<subtrackr_types::ChargeAttempt> {
+        let config = charging::default_retry_config();
+        charging::retry_charge(&env, charge_id, &config)
+    }
+
+    pub fn get_charge_history(
+        env: Env,
+        _storage: Address,
+        subscription_id: u64,
+    ) -> Vec<subtrackr_types::ChargeAttempt> {
+        charging::get_charge_history(&env, subscription_id)
+    }
+
+    pub fn abort_charge(
+        env: Env,
+        _storage: Address,
+        proxy: Address,
+        charge_id: u64,
+    ) {
+        proxy.require_auth();
+        let mut attempt = charging::get_charge_attempt(&env, charge_id)
+            .expect("Charge attempt not found");
+        charging::abort_charge(&env, &mut attempt);
     }
 }
 
