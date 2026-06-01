@@ -16,6 +16,7 @@ interface SubscriptionListProps {
   totalCount: number;
   onSubscriptionPress: (sub: Subscription) => void;
   onToggleStatus: (id: string) => void;
+  onDelete: (id: string) => void;
   onAddFirstPress: () => void;
 }
 
@@ -30,6 +31,7 @@ export const SubscriptionList: React.FC<SubscriptionListProps> = React.memo(
     totalCount,
     onSubscriptionPress,
     onToggleStatus,
+    onDelete,
     onAddFirstPress,
   }) => {
     usePerformanceProfiler('SubscriptionList', {
@@ -43,9 +45,10 @@ export const SubscriptionList: React.FC<SubscriptionListProps> = React.memo(
           subscription={item}
           onPress={onSubscriptionPress}
           onToggleStatus={onToggleStatus}
+          onDelete={onDelete}
         />
       ),
-      [onSubscriptionPress, onToggleStatus]
+      [onSubscriptionPress, onToggleStatus, onDelete]
     );
 
     const keyExtractor = useCallback((item: Subscription) => item.id, []);
