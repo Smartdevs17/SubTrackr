@@ -9,7 +9,9 @@ import {
   Alert,
   ActivityIndicator,
   Switch,
+  RefreshControl,
 } from 'react-native';
+import useRefresh from '../hooks/useRefresh';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSubscriptionStore, useSettingsStore } from '../store';
@@ -49,6 +51,8 @@ const SubscriptionDetailScreen: React.FC = () => {
   );
 
   const [loading, setLoading] = useState(!subscription);
+
+  const { refreshing, refresh } = useRefresh();
 
   useEffect(() => {
     if (!validation.isValid) {
@@ -121,7 +125,20 @@ const SubscriptionDetailScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container} testID="subscription-detail-screen">
       <ScreenTransition type="slide" duration={400}>
-        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() =>
+                void refresh({
+                  clearBefore: () => useSubscriptionStore.setState({ subscriptions: [] }),
+                  fetcher: () => useSubscriptionStore.getState().fetchSubscriptions(),
+                })
+              }
+            />
+          }>
           {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity

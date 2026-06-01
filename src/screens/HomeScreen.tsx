@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -20,6 +20,7 @@ import { RootStackParamList } from '../navigation/types';
 import { useGamificationStore } from '../store/gamificationStore';
 import { useTransactionQueueStore } from '../store/transactionQueueStore';
 import { usePerformanceProfiler } from '../hooks/usePerformanceProfiler';
+import useRefresh from '../hooks/useRefresh';
 
 // Components
 import { FloatingActionButton } from '../components/common/FloatingActionButton';
@@ -41,7 +42,7 @@ const HomeScreen: React.FC = () => {
   const pendingTransactions = useTransactionQueueStore((state) => state.queuedTransactions.length);
   const { level } = useGamificationStore();
   const { preferredCurrency, exchangeRates } = useSettingsStore();
-  const [refreshing, setRefreshing] = useState(false);
+  const { refreshing, refresh } = useRefresh();
   const [upcomingSubscriptions, setUpcomingSubscriptions] = useState<Subscription[]>([]);
   const [showFilterModal, setShowFilterModal] = useState(false);
 
@@ -67,9 +68,10 @@ const HomeScreen: React.FC = () => {
 
 
   const onRefresh = async () => {
-    setRefreshing(true);
-    await fetchSubscriptions();
-    setRefreshing(false);
+    await refresh({
+      clearBefore: () => useSubscriptionStore.setState({ subscriptions: [] }),
+      fetcher: fetchSubscriptions,
+    });
   };
 
   const handleToggleStatus = async (id: string) => {

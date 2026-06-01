@@ -21,7 +21,7 @@
 
 #![no_std]
 
-use soroban_sdk::{contracttype, Address, String, Vec};
+use soroban_sdk::{contracttype, Address, BytesN, String, Vec};
 
 /// Current schema version of this types crate.
 ///
@@ -507,6 +507,18 @@ pub struct FraudReport {
     pub recent_cases: Vec<FraudCase>,
 }
 
+// ── Loyalty & Rewards types ──
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum PointTxType {
+    Earned,
+    Redeemed,
+    Expired,
+    ReferralBonus,
+    StreakBonus,
+    Achievement,
+}
 // ── Access Control Types ──
 
 #[contracttype]
@@ -520,6 +532,14 @@ pub enum Role {
 
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
+pub struct LoyaltyTierConfig {
+    pub name: String,
+    pub points_threshold: u64,
+    pub discount_rate_bps: u32,
+    pub priority_support: bool,
+    pub reduced_fees_bps: u32,
+}
+
 pub enum Permission {
     GrantRole,
     RevokeRole,
@@ -555,6 +575,12 @@ pub enum Permission {
 
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
+pub struct LoyaltyConfig {
+    pub points_per_dollar: u64,
+    pub expiration_days: u64,
+    pub tiers: Vec<LoyaltyTierConfig>,
+    pub streak_bonus_threshold: u64,
+}
 pub enum RoleChangeAction {
     Granted,
     Revoked,
@@ -562,6 +588,25 @@ pub enum RoleChangeAction {
 
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
+pub struct PointTransaction {
+    pub id: u64,
+    pub subscriber: Address,
+    pub amount: i128,
+    pub tx_type: PointTxType,
+    pub timestamp: u64,
+    pub reference_id: u64,
+    pub description: String,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct RewardsRedemption {
+    pub id: u64,
+    pub subscriber: Address,
+    pub points_cost: u64,
+    pub discount_amount: i128,
+    pub timestamp: u64,
+}
 pub struct RoleChangeEntry {
     pub id: u64,
     pub user: Address,
@@ -699,6 +744,42 @@ pub enum StorageKey {
     /// Usage record for a subscription and metric (sub_id, metric -> UsageRecord)
     SubscriptionUsage(u64, QuotaMetric),
 
+    // ── Added in storage version 5 (API Key & Rate Limiting) ──
+    ApiKey(u64),
+    ApiKeyCount,
+    ApiKeysByOwner(Address),
+    ApiKeyAudit(u64),
+    ApiKeyAuditCount,
+    RateLimitMinute(u64, u64),
+    RateLimitHour(u64, u64),
+    RateLimitDay(u64, u64),
+    ApiUsage(u64, u64),
+   // ── Added in storage version 5 (Oracle Integration) ──
+    // ── Added in storage version 5 (Loyalty & Rewards) ──
+    /// Global loyalty program config.
+    LoyaltyConfig,
+    /// Current points balance for a subscriber.
+    LoyaltyPoints(Address),
+    /// Lifetime points earned for a subscriber.
+    LifetimePoints(Address),
+    /// Total amount spent by a subscriber.
+    TotalSpent(Address),
+    /// When the subscriber enrolled in the loyalty program.
+    MemberSince(Address),
+    /// Current consecutive on-time charge streak.
+    Streak(Address),
+    /// Timestamp of the last charge processed (for streak calculation).
+    LastChargeAt(Address),
+    /// When the subscriber's current points balance expires.
+    PointsExpiration(Address),
+    /// Counter for point transaction IDs.
+    PointTxCount,
+    /// Individual point transaction record.
+    PointTx(u64),
+    /// Counter for redemption IDs.
+    RedemptionCount,
+    /// Individual redemption record.
+    Redemption(u64),
     // ── Added in storage version 5 (Access Control) ──
     /// Address of the access_control contract for RBAC.
     AccessControl,
@@ -729,6 +810,140 @@ pub enum StorageKey {
     /// Temporary nonce used to deduplicate rapid charge attempts within a
     /// single ledger sequence window.  Expires after one ledger close (~5 s).
     TmpChargeNonce(u64),
+}
+
+pub type ApiKeyId = u64;
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum ApiKeyStatus {
+    Active,
+    Revoked,
+    Expired,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum UsageTier {
+    Free,
+    Basic,
+    Pro,
+    Enterprise,
+}
+
+impl UsageTier {
+    pub fn default_rate_limit(&self) -> RateLimitConfig {
+        match self {
+            UsageTier::Free => RateLimitConfig {
+                requests_per_minute: 100,
+                requests_per_hour: 1_000,
+                requests_per_day: 10_000,
+                burst_limit: 10,
+            },
+            UsageTier::Basic => RateLimitConfig {
+                requests_per_minute: 1_000,
+                requests_per_hour: 10_000,
+                requests_per_day: 100_000,
+                burst_limit: 50,
+            },
+            UsageTier::Pro => RateLimitConfig {
+                requests_per_minute: 10_000,
+                requests_per_hour: 100_000,
+                requests_per_day: 1_000_000,
+                burst_limit: 200,
+            },
+            UsageTier::Enterprise => RateLimitConfig {
+                requests_per_minute: 100_000,
+                requests_per_hour: 1_000_000,
+                requests_per_day: 10_000_000,
+                burst_limit: 1000,
+            },
+        }
+    }
+
+    pub fn price_per_thousand(&self) -> i128 {
+        match self {
+            UsageTier::Free => 0,
+            UsageTier::Basic => 1,    // 0.001 per 1k requests (in stroops)
+            UsageTier::Pro => 5,      // 0.005 per 1k
+            UsageTier::Enterprise => 10, // 0.01 per 1k
+        }
+    }
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct RateLimitConfig {
+    pub requests_per_minute: u32,
+    pub requests_per_hour: u32,
+    pub requests_per_day: u32,
+    pub burst_limit: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ApiKeyConfig {
+    pub name: String,
+    pub rate_limit: RateLimitConfig,
+    pub usage_tier: UsageTier,
+    pub expires_at: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ApiKey {
+    pub id: ApiKeyId,
+    pub owner: Address,
+    pub key_hash: BytesN<32>,
+    pub name: String,
+    pub rate_limit: RateLimitConfig,
+    pub usage_tier: UsageTier,
+    pub status: ApiKeyStatus,
+    pub created_at: u64,
+    pub expires_at: u64,
+    pub last_used_at: u64,
+    pub revoked_at: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct RateLimitWindow {
+    pub window_start: u64,
+    pub count: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ApiUsageRecord {
+    pub window_start: u64,
+    pub count: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct RateLimitStatus {
+    pub is_allowed: bool,
+    pub remaining: u32,
+    pub reset_at: u64,
+    pub retry_after: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct UsageReport {
+    pub key_id: ApiKeyId,
+    pub period: TimeRange,
+    pub total_requests: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ApiKeyAuditEntry {
+    pub id: u64,
+    pub key_id: ApiKeyId,
+    pub action: String,
+    pub changed_by: Address,
+    pub timestamp: u64,
 }
 
 /// Slippage protection bounds for oracle-based pricing.
