@@ -9,8 +9,8 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
-  FlatList,
 } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { useLoyaltyStore } from '../store/loyaltyStore';
 import { useWalletStore } from '../store/walletStore';
@@ -174,9 +174,10 @@ const LoyaltyDashboardScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      <FlatList
+      <FlashList
         data={rewards.filter((r) => r.isActive)}
         keyExtractor={(item) => item.id}
+        scrollEnabled={false}
         renderItem={({ item: reward }) => (
           <TouchableOpacity
             style={styles.rewardItem}
@@ -288,7 +289,7 @@ const LoyaltyDashboardScreen: React.FC = () => {
               Select a reward to redeem your points
             </Text>
 
-            <FlatList
+            <FlashList
               data={rewards.filter((r) => r.isActive)}
               keyExtractor={(item) => item.id}
               renderItem={({ item: reward }) => (
