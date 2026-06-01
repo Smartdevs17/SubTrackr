@@ -321,17 +321,18 @@ const SettingsStack = () => (
 
 const TabNavigator = () => {
   const { t } = useTranslation();
+  const { colors } = useTheme();
 
   return (
     <Tab.Navigator
       screenOptions={{
         tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
+          backgroundColor: colors.navigation.tabBar,
+          borderTopColor: colors.navigation.tabBarBorder,
           borderTopWidth: 1,
         },
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textSecondary,
+        tabBarActiveTintColor: colors.navigation.activeTab,
+        tabBarInactiveTintColor: colors.navigation.inactiveTab,
         headerShown: false,
       }}>
       <Tab.Screen
@@ -399,8 +400,10 @@ const TabNavigator = () => {
 };
 
 export const AppNavigator = () => {
+  const { isDark } = useTheme();
+
   return (
-    <NavigationContainer ref={navigationRef}>
+    <NavigationContainer ref={navigationRef} theme={isDark ? darkNavigationTheme : lightNavigationTheme}>
       <TabNavigator />
     </NavigationContainer>
   );

@@ -366,7 +366,12 @@ const WalletConnectV2Screen: React.FC = () => {
               on another device.
             </Text>
             <View style={styles.qrContainer}>
-              <QRCode value={pairingUri} size={180} color={colors.text} backgroundColor="#ffffff" />
+              <QRCode
+                value={pairingUri}
+                size={180}
+                color={colors.text}
+                backgroundColor={colors.background}
+              />
             </View>
             <TouchableOpacity style={styles.secondaryButton} onPress={handleCopyPairingUri}>
               <Text style={styles.secondaryButtonText}>Copy pairing handoff</Text>

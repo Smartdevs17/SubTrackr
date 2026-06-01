@@ -16,6 +16,7 @@ import {
 } from '../../utils/subscriptionHelpers';
 import { useSettingsStore } from '../../store/settingsStore';
 import { currencyService } from '../../services/currencyService';
+import { SubscriptionIcon } from './SubscriptionIcon';
 
 
 export interface SubscriptionCardProps {
@@ -84,7 +85,12 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = React.memo(
         activeOpacity={0.8}>
         <View style={styles.header}>
           <View style={styles.iconContainer}>
-            <Text style={styles.icon}>{getCategoryIcon(subscription.category)}</Text>
+            <SubscriptionIcon
+              iconUrl={subscription.iconUrl}
+              fallbackIcon={getCategoryIcon(subscription.category)}
+              size={48}
+              accessibilityLabel={`${subscription.name} icon`}
+            />
           </View>
 
           <View style={styles.titleContainer}>
@@ -213,16 +219,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
     marginRight: spacing.md,
-  },
-  icon: {
-    fontSize: 24,
   },
   titleContainer: {
     flex: 1,

@@ -119,6 +119,25 @@ function NotificationBootstrap() {
   return null;
 }
 
+function AppShell() {
+  const { isDark, colors } = useTheme();
+
+  return (
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background.primary }}>
+      <View style={{ flex: 1, backgroundColor: colors.background.primary }} testID="app-root">
+        <StatusBar style={isDark ? 'light' : 'dark'} backgroundColor={colors.background.primary} />
+        <ErrorBoundary>
+          <I18nextProvider i18n={i18n}>
+            <NotificationBootstrap />
+            <AppNavigator />
+          </I18nextProvider>
+        </ErrorBoundary>
+        <AppKit />
+      </View>
+    </GestureHandlerRootView>
+  );
+}
+
 export default function App() {
   const [i18nReady, setI18nReady] = React.useState(false);
   const [pendingCrash, setPendingCrash] = React.useState<CrashRecord | null>(null);
