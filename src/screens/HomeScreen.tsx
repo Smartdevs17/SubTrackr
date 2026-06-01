@@ -44,8 +44,7 @@ const HomeScreen: React.FC = () => {
   const [upcomingSubscriptions, setUpcomingSubscriptions] = useState<Subscription[]>([]);
   const [showFilterModal, setShowFilterModal] = useState(false);
 
-
-  // Use the new hook
+  // Use the filter tracking hook
   const { filters, filteredAndSorted, activeFilterCount, hasActiveFilters, clearAllFilters } =
     useFilteredSubscriptions(subscriptions);
 
@@ -63,7 +62,6 @@ const HomeScreen: React.FC = () => {
     calculateStats();
     if (subscriptions) setUpcomingSubscriptions(getUpcomingSubscriptions(subscriptions));
   }, [subscriptions, calculateStats, preferredCurrency, exchangeRates]);
-
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -153,7 +151,6 @@ const HomeScreen: React.FC = () => {
           onWalletPress={() => navigation.navigate('WalletConnect')}
           currency={preferredCurrency}
         />
-
 
         {!isOnline && (
           <View style={styles.offlineBanner}>
@@ -280,7 +277,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   offlineBanner: {
-    backgroundColor: colors.error + '20', // Translucent red
+    backgroundColor: colors.error + '20',
     padding: spacing.md,
     marginHorizontal: spacing.lg,
     marginBottom: spacing.md,

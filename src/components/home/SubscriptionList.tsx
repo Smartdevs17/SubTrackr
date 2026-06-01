@@ -1,10 +1,11 @@
 import React, { useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { colors, spacing, typography, borderRadius, shadows } from '../../utils/constants';
 import { SubscriptionCard } from '../subscription/SubscriptionCard';
 import { Subscription } from '../../types/subscription';
 import { usePerformanceProfiler } from '../../hooks/usePerformanceProfiler';
+import { EmptyState } from '../common/EmptyState';
 
 interface SubscriptionListProps {
   subscriptions: Subscription[];
@@ -97,7 +98,7 @@ export const SubscriptionList: React.FC<SubscriptionListProps> = React.memo(
             <Text style={styles.sectionTitle} accessibilityRole="header">
               Your Subscriptions
             </Text>
-            {hasSubscriptions && (
+            {hasSubscriptions && activeSubscriptions.length > 0 && (
               <View
                 style={styles.sectionHeaderRight}
                 accessibilityElementsHidden={true}
@@ -115,7 +116,23 @@ export const SubscriptionList: React.FC<SubscriptionListProps> = React.memo(
             )}
           </View>
 
-          {hasSubscriptions ? (
+          {!hasSubscriptions ? (
+            /* Context 1: Absolute empty state (no tracking items exist) */
+            <EmptyState
+              icon="📱"
+              title="No subscriptions yet"
+              message="Add your first subscription to start tracking your automated expenses and recurring logs."
+              actionText="Add Subscription"
+              onAction={onAddFirstPress}
+            />
+          ) : activeSubscriptions.length === 0 ? (
+            /* Context 2: Active filter empty state (subscriptions exist but filtered out) */
+            <EmptyState
+              icon="🔍"
+              title="No matches found"
+              message="No subscriptions correspond to your active filter or search query parameters."
+            />
+          ) : (
             <View style={styles.subscriptionsList}>
               <FlashList
                 data={activeSubscriptions}
@@ -125,38 +142,6 @@ export const SubscriptionList: React.FC<SubscriptionListProps> = React.memo(
                 removeClippedSubviews
                 showsVerticalScrollIndicator={false}
               />
-            </View>
-          ) : (
-            <View
-              style={styles.emptyState}
-              accessible={true}
-              accessibilityLabel="No subscriptions yet. Add your first subscription to start tracking your spending.">
-              <Text
-                style={styles.emptyIcon}
-                accessibilityElementsHidden={true}
-                importantForAccessibility="no">
-                📱
-              </Text>
-              <Text
-                style={styles.emptyText}
-                accessibilityElementsHidden={true}
-                importantForAccessibility="no">
-                No subscriptions yet
-              </Text>
-              <Text
-                style={styles.emptySubtext}
-                accessibilityElementsHidden={true}
-                importantForAccessibility="no">
-                Add your first subscription to start tracking your spending
-              </Text>
-              <TouchableOpacity
-                style={styles.addFirstButton}
-                onPress={onAddFirstPress}
-                testID="add-subscription-button"
-                accessibilityRole="button"
-                accessibilityLabel="Add your first subscription">
-                <Text style={styles.addFirstButtonText}>Add Subscription</Text>
-              </TouchableOpacity>
             </View>
           )}
         </View>
@@ -225,38 +210,5 @@ const styles = StyleSheet.create({
   },
   subscriptionsList: {
     marginBottom: spacing.lg,
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: spacing.xl,
-    paddingHorizontal: spacing.lg,
-  },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: spacing.md,
-  },
-  emptyText: {
-    ...typography.h3,
-    color: colors.text,
-    marginBottom: spacing.xs,
-    textAlign: 'center',
-  },
-  emptySubtext: {
-    ...typography.body,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: spacing.lg,
-    lineHeight: 22,
-  },
-  addFirstButton: {
-    backgroundColor: colors.primary,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    borderRadius: borderRadius.md,
-  },
-  addFirstButtonText: {
-    ...typography.body,
-    color: colors.text,
-    fontWeight: '600',
   },
 });
