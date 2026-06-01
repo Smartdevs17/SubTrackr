@@ -13,6 +13,7 @@ import CryptoPaymentScreen from '../screens/CryptoPaymentScreen';
 import CommunityScreen from '../screens/CommunityScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import SubscriptionDetailScreen from '../screens/SubscriptionDetailScreen';
+import EditSubscriptionScreen from '../screens/EditSubscriptionScreen';
 import InvoiceListScreen from '../screens/InvoiceListScreen';
 import InvoiceDetailScreen from '../screens/InvoiceDetailScreen';
 import AnalyticsScreen from '../screens/AnalyticsScreen';
@@ -71,6 +72,11 @@ const HomeStack = () => (
     <Stack.Screen
       name="SubscriptionDetail"
       component={SubscriptionDetailScreen}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="EditSubscription"
+      component={EditSubscriptionScreen}
       options={{ headerShown: false }}
     />
     <Stack.Screen
