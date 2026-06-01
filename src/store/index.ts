@@ -1,6 +1,7 @@
 export { useSubscriptionStore } from './subscriptionStore';
 export { useInvoiceStore } from './invoiceStore';
 export { useTransactionQueueStore } from './transactionQueueStore';
+export { useTransactionStore } from './transactionStore';
 export { useWalletStore } from './walletStore';
 export { useNetworkStore } from './networkStore';
 export { useSettingsStore } from './settingsStore';
