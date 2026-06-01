@@ -108,6 +108,7 @@
     "@semantic-release/npm": "^12.0.2",
     "@semantic-release/release-notes-generator": "^14.1.0",
     "@size-limit/file": "^11.1.4",
+    "@testing-library/react-native": "13.3.3",
     "@typechain/ethers-v5": "^11.1.2",
     "@types/detox": "^17.14.3",
     "@types/jest": "^29.5.14",
@@ -134,6 +135,10 @@
     "typescript": "~5.8.3"
   },
   "private": false,
+  "overrides": {
+    "hermes-parser": "0.33.3",
+    "babel-plugin-syntax-hermes-parser": "0.33.3"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/Smartdevs17/SubTrackr.git"
