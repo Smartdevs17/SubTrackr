@@ -5,6 +5,7 @@ import {
   StyleSheet,
   SafeAreaView,
   ScrollView,
+  RefreshControl,
   TouchableOpacity,
   Alert,
   ActivityIndicator,
@@ -17,6 +18,8 @@ import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
 import { useAppKit, useAppKitAccount, useAppKitProvider } from '@reown/appkit-ethers-react-native';
 import walletServiceManager, { WalletConnection, TokenBalance } from '../services/walletService';
+import { TICKER_TO_COINGECKO_ID } from '../services/priceService';
+import { useTokenPrices } from '../hooks/useTokenPrices';
 import { useWalletStore } from '../store';
 import { RootStackParamList } from '../navigation/types';
 
@@ -33,6 +36,18 @@ const WalletConnectScreen: React.FC = () => {
   const [connection, setConnection] = useState<WalletConnection | null>(null);
   const [tokenBalances, setTokenBalances] = useState<TokenBalance[]>([]);
   const [isLoadingBalances, setIsLoadingBalances] = useState(false);
+  const tokenPriceIds = tokenBalances.map((token) => token.symbol);
+  const {
+    prices,
+    isLoading: isPriceLoading,
+    isRefreshing,
+    error: priceError,
+    refresh,
+    lastUpdated,
+  } = useTokenPrices({
+    tokenIds: tokenPriceIds,
+    enabled: tokenPriceIds.length > 0,
+  });
 
   useEffect(() => {
     initializeWalletService();
@@ -114,8 +129,8 @@ const WalletConnectScreen: React.FC = () => {
     }
   };
 
-  const handleRefreshBalances = () => {
-    loadTokenBalances();
+  const handleRefreshBalances = async () => {
+    await Promise.all([loadTokenBalances(), refresh()]);
   };
 
   // Handle Copy Address
@@ -185,19 +200,24 @@ const WalletConnectScreen: React.FC = () => {
     return icons[symbol] || '🪙';
   };
 
-  const getTokenPrice = (symbol: string): number => {
-    const prices: Record<string, number> = {
-      ETH: 3500,
-      MATIC: 0.8,
-      USDC: 1.0,
-      ARB: 1.2,
-    };
-    return prices[symbol] || 1.0;
+  const getTokenPriceId = (symbol: string): string => {
+    return TICKER_TO_COINGECKO_ID[symbol.toUpperCase()] ?? symbol.toLowerCase();
   };
+
+  const hasCachedPriceData = Object.values(prices).some((price) => price.available !== false);
+  const showPriceLoading = isPriceLoading && !hasCachedPriceData;
+  const showStalePriceWarning = Boolean(priceError) && hasCachedPriceData;
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scrollView}>
+      <ScrollView
+        style={styles.scrollView}
+        refreshControl={
+          <RefreshControl
+            refreshing={isLoadingBalances || isRefreshing}
+            onRefresh={handleRefreshBalances}
+          />
+        }>
         <View style={styles.header}>
           <Text style={styles.title}>Connect Wallet</Text>
           <Text style={styles.subtitle}>Connect your Web3 wallet to enable crypto payments</Text>
@@ -333,11 +353,27 @@ const WalletConnectScreen: React.FC = () => {
                   <Text style={styles.refreshText}>Refresh</Text>
                 </TouchableOpacity>
               </View>
+              {showStalePriceWarning ? (
+                <Text style={styles.priceWarning}>
+                  ⚠️ Prices may be stale. Showing the latest cached values while CoinGecko
+                  refreshes.
+                </Text>
+              ) : null}
+              {lastUpdated ? (
+                <Text style={styles.priceMetaText}>
+                  Last price update: {new Date(lastUpdated).toLocaleTimeString()}
+                </Text>
+              ) : null}
 
               {isLoadingBalances ? (
                 <View style={styles.loadingContainer}>
                   <ActivityIndicator size="large" color={colors.primary} />
                   <Text style={styles.loadingText}>Loading balances...</Text>
+                </View>
+              ) : showPriceLoading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color={colors.primary} />
+                  <Text style={styles.loadingText}>Loading token prices...</Text>
                 </View>
               ) : (
                 <View style={styles.balancesList}>
@@ -356,9 +392,28 @@ const WalletConnectScreen: React.FC = () => {
                         <Text style={styles.tokenBalance}>
                           {parseFloat(token.balance).toFixed(4)}
                         </Text>
-                        <Text style={styles.tokenValue}>
-                          ≈ ${(parseFloat(token.balance) * getTokenPrice(token.symbol)).toFixed(2)}
-                        </Text>
+                        {(() => {
+                          const priceId = getTokenPriceId(token.symbol);
+                          const price = prices[priceId];
+                          const balance = parseFloat(token.balance);
+                          const hasPrice = Boolean(price && price.available !== false);
+
+                          if (!hasPrice) {
+                            return <Text style={styles.tokenValue}>Price unavailable</Text>;
+                          }
+
+                          return (
+                            <>
+                              <Text style={styles.tokenValue}>
+                                ≈ ${(balance * price.usd).toFixed(2)}
+                              </Text>
+                              <Text style={styles.tokenPriceChange}>
+                                {price.usd24hChange >= 0 ? '+' : ''}
+                                {price.usd24hChange.toFixed(2)}% 24h
+                              </Text>
+                            </>
+                          );
+                        })()}
                       </View>
                     </View>
                   ))}
@@ -703,6 +758,21 @@ const styles = StyleSheet.create({
   tokenValue: {
     ...typography.caption,
     color: colors.textSecondary,
+  },
+  tokenPriceChange: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: spacing.xs / 2,
+  },
+  priceWarning: {
+    ...typography.caption,
+    color: colors.warning,
+    marginBottom: spacing.sm,
+  },
+  priceMetaText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
   },
   setupButton: {
     marginTop: spacing.md,
