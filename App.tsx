@@ -10,18 +10,22 @@ import { initI18n } from './src/i18n/config';
 import i18n from './src/i18n/config';
 import { I18nextProvider } from 'react-i18next';
 
+// Validate all environment variables at startup — fails fast in production
+// and warns in development/staging if any vars are missing or malformed.
+import './src/config/env';
+
 // Import WalletConnect compatibility layer
 import '@walletconnect/react-native-compat';
 
 import { createAppKit, defaultConfig, AppKit } from '@reown/appkit-ethers-react-native';
 
 import { EVM_RPC_URLS } from './src/config/evm';
+import { env } from './src/config/env';
 import { useNetworkStore, useSettingsStore } from './src/store';
 import { sessionService } from './src/services/auth/session';
 
-
-// Get projectId from environment variable
-const projectId = process.env.WALLET_CONNECT_PROJECT_ID || 'YOUR_PROJECT_ID';
+// Get projectId from validated environment
+const projectId = env.WALLET_CONNECT_PROJECT_ID;
 
 // Create metadata
 const metadata = {
