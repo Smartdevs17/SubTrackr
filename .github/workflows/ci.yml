@@ -86,9 +86,9 @@ jobs:
         if: steps.prettier-check.outcome == 'failure'
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "chore: automated code formatting fixes via CI pipeline"
-          commit_user_name: "github-actions[bot]"
-          commit_user_email: "github-actions[bot]@users.noreply.github.com"
+          commit_message: 'chore: automated code formatting fixes via CI pipeline'
+          commit_user_name: 'github-actions[bot]'
+          commit_user_email: 'github-actions[bot]@users.noreply.github.com'
 
       - name: Enforce strict layout check
         if: steps.prettier-check.outcome == 'failure'
