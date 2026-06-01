@@ -43,6 +43,7 @@ export type RootStackParamList = {
   LoyaltyDashboard: undefined;
   CampaignManagement: undefined;
   PerformanceDashboard: undefined;
+  BillingSettings: undefined;
 };
 
 export type TabParamList = {
