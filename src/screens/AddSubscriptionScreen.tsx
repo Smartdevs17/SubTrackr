@@ -12,7 +12,7 @@ import {
   Platform,
   Keyboard,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { useSubscriptionStore, useSettingsStore } from '../store';
@@ -25,6 +25,7 @@ import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/dat
 import { errorHandler } from '../services/errorHandler';
 import type { SubscriptionFormData } from '../types/subscription';
 import { BillingCycle, SubscriptionCategory } from '../types/subscription';
+import { validateAddSubscriptionParams } from '../utils/deepLinkValidator';
 
 interface AddSubscriptionFormData extends SubscriptionFormData {
   priceError: string;
@@ -38,6 +39,9 @@ const AddSubscriptionScreen: React.FC = () => {
   const styles = React.useMemo(() => createStyles(colors), [colors]);
   const { addSubscription, isLoading, error } = useSubscriptionStore();
   const { preferredCurrency } = useSettingsStore();
+  const validation = validateAddSubscriptionParams(route.params ?? {});
+  const validationErrors = validation.errors;
+  const initialFormData = buildInitialFormData(preferredCurrency, validation.sanitised);
 
   // Ref for the name input — used for delayed focus instead of autoFocus,
   // so the screen has time to fully render before the keyboard opens.
@@ -97,10 +101,10 @@ const AddSubscriptionScreen: React.FC = () => {
   const [showPicker, setShowPicker] = useState(false);
   const [pickerMode, setPickerMode] = useState<'date' | 'time'>('date');
   const [selectedCategory, setSelectedCategory] = useState<SubscriptionCategory>(
-    SubscriptionCategory.OTHER
+    initialFormData.category
   );
   const [selectedBillingCycle, setSelectedBillingCycle] = useState<BillingCycle>(
-    BillingCycle.MONTHLY
+    initialFormData.billingCycle
   );
 
   const handleCategorySelect = (category: SubscriptionCategory) => {
