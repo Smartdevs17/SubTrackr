@@ -22,6 +22,7 @@ export type {
 export { AuditService } from './auditService';
 export { CampaignService } from './campaignService';
 export { DunningService, dunningService } from './dunningService';
+export { ExportService, exportService } from './exportService';
 export { PricingService } from './pricingService';
 export { OracleMonitorService, oracleMonitorService } from './oracleMonitorService';
 export { RateLimitingService, rateLimitingService } from './rateLimitingService';
@@ -67,3 +68,5 @@ export type {
   SubscriptionEventQuery,
   SubscriptionEventType,
 } from './subscriptionEventStore';
+export { BatchChargeService } from './batchChargeService';
+export type { BatchChargeCandidate, BatchChargeOptions, BatchChargeResult } from './batchChargeService';

@@ -62,15 +62,9 @@ const SubscriptionDetailScreen: React.FC = () => {
     }
   }, [subscription]);
 
-  const handleShare = useCallback(async () => {
-    if (!subscription) return;
-
-    try {
-      await shareSubscriptionLink(subscription.id, subscription.name);
-    } catch (error) {
-      Alert.alert('Error', 'Failed to share subscription link');
-    }
-  }, [subscription]);
+  const handleEdit = useCallback(() => {
+    navigation.navigate('EditSubscription', { id: subscription.id });
+  }, [subscription, navigation]);
 
   const handlePauseResume = useCallback(async () => {
     if (!subscription) return;
@@ -141,7 +135,14 @@ const SubscriptionDetailScreen: React.FC = () => {
             <Text style={styles.title} accessibilityRole="header">
               Subscription Details
             </Text>
-            <View style={styles.placeholder} />
+            <TouchableOpacity
+              onPress={handleEdit}
+              style={styles.editButton}
+              accessibilityRole="button"
+              accessibilityLabel="Edit subscription"
+              testID="edit-subscription-button">
+              <Text style={styles.editButtonText}>Edit</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Main Info Card */}
@@ -361,6 +362,16 @@ const styles = StyleSheet.create({
   },
   placeholder: {
     width: 40,
+  },
+  editButton: {
+    padding: spacing.sm,
+    width: 40,
+    alignItems: 'flex-end',
+  },
+  editButtonText: {
+    ...typography.body,
+    color: colors.primary,
+    fontWeight: '500',
   },
   backIcon: {
     padding: spacing.sm,

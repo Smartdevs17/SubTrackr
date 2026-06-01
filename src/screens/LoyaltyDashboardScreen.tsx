@@ -9,15 +9,17 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
-  FlatList,
 } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
+import { useThemeColors } from '../hooks/useThemeColors';
 import { useLoyaltyStore } from '../store/loyaltyStore';
 import { useWalletStore } from '../store/walletStore';
 import { Card } from '../components/common/Card';
 import { LoyaltyTier, RewardType, TierBenefits } from '../types/loyalty';
 
 const LoyaltyDashboardScreen: React.FC = () => {
+  const colors = useThemeColors();
   const {
     loyaltyStatus,
     transactions,
@@ -67,13 +69,13 @@ const LoyaltyDashboardScreen: React.FC = () => {
   const getTierColor = (tier: LoyaltyTier): string => {
     switch (tier) {
       case LoyaltyTier.PLATINUM:
-        return '#E5E4E2';
+        return colors.textSecondary;
       case LoyaltyTier.GOLD:
-        return '#FFD700';
+        return colors.status.warning;
       case LoyaltyTier.SILVER:
-        return '#C0C0C0';
+        return colors.border.default;
       default:
-        return '#CD7F32';
+        return colors.brand.secondary;
     }
   };
 
@@ -174,9 +176,10 @@ const LoyaltyDashboardScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      <FlatList
+      <FlashList
         data={rewards.filter((r) => r.isActive)}
         keyExtractor={(item) => item.id}
+        scrollEnabled={false}
         renderItem={({ item: reward }) => (
           <TouchableOpacity
             style={styles.rewardItem}
@@ -288,7 +291,7 @@ const LoyaltyDashboardScreen: React.FC = () => {
               Select a reward to redeem your points
             </Text>
 
-            <FlatList
+            <FlashList
               data={rewards.filter((r) => r.isActive)}
               keyExtractor={(item) => item.id}
               renderItem={({ item: reward }) => (

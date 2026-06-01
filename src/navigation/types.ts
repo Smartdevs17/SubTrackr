@@ -3,14 +3,9 @@ import { BillingCycle } from '../types/subscription';
 
 export type RootStackParamList = {
   Home: undefined;
-  AddSubscription:
-    | {
-        name?: string;
-        amount?: number;
-        cycle?: BillingCycle;
-      }
-    | undefined;
-  SubscriptionDetail: { id: string } | undefined;
+  AddSubscription: undefined;
+  SubscriptionDetail: { id: string };
+  EditSubscription: { id: string };
   CancellationFlow: { subscriptionId: string };
   WalletConnect: undefined;
   CryptoPayment: { subscriptionId?: string } | undefined;
@@ -50,7 +45,7 @@ export type RootStackParamList = {
   LoyaltyDashboard: undefined;
   CampaignManagement: undefined;
   PerformanceDashboard: undefined;
-  NotFound: { reason?: string } | undefined;
+  BillingSettings: undefined;
 };
 
 export type TabParamList = {

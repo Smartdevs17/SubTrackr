@@ -11,7 +11,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-import { colors, spacing, typography, borderRadius } from '../utils/constants';
+import { spacing, typography, borderRadius } from '../utils/constants';
 import { useSubscriptionStore, useSettingsStore } from '../store';
 
 import { getUpcomingSubscriptions } from '../utils/dummyData';
@@ -28,12 +28,13 @@ import { FilterBar } from '../components/home/FilterBar';
 import { FilterModal } from '../components/home/FilterModal';
 import { StatsCard } from '../components/home/StatsCard';
 import { SubscriptionList } from '../components/home/SubscriptionList';
+import { useThemeColors } from '../hooks/useThemeColors';
 
 type HomeNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation<HomeNavigationProp>();
-  const { subscriptions, stats, fetchSubscriptions, calculateStats, toggleSubscriptionStatus } =
+  const { subscriptions, stats, fetchSubscriptions, calculateStats, toggleSubscriptionStatus, deleteSubscription } =
     useSubscriptionStore();
 
   const isOnline = useTransactionQueueStore((state) => state.isOnline);
@@ -73,6 +74,10 @@ const HomeScreen: React.FC = () => {
 
   const handleToggleStatus = async (id: string) => {
     await toggleSubscriptionStatus(id);
+  };
+
+  const handleDelete = async (id: string) => {
+    await deleteSubscription(id);
   };
 
   return (
@@ -169,6 +174,7 @@ const HomeScreen: React.FC = () => {
           totalCount={subscriptions.length}
           onSubscriptionPress={(sub) => navigation.navigate('SubscriptionDetail', { id: sub.id })}
           onToggleStatus={handleToggleStatus}
+          onDelete={handleDelete}
           onAddFirstPress={() => navigation.navigate('AddSubscription')}
         />
       </ScrollView>
@@ -202,10 +208,11 @@ const HomeScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.background.primary,
   },
   scrollView: {
     flex: 1,
@@ -233,7 +240,7 @@ const styles = StyleSheet.create({
     marginLeft: spacing.sm,
   },
   levelText: {
-    color: '#fff',
+    color: colors.onPrimary,
     fontSize: 12,
     fontWeight: 'bold',
   },
@@ -265,7 +272,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   toolButtonText: {
-    color: '#fff',
+    color: colors.onPrimary,
     fontWeight: '700',
     fontSize: 12,
   },
@@ -275,7 +282,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   offlineBanner: {
-    backgroundColor: colors.error + '20', // Translucent red
+    backgroundColor: colors.error + '20',
     padding: spacing.md,
     marginHorizontal: spacing.lg,
     marginBottom: spacing.md,
@@ -289,6 +296,7 @@ const styles = StyleSheet.create({
     color: colors.error,
     fontWeight: '600',
   },
-});
+  });
+}
 
 export default HomeScreen;

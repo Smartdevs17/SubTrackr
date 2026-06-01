@@ -169,7 +169,7 @@ export default function SandboxDetailScreen() {
     <View>
       <TouchableOpacity style={styles.generateButton} onPress={handleGenerateTestData}>
         {isLoading ? (
-          <ActivityIndicator color="#FFFFFF" />
+          <ActivityIndicator color={colors.onPrimary} />
         ) : (
           <Text style={styles.generateButtonText}>Generate Test Data</Text>
         )}
@@ -386,7 +386,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   backButtonText: {
-    color: '#FFFFFF',
+    color: colors.onPrimary,
     fontWeight: '600',
     fontSize: 16,
   },
@@ -425,7 +425,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   tabTextActive: {
-    color: '#FFFFFF',
+    color: colors.onPrimary,
   },
   infoCard: {
     backgroundColor: colors.surface,
@@ -462,10 +462,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   statusActive: {
-    backgroundColor: '#E8F5E9',
+    backgroundColor: `${colors.success}20`,
   },
   statusInactive: {
-    backgroundColor: '#FFEBEE',
+    backgroundColor: `${colors.error}20`,
   },
   statusText: {
     fontSize: 12,
@@ -511,10 +511,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   deleteButton: {
-    borderColor: '#F44336',
+    borderColor: colors.error,
   },
   deleteButtonText: {
-    color: '#F44336',
+    color: colors.error,
     fontWeight: '600',
     fontSize: 16,
   },
@@ -526,7 +526,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   generateButtonText: {
-    color: '#FFFFFF',
+    color: colors.onPrimary,
     fontWeight: '600',
     fontSize: 16,
   },
@@ -655,10 +655,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   statusSuccess: {
-    color: '#4CAF50',
+    color: colors.success,
   },
   statusError: {
-    color: '#F44336',
+    color: colors.error,
   },
   usageTime: {
     fontSize: 13,
