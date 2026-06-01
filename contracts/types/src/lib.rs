@@ -548,6 +548,7 @@ pub struct RoleChangeEntry {
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
 pub enum DigitalGoodsClass {
+    Unspecified,
     Standard,
     ElectronicService,
     Exempt,
@@ -579,7 +580,7 @@ pub struct CustomerTaxStatus {
     pub certificate_expiry: Timestamp,
     pub issuing_authority: String,
     pub exempt_jurisdictions: Vec<String>,
-    pub digital_goods_override: Option<DigitalGoodsClass>,
+    pub goods_class: DigitalGoodsClass,
 }
 
 /// A single line in a tax remittance report recording collected tax by jurisdiction.
@@ -616,6 +617,7 @@ pub enum StorageKey {
     LastCall(Address, String),
     /// Pending transfer request: subscription_id -> pending recipient
     PendingTransfer(u64),
+    CreditMemo(u64),
 
     // ── Invoice state ──
     InvoiceCount,
