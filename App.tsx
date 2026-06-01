@@ -204,10 +204,12 @@ export default function App() {
       <View style={{ flex: 1 }} testID="app-root">
         <StatusBar style="light" />
         <ErrorBoundary>
-          <I18nextProvider i18n={i18n}>
-            <NotificationBootstrap />
-            <AppNavigator />
-          </I18nextProvider>
+          <BiometricGate>
+            <I18nextProvider i18n={i18n}>
+              <NotificationBootstrap />
+              <AppNavigator />
+            </I18nextProvider>
+          </BiometricGate>
         </ErrorBoundary>
         <AppKit />
         <CrashRecoveryModal
