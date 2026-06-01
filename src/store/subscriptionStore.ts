@@ -9,9 +9,10 @@ import {
   BillingCycle, // eslint-disable-line
 } from '../types/subscription';
 import { dummySubscriptions } from '../utils/dummyData'; // eslint-disable-line
+import { calculateSubscriptionStats } from '../utils/stats';
 import { advanceBillingDate } from '../utils/billingDate';
 import { buildBillingPeriod } from '../utils/invoice';
-import { BILLING_CONVERSIONS, CACHE_CONSTANTS } from '../utils/constants/values';
+import { CACHE_CONSTANTS } from '../utils/constants/values';
 import {
   syncRenewalReminders,
   presentChargeSuccessNotification,
@@ -507,7 +508,6 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       calculateStats: () => {
         const { subscriptions } = get();
 
-        // Safety check: ensure subscriptions is an array
         if (!subscriptions || !Array.isArray(subscriptions)) {
           set({
             stats: {
@@ -519,8 +519,6 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           });
           return;
         }
-
-        const activeSubs = subscriptions.filter((sub) => sub.isActive);
 
         const { preferredCurrency, exchangeRates } = useSettingsStore.getState();
         const rates = exchangeRates?.rates || {};
@@ -567,15 +565,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           0
         );
 
-        set({
-          stats: {
-            totalActive: activeSubs.length,
-            totalMonthlySpend,
-            totalYearlySpend,
-            categoryBreakdown,
-            totalGasSpent,
-          },
-        });
+        set({ stats });
       },
     }),
     {

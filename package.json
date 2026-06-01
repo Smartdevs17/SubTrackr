@@ -68,12 +68,14 @@
     "@testing-library/react-hooks": "^8.0.1",
     "@walletconnect/react-native-compat": "^2.23.9",
     "@walletconnect/utils": "^2.23.9",
+    "@sentry/react-native": "^5.4.0",
     "ethers": "^5.8.0",
     "expo": "~53.0.20",
     "expo-application": "~6.1.5",
     "expo-image": "~2.3.0",
     "expo-clipboard": "~7.1.5",
     "expo-dev-client": "~5.2.4",
+    "expo-linking": "~7.1.7",
     "expo-notifications": "^0.31.5",
     "expo-status-bar": "~2.2.3",
     "graphql": "^16.13.2",
@@ -107,6 +109,7 @@
     "@semantic-release/npm": "^12.0.2",
     "@semantic-release/release-notes-generator": "^14.1.0",
     "@size-limit/file": "^11.1.4",
+    "@testing-library/react-native": "13.3.3",
     "@typechain/ethers-v5": "^11.1.2",
     "@types/detox": "^17.14.3",
     "@types/jest": "^29.5.14",
@@ -133,6 +136,10 @@
     "typescript": "~5.8.3"
   },
   "private": false,
+  "overrides": {
+    "hermes-parser": "0.33.3",
+    "babel-plugin-syntax-hermes-parser": "0.33.3"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/Smartdevs17/SubTrackr.git"

@@ -9,14 +9,17 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
+  FlatList,
+  Share,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { useLoyaltyStore } from '../store/loyaltyStore';
 import { useWalletStore } from '../store/walletStore';
+import { useGamificationStore } from '../store/gamificationStore';
 import { Card } from '../components/common/Card';
-import { LoyaltyTier, TierBenefits } from '../types/loyalty';
+import { LoyaltyTier, RewardType, TierBenefits, PointTxType, StreakInfo } from '../types/loyalty';
 
 const LoyaltyDashboardScreen: React.FC = () => {
   const colors = useThemeColors();
@@ -25,20 +28,31 @@ const LoyaltyDashboardScreen: React.FC = () => {
     transactions,
     rewards,
     program,
+    streak,
+    referral,
     isLoading,
     initializeProgram,
+    fetchLoyaltyStatus,
+    accumulatePoints,
     redeemPoints,
+    earnReferralBonus,
+    generateReferralCode,
   } = useLoyaltyStore();
   const { address } = useWalletStore();
+  const { earnedBadges, earnedAchievements } = useGamificationStore();
 
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedReward, setSelectedReward] = useState<string>('');
+  const [badgeModalVisible, setBadgeModalVisible] = useState(false);
 
   useEffect(() => {
     if (!program) {
       initializeProgram();
     }
-  }, [program, initializeProgram]);
+    if (address) {
+      fetchLoyaltyStatus(address);
+    }
+  }, [program, initializeProgram, address, fetchLoyaltyStatus]);
 
   useEffect(() => {
     if (address && loyaltyStatus) {
@@ -48,6 +62,18 @@ const LoyaltyDashboardScreen: React.FC = () => {
       return () => clearInterval(timer);
     }
   }, [address, loyaltyStatus]);
+
+  const handleShareReferral = useCallback(async () => {
+    const code = generateReferralCode();
+    try {
+      await Share.share({
+        message: `Join SubTrackr and use my referral code: ${code}. You'll earn bonus points!`,
+        title: 'Invite a Friend',
+      });
+    } catch {
+      // user cancelled
+    }
+  }, [generateReferralCode]);
 
   const handleRedeemReward = useCallback(async () => {
     if (!selectedReward) {
@@ -83,6 +109,84 @@ const LoyaltyDashboardScreen: React.FC = () => {
     const currentTierIndex = program.tiers.findIndex((t) => t.tier === loyaltyStatus.tier);
     if (currentTierIndex >= program.tiers.length - 1) return null;
     return program.tiers[currentTierIndex + 1];
+  };
+
+  const renderStreakCard = () => {
+    if (!loyaltyStatus) return null;
+    const currentStreak = loyaltyStatus.streak || streak.current;
+    return (
+      <Card style={styles.streakCard}>
+        <View style={styles.streakHeader}>
+          <Text style={styles.streakIcon}>🔥</Text>
+          <View style={styles.streakInfo}>
+            <Text style={styles.streakValue}>
+              {currentStreak > 0 ? `${currentStreak}-day streak` : 'Start a streak!'}
+            </Text>
+            <Text style={styles.streakSubtext}>
+              {currentStreak >= 10
+                ? 'Amazing! You earned a streak bonus!'
+                : currentStreak >= 5
+                  ? 'Keep going! Almost at bonus milestone.'
+                  : 'Pay on time to build your streak.'}
+            </Text>
+          </View>
+        </View>
+        {currentStreak > 0 && (
+          <View style={styles.streakProgress}>
+            <View style={styles.streakBar}>
+              <View
+                style={[
+                  styles.streakFill,
+                  { width: `${Math.min(100, (currentStreak % 10) * 10)}%` },
+                ]}
+              />
+            </View>
+            <Text style={styles.streakMilestone}>
+              {10 - (currentStreak % 10)} charges to next streak bonus
+            </Text>
+          </View>
+        )}
+      </Card>
+    );
+  };
+
+  const renderReferralCard = () => (
+    <Card style={styles.referralCard}>
+      <Text style={styles.referralTitle}>Refer a Friend</Text>
+      <Text style={styles.referralDesc}>
+        Earn {referral.bonusPoints} bonus points for each friend who joins!
+      </Text>
+      <TouchableOpacity style={styles.shareButton} onPress={handleShareReferral}>
+        <Text style={styles.shareButtonText}>Share Referral Code</Text>
+      </TouchableOpacity>
+      {referral.totalReferrals > 0 && (
+        <Text style={styles.referralStats}>
+          {referral.totalReferrals} friend{referral.totalReferrals > 1 ? 's' : ''} joined
+        </Text>
+      )}
+    </Card>
+  );
+
+  const renderBadgesCard = () => {
+    if (earnedBadges.length === 0 && earnedAchievements.length === 0) return null;
+    return (
+      <Card style={styles.badgesCard}>
+        <View style={styles.badgesHeader}>
+          <Text style={styles.badgesTitle}>Badges & Achievements</Text>
+          <TouchableOpacity onPress={() => setBadgeModalVisible(true)}>
+            <Text style={styles.badgesViewAll}>View all →</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.badgeRow}>
+          {earnedBadges.slice(0, 4).map((badge, idx) => (
+            <View key={idx} style={styles.badgeItem}>
+              <Text style={styles.badgeIcon}>🏆</Text>
+              <Text style={styles.badgeName} numberOfLines={1}>{badge}</Text>
+            </View>
+          ))}
+        </View>
+      </Card>
+    );
   };
 
   const renderStatusCard = () => {
@@ -191,10 +295,18 @@ const LoyaltyDashboardScreen: React.FC = () => {
       {transactions.length === 0 ? (
         <Text style={styles.emptyText}>No transactions yet</Text>
       ) : (
-        transactions.slice(0, 10).map((tx) => (
+        transactions.slice(0, 15).map((tx) => (
           <View key={tx.id} style={styles.transactionItem}>
             <View style={styles.transactionInfo}>
               <Text style={styles.transactionDesc}>{tx.description}</Text>
+              <Text style={styles.transactionType}>
+                {tx.type === PointTxType.EARNED && 'Earned'}
+                {tx.type === PointTxType.REDEEMED && 'Redeemed'}
+                {tx.type === PointTxType.EXPIRED && 'Expired'}
+                {tx.type === PointTxType.REFERRAL_BONUS && 'Referral'}
+                {tx.type === PointTxType.STREAK_BONUS && 'Streak Bonus'}
+                {tx.type === PointTxType.ACHIEVEMENT && 'Achievement'}
+              </Text>
               <Text style={styles.transactionDate}>
                 {new Date(tx.createdAt).toLocaleDateString()}
               </Text>
@@ -213,7 +325,7 @@ const LoyaltyDashboardScreen: React.FC = () => {
     </Card>
   );
 
-  const renderMembers = () => {
+  const renderTierComparison = () => {
     if (!program) return null;
     return (
       <Card style={styles.membersCard}>
@@ -251,9 +363,12 @@ const LoyaltyDashboardScreen: React.FC = () => {
         </View>
 
         {renderStatusCard()}
+        {renderStreakCard()}
+        {renderBadgesCard()}
+        {renderReferralCard()}
         {renderRewardsCard()}
         {renderTransactionsCard()}
-        {renderMembers()}
+        {renderTierComparison()}
       </ScrollView>
 
       <Modal
@@ -298,6 +413,36 @@ const LoyaltyDashboardScreen: React.FC = () => {
                 <Text style={styles.confirmButtonText}>Redeem</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={badgeModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setBadgeModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Badges & Achievements</Text>
+            <Text style={styles.modalSubtitle}>
+              {earnedBadges.length} badges earned
+            </Text>
+            <FlatList
+              data={earnedBadges}
+              keyExtractor={(item, idx) => `${idx}`}
+              renderItem={({ item: badge }) => (
+                <View style={styles.badgeRow}>
+                  <Text style={styles.badgeIcon}>🏆</Text>
+                  <Text style={styles.badgeName}>{badge}</Text>
+                </View>
+              )}
+            />
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={() => setBadgeModalVisible(false)}>
+              <Text style={styles.cancelButtonText}>Close</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -560,6 +705,126 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
     marginTop: spacing.xs,
+  },
+  transactionType: {
+    fontSize: typography.fontSizeXs,
+    color: colors.primary,
+    marginTop: spacing.xs,
+  },
+  streakCard: {
+    padding: spacing.md,
+    margin: spacing.md,
+    marginTop: 0,
+  },
+  streakHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  streakIcon: {
+    fontSize: 32,
+    marginRight: spacing.md,
+  },
+  streakInfo: {
+    flex: 1,
+  },
+  streakValue: {
+    fontSize: typography.fontSizeMd,
+    fontWeight: typography.fontWeightBold,
+    color: colors.text,
+  },
+  streakSubtext: {
+    fontSize: typography.fontSizeSm,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  },
+  streakProgress: {
+    marginTop: spacing.md,
+  },
+  streakBar: {
+    height: 6,
+    backgroundColor: colors.border,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  streakFill: {
+    height: '100%',
+    backgroundColor: '#FF6B35',
+  },
+  streakMilestone: {
+    fontSize: typography.fontSizeXs,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  },
+  referralCard: {
+    padding: spacing.md,
+    margin: spacing.md,
+    marginTop: 0,
+  },
+  referralTitle: {
+    fontSize: typography.fontSizeMd,
+    fontWeight: typography.fontWeightBold,
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  referralDesc: {
+    fontSize: typography.fontSizeSm,
+    color: colors.textSecondary,
+    marginBottom: spacing.md,
+  },
+  shareButton: {
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    alignItems: 'center',
+  },
+  shareButtonText: {
+    color: colors.text,
+    fontSize: typography.fontSizeMd,
+    fontWeight: typography.fontWeightBold,
+  },
+  referralStats: {
+    fontSize: typography.fontSizeSm,
+    color: colors.success,
+    marginTop: spacing.sm,
+    textAlign: 'center',
+  },
+  badgesCard: {
+    padding: spacing.md,
+    margin: spacing.md,
+    marginTop: 0,
+  },
+  badgesHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  badgesTitle: {
+    fontSize: typography.fontSizeMd,
+    fontWeight: typography.fontWeightBold,
+    color: colors.text,
+  },
+  badgesViewAll: {
+    fontSize: typography.fontSizeSm,
+    color: colors.primary,
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  badgeItem: {
+    alignItems: 'center',
+    width: 60,
+  },
+  badgeIcon: {
+    fontSize: 28,
+  },
+  badgeName: {
+    fontSize: typography.fontSizeXs,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+    textAlign: 'center',
   },
   modalOverlay: {
     flex: 1,
