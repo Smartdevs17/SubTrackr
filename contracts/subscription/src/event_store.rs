@@ -1,10 +1,10 @@
 use soroban_sdk::{contracttype, Address, Env, Vec};
 use subtrackr_types::TimeRange;
 
+use crate::errors::ContractError;
 use crate::events::{
     EventFilter, EventMetadata, EventRetentionPolicy, StoredEvent, SubscriptionEventType,
 };
-use crate::errors::ContractError;
 
 const DEFAULT_MAX_EVENTS_PER_SUBSCRIPTION: u32 = 10_000;
 const DEFAULT_RETENTION_DAYS: u64 = 365;
@@ -20,11 +20,7 @@ enum EventStoreKey {
     RetentionConfig,
 }
 
-fn put<V: soroban_sdk::IntoVal<Env, soroban_sdk::Val>>(
-    env: &Env,
-    key: EventStoreKey,
-    val: V,
-) {
+fn put<V: soroban_sdk::IntoVal<Env, soroban_sdk::Val>>(env: &Env, key: EventStoreKey, val: V) {
     env.storage().persistent().set(&key, &val);
 }
 
@@ -37,8 +33,7 @@ fn get<V: soroban_sdk::TryFromVal<Env, soroban_sdk::Val>>(
 
 /// Read event IDs for a subscription (used by state reconstruction).
 pub(crate) fn read_event_ids(env: &Env, subscription_id: u64) -> Vec<u64> {
-    get(env, EventStoreKey::SubEventsIndex(subscription_id))
-        .unwrap_or(Vec::new(env))
+    get(env, EventStoreKey::SubEventsIndex(subscription_id)).unwrap_or(Vec::new(env))
 }
 
 /// Read a single event by ID (used by state reconstruction).
@@ -47,16 +42,14 @@ pub(crate) fn read_event(env: &Env, event_id: u64) -> Option<StoredEvent> {
 }
 
 fn next_event_id(env: &Env) -> u64 {
-    let mut count: u64 =
-        get(env, EventStoreKey::EventCount).unwrap_or(0);
+    let mut count: u64 = get(env, EventStoreKey::EventCount).unwrap_or(0);
     count += 1;
     put(env, EventStoreKey::EventCount, count);
     count
 }
 
 fn subscription_event_ids(env: &Env, subscription_id: u64) -> Vec<u64> {
-    get(env, EventStoreKey::SubEventsIndex(subscription_id))
-        .unwrap_or(Vec::new(env))
+    get(env, EventStoreKey::SubEventsIndex(subscription_id)).unwrap_or(Vec::new(env))
 }
 
 fn set_subscription_event_ids(env: &Env, subscription_id: u64, ids: Vec<u64>) {
@@ -64,16 +57,11 @@ fn set_subscription_event_ids(env: &Env, subscription_id: u64, ids: Vec<u64>) {
 }
 
 fn merchant_event_ids(env: &Env, merchant_tag: u64) -> Vec<u64> {
-    get(env, EventStoreKey::MerchantEventsIndex(merchant_tag))
-        .unwrap_or(Vec::new(env))
+    get(env, EventStoreKey::MerchantEventsIndex(merchant_tag)).unwrap_or(Vec::new(env))
 }
 
 fn set_merchant_event_ids(env: &Env, merchant_tag: u64, ids: Vec<u64>) {
-    put(
-        env,
-        EventStoreKey::MerchantEventsIndex(merchant_tag),
-        ids,
-    );
+    put(env, EventStoreKey::MerchantEventsIndex(merchant_tag), ids);
 }
 
 fn default_retention_policy() -> EventRetentionPolicy {
@@ -208,9 +196,7 @@ pub(crate) fn export_events(
     while i < event_ids.len() {
         let event_id = event_ids.get_unchecked(i);
         if let Some(event) = get_event(env, event_id) {
-            if event.metadata.timestamp >= range.start
-                && event.metadata.timestamp <= range.end
-            {
+            if event.metadata.timestamp >= range.start && event.metadata.timestamp <= range.end {
                 results.push_back(event);
             }
         }
@@ -225,8 +211,7 @@ pub(crate) fn set_retention_policy(env: &Env, policy: EventRetentionPolicy) {
 }
 
 pub(crate) fn get_retention_policy(env: &Env) -> Option<EventRetentionPolicy> {
-    get(env, EventStoreKey::RetentionConfig)
-        .or_else(|| Some(default_retention_policy()))
+    get(env, EventStoreKey::RetentionConfig).or_else(|| Some(default_retention_policy()))
 }
 
 fn prune_events(env: &Env, subscription_id: u64, policy: &EventRetentionPolicy) {

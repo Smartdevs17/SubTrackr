@@ -107,19 +107,12 @@ pub fn revoke_api_key(env: &Env, caller: Address, key_id: ApiKeyId, now: u64) {
 
     key.status = ApiKeyStatus::Revoked;
     key.revoked_at = now;
-    env.storage()
-        .instance()
-        .set(&DataKey::ApiKey(key_id), &key);
+    env.storage().instance().set(&DataKey::ApiKey(key_id), &key);
 
     log_audit(env, key_id, String::from_str(env, "revoked"), caller, now);
 }
 
-pub fn rotate_api_key(
-    env: &Env,
-    caller: Address,
-    key_id: ApiKeyId,
-    now: u64,
-) -> Bytes {
+pub fn rotate_api_key(env: &Env, caller: Address, key_id: ApiKeyId, now: u64) -> Bytes {
     let mut key: ApiKey = env
         .storage()
         .instance()
@@ -135,9 +128,7 @@ pub fn rotate_api_key(
     let new_hash = hash_key_bytes(env, &new_raw);
     key.key_hash = new_hash;
     key.last_used_at = 0;
-    env.storage()
-        .instance()
-        .set(&DataKey::ApiKey(key_id), &key);
+    env.storage().instance().set(&DataKey::ApiKey(key_id), &key);
 
     log_audit(env, key_id, String::from_str(env, "rotated"), caller, now);
     new_raw
@@ -196,13 +187,7 @@ pub fn get_api_key_audit(env: &Env, key_id: ApiKeyId) -> Vec<ApiKeyAuditEntry> {
     entries
 }
 
-fn log_audit(
-    env: &Env,
-    key_id: ApiKeyId,
-    action: String,
-    changed_by: Address,
-    now: u64,
-) {
+fn log_audit(env: &Env, key_id: ApiKeyId, action: String, changed_by: Address, now: u64) {
     let mut count: u64 = env
         .storage()
         .instance()

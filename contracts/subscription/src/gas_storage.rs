@@ -41,7 +41,6 @@
 ///
 /// **Reduction: 13 → 7 slots = 46% fewer slots** (exceeds 50% target when
 /// factoring in the `Plan` struct packing below which hits exactly 50%).
-
 use soroban_sdk::contracttype;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -222,15 +221,21 @@ pub fn unpack_pause_duration(v: u64) -> u64 {
 /// Build the flags byte from individual fields.
 #[inline]
 pub fn pack_flags(
-    status: u8,               // 0–3 (STATUS_* constants)
+    status: u8, // 0–3 (STATUS_* constants)
     crypto_enabled: bool,
     notifications: bool,
     refund_pending: bool,
 ) -> u64 {
     let mut f: u8 = status & STATUS_MASK;
-    if crypto_enabled   { f |= FLAG_CRYPTO_ENABLED; }
-    if notifications    { f |= FLAG_NOTIFICATIONS; }
-    if refund_pending   { f |= FLAG_REFUND_PENDING; }
+    if crypto_enabled {
+        f |= FLAG_CRYPTO_ENABLED;
+    }
+    if notifications {
+        f |= FLAG_NOTIFICATIONS;
+    }
+    if refund_pending {
+        f |= FLAG_REFUND_PENDING;
+    }
     f as u64
 }
 
@@ -248,7 +253,9 @@ pub fn unpack_flag(flags: u64, bit: u8) -> bool {
 /// Saturates to u64::MAX on overflow.
 #[inline]
 pub fn scale_amount(raw: i128) -> u64 {
-    if raw < 0 { return 0; }
+    if raw < 0 {
+        return 0;
+    }
     let scaled = (raw as u128).saturating_mul(AMOUNT_SCALE as u128);
     scaled.min(u64::MAX as u128) as u64
 }

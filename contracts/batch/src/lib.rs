@@ -3,7 +3,10 @@
 use soroban_sdk::{contract, contracterror, contractimpl, contracttype, Address, Env, String, Vec};
 
 mod batch;
-use batch::{BatchFilter, BatchOperation, BatchResult, BatchState, BatchStatus, CancelReason, OperationResult, OperationType, SubRecord, SubscriptionId};
+use batch::{
+    BatchFilter, BatchOperation, BatchResult, BatchState, BatchStatus, CancelReason,
+    OperationResult, OperationType, SubRecord, SubscriptionId,
+};
 use subtrackr_types::SubscriptionId as SubscriptionIdAlias;
 
 #[contracterror]
@@ -60,7 +63,9 @@ impl SubTrackrBatch {
         storage.set(&DataKey::BatchOperation(batch_id), &operation);
         storage.set(&DataKey::BatchState(batch_id), &BatchState::Pending);
 
-        let mut history: Vec<u64> = storage.get(&DataKey::BatchHistory).unwrap_or_else(|| Vec::new(&env));
+        let mut history: Vec<u64> = storage
+            .get(&DataKey::BatchHistory)
+            .unwrap_or_else(|| Vec::new(&env));
         history.push_back(batch_id);
         storage.set(&DataKey::BatchHistory, &history);
 
@@ -113,7 +118,9 @@ impl SubTrackrBatch {
             modified.push_back((*subscription_id, prior.clone()));
 
             let op_result = match operation.operation_type {
-                OperationType::Create => Self::execute_create(&env, *subscription_id, prior.clone()),
+                OperationType::Create => {
+                    Self::execute_create(&env, *subscription_id, prior.clone())
+                }
                 OperationType::Charge => Self::execute_charge(
                     &env,
                     *subscription_id,
@@ -129,7 +136,11 @@ impl SubTrackrBatch {
                 OperationType::Cancel => Self::execute_cancel(
                     &env,
                     *subscription_id,
-                    operation.cancel_reasons.get(idx).unwrap_or(batch::CancelReason::Custom).clone(),
+                    operation
+                        .cancel_reasons
+                        .get(idx)
+                        .unwrap_or(batch::CancelReason::Custom)
+                        .clone(),
                     prior.clone(),
                 ),
                 _ => OperationResult {
@@ -160,7 +171,9 @@ impl SubTrackrBatch {
                 if let Some(record) = original {
                     storage.set(&DataKey::Subscription(*sub_id), record);
                 } else {
-                    env.storage().instance().remove(&DataKey::Subscription(*sub_id));
+                    env.storage()
+                        .instance()
+                        .remove(&DataKey::Subscription(*sub_id));
                 }
             }
             successful_count = 0;
@@ -201,7 +214,9 @@ impl SubTrackrBatch {
     }
 
     pub fn get_subscription(env: Env, subscription_id: SubscriptionIdAlias) -> Option<SubRecord> {
-        env.storage().instance().get(&DataKey::Subscription(subscription_id))
+        env.storage()
+            .instance()
+            .get(&DataKey::Subscription(subscription_id))
     }
 
     pub fn get_batch_history(env: Env) -> Vec<u64> {
@@ -217,7 +232,9 @@ impl SubTrackrBatch {
             status: batch::SubStatus::Active,
             charged: 0,
         };
-        env.storage().instance().set(&DataKey::Subscription(subscription_id), &record);
+        env.storage()
+            .instance()
+            .set(&DataKey::Subscription(subscription_id), &record);
     }
 }
 
@@ -245,7 +262,9 @@ impl SubTrackrBatch {
                 status: batch::SubStatus::Active,
                 charged: 0,
             };
-            env.storage().instance().set(&DataKey::Subscription(subscription_id), &record);
+            env.storage()
+                .instance()
+                .set(&DataKey::Subscription(subscription_id), &record);
             OperationResult {
                 subscription_id,
                 success: true,
@@ -264,7 +283,9 @@ impl SubTrackrBatch {
         match prior {
             Some(mut record) if record.exists && record.status != batch::SubStatus::Cancelled => {
                 record.charged += amount;
-                env.storage().instance().set(&DataKey::Subscription(subscription_id), &record);
+                env.storage()
+                    .instance()
+                    .set(&DataKey::Subscription(subscription_id), &record);
                 OperationResult {
                     subscription_id,
                     success: true,
@@ -319,7 +340,9 @@ impl SubTrackrBatch {
         match prior {
             Some(mut record) if record.exists => {
                 record.status = batch::SubStatus::Cancelled;
-                env.storage().instance().set(&DataKey::Subscription(subscription_id), &record);
+                env.storage()
+                    .instance()
+                    .set(&DataKey::Subscription(subscription_id), &record);
                 OperationResult {
                     subscription_id,
                     success: true,

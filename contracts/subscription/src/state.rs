@@ -2,14 +2,11 @@ use soroban_sdk::{Address, Env, Vec};
 use subtrackr_types::{Subscription, SubscriptionStatus};
 
 use crate::errors::ContractError;
-use crate::events::{StoredEvent, SubscriptionEventType};
 use crate::event_store;
+use crate::events::{StoredEvent, SubscriptionEventType};
 
 /// Reconstruct the current subscription state by replaying all events.
-pub(crate) fn reconstruct_state(
-    env: &Env,
-    subscription_id: u64,
-) -> Option<Subscription> {
+pub(crate) fn reconstruct_state(env: &Env, subscription_id: u64) -> Option<Subscription> {
     let ids = event_store::read_event_ids(env, subscription_id);
 
     if ids.len() == 0 {
@@ -92,9 +89,7 @@ pub(crate) fn reconstruct_state_at(
 
 /// Validate that a sequence of events represents a legal state machine
 /// transition path for a subscription.
-pub(crate) fn validate_event_sequence(
-    events: Vec<StoredEvent>,
-) -> Result<(), ContractError> {
+pub(crate) fn validate_event_sequence(events: Vec<StoredEvent>) -> Result<(), ContractError> {
     let mut current_status: Option<SubscriptionStatus> = None;
 
     let mut i = 0u32;
@@ -135,11 +130,7 @@ fn is_valid_transition(from: &SubscriptionStatus, to: &SubscriptionStatus) -> bo
     }
 }
 
-fn apply_event(
-    sub: &mut Subscription,
-    event: &StoredEvent,
-    subscriber_set: &mut bool,
-) {
+fn apply_event(sub: &mut Subscription, event: &StoredEvent, subscriber_set: &mut bool) {
     sub.status = event.new_status.clone();
     sub.plan_id = event.plan_id;
 

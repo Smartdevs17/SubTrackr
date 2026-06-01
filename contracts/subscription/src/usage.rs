@@ -1,7 +1,7 @@
 #![no_std]
 use soroban_sdk::{Address, Env};
 
-// We use generics `<M>` for the metric to automatically accept `QuotaMetric` 
+// We use generics `<M>` for the metric to automatically accept `QuotaMetric`
 // from `lib.rs` without needing to directly import it here.
 
 pub fn record_usage<M>(
