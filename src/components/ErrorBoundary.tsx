@@ -90,18 +90,21 @@ interface ErrorFallbackProps {
 }
 
 const ErrorFallback: React.FC<ErrorFallbackProps> = ({ error, onRetry }) => {
+  const colors = useThemeColors();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
+
   const getSeverityColor = (severity: ErrorSeverity) => {
     switch (severity) {
       case ErrorSeverity.CRITICAL:
-        return colors.error;
+        return colors.status.error;
       case ErrorSeverity.HIGH:
-        return '#dc2626'; // Red-600
+        return colors.status.error;
       case ErrorSeverity.MEDIUM:
-        return colors.warning;
+        return colors.status.warning;
       case ErrorSeverity.LOW:
-        return '#6b7280'; // Gray-500
+        return colors.text.secondary;
       default:
-        return colors.error;
+        return colors.status.error;
     }
   };
 
@@ -172,96 +175,98 @@ const ErrorFallback: React.FC<ErrorFallbackProps> = ({ error, onRetry }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    padding: spacing.lg,
-  },
-  errorContainer: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: spacing.lg,
-  },
-  title: {
-    ...typography.h2,
-    color: colors.text,
-    textAlign: 'center',
-    marginBottom: spacing.sm,
-  },
-  severity: {
-    ...typography.h3,
-    fontWeight: '600',
-  },
-  messageContainer: {
-    marginBottom: spacing.lg,
-  },
-  userMessage: {
-    ...typography.body,
-    color: colors.text,
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  suggestionsContainer: {
-    backgroundColor: colors.background,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    marginBottom: spacing.lg,
-  },
-  suggestionsTitle: {
-    ...typography.h3,
-    color: colors.text,
-    marginBottom: spacing.sm,
-  },
-  suggestion: {
-    ...typography.body,
-    color: colors.textSecondary,
-    marginBottom: spacing.xs,
-    lineHeight: 20,
-  },
-  actionsContainer: {
-    gap: spacing.md,
-  },
-  retryButton: {
-    marginBottom: spacing.sm,
-  },
-  reportButton: {
-    alignSelf: 'center',
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-  },
-  reportButtonText: {
-    color: colors.accent,
-    ...typography.body,
-    fontWeight: '600',
-  },
-  devInfo: {
-    marginTop: spacing.lg,
-    paddingTop: spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  devTitle: {
-    ...typography.h3,
-    color: colors.warning,
-    marginBottom: spacing.sm,
-  },
-  devText: {
-    ...typography.body,
-    color: colors.textSecondary,
-    fontSize: 12,
-    marginBottom: spacing.xs,
-  },
-});
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background.primary,
+    },
+    scrollContent: {
+      flexGrow: 1,
+      justifyContent: 'center',
+      padding: spacing.lg,
+    },
+    errorContainer: {
+      backgroundColor: colors.background.card,
+      borderRadius: borderRadius.lg,
+      padding: spacing.lg,
+      borderWidth: 1,
+      borderColor: colors.border.default,
+    },
+    header: {
+      alignItems: 'center',
+      marginBottom: spacing.lg,
+    },
+    title: {
+      ...typography.h2,
+      color: colors.text.primary,
+      textAlign: 'center',
+      marginBottom: spacing.sm,
+    },
+    severity: {
+      ...typography.h3,
+      fontWeight: '600',
+    },
+    messageContainer: {
+      marginBottom: spacing.lg,
+    },
+    userMessage: {
+      ...typography.body,
+      color: colors.text.primary,
+      textAlign: 'center',
+      lineHeight: 24,
+    },
+    suggestionsContainer: {
+      backgroundColor: colors.background.secondary,
+      borderRadius: borderRadius.md,
+      padding: spacing.md,
+      marginBottom: spacing.lg,
+    },
+    suggestionsTitle: {
+      ...typography.h3,
+      color: colors.text.primary,
+      marginBottom: spacing.sm,
+    },
+    suggestion: {
+      ...typography.body,
+      color: colors.text.secondary,
+      marginBottom: spacing.xs,
+      lineHeight: 20,
+    },
+    actionsContainer: {
+      gap: spacing.md,
+    },
+    retryButton: {
+      marginBottom: spacing.sm,
+    },
+    reportButton: {
+      alignSelf: 'center',
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+    },
+    reportButtonText: {
+      color: colors.accent,
+      ...typography.body,
+      fontWeight: '600',
+    },
+    devInfo: {
+      marginTop: spacing.lg,
+      paddingTop: spacing.lg,
+      borderTopWidth: 1,
+      borderTopColor: colors.border.default,
+    },
+    devTitle: {
+      ...typography.h3,
+      color: colors.status.warning,
+      marginBottom: spacing.sm,
+    },
+    devText: {
+      ...typography.body,
+      color: colors.text.secondary,
+      fontSize: 12,
+      marginBottom: spacing.xs,
+    },
+  });
+}
 
 export default ErrorBoundary;

@@ -34,6 +34,8 @@ const getDefaultNextBillingDate = (cycle: BillingCycle) => advanceBillingDate(ne
 
 const AddSubscriptionScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const colors = useThemeColors();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const { addSubscription, isLoading, error } = useSubscriptionStore();
   const { preferredCurrency } = useSettingsStore();
 
@@ -522,10 +524,11 @@ const AddSubscriptionScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.background.primary,
   },
   keyboardAvoidingView: {
     flex: 1,
@@ -589,7 +592,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   errorText: {
-    color: colors.error || '#e74c3c',
+    color: colors.error,
     fontSize: 12,
     marginTop: spacing.xs,
   },
@@ -712,7 +715,7 @@ const styles = StyleSheet.create({
   toggleKnob: {
     width: 24,
     height: 24,
-    backgroundColor: colors.text,
+    backgroundColor: colors.background.card,
     borderRadius: borderRadius.full,
   },
   toggleKnobActive: {
@@ -736,8 +739,9 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    backgroundColor: colors.background,
+    backgroundColor: colors.background.primary,
   },
 });
+}
 
 export default AddSubscriptionScreen;

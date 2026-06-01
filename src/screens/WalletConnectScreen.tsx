@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { colors, spacing, typography, borderRadius, shadows } from '../utils/constants';
+import { spacing, typography, borderRadius, shadows } from '../utils/constants';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
 import { useAppKit, useAppKitAccount, useAppKitProvider } from '@reown/appkit-ethers-react-native';
@@ -22,11 +22,13 @@ import { TICKER_TO_COINGECKO_ID } from '../services/priceService';
 import { useTokenPrices } from '../hooks/useTokenPrices';
 import { useWalletStore } from '../store';
 import { RootStackParamList } from '../navigation/types';
+import { useThemeColors } from '../hooks/useThemeColors';
 
 import * as Clipboard from 'expo-clipboard';
 
 const WalletConnectScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const colors = useThemeColors();
   const { open } = useAppKit();
   const { address, isConnected, chainId } = useAppKitAccount();
   const { walletProvider } = useAppKitProvider();
@@ -174,9 +176,9 @@ const WalletConnectScreen: React.FC = () => {
 
   const getChainColor = (chainId: number): string => {
     const chainColors: Record<number, string> = {
-      1: '#627EEA', // Ethereum blue
-      137: '#8247E5', // Polygon purple
-      42161: '#28A0F0', // Arbitrum blue
+      1: colors.brand.primary,
+      137: colors.brand.secondary,
+      42161: colors.status.info,
     };
     return chainColors[chainId] || colors.primary;
   };
