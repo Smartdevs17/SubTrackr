@@ -8,9 +8,9 @@ import {
   TouchableOpacity,
   Alert,
   TextInput,
-  FlatList,
   Modal,
 } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import { useNavigation } from '@react-navigation/native';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { Button } from '../components/common/Button';
@@ -295,7 +295,7 @@ const ImportScreen: React.FC = () => {
             <Text style={styles.closeButton}>Close</Text>
           </TouchableOpacity>
         </View>
-        <FlatList
+        <FlashList
           data={importHistory}
           keyExtractor={(item: ImportHistoryEntry) => item.id}
           renderItem={({ item }: { item: ImportHistoryEntry }) => (

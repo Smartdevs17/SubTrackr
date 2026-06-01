@@ -7,7 +7,8 @@ import {
   StyleProp,
   ViewStyle,
 } from 'react-native';
-import { colors, spacing, typography, borderRadius } from '../../utils/constants';
+import { spacing, typography, borderRadius } from '../../utils/constants';
+import { useThemeColors } from '../../hooks/useThemeColors';
 
 export interface ButtonProps {
   title: string;
@@ -38,6 +39,9 @@ export const Button: React.FC<ButtonProps> = ({
   accessibilitySelected = false,
   testID,
 }) => {
+  const colors = useThemeColors();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
+
   const buttonStyle = [
     styles.button,
     styles[variant],
@@ -71,7 +75,7 @@ export const Button: React.FC<ButtonProps> = ({
       }}>
       {loading ? (
         <ActivityIndicator
-          color={variant === 'outline' ? colors.primary : colors.text}
+          color={variant === 'outline' ? colors.brand.primary : colors.onPrimary}
           size="small"
         />
       ) : (
@@ -81,89 +85,80 @@ export const Button: React.FC<ButtonProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  button: {
-    borderRadius: borderRadius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
-
-  // Variants
-  primary: {
-    backgroundColor: colors.primary,
-  },
-  secondary: {
-    backgroundColor: colors.secondary,
-  },
-  outline: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: colors.primary,
-  },
-  crypto: {
-    backgroundColor: colors.accent,
-  },
-  danger: {
-    backgroundColor: colors.error,
-  },
-
-  // Sizes
-  small: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    minHeight: 36,
-  },
-  medium: {
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    minHeight: 48,
-  },
-  large: {
-    paddingVertical: spacing.lg,
-    paddingHorizontal: spacing.xl,
-    minHeight: 56,
-  },
-
-  // States
-  disabled: {
-    opacity: 0.5,
-  },
-  fullWidth: {
-    width: '100%',
-  },
-
-  // Text styles
-  text: {
-    fontWeight: '600',
-  },
-  primaryText: {
-    color: colors.text,
-  },
-  secondaryText: {
-    color: colors.text,
-  },
-  outlineText: {
-    color: colors.primary,
-  },
-  cryptoText: {
-    color: colors.text,
-  },
-  dangerText: {
-    color: colors.text,
-  },
-
-  smallText: {
-    ...typography.caption,
-  },
-  mediumText: {
-    ...typography.body,
-  },
-  largeText: {
-    ...typography.h3,
-  },
-
-  disabledText: {
-    opacity: 0.7,
-  },
-});
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+    button: {
+      borderRadius: borderRadius.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'row',
+    },
+    primary: {
+      backgroundColor: colors.brand.primary,
+    },
+    secondary: {
+      backgroundColor: colors.brand.secondary,
+    },
+    outline: {
+      borderWidth: 1,
+      borderColor: colors.brand.primary,
+    },
+    crypto: {
+      backgroundColor: colors.accent,
+    },
+    danger: {
+      backgroundColor: colors.status.error,
+    },
+    small: {
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      minHeight: 36,
+    },
+    medium: {
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.lg,
+      minHeight: 48,
+    },
+    large: {
+      paddingVertical: spacing.lg,
+      paddingHorizontal: spacing.xl,
+      minHeight: 56,
+    },
+    disabled: {
+      opacity: 0.5,
+    },
+    fullWidth: {
+      width: '100%',
+    },
+    text: {
+      fontWeight: '600',
+    },
+    primaryText: {
+      color: colors.onPrimary,
+    },
+    secondaryText: {
+      color: colors.onSecondary,
+    },
+    outlineText: {
+      color: colors.brand.primary,
+    },
+    cryptoText: {
+      color: colors.onPrimary,
+    },
+    dangerText: {
+      color: colors.onPrimary,
+    },
+    smallText: {
+      ...typography.caption,
+    },
+    mediumText: {
+      ...typography.body,
+    },
+    largeText: {
+      ...typography.h3,
+    },
+    disabledText: {
+      opacity: 0.7,
+    },
+  });
+}
