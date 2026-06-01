@@ -18,6 +18,7 @@ import { useSubscriptionStore, useSettingsStore } from '../store';
 import { Button } from '../components/common/Button';
 import { getCurrencySymbol } from '../utils/formatting';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
+import { advanceBillingDate } from '../utils/billingDate';
 
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { errorHandler } from '../services/errorHandler';
@@ -27,6 +28,8 @@ import { BillingCycle, SubscriptionCategory } from '../types/subscription';
 interface AddSubscriptionFormData extends SubscriptionFormData {
   priceError: string;
 }
+
+const getDefaultNextBillingDate = (cycle: BillingCycle) => advanceBillingDate(new Date(), cycle);
 
 const AddSubscriptionScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -41,7 +44,7 @@ const AddSubscriptionScreen: React.FC = () => {
     priceError: '',
     currency: preferredCurrency,
     billingCycle: BillingCycle.MONTHLY,
-    nextBillingDate: new Date(),
+    nextBillingDate: getDefaultNextBillingDate(BillingCycle.MONTHLY),
     notificationsEnabled: true,
     isCryptoEnabled: false,
     cryptoToken: undefined,
@@ -73,7 +76,11 @@ const AddSubscriptionScreen: React.FC = () => {
 
   const handleBillingCycleSelect = (cycle: BillingCycle) => {
     setSelectedBillingCycle(cycle);
-    setFormData((prev) => ({ ...prev, billingCycle: cycle }));
+    setFormData((prev) => ({
+      ...prev,
+      billingCycle: cycle,
+      nextBillingDate: getDefaultNextBillingDate(cycle),
+    }));
   };
 
   const handleInputChange = (
@@ -131,6 +138,16 @@ const AddSubscriptionScreen: React.FC = () => {
       const validationError = new Error(
         formData.priceError || 'Invalid price: must be greater than 0'
       );
+      const appError = errorHandler.handleError(validationError, {
+        action: 'validateSubscription',
+        component: 'AddSubscriptionScreen',
+      });
+      Alert.alert('Validation Error', appError.userMessage);
+      return;
+    }
+
+    if (formData.nextBillingDate.getTime() < Date.now()) {
+      const validationError = new Error('Next billing date cannot be in the past');
       const appError = errorHandler.handleError(validationError, {
         action: 'validateSubscription',
         component: 'AddSubscriptionScreen',
