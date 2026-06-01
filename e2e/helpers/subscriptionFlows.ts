@@ -42,6 +42,35 @@ export const createSubscription = async (
     .withTimeout(15000);
 };
 
+export const createSubscriptionWithCurrency = async (
+  name: string,
+  price: string,
+  currency: string,
+  cycle: 'monthly' | 'yearly' | 'weekly' = 'monthly'
+) => {
+  await element(by.id('add-subscription-button')).tap();
+  await waitFor(element(by.id('add-subscription-screen')))
+    .toBeVisible()
+    .withTimeout(10000);
+
+  await element(by.id('subscription-name-input')).replaceText(name);
+  await element(by.id('subscription-price-input')).replaceText(price);
+
+  // Select currency
+  await element(by.text(currency)).tap();
+
+  if (cycle !== 'monthly') {
+    await element(by.id(`billing-cycle-option-${cycle}`)).tap();
+  }
+
+  await element(by.id('save-subscription-button')).tap();
+  await dismissAnySystemAlert();
+
+  await waitFor(element(by.text(name)))
+    .toBeVisible()
+    .withTimeout(15000);
+};
+
 export const openSubscriptionByName = async (name: string) => {
   await waitFor(element(by.text(name)))
     .toBeVisible()
@@ -69,5 +98,48 @@ export const dismissAnySystemAlert = async () => {
     } catch {
       // No-op: button not present.
     }
+  }
+};
+
+/**
+ * Navigate through the full cancellation flow:
+ * REASON → OFFERS → CONFIRM → SUCCESS
+ */
+export const completeCancellationFlow = async (reason = 'Too Expensive') => {
+  // Step 1: Select reason
+  await waitFor(element(by.id('cancellation-reason-step')))
+    .toBeVisible()
+    .withTimeout(10000);
+  const reasonTestId = `cancellation-reason-${reason.toLowerCase().replace(/\s+/g, '-')}`;
+  await element(by.id(reasonTestId)).tap();
+
+  // Step 2: Decline retention offers
+  await waitFor(element(by.id('cancellation-offers-step')))
+    .toBeVisible()
+    .withTimeout(10000);
+  await element(by.id('decline-offers-button')).tap();
+
+  // Step 3: Confirm cancellation
+  await waitFor(element(by.id('cancellation-confirm-step')))
+    .toBeVisible()
+    .withTimeout(10000);
+  await element(by.id('confirm-cancellation-button')).tap();
+
+  // Step 4: Verify success
+  await waitFor(element(by.id('cancellation-success-step')))
+    .toBeVisible()
+    .withTimeout(10000);
+};
+
+/**
+ * Simulate a dunning sequence by triggering multiple failed charges.
+ * Returns after the specified number of failures.
+ */
+export const simulateFailedCharges = async (count: number) => {
+  for (let i = 0; i < count; i++) {
+    await element(by.id('simulate-charge-failed-button')).tap();
+    await dismissAnySystemAlert();
+    // Brief pause between charges to allow state updates
+    await new Promise((resolve) => setTimeout(resolve, 500));
   }
 };

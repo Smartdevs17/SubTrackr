@@ -11,9 +11,12 @@ import {
 } from 'react-native';
 import { useUserStore } from '../store/userStore';
 import { gdprService } from '../services/gdpr';
+import { useThemeColors } from '../hooks/useThemeColors';
 
 const GDPRSettingsScreen = () => {
   const { consent, setConsent } = useUserStore();
+  const colors = useThemeColors();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const [loading, setLoading] = useState(false);
 
   const handleExport = async () => {
@@ -102,7 +105,7 @@ const GDPRSettingsScreen = () => {
           accessibilityHint="Downloads a copy of your profile, subscriptions, and billing history"
           accessibilityState={{ disabled: loading, busy: loading }}>
           {loading ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={colors.onPrimary} />
           ) : (
             <Text style={styles.buttonText}>Export My Data (JSON)</Text>
           )}
@@ -136,27 +139,28 @@ const GDPRSettingsScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: colors.background.primary,
   },
   section: {
     padding: 20,
-    backgroundColor: '#FFF',
+    backgroundColor: colors.background.card,
     marginBottom: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#EEE',
+    borderBottomColor: colors.border,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1A1A1A',
+    color: colors.text,
     marginBottom: 8,
   },
   description: {
     fontSize: 14,
-    color: '#666',
+    color: colors.textSecondary,
     marginBottom: 20,
     lineHeight: 20,
   },
@@ -173,32 +177,32 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: colors.text,
   },
   subLabel: {
     fontSize: 12,
-    color: '#888',
+    color: colors.textSecondary,
     marginTop: 2,
   },
   button: {
-    backgroundColor: '#007AFF',
+    backgroundColor: colors.primary,
     padding: 15,
     borderRadius: 8,
     alignItems: 'center',
     marginTop: 10,
   },
   deleteButton: {
-    backgroundColor: '#FF3B30',
+    backgroundColor: colors.error,
     marginTop: 30,
   },
   buttonText: {
-    color: '#FFF',
+    color: colors.onPrimary,
     fontSize: 16,
     fontWeight: '600',
   },
   infoText: {
     fontSize: 12,
-    color: '#999',
+    color: colors.textSecondary,
     marginTop: 8,
     textAlign: 'center',
   },
@@ -208,10 +212,11 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 12,
-    color: '#BBB',
+    color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 18,
   },
 });
+}
 
 export default GDPRSettingsScreen;

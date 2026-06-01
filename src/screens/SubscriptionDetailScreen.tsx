@@ -53,6 +53,10 @@ const SubscriptionDetailScreen: React.FC = () => {
     }
   }, [subscription]);
 
+  const handleEdit = useCallback(() => {
+    navigation.navigate('EditSubscription', { id: subscription.id });
+  }, [subscription, navigation]);
+
   const handlePauseResume = useCallback(async () => {
     if (!subscription) return;
     try {
@@ -102,7 +106,7 @@ const SubscriptionDetailScreen: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} testID="subscription-detail-screen">
       <ScreenTransition type="slide" duration={400}>
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
           {/* Header */}
@@ -118,7 +122,14 @@ const SubscriptionDetailScreen: React.FC = () => {
             <Text style={styles.title} accessibilityRole="header">
               Subscription Details
             </Text>
-            <View style={styles.placeholder} />
+            <TouchableOpacity
+              onPress={handleEdit}
+              style={styles.editButton}
+              accessibilityRole="button"
+              accessibilityLabel="Edit subscription"
+              testID="edit-subscription-button">
+              <Text style={styles.editButtonText}>Edit</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Main Info Card */}
@@ -278,6 +289,7 @@ const SubscriptionDetailScreen: React.FC = () => {
               onPress={handlePauseResume}
               variant="secondary"
               style={styles.actionButton}
+              testID="pause-resume-subscription-button"
             />
 
             <Button
@@ -285,6 +297,7 @@ const SubscriptionDetailScreen: React.FC = () => {
               variant="danger"
               onPress={handleStartCancellation}
               style={styles.cancelButton}
+              testID="cancel-subscription-button"
             />
           </View>
         </ScrollView>
@@ -329,6 +342,16 @@ const styles = StyleSheet.create({
   },
   placeholder: {
     width: 40,
+  },
+  editButton: {
+    padding: spacing.sm,
+    width: 40,
+    alignItems: 'flex-end',
+  },
+  editButtonText: {
+    ...typography.body,
+    color: colors.primary,
+    fontWeight: '500',
   },
   backIcon: {
     padding: spacing.sm,
