@@ -13,6 +13,10 @@ import { I18nextProvider } from 'react-i18next';
 import { crashReporter, CrashRecord } from './src/services/crashReporter';
 import * as Sentry from '@sentry/react-native';
 
+// Validate all environment variables at startup — fails fast in production
+// and warns in development/staging if any vars are missing or malformed.
+import './src/config/env';
+
 // Import WalletConnect compatibility layer
 import '@walletconnect/react-native-compat';
 
@@ -22,9 +26,8 @@ import { EVM_RPC_URLS } from './src/config/evm';
 import { useNetworkStore, useSettingsStore, useWalletStore } from './src/store';
 import { sessionService } from './src/services/auth/session';
 
-
-// Get projectId from environment variable
-const projectId = process.env.WALLET_CONNECT_PROJECT_ID || 'YOUR_PROJECT_ID';
+// Get projectId from validated environment
+const projectId = env.WALLET_CONNECT_PROJECT_ID;
 
 // Initialize Sentry (DSN provided via env var)
 try {
