@@ -11,7 +11,7 @@ on:
       - 'contracts/**'
 
 env:
-  RUST_VERSION: '1.86'
+  RUST_VERSION: stable
   # Number of proptest cases per property. Increase for deeper fuzzing.
   PROPTEST_CASES: 200
 
