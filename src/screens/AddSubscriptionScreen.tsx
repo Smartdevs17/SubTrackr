@@ -48,6 +48,11 @@ const AddSubscriptionScreen: React.FC = () => {
   const nameInputRef = useRef<TextInput>(null);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
+  // Ref for the name input — used for delayed focus instead of autoFocus,
+  // so the screen has time to fully render before the keyboard opens.
+  const nameInputRef = useRef<TextInput>(null);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
   const [formData, setFormData] = useState<AddSubscriptionFormData>({
     name: '',
     description: '',
