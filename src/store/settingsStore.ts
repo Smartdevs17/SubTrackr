@@ -2,13 +2,15 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { currencyService, ExchangeRates } from '../services/currencyService';
+import { LoadingState, idle, loading, success, failure } from '../types/loadingState';
 
 interface SettingsState {
   preferredCurrency: string;
   notificationsEnabled: boolean;
   exchangeRates: ExchangeRates | null;
   isLoading: boolean;
-  
+  loadingState: LoadingState;
+
   // Actions
   setPreferredCurrency: (currency: string) => void;
   setNotificationsEnabled: (enabled: boolean) => void;
@@ -23,20 +25,23 @@ export const useSettingsStore = create<SettingsState>()(
       notificationsEnabled: true,
       exchangeRates: null,
       isLoading: false,
+      loadingState: idle(),
 
       setPreferredCurrency: (currency) => {
         set({ preferredCurrency: currency });
-        // Optionally update rates immediately if base changed, 
-        // but here we keep USD as base for rates to simplify conversion
         void get().updateExchangeRates();
       },
 
       setNotificationsEnabled: (enabled) => set({ notificationsEnabled: enabled }),
 
       updateExchangeRates: async () => {
-        set({ isLoading: true });
-        const rates = await currencyService.fetchRates('USD');
-        set({ exchangeRates: rates, isLoading: false });
+        set({ isLoading: true, loadingState: loading() });
+        try {
+          const rates = await currencyService.fetchRates('USD');
+          set({ exchangeRates: rates, isLoading: false, loadingState: success() });
+        } catch (e) {
+          set({ isLoading: false, loadingState: failure(e as Error, ['Check your internet connection', 'Try again later']) });
+        }
       },
 
       initializeSettings: async () => {

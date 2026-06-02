@@ -10,7 +10,6 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
-  FlatList,
 } from 'react-native';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { useCampaignStore } from '../store/campaignStore';
