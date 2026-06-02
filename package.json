@@ -56,7 +56,8 @@
     "sdk:test:python": "PYTHONPATH=sdks/python python3 -m unittest discover sdks/python/tests",
     "sdk:test:go": "cd sdks/go && go test ./...",
     "bundle-size": "size-limit",
-    "bundle-size:why": "size-limit --why"
+    "bundle-size:why": "size-limit --why",
+    "bundle-analyze": "EXPO_BUNDLE_ANALYZE=true npx expo export"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.1.2",
@@ -69,7 +70,6 @@
     "@shopify/flash-list": "latest",
     "@stellar/stellar-sdk": "^12.0.0",
     "@superfluid-finance/sdk-core": "^0.9.0",
-    "@testing-library/react-hooks": "^8.0.1",
     "@walletconnect/react-native-compat": "^2.23.9",
     "@walletconnect/utils": "^2.23.9",
     "@sentry/react-native": "^5.4.0",
@@ -82,7 +82,6 @@
     "expo-linking": "~7.1.7",
     "expo-notifications": "^0.31.5",
     "expo-status-bar": "~2.2.3",
-    "graphql": "^16.13.2",
     "i18next": "^26.0.8",
     "react": "19.2.5",
     "react-i18next": "^17.0.6",
@@ -137,7 +136,10 @@
     "size-limit": "^11.1.4",
     "ts-jest": "^29.4.11",
     "typechain": "^8.3.2",
-    "typescript": "~5.8.3"
+    "typescript": "~5.8.3",
+    "metro-bundle-analyzer": "^0.2.0",
+    "@testing-library/react-hooks": "^8.0.1",
+    "graphql": "^16.13.2"
   },
   "private": false,
   "overrides": {
