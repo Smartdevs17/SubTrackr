@@ -79,7 +79,7 @@
     "ethers": "^5.8.0",
     "expo": "~53.0.20",
     "expo-application": "~6.1.5",
-    "expo-build-properties": "^56.0.16",
+    "expo-build-properties": "^0.12.5",
     "expo-clipboard": "~7.1.5",
     "expo-dev-client": "~5.2.4",
     "expo-image": "~2.3.0",
