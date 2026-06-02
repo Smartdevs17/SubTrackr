@@ -42,8 +42,13 @@ jobs:
           override: true
           components: llvm-tools
 
-      - name: Install cargo-fuzz
-        run: cargo install cargo-fuzz --locked
+      - name: Install cargo-binstall
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-binstall
+
+      - name: Install cargo-fuzz (prebuilt)
+        run: cargo binstall -y cargo-fuzz
 
       - name: Restore seed corpus from cache
         uses: actions/cache@v4

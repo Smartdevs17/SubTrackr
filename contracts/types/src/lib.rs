@@ -35,28 +35,28 @@ pub const TYPES_VERSION: u32 = 1;
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
 pub enum Interval {
-    Daily,         // 86400s
-    Weekly,        // 604800s
-    BiWeekly,      // 1209600s (14 days)
-    Monthly,       // 2592000s (30 days)
-    BiMonthly,     // 5184000s (60 days)
-    Quarterly,     // 7776000s (90 days)
-    SemiAnnually,  // 15724800s (182 days)
-    Yearly,        // 31536000s (365 days)
-    Custom(u64),   // Custom interval in seconds
+    Daily,        // 86400s
+    Weekly,       // 604800s
+    BiWeekly,     // 1209600s (14 days)
+    Monthly,      // 2592000s (30 days)
+    BiMonthly,    // 5184000s (60 days)
+    Quarterly,    // 7776000s (90 days)
+    SemiAnnually, // 15724800s (182 days)
+    Yearly,       // 31536000s (365 days)
+    Custom(u64),  // Custom interval in seconds
 }
 
 impl Interval {
     pub fn seconds(&self) -> u64 {
         match self {
-            Interval::Daily        => 86_400,
-            Interval::Weekly       => 604_800,
-            Interval::BiWeekly     => 1_209_600,
-            Interval::Monthly      => 2_592_000,
-            Interval::BiMonthly    => 5_184_000,
-            Interval::Quarterly    => 7_776_000,
+            Interval::Daily => 86_400,
+            Interval::Weekly => 604_800,
+            Interval::BiWeekly => 1_209_600,
+            Interval::Monthly => 2_592_000,
+            Interval::BiMonthly => 5_184_000,
+            Interval::Quarterly => 7_776_000,
             Interval::SemiAnnually => 15_724_800,
-            Interval::Yearly       => 31_536_000,
+            Interval::Yearly => 31_536_000,
             Interval::Custom(secs) => *secs,
         }
     }
@@ -820,7 +820,7 @@ pub enum StorageKey {
     RateLimitHour(u64, u64),
     RateLimitDay(u64, u64),
     ApiUsage(u64, u64),
-   // ── Added in storage version 5 (Oracle Integration) ──
+    // ── Added in storage version 5 (Oracle Integration) ──
     // ── Added in storage version 5 (Loyalty & Rewards) ──
     /// Global loyalty program config.
     LoyaltyConfig,
@@ -938,8 +938,8 @@ impl UsageTier {
     pub fn price_per_thousand(&self) -> i128 {
         match self {
             UsageTier::Free => 0,
-            UsageTier::Basic => 1,    // 0.001 per 1k requests (in stroops)
-            UsageTier::Pro => 5,      // 0.005 per 1k
+            UsageTier::Basic => 1,       // 0.001 per 1k requests (in stroops)
+            UsageTier::Pro => 5,         // 0.005 per 1k
             UsageTier::Enterprise => 10, // 0.01 per 1k
         }
     }

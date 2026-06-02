@@ -28,35 +28,8 @@ config.resolver = {
 };
 
 // ─── Bundle analyser ──────────────────────────────────────────────────────────
-// Run:  EXPO_BUNDLE_ANALYZE=true npx expo export
-// Then: npx react-native-bundle-visualizer
-// Or:   npx metro-viz  (if installed)
-//
-// We wire this through an env flag so CI stays fast.
-if (process.env.EXPO_BUNDLE_ANALYZE === 'true') {
-  // metro-bundle-analyzer serialises a stats JSON alongside the bundle
-  const { MetroBundleAnalyzerPlugin } = (() => {
-    try {
-      return require('metro-bundle-analyzer');
-    } catch {
-      console.warn(
-        '[metro] metro-bundle-analyzer not installed. ' +
-        'Run: npm install --save-dev metro-bundle-analyzer'
-      );
-      return { MetroBundleAnalyzerPlugin: null };
-    }
-  })();
-
-  if (MetroBundleAnalyzerPlugin) {
-    config.serializer = {
-      ...config.serializer,
-      customSerializer: MetroBundleAnalyzerPlugin.createSerializer({
-        enabled: true,
-        openAnalyzer: false,           // don't auto-open browser in CI
-        fileName: 'bundle-stats.json', // output alongside dist/
-      }),
-    };
-  }
-}
+// To analyse bundle size locally, run:
+//   npx react-native-bundle-visualizer
+// (metro-bundle-analyzer was removed — it was never published to npm)
 
 module.exports = config;

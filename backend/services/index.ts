@@ -124,6 +124,22 @@ export type {
   ChainHealthEntry,
 } from './transactionHealthDashboard';
 
+// ── Disaster Recovery ───────────────────────────────────────────────────────
+export { DisasterRecoveryService, disasterRecoveryService } from '../dr/DisasterRecoveryService';
+export type {
+  BackupManifest,
+  BackupEntry,
+  DrDrillResult,
+  DrDrillSchedule,
+  RtoMonitorEntry,
+  RpoMonitorEntry,
+  DrIncident,
+  GeoRegionStatus,
+  ConsistencyProof,
+  VerificationResult,
+  RecoveryResult as DrRecoveryResult,
+} from '../dr/DisasterRecoveryService';
+
 // ── Feature Flags (Issue #TBD) ──────────────────────────────────────────────
 export { BackendFeatureFlagsService, backendFeatureFlagsService } from './featureFlags';
 export type {

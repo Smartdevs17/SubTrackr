@@ -57,6 +57,7 @@
     "keywords": ["subscription", "crypto", "web3", "blockchain", "payments"],
     "primaryColor": "#6366f1",
     "plugins": [
+      ["./plugins/withKotlinVersion", "2.1.20"],
       [
         "expo-notifications",
         {

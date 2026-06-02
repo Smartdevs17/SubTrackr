@@ -1,276 +1,414 @@
-/// Gas optimisation module for the SubTrackr subscription contract.
-///
-/// Provides:
-/// 1. Storage migration helpers (v2 → v3 packed layout).
-/// 2. Benchmark comparison utilities (before/after gas estimates).
-/// 3. Read/write trade-off documentation for each packing decision.
-///
-/// # Read vs write gas trade-offs
-///
-/// | Operation        | Before (unpacked) | After (packed) | Δ      |
-/// |------------------|-------------------|----------------|--------|
-/// | subscribe()      | 13 slot writes    | 7 slot writes  | -46%   |
-/// | get_sub()        | 13 slot reads     | 7 slot reads   | -46%   |
-/// | charge_sub()     | 13+8 = 21 writes  | 7+4 = 11 writes| -48%   |
-/// | create_plan()    | 8 slot writes     | 4 slot writes  | -50%   |
-///
-/// Packing introduces a small decode cost (bit-shifts and masks) on every
-/// read — estimated at 2–4 instructions per field. For a typical read of
-/// all 13 fields this is ~50 extra instructions vs saving 6 storage-read
-/// fees (each ~10 000 gas on Soroban). Net saving per read: ~59 950 gas.
+/// Gas Optimization and Targeting Module
+/// Provides optimization recommendations and tracks gas targets
+use soroban_sdk::{Env, String, Vec};
 
-use soroban_sdk::{Address, Env, String};
-
-use crate::gas_storage::{
-    pack_flags, pack_ids, pack_pause, pack_plan_id_count, pack_price_interval_flags,
-    pack_timestamps_a, pack_timestamps_b, scale_amount, slot_audit_report, unpack_active,
-    unpack_charge_count, unpack_flag, unpack_id, unpack_interval_secs, unpack_last_charged_at,
-    unpack_next_charge_at, unpack_pause_duration, unpack_paused_at, unpack_plan_id,
-    unpack_plan_id_from_pack, unpack_price, unpack_started_at, unpack_status,
-    unpack_subscriber_count, FLAG_CRYPTO_ENABLED, FLAG_NOTIFICATIONS, FLAG_REFUND_PENDING,
-    PackedPlan, PackedSubscription, STATUS_ACTIVE, STATUS_CANCELLED, STATUS_EXPIRED,
-    STATUS_PAUSED,
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Substrate types mirrored here for migration (avoid cross-crate dep in tests)
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Status values — kept in sync with `subtrackr_types::SubscriptionStatus`.
-#[derive(Clone, PartialEq, Debug)]
-pub enum SubStatus {
-    Active,
-    Paused,
-    Cancelled,
-    Expired,
+/// Optimization level
+#[derive(Clone, Copy)]
+pub enum OptimizationLevel {
+    Critical, // > 150% of target
+    High,     // 100-150% of target
+    Medium,   // 80-100% of target
+    Optimal,  // < 80% of target
 }
 
-impl SubStatus {
-    pub fn to_flag(&self) -> u8 {
+impl OptimizationLevel {
+    pub fn to_string(&self) -> &'static str {
         match self {
-            SubStatus::Active    => STATUS_ACTIVE,
-            SubStatus::Paused    => STATUS_PAUSED,
-            SubStatus::Cancelled => STATUS_CANCELLED,
-            SubStatus::Expired   => STATUS_EXPIRED,
-        }
-    }
-
-    pub fn from_flag(f: u8) -> Self {
-        match f {
-            STATUS_PAUSED    => SubStatus::Paused,
-            STATUS_CANCELLED => SubStatus::Cancelled,
-            STATUS_EXPIRED   => SubStatus::Expired,
-            _                => SubStatus::Active,
+            Self::Critical => "critical",
+            Self::High => "high",
+            Self::Medium => "medium",
+            Self::Optimal => "optimal",
         }
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Migration helper
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Input shape for migrating an existing (unpacked) subscription row.
-pub struct LegacySubscription {
-    pub id: u64,
-    pub plan_id: u64,
-    pub subscriber: Address,
-    pub status: SubStatus,
-    pub started_at: u64,
-    pub last_charged_at: u64,
-    pub next_charge_at: u64,
-    pub total_paid: i128,
-    pub charge_count: u64,
-    pub paused_at: u64,
-    pub pause_duration: u64,
-    /// Legacy bool flags (may not exist in very old rows — default false).
-    pub crypto_enabled: bool,
-    pub notifications_enabled: bool,
-    pub refund_pending: bool,
+/// Optimization recommendation
+#[derive(Clone)]
+pub struct OptimizationRecommendation {
+    pub function_name: String,
+    pub severity: OptimizationLevel,
+    pub current_gas: u64,
+    pub target_gas: u64,
+    pub potential_savings: u64,
+    pub recommendation: String,
 }
 
-/// Input shape for migrating an existing (unpacked) plan row.
-pub struct LegacyPlan {
-    pub id: u64,
-    pub merchant: Address,
-    pub name: String,
-    pub price: i128,
-    pub interval_secs: u64,
-    pub active: bool,
-    pub subscriber_count: u32,
-    pub token: Address,
-}
+/// Gas optimization targets for each function
+pub struct GasOptimizationTargets;
 
-/// Convert a legacy subscription row to the packed representation.
-///
-/// Called once per subscription during the v2 → v3 migration in `lib.rs`.
-/// The result is written back to persistent storage under the same key,
-/// replacing the old layout atomically.
-pub fn migrate_subscription(leg: LegacySubscription) -> PackedSubscription {
-    PackedSubscription {
-        id_and_plan: pack_ids(leg.id, leg.plan_id),
-        subscriber: leg.subscriber,
-        flags: pack_flags(
-            leg.status.to_flag(),
-            leg.crypto_enabled,
-            leg.notifications_enabled,
-            leg.refund_pending,
-        ),
-        timestamps_a: pack_timestamps_a(leg.started_at, leg.last_charged_at),
-        timestamps_b: pack_timestamps_b(leg.next_charge_at, leg.charge_count),
-        total_paid_scaled: scale_amount(leg.total_paid),
-        pause_pack: pack_pause(leg.paused_at, leg.pause_duration),
+impl GasOptimizationTargets {
+    /// Get target gas for initialization functions
+    pub fn initialize_target() -> u64 {
+        25_000 // Minimal storage setup
+    }
+
+    /// Get target gas for plan creation
+    pub fn create_plan_target() -> u64 {
+        75_000 // Multiple storage writes
+    }
+
+    /// Get target gas for subscription
+    pub fn subscribe_target() -> u64 {
+        65_000 // Create subscription + index
+    }
+
+    /// Get target gas for charge operation
+    pub fn charge_subscription_target() -> u64 {
+        150_000 // Token transfer + storage updates
+    }
+
+    /// Get target gas for cancel subscription
+    pub fn cancel_subscription_target() -> u64 {
+        45_000 // Remove from indexes + decrement counts
+    }
+
+    /// Get target gas for pause subscription
+    pub fn pause_subscription_target() -> u64 {
+        35_000 // Single storage write
+    }
+
+    /// Get target gas for resume subscription
+    pub fn resume_subscription_target() -> u64 {
+        40_000 // Single storage write + time calculation
+    }
+
+    /// Get target gas for request refund
+    pub fn request_refund_target() -> u64 {
+        30_000 // Storage write + validation
+    }
+
+    /// Get target gas for approve refund
+    pub fn approve_refund_target() -> u64 {
+        35_000 // Storage write + transfer
+    }
+
+    /// Get target gas for request transfer
+    pub fn request_transfer_target() -> u64 {
+        25_000 // Storage write
+    }
+
+    /// Get target gas for accept transfer
+    pub fn accept_transfer_target() -> u64 {
+        85_000 // Multiple storage operations
+    }
+
+    /// Get target gas for plan query
+    pub fn get_plan_target() -> u64 {
+        15_000 // Read from storage
+    }
+
+    /// Get target gas for subscription query
+    pub fn get_subscription_target() -> u64 {
+        15_000 // Read from storage
+    }
+
+    /// Get target for user subscriptions query
+    pub fn get_user_subscriptions_target() -> u64 {
+        20_000 // Read + iteration
+    }
+
+    /// Get all targets as a map
+    pub fn all_targets(env: &Env) -> Vec<(String, u64)> {
+        soroban_sdk::vec![
+            env,
+            (
+                String::from_str(env, "initialize"),
+                Self::initialize_target()
+            ),
+            (
+                String::from_str(env, "create_plan"),
+                Self::create_plan_target()
+            ),
+            (String::from_str(env, "subscribe"), Self::subscribe_target()),
+            (
+                String::from_str(env, "charge_subscription"),
+                Self::charge_subscription_target()
+            ),
+            (
+                String::from_str(env, "cancel_subscription"),
+                Self::cancel_subscription_target()
+            ),
+            (
+                String::from_str(env, "pause_subscription"),
+                Self::pause_subscription_target()
+            ),
+            (
+                String::from_str(env, "resume_subscription"),
+                Self::resume_subscription_target()
+            ),
+            (
+                String::from_str(env, "request_refund"),
+                Self::request_refund_target()
+            ),
+            (
+                String::from_str(env, "approve_refund"),
+                Self::approve_refund_target()
+            ),
+            (
+                String::from_str(env, "request_transfer"),
+                Self::request_transfer_target()
+            ),
+            (
+                String::from_str(env, "accept_transfer"),
+                Self::accept_transfer_target()
+            ),
+            (String::from_str(env, "get_plan"), Self::get_plan_target()),
+            (
+                String::from_str(env, "get_subscription"),
+                Self::get_subscription_target()
+            ),
+            (
+                String::from_str(env, "get_user_subscriptions"),
+                Self::get_user_subscriptions_target()
+            ),
+        ]
     }
 }
 
-/// Convert a legacy plan row to the packed representation.
-pub fn migrate_plan(leg: LegacyPlan) -> PackedPlan {
-    PackedPlan {
-        id_and_count: pack_plan_id_count(leg.id, leg.subscriber_count),
-        merchant: leg.merchant,
-        name: leg.name,
-        price_interval_flags: pack_price_interval_flags(leg.price, leg.interval_secs, leg.active),
-        token: leg.token,
+/// Gas optimization strategies and recommendations
+pub struct GasOptimizations;
+
+impl GasOptimizations {
+    /// Get optimization recommendations for a specific function
+    pub fn get_recommendations_for_function(
+        env: &Env,
+        function_name: &str,
+        current_gas: u64,
+    ) -> Vec<String> {
+        let mut recommendations = Vec::new(env);
+
+        match function_name {
+            "create_plan" => {
+                if current_gas > 100_000 {
+                    recommendations.push_back(String::from_str(
+                        env,
+                        "Consider batch validation of plan parameters before storage writes",
+                    ));
+                }
+                recommendations.push_back(String::from_str(
+                    env,
+                    "Cache merchant address to reduce lookup operations",
+                ));
+            }
+            "charge_subscription" => {
+                if current_gas > 180_000 {
+                    recommendations.push_back(String::from_str(
+                        env,
+                        "Optimize token transfer: consider using batch transfers for multiple subscriptions",
+                    ));
+                }
+                recommendations.push_back(String::from_str(
+                    env,
+                    "Consider deferring storage writes to a separate operation",
+                ));
+            }
+            "accept_transfer" => {
+                if current_gas > 110_000 {
+                    recommendations.push_back(String::from_str(
+                        env,
+                        "Reduce vector operations: pre-allocate vector size",
+                    ));
+                }
+                recommendations.push_back(String::from_str(
+                    env,
+                    "Consider removing vector iteration: use index-based updates",
+                ));
+            }
+            "get_user_subscriptions" => {
+                if current_gas > 25_000 {
+                    recommendations.push_back(String::from_str(
+                        env,
+                        "Consider limiting result set with pagination",
+                    ));
+                }
+            }
+            "subscribe" => {
+                if current_gas > 80_000 {
+                    recommendations.push_back(String::from_str(
+                        env,
+                        "Batch storage operations: combine multiple sets into single storage call",
+                    ));
+                }
+            }
+            _ => {
+                recommendations.push_back(String::from_str(
+                    env,
+                    "Monitor function for optimization opportunities",
+                ));
+            }
+        }
+
+        recommendations
+    }
+
+    /// Get common optimization strategies
+    pub fn get_general_optimizations(env: &Env) -> Vec<String> {
+        let mut optimizations = Vec::new(env);
+
+        optimizations.push_back(String::from_str(
+            env,
+            "Use persistent instead of instance storage for rarely-accessed data",
+        ));
+        optimizations.push_back(String::from_str(
+            env,
+            "Batch multiple storage operations into single contract calls",
+        ));
+        optimizations.push_back(String::from_str(
+            env,
+            "Cache frequently accessed data in local variables",
+        ));
+        optimizations.push_back(String::from_str(
+            env,
+            "Avoid unnecessary vector iterations when possible",
+        ));
+        optimizations.push_back(String::from_str(
+            env,
+            "Pre-allocate vectors with expected capacity",
+        ));
+        optimizations.push_back(String::from_str(
+            env,
+            "Use efficient data structures for lookups (indices/mappings)",
+        ));
+        optimizations.push_back(String::from_str(
+            env,
+            "Minimize cross-contract calls: batch related operations",
+        ));
+        optimizations.push_back(String::from_str(
+            env,
+            "Use event publishing instead of storage for audit trails",
+        ));
+        optimizations.push_back(String::from_str(
+            env,
+            "Consider time-lock patterns for expensive operations",
+        ));
+        optimizations.push_back(String::from_str(
+            env,
+            "Monitor and break down complex functions into optimizable parts",
+        ));
+
+        optimizations
+    }
+
+    /// Categorize gas usage by severity
+    pub fn categorize_gas_usage(current_gas: u64, target_gas: u64) -> OptimizationLevel {
+        if current_gas > (target_gas * 150) / 100 {
+            OptimizationLevel::Critical
+        } else if current_gas > target_gas {
+            OptimizationLevel::High
+        } else if current_gas > (target_gas * 80) / 100 {
+            OptimizationLevel::Medium
+        } else {
+            OptimizationLevel::Optimal
+        }
+    }
+
+    /// Calculate potential gas savings
+    pub fn calculate_savings(current_gas: u64, target_gas: u64) -> u64 {
+        if current_gas > target_gas {
+            current_gas - target_gas
+        } else {
+            0
+        }
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Unpack helpers exposed to the rest of the contract
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Decode all fields from a `PackedSubscription` in one call.
-/// Returns a tuple matching the original `Subscription` field order.
-#[allow(clippy::type_complexity)]
-pub fn unpack_subscription(
-    p: &PackedSubscription,
-) -> (
-    u64,      // id
-    u64,      // plan_id
-    SubStatus,
-    u64,      // started_at
-    u64,      // last_charged_at
-    u64,      // next_charge_at
-    i128,     // total_paid
-    u64,      // charge_count
-    u64,      // paused_at
-    u64,      // pause_duration
-    bool,     // crypto_enabled
-    bool,     // notifications_enabled
-    bool,     // refund_pending
-) {
-    (
-        unpack_id(p.id_and_plan),
-        unpack_plan_id(p.id_and_plan),
-        SubStatus::from_flag(unpack_status(p.flags)),
-        unpack_started_at(p.timestamps_a),
-        unpack_last_charged_at(p.timestamps_a),
-        unpack_next_charge_at(p.timestamps_b),
-        crate::gas_storage::unscale_amount(p.total_paid_scaled),
-        unpack_charge_count(p.timestamps_b),
-        unpack_paused_at(p.pause_pack),
-        unpack_pause_duration(p.pause_pack),
-        unpack_flag(p.flags, FLAG_CRYPTO_ENABLED),
-        unpack_flag(p.flags, FLAG_NOTIFICATIONS),
-        unpack_flag(p.flags, FLAG_REFUND_PENDING),
-    )
+pub fn get_optimization_priorities(
+    env: &Env,
+    gas_metrics: Vec<(String, u64)>,
+) -> Vec<(String, u64, String)> {
+    Vec::new(env)
 }
 
-/// Decode all fields from a `PackedPlan`.
-pub fn unpack_plan(p: &PackedPlan) -> (u64, u32, i128, u64, bool) {
-    (
-        unpack_plan_id_from_pack(p.id_and_count),
-        unpack_subscriber_count(p.id_and_count),
-        unpack_price(p.price_interval_flags),
-        unpack_interval_secs(p.price_interval_flags),
-        unpack_active(p.price_interval_flags),
-    )
-}
+/// Best practices for gas efficiency
+pub mod best_practices {
+    use soroban_sdk::{Env, String, Vec};
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Gas benchmark comparison
-// ─────────────────────────────────────────────────────────────────────────────
+    pub fn get_storage_best_practices(env: &Env) -> Vec<String> {
+        let mut practices = Vec::new(env);
 
-/// Approximate gas costs (in Soroban fee units) for storage operations.
-/// Based on Soroban mainnet fee schedule (subject to network upgrades).
-const GAS_PER_SLOT_READ: u64  = 10_000;
-const GAS_PER_SLOT_WRITE: u64 = 20_000;
-/// Cost of bit-shift / mask operations per field (instruction gas).
-const GAS_PER_DECODE_OP: u64  = 2;
+        practices.push_back(String::from_str(
+            env,
+            "Use instance storage for frequently accessed config, persistent for user data",
+        ));
+        practices.push_back(String::from_str(
+            env,
+            "Minimize storage key complexity: use simple types when possible",
+        ));
+        practices.push_back(String::from_str(
+            env,
+            "Batch related updates to reduce total storage operations",
+        ));
+        practices.push_back(String::from_str(
+            env,
+            "Consider denormalization to reduce number of storage reads",
+        ));
 
-#[derive(Debug)]
-pub struct GasBenchmark {
-    /// Name of the operation being measured.
-    pub operation: &'static str,
-    /// Estimated gas before packing.
-    pub gas_before: u64,
-    /// Estimated gas after packing.
-    pub gas_after: u64,
-    /// Absolute saving.
-    pub saving: u64,
-    /// Saving as a percentage of the before cost.
-    pub saving_pct: u64,
-}
-
-/// Build a benchmark report for the four hot-path operations.
-pub fn benchmark_report() -> [GasBenchmark; 4] {
-    // subscribe(): 13 writes before → 7 writes after; 13 decode ops added
-    let sub_before  = 13 * GAS_PER_SLOT_WRITE;
-    let sub_after   = 7  * GAS_PER_SLOT_WRITE + 13 * GAS_PER_DECODE_OP;
-
-    // get_subscription(): 13 reads before → 7 reads after; 13 decode ops
-    let get_before  = 13 * GAS_PER_SLOT_READ;
-    let get_after   = 7  * GAS_PER_SLOT_READ + 13 * GAS_PER_DECODE_OP;
-
-    // charge_subscription(): 13+8 = 21 writes before → 7+4 = 11 writes after
-    let charge_before = 21 * GAS_PER_SLOT_WRITE;
-    let charge_after  = 11 * GAS_PER_SLOT_WRITE + 21 * GAS_PER_DECODE_OP;
-
-    // create_plan(): 8 writes before → 4 writes after
-    let plan_before = 8 * GAS_PER_SLOT_WRITE;
-    let plan_after  = 4 * GAS_PER_SLOT_WRITE + 8 * GAS_PER_DECODE_OP;
-
-    [
-        GasBenchmark {
-            operation: "subscribe",
-            gas_before: sub_before,
-            gas_after: sub_after,
-            saving: sub_before.saturating_sub(sub_after),
-            saving_pct: 100 - (sub_after * 100 / sub_before),
-        },
-        GasBenchmark {
-            operation: "get_subscription",
-            gas_before: get_before,
-            gas_after: get_after,
-            saving: get_before.saturating_sub(get_after),
-            saving_pct: 100 - (get_after * 100 / get_before),
-        },
-        GasBenchmark {
-            operation: "charge_subscription",
-            gas_before: charge_before,
-            gas_after: charge_after,
-            saving: charge_before.saturating_sub(charge_after),
-            saving_pct: 100 - (charge_after * 100 / charge_before),
-        },
-        GasBenchmark {
-            operation: "create_plan",
-            gas_before: plan_before,
-            gas_after: plan_after,
-            saving: plan_before.saturating_sub(plan_after),
-            saving_pct: 100 - (plan_after * 100 / plan_before),
-        },
-    ]
-}
-
-/// Print-friendly benchmark summary (returns a static str for use in events/logs).
-pub fn print_benchmark_summary(_env: &Env) {
-    let report = benchmark_report();
-    for b in &report {
-        // In production use env.events() to publish; here we rely on the
-        // caller to surface these via the gas_profiler event stream.
-        let _ = b; // suppress unused warning in no_std
+        practices
     }
-}
 
-/// Slot audit — returns the static audit string from gas_storage.
-pub fn audit_slots() -> &'static str {
-    slot_audit_report()
+    pub fn get_contract_interaction_best_practices(env: &Env) -> Vec<String> {
+        let mut practices = Vec::new(env);
+
+        practices.push_back(String::from_str(
+            env,
+            "Minimize cross-contract calls: combine operations when possible",
+        ));
+        practices.push_back(String::from_str(
+            env,
+            "Cache contract client instances for repeated calls",
+        ));
+        practices.push_back(String::from_str(
+            env,
+            "Batch token operations to reduce call count",
+        ));
+        practices.push_back(String::from_str(
+            env,
+            "Use events for audit trails instead of storage",
+        ));
+
+        practices
+    }
+
+    pub fn get_computation_best_practices(env: &Env) -> Vec<String> {
+        let mut practices = Vec::new(env);
+
+        practices.push_back(String::from_str(
+            env,
+            "Avoid complex computations in hot paths",
+        ));
+        practices.push_back(String::from_str(
+            env,
+            "Pre-compute complex values outside contract when possible",
+        ));
+        practices.push_back(String::from_str(
+            env,
+            "Use efficient algorithms: O(n) preferred over O(n²)",
+        ));
+        practices.push_back(String::from_str(
+            env,
+            "Short-circuit evaluations to exit early",
+        ));
+
+        practices
+    }
+
+    pub fn get_validation_best_practices(env: &Env) -> Vec<String> {
+        let mut practices = Vec::new(env);
+
+        practices.push_back(String::from_str(env, "Validate inputs early to fail fast"));
+        practices.push_back(String::from_str(
+            env,
+            "Use assertions for critical validations",
+        ));
+        practices.push_back(String::from_str(
+            env,
+            "Batch validation of related parameters",
+        ));
+        practices.push_back(String::from_str(
+            env,
+            "Cache validation results when applicable",
+        ));
+
+        practices
+    }
 }
