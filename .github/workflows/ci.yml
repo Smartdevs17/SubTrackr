@@ -352,11 +352,11 @@ jobs:
 
       # k6 exits non-zero when a threshold in config/options.js is breached,
       # which fails this job — that is the CI gate on performance regressions.
+      - name: Setup k6
+        uses: grafana/setup-k6-action@v1
+
       - name: Run k6 Load Test (${{ matrix.scenario }})
-        uses: grafana/k6-action@v0.5.1
-        with:
-          filename: load-tests/run.js
-          flags: --env SCENARIO=${{ matrix.scenario }} --quiet
+        run: k6 run load-tests/run.js --env SCENARIO=${{ matrix.scenario }} --quiet
 
       - name: Rename report for this scenario
         if: always()
