@@ -71,6 +71,30 @@ export type {
 export { BatchChargeService } from './batchChargeService';
 export type { BatchChargeCandidate, BatchChargeOptions, BatchChargeResult } from './batchChargeService';
 
+// ── Payment Timeout & Recovery (Issue #427) ─────────────────────────────────
+export {
+  PaymentTimeoutService,
+  paymentTimeoutService,
+  DEFAULT_CHAIN_CONFIGS,
+} from './paymentTimeoutService';
+export type {
+  ChainTimeoutConfig,
+  PaymentTimeoutRecord,
+  RecoveryResult,
+  TimeoutHealthSummary,
+  TimeoutStatus,
+  ChainStatusProvider,
+} from './paymentTimeoutService';
+export {
+  TransactionHealthDashboard,
+  transactionHealthDashboard,
+} from './transactionHealthDashboard';
+export type {
+  StuckTransactionEntry,
+  TxHealthDashboardSnapshot,
+  ChainHealthEntry,
+} from './transactionHealthDashboard';
+
 // ── Feature Flags (Issue #TBD) ──────────────────────────────────────────────
 export { BackendFeatureFlagsService, backendFeatureFlagsService } from './featureFlags';
 export type {
