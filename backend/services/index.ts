@@ -28,8 +28,15 @@ export { OracleMonitorService, oracleMonitorService } from './oracleMonitorServi
 export { RateLimitingService, rateLimitingService } from './rateLimitingService';
 export type {
   AuditAction,
+  AuditArchiveEntry,
+  AuditContext,
   AuditEvent,
+  AuditQueryFilter,
+  AuditQueryResult,
   AuditReport,
+  AuditSeverity,
+  ArchivalPolicy,
+  ComplianceAuditReport,
   ExportFormat,
   RetentionPolicy,
 } from './auditTypes';
