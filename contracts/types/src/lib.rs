@@ -686,6 +686,7 @@ pub struct RoleChangeEntry {
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
 pub enum DigitalGoodsClass {
+    Unspecified,
     Standard,
     ElectronicService,
     Exempt,
@@ -717,7 +718,7 @@ pub struct CustomerTaxStatus {
     pub certificate_expiry: Timestamp,
     pub issuing_authority: String,
     pub exempt_jurisdictions: Vec<String>,
-    pub digital_goods_override: Option<DigitalGoodsClass>,
+    pub goods_class: DigitalGoodsClass,
 }
 
 /// A single line in a tax remittance report recording collected tax by jurisdiction.
@@ -754,6 +755,7 @@ pub enum StorageKey {
     LastCall(Address, String),
     /// Pending transfer request: subscription_id -> pending recipient
     PendingTransfer(u64),
+    CreditMemo(u64),
 
     // ── Invoice state ──
     InvoiceCount,
@@ -874,6 +876,14 @@ pub enum StorageKey {
     /// Temporary nonce used to deduplicate rapid charge attempts within a
     /// single ledger sequence window.  Expires after one ledger close (~5 s).
     TmpChargeNonce(u64),
+
+    // ── Added in storage version 7 (transient pending operations) ──
+    /// Pending subscription-transfer authorization keyed by subscription_id.
+    /// Holds the recipient address that is temporarily authorized to accept
+    /// the transfer.  Stored in TEMPORARY storage so an unaccepted transfer
+    /// offer auto-expires (default 7 days) instead of lingering forever in
+    /// instance storage.  Replaces the instance-backed StorageKey::PendingTransfer.
+    TmpPendingTransfer(u64),
 }
 
 pub type ApiKeyId = u64;
