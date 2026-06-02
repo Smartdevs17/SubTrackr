@@ -19,7 +19,7 @@ jobs:
       - name: Install dependencies
         run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
       - name: Expo Prebuild
-        run: npx expo prebuild -p ios
+        run: APP_ENV=production npx expo prebuild -p ios
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
@@ -81,7 +81,7 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
       - name: Expo Prebuild
-        run: npx expo prebuild -p android
+        run: APP_ENV=production npx expo prebuild -p android
       - name: Build Detox Android
         run: npm run e2e:build-android
       - name: Detox Android — core lifecycle
