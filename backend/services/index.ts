@@ -140,6 +140,23 @@ export type {
   ConsistencyProof,
 } from '../dr/DisasterRecoveryService';
 
+// ── RPC Circuit Breaker ─────────────────────────────────────────────────────
+export { RpcCircuitBreakerService } from './rpcCircuitBreaker';
+export type {
+  RpcProviderConfig,
+  RpcCircuitBreakerOptions,
+  CircuitState,
+  CircuitStatus,
+  CircuitAuditEvent,
+  RpcDashboardSnapshot,
+  RpcCallFn,
+} from './rpcCircuitBreaker';
+export {
+  RpcTimeoutError,
+  RpcCircuitOpenError,
+  RpcAllProvidersFailedError,
+} from './rpcCircuitBreaker';
+
 // ── Feature Flags (Issue #TBD) ──────────────────────────────────────────────
 export { BackendFeatureFlagsService, backendFeatureFlagsService } from './featureFlags';
 export type {
