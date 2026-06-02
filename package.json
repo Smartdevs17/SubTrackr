@@ -147,7 +147,10 @@
   "private": false,
   "overrides": {
     "hermes-parser": "0.33.3",
-    "babel-plugin-syntax-hermes-parser": "0.33.3"
+    "babel-plugin-syntax-hermes-parser": "0.33.3",
+    "@reown/appkit-ethers-react-native": {
+      "ethers": "^5.8.0"
+    }
   },
   "repository": {
     "type": "git",
