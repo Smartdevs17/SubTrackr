@@ -1,7 +1,11 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { useThemeColors } from '../hooks/useThemeColors';
 
 export const UsageDashboard = () => {
+  const colors = useThemeColors();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Usage & Billing</Text>
@@ -26,13 +30,20 @@ export const UsageDashboard = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { padding: 16 },
-  title: { fontSize: 22, fontWeight: 'bold', marginBottom: 16 },
-  card: { padding: 16, backgroundColor: '#f5f5f5', borderRadius: 8, marginBottom: 12 },
-  metricTitle: { fontSize: 16, fontWeight: '600' },
-  metricValue: { fontSize: 14, marginVertical: 8 },
-  progressBar: { height: 8, backgroundColor: '#ddd', borderRadius: 4, overflow: 'hidden' },
-  progressFill: { height: '100%', backgroundColor: '#007AFF' },
-  alertText: { color: 'orange', fontSize: 12, marginTop: 8 },
-});
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+    container: { padding: 16 },
+    title: { fontSize: 22, fontWeight: 'bold', marginBottom: 16, color: colors.text },
+    card: { padding: 16, backgroundColor: colors.surface, borderRadius: 8, marginBottom: 12 },
+    metricTitle: { fontSize: 16, fontWeight: '600', color: colors.text },
+    metricValue: { fontSize: 14, marginVertical: 8, color: colors.text },
+    progressBar: {
+      height: 8,
+      backgroundColor: colors.border,
+      borderRadius: 4,
+      overflow: 'hidden',
+    },
+    progressFill: { height: '100%', backgroundColor: colors.primary },
+    alertText: { color: colors.status.warning, fontSize: 12, marginTop: 8 },
+  });
+}

@@ -22,6 +22,7 @@ export type {
 export { AuditService } from './auditService';
 export { CampaignService } from './campaignService';
 export { DunningService, dunningService } from './dunningService';
+export { ExportService, exportService } from './exportService';
 export { PricingService } from './pricingService';
 export { OracleMonitorService, oracleMonitorService } from './oracleMonitorService';
 export { RateLimitingService, rateLimitingService } from './rateLimitingService';
@@ -67,3 +68,23 @@ export type {
   SubscriptionEventQuery,
   SubscriptionEventType,
 } from './subscriptionEventStore';
+export { BatchChargeService } from './batchChargeService';
+export type { BatchChargeCandidate, BatchChargeOptions, BatchChargeResult } from './batchChargeService';
+
+// ── Feature Flags (Issue #TBD) ──────────────────────────────────────────────
+export { BackendFeatureFlagsService, backendFeatureFlagsService } from './featureFlags';
+export type {
+  FeatureFlag,
+  FeatureAccessResult,
+  FeatureConfig,
+  FeatureCheckEvent,
+  FeatureFlagAnalytics,
+  FeatureAnalyticsReport,
+  StaleFlagReport,
+  StaleFlagConfig,
+  ConfigConflict,
+  UserAttributes,
+  UserSegment,
+  ABTestAssignment,
+  FeatureId,
+} from '../../src/types/feature';
