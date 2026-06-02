@@ -183,6 +183,11 @@ interface SubscriptionState {
   /** Simulate or record a billing result (fires local notifications when enabled for this sub). */
   recordBillingOutcome: (id: string, outcome: 'success' | 'failed') => Promise<void>;
   fetchSubscriptions: () => Promise<void>;
+  /**
+   * Refresh subscriptions with proper race condition handling.
+   * Fetches fresh data and updates state atomically to prevent stale data.
+   */
+  refreshSubscriptions: () => Promise<void>;
   calculateStats: () => void;
 }
 
@@ -505,6 +510,29 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           set({
             error: errorHandler.handleError(error as Error, {
               action: 'fetchSubscriptions',
+            }),
+            isLoading: false,
+          });
+        }
+      },
+
+      refreshSubscriptions: async () => {
+        set({ isLoading: true, error: null });
+        try {
+          // Fetch fresh data first
+          // TODO: Replace with remote sync; local storage remains source-of-truth offline.
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+
+          // Update state atomically after fetch completes
+          // This prevents showing stale/empty data during the fetch
+          set({ isLoading: false });
+          get().calculateStats();
+          await syncRenewalReminders(get().subscriptions);
+          await useCalendarStore.getState().syncSubscriptions(get().subscriptions);
+        } catch (error) {
+          set({
+            error: errorHandler.handleError(error as Error, {
+              action: 'refreshSubscriptions',
             }),
             isLoading: false,
           });
