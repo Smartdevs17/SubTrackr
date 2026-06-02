@@ -392,7 +392,7 @@ export class SubscriptionCacheService {
       list.push(sub);
       byUser.set(uid, list);
     }
-    for (const [uid, list] of byUser) {
+    for (const [uid, list] of Array.from(byUser)) {
       try {
         await this.redis.set(this.userKey(uid), JSON.stringify(list), 'EX', this.listTtl);
         this.writes++;
