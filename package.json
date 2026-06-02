@@ -41,6 +41,7 @@
     "pretypecheck": "npm run contracts:codegen",
     "ci": "npm run lint && npm run contracts:codegen:check && npx tsc --noEmit && npm run test && npm run contracts:test && npm run contracts:fmt && npm run contracts:clippy",
     "prepare": "husky",
+    "postinstall": "node scripts/patch-metro-exports.js",
     "load:test": "k6 run load-tests/run.js",
     "load:test:subscription": "k6 run load-tests/run.js --env SCENARIO=subscription",
     "load:test:billing": "k6 run load-tests/run.js --env SCENARIO=billing",
