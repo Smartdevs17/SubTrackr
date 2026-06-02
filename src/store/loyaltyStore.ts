@@ -5,15 +5,21 @@ import {
   LoyaltyStatus,
   LoyaltyTier,
   PointsTransaction,
+  PointTxType,
   Reward,
   RewardType,
   TierBenefits,
   LoyaltyProgram,
+  StreakInfo,
+  ReferralInfo,
 } from '../types/loyalty';
+import { AchievementTrigger } from '../types/gamification';
+import { useGamificationStore } from './gamificationStore';
 
 const STORAGE_KEY = 'subtrackr-loyalty';
 const STORE_VERSION = 2;
 
+feat/issues-394-405-414-386
 // ── Gamification types ───────────────────────────────────────────────────────
 
 export interface Achievement {
@@ -23,6 +29,27 @@ export interface Achievement {
   icon: string;
   condition: (state: Pick<LoyaltyState, 'loyaltyStatus' | 'streak' | 'transactions'>) => boolean;
   unlockedAt?: Date;
+
+interface LoyaltyState {
+  loyaltyStatus: LoyaltyStatus | null;
+  transactions: PointsTransaction[];
+  rewards: Reward[];
+  program: LoyaltyProgram | null;
+  streak: StreakInfo;
+  referral: ReferralInfo;
+  isLoading: boolean;
+  error: string | null;
+
+  initializeProgram: () => Promise<void>;
+  fetchLoyaltyStatus: (address: string) => Promise<void>;
+  accumulatePoints: (subscriberId: string, subscriptionId: string, amount: number) => Promise<void>;
+  redeemPoints: (rewardId: string) => Promise<boolean>;
+  redeemPointsForDiscount: (points: number, chargeAmount: number) => Promise<number>;
+  checkTierUpgrade: () => void;
+  expirePoints: () => void;
+  earnReferralBonus: (referrerAddress: string) => Promise<void>;
+  generateReferralCode: () => string;
+main
 }
 
 export interface StreakData {
@@ -194,6 +221,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   },
 ];
 
+feat/issues-394-405-414-386
 // ── Store interface ──────────────────────────────────────────────────────────
 
 interface LoyaltyState {
@@ -223,6 +251,22 @@ interface LoyaltyState {
 
 // ── Store ────────────────────────────────────────────────────────────────────
 
+const getTierBenefits = (tier: LoyaltyTier): TierBenefits | undefined => {
+  return defaultTierBenefits.find((t) => t.tier === tier);
+};
+
+const calculatePointsExpiration = (pointsExpirationDays: number, memberSince: Date): Date => {
+  const expirationDate = new Date(memberSince);
+  expirationDate.setDate(expirationDate.getDate() + pointsExpirationDays);
+  return expirationDate;
+};
+ main
+
+const generateReferralCode = (address: string): string => {
+  const suffix = address.slice(-6).toUpperCase();
+  return `SUBTRACKR-${suffix}`;
+};
+
 export const useLoyaltyStore = create<LoyaltyState>()(
   persist(
     (set, get) => ({
@@ -230,9 +274,14 @@ export const useLoyaltyStore = create<LoyaltyState>()(
       transactions: [],
       rewards: defaultRewards,
       program: null,
+ feat/issues-394-405-414-386
       streak: { current: 0, longest: 0, lastPaymentDate: null, frozenUntil: null },
       achievements: ACHIEVEMENTS.map((a) => ({ ...a, unlockedAt: undefined })),
       newlyUnlocked: [],
+
+      streak: { current: 0, lastChargeAt: null, isActive: false },
+      referral: { code: '', bonusPoints: 100, totalReferrals: 0 },
+ main
       isLoading: false,
       error: null,
       _pointsMutex: false,
@@ -249,6 +298,7 @@ export const useLoyaltyStore = create<LoyaltyState>()(
         set({ program });
       },
 
+ feat/issues-394-405-414-386
       accumulatePoints: async (subscriberId, subscriptionId, amount) => {
         // Race condition guard: spin-wait up to 500ms
         const deadline = Date.now() + 500;
@@ -257,10 +307,48 @@ export const useLoyaltyStore = create<LoyaltyState>()(
         }
         set({ _pointsMutex: true });
 
+      fetchLoyaltyStatus: async (address: string) => {
+        set({ isLoading: true, error: null });
+        try {
+          // TODO: replace with actual contract call:
+          //   const result = await subscriptionContract.get_loyalty_status(address)
+          // const { points, lifetime, streak, spent, tier } = result;
+          const existing = get().loyaltyStatus;
+          const currentTier = existing?.tier || getTierFromPoints(existing?.lifetimePoints || 0);
+          const refCode = generateReferralCode(address);
+          set({
+            loyaltyStatus: {
+              subscriberId: address,
+              tier: currentTier,
+              points: existing?.points || 0,
+              lifetimePoints: existing?.lifetimePoints || 0,
+              totalSpent: existing?.totalSpent || 0,
+              memberSince: existing?.memberSince || new Date(),
+              streak: existing?.streak || 0,
+            },
+            referral: {
+              code: refCode,
+              bonusPoints: 100,
+              totalReferrals: 0,
+            },
+          });
+        } catch (err: any) {
+          set({ error: err.message });
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+
+      accumulatePoints: async (subscriberId: string, subscriptionId: string, amount: number) => {
+        const { program, transactions, loyaltyStatus, streak } = get();
+        if (!program) return;
+main
+
         try {
           const { program, transactions, loyaltyStatus } = get();
           if (!program) return;
 
+feat/issues-394-405-414-386
           const pointsEarned = Math.floor(amount * program.pointsPerDollar);
           const currentPoints = loyaltyStatus?.points ?? 0;
           const lifetimePoints = loyaltyStatus?.lifetimePoints ?? 0;
@@ -292,6 +380,78 @@ export const useLoyaltyStore = create<LoyaltyState>()(
             ),
           };
 
+        const transaction: PointsTransaction = {
+          id: generateUniqueId(),
+          subscriberId,
+          amount: pointsEarned,
+          type: PointTxType.EARNED,
+          subscriptionId,
+          description: `Points earned from subscription`,
+          createdAt: new Date(),
+        };
+
+        const currentPoints = loyaltyStatus?.points || 0;
+        const lifetimePoints = loyaltyStatus?.lifetimePoints || 0;
+        const totalSpent = loyaltyStatus?.totalSpent || 0;
+        const currentStreak = streak.current;
+
+        const newStreak = currentStreak + 1;
+        const newStatus: LoyaltyStatus = {
+          subscriberId,
+          tier: getTierFromPoints(currentPoints + pointsEarned),
+          points: currentPoints + pointsEarned,
+          lifetimePoints: lifetimePoints + pointsEarned,
+          totalSpent: totalSpent + amount,
+          memberSince: loyaltyStatus?.memberSince || new Date(),
+          pointsExpirationDate: calculatePointsExpiration(
+            program.pointsExpirationDays,
+            loyaltyStatus?.memberSince || new Date()
+          ),
+          streak: newStreak,
+        };
+
+        // Streak bonus every 10 consecutive charges
+        if (newStreak > 0 && newStreak % 10 === 0) {
+          const bonusPts = Math.floor(newStreak / 10) * 100;
+          newStatus.points += bonusPts;
+          newStatus.lifetimePoints += bonusPts;
+          const bonusTx: PointsTransaction = {
+            id: generateUniqueId(),
+            subscriberId,
+            amount: bonusPts,
+            type: PointTxType.STREAK_BONUS,
+            description: `${newStreak}-day streak bonus!`,
+            createdAt: new Date(),
+          };
+          set({
+            transactions: [...transactions, transaction, bonusTx],
+            loyaltyStatus: newStatus,
+            streak: { current: newStreak, lastChargeAt: new Date(), isActive: true },
+          });
+
+          // Trigger gamification checks
+          useGamificationStore.getState().checkAchievements(AchievementTrigger.STREAK_MILESTONE, { streak: newStreak });
+          return;
+        }
+
+        set({
+          transactions: [...transactions, transaction],
+          loyaltyStatus: newStatus,
+          streak: { current: newStreak, lastChargeAt: new Date(), isActive: true },
+        });
+
+        // Trigger gamification checks
+        useGamificationStore.getState().checkAchievements(
+          AchievementTrigger.POINTS_MILESTONE,
+          { lifetimePoints: newStatus.lifetimePoints },
+        );
+        useGamificationStore.getState().checkAchievements(
+          AchievementTrigger.STREAK_MILESTONE,
+          { streak: newStreak },
+        );
+      },
+main
+
           set({ transactions: [...transactions, transaction], loyaltyStatus: newStatus });
           get().evaluateAchievements();
         } finally {
@@ -306,11 +466,23 @@ export const useLoyaltyStore = create<LoyaltyState>()(
         }
         set({ _pointsMutex: true });
 
+feat/issues-394-405-414-386
         try {
           const { rewards, loyaltyStatus } = get();
           const reward = rewards.find((r) => r.id === rewardId);
           if (!reward?.isActive || !loyaltyStatus) return false;
           if (loyaltyStatus.points < reward.pointsCost) return false;
+
+        // TODO: call contract redeem_loyalty_points(reward.pointsCost, chargeAmount)
+        const transaction: PointsTransaction = {
+          id: generateUniqueId(),
+          subscriberId: loyaltyStatus.subscriberId,
+          amount: -reward.pointsCost,
+          type: PointTxType.REDEEMED,
+          description: `Redeemed: ${reward.name}`,
+          createdAt: new Date(),
+        };
+main
 
           const transaction: PointsTransaction = {
             id: generateUniqueId(),
@@ -332,6 +504,14 @@ export const useLoyaltyStore = create<LoyaltyState>()(
         }
       },
 
+      redeemPointsForDiscount: async (points: number, chargeAmount: number) => {
+        // TODO: call contract redeem_loyalty_points(points, chargeAmount)
+        // Returns discount amount
+        const discountBps = Math.min(Math.floor(points / 100), 5000);
+        const discount = Math.floor((chargeAmount * discountBps) / 10000);
+        return discount;
+      },
+
       checkTierUpgrade: () => {
         const { loyaltyStatus } = get();
         if (!loyaltyStatus) return;
@@ -347,6 +527,7 @@ export const useLoyaltyStore = create<LoyaltyState>()(
         if (!loyaltyStatus?.pointsExpirationDate) return;
         if (new Date() <= loyaltyStatus.pointsExpirationDate) return;
 
+feat/issues-394-405-414-386
         const expiredTx: PointsTransaction = {
           id: generateUniqueId(),
           subscriberId: loyaltyStatus.subscriberId,
@@ -360,6 +541,18 @@ export const useLoyaltyStore = create<LoyaltyState>()(
           loyaltyStatus: { ...loyaltyStatus, points: 0, pointsExpirationDate: undefined },
         });
       },
+
+        const now = new Date();
+        if (now > loyaltyStatus.pointsExpirationDate) {
+          const expiredTransaction: PointsTransaction = {
+            id: generateUniqueId(),
+            subscriberId: loyaltyStatus.subscriberId,
+            amount: -loyaltyStatus.points,
+            type: PointTxType.EXPIRED,
+            description: 'Points expired',
+            createdAt: new Date(),
+          };
+main
 
       recordPayment: (date = new Date()) => {
         const { streak } = get();
@@ -422,6 +615,46 @@ export const useLoyaltyStore = create<LoyaltyState>()(
         set({ achievements: updated, newlyUnlocked });
         return newlyUnlocked;
       },
+
+      earnReferralBonus: async (referrerAddress: string) => {
+        const { program, loyaltyStatus, referral, transactions } = get();
+        if (!program || !loyaltyStatus) return;
+
+        // TODO: call contract earn_referral_bonus(referrerAddress)
+        const bonusPts = referral.bonusPoints;
+
+        const bonusTx: PointsTransaction = {
+          id: generateUniqueId(),
+          subscriberId: referrerAddress,
+          amount: bonusPts,
+          type: PointTxType.REFERRAL_BONUS,
+          description: 'Referral bonus',
+          createdAt: new Date(),
+        };
+
+        const newTotalReferrals = referral.totalReferrals + 1;
+        set({
+          transactions: [...transactions, bonusTx],
+          referral: { ...referral, totalReferrals: newTotalReferrals },
+          loyaltyStatus: {
+            ...loyaltyStatus,
+            points: loyaltyStatus.points + bonusPts,
+            lifetimePoints: loyaltyStatus.lifetimePoints + bonusPts,
+          },
+        });
+
+        // Trigger gamification checks
+        useGamificationStore.getState().checkAchievements(
+          AchievementTrigger.REFERRAL_MADE,
+          { totalReferrals: newTotalReferrals },
+        );
+      },
+
+      generateReferralCode: () => {
+        const { loyaltyStatus } = get();
+        if (!loyaltyStatus) return '';
+        return generateReferralCode(loyaltyStatus.subscriberId);
+      },
     }),
     {
       name: STORAGE_KEY,
@@ -433,7 +666,11 @@ export const useLoyaltyStore = create<LoyaltyState>()(
         rewards: state.rewards,
         program: state.program,
         streak: state.streak,
+ feat/issues-394-405-414-386
         achievements: state.achievements,
+
+        referral: state.referral,
+main
       }),
     },
   ),

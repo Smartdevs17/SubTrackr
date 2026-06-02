@@ -70,6 +70,10 @@ logs/
 coverage/
 .nyc_output/
 
+# Load test reports (generated) — keep the dir so k6 can write into it
+load-tests/reports/*
+!load-tests/reports/.gitkeep
+
 # VS Code
 .vscode/settings.json
 !.vscode/extensions.json

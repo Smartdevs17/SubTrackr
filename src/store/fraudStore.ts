@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LoadingState, idle, loading, success, failure } from '../types/loadingState';
 import {
   FraudAction,
   FraudAnalytics,
@@ -244,6 +245,7 @@ interface FraudState {
   analytics: FraudAnalytics;
   loading: boolean;
   error: string | null;
+  loadingState: LoadingState;
   refreshFraudSignals: () => void;
   assessRisk: (subscriberId: string) => FraudRiskScore[];
   flagSubscription: (subscriptionId: string) => void;
@@ -301,26 +303,34 @@ export const useFraudStore = create<FraudState>()(
       reviewQueue: hydrateReviewQueue(reviewSeeds),
       analytics: computeAnalytics(subscriptionSeeds, reviewSeeds),
       loading: false,
+      loadingState: idle(),
       error: null,
 
       refreshFraudSignals: () => {
-        const { subscriptions, reviewQueue, merchants } = get();
-        set({
-          analytics: computeAnalytics(subscriptions, reviewQueue),
-          assessments: hydrateAssessments(subscriptions),
-          merchants: merchants.map((merchant) => ({
-            ...merchant,
-            averageRisk: buildMerchantReport(merchants, subscriptions, reviewQueue, merchant.id).averageRisk,
-            blockedSubscriptions: buildMerchantReport(merchants, subscriptions, reviewQueue, merchant.id).blockedSubscriptions,
-            activeSubscriptions: buildMerchantReport(merchants, subscriptions, reviewQueue, merchant.id).totalSubscriptions,
-            status:
-              buildMerchantReport(merchants, subscriptions, reviewQueue, merchant.id).averageRisk >= 60
-                ? 'high-risk'
-                : buildMerchantReport(merchants, subscriptions, reviewQueue, merchant.id).averageRisk >= 35
-                  ? 'watch'
-                  : 'healthy',
-          })),
-        });
+        set({ loading: true, loadingState: loading() });
+        try {
+          const { subscriptions, reviewQueue, merchants } = get();
+          set({
+            analytics: computeAnalytics(subscriptions, reviewQueue),
+            assessments: hydrateAssessments(subscriptions),
+            merchants: merchants.map((merchant) => ({
+              ...merchant,
+              averageRisk: buildMerchantReport(merchants, subscriptions, reviewQueue, merchant.id).averageRisk,
+              blockedSubscriptions: buildMerchantReport(merchants, subscriptions, reviewQueue, merchant.id).blockedSubscriptions,
+              activeSubscriptions: buildMerchantReport(merchants, subscriptions, reviewQueue, merchant.id).totalSubscriptions,
+              status:
+                buildMerchantReport(merchants, subscriptions, reviewQueue, merchant.id).averageRisk >= 60
+                  ? 'high-risk'
+                  : buildMerchantReport(merchants, subscriptions, reviewQueue, merchant.id).averageRisk >= 35
+                    ? 'watch'
+                    : 'healthy',
+            })),
+            loading: false,
+            loadingState: success(),
+          });
+        } catch (e) {
+          set({ loading: false, loadingState: failure(e as Error) });
+        }
       },
 
       assessRisk: (subscriberId: string) => {

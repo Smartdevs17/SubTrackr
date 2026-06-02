@@ -11,6 +11,15 @@ export enum RewardType {
   MERCHANDISE = 'merchandise',
 }
 
+export enum PointTxType {
+  EARNED = 'earned',
+  REDEEMED = 'redeemed',
+  EXPIRED = 'expired',
+  REFERRAL_BONUS = 'referral_bonus',
+  STREAK_BONUS = 'streak_bonus',
+  ACHIEVEMENT = 'achievement',
+}
+
 export interface LoyaltyBenefit {
   type: string;
   description: string;
@@ -30,7 +39,7 @@ export interface PointsTransaction {
   id: string;
   subscriberId: string;
   amount: number;
-  type: 'earn' | 'redeem' | 'expire' | 'referral_bonus';
+  type: PointTxType;
   subscriptionId?: string;
   description: string;
   createdAt: Date;
@@ -55,6 +64,14 @@ export interface LoyaltyStatus {
   totalSpent: number;
   memberSince: Date;
   pointsExpirationDate?: Date;
+  streak: number;
+}
+
+export interface LoyaltyConfig {
+  pointsPerDollar: number;
+  expirationDays: number;
+  tiers: TierBenefits[];
+  streakBonusThreshold: number;
 }
 
 export interface LoyaltyProgram {
@@ -64,4 +81,16 @@ export interface LoyaltyProgram {
   pointsPerDollar: number;
   pointsExpirationDays: number;
   isActive: boolean;
+}
+
+export interface StreakInfo {
+  current: number;
+  lastChargeAt: Date | null;
+  isActive: boolean;
+}
+
+export interface ReferralInfo {
+  code: string;
+  bonusPoints: number;
+  totalReferrals: number;
 }
