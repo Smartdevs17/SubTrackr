@@ -18,6 +18,11 @@ use subtrackr_types::{
 /// Billing interval in seconds.
 const MAX_PAUSE_DURATION: u64 = 2_592_000; // 30 days
 
+/// How long an unaccepted subscription-transfer offer remains valid before it
+/// expires.  Pending transfers live in transient storage, so once this window
+/// elapses the offer is removed automatically without an explicit cleanup call.
+const PENDING_TRANSFER_TTL_SECS: u64 = 604_800; // 7 days
+
 const STORAGE_VERSION: u32 = 2;
 
 #[soroban_sdk::contracttype]
@@ -1032,6 +1037,25 @@ impl SubTrackrSubscription {
 
         sub.subscriber.require_auth();
 
+        // ── Charge state machine guard (transient storage) ──────────────────
+        // A subscription must be charged at most once per ledger close.  We
+        // record the current ledger sequence as a charge nonce in TEMPORARY
+        // storage keyed by subscription_id.  The entry is given a 1-ledger TTL
+        // so it self-clears on the next ledger and never accrues persistent
+        // rent.  This is intermediate, short-lived state — exactly what
+        // transient storage is for — and it cheaply prevents a duplicate
+        // charge from racing through within the same ledger.
+        let nonce_key = StorageKey::TmpChargeNonce(subscription_id);
+        let ledger_seq = env.ledger().sequence() as u64;
+        let in_progress: Option<u64> = storage_temporary_get(&env, &storage, nonce_key.clone());
+        if let Some(prev_seq) = in_progress {
+            assert!(
+                prev_seq != ledger_seq,
+                "Duplicate charge attempt within the same ledger"
+            );
+        }
+        storage_temporary_set(&env, &storage, nonce_key, ledger_seq, 1);
+
         if check_and_resume_internal(&env, &mut sub) {
             storage_persistent_set(
                 &env,
@@ -1298,11 +1322,17 @@ impl SubTrackrSubscription {
         );
         assert!(sub.subscriber != recipient, "Cannot transfer to self");
 
-        storage_instance_set(
+        // Pending transfers are a short-lived "pending operation" that also
+        // grants the recipient temporary authorization to accept.  They belong
+        // in transient storage: the offer should not persist (and accrue rent)
+        // indefinitely, and auto-expiry after PENDING_TRANSFER_TTL_SECS gives
+        // the offer a natural deadline.
+        storage_temporary_set(
             &env,
             &storage,
-            StorageKey::PendingTransfer(subscription_id),
+            StorageKey::TmpPendingTransfer(subscription_id),
             recipient.clone(),
+            secs_to_ledgers(PENDING_TRANSFER_TTL_SECS),
         );
 
         env.events().publish(
@@ -1345,8 +1375,8 @@ impl SubTrackrSubscription {
                 .expect("Subscription not found");
 
         let pending_recipient: Address =
-            storage_instance_get(&env, &storage, StorageKey::PendingTransfer(subscription_id))
-                .expect("No pending transfer for this subscription");
+            storage_temporary_get(&env, &storage, StorageKey::TmpPendingTransfer(subscription_id))
+                .expect("No pending transfer for this subscription (it may have expired)");
         assert!(
             pending_recipient == recipient,
             "Transfer recipient mismatch"
@@ -1398,7 +1428,7 @@ impl SubTrackrSubscription {
             sub,
         );
 
-        storage_instance_remove(&env, &storage, StorageKey::PendingTransfer(subscription_id));
+        storage_temporary_remove(&env, &storage, StorageKey::TmpPendingTransfer(subscription_id));
 
         env.events().publish(
             (String::from_str(&env, "transfer_accepted"), subscription_id),
@@ -2148,7 +2178,23 @@ pub fn preview_proration(
         EffectiveDate::EndOfPeriod
     };
 
-    proration::preview_proration(&env, &sub, old_plan.price, new_plan.price, effective)
+    let result = proration::preview_proration(&env, &sub, old_plan.price, new_plan.price, effective);
+
+    // Cache the previewed prorated amount in transient storage so a client can
+    // preview then confirm without recomputing.  This is purely intermediate
+    // calculation state, so it lives in TEMPORARY storage and expires after one
+    // billing interval — no persistent rent for a value that is only relevant
+    // until the change is confirmed or abandoned.
+    let signed_amount: i128 = if result.is_credit { -result.amount } else { result.amount };
+    storage_temporary_set(
+        &env,
+        &storage,
+        StorageKey::TmpProrationScratch(subscription_id),
+        signed_amount,
+        secs_to_ledgers(sub.next_charge_at.saturating_sub(sub.last_charged_at).max(1)),
+    );
+
+    result
 }
 
 /// Execute a plan change with proration
