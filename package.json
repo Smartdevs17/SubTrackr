@@ -150,7 +150,10 @@
     "hermes-parser": "0.33.3",
     "babel-plugin-syntax-hermes-parser": "0.33.3",
     "tmp": "0.2.7",
-    "elliptic": "6.6.1"
+    "elliptic": "6.6.1",
+    "@superfluid-finance/sdk-core": {
+      "ethers": "^6.16.0"
+    }
   },
   "repository": {
     "type": "git",
