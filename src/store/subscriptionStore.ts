@@ -38,6 +38,23 @@ import {
   CreditMemo,
 } from '../utils/proration';
 
+export type ProrationEffectiveType = 'immediate' | 'end_of_period' | 'custom_date';
+
+export interface SubscriptionChange {
+  id: string;
+  subscriptionId: string;
+  fromPrice: number;
+  toPrice: number;
+  fromPlan: Partial<Subscription>;
+  toPlan: Partial<Subscription>;
+  effectiveDate: Date;
+  effectiveType: ProrationEffectiveType;
+  proration: ProrationPreview;
+  status: 'pending' | 'approved' | 'executed' | 'rejected';
+  createdAt: Date;
+  minimumCommitmentDays?: number;
+}
+
 const STORAGE_KEY = 'subtrackr-subscriptions';
 const STORE_VERSION = 1;
 const WRITE_DEBOUNCE_MS = CACHE_CONSTANTS.WRITE_DEBOUNCE_MS;
@@ -162,6 +179,8 @@ interface SubscriptionState {
   error: AppError | null;
   prorationPreview: ProrationPreview | null;
   creditMemos: Record<string, CreditMemo>;
+  changeHistory: SubscriptionChange[];
+  pendingChanges: SubscriptionChange[];
 
   // Actions
   addSubscription: (data: SubscriptionFormData) => Promise<void>;
@@ -189,6 +208,16 @@ interface SubscriptionState {
    */
   refreshSubscriptions: () => Promise<void>;
   calculateStats: () => void;
+  queuePlanChange: (
+    id: string,
+    newPlanData: Partial<Subscription>,
+    effectiveType: ProrationEffectiveType,
+    customDate?: Date,
+    minimumCommitmentDays?: number
+  ) => SubscriptionChange;
+  approvePlanChange: (changeId: string) => Promise<void>;
+  rejectPlanChange: (changeId: string) => void;
+  getChangeHistory: (subscriptionId: string) => SubscriptionChange[];
 }
 
 export const useSubscriptionStore = create<SubscriptionState>()(
@@ -203,6 +232,8 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       },
       prorationPreview: null,
       creditMemos: {},
+      changeHistory: [],
+      pendingChanges: [],
 
       previewPlanChange: (
         id: string,
@@ -286,6 +317,83 @@ export const useSubscriptionStore = create<SubscriptionState>()(
 
         // Could trigger a reduced charge here
         console.log(`Applied credit: final charge ${finalCharge}`);
+      },
+
+      queuePlanChange: (
+        id: string,
+        newPlanData: Partial<Subscription>,
+        effectiveType: ProrationEffectiveType,
+        customDate?: Date,
+        minimumCommitmentDays?: number
+      ) => {
+        const sub = get().subscriptions.find((s) => s.id === id);
+        if (!sub) throw new Error('Subscription not found');
+
+        const newPrice = newPlanData.price ?? sub.price;
+        const prorationType = effectiveType === 'end_of_period' ? 'end_of_period' : 'immediate';
+        const proration = previewProration(sub, newPrice, prorationType);
+        const effectiveDate =
+          effectiveType === 'custom_date' && customDate ? customDate : new Date();
+
+        const change: SubscriptionChange = {
+          id: generateUniqueId(),
+          subscriptionId: id,
+          fromPrice: sub.price,
+          toPrice: newPrice,
+          fromPlan: { price: sub.price, billingCycle: sub.billingCycle },
+          toPlan: newPlanData,
+          effectiveDate,
+          effectiveType,
+          proration,
+          status: 'pending',
+          createdAt: new Date(),
+          minimumCommitmentDays,
+        };
+
+        set((state) => ({ pendingChanges: [...state.pendingChanges, change] }));
+        return change;
+      },
+
+      approvePlanChange: async (changeId: string) => {
+        const change = get().pendingChanges.find((c) => c.id === changeId);
+        if (!change) throw new Error('Change request not found');
+
+        if (change.minimumCommitmentDays) {
+          const daysSinceCreated =
+            (new Date().getTime() - change.createdAt.getTime()) / (1000 * 60 * 60 * 24);
+          if (daysSinceCreated < change.minimumCommitmentDays) {
+            throw new Error(
+              `Cannot approve: minimum commitment of ${change.minimumCommitmentDays} days not met`
+            );
+          }
+        }
+
+        const prorationType =
+          change.effectiveType === 'end_of_period' ? 'end_of_period' : 'immediate';
+        await get().executePlanChange(change.subscriptionId, change.toPlan, prorationType);
+
+        const executed: SubscriptionChange = { ...change, status: 'executed' };
+        set((state) => ({
+          pendingChanges: state.pendingChanges.filter((c) => c.id !== changeId),
+          changeHistory: [...state.changeHistory, executed],
+        }));
+      },
+
+      rejectPlanChange: (changeId: string) => {
+        const change = get().pendingChanges.find((c) => c.id === changeId);
+        if (!change) return;
+        const rejected: SubscriptionChange = { ...change, status: 'rejected' };
+        set((state) => ({
+          pendingChanges: state.pendingChanges.filter((c) => c.id !== changeId),
+          changeHistory: [...state.changeHistory, rejected],
+        }));
+      },
+
+      getChangeHistory: (subscriptionId: string) => {
+        return [
+          ...get().pendingChanges.filter((c) => c.subscriptionId === subscriptionId),
+          ...get().changeHistory.filter((c) => c.subscriptionId === subscriptionId),
+        ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
       },
 
       // Hydration state: keep loading true until persisted state is read.

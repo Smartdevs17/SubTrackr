@@ -32,6 +32,8 @@ export interface SubscriptionAnalyticsReport {
   mrr: number;
   arr: number;
   ltv: number;
+  arpu: number;
+  subscriberCount: number;
   churn: ChurnMetrics;
   revenueTrend: RevenuePoint[];
   cohorts: CohortMetric[];
@@ -71,6 +73,8 @@ export const calculateSubscriptionAnalytics = (
   const netChurnRate = mrr + churnedRevenue > 0 ? Math.max(0, (churnedRevenue - expansionRevenue) / (mrr + churnedRevenue)) : 0;
   const averageMonthlyRevenue = active.length ? mrr / active.length : 0;
   const ltv = grossChurnRate > 0 ? averageMonthlyRevenue / grossChurnRate : averageMonthlyRevenue * MONTHS_PER_YEAR;
+  const arpu = active.length > 0 ? mrr / active.length : 0;
+  const subscriberCount = active.length;
 
   const cohorts = Array.from(
     subscriptions.reduce((map, subscription) => {
@@ -118,6 +122,8 @@ export const calculateSubscriptionAnalytics = (
     mrr,
     arr,
     ltv,
+    arpu,
+    subscriberCount,
     churn: {
       grossChurnRate,
       netChurnRate,
