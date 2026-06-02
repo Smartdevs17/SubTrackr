@@ -142,8 +142,6 @@
     "ts-jest": "^29.4.11",
     "typechain": "^8.3.2",
     "typescript": "~5.8.3",
-    "metro-bundle-analyzer": "^0.2.0",
-    "@testing-library/react-hooks": "^8.0.1",
     "graphql": "^16.13.2"
   },
   "private": false,
