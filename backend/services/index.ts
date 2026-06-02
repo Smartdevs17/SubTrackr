@@ -67,3 +67,13 @@ export type {
   SubscriptionEventQuery,
   SubscriptionEventType,
 } from './subscriptionEventStore';
+
+export {
+  SubscriptionCacheService,
+} from './subscriptionCacheService';
+
+export type {
+  RedisClient,
+  SubscriptionCacheConfig,
+  CacheMetrics,
+} from './subscriptionCacheService';
