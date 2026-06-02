@@ -19,15 +19,11 @@ pub enum BatchError {
 }
 
 #[contracttype]
-#[derive(Clone, Debug, PartialEq, Eq)]
-enum DataKey {
-    Admin,
-    NextBatchId,
-    BatchOperation(u64),
-    BatchState(u64),
-    BatchResult(u64),
-    BatchHistory,
-    Subscription(SubscriptionIdAlias),
+#[derive(Clone)]
+pub struct BatchItem {
+    pub account: Address,
+    pub amount: i128,
+    pub is_refund: bool,
 }
 
 #[contract]

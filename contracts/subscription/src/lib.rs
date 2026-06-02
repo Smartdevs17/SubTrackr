@@ -16,8 +16,9 @@ mod event_store;
 mod state;
 mod billing;
 mod charging;
-
+mod timeout;
 use soroban_sdk::{token, Address, Env, IntoVal, String, Symbol, TryFromVal, Val, Vec};
+use timeout::{ChainTimeoutConfig, PaymentTimeout, TxHealthSummary};
 use subtrackr_oracle::{OracleError, SubTrackrOracleClient};
 use subtrackr_types::{
     Interval, Invoice, Permission, Plan, PriceBounds, StorageKey, Subscription, SubscriptionStatus,
@@ -31,6 +32,11 @@ use subtrackr_types::{PaymentMethod, PaymentMethodId, PaymentPriority, TokenType
 
 /// Billing interval in seconds.
 const MAX_PAUSE_DURATION: u64 = 2_592_000; // 30 days
+
+/// How long an unaccepted subscription-transfer offer remains valid before it
+/// expires.  Pending transfers live in transient storage, so once this window
+/// elapses the offer is removed automatically without an explicit cleanup call.
+const PENDING_TRANSFER_TTL_SECS: u64 = 604_800; // 7 days
 
 const STORAGE_VERSION: u32 = 2;
 
@@ -1063,6 +1069,25 @@ impl SubTrackrSubscription {
 
         sub.subscriber.require_auth();
 
+        // ── Charge state machine guard (transient storage) ──────────────────
+        // A subscription must be charged at most once per ledger close.  We
+        // record the current ledger sequence as a charge nonce in TEMPORARY
+        // storage keyed by subscription_id.  The entry is given a 1-ledger TTL
+        // so it self-clears on the next ledger and never accrues persistent
+        // rent.  This is intermediate, short-lived state — exactly what
+        // transient storage is for — and it cheaply prevents a duplicate
+        // charge from racing through within the same ledger.
+        let nonce_key = StorageKey::TmpChargeNonce(subscription_id);
+        let ledger_seq = env.ledger().sequence() as u64;
+        let in_progress: Option<u64> = storage_temporary_get(&env, &storage, nonce_key.clone());
+        if let Some(prev_seq) = in_progress {
+            assert!(
+                prev_seq != ledger_seq,
+                "Duplicate charge attempt within the same ledger"
+            );
+        }
+        storage_temporary_set(&env, &storage, nonce_key, ledger_seq, 1);
+
         if check_and_resume_internal(&env, &mut sub) {
             storage_persistent_set(
                 &env,
@@ -1339,11 +1364,17 @@ impl SubTrackrSubscription {
         );
         assert!(sub.subscriber != recipient, "Cannot transfer to self");
 
-        storage_instance_set(
+        // Pending transfers are a short-lived "pending operation" that also
+        // grants the recipient temporary authorization to accept.  They belong
+        // in transient storage: the offer should not persist (and accrue rent)
+        // indefinitely, and auto-expiry after PENDING_TRANSFER_TTL_SECS gives
+        // the offer a natural deadline.
+        storage_temporary_set(
             &env,
             &storage,
-            StorageKey::PendingTransfer(subscription_id),
+            StorageKey::TmpPendingTransfer(subscription_id),
             recipient.clone(),
+            secs_to_ledgers(PENDING_TRANSFER_TTL_SECS),
         );
 
         env.events().publish(
@@ -1386,8 +1417,8 @@ impl SubTrackrSubscription {
                 .expect("Subscription not found");
 
         let pending_recipient: Address =
-            storage_instance_get(&env, &storage, StorageKey::PendingTransfer(subscription_id))
-                .expect("No pending transfer for this subscription");
+            storage_temporary_get(&env, &storage, StorageKey::TmpPendingTransfer(subscription_id))
+                .expect("No pending transfer for this subscription (it may have expired)");
         assert!(
             pending_recipient == recipient,
             "Transfer recipient mismatch"
@@ -1439,7 +1470,7 @@ impl SubTrackrSubscription {
             sub,
         );
 
-        storage_instance_remove(&env, &storage, StorageKey::PendingTransfer(subscription_id));
+        storage_temporary_remove(&env, &storage, StorageKey::TmpPendingTransfer(subscription_id));
 
         env.events().publish(
             (String::from_str(&env, "transfer_accepted"), subscription_id),
@@ -2159,6 +2190,137 @@ impl SubTrackrSubscription {
             .expect("Charge attempt not found");
         charging::abort_charge(&env, &mut attempt);
     }
+
+    // ── Payment Timeout & Recovery ──
+
+    /// Configure timeout behaviour for a specific chain.  Admin only.
+    pub fn set_chain_timeout_config(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        admin: Address,
+        config: ChainTimeoutConfig,
+    ) {
+        proxy.require_auth();
+        admin.require_auth();
+        let stored_admin = get_admin(&env, &storage);
+        assert!(admin == stored_admin, "Only admin can set chain timeout config");
+        timeout::set_chain_config(&env, config);
+    }
+
+    /// Retrieve the timeout configuration for a chain.
+    pub fn get_chain_timeout_config(
+        env: Env,
+        _proxy: Address,
+        chain_id: u64,
+    ) -> ChainTimeoutConfig {
+        timeout::get_chain_config(&env, chain_id)
+    }
+
+    /// Register a newly-submitted payment for timeout tracking.
+    pub fn register_payment_pending(
+        env: Env,
+        proxy: Address,
+        charge_id: u64,
+        subscription_id: u64,
+        chain_id: u64,
+        initial_gas_price: u64,
+    ) -> PaymentTimeout {
+        proxy.require_auth();
+        timeout::register_pending(&env, charge_id, subscription_id, chain_id, initial_gas_price)
+    }
+
+    /// Check whether a pending payment has exceeded its chain timeout window.
+    /// Transitions the record to `TimedOut` on first detection and emits an event.
+    pub fn detect_payment_timeout(
+        env: Env,
+        proxy: Address,
+        charge_id: u64,
+    ) -> bool {
+        proxy.require_auth();
+        timeout::detect_timeout(&env, charge_id)
+    }
+
+    /// Automatically retry a timed-out payment with a higher gas price.
+    pub fn recover_payment(
+        env: Env,
+        proxy: Address,
+        charge_id: u64,
+        new_gas_price: u64,
+    ) -> Option<PaymentTimeout> {
+        proxy.require_auth();
+        timeout::attempt_recovery(&env, charge_id, new_gas_price)
+    }
+
+    /// Manual retry option for users — bumps gas and re-submits.
+    pub fn manual_retry_payment(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscriber: Address,
+        charge_id: u64,
+        new_gas_price: u64,
+    ) -> Option<PaymentTimeout> {
+        proxy.require_auth();
+        subscriber.require_auth();
+        // Verify the charge belongs to this subscriber.
+        let rec = timeout::get_timeout_record(&env, charge_id)
+            .expect("Timeout record not found");
+        let sub: subtrackr_types::Subscription =
+            storage_persistent_get(&env, &storage, subtrackr_types::StorageKey::Subscription(rec.subscription_id))
+                .expect("Subscription not found");
+        assert!(sub.subscriber == subscriber, "Unauthorized: not the subscriber");
+        timeout::manual_retry(&env, charge_id, new_gas_price)
+    }
+
+    /// Mark a payment as confirmed on-chain after a successful recovery.
+    pub fn mark_payment_resolved(
+        env: Env,
+        proxy: Address,
+        charge_id: u64,
+    ) -> Option<PaymentTimeout> {
+        proxy.require_auth();
+        timeout::mark_resolved(&env, charge_id)
+    }
+
+    /// Retrieve a single payment timeout record.
+    pub fn get_payment_timeout(
+        env: Env,
+        _proxy: Address,
+        charge_id: u64,
+    ) -> Option<PaymentTimeout> {
+        timeout::get_timeout_record(&env, charge_id)
+    }
+
+    /// List all payment timeout records for a subscription.
+    pub fn get_subscription_timeouts(
+        env: Env,
+        proxy: Address,
+        subscription_id: u64,
+    ) -> Vec<PaymentTimeout> {
+        proxy.require_auth();
+        timeout::get_subscription_timeouts(&env, subscription_id)
+    }
+
+    /// List only stuck (timed-out or recovering) transactions for a subscription.
+    pub fn get_stuck_transactions(
+        env: Env,
+        proxy: Address,
+        subscription_id: u64,
+    ) -> Vec<PaymentTimeout> {
+        proxy.require_auth();
+        timeout::get_stuck_transactions(&env, subscription_id)
+    }
+
+    /// Transaction health summary for the dashboard.
+    pub fn get_tx_health_summary(
+        env: Env,
+        proxy: Address,
+        subscription_id: u64,
+    ) -> TxHealthSummary {
+        proxy.require_auth();
+        timeout::get_health_summary(&env, subscription_id)
+    }
 }
 
 //  Proration & Plan Changes
@@ -2189,7 +2351,23 @@ pub fn preview_proration(
         EffectiveDate::EndOfPeriod
     };
 
-    proration::preview_proration(&env, &sub, old_plan.price, new_plan.price, effective)
+    let result = proration::preview_proration(&env, &sub, old_plan.price, new_plan.price, effective);
+
+    // Cache the previewed prorated amount in transient storage so a client can
+    // preview then confirm without recomputing.  This is purely intermediate
+    // calculation state, so it lives in TEMPORARY storage and expires after one
+    // billing interval — no persistent rent for a value that is only relevant
+    // until the change is confirmed or abandoned.
+    let signed_amount: i128 = if result.is_credit { -result.amount } else { result.amount };
+    storage_temporary_set(
+        &env,
+        &storage,
+        StorageKey::TmpProrationScratch(subscription_id),
+        signed_amount,
+        secs_to_ledgers(sub.next_charge_at.saturating_sub(sub.last_charged_at).max(1)),
+    );
+
+    result
 }
 
 /// Execute a plan change with proration
