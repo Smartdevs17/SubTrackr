@@ -8,7 +8,9 @@ mod event_store;
 mod state;
 mod billing;
 mod charging;
+mod timeout;
 use soroban_sdk::{token, Address, Env, IntoVal, String, Symbol, TryFromVal, Val, Vec};
+use timeout::{ChainTimeoutConfig, PaymentTimeout, TxHealthSummary};
 use subtrackr_oracle::{OracleError, SubTrackrOracleClient};
 use subtrackr_types::{
     Interval, Invoice, Permission, Plan, PriceBounds, StorageKey, Subscription, SubscriptionStatus,
@@ -2147,6 +2149,137 @@ impl SubTrackrSubscription {
         let mut attempt = charging::get_charge_attempt(&env, charge_id)
             .expect("Charge attempt not found");
         charging::abort_charge(&env, &mut attempt);
+    }
+
+    // ── Payment Timeout & Recovery ──
+
+    /// Configure timeout behaviour for a specific chain.  Admin only.
+    pub fn set_chain_timeout_config(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        admin: Address,
+        config: ChainTimeoutConfig,
+    ) {
+        proxy.require_auth();
+        admin.require_auth();
+        let stored_admin = get_admin(&env, &storage);
+        assert!(admin == stored_admin, "Only admin can set chain timeout config");
+        timeout::set_chain_config(&env, config);
+    }
+
+    /// Retrieve the timeout configuration for a chain.
+    pub fn get_chain_timeout_config(
+        env: Env,
+        _proxy: Address,
+        chain_id: u64,
+    ) -> ChainTimeoutConfig {
+        timeout::get_chain_config(&env, chain_id)
+    }
+
+    /// Register a newly-submitted payment for timeout tracking.
+    pub fn register_payment_pending(
+        env: Env,
+        proxy: Address,
+        charge_id: u64,
+        subscription_id: u64,
+        chain_id: u64,
+        initial_gas_price: u64,
+    ) -> PaymentTimeout {
+        proxy.require_auth();
+        timeout::register_pending(&env, charge_id, subscription_id, chain_id, initial_gas_price)
+    }
+
+    /// Check whether a pending payment has exceeded its chain timeout window.
+    /// Transitions the record to `TimedOut` on first detection and emits an event.
+    pub fn detect_payment_timeout(
+        env: Env,
+        proxy: Address,
+        charge_id: u64,
+    ) -> bool {
+        proxy.require_auth();
+        timeout::detect_timeout(&env, charge_id)
+    }
+
+    /// Automatically retry a timed-out payment with a higher gas price.
+    pub fn recover_payment(
+        env: Env,
+        proxy: Address,
+        charge_id: u64,
+        new_gas_price: u64,
+    ) -> Option<PaymentTimeout> {
+        proxy.require_auth();
+        timeout::attempt_recovery(&env, charge_id, new_gas_price)
+    }
+
+    /// Manual retry option for users — bumps gas and re-submits.
+    pub fn manual_retry_payment(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscriber: Address,
+        charge_id: u64,
+        new_gas_price: u64,
+    ) -> Option<PaymentTimeout> {
+        proxy.require_auth();
+        subscriber.require_auth();
+        // Verify the charge belongs to this subscriber.
+        let rec = timeout::get_timeout_record(&env, charge_id)
+            .expect("Timeout record not found");
+        let sub: subtrackr_types::Subscription =
+            storage_persistent_get(&env, &storage, subtrackr_types::StorageKey::Subscription(rec.subscription_id))
+                .expect("Subscription not found");
+        assert!(sub.subscriber == subscriber, "Unauthorized: not the subscriber");
+        timeout::manual_retry(&env, charge_id, new_gas_price)
+    }
+
+    /// Mark a payment as confirmed on-chain after a successful recovery.
+    pub fn mark_payment_resolved(
+        env: Env,
+        proxy: Address,
+        charge_id: u64,
+    ) -> Option<PaymentTimeout> {
+        proxy.require_auth();
+        timeout::mark_resolved(&env, charge_id)
+    }
+
+    /// Retrieve a single payment timeout record.
+    pub fn get_payment_timeout(
+        env: Env,
+        _proxy: Address,
+        charge_id: u64,
+    ) -> Option<PaymentTimeout> {
+        timeout::get_timeout_record(&env, charge_id)
+    }
+
+    /// List all payment timeout records for a subscription.
+    pub fn get_subscription_timeouts(
+        env: Env,
+        proxy: Address,
+        subscription_id: u64,
+    ) -> Vec<PaymentTimeout> {
+        proxy.require_auth();
+        timeout::get_subscription_timeouts(&env, subscription_id)
+    }
+
+    /// List only stuck (timed-out or recovering) transactions for a subscription.
+    pub fn get_stuck_transactions(
+        env: Env,
+        proxy: Address,
+        subscription_id: u64,
+    ) -> Vec<PaymentTimeout> {
+        proxy.require_auth();
+        timeout::get_stuck_transactions(&env, subscription_id)
+    }
+
+    /// Transaction health summary for the dashboard.
+    pub fn get_tx_health_summary(
+        env: Env,
+        proxy: Address,
+        subscription_id: u64,
+    ) -> TxHealthSummary {
+        proxy.require_auth();
+        timeout::get_health_summary(&env, subscription_id)
     }
 }
 
