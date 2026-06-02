@@ -3,7 +3,7 @@ import { runAllExperiments, summarize } from '../runner';
 describe('Chaos Runner', () => {
   it('runs all experiments and all pass', async () => {
     const results = await runAllExperiments();
-    expect(results).toHaveLength(3);
+    expect(results).toHaveLength(5);
     const failed = results.filter((r) => !r.passed);
     expect(failed).toHaveLength(0);
   });

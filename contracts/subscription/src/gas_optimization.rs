@@ -18,7 +18,6 @@
 /// read — estimated at 2–4 instructions per field. For a typical read of
 /// all 13 fields this is ~50 extra instructions vs saving 6 storage-read
 /// fees (each ~10 000 gas on Soroban). Net saving per read: ~59 950 gas.
-
 use soroban_sdk::{Address, Env, String};
 
 use crate::gas_storage::{
@@ -27,8 +26,8 @@ use crate::gas_storage::{
     unpack_charge_count, unpack_flag, unpack_id, unpack_interval_secs, unpack_last_charged_at,
     unpack_next_charge_at, unpack_pause_duration, unpack_paused_at, unpack_plan_id,
     unpack_plan_id_from_pack, unpack_price, unpack_started_at, unpack_status,
-    unpack_subscriber_count, FLAG_CRYPTO_ENABLED, FLAG_NOTIFICATIONS, FLAG_REFUND_PENDING,
-    PackedPlan, PackedSubscription, STATUS_ACTIVE, STATUS_CANCELLED, STATUS_EXPIRED,
+    unpack_subscriber_count, PackedPlan, PackedSubscription, FLAG_CRYPTO_ENABLED,
+    FLAG_NOTIFICATIONS, FLAG_REFUND_PENDING, STATUS_ACTIVE, STATUS_CANCELLED, STATUS_EXPIRED,
     STATUS_PAUSED,
 };
 
@@ -48,19 +47,19 @@ pub enum SubStatus {
 impl SubStatus {
     pub fn to_flag(&self) -> u8 {
         match self {
-            SubStatus::Active    => STATUS_ACTIVE,
-            SubStatus::Paused    => STATUS_PAUSED,
+            SubStatus::Active => STATUS_ACTIVE,
+            SubStatus::Paused => STATUS_PAUSED,
             SubStatus::Cancelled => STATUS_CANCELLED,
-            SubStatus::Expired   => STATUS_EXPIRED,
+            SubStatus::Expired => STATUS_EXPIRED,
         }
     }
 
     pub fn from_flag(f: u8) -> Self {
         match f {
-            STATUS_PAUSED    => SubStatus::Paused,
+            STATUS_PAUSED => SubStatus::Paused,
             STATUS_CANCELLED => SubStatus::Cancelled,
-            STATUS_EXPIRED   => SubStatus::Expired,
-            _                => SubStatus::Active,
+            STATUS_EXPIRED => SubStatus::Expired,
+            _ => SubStatus::Active,
         }
     }
 }
@@ -143,19 +142,19 @@ pub fn migrate_plan(leg: LegacyPlan) -> PackedPlan {
 pub fn unpack_subscription(
     p: &PackedSubscription,
 ) -> (
-    u64,      // id
-    u64,      // plan_id
+    u64, // id
+    u64, // plan_id
     SubStatus,
-    u64,      // started_at
-    u64,      // last_charged_at
-    u64,      // next_charge_at
-    i128,     // total_paid
-    u64,      // charge_count
-    u64,      // paused_at
-    u64,      // pause_duration
-    bool,     // crypto_enabled
-    bool,     // notifications_enabled
-    bool,     // refund_pending
+    u64,  // started_at
+    u64,  // last_charged_at
+    u64,  // next_charge_at
+    i128, // total_paid
+    u64,  // charge_count
+    u64,  // paused_at
+    u64,  // pause_duration
+    bool, // crypto_enabled
+    bool, // notifications_enabled
+    bool, // refund_pending
 ) {
     (
         unpack_id(p.id_and_plan),
@@ -191,10 +190,10 @@ pub fn unpack_plan(p: &PackedPlan) -> (u64, u32, i128, u64, bool) {
 
 /// Approximate gas costs (in Soroban fee units) for storage operations.
 /// Based on Soroban mainnet fee schedule (subject to network upgrades).
-const GAS_PER_SLOT_READ: u64  = 10_000;
+const GAS_PER_SLOT_READ: u64 = 10_000;
 const GAS_PER_SLOT_WRITE: u64 = 20_000;
 /// Cost of bit-shift / mask operations per field (instruction gas).
-const GAS_PER_DECODE_OP: u64  = 2;
+const GAS_PER_DECODE_OP: u64 = 2;
 
 #[derive(Debug)]
 pub struct GasBenchmark {
@@ -213,20 +212,20 @@ pub struct GasBenchmark {
 /// Build a benchmark report for the four hot-path operations.
 pub fn benchmark_report() -> [GasBenchmark; 4] {
     // subscribe(): 13 writes before → 7 writes after; 13 decode ops added
-    let sub_before  = 13 * GAS_PER_SLOT_WRITE;
-    let sub_after   = 7  * GAS_PER_SLOT_WRITE + 13 * GAS_PER_DECODE_OP;
+    let sub_before = 13 * GAS_PER_SLOT_WRITE;
+    let sub_after = 7 * GAS_PER_SLOT_WRITE + 13 * GAS_PER_DECODE_OP;
 
     // get_subscription(): 13 reads before → 7 reads after; 13 decode ops
-    let get_before  = 13 * GAS_PER_SLOT_READ;
-    let get_after   = 7  * GAS_PER_SLOT_READ + 13 * GAS_PER_DECODE_OP;
+    let get_before = 13 * GAS_PER_SLOT_READ;
+    let get_after = 7 * GAS_PER_SLOT_READ + 13 * GAS_PER_DECODE_OP;
 
     // charge_subscription(): 13+8 = 21 writes before → 7+4 = 11 writes after
     let charge_before = 21 * GAS_PER_SLOT_WRITE;
-    let charge_after  = 11 * GAS_PER_SLOT_WRITE + 21 * GAS_PER_DECODE_OP;
+    let charge_after = 11 * GAS_PER_SLOT_WRITE + 21 * GAS_PER_DECODE_OP;
 
     // create_plan(): 8 writes before → 4 writes after
     let plan_before = 8 * GAS_PER_SLOT_WRITE;
-    let plan_after  = 4 * GAS_PER_SLOT_WRITE + 8 * GAS_PER_DECODE_OP;
+    let plan_after = 4 * GAS_PER_SLOT_WRITE + 8 * GAS_PER_DECODE_OP;
 
     [
         GasBenchmark {
