@@ -20,8 +20,7 @@ mod usage;
 use soroban_sdk::{token, Address, Bytes, Env, IntoVal, String, Symbol, TryFromVal, Val, Vec};
 use subtrackr_oracle::{OracleError, SubTrackrOracleClient};
 use subtrackr_types::{
-    ChargeCommitment, GasPriceSnapshot, Interval, Invoice, MevChargeConfig, MevEventKind,
-    MevStorageValue, Permission, Plan, PriceBounds, StorageKey, Subscription, SubscriptionStatus,
+    Interval, Invoice, Permission, Plan, PriceBounds, StorageKey, Subscription, SubscriptionStatus,
     TimeRange,
 };
 use timeout::{ChainTimeoutConfig, PaymentTimeout, TxHealthSummary};
@@ -81,6 +80,49 @@ pub struct SubscriptionGroup {
     pub billing_address: String,
     pub created_at: u64,
     pub updated_at: u64,
+}
+
+// ── MEV Protection Types (defined locally to avoid XDR metadata bloat) ──
+
+/// A blinded commitment for the commit-reveal charge scheme.
+#[soroban_sdk::contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ChargeCommitment {
+    pub commitment_hash: Bytes,
+    pub max_gas_fee: i128,
+    pub deadline: u64,
+    pub subscriber: Address,
+}
+
+/// Per-subscription MEV protection configuration.
+#[soroban_sdk::contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct MevChargeConfig {
+    pub use_private_mempool: bool,
+    pub max_gas_fee: i128,
+    pub max_gas: u64,
+}
+
+/// Snapshot of gas / ledger conditions captured at charge time.
+#[soroban_sdk::contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct GasPriceSnapshot {
+    pub ledger_seq: u32,
+    pub timestamp: u64,
+    pub gas_used: u64,
+    pub amount_charged: i128,
+}
+
+/// Events emitted by the MEV protection subsystem.
+#[soroban_sdk::contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum MevEventKind {
+    Committed,
+    Revealed,
+    Expired,
+    GasPriceAnomaly,
+    PrivateMempoolSubmitted,
+    SlippageProtected,
 }
 
 fn storage_instance_get<V: TryFromVal<Env, Val>>(
@@ -219,10 +261,48 @@ fn storage_temporary_set<V: IntoVal<Env, Val>>(
 fn storage_temporary_remove(env: &Env, storage: &Address, key: StorageKey) {
     let args: Vec<Val> = soroban_sdk::vec![env, key.into_val(env)];
     env.invoke_contract::<()>(
-        storage,
+        &storage,
         &soroban_sdk::Symbol::new(env, "temporary_remove"),
         args,
     );
+}
+
+// ── MEV Local Storage Helpers ──
+//
+// MEV state is stored directly in the subscription contract's local persistent
+// storage rather than going through the storage bridge.  This avoids adding
+// variants to the cross-contract StorageKey enum, which is at risk of hitting
+// XDR encoding length limits.
+
+fn mev_storage_key(env: &Env, subscription_id: u64, prefix: &str) -> soroban_sdk::Bytes {
+    let mut key = soroban_sdk::Bytes::from_slice(env, prefix.as_bytes());
+    let id_bytes = subscription_id.to_be_bytes();
+    key.extend_from_array(&id_bytes);
+    key
+}
+
+fn mev_storage_get<V: soroban_sdk::TryFromVal<Env, soroban_sdk::Val>>(
+    env: &Env,
+    subscription_id: u64,
+    prefix: &str,
+) -> Option<V> {
+    let key = mev_storage_key(env, subscription_id, prefix);
+    env.storage().persistent().get(&key)
+}
+
+fn mev_storage_set<V: soroban_sdk::IntoVal<Env, soroban_sdk::Val>>(
+    env: &Env,
+    subscription_id: u64,
+    prefix: &str,
+    val: &V,
+) {
+    let key = mev_storage_key(env, subscription_id, prefix);
+    env.storage().persistent().set(&key, val);
+}
+
+fn mev_storage_remove(env: &Env, subscription_id: u64, prefix: &str) {
+    let key = mev_storage_key(env, subscription_id, prefix);
+    env.storage().persistent().remove(&key);
 }
 
 fn get_admin(env: &Env, storage: &Address) -> Address {
@@ -1121,11 +1201,7 @@ impl SubTrackrSubscription {
         let charge_price = resolve_charge_price(&env, &storage, &plan);
 
         // ── MEV Protection: private mempool check ──
-        if let Some(MevStorageValue::MevChargeConfig(cfg)) = storage_persistent_get::<MevStorageValue>(
-            &env,
-            &storage,
-            StorageKey::MevState(subscription_id),
-        ) {
+        if let Some(cfg) = mev_storage_get::<MevChargeConfig>(&env, subscription_id, "mev_cfg_") {
             if cfg.use_private_mempool {
                 env.events().publish(
                     (String::from_str(&env, "mev_event"), subscription_id),
@@ -1196,12 +1272,7 @@ impl SubTrackrSubscription {
             gas_used,
             amount_charged: charge_price,
         };
-        storage_persistent_set(
-            &env,
-            &storage,
-            StorageKey::MevState(subscription_id),
-            MevStorageValue::GasPriceSnapshot(snapshot),
-        );
+        mev_storage_set::<GasPriceSnapshot>(&env, subscription_id, "mev_gas_", &snapshot);
 
         // Generate revenue recognition schedule and defer the full charge amount.
         revenue::generate_revenue_schedule(
@@ -1309,12 +1380,7 @@ impl SubTrackrSubscription {
             deadline,
             subscriber: sub.subscriber.clone(),
         };
-        storage_persistent_set(
-            &env,
-            &storage,
-            StorageKey::MevState(subscription_id),
-            MevStorageValue::ChargeCommitment(commitment),
-        );
+        mev_storage_set::<ChargeCommitment>(&env, subscription_id, "mev_cmt_", &commitment);
 
         env.events().publish(
             (String::from_str(&env, "mev_event"), subscription_id),
@@ -1334,16 +1400,9 @@ impl SubTrackrSubscription {
         nonce: Bytes,
     ) {
         proxy.require_auth();
-        let mev_val = storage_persistent_get::<MevStorageValue>(
-            &env,
-            &storage,
-            StorageKey::MevState(subscription_id),
-        )
-        .expect("No commitment found for this subscription");
-        let commitment: ChargeCommitment = match mev_val {
-            MevStorageValue::ChargeCommitment(c) => c,
-            _ => panic!("No commitment found for this subscription"),
-        };
+        let commitment: ChargeCommitment =
+            mev_storage_get::<ChargeCommitment>(&env, subscription_id, "mev_cmt_")
+                .expect("No commitment found for this subscription");
 
         let now = env.ledger().timestamp();
         assert!(
@@ -1367,7 +1426,7 @@ impl SubTrackrSubscription {
         );
 
         // Remove commitment so it cannot be replayed
-        storage_persistent_remove(&env, &storage, StorageKey::MevState(subscription_id));
+        mev_storage_remove(&env, subscription_id, "mev_cmt_");
 
         // Execute the charge with the revealed price
         let mut sub: Subscription =
@@ -1425,12 +1484,7 @@ impl SubTrackrSubscription {
             gas_used,
             amount_charged: amount,
         };
-        storage_persistent_set(
-            &env,
-            &storage,
-            StorageKey::MevState(subscription_id),
-            MevStorageValue::GasPriceSnapshot(snapshot),
-        );
+        mev_storage_set::<GasPriceSnapshot>(&env, subscription_id, "mev_gas_", &snapshot);
 
         // Revenue
         revenue::generate_revenue_schedule(
@@ -1489,12 +1543,7 @@ impl SubTrackrSubscription {
             storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
                 .expect("Subscription not found");
         sub.subscriber.require_auth();
-        storage_persistent_set(
-            &env,
-            &storage,
-            StorageKey::MevState(subscription_id),
-            MevStorageValue::MevChargeConfig(config),
-        );
+        mev_storage_set::<MevChargeConfig>(&env, subscription_id, "mev_cfg_", &config);
     }
 
     /// Get the MEV protection configuration for a subscription.
