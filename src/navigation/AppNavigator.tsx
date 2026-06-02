@@ -51,6 +51,9 @@ import DocumentationPortalScreen from '../screens/DocumentationPortalScreen';
 import IntegrationGuidesScreen from '../screens/IntegrationGuidesScreen';
 import PerformanceDashboardScreen from '../screens/PerformanceDashboardScreen';
 import BillingSettingsScreen from '../screens/BillingSettingsScreen';
+import ChangePlanScreen from '../screens/ChangePlanScreen';
+import { PaymentMethodsScreen } from '../../app/screens/PaymentMethodsScreen';
+import AnalyticsDashboard from '../../app/screens/AnalyticsDashboard';
 import { colors } from '../utils/constants';
 
 import { RootStackParamList, TabParamList } from './types';
@@ -80,6 +83,11 @@ const HomeStack = () => (
       name="EditSubscription"
       component={EditSubscriptionScreen}
       options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="ChangePlan"
+      component={ChangePlanScreen}
+      options={{ title: 'Change Plan', headerShown: true }}
     />
     <Stack.Screen
       name="WalletConnect"
@@ -316,6 +324,16 @@ const SettingsStack = () => (
       name="BillingSettings"
       component={BillingSettingsScreen}
       options={{ title: 'Billing Settings', headerShown: true }}
+    />
+    <Stack.Screen
+      name="PaymentMethods"
+      component={PaymentMethodsScreen}
+      options={{ title: 'Payment Methods', headerShown: true }}
+    />
+    <Stack.Screen
+      name="AnalyticsDashboard"
+      component={AnalyticsDashboard}
+      options={{ title: 'Analytics Dashboard', headerShown: true }}
     />
   </Stack.Navigator>
 );
