@@ -2380,7 +2380,7 @@ impl SubTrackrSubscription {
         state::reconstruct_state(&env, subscription_id)
     }
 
-    pub fn reconstruct_subscription_state_at(
+    pub fn reconstruct_sub_state_at(
         env: Env,
         _storage: Address,
         subscription_id: u64,
