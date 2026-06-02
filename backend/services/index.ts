@@ -88,3 +88,18 @@ export type {
   ABTestAssignment,
   FeatureId,
 } from '../../src/types/feature';
+
+// ── Access Control / RBAC (Issue #420) ────────────────────────────────────────
+export { AccessControlService, AccessDeniedError, PermissionEscalationError, ROLE_PERMISSIONS, ROLE_HIERARCHY } from './accessControl';
+export type {
+  Role,
+  Resource,
+  Action,
+  Permission,
+  Effect,
+  RoleAssignment,
+  TemporaryElevation,
+  ApiKeyScope,
+  UnauthorizedAccessEvent,
+  AccessCheckOptions,
+} from './accessControl';
