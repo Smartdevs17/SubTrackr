@@ -124,6 +124,39 @@ export type {
   ChainHealthEntry,
 } from './transactionHealthDashboard';
 
+// ── Disaster Recovery ───────────────────────────────────────────────────────
+export { DisasterRecoveryService, disasterRecoveryService } from '../dr/DisasterRecoveryService';
+export type {
+  BackupManifest,
+  BackupEntry,
+  VerificationResult,
+  RecoveryResult as DrRecoveryResult,
+  DrDrillResult,
+  DrDrillSchedule,
+  RtoMonitorEntry,
+  RpoMonitorEntry,
+  DrIncident,
+  GeoRegionStatus,
+  ConsistencyProof,
+} from '../dr/DisasterRecoveryService';
+
+// ── RPC Circuit Breaker ─────────────────────────────────────────────────────
+export { RpcCircuitBreakerService } from './rpcCircuitBreaker';
+export type {
+  RpcProviderConfig,
+  RpcCircuitBreakerOptions,
+  CircuitState,
+  CircuitStatus,
+  CircuitAuditEvent,
+  RpcDashboardSnapshot,
+  RpcCallFn,
+} from './rpcCircuitBreaker';
+export {
+  RpcTimeoutError,
+  RpcCircuitOpenError,
+  RpcAllProvidersFailedError,
+} from './rpcCircuitBreaker';
+
 // ── Feature Flags (Issue #TBD) ──────────────────────────────────────────────
 export { BackendFeatureFlagsService, backendFeatureFlagsService } from './featureFlags';
 export type {

@@ -16,11 +16,8 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
-import walletServiceManager, {
-  GasEstimate,
-  WalletConnection,
-  TokenBalance,
-} from '../services/walletService';
+import walletServiceManager, { WalletConnection } from '../services/walletService';
+import { GasEstimate, TokenBalance } from '../types/wallet';
 import { ADDRESS_CONSTANTS } from '../utils/constants/values';
 import { useTransactionQueueStore } from '../store/transactionQueueStore';
 
@@ -85,11 +82,7 @@ const CryptoPaymentScreen: React.FC = () => {
         if (!isWalletConnected(connection)) return;
         if (selectedProtocol !== 'sablier') return;
         const tokenInfo = availableTokens.find((t) => t.symbol === selectedToken);
-        if (
-          !tokenInfo ||
-          !tokenInfo.address ||
-          tokenInfo.address === ethers.constants.AddressZero
-        ) {
+        if (!tokenInfo || !tokenInfo.address || tokenInfo.address === ethers.ZeroAddress) {
           return;
         }
         if (!amount || parseFloat(amount) <= 0) return;
@@ -102,13 +95,12 @@ const CryptoPaymentScreen: React.FC = () => {
           spender,
           connection.chainId
         );
-        const required = ethers.utils.parseUnits(amount, tokenInfo.decimals);
-        const needs = allowance.lt(required);
+        const required = ethers.parseUnits(amount, tokenInfo.decimals);
+        const needs = allowance < required;
         setNeedsApproval(needs);
 
         if (needs) {
-          const approveAmount =
-            approvalMode === 'infinite' ? ethers.constants.MaxUint256 : required;
+          const approveAmount = approvalMode === 'infinite' ? ethers.MaxUint256 : required;
           const gas = await walletServiceManager.estimateApproveGas(
             tokenInfo.address,
             spender,
@@ -194,7 +186,7 @@ const CryptoPaymentScreen: React.FC = () => {
       return false;
     }
 
-    if (!recipientAddress || !ethers.utils.isAddress(recipientAddress)) {
+    if (!recipientAddress || !ethers.isAddress(recipientAddress)) {
       Alert.alert('Error', 'Please enter a valid Ethereum address');
       return false;
     }
@@ -231,14 +223,14 @@ const CryptoPaymentScreen: React.FC = () => {
         selectedProtocol === 'sablier' &&
         needsApproval &&
         selectedTokenInfo?.address &&
-        selectedTokenInfo.address !== ethers.constants.AddressZero
+        selectedTokenInfo.address !== ethers.ZeroAddress
       ) {
         setIsApproving(true);
         try {
           const approveAmount =
             approvalMode === 'infinite'
-              ? ethers.constants.MaxUint256
-              : ethers.utils.parseUnits(amount, selectedTokenInfo.decimals);
+              ? ethers.MaxUint256
+              : ethers.parseUnits(amount, selectedTokenInfo.decimals);
           const spender = ADDRESS_CONSTANTS.SABLIER_V2_LOCKUP_LINEAR;
           await walletServiceManager.approveErc20(
             selectedTokenInfo.address,
@@ -501,14 +493,13 @@ const CryptoPaymentScreen: React.FC = () => {
                   onPress={async () => {
                     if (!isWalletConnected(connection)) return;
                     const tokenInfo = availableTokens.find((t) => t.symbol === selectedToken);
-                    if (!tokenInfo?.address || tokenInfo.address === ethers.constants.AddressZero)
-                      return;
+                    if (!tokenInfo?.address || tokenInfo.address === ethers.ZeroAddress) return;
                     setIsApproving(true);
                     try {
                       const approveAmount =
                         approvalMode === 'infinite'
-                          ? ethers.constants.MaxUint256
-                          : ethers.utils.parseUnits(amount || '0', tokenInfo.decimals);
+                          ? ethers.MaxUint256
+                          : ethers.parseUnits(amount || '0', tokenInfo.decimals);
                       await walletServiceManager.approveErc20(
                         tokenInfo.address,
                         ADDRESS_CONSTANTS.SABLIER_V2_LOCKUP_LINEAR,
