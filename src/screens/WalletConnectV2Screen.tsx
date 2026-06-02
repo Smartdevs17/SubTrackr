@@ -24,6 +24,7 @@ import walletServiceManager, { WalletConnection, TokenBalance } from '../service
 import { TICKER_TO_COINGECKO_ID } from '../services/priceService';
 import { useTokenPrices } from '../hooks/useTokenPrices';
 import { useWalletStore } from '../store';
+import useRefresh from '../hooks/useRefresh';
 import { RootStackParamList } from '../navigation/types';
 import { getWalletConnectChain, WALLETCONNECT_CHAINS } from '../services/walletconnect/chains';
 import {
@@ -199,10 +200,16 @@ const WalletConnectV2Screen: React.FC = () => {
     }
   };
 
+  const { refreshing: pullRefreshing, refresh: doPullRefresh } = useRefresh();
+
   const handleRefreshBalances = async () => {
-    const balances = await loadTokenBalances();
-    setTokenBalances(balances);
-    await refresh();
+    await doPullRefresh({
+      fetcher: async () => {
+        const balances = await loadTokenBalances();
+        setTokenBalances(balances);
+        await refresh();
+      },
+    });
   };
 
   const handleCopyAddress = async () => {
@@ -291,7 +298,7 @@ const WalletConnectV2Screen: React.FC = () => {
         style={styles.scrollView}
         refreshControl={
           <RefreshControl
-            refreshing={isLoadingBalances || isRefreshing}
+            refreshing={pullRefreshing || isLoadingBalances || isRefreshing}
             onRefresh={handleRefreshBalances}
           />
         }>
@@ -359,7 +366,12 @@ const WalletConnectV2Screen: React.FC = () => {
               on another device.
             </Text>
             <View style={styles.qrContainer}>
-              <QRCode value={pairingUri} size={180} color={colors.text} backgroundColor="#ffffff" />
+              <QRCode
+                value={pairingUri}
+                size={180}
+                color={colors.text}
+                backgroundColor={colors.background}
+              />
             </View>
             <TouchableOpacity style={styles.secondaryButton} onPress={handleCopyPairingUri}>
               <Text style={styles.secondaryButtonText}>Copy pairing handoff</Text>

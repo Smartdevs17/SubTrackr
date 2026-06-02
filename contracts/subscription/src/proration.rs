@@ -33,11 +33,15 @@ pub enum EffectiveDate {
 /// Calculate the number of days in a billing interval
 fn interval_days(interval: &Interval) -> u64 {
     match interval {
-        Interval::Daily => 1,
-        Interval::Weekly => 7,
-        Interval::Monthly => 30,
-        Interval::Quarterly => 90,
-        Interval::Yearly => 365,
+        Interval::Daily        => 1,
+        Interval::Weekly       => 7,
+        Interval::BiWeekly     => 14,
+        Interval::Monthly      => 30,
+        Interval::BiMonthly    => 60,
+        Interval::Quarterly    => 90,
+        Interval::SemiAnnually => 182,
+        Interval::Yearly       => 365,
+        Interval::Custom(secs) => *secs / 86400,
     }
 }
 

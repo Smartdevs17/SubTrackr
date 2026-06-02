@@ -1,7 +1,8 @@
 import React from 'react';
-import { Text } from 'react-native';
+import { ActivityIndicator, Text, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { navigationRef } from './navigationRef';
+import { linkingConfig } from './linking';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
@@ -21,7 +22,7 @@ import SlaDashboard from '../screens/SlaDashboard';
 import GDPRSettingsScreen from '../screens/GDPRSettingsScreen';
 import LanguageSettingsScreen from '../screens/LanguageSettingsScreen';
 import SessionManagementScreen from '../screens/SessionManagementScreen';
-import SettingsScreen from '../screens/SettingsScreen';
+import { SettingsScreen } from '../screens/SettingsScreen';
 import CalendarIntegrationScreen from '../screens/CalendarIntegrationScreen';
 import AccountingExportScreen from '../screens/AccountingExportScreen';
 import WebhookSettingsScreen from '../screens/WebhookSettingsScreen';
@@ -321,17 +322,18 @@ const SettingsStack = () => (
 
 const TabNavigator = () => {
   const { t } = useTranslation();
+  const { colors } = useTheme();
 
   return (
     <Tab.Navigator
       screenOptions={{
         tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
+          backgroundColor: colors.navigation.tabBar,
+          borderTopColor: colors.navigation.tabBarBorder,
           borderTopWidth: 1,
         },
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textSecondary,
+        tabBarActiveTintColor: colors.navigation.activeTab,
+        tabBarInactiveTintColor: colors.navigation.inactiveTab,
         headerShown: false,
       }}>
       <Tab.Screen
@@ -399,8 +401,10 @@ const TabNavigator = () => {
 };
 
 export const AppNavigator = () => {
+  const { isDark } = useTheme();
+
   return (
-    <NavigationContainer ref={navigationRef}>
+    <NavigationContainer ref={navigationRef} theme={isDark ? darkNavigationTheme : lightNavigationTheme}>
       <TabNavigator />
     </NavigationContainer>
   );
