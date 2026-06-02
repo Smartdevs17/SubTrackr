@@ -3,6 +3,7 @@
 use soroban_sdk::{contract, contractimpl, contracttype, Env, Vec, BytesN, Symbol, Address};
 
 #[contracttype]
+#[derive(Clone)]
 pub struct BatchItem {
     pub account: Address,
     pub amount: i128,
