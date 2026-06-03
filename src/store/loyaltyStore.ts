@@ -19,6 +19,17 @@ import { useGamificationStore } from './gamificationStore';
 const STORAGE_KEY = 'subtrackr-loyalty';
 const STORE_VERSION = 2;
 
+feat/issues-394-405-414-386
+// ── Gamification types ───────────────────────────────────────────────────────
+
+export interface Achievement {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  condition: (state: Pick<LoyaltyState, 'loyaltyStatus' | 'streak' | 'transactions'>) => boolean;
+  unlockedAt?: Date;
+
 interface LoyaltyState {
   loyaltyStatus: LoyaltyStatus | null;
   transactions: PointsTransaction[];
@@ -38,13 +49,34 @@ interface LoyaltyState {
   expirePoints: () => void;
   earnReferralBonus: (referrerAddress: string) => Promise<void>;
   generateReferralCode: () => string;
+main
 }
 
-const generateUniqueId = (): string => {
-  const timestamp = Date.now().toString(36);
-  const randomComponent = Math.random().toString(36).substring(2, 8);
-  return `${timestamp}-${randomComponent}`;
+export interface StreakData {
+  current: number;
+  longest: number;
+  lastPaymentDate: string | null; // ISO date string (date only)
+  frozenUntil?: string | null;    // streak freeze mechanic
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+const generateUniqueId = (): string =>
+  `${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 8)}`;
+
+const toDateStr = (d: Date): string => d.toISOString().slice(0, 10);
+
+const daysBetween = (a: string, b: string): number =>
+  Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86_400_000);
+
+const getTierFromPoints = (points: number): LoyaltyTier => {
+  if (points >= 15000) return LoyaltyTier.PLATINUM;
+  if (points >= 5000) return LoyaltyTier.GOLD;
+  if (points >= 1000) return LoyaltyTier.SILVER;
+  return LoyaltyTier.BRONZE;
 };
+
+// ── Default data ─────────────────────────────────────────────────────────────
 
 const defaultTierBenefits: TierBenefits[] = [
   {
@@ -132,12 +164,92 @@ const defaultRewards: Reward[] = [
   },
 ];
 
-const getTierFromPoints = (points: number): LoyaltyTier => {
-  if (points >= 15000) return LoyaltyTier.PLATINUM;
-  if (points >= 5000) return LoyaltyTier.GOLD;
-  if (points >= 1000) return LoyaltyTier.SILVER;
-  return LoyaltyTier.BRONZE;
-};
+/** Achievement definitions — conditions evaluated after every state change. */
+export const ACHIEVEMENTS: Achievement[] = [
+  {
+    id: 'first-payment',
+    name: 'First Payment',
+    description: 'Make your first on-time payment',
+    icon: '🎉',
+    condition: ({ transactions }) => transactions.some((t) => t.type === 'earn'),
+  },
+  {
+    id: 'streak-7',
+    name: 'Week Warrior',
+    description: '7-day payment streak',
+    icon: '🔥',
+    condition: ({ streak }) => streak.current >= 7,
+  },
+  {
+    id: 'streak-30',
+    name: 'Monthly Master',
+    description: '30-day payment streak',
+    icon: '⚡',
+    condition: ({ streak }) => streak.current >= 30,
+  },
+  {
+    id: 'silver-tier',
+    name: 'Silver Member',
+    description: 'Reach Silver tier',
+    icon: '🥈',
+    condition: ({ loyaltyStatus }) =>
+      loyaltyStatus !== null &&
+      [LoyaltyTier.SILVER, LoyaltyTier.GOLD, LoyaltyTier.PLATINUM].includes(loyaltyStatus.tier),
+  },
+  {
+    id: 'gold-tier',
+    name: 'Gold Member',
+    description: 'Reach Gold tier',
+    icon: '🥇',
+    condition: ({ loyaltyStatus }) =>
+      loyaltyStatus !== null &&
+      [LoyaltyTier.GOLD, LoyaltyTier.PLATINUM].includes(loyaltyStatus.tier),
+  },
+  {
+    id: 'points-1000',
+    name: 'Points Collector',
+    description: 'Earn 1,000 lifetime points',
+    icon: '💎',
+    condition: ({ loyaltyStatus }) => (loyaltyStatus?.lifetimePoints ?? 0) >= 1000,
+  },
+  {
+    id: 'first-redemption',
+    name: 'Redeemer',
+    description: 'Redeem a reward for the first time',
+    icon: '🎁',
+    condition: ({ transactions }) => transactions.some((t) => t.type === 'redeem'),
+  },
+];
+
+feat/issues-394-405-414-386
+// ── Store interface ──────────────────────────────────────────────────────────
+
+interface LoyaltyState {
+  loyaltyStatus: LoyaltyStatus | null;
+  transactions: PointsTransaction[];
+  rewards: Reward[];
+  program: LoyaltyProgram | null;
+  streak: StreakData;
+  achievements: Achievement[];
+  newlyUnlocked: Achievement[];   // cleared after UI reads them
+  isLoading: boolean;
+  error: string | null;
+  /** Mutex flag to prevent concurrent points mutations */
+  _pointsMutex: boolean;
+
+  initializeProgram: () => Promise<void>;
+  accumulatePoints: (subscriberId: string, subscriptionId: string, amount: number) => Promise<void>;
+  redeemPoints: (rewardId: string) => Promise<boolean>;
+  checkTierUpgrade: () => void;
+  expirePoints: () => void;
+  recordPayment: (date?: Date) => void;
+  freezeStreak: (days: number) => void;
+  clearNewlyUnlocked: () => void;
+  /** Retroactively evaluate all achievements against current state */
+  evaluateAchievements: () => Achievement[];
+}
+
+// ── Store ────────────────────────────────────────────────────────────────────
 
 const getTierBenefits = (tier: LoyaltyTier): TierBenefits | undefined => {
   return defaultTierBenefits.find((t) => t.tier === tier);
@@ -148,6 +260,7 @@ const calculatePointsExpiration = (pointsExpirationDays: number, memberSince: Da
   expirationDate.setDate(expirationDate.getDate() + pointsExpirationDays);
   return expirationDate;
 };
+ main
 
 const generateReferralCode = (address: string): string => {
   const suffix = address.slice(-6).toUpperCase();
@@ -161,10 +274,17 @@ export const useLoyaltyStore = create<LoyaltyState>()(
       transactions: [],
       rewards: defaultRewards,
       program: null,
+ feat/issues-394-405-414-386
+      streak: { current: 0, longest: 0, lastPaymentDate: null, frozenUntil: null },
+      achievements: ACHIEVEMENTS.map((a) => ({ ...a, unlockedAt: undefined })),
+      newlyUnlocked: [],
+
       streak: { current: 0, lastChargeAt: null, isActive: false },
       referral: { code: '', bonusPoints: 100, totalReferrals: 0 },
+ main
       isLoading: false,
       error: null,
+      _pointsMutex: false,
 
       initializeProgram: async () => {
         const program: LoyaltyProgram = {
@@ -177,6 +297,15 @@ export const useLoyaltyStore = create<LoyaltyState>()(
         };
         set({ program });
       },
+
+ feat/issues-394-405-414-386
+      accumulatePoints: async (subscriberId, subscriptionId, amount) => {
+        // Race condition guard: spin-wait up to 500ms
+        const deadline = Date.now() + 500;
+        while (get()._pointsMutex && Date.now() < deadline) {
+          await new Promise((r) => setTimeout(r, 10));
+        }
+        set({ _pointsMutex: true });
 
       fetchLoyaltyStatus: async (address: string) => {
         set({ isLoading: true, error: null });
@@ -213,8 +342,43 @@ export const useLoyaltyStore = create<LoyaltyState>()(
       accumulatePoints: async (subscriberId: string, subscriptionId: string, amount: number) => {
         const { program, transactions, loyaltyStatus, streak } = get();
         if (!program) return;
+main
 
-        const pointsEarned = Math.floor(amount * program.pointsPerDollar);
+        try {
+          const { program, transactions, loyaltyStatus } = get();
+          if (!program) return;
+
+feat/issues-394-405-414-386
+          const pointsEarned = Math.floor(amount * program.pointsPerDollar);
+          const currentPoints = loyaltyStatus?.points ?? 0;
+          const lifetimePoints = loyaltyStatus?.lifetimePoints ?? 0;
+          const totalSpent = loyaltyStatus?.totalSpent ?? 0;
+
+          const transaction: PointsTransaction = {
+            id: generateUniqueId(),
+            subscriberId,
+            amount: pointsEarned,
+            type: 'earn',
+            subscriptionId,
+            description: 'Points earned from subscription',
+            createdAt: new Date(),
+            expiresAt: new Date(Date.now() + program.pointsExpirationDays * 86_400_000),
+          };
+
+          const newPoints = currentPoints + pointsEarned;
+          const newLifetime = lifetimePoints + pointsEarned;
+
+          const newStatus: LoyaltyStatus = {
+            subscriberId,
+            tier: getTierFromPoints(newLifetime),
+            points: newPoints,
+            lifetimePoints: newLifetime,
+            totalSpent: totalSpent + amount,
+            memberSince: loyaltyStatus?.memberSince ?? new Date(),
+            pointsExpirationDate: new Date(
+              Date.now() + program.pointsExpirationDays * 86_400_000,
+            ),
+          };
 
         const transaction: PointsTransaction = {
           id: generateUniqueId(),
@@ -286,14 +450,28 @@ export const useLoyaltyStore = create<LoyaltyState>()(
           { streak: newStreak },
         );
       },
+main
 
-      redeemPoints: async (rewardId: string) => {
-        const { rewards, loyaltyStatus } = get();
-        const reward = rewards.find((r) => r.id === rewardId);
+          set({ transactions: [...transactions, transaction], loyaltyStatus: newStatus });
+          get().evaluateAchievements();
+        } finally {
+          set({ _pointsMutex: false });
+        }
+      },
 
-        if (!reward || !loyaltyStatus) return false;
-        if (!reward.isActive) return false;
-        if (loyaltyStatus.points < reward.pointsCost) return false;
+      redeemPoints: async (rewardId) => {
+        const deadline = Date.now() + 500;
+        while (get()._pointsMutex && Date.now() < deadline) {
+          await new Promise((r) => setTimeout(r, 10));
+        }
+        set({ _pointsMutex: true });
+
+feat/issues-394-405-414-386
+        try {
+          const { rewards, loyaltyStatus } = get();
+          const reward = rewards.find((r) => r.id === rewardId);
+          if (!reward?.isActive || !loyaltyStatus) return false;
+          if (loyaltyStatus.points < reward.pointsCost) return false;
 
         // TODO: call contract redeem_loyalty_points(reward.pointsCost, chargeAmount)
         const transaction: PointsTransaction = {
@@ -304,16 +482,26 @@ export const useLoyaltyStore = create<LoyaltyState>()(
           description: `Redeemed: ${reward.name}`,
           createdAt: new Date(),
         };
+main
 
-        set({
-          transactions: [...get().transactions, transaction],
-          loyaltyStatus: {
-            ...loyaltyStatus,
-            points: loyaltyStatus.points - reward.pointsCost,
-          },
-        });
+          const transaction: PointsTransaction = {
+            id: generateUniqueId(),
+            subscriberId: loyaltyStatus.subscriberId,
+            amount: -reward.pointsCost,
+            type: 'redeem',
+            description: `Redeemed: ${reward.name}`,
+            createdAt: new Date(),
+          };
 
-        return true;
+          set({
+            transactions: [...get().transactions, transaction],
+            loyaltyStatus: { ...loyaltyStatus, points: loyaltyStatus.points - reward.pointsCost },
+          });
+          get().evaluateAchievements();
+          return true;
+        } finally {
+          set({ _pointsMutex: false });
+        }
       },
 
       redeemPointsForDiscount: async (points: number, chargeAmount: number) => {
@@ -327,21 +515,32 @@ export const useLoyaltyStore = create<LoyaltyState>()(
       checkTierUpgrade: () => {
         const { loyaltyStatus } = get();
         if (!loyaltyStatus) return;
-
         const newTier = getTierFromPoints(loyaltyStatus.lifetimePoints);
         if (newTier !== loyaltyStatus.tier) {
-          set({
-            loyaltyStatus: {
-              ...loyaltyStatus,
-              tier: newTier,
-            },
-          });
+          set({ loyaltyStatus: { ...loyaltyStatus, tier: newTier } });
+          get().evaluateAchievements();
         }
       },
 
       expirePoints: () => {
         const { loyaltyStatus, transactions } = get();
         if (!loyaltyStatus?.pointsExpirationDate) return;
+        if (new Date() <= loyaltyStatus.pointsExpirationDate) return;
+
+feat/issues-394-405-414-386
+        const expiredTx: PointsTransaction = {
+          id: generateUniqueId(),
+          subscriberId: loyaltyStatus.subscriberId,
+          amount: -loyaltyStatus.points,
+          type: 'expire',
+          description: 'Points expired',
+          createdAt: new Date(),
+        };
+        set({
+          transactions: [...transactions, expiredTx],
+          loyaltyStatus: { ...loyaltyStatus, points: 0, pointsExpirationDate: undefined },
+        });
+      },
 
         const now = new Date();
         if (now > loyaltyStatus.pointsExpirationDate) {
@@ -353,16 +552,68 @@ export const useLoyaltyStore = create<LoyaltyState>()(
             description: 'Points expired',
             createdAt: new Date(),
           };
+main
 
-          set({
-            transactions: [...transactions, expiredTransaction],
-            loyaltyStatus: {
-              ...loyaltyStatus,
-              points: 0,
-              pointsExpirationDate: undefined,
-            },
-          });
+      recordPayment: (date = new Date()) => {
+        const { streak } = get();
+        const today = toDateStr(date);
+        const { lastPaymentDate, frozenUntil } = streak;
+
+        // Streak freeze: if frozen, don't break streak
+        if (frozenUntil && today <= frozenUntil) {
+          set({ streak: { ...streak, lastPaymentDate: today } });
+          return;
         }
+
+        let newCurrent = streak.current;
+        if (!lastPaymentDate) {
+          newCurrent = 1;
+        } else {
+          const diff = daysBetween(lastPaymentDate, today);
+          if (diff === 0) return; // same day, no change
+          if (diff === 1) {
+            newCurrent = streak.current + 1;
+          } else {
+            newCurrent = 1; // streak broken
+          }
+        }
+
+        const newStreak: StreakData = {
+          current: newCurrent,
+          longest: Math.max(streak.longest, newCurrent),
+          lastPaymentDate: today,
+          frozenUntil: null,
+        };
+        set({ streak: newStreak });
+        get().evaluateAchievements();
+      },
+
+      freezeStreak: (days) => {
+        const { streak } = get();
+        const until = toDateStr(new Date(Date.now() + days * 86_400_000));
+        set({ streak: { ...streak, frozenUntil: until } });
+      },
+
+      clearNewlyUnlocked: () => set({ newlyUnlocked: [] }),
+
+      evaluateAchievements: () => {
+        const state = get();
+        const { achievements, loyaltyStatus, streak, transactions } = state;
+        const context = { loyaltyStatus, streak, transactions };
+        const newlyUnlocked: Achievement[] = [];
+
+        const updated = achievements.map((a) => {
+          if (a.unlockedAt) return a; // already unlocked
+          if (a.condition(context)) {
+            const unlocked = { ...a, unlockedAt: new Date() };
+            newlyUnlocked.push(unlocked);
+            return unlocked;
+          }
+          return a;
+        });
+
+        set({ achievements: updated, newlyUnlocked });
+        return newlyUnlocked;
       },
 
       earnReferralBonus: async (referrerAddress: string) => {
@@ -415,8 +666,12 @@ export const useLoyaltyStore = create<LoyaltyState>()(
         rewards: state.rewards,
         program: state.program,
         streak: state.streak,
+ feat/issues-394-405-414-386
+        achievements: state.achievements,
+
         referral: state.referral,
+main
       }),
-    }
-  )
+    },
+  ),
 );

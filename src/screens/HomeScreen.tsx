@@ -35,7 +35,7 @@ type HomeNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation<HomeNavigationProp>();
-  const { subscriptions, stats, fetchSubscriptions, calculateStats, toggleSubscriptionStatus, deleteSubscription } =
+  const { subscriptions, stats, fetchSubscriptions, refreshSubscriptions, calculateStats, toggleSubscriptionStatus, deleteSubscription, isLoading } =
     useSubscriptionStore();
 
   const isOnline = useTransactionQueueStore((state) => state.isOnline);
@@ -67,8 +67,11 @@ const HomeScreen: React.FC = () => {
 
   const onRefresh = async () => {
     await refresh({
-      clearBefore: () => useSubscriptionStore.setState({ subscriptions: [] }),
-      fetcher: fetchSubscriptions,
+      fetcher: refreshSubscriptions,
+      minDurationMs: 400,
+      onError: (err) => {
+        console.error('Pull-to-refresh failed:', err);
+      },
     });
   };
 
@@ -89,7 +92,7 @@ const HomeScreen: React.FC = () => {
         style={styles.scrollView}
         refreshControl={
           <RefreshControl
-            refreshing={refreshing}
+            refreshing={refreshing || isLoading}
             onRefresh={onRefresh}
             tintColor={colors.primary}
           />
