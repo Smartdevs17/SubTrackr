@@ -1,14 +1,17 @@
 import React, { useMemo } from 'react';
+import { RefreshControl } from 'react-native';
+import useRefresh from '../hooks/useRefresh';
 import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useInvoiceStore } from '../store';
-import { colors, spacing, typography, borderRadius } from '../utils/constants';
+import { spacing, typography, borderRadius } from '../utils/constants';
 import { formatCurrency, formatDate } from '../utils/formatting';
 import { InvoiceStatus } from '../types/invoice';
 import { RootStackParamList } from '../navigation/types';
 import { Card } from '../components/common/Card';
 import { EmptyState } from '../components/common/EmptyState';
+import { useThemeColors } from '../hooks/useThemeColors';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -20,26 +23,41 @@ const statusLabel: Record<InvoiceStatus, string> = {
   [InvoiceStatus.VOID]: 'Void',
 };
 
-const statusStyles: Record<InvoiceStatus, object> = {
-  [InvoiceStatus.DRAFT]: { backgroundColor: '#4B5563' },
-  [InvoiceStatus.SENT]: { backgroundColor: colors.primary },
-  [InvoiceStatus.PARTIAL]: { backgroundColor: '#CA8A04' },
-  [InvoiceStatus.PAID]: { backgroundColor: '#16A34A' },
-  [InvoiceStatus.VOID]: { backgroundColor: '#DC2626' },
-};
-
 const InvoiceListScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
+  const colors = useThemeColors();
   const invoices = useInvoiceStore((state) => state.invoices);
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const sortedInvoices = useMemo(
     () => [...invoices].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()),
     [invoices]
   );
 
+  const { refreshing, refresh } = useRefresh();
+
+  const onRefresh = async () => {
+    await refresh({
+      clearBefore: () => useInvoiceStore.setState({ invoices: [] }),
+      fetcher: async () => {
+        // invoiceStore has no remote fetcher in this build; keep UX smooth
+        await new Promise((r) => setTimeout(r, 350));
+      },
+    });
+  };
+
+  const statusStyles: Record<InvoiceStatus, { backgroundColor: string }> = {
+    [InvoiceStatus.DRAFT]: { backgroundColor: colors.textSecondary },
+    [InvoiceStatus.SENT]: { backgroundColor: colors.primary },
+    [InvoiceStatus.PARTIAL]: { backgroundColor: colors.status.warning },
+    [InvoiceStatus.PAID]: { backgroundColor: colors.status.success },
+    [InvoiceStatus.VOID]: { backgroundColor: colors.status.error },
+  };
+  };
+
   return (
     <SafeAreaView style={styles.container} testID="invoice-list-screen">
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
         <View style={styles.header}>
           <Text style={styles.title}>Invoices</Text>
           <Text style={styles.subtitle}>Track generated billing records and delivery status.</Text>
@@ -48,8 +66,10 @@ const InvoiceListScreen: React.FC = () => {
         {sortedInvoices.length === 0 ? (
           <EmptyState
             title="No invoices yet"
-            message="Invoices are created automatically after successful billing events."
+            message="Invoices are created automatically after successful billing events occur on tracked plans."
             icon="🧾"
+            actionText="Go to Dashboard"
+            onAction={() => navigation.navigate('Home')}
           />
         ) : (
           sortedInvoices.map((invoice) => (
@@ -69,14 +89,16 @@ const InvoiceListScreen: React.FC = () => {
                 </View>
 
                 <View style={styles.detailsRow}>
-                  <Text style={styles.detailLabel}>Total</Text>
-                  <Text style={styles.totalValue}>
-                    {formatCurrency(invoice.total, invoice.currency)}
-                  </Text>
-                </View>
-                <View style={styles.detailsRow}>
-                  <Text style={styles.detailLabel}>Due</Text>
-                  <Text style={styles.detailValue}>{formatDate(invoice.dueDate)}</Text>
+                  <View>
+                    <Text style={styles.detailLabel}>Total</Text>
+                    <Text style={styles.totalValue}>
+                      {formatCurrency(invoice.total, invoice.currency)}
+                    </Text>
+                  </View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={styles.detailLabel}>Due</Text>
+                    <Text style={styles.detailValue}>{formatDate(invoice.dueDate)}</Text>
+                  </View>
                 </View>
               </Card>
             </TouchableOpacity>
@@ -87,8 +109,9 @@ const InvoiceListScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background.primary },
   content: { padding: spacing.lg, gap: spacing.md },
   header: { marginBottom: spacing.xs },
   title: { ...typography.h1, color: colors.text },
@@ -111,9 +134,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: spacing.sm,
   },
-  detailLabel: { ...typography.caption, color: colors.textSecondary, textTransform: 'uppercase' },
+  detailLabel: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    marginBottom: 2,
+  },
   detailValue: { ...typography.body, color: colors.text },
   totalValue: { ...typography.h3, color: colors.accent },
-});
+  });
+}
 
 export default InvoiceListScreen;

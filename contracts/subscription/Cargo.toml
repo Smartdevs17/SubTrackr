@@ -10,11 +10,13 @@ name = "subtrackr_subscription"
 path = "src/lib.rs"
 crate-type = ["cdylib", "rlib"]
 
-serde = "1.0"
-
 [dependencies]
 soroban-sdk = "21.0.0"
 subtrackr-types = { path = "../types" }
+subtrackr-oracle = { path = "../oracle" }
+
+[features]
+extended = []
 
 [dev-dependencies]
 soroban-sdk = { version = "21.0.0", features = ["testutils"] }

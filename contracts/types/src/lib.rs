@@ -1,6 +1,6 @@
 #![no_std]
 
-use soroban_sdk::{contracttype, Address, String, Vec};
+use soroban_sdk::{contracttype, Address, String, Symbol, Vec};
 
 /// Billing interval in seconds.
 #[contracttype]
@@ -92,6 +92,132 @@ pub struct InvoiceConfig {
     pub default_tax_bps: u32,
     pub exchange_rate_scale: i128,
     pub payment_terms_secs: Timestamp,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum TaxType {
+    Vat,
+    Gst,
+    SalesTax,
+    DigitalServicesTax,
+    None,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct TaxJurisdiction {
+    pub country: String,
+    pub state: String,
+    pub city: String,
+    pub postal_code: String,
+    pub tax_type: TaxType,
+    pub rate_bps: u32,
+    pub label: String,
+    pub effective_date: Timestamp,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum CertificateStatus {
+    Pending,
+    Valid,
+    Expired,
+    Revoked,
+    Invalid,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct TaxExemption {
+    pub id: u64,
+    pub customer: Address,
+    pub certificate_number: String,
+    pub issuing_authority: String,
+    pub valid_from: Timestamp,
+    pub valid_until: Timestamp,
+    pub jurisdictions: Vec<TaxJurisdiction>,
+    pub status: CertificateStatus,
+    pub validated_at: Timestamp,
+    pub validated_by: Address,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum DigitalGoodsCategory {
+    Saas,
+    Streaming,
+    DigitalDownload,
+    CloudStorage,
+    OnlineService,
+    InAppPurchase,
+    Marketplace,
+    Other,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct TaxReportLineItem {
+    pub invoice_id: u64,
+    pub invoice_number: String,
+    pub subscription_id: u64,
+    pub customer: Address,
+    pub taxable_amount: i128,
+    pub tax_rate_bps: u32,
+    pub tax_amount: i128,
+    pub digital_goods_category: DigitalGoodsCategory,
+    pub invoice_date: Timestamp,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum RemittanceStatus {
+    Draft,
+    Generated,
+    Submitted,
+    Paid,
+    Amended,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct TaxRemittanceReport {
+    pub id: u64,
+    pub period: TimeRange,
+    pub jurisdiction: TaxJurisdiction,
+    pub merchant: Address,
+    pub total_taxable_amount: i128,
+    pub total_tax_collected: i128,
+    pub total_tax_remitted: i128,
+    pub transaction_count: u32,
+    pub line_items: Vec<TaxReportLineItem>,
+    pub generated_at: Timestamp,
+    pub submitted_at: Timestamp,
+    pub status: RemittanceStatus,
+    pub notes: String,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct NexusRegion {
+    pub country: String,
+    pub state: String,
+    pub city: String,
+    pub threshold_met: bool,
+    pub threshold_amount: i128,
+    pub transactions_in_period: u32,
+    pub total_revenue_in_period: i128,
+    pub first_nexus_date: Timestamp,
+    pub tax_type: TaxType,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct TaxRateChangeEvent {
+    pub jurisdiction: TaxJurisdiction,
+    pub old_rate_bps: u32,
+    pub new_rate_bps: u32,
+    pub effective_date: Timestamp,
 }
 
 /// A subscription plan created by a merchant.
@@ -203,6 +329,71 @@ pub struct UpgradeEvent {
 
 pub type SubscriptionId = u64;
 pub type MerchantId = Address;
+pub type PaymentMethodId = u64;
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum TokenType {
+    XLM,
+    USDC,
+    ETH,
+    Native,
+    MATIC,
+    ARB,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum PaymentPriority {
+    Primary,
+    Backup,
+    Fallback,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PaymentMethod {
+    pub id: PaymentMethodId,
+    pub user: Address,
+    pub token_type: TokenType,
+    pub token_address: Address,
+    pub chain_id: u64,
+    pub label: String,
+    pub priority: PaymentPriority,
+    pub max_spend_per_interval: i128,
+    pub is_verified: bool,
+    pub is_active: bool,
+    pub expires_at: u64,
+    pub last_used_at: u64,
+    pub created_at: u64,
+    pub updated_at: u64,
+    pub metadata: Vec<(String, String)>,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum PaymentAttemptStatus {
+    Pending,
+    Success,
+    Failed,
+    FallbackTriggered,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PaymentAttempt {
+    pub id: u64,
+    pub payment_method_id: PaymentMethodId,
+    pub subscription_id: u64,
+    pub amount: i128,
+    pub token_type: TokenType,
+    pub status: PaymentAttemptStatus,
+    pub failure_reason: String,
+    pub gas_price: i128,
+    pub gas_used: u64,
+    pub attempted_at: u64,
+    pub resolved_at: u64,
+}
 
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
@@ -307,6 +498,131 @@ pub struct FraudReport {
     pub recent_cases: Vec<FraudCase>,
 }
 
+// ── Access Control Types ──
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum Role {
+    Admin,
+    Merchant,
+    Subscriber,
+    Auditor,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum Permission {
+    GrantRole,
+    RevokeRole,
+    DelegatePermission,
+    CreatePlan,
+    DeactivatePlan,
+    SetPlanQuotas,
+    SetRevenueRule,
+    Subscribe,
+    CancelSubscription,
+    PauseSubscription,
+    ResumeSubscription,
+    ChargeSubscription,
+    RequestRefund,
+    ApproveRefund,
+    RejectRefund,
+    RequestTransfer,
+    AcceptTransfer,
+    SetRateLimit,
+    RemoveRateLimit,
+    SetInvoiceContract,
+    ClearInvoiceContract,
+    UpgradeContract,
+    MigrateContract,
+    ViewAnalytics,
+    ViewAuditLog,
+    ViewPlans,
+    ViewSubscriptions,
+    SetEmergencyAdmin,
+    PauseEmergency,
+    SetAccessControl,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum RoleChangeAction {
+    Granted,
+    Revoked,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct RoleChangeEntry {
+    pub id: u64,
+    pub user: Address,
+    pub role: Role,
+    pub action: RoleChangeAction,
+    pub changed_by: Address,
+    pub timestamp: u64,
+}
+
+// ── Tax System Types (extended) ──
+
+/// Classification of digital goods for tax purposes (extended beyond DigitalGoodsCategory).
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum DigitalGoodsClass {
+    Standard,
+    ElectronicService,
+    Exempt,
+    ReducedRate,
+    TelecomService,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum MaybeDigitalGoodsClass {
+    None,
+    Some(DigitalGoodsClass),
+}
+
+/// A tax rate entry for a specific jurisdiction and tax type.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct TaxRateEntry {
+    pub jurisdiction_key: String,
+    pub tax_type: TaxType,
+    pub rate_bps: u32,
+    pub display_name: String,
+    pub effective_from: Timestamp,
+    pub effective_until: Timestamp,
+    pub applies_to_digital_goods: bool,
+    pub reverse_charge: bool,
+    pub nexus_threshold: i128,
+}
+
+/// Customer tax exemption status with certificate tracking.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct CustomerTaxStatus {
+    pub is_exempt: bool,
+    pub certificate_id: String,
+    pub certificate_expiry: Timestamp,
+    pub issuing_authority: String,
+    pub exempt_jurisdictions: Vec<String>,
+    pub digital_goods_override: MaybeDigitalGoodsClass,
+}
+
+/// A single line in a tax remittance report recording collected tax by jurisdiction.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct TaxRemittanceLineItem {
+    pub jurisdiction_key: String,
+    pub tax_type: TaxType,
+    pub taxable_amount: i128,
+    pub rate_bps: u32,
+    pub tax_collected: i128,
+    pub transaction_count: u32,
+    pub currency: String,
+}
+
+// ── Storage Keys ──
 /// Storage keys for the proxy contract state.
 ///
 /// IMPORTANT: Never reorder existing variants. Append new variants only.
@@ -343,7 +659,7 @@ pub enum StorageKey {
     ProxyUpgradeDelaySecs,
     ProxyRollbackDelaySecs,
     ProxyScheduledUpgrade,
-    ProxyPreviousImplementationCount,
+    ProxyPrevImplCount,
     ProxyPreviousImplementation(u32),
     ProxyUpgradeHistoryCount,
     ProxyUpgradeHistoryEntry(u32),
@@ -380,4 +696,52 @@ pub enum StorageKey {
     PlanQuotas(u64),
     /// Usage record for a subscription and metric (sub_id, metric -> UsageRecord)
     SubscriptionUsage(u64, QuotaMetric),
+
+    // ── Added in storage version 5 (Access Control) ──
+    /// Address of the access_control contract for RBAC.
+    AccessControl,
+    // ── Added in storage version 5 (Oracle Integration) ──
+    /// Address of the oracle contract for price feeds.
+    OracleContract,
+    /// Price bounds for slippage protection, keyed by plan_id.
+    PriceBounds(u64),
+    /// Mapping from token address to symbol name (for oracle lookups).
+    TokenSymbol(Address),
+
+    // ── Added in storage version 6 (Transient / Temporary storage) ──
+    //
+    // Keys in this block are stored with env.storage().temporary() so they
+    // auto-expire after a TTL and cost less than persistent storage.
+    //
+    // IMPORTANT: Never use these keys with instance or persistent storage.
+    // The naming prefix "Tmp" makes the intent explicit at the call site.
+    /// Temporary rate-limit timestamp: last time `caller` invoked `function`.
+    /// TTL is set to the configured min_interval_secs for that function.
+    /// Replaces the previous StorageKey::LastCall which used instance storage.
+    TmpLastCall(Address, String),
+
+    /// Temporary computation scratch-pad for a pending plan-change proration.
+    /// Keyed by subscription_id; expires after one billing interval.
+    TmpProrationScratch(u64),
+
+    /// Temporary nonce used to deduplicate rapid charge attempts within a
+    /// single ledger sequence window.  Expires after one ledger close (~5 s).
+    TmpChargeNonce(u64),
+
+    // ── Added in storage version 7 (Plan limits) ──
+    /// Global maximum number of plans a merchant can create.
+    /// Stored in instance storage; if unset, the implementation default applies.
+    MaxPlansPerMerchant,
+}
+
+/// Slippage protection bounds for oracle-based pricing.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PriceBounds {
+    /// Maximum allowed price as basis points of the stored plan price (e.g. 10500 = +5%).
+    pub max_price_bps: u32,
+    /// Minimum allowed price as basis points of the stored plan price (e.g. 9500 = -5%).
+    pub min_price_bps: u32,
+    /// Quote currency symbol used for price lookup (e.g. "USD").
+    pub quote: Symbol,
 }

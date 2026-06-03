@@ -1,23 +1,19 @@
 import React, { useMemo } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  SafeAreaView,
-  TouchableOpacity,
-  FlatList,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { errorHandler, ErrorType, ErrorSeverity, AppError } from '../services/errorHandler';
-import { colors, spacing, typography, borderRadius } from '../utils/constants';
+import { spacing, typography, borderRadius } from '../utils/constants';
+import { useThemeColors } from '../hooks/useThemeColors';
 
 type ErrorDashboardNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const ErrorDashboardScreen: React.FC = () => {
   const navigation = useNavigation<ErrorDashboardNavigationProp>();
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const errorStats = useMemo(() => errorHandler.getErrorStats(), []);
   const recentErrors = errorStats.recent;
@@ -27,11 +23,11 @@ const ErrorDashboardScreen: React.FC = () => {
       case ErrorSeverity.CRITICAL:
         return colors.error;
       case ErrorSeverity.HIGH:
-        return '#dc2626'; // Red-600
+        return colors.status.error;
       case ErrorSeverity.MEDIUM:
         return colors.warning;
       case ErrorSeverity.LOW:
-        return '#6b7280'; // Gray-500
+        return colors.textSecondary;
       default:
         return colors.error;
     }
@@ -42,11 +38,11 @@ const ErrorDashboardScreen: React.FC = () => {
       case ErrorType.VALIDATION:
         return colors.warning;
       case ErrorType.NETWORK:
-        return '#3b82f6'; // Blue-500
+        return colors.status.info;
       case ErrorType.CRYPTO:
         return colors.accent;
       case ErrorType.STORAGE:
-        return '#8b5cf6'; // Purple-500
+        return colors.brand.primary;
       default:
         return colors.error;
     }
@@ -96,14 +92,14 @@ const ErrorDashboardScreen: React.FC = () => {
           {renderStatCard(
             'High Priority',
             errorStats.bySeverity[ErrorSeverity.HIGH] || 0,
-            '#dc2626'
+            colors.status.error
           )}
           {renderStatCard(
             'Validation',
             errorStats.byType[ErrorType.VALIDATION] || 0,
             colors.warning
           )}
-          {renderStatCard('Network', errorStats.byType[ErrorType.NETWORK] || 0, '#3b82f6')}
+          {renderStatCard('Network', errorStats.byType[ErrorType.NETWORK] || 0, colors.status.info)}
           {renderStatCard('Crypto', errorStats.byType[ErrorType.CRYPTO] || 0, colors.accent)}
         </View>
 
@@ -124,7 +120,7 @@ const ErrorDashboardScreen: React.FC = () => {
           </View>
 
           {recentErrors.length > 0 ? (
-            <FlatList
+            <FlashList
               data={recentErrors}
               renderItem={renderErrorItem}
               keyExtractor={(item) => item.id}
@@ -158,10 +154,11 @@ const ErrorDashboardScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.background.primary,
   },
   scrollView: {
     flex: 1,
@@ -193,7 +190,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     margin: '1%',
     borderLeftWidth: 4,
-    shadowColor: '#000',
+    shadowColor: colors.overlay,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -230,7 +227,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.sm,
   },
   clearButtonText: {
-    color: colors.text,
+    color: colors.onPrimary,
     ...typography.body,
     fontWeight: '600',
   },
@@ -310,6 +307,7 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.textSecondary,
   },
-});
+  });
+}
 
 export default ErrorDashboardScreen;

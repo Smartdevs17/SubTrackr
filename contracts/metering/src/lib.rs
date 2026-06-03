@@ -1,4 +1,5 @@
 #![no_std]
+#![allow(clippy::too_many_arguments)]
 //! SubTrackr usage-metering contract.
 //!
 //! Real-time usage-based billing (issue: metered billing). Reporters push

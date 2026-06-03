@@ -61,13 +61,26 @@ export type Permission = 'read' | 'write' | 'delete' | 'admin' | 'webhooks' | 'a
 export interface ApiKey {
   id: string;
   key: string;
+  keyPrefix?: string;
+  hashedKey?: string;
+  plainKey?: string;
   name: string;
   permissions: Permission[];
   rateLimit: RateLimit;
   expiresAt: Date | null;
   lastUsedAt: Date | null;
+  usageCount?: number;
+  auditLogs?: ApiKeyAuditEntry[];
   createdAt: Date;
   status: 'active' | 'revoked' | 'expired';
+}
+
+export interface ApiKeyAuditEntry {
+  id: string;
+  apiKeyId: string;
+  event: 'created' | 'validated' | 'revoked' | 'rotated' | 'expired' | 'migration';
+  message: string;
+  timestamp: Date;
 }
 
 export interface SandboxTestData {

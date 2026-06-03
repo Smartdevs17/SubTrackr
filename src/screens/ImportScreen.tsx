@@ -8,14 +8,16 @@ import {
   TouchableOpacity,
   Alert,
   TextInput,
-  FlatList,
   Modal,
 } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
+import { useNavigation } from '@react-navigation/native';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
 import {
   parseCSV,
+  parseCSVWithMapping,
   parseJSON,
   validateImport,
   processImport,
@@ -24,16 +26,22 @@ import {
   getCSVTemplate,
   getJSONTemplate,
   detectFormat,
+  takeImportSnapshot,
   ImportMode,
   ImportResult,
   ValidationResult,
   ImportHistoryEntry,
   SubscriptionInput,
+  ImportPlatform,
+  ImportProgress,
+  PLATFORM_COLUMN_MAPPINGS,
+  PlatformColumnMapping,
 } from '../utils/importExport';
 import { useSubscriptionStore } from '../store';
 
 const ImportScreen: React.FC = () => {
-  const { subscriptions, addSubscription, updateSubscription } = useSubscriptionStore();
+  const { subscriptions, addSubscription, updateSubscription, deleteSubscription } = useSubscriptionStore();
+  const navigation = useNavigation<any>();
 
   const [importMode, setImportMode] = useState<ImportMode>('upsert');
   const [importText, setImportText] = useState('');
@@ -43,6 +51,8 @@ const ImportScreen: React.FC = () => {
   const [showHistory, setShowHistory] = useState(false);
   const [importHistory, setImportHistory] = useState<ImportHistoryEntry[]>([]);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [platform, setPlatform] = useState<ImportPlatform>('generic');
+  const [importProgress, setImportProgress] = useState<ImportProgress | null>(null);
 
   const handleImport = useCallback(async () => {
     if (!importText.trim()) {
@@ -53,13 +63,18 @@ const ImportScreen: React.FC = () => {
     setIsProcessing(true);
     setValidationResult(null);
     setImportResult(null);
+    setImportProgress(null);
+
+    const snapshot = takeImportSnapshot(subscriptions);
 
     try {
       const format = detectFormat(importText);
       let parsedData: SubscriptionInput[];
+      const selectedMapping = PLATFORM_COLUMN_MAPPINGS.find((m) => m.platform === platform)!;
 
       if (format === 'csv') {
-        parsedData = parseCSV(importText);
+        parsedData =
+          platform === 'generic' ? parseCSV(importText) : parseCSVWithMapping(importText, selectedMapping);
       } else if (format === 'json') {
         parsedData = parseJSON(importText);
       } else {
@@ -68,9 +83,11 @@ const ImportScreen: React.FC = () => {
         return;
       }
 
-      // Validate the data
+      setImportProgress({ step: 'parsing', totalRows: parsedData.length, processedRows: parsedData.length, percentage: 33 });
+
       const validation = validateImport({ subscriptions: parsedData, mode: importMode });
       setValidationResult(validation);
+      setImportProgress({ step: 'validating', totalRows: parsedData.length, processedRows: validation.validRows.length, percentage: 66 });
 
       if (validation.validRows.length === 0) {
         Alert.alert(
@@ -81,7 +98,6 @@ const ImportScreen: React.FC = () => {
         return;
       }
 
-      // Show preview and ask for confirmation
       Alert.alert(
         'Import Preview',
         `Found ${validation.validRows.length} valid subscription(s).\n\n${
@@ -96,27 +112,26 @@ const ImportScreen: React.FC = () => {
           {
             text: 'Import',
             onPress: async () => {
-              await executeImport(parsedData);
+              await executeImport(parsedData, snapshot);
             },
           },
         ]
       );
     } catch (error) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Failed to parse import data');
-    } finally {
       setIsProcessing(false);
     }
-  }, [importText, importMode]);
+  }, [importText, importMode, platform, subscriptions]);
 
-  const executeImport = async (parsedData: SubscriptionInput[]) => {
+  const executeImport = async (parsedData: SubscriptionInput[], snapshot: ReturnType<typeof takeImportSnapshot>) => {
     setIsProcessing(true);
+    const preImportIds = new Set(subscriptions.map((s) => s.id));
 
     try {
       const result = processImport({ subscriptions: parsedData, mode: importMode }, subscriptions);
 
       setImportResult(result);
 
-      // Apply the import
       if (result.imported > 0 || result.updated > 0) {
         for (const sub of parsedData) {
           const existing = subscriptions.find(
@@ -124,7 +139,6 @@ const ImportScreen: React.FC = () => {
           );
 
           if (existing) {
-            // Update existing
             await updateSubscription(existing.id, {
               name: sub.name,
               description: sub.description,
@@ -140,7 +154,6 @@ const ImportScreen: React.FC = () => {
               cryptoAmount: sub.cryptoAmount,
             });
           } else {
-            // Add new
             await addSubscription({
               name: sub.name,
               description: sub.description,
@@ -158,15 +171,27 @@ const ImportScreen: React.FC = () => {
         }
       }
 
-      // Record in history
-      await recordImport('Manual Import', importMode, parsedData.length, result);
+      setImportProgress({ step: 'done', totalRows: parsedData.length, processedRows: result.imported + result.updated, percentage: 100 });
+
+      const sourceName = platform === 'generic' ? 'Manual Import' : `${platform.charAt(0).toUpperCase() + platform.slice(1)} Import`;
+      await recordImport(sourceName, importMode, parsedData.length, result);
 
       Alert.alert(
         'Import Complete',
         `Imported: ${result.imported}\nUpdated: ${result.updated}\nFailed: ${result.failed}`
       );
     } catch (error) {
-      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to complete import');
+      // Rollback: remove subscriptions added during this import
+      const currentSubs = useSubscriptionStore.getState().subscriptions;
+      const toRemove = currentSubs.filter((s) => !preImportIds.has(s.id));
+      for (const sub of toRemove) {
+        await deleteSubscription(sub.id);
+      }
+      setImportProgress({ step: 'error', totalRows: 0, processedRows: 0, percentage: 0 });
+      Alert.alert(
+        'Import Failed',
+        `Error: ${error instanceof Error ? error.message : 'Unknown error'}. Changes have been rolled back.`
+      );
     } finally {
       setIsProcessing(false);
     }
@@ -188,6 +213,56 @@ const ImportScreen: React.FC = () => {
     setImportText(type === 'csv' ? getCSVTemplate() : getJSONTemplate());
     setShowTemplateModal(false);
   }, []);
+
+  const renderPlatformSelector = () => (
+    <View style={styles.modeContainer}>
+      <Text style={styles.sectionTitle}>Source Platform</Text>
+      <View style={styles.modeButtons}>
+        {PLATFORM_COLUMN_MAPPINGS.map((mapping: PlatformColumnMapping) => (
+          <TouchableOpacity
+            key={mapping.platform}
+            style={[styles.modeButton, platform === mapping.platform && styles.modeButtonActive]}
+            onPress={() => setPlatform(mapping.platform)}>
+            <Text
+              style={[
+                styles.modeButtonText,
+                platform === mapping.platform && styles.modeButtonTextActive,
+              ]}>
+              {mapping.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+
+  const renderProgressBar = () => {
+    if (!importProgress || importProgress.step === 'idle') return null;
+    return (
+      <View style={styles.progressContainer}>
+        <Text style={styles.progressLabel}>
+          {importProgress.step === 'parsing' && 'Parsing data...'}
+          {importProgress.step === 'validating' && 'Validating rows...'}
+          {importProgress.step === 'processing' && 'Processing...'}
+          {importProgress.step === 'done' &&
+            `Done: ${importProgress.processedRows} rows processed`}
+          {importProgress.step === 'error' && 'Import failed — changes rolled back'}
+        </Text>
+        <View style={styles.progressTrack}>
+          <View
+            style={[
+              styles.progressFill,
+              {
+                width: `${importProgress.percentage}%` as any,
+                backgroundColor:
+                  importProgress.step === 'error' ? colors.error : colors.primary,
+              },
+            ]}
+          />
+        </View>
+      </View>
+    );
+  };
 
   const renderModeSelector = () => (
     <View style={styles.modeContainer}>
@@ -293,10 +368,10 @@ const ImportScreen: React.FC = () => {
             <Text style={styles.closeButton}>Close</Text>
           </TouchableOpacity>
         </View>
-        <FlatList
+        <FlashList
           data={importHistory}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
+          keyExtractor={(item: ImportHistoryEntry) => item.id}
+          renderItem={({ item }: { item: ImportHistoryEntry }) => (
             <Card style={styles.historyCard}>
               <View style={styles.historyRow}>
                 <Text style={styles.historyFile}>{item.fileName}</Text>
@@ -357,6 +432,17 @@ const ImportScreen: React.FC = () => {
           <Text style={styles.subtitle}>Import subscription data from CSV or JSON</Text>
         </View>
 
+        <TouchableOpacity
+          style={styles.batchBanner}
+          onPress={() => navigation.navigate('BatchOperations')}>
+          <Text style={styles.batchBannerTitle}>Batch Operations</Text>
+          <Text style={styles.batchBannerSubtext}>
+            Bulk create, update, cancel, or charge multiple subscriptions at once
+          </Text>
+        </TouchableOpacity>
+
+        {renderPlatformSelector()}
+
         {renderModeSelector()}
 
         <Card style={styles.inputCard}>
@@ -378,6 +464,7 @@ const ImportScreen: React.FC = () => {
           />
         </Card>
 
+        {renderProgressBar()}
         {renderValidationResults()}
         {renderImportResults()}
 
@@ -648,6 +735,43 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.textSecondary,
     marginTop: spacing.xs,
+  },
+  batchBanner: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.lg,
+    padding: spacing.md,
+    backgroundColor: colors.primary + '20',
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.primary + '40',
+  },
+  batchBannerTitle: {
+    ...typography.h3,
+    color: colors.primary,
+  },
+  batchBannerSubtext: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  },
+  progressContainer: {
+    margin: spacing.lg,
+    marginTop: 0,
+  },
+  progressLabel: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+  },
+  progressTrack: {
+    height: 6,
+    backgroundColor: colors.border,
+    borderRadius: borderRadius.full,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: borderRadius.full,
   },
 });
 

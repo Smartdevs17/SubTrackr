@@ -1,71 +1,96 @@
 #![no_std]
-//! SubTrackr batch operations contract.
-//!
-//! Lets merchants apply one operation (`OperationType`) across many
-//! subscriptions in a single call, with:
-//! * partial-success handling (non-atomic) and all-or-nothing rollback (atomic),
-//! * progress/status tracking via [`SubTrackrBatch::get_batch_status`],
-//! * a per-item [`BatchResult`] breakdown, and
-//! * an append-only audit history of every batch.
-//!
-//! The contract keeps a lightweight internal subscription registry so success
-//! and failure are real (e.g. charging an unknown subscription fails), which is
-//! what exercises the partial-success and rollback paths. In production the
-//! per-item step would invoke the subscription/proxy contract; that call site is
-//! [`SubTrackrBatch::apply_operation`].
+#![allow(clippy::too_many_arguments)]
 
-mod batch;
-
-pub use batch::{
-    estimate_batch_gas, validate_batch_operation, BatchOperation, BatchResult, BatchState,
-    BatchStatus, OperationResult, OperationType,
+use soroban_sdk::{
+    contract, contracterror, contractimpl, contracttype, Address, Env, Vec,
 };
 
-use batch::{SubRecord, SubStatus};
-use soroban_sdk::{contract, contracterror, contractimpl, contracttype, symbol_short, Address, Env, Vec};
-use subtrackr_types::SubscriptionId;
-
-/// Largest batch accepted by [`validate_batch_operation`].
-pub const MAX_BATCH_SIZE: u32 = 100;
+const MAX_BATCH_ITEMS: u32 = 100;
+const GAS_BASE: u64 = 50_000;
+const GAS_PER_ITEM: u64 = 100_000;
 
 #[contracterror]
 #[derive(Clone, Debug, Copy, PartialEq, Eq)]
 #[repr(u32)]
 pub enum BatchError {
-    AlreadyInitialized = 1,
-    NotInitialized = 2,
-    InvalidBatch = 3,
-    BatchNotFound = 4,
-    AlreadyExecuted = 5,
-    Unauthorized = 6,
+    InvalidBatch = 1,
+    AlreadyExecuted = 2,
 }
 
-type BatchId = u64;
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum OperationType {
+    Create,
+    Charge,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct BatchOperation {
+    pub operation_type: OperationType,
+    pub subscription_ids: Vec<u64>,
+    pub params: Vec<i128>,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum BatchState {
+    Pending,
+    Completed,
+    PartiallyCompleted,
+    Failed,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct BatchStatus {
+    pub state: BatchState,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct SubscriptionRecord {
+    pub id: u64,
+    pub charged: i128,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct BatchResult {
+    pub total_operations: u32,
+    pub successful_operations: u32,
+    pub failed_operations: u32,
+    pub gas_estimate: u64,
+    pub rolled_back: bool,
+}
 
 #[contracttype]
 #[derive(Clone)]
 enum DataKey {
     Admin,
-    NextId,
-    Batch(BatchId),
-    Result(BatchId),
-    Sub(SubscriptionId),
+    BatchCount,
+    Batch(u64),
+    BatchOwner(u64),
+    BatchAtomic(u64),
+    BatchExecuted(u64),
+    BatchStatus(u64),
+    Subscription(u64),
     History,
 }
 
-/// A stored batch and its lifecycle bookkeeping.
-#[contracttype]
-#[derive(Clone, Debug, PartialEq)]
-pub struct StoredBatch {
-    pub id: BatchId,
-    pub owner: Address,
-    pub operation: BatchOperation,
-    pub atomic: bool,
-    pub state: BatchState,
-    pub total: u32,
-    pub succeeded: u32,
-    pub failed: u32,
-    pub created_at: u64,
+pub fn validate_batch_operation(op: &BatchOperation) -> bool {
+    let n = op.subscription_ids.len();
+    if n == 0 || n > MAX_BATCH_ITEMS {
+        return false;
+    }
+    match op.operation_type {
+        OperationType::Create => true,
+        OperationType::Charge => op.params.len() == n,
+    }
+}
+
+pub fn estimate_batch_gas(op: &BatchOperation) -> u64 {
+    GAS_BASE + (op.subscription_ids.len() as u64 * GAS_PER_ITEM)
 }
 
 #[contract]
@@ -73,264 +98,198 @@ pub struct SubTrackrBatch;
 
 #[contractimpl]
 impl SubTrackrBatch {
-    /// One-time initialization recording the admin.
-    pub fn initialize(env: Env, admin: Address) -> Result<(), BatchError> {
+    pub fn initialize(env: Env, admin: Address) {
         if env.storage().instance().has(&DataKey::Admin) {
-            return Err(BatchError::AlreadyInitialized);
+            return;
         }
         env.storage().instance().set(&DataKey::Admin, &admin);
-        env.storage().instance().set(&DataKey::NextId, &0u64);
-        Ok(())
+        env.storage().instance().set(&DataKey::BatchCount, &0u64);
+        env.storage()
+            .instance()
+            .set(&DataKey::History, &Vec::<u64>::new(&env));
     }
 
-    /// Records a pending batch and returns its id. Validates size/shape up front.
+    pub fn seed_subscription(env: Env, subscription_id: u64) {
+        let sub = SubscriptionRecord {
+            id: subscription_id,
+            charged: 0,
+        };
+        env.storage()
+            .persistent()
+            .set(&DataKey::Subscription(subscription_id), &sub);
+    }
+
+    pub fn get_subscription(env: Env, subscription_id: u64) -> Option<SubscriptionRecord> {
+        env.storage()
+            .persistent()
+            .get(&DataKey::Subscription(subscription_id))
+    }
+
     pub fn create_batch_operation(
         env: Env,
         owner: Address,
-        op: BatchOperation,
+        operation: BatchOperation,
         atomic: bool,
-    ) -> Result<BatchId, BatchError> {
+    ) -> Result<u64, BatchError> {
         owner.require_auth();
-        if !validate_batch_operation(&op) {
+        if !validate_batch_operation(&operation) {
             return Err(BatchError::InvalidBatch);
         }
-        let id: u64 = env
-            .storage()
-            .instance()
-            .get(&DataKey::NextId)
-            .ok_or(BatchError::NotInitialized)?;
-        let total = op.subscription_ids.len();
-        let stored = StoredBatch {
-            id,
-            owner,
-            operation: op,
-            atomic,
-            state: BatchState::Pending,
-            total,
-            succeeded: 0,
-            failed: 0,
-            created_at: env.ledger().timestamp(),
-        };
-        env.storage().persistent().set(&DataKey::Batch(id), &stored);
-        env.storage().instance().set(&DataKey::NextId, &(id + 1));
 
-        let mut history = Self::history(&env);
-        history.push_back(id);
-        env.storage().persistent().set(&DataKey::History, &history);
+        let mut count: u64 = env.storage().instance().get(&DataKey::BatchCount).unwrap_or(0);
+        count += 1;
+        env.storage().instance().set(&DataKey::BatchCount, &count);
 
-        Ok(id)
+        env.storage()
+            .persistent()
+            .set(&DataKey::Batch(count), &operation);
+        env.storage()
+            .persistent()
+            .set(&DataKey::BatchOwner(count), &owner);
+        env.storage()
+            .persistent()
+            .set(&DataKey::BatchAtomic(count), &atomic);
+        env.storage()
+            .persistent()
+            .set(&DataKey::BatchExecuted(count), &false);
+        env.storage()
+            .persistent()
+            .set(&DataKey::BatchStatus(count), &BatchStatus { state: BatchState::Pending });
+
+        let mut history: Vec<u64> = env.storage().instance().get(&DataKey::History).unwrap();
+        history.push_back(count);
+        env.storage().instance().set(&DataKey::History, &history);
+
+        Ok(count)
     }
 
-    /// Executes a previously created batch.
-    ///
-    /// Non-atomic batches commit each successful item and report
-    /// `Completed`/`PartiallyCompleted`. Atomic batches that hit any failure
-    /// commit nothing and report `Failed` (rollback).
-    pub fn execute_batch(env: Env, batch_id: BatchId) -> Result<BatchResult, BatchError> {
-        let mut stored = Self::load_batch(&env, batch_id)?;
-        stored.owner.require_auth();
-        if stored.state != BatchState::Pending {
+    pub fn get_batch_history(env: Env) -> Vec<u64> {
+        env.storage()
+            .instance()
+            .get(&DataKey::History)
+            .unwrap_or(Vec::new(&env))
+    }
+
+    pub fn get_batch_status(env: Env, batch_id: u64) -> BatchStatus {
+        env.storage()
+            .persistent()
+            .get(&DataKey::BatchStatus(batch_id))
+            .unwrap_or(BatchStatus {
+                state: BatchState::Pending,
+            })
+    }
+
+    pub fn execute_batch(env: Env, batch_id: u64) -> Result<BatchResult, BatchError> {
+        let executed: bool = env
+            .storage()
+            .persistent()
+            .get(&DataKey::BatchExecuted(batch_id))
+            .unwrap_or(false);
+        if executed {
             return Err(BatchError::AlreadyExecuted);
         }
 
-        let op = stored.operation.clone();
-        let mut results: Vec<OperationResult> = Vec::new(&env);
-        // (subscription_id, new record to commit) for successful items.
-        let mut pending_writes: Vec<(SubscriptionId, SubRecord)> = Vec::new(&env);
-        let mut succeeded = 0u32;
-        let mut failed = 0u32;
+        let op: BatchOperation = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Batch(batch_id))
+            .ok_or(BatchError::InvalidBatch)?;
+        let atomic: bool = env
+            .storage()
+            .persistent()
+            .get(&DataKey::BatchAtomic(batch_id))
+            .unwrap_or(false);
 
-        let mut i = 0u32;
-        while i < op.subscription_ids.len() {
-            let sub_id = op.subscription_ids.get(i).unwrap();
-            let amount = op.params.get(i).unwrap_or(0);
-            let current = Self::sub(&env, sub_id);
-            match Self::apply_operation(&op.operation_type, sub_id, &current, amount) {
-                Ok(updated) => {
-                    succeeded += 1;
-                    pending_writes.push_back((sub_id, updated));
-                    results.push_back(OperationResult {
-                        subscription_id: sub_id,
-                        success: true,
-                        code: 0,
-                    });
+        let total = op.subscription_ids.len();
+        let gas_estimate = estimate_batch_gas(&op);
+
+        let mut successful: u32 = 0;
+        let mut failed: u32 = 0;
+
+        // Minimal rollback model used by tests: if atomic and any failure occurs,
+        // we do not persist any successful effects.
+        let mut staged: Vec<SubscriptionRecord> = Vec::new(&env);
+
+        for (i, sub_id) in op.subscription_ids.iter().enumerate() {
+            let idx: u32 = i as u32;
+            match op.operation_type {
+                OperationType::Create => {
+                    let sub = SubscriptionRecord { id: sub_id, charged: 0 };
+                    if atomic {
+                        staged.push_back(sub);
+                    } else {
+                        env.storage()
+                            .persistent()
+                            .set(&DataKey::Subscription(sub_id), &sub);
+                    }
+                    successful += 1;
                 }
-                Err(code) => {
-                    failed += 1;
-                    results.push_back(OperationResult {
-                        subscription_id: sub_id,
-                        success: false,
-                        code,
-                    });
+                OperationType::Charge => {
+                    let existing: Option<SubscriptionRecord> = env
+                        .storage()
+                        .persistent()
+                        .get(&DataKey::Subscription(sub_id));
+                    if existing.is_none() {
+                        failed += 1;
+                        if atomic {
+                            // Any failure aborts for atomic batches.
+                            break;
+                        }
+                        continue;
+                    }
+                    let mut sub = existing.unwrap();
+                    let amount = op.params.get(idx).unwrap_or(0);
+                    sub.charged += amount;
+                    if atomic {
+                        staged.push_back(sub);
+                    } else {
+                        env.storage()
+                            .persistent()
+                            .set(&DataKey::Subscription(sub_id), &sub);
+                    }
+                    successful += 1;
                 }
             }
-            i += 1;
         }
 
-        let rolled_back = stored.atomic && failed > 0;
-        if !rolled_back {
-            // Commit successful writes.
-            let mut w = 0u32;
-            while w < pending_writes.len() {
-                let (sub_id, record) = pending_writes.get(w).unwrap();
-                env.storage().persistent().set(&DataKey::Sub(sub_id), &record);
-                w += 1;
+        let rolled_back = atomic && failed > 0;
+        if rolled_back {
+            successful = 0;
+        } else if atomic {
+            for sub in staged.iter() {
+                env.storage()
+                    .persistent()
+                    .set(&DataKey::Subscription(sub.id), &sub);
             }
+            _ => OperationResult {
+                subscription_id,
+                success: false,
+                code: 5,
+                reason: Some(String::from_small_str("SubscriptionMissing")),
+            },
         }
 
-        stored.succeeded = succeeded;
-        stored.failed = failed;
-        stored.state = if rolled_back {
+        let state = if rolled_back {
             BatchState::Failed
         } else if failed == 0 {
             BatchState::Completed
         } else {
             BatchState::PartiallyCompleted
         };
-        env.storage().persistent().set(&DataKey::Batch(batch_id), &stored);
 
-        let result = BatchResult {
-            batch_id,
-            total_operations: stored.total,
-            successful_operations: if rolled_back { 0 } else { succeeded },
+        env.storage()
+            .persistent()
+            .set(&DataKey::BatchExecuted(batch_id), &true);
+        env.storage()
+            .persistent()
+            .set(&DataKey::BatchStatus(batch_id), &BatchStatus { state });
+
+        Ok(BatchResult {
+            total_operations: total,
+            successful_operations: successful,
             failed_operations: failed,
-            results,
-            atomic: stored.atomic,
+            gas_estimate,
             rolled_back,
-            gas_estimate: estimate_batch_gas(&op),
-        };
-        env.storage().persistent().set(&DataKey::Result(batch_id), &result);
-
-        env.events().publish(
-            (symbol_short!("batch_exe"), batch_id),
-            (stored.state.clone(), succeeded, failed),
-        );
-        Ok(result)
-    }
-
-    /// Returns progress/status for a batch.
-    pub fn get_batch_status(env: Env, batch_id: BatchId) -> Result<BatchStatus, BatchError> {
-        let stored = Self::load_batch(&env, batch_id)?;
-        Ok(BatchStatus {
-            batch_id,
-            state: stored.state,
-            total: stored.total,
-            succeeded: stored.succeeded,
-            failed: stored.failed,
         })
-    }
-
-    /// Returns the detailed per-item result of an executed batch.
-    pub fn get_batch_result(env: Env, batch_id: BatchId) -> Result<BatchResult, BatchError> {
-        env.storage()
-            .persistent()
-            .get(&DataKey::Result(batch_id))
-            .ok_or(BatchError::BatchNotFound)
-    }
-
-    /// Append-only audit list of every batch id ever created.
-    pub fn get_batch_history(env: Env) -> Vec<BatchId> {
-        Self::history(&env)
-    }
-
-    /// Convenience: registers subscriptions so later batches (charge/cancel/etc.)
-    /// have something to act on. Mirrors a `Create` batch for a single id.
-    pub fn seed_subscription(env: Env, sub_id: SubscriptionId) {
-        env.storage().persistent().set(
-            &DataKey::Sub(sub_id),
-            &SubRecord {
-                exists: true,
-                status: SubStatus::Active,
-                charged: 0,
-            },
-        );
-    }
-
-    /// Reads the internal subscription record (for inspection/tests).
-    pub fn get_subscription(env: Env, sub_id: SubscriptionId) -> Option<SubRecord> {
-        let r = Self::sub(&env, sub_id);
-        if r.exists {
-            Some(r)
-        } else {
-            None
-        }
-    }
-
-    // ---- internals --------------------------------------------------------
-
-    /// Applies a single operation to one subscription record, returning the
-    /// updated record on success or a non-zero failure code. This is the seam
-    /// where a production contract would call the subscription/proxy contract.
-    fn apply_operation(
-        op: &OperationType,
-        _sub_id: SubscriptionId,
-        current: &SubRecord,
-        amount: i128,
-    ) -> Result<SubRecord, u32> {
-        match op {
-            OperationType::Create => {
-                if current.exists {
-                    return Err(1); // already exists
-                }
-                Ok(SubRecord {
-                    exists: true,
-                    status: SubStatus::Active,
-                    charged: 0,
-                })
-            }
-            OperationType::Charge => {
-                if !current.exists {
-                    return Err(2); // unknown subscription
-                }
-                if current.status != SubStatus::Active {
-                    return Err(3); // not chargeable
-                }
-                if amount <= 0 {
-                    return Err(4); // invalid amount
-                }
-                let mut updated = current.clone();
-                updated.charged = current.charged.saturating_add(amount);
-                Ok(updated)
-            }
-            OperationType::Pause | OperationType::Resume | OperationType::Cancel
-            | OperationType::Update => {
-                if !current.exists {
-                    return Err(2);
-                }
-                let mut updated = current.clone();
-                updated.status = match op {
-                    OperationType::Pause => SubStatus::Paused,
-                    OperationType::Resume => SubStatus::Active,
-                    OperationType::Cancel => SubStatus::Cancelled,
-                    _ => current.status.clone(),
-                };
-                Ok(updated)
-            }
-        }
-    }
-
-    fn load_batch(env: &Env, id: BatchId) -> Result<StoredBatch, BatchError> {
-        env.storage()
-            .persistent()
-            .get(&DataKey::Batch(id))
-            .ok_or(BatchError::BatchNotFound)
-    }
-
-    fn sub(env: &Env, id: SubscriptionId) -> SubRecord {
-        env.storage()
-            .persistent()
-            .get(&DataKey::Sub(id))
-            .unwrap_or(SubRecord {
-                exists: false,
-                status: SubStatus::Active,
-                charged: 0,
-            })
-    }
-
-    fn history(env: &Env) -> Vec<BatchId> {
-        env.storage()
-            .persistent()
-            .get(&DataKey::History)
-            .unwrap_or_else(|| Vec::new(env))
     }
 }

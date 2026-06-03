@@ -23,7 +23,6 @@ export class SandboxService {
     config?: Partial<SandboxConfig>
   ): Promise<SandboxEnvironment> {
     const envId = this.generateEnvironmentId();
-    const defaultResourceLimits = this.getDefaultResourceLimits();
 
     const environment: SandboxEnvironment = {
       id: envId,
@@ -91,9 +90,7 @@ export class SandboxService {
   }
 
   async getEnvironmentsByDeveloper(developerId: string): Promise<SandboxEnvironment[]> {
-    return Array.from(this.environments.values()).filter(
-      (env) => env.developerId === developerId
-    );
+    return Array.from(this.environments.values()).filter((env) => env.developerId === developerId);
   }
 
   async updateEnvironment(
@@ -130,10 +127,7 @@ export class SandboxService {
     return this.configs.get(envId) || null;
   }
 
-  async updateConfig(
-    envId: string,
-    config: Partial<SandboxConfig>
-  ): Promise<SandboxConfig | null> {
+  async updateConfig(envId: string, config: Partial<SandboxConfig>): Promise<SandboxConfig | null> {
     const existingConfig = this.configs.get(envId);
     if (!existingConfig) return null;
 
@@ -160,19 +154,14 @@ export class SandboxService {
     return this.metrics.get(envId) || null;
   }
 
-  async recordRequest(
-    envId: string,
-    responseTime: number,
-    isError: boolean
-  ): Promise<void> {
+  async recordRequest(envId: string, responseTime: number, isError: boolean): Promise<void> {
     const metrics = this.metrics.get(envId);
     if (!metrics) return;
 
     metrics.requestCount++;
     if (isError) metrics.errorCount++;
     metrics.avgResponseTime =
-      (metrics.avgResponseTime * (metrics.requestCount - 1) + responseTime) /
-      metrics.requestCount;
+      (metrics.avgResponseTime * (metrics.requestCount - 1) + responseTime) / metrics.requestCount;
     metrics.lastActivity = new Date();
 
     this.metrics.set(envId, metrics);
@@ -184,14 +173,16 @@ export class SandboxService {
     if (!env || !metrics) return null;
 
     const isWithinLimits = this.checkResourceLimits(
-      env.config.features ? {
-        maxRequestsPerMinute: env.config.rateLimits.requestsPerMinute,
-        maxRequestsPerDay: env.config.rateLimits.requestsPerDay,
-        maxStorageMB: 100,
-        maxConcurrentConnections: env.config.rateLimits.maxConcurrentRequests,
-        maxSubscriptions: 50,
-        maxWebhooks: 5,
-      } : this.getDefaultResourceLimits(),
+      env.config.features
+        ? {
+            maxRequestsPerMinute: env.config.rateLimits.requestsPerMinute,
+            maxRequestsPerDay: env.config.rateLimits.requestsPerDay,
+            maxStorageMB: 100,
+            maxConcurrentConnections: env.config.rateLimits.maxConcurrentRequests,
+            maxSubscriptions: 50,
+            maxWebhooks: 5,
+          }
+        : this.getDefaultResourceLimits(),
       metrics
     );
 
@@ -199,14 +190,16 @@ export class SandboxService {
       environmentId: envId,
       developerId: env.developerId,
       dataNamespace: `sandbox_${envId}`,
-      resourceQuota: env.config.features ? {
-        maxRequestsPerMinute: env.config.rateLimits.requestsPerMinute,
-        maxRequestsPerDay: env.config.rateLimits.requestsPerDay,
-        maxStorageMB: 100,
-        maxConcurrentConnections: env.config.rateLimits.maxConcurrentRequests,
-        maxSubscriptions: 50,
-        maxWebhooks: 5,
-      } : this.getDefaultResourceLimits(),
+      resourceQuota: env.config.features
+        ? {
+            maxRequestsPerMinute: env.config.rateLimits.requestsPerMinute,
+            maxRequestsPerDay: env.config.rateLimits.requestsPerDay,
+            maxStorageMB: 100,
+            maxConcurrentConnections: env.config.rateLimits.maxConcurrentRequests,
+            maxSubscriptions: 50,
+            maxWebhooks: 5,
+          }
+        : this.getDefaultResourceLimits(),
       currentUsage: metrics,
       isWithinLimits,
     };
@@ -266,22 +259,16 @@ export class SandboxService {
       category: categories[index % categories.length],
       price: Math.floor(Math.random() * 50) + 5,
       currency: 'USD',
-      billingCycle: (['monthly', 'yearly', 'weekly'] as const)[
-        Math.floor(Math.random() * 3)
-      ],
+      billingCycle: (['monthly', 'yearly', 'weekly'] as const)[Math.floor(Math.random() * 3)],
       status: 'active' as const,
-      startDate: new Date(
-        Date.now() - Math.random() * 365 * 24 * 60 * 60 * 1000
-      ),
-      nextBillingDate: new Date(
-        Date.now() + Math.random() * 30 * 24 * 60 * 60 * 1000
-      ),
+      startDate: new Date(Date.now() - Math.random() * 365 * 24 * 60 * 60 * 1000),
+      nextBillingDate: new Date(Date.now() + Math.random() * 30 * 24 * 60 * 60 * 1000),
     }));
   }
 
   private generateTestPayments(subscriptions: TestSubscription[]): TestPayment[] {
     const payments: TestPayment[] = [];
-    const methods: Array<'card' | 'crypto' | 'bank'> = ['card', 'crypto', 'bank'];
+    const methods: ('card' | 'crypto' | 'bank')[] = ['card', 'crypto', 'bank'];
 
     subscriptions.forEach((sub) => {
       for (let i = 0; i < 3; i++) {
@@ -290,13 +277,9 @@ export class SandboxService {
           subscriptionId: sub.id,
           amount: sub.price,
           currency: sub.currency,
-          status: (['pending', 'completed', 'failed'] as const)[
-            Math.floor(Math.random() * 3)
-          ],
+          status: (['pending', 'completed', 'failed'] as const)[Math.floor(Math.random() * 3)],
           method: methods[Math.floor(Math.random() * methods.length)],
-          timestamp: new Date(
-            Date.now() - Math.random() * 90 * 24 * 60 * 60 * 1000
-          ),
+          timestamp: new Date(Date.now() - Math.random() * 90 * 24 * 60 * 60 * 1000),
         });
       }
     });
@@ -337,10 +320,7 @@ export class SandboxService {
     ];
   }
 
-  private checkResourceLimits(
-    limits: SandboxResourceLimits,
-    metrics: SandboxMetrics
-  ): boolean {
+  private checkResourceLimits(limits: SandboxResourceLimits, metrics: SandboxMetrics): boolean {
     return (
       metrics.requestCount < limits.maxRequestsPerDay &&
       metrics.storageUsedMB < limits.maxStorageMB &&

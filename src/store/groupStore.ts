@@ -6,8 +6,15 @@ import {
   inviteGroupMember,
   joinGroupWithInvite,
   removeGroupMember,
+  updateGroupMemberRole,
 } from '../services/groupService';
-import { GroupAnalytics, GroupConfig, GroupId, SubscriptionGroup } from '../types/group';
+import {
+  GroupAnalytics,
+  GroupConfig,
+  GroupId,
+  GroupMemberRole,
+  SubscriptionGroup,
+} from '../types/group';
 
 interface GroupState {
   groups: SubscriptionGroup[];
@@ -18,6 +25,7 @@ interface GroupState {
   inviteMember: (groupId: GroupId, inviteeAddress: string, invitedBy: string) => void;
   joinGroup: (groupId: GroupId, inviteId: string, displayName?: string) => void;
   removeMember: (groupId: GroupId, memberAddress: string) => void;
+  updateMemberRole: (groupId: GroupId, memberAddress: string, role: GroupMemberRole) => void;
   chargeGroup: (groupId: GroupId, amount: number) => void;
   getAnalytics: (groupId: GroupId) => GroupAnalytics | undefined;
   selectGroup: (groupId?: GroupId) => void;
@@ -27,7 +35,8 @@ const updateGroup = (
   groups: SubscriptionGroup[],
   groupId: GroupId,
   updater: (group: SubscriptionGroup) => SubscriptionGroup
-): SubscriptionGroup[] => groups.map((group) => (group.groupId === groupId ? updater(group) : group));
+): SubscriptionGroup[] =>
+  groups.map((group) => (group.groupId === groupId ? updater(group) : group));
 
 export const useGroupStore = create<GroupState>((set, get) => ({
   groups: [],
@@ -70,12 +79,22 @@ export const useGroupStore = create<GroupState>((set, get) => ({
   removeMember: (groupId, memberAddress) => {
     try {
       set((state) => ({
-        groups: updateGroup(state.groups, groupId, (group) => removeGroupMember(group, memberAddress)),
+        groups: updateGroup(state.groups, groupId, (group) =>
+          removeGroupMember(group, memberAddress)
+        ),
         error: null,
       }));
     } catch (error) {
       set({ error: (error as Error).message });
     }
+  },
+
+  updateMemberRole: (groupId, memberAddress, role) => {
+    set((state) => ({
+      groups: updateGroup(state.groups, groupId, (group) =>
+        updateGroupMemberRole(group, memberAddress, role)
+      ),
+    }));
   },
 
   chargeGroup: (groupId, amount) => {

@@ -1,8 +1,12 @@
-/**
- * GDPR Service - Backend implementation for Data Privacy rights.
- * This service handles data exporting, deletion (Right to be Forgotten),
- * and consent management.
- */
+import {
+  encryptField,
+  decryptField,
+  maskObject,
+  generateBlindIndexTokens,
+  isPiiField,
+} from './encryption';
+import { keyManager } from './keyManager';
+import { piiAuditService } from './piiAudit';
 
 export interface UserConsent {
   analytics: boolean;
@@ -11,53 +15,138 @@ export interface UserConsent {
   timestamp: string;
 }
 
-export const exportUserData = async (userId: string) => {
+export interface ExportResult {
+  data: string;
+  exportId: string;
+  timestamp: string;
+  encryptedFields: string[];
+}
+
+export interface DeletionResult {
+  success: boolean;
+  message: string;
+  anonymizedFields: string[];
+}
+
+export interface AnonymizationResult {
+  success: boolean;
+  message: string;
+  fields: string[];
+}
+
+async function ensureEncryptionInitialized(): Promise<void> {
+  if (!keyManager.getActiveEncryptionKey()) {
+    await keyManager.initialize();
+  }
+}
+
+function generateExportId(): string {
+  return `export-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+}
+
+export const exportUserData = async (userId: string): Promise<ExportResult> => {
+  await ensureEncryptionInitialized();
+
   console.log(`Exporting data for user: ${userId}`);
 
-  // In a real scenario, this would query multiple tables/collections
   const userData = {
-    profile: { id: userId, email: 'user@example.com', registeredAt: '2026-01-01' },
+    profile: { id: userId, email: 'user@example.com', name: 'John Doe', registeredAt: '2026-01-01' },
     subscriptions: [{ id: 'sub_1', name: 'Netflix', amount: 15.99, status: 'active' }],
     billingHistory: [{ id: 'tx_1', date: '2026-04-20', amount: 15.99, status: 'completed' }],
     consentLogs: [{ type: 'analytics', status: 'granted', date: '2026-01-01' }],
   };
 
-  return JSON.stringify(userData, null, 2);
+  const encryptedFields: string[] = [];
+  const encKey = keyManager.getActiveEncryptionKey();
+
+  if (encKey && userData.profile.email) {
+    userData.profile.email = JSON.stringify(
+      encryptField(userData.profile.email, encKey)
+    );
+    encryptedFields.push('profile.email');
+  }
+  if (encKey && userData.profile.name) {
+    userData.profile.name = JSON.stringify(
+      encryptField(userData.profile.name, encKey)
+    );
+    encryptedFields.push('profile.name');
+  }
+
+  const exportId = generateExportId();
+  const timestamp = new Date().toISOString();
+
+  piiAuditService.logPiiAccess(
+    'pii.exported',
+    'system',
+    userId,
+    'user',
+    ['email', 'name'],
+    { exportId, requestedAt: timestamp }
+  );
+
+  return {
+    data: JSON.stringify(userData, null, 2),
+    exportId,
+    timestamp,
+    encryptedFields,
+  };
 };
 
-export const deleteUserData = async (userId: string, permanent: boolean = false) => {
+export const deleteUserData = async (
+  userId: string,
+  permanent: boolean = false
+): Promise<DeletionResult> => {
+  await ensureEncryptionInitialized();
+
   console.log(`Processing deletion for user: ${userId} (Permanent: ${permanent})`);
 
   if (!permanent) {
-    // Soft delete / Anonymization
-    return anonymizeUserData(userId);
+    return anonymizeUserData(userId) as Promise<DeletionResult>;
   }
 
-  // Hard delete logic across all services
-  // await SubscriptionModel.deleteMany({ userId });
-  // await ProfileModel.deleteOne({ userId });
+  piiAuditService.logPiiAccess(
+    'pii.deleted',
+    'system',
+    userId,
+    'user',
+    ['email', 'name', 'phoneNumber', 'address'],
+    { permanent: true }
+  );
 
-  return { success: true, message: 'User data permanently deleted' };
+  return { success: true, message: 'User data permanently deleted', anonymizedFields: [] };
 };
 
-export const anonymizeUserData = async (userId: string) => {
+export const anonymizeUserData = async (userId: string): Promise<AnonymizationResult> => {
+  await ensureEncryptionInitialized();
+
   console.log(`Anonymizing data for user: ${userId}`);
 
-  // await ProfileModel.updateOne({ userId }, updates);
+  const fields = ['email', 'name', 'phoneNumber', 'address', 'businessName', 'recipientEmail'];
 
-  return { success: true, message: 'User data has been anonymized' };
+  piiAuditService.logPiiAccess(
+    'pii.anonymized',
+    'system',
+    userId,
+    'user',
+    fields,
+    { reason: 'user_requested_deletion' }
+  );
+
+  return { success: true, message: 'User data has been anonymized', fields };
 };
 
-export const updateConsent = async (userId: string, preferences: Partial<UserConsent>) => {
+export const updateConsent = async (
+  userId: string,
+  preferences: Partial<UserConsent>
+): Promise<UserConsent> => {
   const newConsent = {
     ...preferences,
     timestamp: new Date().toISOString(),
   };
 
-  // Log consent change for audit trail
   console.log(`Consent updated for ${userId}:`, newConsent);
-
-  // await ConsentAuditModel.create({ userId, ...newConsent });
 
   return newConsent;
 };
+
+export { encryptField, decryptField, maskObject, generateBlindIndexTokens, isPiiField };

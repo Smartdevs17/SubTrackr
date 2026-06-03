@@ -5,18 +5,26 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import {
   beginCalendarOAuth,
   buildSubscriptionCalendarEvent,
+  calculateProratedAdjustment,
   connectCalendar,
   createCalendarOAuthCallbackUrl,
+  detectScheduleConflicts,
   disconnectCalendar,
+  generateICalendarExport,
   normalizeReminderOffsets,
   parseCalendarOAuthCallback,
+  scheduleOneTimePayment,
   syncToCalendar,
 } from '../services/calendarService';
 import type {
+  CalendarExportPayload,
   CalendarIntegration,
   CalendarProvider,
   CalendarSyncedEvent,
+  OneTimeScheduledPayment,
   PendingCalendarAuthorization,
+  ProratedAdjustment,
+  ScheduleConflict,
 } from '../types/calendar';
 import { REMINDER_PRESETS } from '../types/calendar';
 import type { Subscription } from '../types/subscription';
@@ -32,6 +40,9 @@ interface CalendarState {
   pendingAuthorizations: PendingAuthorizationMap;
   isLoading: boolean;
   error: string | null;
+  oneTimePayments: OneTimeScheduledPayment[];
+  scheduleConflicts: ScheduleConflict[];
+  timezone: string;
   beginConnection: (provider: CalendarProvider) => Promise<PendingCalendarAuthorization>;
   completeConnection: (
     provider: CalendarProvider,
@@ -46,6 +57,23 @@ interface CalendarState {
   syncSubscriptionToCalendars: (subscription: Subscription) => Promise<void>;
   syncSubscriptions: (subscriptions: Subscription[]) => Promise<void>;
   removeSubscriptionFromCalendars: (subscriptionId: string) => Promise<void>;
+  addOneTimePayment: (
+    subscriptionId: string,
+    amount: number,
+    currency: string,
+    scheduledDate: Date,
+    description: string
+  ) => void;
+  cancelOneTimePayment: (paymentId: string) => void;
+  getOneTimePayments: () => OneTimeScheduledPayment[];
+  checkConflicts: (subscriptions: Subscription[]) => void;
+  exportCalendar: (subscriptions: Subscription[], timezone?: string) => CalendarExportPayload;
+  calculateProratedCharge: (
+    subscription: Subscription,
+    newDate: Date,
+    reason: string
+  ) => ProratedAdjustment;
+  setTimezone: (timezone: string) => void;
 }
 
 function removeProviderPendingState(
@@ -80,6 +108,9 @@ export const useCalendarStore = create<CalendarState>()(
       pendingAuthorizations: {},
       isLoading: false,
       error: null,
+      oneTimePayments: [],
+      scheduleConflicts: [],
+      timezone: 'UTC',
 
       beginConnection: async (provider) => {
         set({ isLoading: true, error: null });
@@ -203,6 +234,49 @@ export const useCalendarStore = create<CalendarState>()(
         set({ error: null });
       },
 
+      addOneTimePayment: (subscriptionId, amount, currency, scheduledDate, description) => {
+        const payment = scheduleOneTimePayment(
+          subscriptionId,
+          amount,
+          currency,
+          scheduledDate,
+          description
+        );
+        set((state) => ({
+          oneTimePayments: [...state.oneTimePayments, payment],
+        }));
+      },
+
+      cancelOneTimePayment: (paymentId) => {
+        set((state) => ({
+          oneTimePayments: state.oneTimePayments.map((p) =>
+            p.id === paymentId ? { ...p, status: 'cancelled' as const } : p
+          ),
+        }));
+      },
+
+      getOneTimePayments: () => get().oneTimePayments,
+
+      checkConflicts: (subscriptions) => {
+        const conflicts = detectScheduleConflicts(subscriptions, get().syncedEvents);
+        set({ scheduleConflicts: conflicts });
+      },
+
+      exportCalendar: (subscriptions, timezone) => {
+        const events = subscriptions
+          .filter((s) => s.isActive)
+          .map((s) => buildSubscriptionCalendarEvent(s, get().reminderOffsets));
+        return generateICalendarExport(events, timezone || get().timezone);
+      },
+
+      calculateProratedCharge: (subscription, newDate, reason) => {
+        return calculateProratedAdjustment(subscription, newDate, reason);
+      },
+
+      setTimezone: (timezone) => {
+        set({ timezone });
+      },
+
       syncSubscriptionToCalendars: async (subscription) => {
         const { integrations, syncedEvents } = get();
         const activeIntegrations = integrations.filter(isConnected);
@@ -280,6 +354,8 @@ export const useCalendarStore = create<CalendarState>()(
         integrations: state.integrations,
         syncedEvents: state.syncedEvents,
         reminderOffsets: state.reminderOffsets,
+        oneTimePayments: state.oneTimePayments,
+        timezone: state.timezone,
       }),
     }
   )

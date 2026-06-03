@@ -72,6 +72,9 @@ export interface SandboxConfig {
 export interface ApiKey {
   id: string;
   key: string;
+  keyPrefix?: string;
+  hashedKey?: string;
+  plainKey?: string;
   name: string;
   description?: string;
   sandboxId?: string;
@@ -87,8 +90,17 @@ export interface ApiKey {
   expiresAt: Date | null;
   lastUsedAt: Date | null;
   usageCount?: number;
+  auditLogs?: ApiKeyAuditEntry[];
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface ApiKeyAuditEntry {
+  id: string;
+  apiKeyId: string;
+  event: 'created' | 'validated' | 'revoked' | 'rotated' | 'expired' | 'migration';
+  message: string;
+  timestamp: Date;
 }
 
 export interface ApiKeyCreateRequest {
@@ -123,7 +135,7 @@ export interface UsageStats {
   periodEnd: Date;
   requestsByEndpoint?: Record<string, number>;
   requestsByDay?: Record<string, number>;
-  topErrors?: Array<{ code: number; count: number; message: string }>;
+  topErrors?: { code: number; count: number; message: string }[];
 }
 
 export interface UsageMetric {
@@ -238,26 +250,26 @@ export interface OnboardingStep {
 }
 
 export interface SandboxTestData {
-  subscriptions: Array<{
+  subscriptions: {
     name: string;
     category: string;
     price: number;
     currency: string;
     billingCycle: string;
     isActive: boolean;
-  }>;
-  merchants: Array<{
+  }[];
+  merchants: {
     name: string;
     walletAddress: string;
     planCount: number;
-  }>;
-  transactions: Array<{
+  }[];
+  transactions: {
     type: string;
     amount: number;
     currency: string;
     status: string;
     timestamp: Date;
-  }>;
+  }[];
 }
 
 export interface TestDataConfig {
