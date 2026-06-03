@@ -20,6 +20,7 @@ import {
   createAnimatedStyle,
   SharedElementTransition,
 } from '../../utils/animations';
+import { SubscriptionIcon } from './SubscriptionIcon';
 
 export interface AnimatedSubscriptionCardProps {
   subscription: Subscription;
@@ -46,7 +47,6 @@ export const AnimatedSubscriptionCard: React.FC<AnimatedSubscriptionCardProps> =
   const scaleAnim = useAnimatedValue(1);
   const priceAnim = useAnimatedValue(0);
   const statusAnim = useAnimatedValue(subscription.isActive ? 1 : 0);
-  const fallbackSharedElementAnim = useAnimatedValue(1);
 
   // Shared element transition
   const fallbackSharedElementAnim = useAnimatedValue(1);
@@ -171,7 +171,12 @@ export const AnimatedSubscriptionCard: React.FC<AnimatedSubscriptionCardProps> =
         activeOpacity={0.8}>
         <View style={styles.header}>
           <Animated.View style={[styles.iconContainer, animatedStatusStyle]}>
-            <Text style={styles.icon}>{getCategoryIcon(subscription.category)}</Text>
+            <SubscriptionIcon
+              iconUrl={subscription.iconUrl}
+              fallbackIcon={getCategoryIcon(subscription.category)}
+              size={40}
+              accessibilityLabel={`${subscription.name} icon`}
+            />
           </Animated.View>
 
           <View style={styles.titleContainer}>
@@ -283,17 +288,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
     marginRight: spacing.sm,
-  },
-  icon: {
-    fontSize: 20,
-    color: colors.onPrimary,
   },
   titleContainer: {
     flex: 1,

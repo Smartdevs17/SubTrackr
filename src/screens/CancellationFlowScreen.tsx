@@ -89,7 +89,9 @@ const CancellationFlowScreen: React.FC<Props> = ({ route, navigation }) => {
         <Text style={styles.offerIcon}>{OFFER_TYPE_ICONS[offer.type] ?? '🎁'}</Text>
         <View style={styles.offerHeaderText}>
           <Text style={styles.offerTitle}>{offer.title}</Text>
-          <Text style={styles.offerBadge}>{offer.abVariant === 'A' ? 'Popular' : 'Best Value'}</Text>
+          <Text style={styles.offerBadge}>
+            {offer.abVariant === 'A' ? 'Popular' : 'Best Value'}
+          </Text>
         </View>
       </View>
       <Text style={styles.offerDescription}>{offer.description}</Text>

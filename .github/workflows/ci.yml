@@ -339,15 +339,41 @@ jobs:
   load-test:
     name: k6 Load Test
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [subscription, billing, contract]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Run k6 Load Test
+      - name: Prepare reports directory
+        run: mkdir -p load-tests/reports
+
+      # k6 exits non-zero when a threshold in config/options.js is breached,
+      # which fails this job — that is the CI gate on performance regressions.
+      - name: Run k6 Load Test (${{ matrix.scenario }})
         uses: grafana/k6-action@v0.5.1
         with:
           filename: load-tests/run.js
-          flags: --env SCENARIO=subscription
+          flags: --env SCENARIO=${{ matrix.scenario }} --quiet
+
+      - name: Rename report for this scenario
+        if: always()
+        run: |
+          for ext in json md html; do
+            if [ -f "load-tests/reports/summary.$ext" ]; then
+              mv "load-tests/reports/summary.$ext" "load-tests/reports/${{ matrix.scenario }}.$ext"
+            fi
+          done
+
+      - name: Upload load test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-test-report-${{ matrix.scenario }}
+          path: load-tests/reports/
+          if-no-files-found: ignore
 
   # ─────────────────────────────────────────────────────────
   # Bundle Size Monitoring

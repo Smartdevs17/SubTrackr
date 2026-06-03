@@ -25,7 +25,10 @@ export class SandboxUtils {
     return { valid: true };
   }
 
-  static calculateResourceUsage(testData: SandboxTestData): { storageMB: number; itemCount: number } {
+  static calculateResourceUsage(testData: SandboxTestData): {
+    storageMB: number;
+    itemCount: number;
+  } {
     const jsonString = JSON.stringify(testData);
     const bytes = new TextEncoder().encode(jsonString).length;
     const storageMB = bytes / (1024 * 1024);
@@ -41,24 +44,37 @@ export class SandboxUtils {
 
   static checkResourceLimits(
     limits: SandboxResourceLimits,
-    currentUsage: { requestsPerMinute: number; requestsPerDay: number; storageMB: number; connections: number }
+    currentUsage: {
+      requestsPerMinute: number;
+      requestsPerDay: number;
+      storageMB: number;
+      connections: number;
+    }
   ): { withinLimits: boolean; violations: string[] } {
     const violations: string[] = [];
 
     if (currentUsage.requestsPerMinute > limits.maxRequestsPerMinute) {
-      violations.push(`Requests per minute (${currentUsage.requestsPerMinute}) exceeds limit (${limits.maxRequestsPerMinute})`);
+      violations.push(
+        `Requests per minute (${currentUsage.requestsPerMinute}) exceeds limit (${limits.maxRequestsPerMinute})`
+      );
     }
 
     if (currentUsage.requestsPerDay > limits.maxRequestsPerDay) {
-      violations.push(`Requests per day (${currentUsage.requestsPerDay}) exceeds limit (${limits.maxRequestsPerDay})`);
+      violations.push(
+        `Requests per day (${currentUsage.requestsPerDay}) exceeds limit (${limits.maxRequestsPerDay})`
+      );
     }
 
     if (currentUsage.storageMB > limits.maxStorageMB) {
-      violations.push(`Storage (${currentUsage.storageMB}MB) exceeds limit (${limits.maxStorageMB}MB)`);
+      violations.push(
+        `Storage (${currentUsage.storageMB}MB) exceeds limit (${limits.maxStorageMB}MB)`
+      );
     }
 
     if (currentUsage.connections > limits.maxConcurrentConnections) {
-      violations.push(`Connections (${currentUsage.connections}) exceeds limit (${limits.maxConcurrentConnections})`);
+      violations.push(
+        `Connections (${currentUsage.connections}) exceeds limit (${limits.maxConcurrentConnections})`
+      );
     }
 
     return {
@@ -73,7 +89,7 @@ export class SandboxUtils {
     }
 
     if (Array.isArray(data)) {
-      return data.map(item => this.sanitizeForSandbox(item));
+      return data.map((item) => this.sanitizeForSandbox(item));
     }
 
     if (typeof data === 'object' && data !== null) {
@@ -116,7 +132,10 @@ export class SandboxUtils {
     };
   }
 
-  static createSandboxHeaders(envId: string, additionalHeaders: Record<string, string> = {}): Record<string, string> {
+  static createSandboxHeaders(
+    envId: string,
+    additionalHeaders: Record<string, string> = {}
+  ): Record<string, string> {
     return {
       'X-Sandbox-Environment': envId,
       'X-Sandbox-Mode': 'true',
@@ -125,7 +144,11 @@ export class SandboxUtils {
     };
   }
 
-  static parseSandboxHeaders(headers: Record<string, string>): { envId?: string; isSandbox: boolean; requestId?: string } {
+  static parseSandboxHeaders(headers: Record<string, string>): {
+    envId?: string;
+    isSandbox: boolean;
+    requestId?: string;
+  } {
     return {
       envId: headers['X-Sandbox-Environment'],
       isSandbox: headers['X-Sandbox-Mode'] === 'true',

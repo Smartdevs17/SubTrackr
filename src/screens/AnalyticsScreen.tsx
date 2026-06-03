@@ -9,7 +9,7 @@ import {
   Dimensions,
 } from 'react-native';
 import Svg, { Rect, Text as SvgText, Line, G } from 'react-native-svg';
-import { colors, spacing, typography, borderRadius } from '../utils/constants';
+import { spacing, typography, borderRadius } from '../utils/constants';
 import { useSubscriptionStore } from '../store';
 import { SubscriptionCategory, BillingCycle } from '../types/subscription';
 import { Card } from '../components/common/Card';
@@ -17,7 +17,7 @@ import { useSettingsStore } from '../store/settingsStore';
 import { currencyService } from '../services/currencyService';
 import { calculateSubscriptionAnalytics } from '../services/analyticsService';
 import { formatCurrency } from '../utils/formatting';
-
+import { useThemeColors } from '../hooks/useThemeColors';
 
 const { width: screenWidth } = Dimensions.get('window');
 const CHART_WIDTH = screenWidth - spacing.xl * 2;
@@ -25,6 +25,8 @@ const CHART_HEIGHT = 200;
 type DateRange = 'week' | 'month' | 'year';
 
 const AnalyticsScreen: React.FC = () => {
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { subscriptions, stats, calculateStats } = useSubscriptionStore();
   const { preferredCurrency, exchangeRates } = useSettingsStore();
   const rates = exchangeRates?.rates || {};
@@ -33,7 +35,6 @@ const AnalyticsScreen: React.FC = () => {
   useEffect(() => {
     calculateStats();
   }, [subscriptions, calculateStats, preferredCurrency, exchangeRates]);
-
 
   const categoryData = useMemo(() => {
     const categories = Object.values(SubscriptionCategory);
@@ -103,7 +104,6 @@ const AnalyticsScreen: React.FC = () => {
             else if (sub.billingCycle === BillingCycle.YEARLY) total += priceInPreferred / 12;
             else if (sub.billingCycle === BillingCycle.WEEKLY) total += priceInPreferred * 4;
           }
-
         }
       });
       return { month, amount: total };
@@ -129,16 +129,16 @@ const AnalyticsScreen: React.FC = () => {
 
   const getCategoryColor = (category: SubscriptionCategory): string => {
     const categoryColors: Record<SubscriptionCategory, string> = {
-      [SubscriptionCategory.STREAMING]: '#E91E63',
-      [SubscriptionCategory.SOFTWARE]: '#2196F3',
-      [SubscriptionCategory.GAMING]: '#9C27B0',
-      [SubscriptionCategory.PRODUCTIVITY]: '#4CAF50',
-      [SubscriptionCategory.FITNESS]: '#FF9800',
-      [SubscriptionCategory.EDUCATION]: '#00BCD4',
-      [SubscriptionCategory.FINANCE]: '#FFD700',
-      [SubscriptionCategory.OTHER]: '#607D8B',
+      [SubscriptionCategory.STREAMING]: colors.brand.primary,
+      [SubscriptionCategory.SOFTWARE]: colors.brand.secondary,
+      [SubscriptionCategory.GAMING]: colors.accent,
+      [SubscriptionCategory.PRODUCTIVITY]: colors.status.success,
+      [SubscriptionCategory.FITNESS]: colors.status.warning,
+      [SubscriptionCategory.EDUCATION]: colors.brand.primaryDark,
+      [SubscriptionCategory.FINANCE]: colors.status.info,
+      [SubscriptionCategory.OTHER]: colors.textSecondary,
     };
-    return categoryColors[category] || '#607D8B';
+    return categoryColors[category] || colors.textSecondary;
   };
 
   if (!subscriptions?.length) {
@@ -195,7 +195,6 @@ const AnalyticsScreen: React.FC = () => {
               importantForAccessibility="no">
               {formatCurrency(stats.totalMonthlySpend, preferredCurrency)}
             </Text>
-
           </Card>
           <Card style={styles.summaryCard}>
             <Text
@@ -210,7 +209,6 @@ const AnalyticsScreen: React.FC = () => {
               importantForAccessibility="no">
               {formatCurrency(stats.totalYearlySpend, preferredCurrency)}
             </Text>
-
           </Card>
         </View>
         <View style={styles.summaryContainer}>
@@ -301,7 +299,6 @@ const AnalyticsScreen: React.FC = () => {
                       textAnchor="middle">
                       {formatCurrency(data.amount, preferredCurrency)}
                     </SvgText>
-
                   )}
                 </G>
               );
@@ -389,15 +386,15 @@ const AnalyticsScreen: React.FC = () => {
               {formatCurrency(stats.totalYearlySpend, preferredCurrency)}
             </Text>
           </View>
-
         </Card>
       </ScrollView>
     </SafeAreaView>
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background.primary },
   scrollView: { flex: 1 },
   header: { padding: spacing.lg, paddingBottom: spacing.md },
   title: { ...typography.h1, color: colors.text, marginBottom: spacing.xs },
@@ -480,6 +477,7 @@ const styles = StyleSheet.create({
   emptyIcon: { fontSize: 64, marginBottom: spacing.md },
   emptyTitle: { ...typography.h2, color: colors.text, marginBottom: spacing.sm },
   emptyText: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
-});
+  });
+}
 
 export default AnalyticsScreen;

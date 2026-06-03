@@ -1,4 +1,5 @@
 #![no_std]
+#![allow(clippy::too_many_arguments)]
 //! SubTrackr price oracle contract.
 //!
 //! A push-style oracle: authorized feed addresses submit signed price

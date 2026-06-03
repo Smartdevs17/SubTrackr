@@ -2,6 +2,12 @@ use crate::gas_profiler::GasProfile;
 /// Gas Storage Module
 /// Manages storage and retrieval of gas profiling metrics
 use soroban_sdk::{Address, Env, IntoVal, String as SorobanString, TryFromVal, Val, Vec};
+#![allow(dead_code)]
+#![allow(unused_variables)]
+//! Gas Storage Module
+//! Manages storage and retrieval of gas profiling metrics.
+use soroban_sdk::{Address, Env, String as SorobanString};
+use crate::gas_profiler::{GasProfile};
 
 /// Storage keys for gas metrics
 #[derive(Clone)]
@@ -146,11 +152,9 @@ impl GasMetricsStorage {
     pub fn get_metrics_summary(env: &Env, storage: &Address) -> (u64, u64, u64) {
         let total_gas = Self::get_total_gas_used(env, storage);
         let total_calls = Self::get_total_call_count(env, storage);
-        let avg_gas = if total_calls > 0 {
-            total_gas / total_calls
-        } else {
-            0
-        };
+        let avg_gas = total_gas
+            .checked_div(total_calls)
+            .unwrap_or(0);
         (total_gas, total_calls, avg_gas)
     }
 }

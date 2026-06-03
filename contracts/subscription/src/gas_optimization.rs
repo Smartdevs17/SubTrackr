@@ -1,5 +1,9 @@
 /// Gas Optimization and Targeting Module
 /// Provides optimization recommendations and tracks gas targets
+#![allow(dead_code)]
+//! Gas Optimization and Targeting Module
+//! Provides optimization recommendations and tracks gas targets.
+
 use soroban_sdk::{Env, String, Vec};
 
 /// Optimization level
@@ -12,7 +16,7 @@ pub enum OptimizationLevel {
 }
 
 impl OptimizationLevel {
-    pub fn to_string(&self) -> &'static str {
+    pub fn as_str(self) -> &'static str {
         match self {
             Self::Critical => "critical",
             Self::High => "high",
@@ -304,17 +308,14 @@ impl GasOptimizations {
 
     /// Calculate potential gas savings
     pub fn calculate_savings(current_gas: u64, target_gas: u64) -> u64 {
-        if current_gas > target_gas {
-            current_gas - target_gas
-        } else {
-            0
-        }
+        current_gas.saturating_sub(target_gas)
     }
 }
 
+#[allow(dead_code)]
 pub fn get_optimization_priorities(
     env: &Env,
-    gas_metrics: Vec<(String, u64)>,
+    _gas_metrics: Vec<(String, u64)>,
 ) -> Vec<(String, u64, String)> {
     Vec::new(env)
 }

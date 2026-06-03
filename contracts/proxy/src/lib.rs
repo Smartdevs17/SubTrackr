@@ -377,6 +377,35 @@ impl UpgradeableProxy {
         );
     }
 
+    pub fn set_max_plans_per_merchant(env: Env, new_limit: u32) {
+        let proxy_addr = current_proxy_address(&env);
+        let storage_addr = proxy_storage::storage_address(&env);
+        invoke_impl::<()>(
+            &env,
+            "set_max_plans_per_merchant",
+            soroban_sdk::vec![
+                &env,
+                proxy_addr.into_val(&env),
+                storage_addr.into_val(&env),
+                new_limit.into_val(&env)
+            ],
+        );
+    }
+
+    pub fn get_max_plans_per_merchant(env: Env) -> u32 {
+        let proxy_addr = current_proxy_address(&env);
+        let storage_addr = proxy_storage::storage_address(&env);
+        invoke_impl(
+            &env,
+            "get_max_plans_per_merchant",
+            soroban_sdk::vec![
+                &env,
+                proxy_addr.into_val(&env),
+                storage_addr.into_val(&env)
+            ],
+        )
+    }
+
     pub fn create_plan(
         env: Env,
         merchant: Address,
