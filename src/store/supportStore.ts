@@ -11,12 +11,10 @@ import {
   TicketingIntegrationConfig,
   TicketStatus,
 } from '../types/support';
-import { LoadingState, idle, loading, success, failure } from '../types/loadingState';
 
 interface SupportState {
   tickets: SupportTicket[];
   integration: TicketingIntegrationConfig;
-  loadingState: LoadingState;
   createTicket: (event: SubscriptionSupportEvent) => SupportTicket;
   assignTicket: (ticketId: string, assignee: string) => void;
   updateTicketStatus: (ticketId: string, status: TicketStatus) => void;
@@ -34,25 +32,22 @@ const mapTicket = (
 export const useSupportStore = create<SupportState>((set, get) => ({
   tickets: [],
   integration: { provider: 'internal', enabled: true, defaultAssignee: 'support-team' },
-  loadingState: idle(),
 
   createTicket: (event) => {
-    set({ loadingState: loading() });
-    try {
-      const relatedTicketIds = get()
-        .tickets.filter((ticket) => ticket.subscriptionId === event.subscriptionId && ticket.status !== 'closed')
-        .map((ticket) => ticket.id);
-      const ticket = createTicketFromEvent(event, relatedTicketIds);
-      set((state) => ({ tickets: [...state.tickets, ticket], loadingState: success() }));
-      return ticket;
-    } catch (e) {
-      set({ loadingState: failure(e as Error) });
-      throw e;
-    }
+    const relatedTicketIds = get()
+      .tickets.filter(
+        (ticket) => ticket.subscriptionId === event.subscriptionId && ticket.status !== 'closed'
+      )
+      .map((ticket) => ticket.id);
+    const ticket = createTicketFromEvent(event, relatedTicketIds);
+    set((state) => ({ tickets: [...state.tickets, ticket] }));
+    return ticket;
   },
 
   assignTicket: (ticketId, assignee) =>
-    set((state) => ({ tickets: mapTicket(state.tickets, ticketId, (ticket) => assignTicket(ticket, assignee)) })),
+    set((state) => ({
+      tickets: mapTicket(state.tickets, ticketId, (ticket) => assignTicket(ticket, assignee)),
+    })),
 
   updateTicketStatus: (ticketId, status) =>
     set((state) => ({

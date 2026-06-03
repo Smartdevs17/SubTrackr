@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LoadingState, idle, loading, success, failure } from '../types/loadingState';
 import {
   FraudAction,
   FraudAnalytics,
@@ -9,7 +8,7 @@ import {
   FraudMerchantRecord,
   FraudReport,
   FraudRiskScore,
-  FraudSignal,
+  FraudReviewStatus,
   FraudSubscriptionRecord,
 } from '../types/fraud';
 
@@ -65,9 +64,24 @@ const subscriptionSeeds: FraudSubscriptionRecord[] = [
     reason: 'Usage burst and fast creation cadence',
     usagePattern: 'burst',
     signals: [
-      { kind: 'velocity', score: 28, detail: 'Created alongside two other subscriptions', observedAt: nowIso() },
-      { kind: 'usage-anomaly', score: 30, detail: 'Observed usage is 3x the expected baseline', observedAt: nowIso() },
-      { kind: 'chargeback', score: 20, detail: 'Recent dispute behavior is elevated', observedAt: nowIso() },
+      {
+        kind: 'velocity',
+        score: 28,
+        detail: 'Created alongside two other subscriptions',
+        observedAt: nowIso(),
+      },
+      {
+        kind: 'usage-anomaly',
+        score: 30,
+        detail: 'Observed usage is 3x the expected baseline',
+        observedAt: nowIso(),
+      },
+      {
+        kind: 'chargeback',
+        score: 20,
+        detail: 'Recent dispute behavior is elevated',
+        observedAt: nowIso(),
+      },
     ],
     isBlocked: false,
     isFlagged: true,
@@ -89,8 +103,18 @@ const subscriptionSeeds: FraudSubscriptionRecord[] = [
     reason: 'Chargeback history and rapid subscription creation',
     usagePattern: 'erratic',
     signals: [
-      { kind: 'velocity', score: 35, detail: 'Second subscription within the same day', observedAt: nowIso() },
-      { kind: 'chargeback', score: 35, detail: 'Chargeback history predicts blocked outcome', observedAt: nowIso() },
+      {
+        kind: 'velocity',
+        score: 35,
+        detail: 'Second subscription within the same day',
+        observedAt: nowIso(),
+      },
+      {
+        kind: 'chargeback',
+        score: 35,
+        detail: 'Chargeback history predicts blocked outcome',
+        observedAt: nowIso(),
+      },
     ],
     isBlocked: true,
     isFlagged: true,
@@ -111,7 +135,14 @@ const subscriptionSeeds: FraudSubscriptionRecord[] = [
     action: 'approve',
     reason: 'Usage profile is stable',
     usagePattern: 'normal',
-    signals: [{ kind: 'velocity', score: 6, detail: 'Low velocity but within threshold', observedAt: nowIso() }],
+    signals: [
+      {
+        kind: 'velocity',
+        score: 6,
+        detail: 'Low velocity but within threshold',
+        observedAt: nowIso(),
+      },
+    ],
     isBlocked: false,
     isFlagged: false,
   },
@@ -132,9 +163,24 @@ const subscriptionSeeds: FraudSubscriptionRecord[] = [
     reason: 'Chargeback prediction and anomalous usage behavior',
     usagePattern: 'burst',
     signals: [
-      { kind: 'usage-anomaly', score: 30, detail: 'Observed usage is far above baseline', observedAt: nowIso() },
-      { kind: 'chargeback', score: 35, detail: 'Repeated disputes indicate high risk', observedAt: nowIso() },
-      { kind: 'velocity', score: 27, detail: 'Fast subscription creation detected', observedAt: nowIso() },
+      {
+        kind: 'usage-anomaly',
+        score: 30,
+        detail: 'Observed usage is far above baseline',
+        observedAt: nowIso(),
+      },
+      {
+        kind: 'chargeback',
+        score: 35,
+        detail: 'Repeated disputes indicate high risk',
+        observedAt: nowIso(),
+      },
+      {
+        kind: 'velocity',
+        score: 27,
+        detail: 'Fast subscription creation detected',
+        observedAt: nowIso(),
+      },
     ],
     isBlocked: true,
     isFlagged: true,
@@ -190,9 +236,14 @@ const reviewSeeds: FraudCase[] = [
 ];
 
 const averageRisk = (items: FraudSubscriptionRecord[]): number =>
-  items.length ? Math.round(items.reduce((sum, item) => sum + item.riskScore, 0) / items.length) : 0;
+  items.length
+    ? Math.round(items.reduce((sum, item) => sum + item.riskScore, 0) / items.length)
+    : 0;
 
-const computeAnalytics = (subscriptions: FraudSubscriptionRecord[], reviewQueue: FraudCase[]): FraudAnalytics => {
+const computeAnalytics = (
+  subscriptions: FraudSubscriptionRecord[],
+  reviewQueue: FraudCase[]
+): FraudAnalytics => {
   const approved = subscriptions.filter((item) => item.action === 'approve').length;
   const flagged = subscriptions.filter((item) => item.action === 'flag').length;
   const blocked = subscriptions.filter((item) => item.action === 'block').length;
@@ -245,7 +296,6 @@ interface FraudState {
   analytics: FraudAnalytics;
   loading: boolean;
   error: string | null;
-  loadingState: LoadingState;
   refreshFraudSignals: () => void;
   assessRisk: (subscriberId: string) => FraudRiskScore[];
   flagSubscription: (subscriptionId: string) => void;
@@ -286,10 +336,18 @@ const buildMerchantReport = (
     blockedSubscriptions: scoped.filter((item) => item.action === 'block').length,
     manualReviewCount: scopedCases.filter((item) => item.status !== 'reviewed').length,
     averageRisk: averageRisk(scoped),
-    velocityAlerts: scoped.filter((item) => item.signals.some((signal) => signal.kind === 'velocity')).length,
-    anomalyAlerts: scoped.filter((item) => item.signals.some((signal) => signal.kind === 'usage-anomaly')).length,
-    chargebackPredictions: scoped.filter((item) => item.signals.some((signal) => signal.kind === 'chargeback')).length,
-    highRiskSubscribers: new Set(scoped.filter((item) => item.riskScore >= 50).map((item) => item.subscriberId)).size,
+    velocityAlerts: scoped.filter((item) =>
+      item.signals.some((signal) => signal.kind === 'velocity')
+    ).length,
+    anomalyAlerts: scoped.filter((item) =>
+      item.signals.some((signal) => signal.kind === 'usage-anomaly')
+    ).length,
+    chargebackPredictions: scoped.filter((item) =>
+      item.signals.some((signal) => signal.kind === 'chargeback')
+    ).length,
+    highRiskSubscribers: new Set(
+      scoped.filter((item) => item.riskScore >= 50).map((item) => item.subscriberId)
+    ).size,
     recentCases: scopedCases.slice(0, 5),
   };
 };
@@ -298,39 +356,47 @@ export const useFraudStore = create<FraudState>()(
   persist(
     (set, get) => ({
       merchants: merchantSeeds.map((merchant) => ({ ...merchant })),
-      subscriptions: subscriptionSeeds.map((item) => ({ ...item, signals: item.signals.map((signal) => ({ ...signal })) })),
+      subscriptions: subscriptionSeeds.map((item) => ({
+        ...item,
+        signals: item.signals.map((signal) => ({ ...signal })),
+      })),
       assessments: hydrateAssessments(subscriptionSeeds),
       reviewQueue: hydrateReviewQueue(reviewSeeds),
       analytics: computeAnalytics(subscriptionSeeds, reviewSeeds),
       loading: false,
-      loadingState: idle(),
       error: null,
 
       refreshFraudSignals: () => {
-        set({ loading: true, loadingState: loading() });
-        try {
-          const { subscriptions, reviewQueue, merchants } = get();
-          set({
-            analytics: computeAnalytics(subscriptions, reviewQueue),
-            assessments: hydrateAssessments(subscriptions),
-            merchants: merchants.map((merchant) => ({
-              ...merchant,
-              averageRisk: buildMerchantReport(merchants, subscriptions, reviewQueue, merchant.id).averageRisk,
-              blockedSubscriptions: buildMerchantReport(merchants, subscriptions, reviewQueue, merchant.id).blockedSubscriptions,
-              activeSubscriptions: buildMerchantReport(merchants, subscriptions, reviewQueue, merchant.id).totalSubscriptions,
-              status:
-                buildMerchantReport(merchants, subscriptions, reviewQueue, merchant.id).averageRisk >= 60
-                  ? 'high-risk'
-                  : buildMerchantReport(merchants, subscriptions, reviewQueue, merchant.id).averageRisk >= 35
-                    ? 'watch'
-                    : 'healthy',
-            })),
-            loading: false,
-            loadingState: success(),
-          });
-        } catch (e) {
-          set({ loading: false, loadingState: failure(e as Error) });
-        }
+        const { subscriptions, reviewQueue, merchants } = get();
+        set({
+          analytics: computeAnalytics(subscriptions, reviewQueue),
+          assessments: hydrateAssessments(subscriptions),
+          merchants: merchants.map((merchant) => ({
+            ...merchant,
+            averageRisk: buildMerchantReport(merchants, subscriptions, reviewQueue, merchant.id)
+              .averageRisk,
+            blockedSubscriptions: buildMerchantReport(
+              merchants,
+              subscriptions,
+              reviewQueue,
+              merchant.id
+            ).blockedSubscriptions,
+            activeSubscriptions: buildMerchantReport(
+              merchants,
+              subscriptions,
+              reviewQueue,
+              merchant.id
+            ).totalSubscriptions,
+            status:
+              buildMerchantReport(merchants, subscriptions, reviewQueue, merchant.id).averageRisk >=
+              60
+                ? 'high-risk'
+                : buildMerchantReport(merchants, subscriptions, reviewQueue, merchant.id)
+                      .averageRisk >= 35
+                  ? 'watch'
+                  : 'healthy',
+          })),
+        });
       },
 
       assessRisk: (subscriberId: string) => {
@@ -354,6 +420,8 @@ export const useFraudStore = create<FraudState>()(
         if (!current) return;
 
         const score = scoreSubscription(current);
+        const action: FraudAction = score.totalScore >= 80 ? 'block' : 'flag';
+        const status: FraudReviewStatus = score.totalScore >= 80 ? 'escalated' : 'pending';
         const nextCase: FraudCase = {
           caseId: subscriptionId,
           subscriptionId,
@@ -362,8 +430,8 @@ export const useFraudStore = create<FraudState>()(
           merchantName: current.merchantName,
           subscriptionName: current.subscriptionName,
           riskScore: score.totalScore,
-          action: score.totalScore >= 80 ? 'block' : 'flag',
-          status: score.totalScore >= 80 ? 'escalated' : 'pending',
+          action,
+          status,
           reason: score.reason,
           createdAt: nowIso(),
           updatedAt: nowIso(),
@@ -376,14 +444,20 @@ export const useFraudStore = create<FraudState>()(
             isFlagged: true,
             isBlocked: nextCase.action === 'block',
           }),
-          reviewQueue: [nextCase, ...state.reviewQueue.filter((entry) => entry.subscriptionId !== subscriptionId)],
+          reviewQueue: [
+            nextCase,
+            ...state.reviewQueue.filter((entry) => entry.subscriptionId !== subscriptionId),
+          ],
           analytics: computeAnalytics(
             updateSubscription(state.subscriptions, subscriptionId, {
               action: nextCase.action,
               isFlagged: true,
               isBlocked: nextCase.action === 'block',
             }),
-            [nextCase, ...state.reviewQueue.filter((entry) => entry.subscriptionId !== subscriptionId)]
+            [
+              nextCase,
+              ...state.reviewQueue.filter((entry) => entry.subscriptionId !== subscriptionId),
+            ]
           ),
         }));
       },
@@ -397,7 +471,12 @@ export const useFraudStore = create<FraudState>()(
           });
           const reviewQueue = state.reviewQueue.map((entry) =>
             entry.subscriptionId === subscriptionId
-              ? { ...entry, status: 'reviewed', action: 'approve', updatedAt: nowIso() }
+              ? {
+                  ...entry,
+                  status: 'reviewed' as FraudReviewStatus,
+                  action: 'approve' as FraudAction,
+                  updatedAt: nowIso(),
+                }
               : entry
           );
           return {
@@ -417,7 +496,12 @@ export const useFraudStore = create<FraudState>()(
           });
           const reviewQueue = state.reviewQueue.map((entry) =>
             entry.subscriptionId === subscriptionId
-              ? { ...entry, status: 'escalated', action: 'block', updatedAt: nowIso() }
+              ? {
+                  ...entry,
+                  status: 'escalated' as FraudReviewStatus,
+                  action: 'block' as FraudAction,
+                  updatedAt: nowIso(),
+                }
               : entry
           );
           return {
@@ -440,7 +524,11 @@ export const useFraudStore = create<FraudState>()(
               ? {
                   ...entry,
                   action,
-                  status: action === 'approve' ? 'reviewed' : action === 'block' ? 'escalated' : 'pending',
+                  status: (action === 'approve'
+                    ? 'reviewed'
+                    : action === 'block'
+                      ? 'escalated'
+                      : 'pending') satisfies FraudReviewStatus,
                   updatedAt: nowIso(),
                 }
               : entry

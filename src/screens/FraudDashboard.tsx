@@ -73,15 +73,40 @@ const FraudDashboard: React.FC = () => {
         </View>
 
         <View style={[styles.metricsGrid, isWide && styles.metricsGridWide]}>
-          {renderMetric('Total checks', analytics.totalChecks.toString(), 'Subscriptions reviewed', colors.accent)}
-          {renderMetric('Blocked', analytics.blocked.toString(), 'Automated hard stops', colors.error)}
-          {renderMetric('Flagged', analytics.flagged.toString(), 'Queued for review', colors.warning)}
+          {renderMetric(
+            'Total checks',
+            analytics.totalChecks.toString(),
+            'Subscriptions reviewed',
+            colors.accent
+          )}
+          {renderMetric(
+            'Blocked',
+            analytics.blocked.toString(),
+            'Automated hard stops',
+            colors.error
+          )}
+          {renderMetric(
+            'Flagged',
+            analytics.flagged.toString(),
+            'Queued for review',
+            colors.warning
+          )}
           {renderMetric('Avg risk', `${analytics.avgRisk}`, 'Aggregate risk score', colors.primary)}
         </View>
 
         <View style={[styles.metricsGrid, isWide && styles.metricsGridWide]}>
-          {renderMetric('Velocity alerts', analytics.velocityAlerts.toString(), 'Rapid creation detected', colors.secondary)}
-          {renderMetric('Anomaly alerts', analytics.anomalyAlerts.toString(), 'Usage deviates from baseline', colors.accent)}
+          {renderMetric(
+            'Velocity alerts',
+            analytics.velocityAlerts.toString(),
+            'Rapid creation detected',
+            colors.secondary
+          )}
+          {renderMetric(
+            'Anomaly alerts',
+            analytics.anomalyAlerts.toString(),
+            'Usage deviates from baseline',
+            colors.accent
+          )}
           {renderMetric(
             'Chargeback predictions',
             analytics.chargebackPredictions.toString(),
@@ -121,19 +146,27 @@ const FraudDashboard: React.FC = () => {
                   </View>
                 </View>
                 <View style={styles.caseActions}>
-                  <TouchableOpacity style={styles.caseButton} onPress={() => approveSubscription(item.subscriptionId)}>
+                  <TouchableOpacity
+                    style={styles.caseButton}
+                    onPress={() => approveSubscription(item.subscriptionId)}>
                     <Text style={styles.caseButtonText}>Approve</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.caseButtonWarning} onPress={() => resolveCase(item.subscriptionId, 'flag')}>
+                  <TouchableOpacity
+                    style={styles.caseButtonWarning}
+                    onPress={() => resolveCase(item.subscriptionId, 'flag')}>
                     <Text style={styles.caseButtonText}>Flag</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.caseButtonDanger} onPress={() => blockSubscription(item.subscriptionId)}>
+                  <TouchableOpacity
+                    style={styles.caseButtonDanger}
+                    onPress={() => blockSubscription(item.subscriptionId)}>
                     <Text style={styles.caseButtonText}>Block</Text>
                   </TouchableOpacity>
                 </View>
               </View>
             ))}
-            {reviewQueue.length === 0 ? <Text style={styles.emptyText}>No cases awaiting manual review.</Text> : null}
+            {reviewQueue.length === 0 ? (
+              <Text style={styles.emptyText}>No cases awaiting manual review.</Text>
+            ) : null}
           </Card>
 
           <Card style={[styles.sectionCard, isWide && styles.halfCard]}>
@@ -181,7 +214,8 @@ const FraudDashboard: React.FC = () => {
                   <Text style={styles.scoreText}>{report.averageRisk}</Text>
                 </View>
                 <Text style={styles.caseDescription}>
-                  {report.totalSubscriptions} subs · {report.flaggedSubscriptions} flagged · {report.blockedSubscriptions} blocked
+                  {report.totalSubscriptions} subs · {report.flaggedSubscriptions} flagged ·{' '}
+                  {report.blockedSubscriptions} blocked
                 </Text>
                 <View style={styles.reportGrid}>
                   <Text style={styles.reportMetric}>Manual review {report.manualReviewCount}</Text>
@@ -201,21 +235,45 @@ const FraudDashboard: React.FC = () => {
             <View style={styles.distributionRow}>
               <Text style={styles.distributionLabel}>Approved</Text>
               <View style={styles.distributionBarTrack}>
-                <View style={[styles.distributionBar, { width: `${(analytics.approved / Math.max(analytics.totalChecks, 1)) * 100}%`, backgroundColor: colors.success }]} />
+                <View
+                  style={[
+                    styles.distributionBar,
+                    {
+                      width: `${(analytics.approved / Math.max(analytics.totalChecks, 1)) * 100}%`,
+                      backgroundColor: colors.success,
+                    },
+                  ]}
+                />
               </View>
               <Text style={styles.distributionValue}>{analytics.approved}</Text>
             </View>
             <View style={styles.distributionRow}>
               <Text style={styles.distributionLabel}>Flagged</Text>
               <View style={styles.distributionBarTrack}>
-                <View style={[styles.distributionBar, { width: `${(analytics.flagged / Math.max(analytics.totalChecks, 1)) * 100}%`, backgroundColor: colors.warning }]} />
+                <View
+                  style={[
+                    styles.distributionBar,
+                    {
+                      width: `${(analytics.flagged / Math.max(analytics.totalChecks, 1)) * 100}%`,
+                      backgroundColor: colors.warning,
+                    },
+                  ]}
+                />
               </View>
               <Text style={styles.distributionValue}>{analytics.flagged}</Text>
             </View>
             <View style={styles.distributionRow}>
               <Text style={styles.distributionLabel}>Blocked</Text>
               <View style={styles.distributionBarTrack}>
-                <View style={[styles.distributionBar, { width: `${(analytics.blocked / Math.max(analytics.totalChecks, 1)) * 100}%`, backgroundColor: colors.error }]} />
+                <View
+                  style={[
+                    styles.distributionBar,
+                    {
+                      width: `${(analytics.blocked / Math.max(analytics.totalChecks, 1)) * 100}%`,
+                      backgroundColor: colors.error,
+                    },
+                  ]}
+                />
               </View>
               <Text style={styles.distributionValue}>{analytics.blocked}</Text>
             </View>

@@ -26,7 +26,12 @@ export interface EnvironmentSummary {
 
 export interface ActivityEntry {
   id: string;
-  type: 'api_key_created' | 'environment_created' | 'request_made' | 'error_occurred' | 'webhook_triggered';
+  type:
+    | 'api_key_created'
+    | 'environment_created'
+    | 'request_made'
+    | 'error_occurred'
+    | 'webhook_triggered';
   description: string;
   timestamp: Date;
   metadata?: Record<string, unknown>;

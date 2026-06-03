@@ -77,10 +77,12 @@ export const UsageStatsSchema = z.object({
   averageResponseTime: z.number(),
   callsByEndpoint: z.record(z.number()),
   callsByStatus: z.record(z.number()),
-  callsByDay: z.array(z.object({
-    date: z.string(),
-    count: z.number(),
-  })),
+  callsByDay: z.array(
+    z.object({
+      date: z.string(),
+      count: z.number(),
+    })
+  ),
   rateLimitHits: z.number(),
   quotaUsed: z.number(),
   quotaLimit: z.number(),
@@ -115,12 +117,14 @@ export const IntegrationGuideSchema = z.object({
   difficulty: z.enum(['beginner', 'intermediate', 'advanced']),
   estimatedTime: z.string(),
   prerequisites: z.array(z.string()),
-  steps: z.array(z.object({
-    title: z.string(),
-    content: z.string(),
-    code: z.string().optional(),
-    language: z.string().optional(),
-  })),
+  steps: z.array(
+    z.object({
+      title: z.string(),
+      content: z.string(),
+      code: z.string().optional(),
+      language: z.string().optional(),
+    })
+  ),
   tags: z.array(z.string()),
   order: z.number(),
 });

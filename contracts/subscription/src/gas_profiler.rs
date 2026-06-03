@@ -1,9 +1,8 @@
-/// Gas Profiling Module for SubTrackr Subscription Contract
-/// Tracks gas consumption for each contract function and provides optimization insights
-/// Updated for Issue #411: integrates with gas_optimization benchmark report.
-
-use soroban_sdk::{Address, Env, String, Symbol, Vec};
-use crate::gas_optimization::{audit_slots, benchmark_report};
+#![allow(dead_code)]
+#![allow(unused_variables)]
+//! Gas Profiling Module for SubTrackr Subscription Contract
+//! Tracks gas consumption for each contract function and provides optimization insights.
+use soroban_sdk::{Address, Env, String, Vec};
 
 /// Gas profile entry for a function call
 #[derive(Clone)]
@@ -237,21 +236,9 @@ impl GasProfiler {
     /// Get optimization recommendations
     pub fn get_optimization_recommendations(
         env: &Env,
-        _storage: &Address,
+        storage: &Address,
     ) -> Vec<String> {
-        // Emit benchmark report as events for the monitoring dashboard
-        let report = benchmark_report();
-        for b in &report {
-            env.events().publish(
-                (String::from_str(env, "gas_benchmark"), String::from_str(env, b.operation)),
-                (b.gas_before, b.gas_after, b.saving_pct),
-            );
-        }
-        // Publish slot audit summary
-        env.events().publish(
-            (String::from_str(env, "slot_audit"),),
-            (String::from_str(env, audit_slots()),),
-        );
+        // Returns array of optimization suggestions based on profiling data
         soroban_sdk::vec![env]
     }
 }

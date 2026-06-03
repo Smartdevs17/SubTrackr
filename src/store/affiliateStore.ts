@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Affiliate,
@@ -10,7 +10,6 @@ import {
   AffiliateStatus,
   CommissionType,
 } from '../types/affiliate';
-import { CACHE_CONSTANTS } from '../utils/constants/values';
 
 const STORAGE_KEY = 'subtrackr-affiliate';
 const STORE_VERSION = 1;
@@ -65,10 +64,7 @@ const defaultPrograms: AffiliateProgram[] = [
   },
 ];
 
-const calculateTieredCommission = (
-  amount: number,
-  config: CommissionConfig
-): number => {
+const calculateTieredCommission = (amount: number, config: CommissionConfig): number => {
   if (config.type !== CommissionType.TIERED || !config.tierThresholds || !config.tierRates) {
     return amount * (config.rate / 100);
   }
@@ -139,9 +135,7 @@ export const useAffiliateStore = create<AffiliateState>()(
 
           set({
             affiliates: affiliates.map((a) =>
-              a.id === affiliateId
-                ? { ...a, totalReferrals: a.totalReferrals + 1 }
-                : a
+              a.id === affiliateId ? { ...a, totalReferrals: a.totalReferrals + 1 } : a
             ),
             commissions: [
               ...get().commissions,
@@ -227,14 +221,12 @@ export const useAffiliateStore = create<AffiliateState>()(
 
       updateAffiliateStatus: async (affiliateId: string, status: AffiliateStatus) => {
         set((state) => ({
-          affiliates: state.affiliates.map((a) =>
-            a.id === affiliateId ? { ...a, status } : a
-          ),
+          affiliates: state.affiliates.map((a) => (a.id === affiliateId ? { ...a, status } : a)),
         }));
       },
 
       getMetrics: () => {
-        const { affiliates, commissions } = get();
+        const { affiliates } = get();
         const totalEarnings = affiliates.reduce((sum, a) => sum + a.totalEarnings, 0);
         const pendingPayout = affiliates.reduce((sum, a) => sum + a.pendingPayout, 0);
         const totalReferrals = affiliates.reduce((sum, a) => sum + a.totalReferrals, 0);

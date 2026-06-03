@@ -325,7 +325,7 @@ impl SubTrackrFraud {
 
     pub fn assess_risk(env: Env, subscriber: Address) -> RiskScore {
         let ids = get_subscriptions(&env, &subscriber);
-        if ids.len() == 0 {
+        if ids.is_empty() {
             return RiskScore {
                 subscriber: subscriber.clone(),
                 subscription_id: 0,
@@ -452,7 +452,7 @@ impl SubTrackrFraud {
             i += 1;
         }
 
-        let average_risk = if ids.len() == 0 {
+        let average_risk = if ids.is_empty() {
             0
         } else {
             total_risk / ids.len()

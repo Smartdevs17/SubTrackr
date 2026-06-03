@@ -1,12 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  RefreshControl,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
 
 interface DashboardStats {
   totalRequests: number;
@@ -135,22 +128,15 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
   return (
     <ScrollView
       style={styles.container}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    >
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
       <View style={styles.header}>
         <Text style={styles.title}>Developer Dashboard</Text>
-        <Text style={styles.subtitle}>
-          Manage your sandbox environments and API integrations
-        </Text>
+        <Text style={styles.subtitle}>Manage your sandbox environments and API integrations</Text>
       </View>
 
       <View style={styles.statsGrid}>
         <View style={styles.statCard}>
-          <Text style={styles.statValue}>
-            {stats.totalRequests.toLocaleString()}
-          </Text>
+          <Text style={styles.statValue}>{stats.totalRequests.toLocaleString()}</Text>
           <Text style={styles.statLabel}>Total Requests</Text>
         </View>
         <View style={styles.statCard}>
@@ -174,31 +160,21 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
           <Text style={styles.sectionTitle}>Quick Actions</Text>
         </View>
         <View style={styles.quickActions}>
-          <TouchableOpacity
-            style={styles.quickActionButton}
-            onPress={() => onNavigate('api-keys')}
-          >
+          <TouchableOpacity style={styles.quickActionButton} onPress={() => onNavigate('api-keys')}>
             <Text style={styles.quickActionIcon}>🔑</Text>
             <Text style={styles.quickActionText}>Create API Key</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.quickActionButton}
-            onPress={() => onNavigate('environments')}
-          >
+            onPress={() => onNavigate('environments')}>
             <Text style={styles.quickActionIcon}>🌍</Text>
             <Text style={styles.quickActionText}>New Environment</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.quickActionButton}
-            onPress={() => onNavigate('docs')}
-          >
+          <TouchableOpacity style={styles.quickActionButton} onPress={() => onNavigate('docs')}>
             <Text style={styles.quickActionIcon}>📚</Text>
             <Text style={styles.quickActionText}>View Docs</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.quickActionButton}
-            onPress={() => onNavigate('usage')}
-          >
+          <TouchableOpacity style={styles.quickActionButton} onPress={() => onNavigate('usage')}>
             <Text style={styles.quickActionIcon}>📊</Text>
             <Text style={styles.quickActionText}>Usage Stats</Text>
           </TouchableOpacity>
@@ -220,28 +196,15 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
                 style={[
                   styles.statusBadge,
                   { backgroundColor: getStatusColor(env.status) + '20' },
-                ]}
-              >
-                <View
-                  style={[
-                    styles.statusDot,
-                    { backgroundColor: getStatusColor(env.status) },
-                  ]}
-                />
-                <Text
-                  style={[
-                    styles.statusText,
-                    { color: getStatusColor(env.status) },
-                  ]}
-                >
+                ]}>
+                <View style={[styles.statusDot, { backgroundColor: getStatusColor(env.status) }]} />
+                <Text style={[styles.statusText, { color: getStatusColor(env.status) }]}>
                   {env.status}
                 </Text>
               </View>
             </View>
             <View style={styles.envStats}>
-              <Text style={styles.envStat}>
-                {env.requestCount.toLocaleString()} requests
-              </Text>
+              <Text style={styles.envStat}>{env.requestCount.toLocaleString()} requests</Text>
               <Text style={styles.envStat}>{env.errorRate}% errors</Text>
             </View>
           </TouchableOpacity>
@@ -254,16 +217,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
         </View>
         {recentActivity.map((activity) => (
           <View key={activity.id} style={styles.activityItem}>
-            <Text style={styles.activityIcon}>
-              {getActivityIcon(activity.type)}
-            </Text>
+            <Text style={styles.activityIcon}>{getActivityIcon(activity.type)}</Text>
             <View style={styles.activityContent}>
-              <Text style={styles.activityDescription}>
-                {activity.description}
-              </Text>
-              <Text style={styles.activityTime}>
-                {activity.timestamp.toLocaleString()}
-              </Text>
+              <Text style={styles.activityDescription}>{activity.description}</Text>
+              <Text style={styles.activityTime}>{activity.timestamp.toLocaleString()}</Text>
             </View>
           </View>
         ))}
