@@ -4,13 +4,15 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { useSandboxStore } from '../store/sandboxStore';
-import { colors } from '../utils/constants';
+import { useThemeColors } from '../hooks/useThemeColors';
 import { IntegrationStep } from '../types/sandbox';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export default function IntegrationGuideDetailScreen() {
   const navigation = useNavigation<NavigationProp>();
+  const colors = useThemeColors();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const { selectedGuide } = useSandboxStore();
 
   if (!selectedGuide) {
@@ -27,11 +29,11 @@ export default function IntegrationGuideDetailScreen() {
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
       case 'beginner':
-        return '#4CAF50';
+        return colors.status.success;
       case 'intermediate':
-        return '#FF9800';
+        return colors.status.warning;
       case 'advanced':
-        return '#F44336';
+        return colors.status.error;
       default:
         return colors.textSecondary;
     }
@@ -116,10 +118,11 @@ export default function IntegrationGuideDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.background.primary,
   },
   contentContainer: {
     padding: 16,
@@ -129,7 +132,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.background,
+    backgroundColor: colors.background.primary,
   },
   emptyText: {
     fontSize: 16,
@@ -143,7 +146,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   backButtonText: {
-    color: '#FFFFFF',
+    color: colors.onPrimary,
     fontWeight: '600',
     fontSize: 16,
   },
@@ -222,7 +225,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    shadowColor: '#000',
+    shadowColor: colors.overlay,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
@@ -243,7 +246,7 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   stepNumberText: {
-    color: '#FFFFFF',
+    color: colors.onPrimary,
     fontSize: 16,
     fontWeight: 'bold',
   },
@@ -260,24 +263,24 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   codeContainer: {
-    backgroundColor: '#1E1E1E',
+    backgroundColor: colors.background.secondary,
     borderRadius: 8,
     overflow: 'hidden',
   },
   codeHeader: {
-    backgroundColor: '#2D2D2D',
+    backgroundColor: colors.background.card,
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
   codeLanguage: {
     fontSize: 12,
-    color: '#AAAAAA',
+    color: colors.textSecondary,
     textTransform: 'uppercase',
   },
   codeText: {
     fontSize: 13,
     fontFamily: 'monospace',
-    color: '#D4D4D4',
+    color: colors.text,
     padding: 12,
     lineHeight: 20,
   },
@@ -286,7 +289,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 24,
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: colors.overlay,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -316,8 +319,9 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   startButtonText: {
-    color: '#FFFFFF',
+    color: colors.onPrimary,
     fontSize: 16,
     fontWeight: '600',
   },
-});
+  });
+}

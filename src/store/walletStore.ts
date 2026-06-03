@@ -14,6 +14,7 @@ import {
   PaymentMethodError,
   PaymentMethodErrorCode,
   PaymentMethodExpiryCheck,
+  AppError,
 } from '../services/walletService';
 
 interface WalletState {
@@ -143,7 +144,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       });
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : 'Failed to connect wallet',
+        error: error instanceof AppError ? error.userMessage : (error instanceof Error ? error.message : 'Failed to connect wallet'),
         isLoading: false,
       });
     }
@@ -198,7 +199,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       set({ isLoading: false });
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : 'Failed to update balance',
+        error: error instanceof AppError ? error.userMessage : (error instanceof Error ? error.message : 'Failed to update balance'),
         isLoading: false,
       });
     }
@@ -223,7 +224,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       }));
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : 'Failed to create crypto stream',
+        error: error instanceof AppError ? error.userMessage : (error instanceof Error ? error.message : 'Failed to create crypto stream'),
         isLoading: false,
       });
     }
@@ -242,7 +243,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       }));
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : 'Failed to cancel crypto stream',
+        error: error instanceof AppError ? error.userMessage : (error instanceof Error ? error.message : 'Failed to cancel crypto stream'),
         isLoading: false,
       });
     }
@@ -255,7 +256,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       set({ isLoading: false });
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : 'Failed to fetch crypto streams',
+        error: error instanceof AppError ? error.userMessage : (error instanceof Error ? error.message : 'Failed to fetch crypto streams'),
         isLoading: false,
       });
     }
@@ -339,7 +340,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       return newMethod;
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : 'Failed to add payment method',
+        error: error instanceof AppError ? error.userMessage : (error instanceof Error ? error.message : 'Failed to add payment method'),
         isLoading: false,
       });
       throw error;
@@ -355,7 +356,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       set({ paymentMethods: updatedMethods, isLoading: false });
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : 'Failed to remove payment method',
+        error: error instanceof AppError ? error.userMessage : (error instanceof Error ? error.message : 'Failed to remove payment method'),
         isLoading: false,
       });
     }
@@ -372,7 +373,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       set({ paymentMethods: updatedMethods, isLoading: false });
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : 'Failed to update payment method',
+        error: error instanceof AppError ? error.userMessage : (error instanceof Error ? error.message : 'Failed to update payment method'),
         isLoading: false,
       });
     }
@@ -398,7 +399,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       return verified;
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : 'Failed to verify payment method',
+        error: error instanceof AppError ? error.userMessage : (error instanceof Error ? error.message : 'Failed to verify payment method'),
         isLoading: false,
       });
       throw error;
@@ -421,7 +422,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       set({ paymentMethods: updatedMethods, isLoading: false });
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : 'Failed to update payment method priority',
+        error: error instanceof AppError ? error.userMessage : (error instanceof Error ? error.message : 'Failed to update payment method priority'),
         isLoading: false,
       });
     }
@@ -464,7 +465,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       return result;
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : 'Payment processing failed',
+        error: error instanceof AppError ? error.userMessage : (error instanceof Error ? error.message : 'Payment processing failed'),
         isLoading: false,
       });
       throw error;
@@ -533,7 +534,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       return result.upgraded;
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : 'Failed to check token contract upgrade',
+        error: error instanceof AppError ? error.userMessage : (error instanceof Error ? error.message : 'Failed to check token contract upgrade'),
         isLoading: false,
       });
       return false;

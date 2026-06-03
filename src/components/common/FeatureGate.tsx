@@ -2,7 +2,8 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useFeatureAccess, useFeatureLimits } from '../../hooks/useFeatureAccess';
 import { FeatureId } from '../../types/feature';
-import { colors, spacing, typography, borderRadius } from '../../utils/constants';
+import { spacing, typography, borderRadius } from '../../utils/constants';
+import { useThemeColors } from '../../hooks/useThemeColors';
 
 interface FeatureGateProps {
   feature: FeatureId;
@@ -51,6 +52,8 @@ interface UpgradePromptProps {
 }
 
 const UpgradePrompt: React.FC<UpgradePromptProps> = ({ feature, reason, message }) => {
+  const colors = useThemeColors();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const defaultMessage = reason
     ? `Upgrade to access ${feature.replace(/_/g, ' ')}`
     : 'Upgrade to unlock this feature';
@@ -108,6 +111,8 @@ interface LimitReachedMessageProps {
 }
 
 const LimitReachedMessage: React.FC<LimitReachedMessageProps> = ({ limitKey, remaining }) => {
+  const colors = useThemeColors();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const formatLimitKey = (key: string) => {
     return key.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
   };
@@ -131,57 +136,59 @@ const LimitReachedMessage: React.FC<LimitReachedMessageProps> = ({ limitKey, rem
   );
 };
 
-const styles = StyleSheet.create({
-  upgradeContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.xl,
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.lg,
-    margin: spacing.md,
-  },
-  upgradeIcon: {
-    fontSize: 48,
-    marginBottom: spacing.md,
-  },
-  upgradeTitle: {
-    ...typography.h3,
-    color: colors.text,
-    marginBottom: spacing.sm,
-  },
-  upgradeMessage: {
-    ...typography.body,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: spacing.sm,
-  },
-  upgradeReason: {
-    ...typography.caption,
-    color: colors.primary,
-    textAlign: 'center',
-  },
-  limitContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.lg,
-    backgroundColor: colors.warningBackground,
-    borderRadius: borderRadius.lg,
-    margin: spacing.md,
-  },
-  limitIcon: {
-    fontSize: 32,
-    marginBottom: spacing.sm,
-  },
-  limitMessage: {
-    ...typography.body,
-    color: colors.warning,
-    textAlign: 'center',
-    fontWeight: '600',
-    marginBottom: spacing.xs,
-  },
-  limitSubtext: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-});
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+    upgradeContainer: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: spacing.xl,
+      backgroundColor: colors.background.card,
+      borderRadius: borderRadius.lg,
+      margin: spacing.md,
+    },
+    upgradeIcon: {
+      fontSize: 48,
+      marginBottom: spacing.md,
+    },
+    upgradeTitle: {
+      ...typography.h3,
+      color: colors.text.primary,
+      marginBottom: spacing.sm,
+    },
+    upgradeMessage: {
+      ...typography.body,
+      color: colors.text.secondary,
+      textAlign: 'center',
+      marginBottom: spacing.sm,
+    },
+    upgradeReason: {
+      ...typography.caption,
+      color: colors.brand.primary,
+      textAlign: 'center',
+    },
+    limitContainer: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: spacing.lg,
+      backgroundColor: colors.warningBackground,
+      borderRadius: borderRadius.lg,
+      margin: spacing.md,
+    },
+    limitIcon: {
+      fontSize: 32,
+      marginBottom: spacing.sm,
+    },
+    limitMessage: {
+      ...typography.body,
+      color: colors.status.warning,
+      textAlign: 'center',
+      fontWeight: '600',
+      marginBottom: spacing.xs,
+    },
+    limitSubtext: {
+      ...typography.caption,
+      color: colors.text.secondary,
+      textAlign: 'center',
+    },
+  });
+}
