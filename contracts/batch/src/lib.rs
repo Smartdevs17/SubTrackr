@@ -261,6 +261,12 @@ impl SubTrackrBatch {
                     .persistent()
                     .set(&DataKey::Subscription(sub.id), &sub);
             }
+            _ => OperationResult {
+                subscription_id,
+                success: false,
+                code: 5,
+                reason: Some(String::from_small_str("SubscriptionMissing")),
+            },
         }
 
         let state = if rolled_back {
