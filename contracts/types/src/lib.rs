@@ -1,6 +1,6 @@
 #![no_std]
 
-use soroban_sdk::{contracttype, Address, String, Vec};
+use soroban_sdk::{contracttype, Address, String, Symbol, Vec};
 
 /// Billing interval in seconds.
 #[contracttype]
@@ -575,6 +575,13 @@ pub enum DigitalGoodsClass {
     TelecomService,
 }
 
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum MaybeDigitalGoodsClass {
+    None,
+    Some(DigitalGoodsClass),
+}
+
 /// A tax rate entry for a specific jurisdiction and tax type.
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
@@ -599,7 +606,7 @@ pub struct CustomerTaxStatus {
     pub certificate_expiry: Timestamp,
     pub issuing_authority: String,
     pub exempt_jurisdictions: Vec<String>,
-    pub digital_goods_override: Option<DigitalGoodsClass>,
+    pub digital_goods_override: MaybeDigitalGoodsClass,
 }
 
 /// A single line in a tax remittance report recording collected tax by jurisdiction.
@@ -720,6 +727,11 @@ pub enum StorageKey {
     /// Temporary nonce used to deduplicate rapid charge attempts within a
     /// single ledger sequence window.  Expires after one ledger close (~5 s).
     TmpChargeNonce(u64),
+
+    // ── Added in storage version 7 (Plan limits) ──
+    /// Global maximum number of plans a merchant can create.
+    /// Stored in instance storage; if unset, the implementation default applies.
+    MaxPlansPerMerchant,
 }
 
 /// Slippage protection bounds for oracle-based pricing.
@@ -731,5 +743,5 @@ pub struct PriceBounds {
     /// Minimum allowed price as basis points of the stored plan price (e.g. 9500 = -5%).
     pub min_price_bps: u32,
     /// Quote currency symbol used for price lookup (e.g. "USD").
-    pub quote: String,
+    pub quote: Symbol,
 }

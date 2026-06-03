@@ -1,5 +1,9 @@
 export class SubTrackrError extends Error {
-  constructor(public message: string, public statusCode?: number, public code?: string) {
+  constructor(
+    public message: string,
+    public statusCode?: number,
+    public code?: string
+  ) {
     super(message);
     this.name = 'SubTrackrError';
   }

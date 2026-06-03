@@ -9,6 +9,7 @@ export type FraudSignalType =
   | 'geolocation-anomaly';
 export type FraudReviewOutcome = 'true_positive' | 'false_positive' | 'needs_follow_up';
 export type FraudEvidenceSource = 'payment' | 'device' | 'location' | 'support';
+  | 'device-mismatch';
 
 export interface FraudSignal {
   kind: FraudSignalType;

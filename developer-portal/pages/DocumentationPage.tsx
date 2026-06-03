@@ -146,9 +146,7 @@ const QUICK_START_GUIDES: QuickStartGuide[] = [
 
 export const DocumentationPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedSection, setSelectedSection] = useState<DocSection | null>(
-    null
-  );
+  const [selectedSection, setSelectedSection] = useState<DocSection | null>(null);
 
   const filteredSections = DOC_SECTIONS.filter(
     (section) =>
@@ -171,26 +169,14 @@ export const DocumentationPage: React.FC = () => {
 
   const renderSection = ({ item }: { item: DocSection }) => (
     <TouchableOpacity
-      style={[
-        styles.sectionCard,
-        selectedSection?.id === item.id && styles.sectionCardSelected,
-      ]}
-      onPress={() =>
-        setSelectedSection(
-          selectedSection?.id === item.id ? null : item
-        )
-      }
-    >
+      style={[styles.sectionCard, selectedSection?.id === item.id && styles.sectionCardSelected]}
+      onPress={() => setSelectedSection(selectedSection?.id === item.id ? null : item)}>
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionIcon}>{item.icon}</Text>
         <Text style={styles.sectionTitle}>{item.title}</Text>
-        <Text style={styles.expandIcon}>
-          {selectedSection?.id === item.id ? '▼' : '▶'}
-        </Text>
+        <Text style={styles.expandIcon}>{selectedSection?.id === item.id ? '▼' : '▶'}</Text>
       </View>
-      {selectedSection?.id === item.id && (
-        <Text style={styles.sectionContent}>{item.content}</Text>
-      )}
+      {selectedSection?.id === item.id && <Text style={styles.sectionContent}>{item.content}</Text>}
     </TouchableOpacity>
   );
 
@@ -202,14 +188,8 @@ export const DocumentationPage: React.FC = () => {
           style={[
             styles.difficultyBadge,
             { backgroundColor: getDifficultyColor(item.difficulty) + '20' },
-          ]}
-        >
-          <Text
-            style={[
-              styles.difficultyText,
-              { color: getDifficultyColor(item.difficulty) },
-            ]}
-          >
+          ]}>
+          <Text style={[styles.difficultyText, { color: getDifficultyColor(item.difficulty) }]}>
             {item.difficulty}
           </Text>
         </View>
@@ -223,9 +203,7 @@ export const DocumentationPage: React.FC = () => {
     <ScrollView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Documentation</Text>
-        <Text style={styles.subtitle}>
-          Everything you need to integrate with SubTrackr
-        </Text>
+        <Text style={styles.subtitle}>Everything you need to integrate with SubTrackr</Text>
       </View>
 
       <View style={styles.searchContainer}>
@@ -261,8 +239,7 @@ export const DocumentationPage: React.FC = () => {
       <View style={styles.helpSection}>
         <Text style={styles.helpTitle}>Need Help?</Text>
         <Text style={styles.helpText}>
-          Can't find what you're looking for? Contact our developer support
-          team.
+          Can't find what you're looking for? Contact our developer support team.
         </Text>
         <TouchableOpacity style={styles.helpButton}>
           <Text style={styles.helpButtonText}>Contact Support</Text>

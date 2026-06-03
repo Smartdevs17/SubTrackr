@@ -2,7 +2,6 @@ import React, { useEffect, useCallback } from 'react';
 import {
   Alert,
   Linking,
-  Platform,
   SafeAreaView,
   ScrollView,
   Share,
@@ -132,9 +131,15 @@ const CalendarIntegrationScreen: React.FC = () => {
         message: payload.ical,
         title: payload.filename,
       });
-      Alert.alert('Calendar exported', `Exported ${payload.events.length} events to ${payload.filename}`);
+      Alert.alert(
+        'Calendar exported',
+        `Exported ${payload.events.length} events to ${payload.filename}`
+      );
     } catch (exportError) {
-      Alert.alert('Export failed', exportError instanceof Error ? exportError.message : 'Could not export calendar.');
+      Alert.alert(
+        'Export failed',
+        exportError instanceof Error ? exportError.message : 'Could not export calendar.'
+      );
     }
   }, [subscriptions, timezone, exportCalendar]);
 
@@ -424,13 +429,17 @@ const CalendarIntegrationScreen: React.FC = () => {
           <Text style={styles.sectionDescription}>
             Set your preferred timezone for calendar events. Current: {timezone}.
           </Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.timezoneScroll}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.timezoneScroll}>
             {SUBSCRIPTION_TIMEZONES.map((tz) => (
               <TouchableOpacity
                 key={tz}
                 style={[styles.timezoneChip, tz === timezone && styles.offsetChipActive]}
                 onPress={() => setTimezone(tz)}>
-                <Text style={[styles.offsetChipText, tz === timezone && styles.offsetChipTextActive]}>
+                <Text
+                  style={[styles.offsetChipText, tz === timezone && styles.offsetChipTextActive]}>
                   {tz}
                 </Text>
               </TouchableOpacity>
@@ -446,23 +455,26 @@ const CalendarIntegrationScreen: React.FC = () => {
           <TouchableOpacity style={styles.actionButton} onPress={handleCheckConflicts}>
             <Text style={styles.actionButtonText}>Check for conflicts</Text>
           </TouchableOpacity>
-          {scheduleConflicts.length > 0 ? (
-            scheduleConflicts.slice(0, 5).map((conflict) => (
-              <View key={conflict.date} style={styles.conflictRow}>
-                <Text style={styles.conflictDate}>{conflict.date}</Text>
-                <Text style={styles.conflictDetail}>
-                  {conflict.conflictingSubscriptions.length} subscriptions — {conflict.totalAmount.toFixed(2)} USD total
-                </Text>
-                {conflict.conflictingSubscriptions.map((sub) => (
-                  <Text key={sub.id} style={styles.conflictSub}>
-                    {sub.name}: {sub.currency} {sub.amount.toFixed(2)}
+          {scheduleConflicts.length > 0
+            ? scheduleConflicts.slice(0, 5).map((conflict) => (
+                <View key={conflict.date} style={styles.conflictRow}>
+                  <Text style={styles.conflictDate}>{conflict.date}</Text>
+                  <Text style={styles.conflictDetail}>
+                    {conflict.conflictingSubscriptions.length} subscriptions —{' '}
+                    {conflict.totalAmount.toFixed(2)} USD total
                   </Text>
-                ))}
-              </View>
-            ))
-          ) : scheduleConflicts.length === 0 && (
-            <Text style={styles.emptyPreview}>No conflicts detected. Tap "Check for conflicts" to scan.</Text>
-          )}
+                  {conflict.conflictingSubscriptions.map((sub) => (
+                    <Text key={sub.id} style={styles.conflictSub}>
+                      {sub.name}: {sub.currency} {sub.amount.toFixed(2)}
+                    </Text>
+                  ))}
+                </View>
+              ))
+            : scheduleConflicts.length === 0 && (
+                <Text style={styles.emptyPreview}>
+                  No conflicts detected. Tap "Check for conflicts" to scan.
+                </Text>
+              )}
         </Card>
 
         <Card style={styles.section}>
@@ -480,7 +492,9 @@ const CalendarIntegrationScreen: React.FC = () => {
                 <Text style={styles.conflictDetail}>
                   {payment.currency} {payment.amount.toFixed(2)} — {payment.status}
                 </Text>
-                <Text style={styles.conflictSub}>{new Date(payment.scheduledDate).toLocaleDateString()}</Text>
+                <Text style={styles.conflictSub}>
+                  {new Date(payment.scheduledDate).toLocaleDateString()}
+                </Text>
                 {payment.status === 'pending' && (
                   <TouchableOpacity
                     style={[styles.actionButton, styles.disconnectButton]}

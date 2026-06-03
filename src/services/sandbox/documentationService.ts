@@ -13,12 +13,14 @@ const INTEGRATION_GUIDES: IntegrationGuide[] = [
       {
         id: 'step-1',
         title: 'Create a Developer Account',
-        content: 'Sign up for a SubTrackr developer account to access the API and sandbox environment.',
+        content:
+          'Sign up for a SubTrackr developer account to access the API and sandbox environment.',
       },
       {
         id: 'step-2',
         title: 'Generate API Keys',
-        content: 'Navigate to the API Keys section in your developer portal and generate a new key pair.',
+        content:
+          'Navigate to the API Keys section in your developer portal and generate a new key pair.',
       },
       {
         id: 'step-3',

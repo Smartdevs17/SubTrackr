@@ -92,9 +92,8 @@ beforeEach(() => {
   (AsyncStorage.setItem as jest.Mock).mockClear();
   (AsyncStorage.getItem as jest.Mock).mockClear();
   (AsyncStorage.removeItem as jest.Mock).mockClear();
-  const notify = (
-    jest.requireMock('../../services/notificationService') as NotificationServiceMock
-  ).presentSlaBreachNotification;
+  const notify = (jest.requireMock('../../services/notificationService') as NotificationServiceMock)
+    .presentSlaBreachNotification;
   notify.mockClear();
   resetStore();
 });
@@ -344,10 +343,6 @@ describe('detectSlaBreach', () => {
   });
 
   it('creates a breach when uptime is below target', async () => {
-    const notify = (
-      jest.requireMock('../../services/notificationService') as NotificationServiceMock
-    ).presentSlaBreachNotification;
-
     await act(async () => {
       await s().configureSla('detect-breach-merchant', {
         uptimeTarget: 99.9,

@@ -8,7 +8,7 @@ interface SettingsState {
   notificationsEnabled: boolean;
   exchangeRates: ExchangeRates | null;
   isLoading: boolean;
-  
+
   // Actions
   setPreferredCurrency: (currency: string) => void;
   setNotificationsEnabled: (enabled: boolean) => void;
@@ -26,7 +26,7 @@ export const useSettingsStore = create<SettingsState>()(
 
       setPreferredCurrency: (currency) => {
         set({ preferredCurrency: currency });
-        // Optionally update rates immediately if base changed, 
+        // Optionally update rates immediately if base changed,
         // but here we keep USD as base for rates to simplify conversion
         void get().updateExchangeRates();
       },

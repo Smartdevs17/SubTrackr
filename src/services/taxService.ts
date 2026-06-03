@@ -15,10 +15,7 @@ const isRateActive = (rate: TaxRate, transactionDate: Date): boolean => {
   );
 };
 
-export const calculateTaxAmount = (
-  config: TaxConfig,
-  input: TaxCalculationInput
-): TaxAmount => {
+export const calculateTaxAmount = (config: TaxConfig, input: TaxCalculationInput): TaxAmount => {
   const exemption = config.exemptions.find(
     (entry) =>
       entry.region === input.region &&
@@ -31,7 +28,7 @@ export const calculateTaxAmount = (
   );
 
   const reverseCharge = config.reverseChargeRegions.includes(input.region);
-  const rateBps = exemption || reverseCharge ? 0 : rate?.rateBps ?? 0;
+  const rateBps = exemption || reverseCharge ? 0 : (rate?.rateBps ?? 0);
   const tax = Number(((input.amount * rateBps) / 10_000).toFixed(2));
 
   return {
@@ -40,7 +37,7 @@ export const calculateTaxAmount = (
     subtotal: input.amount,
     tax,
     total: Number((input.amount + tax).toFixed(2)),
-    taxType: reverseCharge ? 'reverse_charge' : rate?.taxType ?? 'sales_tax',
+    taxType: reverseCharge ? 'reverse_charge' : (rate?.taxType ?? 'sales_tax'),
     rateBps,
     exempt: Boolean(exemption),
   };
