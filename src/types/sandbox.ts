@@ -72,6 +72,9 @@ export interface SandboxConfig {
 export interface ApiKey {
   id: string;
   key: string;
+  keyPrefix?: string;
+  hashedKey?: string;
+  plainKey?: string;
   name: string;
   description?: string;
   sandboxId?: string;
@@ -87,8 +90,17 @@ export interface ApiKey {
   expiresAt: Date | null;
   lastUsedAt: Date | null;
   usageCount?: number;
+  auditLogs?: ApiKeyAuditEntry[];
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface ApiKeyAuditEntry {
+  id: string;
+  apiKeyId: string;
+  event: 'created' | 'validated' | 'revoked' | 'rotated' | 'expired' | 'migration';
+  message: string;
+  timestamp: Date;
 }
 
 export interface ApiKeyCreateRequest {
