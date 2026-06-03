@@ -8,6 +8,14 @@ import {
   SubscriptionCategory, // eslint-disable-line
   BillingCycle, // eslint-disable-line
 } from '../types/subscription';
+import {
+  CreditAccountState,
+  CreditApplicationResult,
+  CreditPolicy,
+  CreditPurchaseInput,
+  CreditTransferInput,
+} from '../types/credit';
+import { InvoiceStatus, isOpenInvoice } from '../types/invoice';
 import { dummySubscriptions } from '../utils/dummyData'; // eslint-disable-line
 import { advanceBillingDate } from '../utils/billingDate';
 import { buildBillingPeriod } from '../utils/invoice';
@@ -16,6 +24,7 @@ import {
   syncRenewalReminders,
   presentChargeSuccessNotification,
   presentChargeFailedNotification,
+  presentLocalNotification,
   presentDunningRetryNotification,
   presentDunningWarningNotification,
   presentDunningSuspendedNotification,
@@ -29,6 +38,18 @@ import { AchievementTrigger } from '../types/gamification';
 import { errorHandler, AppError } from '../services/errorHandler';
 import { useSettingsStore } from './settingsStore';
 import { currencyService } from '../services/currencyService';
+import { useSupportStore } from './supportStore';
+import { buildSupportEventMessage } from '../services/ticketingService';
+import { SubscriptionSupportContext, TicketIssueType } from '../types/support';
+import {
+  applyCreditToInvoice,
+  buildCreditAccount,
+  expireCredits,
+  normalizeCreditAccount,
+  purchaseCredit,
+  transferCredit,
+} from '../services/creditService';
+import { useUserStore } from './userStore';
 import {
   previewProration,
   generateCreditMemo,
@@ -38,7 +59,7 @@ import {
 } from '../utils/proration';
 
 const STORAGE_KEY = 'subtrackr-subscriptions';
-const STORE_VERSION = 1;
+const STORE_VERSION = 2;
 const WRITE_DEBOUNCE_MS = CACHE_CONSTANTS.WRITE_DEBOUNCE_MS;
 
 /**
@@ -51,7 +72,7 @@ const generateUniqueId = (): string => {
   return `${timestamp}-${randomComponent}`;
 };
 
-type PersistedSubscriptionSlice = Pick<SubscriptionState, 'subscriptions'>;
+type PersistedSubscriptionSlice = Pick<SubscriptionState, 'subscriptions' | 'creditAccounts'>;
 
 const toValidDate = (value: unknown, fallback = new Date()): Date => {
   if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
@@ -84,6 +105,117 @@ const normalizeSubscription = (raw: Partial<Subscription>): Subscription => {
   };
 };
 
+const getDefaultAccountId = (): string => {
+  const { user } = useUserStore.getState();
+  return user?.id ?? user?.email ?? 'local-user';
+};
+
+const getDefaultCurrency = (): string => {
+  const { preferredCurrency } = useSettingsStore.getState();
+  return preferredCurrency ?? 'USD';
+};
+
+const ensureCreditAccount = (
+  accounts: Record<string, CreditAccountState>,
+  accountId: string,
+  currency = getDefaultCurrency(),
+  policy?: Partial<CreditPolicy>
+): Record<string, CreditAccountState> => {
+  if (accounts[accountId]) return accounts;
+  return {
+    ...accounts,
+    [accountId]: buildCreditAccount(accountId, currency, policy),
+  };
+};
+
+const buildSupportContext = (
+  subscription: Subscription,
+  history: string[]
+): SubscriptionSupportContext => ({
+  subscriptionName: subscription.name,
+  planName: subscription.name,
+  planTier: subscription.category,
+  billingCycle: subscription.billingCycle,
+  status: subscription.isActive ? 'active' : 'paused',
+  amount: subscription.price,
+  currency: subscription.currency,
+  createdAt: subscription.createdAt.toISOString(),
+  nextBillingDate:
+    subscription.nextBillingDate?.toISOString?.() ??
+    new Date(subscription.nextBillingDate).toISOString(),
+  failedPayments: subscription.chargeCount ? Math.max(subscription.chargeCount - 1, 0) : 0,
+  chargeCount: subscription.chargeCount ?? 0,
+  history,
+});
+
+const createSupportEvent = (
+  subscription: Subscription,
+  issueType: TicketIssueType,
+  history: string[],
+  actorId = 'system'
+) => {
+  const context = buildSupportContext(subscription, history);
+  return {
+    subscriptionId: subscription.id,
+    issueType,
+    message: buildSupportEventMessage(context, issueType),
+    occurredAt: new Date(),
+    context,
+    dedupeKey: `${subscription.id}:${issueType}`,
+    actorId,
+  };
+};
+
+const applyCreditsAcrossOpenInvoices = async (
+  state: SubscriptionState,
+  accountId: string,
+  subscriptionId?: string
+): Promise<{ applications: CreditApplicationResult[]; account: CreditAccountState }> => {
+  const invoiceStore = useInvoiceStore.getState();
+  const account =
+    state.creditAccounts[accountId] ?? buildCreditAccount(accountId, getDefaultCurrency());
+  if (!subscriptionId) {
+    return {
+      applications: [],
+      account,
+    };
+  }
+  const openInvoices = invoiceStore.invoices
+    .filter((invoice) => invoice.subscriptionId === subscriptionId && isOpenInvoice(invoice.status))
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+
+  let workingAccount = account;
+  const applications: CreditApplicationResult[] = [];
+
+  for (const invoice of openInvoices) {
+    if (workingAccount.balance <= 0) break;
+
+    const result = applyCreditToInvoice(workingAccount, {
+      invoiceId: invoice.id,
+      subscriptionId,
+      invoiceTotal: invoice.total,
+      currency: invoice.currency,
+      reference: `auto-apply:${invoice.invoiceNumber}`,
+      note: 'Auto-applied to open invoice',
+      expectedRevision: workingAccount.revision,
+    });
+
+    if (!result.application || result.appliedAmount <= 0) continue;
+
+    workingAccount = result.account;
+    applications.push(result);
+    await invoiceStore.updateInvoiceStatus(
+      invoice.id,
+      result.remainingDue > 0 ? InvoiceStatus.PARTIAL : InvoiceStatus.PAID
+    );
+  }
+
+  return {
+    applications,
+    account: workingAccount,
+  };
+};
+
 const serializeForStorage = (state: PersistedSubscriptionSlice): PersistedSubscriptionSlice => ({
   subscriptions: state.subscriptions.map((sub) => ({
     ...sub,
@@ -91,6 +223,29 @@ const serializeForStorage = (state: PersistedSubscriptionSlice): PersistedSubscr
     createdAt: new Date(sub.createdAt),
     updatedAt: new Date(sub.updatedAt),
   })),
+  creditAccounts: Object.fromEntries(
+    Object.entries(state.creditAccounts ?? {}).map(([accountId, account]) => [
+      accountId,
+      {
+        ...account,
+        nextExpirationAt: account.nextExpirationAt ? new Date(account.nextExpirationAt) : null,
+        lots: account.lots.map((lot) => ({
+          ...lot,
+          createdAt: new Date(lot.createdAt),
+          expiresAt: lot.expiresAt ? new Date(lot.expiresAt) : null,
+        })),
+        ledger: account.ledger.map((entry) => ({
+          ...entry,
+          createdAt: new Date(entry.createdAt),
+          expiresAt: entry.expiresAt ? new Date(entry.expiresAt) : null,
+        })),
+        applications: account.applications.map((entry) => ({
+          ...entry,
+          createdAt: new Date(entry.createdAt),
+        })),
+      },
+    ])
+  ) as Record<string, CreditAccountState>,
 });
 
 const migratePersistedState = (
@@ -98,15 +253,27 @@ const migratePersistedState = (
   _version: number
 ): PersistedSubscriptionSlice => {
   if (!persisted || typeof persisted !== 'object') {
-    return { subscriptions: [] };
+    return { subscriptions: [], creditAccounts: {} };
   }
 
   const maybeState = persisted as Partial<PersistedSubscriptionSlice>;
   const subscriptions = Array.isArray(maybeState.subscriptions)
     ? maybeState.subscriptions.map((entry) => normalizeSubscription(entry as Partial<Subscription>))
     : [];
+  const creditAccounts =
+    maybeState.creditAccounts && typeof maybeState.creditAccounts === 'object'
+      ? Object.entries(maybeState.creditAccounts as Record<string, CreditAccountState>).reduce<
+          Record<string, CreditAccountState>
+        >((acc, [accountId, account]) => {
+          acc[accountId] = normalizeCreditAccount({
+            ...account,
+            accountId,
+          });
+          return acc;
+        }, {})
+      : {};
 
-  return { subscriptions };
+  return { subscriptions, creditAccounts };
 };
 
 const pendingWrites = new Map<string, string>();
@@ -156,6 +323,7 @@ const debouncedAsyncStorage: StateStorage = {
 
 interface SubscriptionState {
   subscriptions: Subscription[];
+  creditAccounts: Record<string, CreditAccountState>;
   stats: SubscriptionStats;
   isLoading: boolean;
   error: AppError | null;
@@ -181,6 +349,20 @@ interface SubscriptionState {
   applyCreditToSubscription: (id: string) => Promise<void>;
   /** Simulate or record a billing result (fires local notifications when enabled for this sub). */
   recordBillingOutcome: (id: string, outcome: 'success' | 'failed') => Promise<void>;
+  getCreditAccount: (accountId?: string) => CreditAccountState;
+  setCreditPolicy: (policy: Partial<CreditPolicy>, accountId?: string) => Promise<void>;
+  purchaseCredit: (input: CreditPurchaseInput, accountId?: string) => Promise<void>;
+  transferCredit: (
+    input: CreditTransferInput,
+    recipientAccountId: string,
+    accountId?: string
+  ) => Promise<void>;
+  applyCreditToInvoice: (
+    invoiceId: string,
+    subscriptionId: string,
+    accountId?: string
+  ) => Promise<CreditApplicationResult | null>;
+  expireCredits: (accountId?: string) => Promise<void>;
   fetchSubscriptions: () => Promise<void>;
   calculateStats: () => void;
 }
@@ -189,6 +371,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
   persist(
     (set, get) => ({
       subscriptions: dummySubscriptions,
+      creditAccounts: {},
       stats: {
         totalActive: 0,
         totalMonthlySpend: 0,
@@ -354,6 +537,18 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       deleteSubscription: async (id: string) => {
         set({ isLoading: true, error: null });
         try {
+          const current = get().subscriptions.find((sub) => sub.id === id);
+          if (current) {
+            useSupportStore
+              .getState()
+              .createTicket(
+                createSupportEvent(current, 'cancellation', [
+                  'Cancellation requested from subscription management',
+                  'Subscription marked for removal',
+                ])
+              );
+          }
+
           set((state) => ({
             subscriptions: state.subscriptions.filter((sub) => sub.id !== id),
             isLoading: false,
@@ -405,6 +600,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       recordBillingOutcome: async (id: string, outcome: 'success' | 'failed') => {
         const sub = get().subscriptions.find((s) => s.id === id);
         if (!sub) return;
+        const accountId = getDefaultAccountId();
 
         if (outcome === 'failed') {
           const dunningEntries = JSON.parse(
@@ -472,7 +668,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             await useCalendarStore.getState().syncSubscriptionToCalendars(updatedSubscription);
           }
 
-          await useInvoiceStore.getState().generateInvoiceFromSubscription(
+          const invoice = await useInvoiceStore.getState().generateInvoiceFromSubscription(
             {
               subscription: sub,
               period: billingPeriod,
@@ -482,6 +678,219 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             },
             0
           );
+
+          const creditApplication = await get().applyCreditToInvoice(invoice.id, sub.id, accountId);
+          if (creditApplication?.remainingDue > 0) {
+            await useInvoiceStore.getState().updateInvoiceStatus(invoice.id, InvoiceStatus.PARTIAL);
+          } else if (creditApplication?.appliedAmount && creditApplication.appliedAmount > 0) {
+            await useInvoiceStore.getState().updateInvoiceStatus(invoice.id, InvoiceStatus.PAID);
+          }
+        } else {
+          useSupportStore
+            .getState()
+            .createTicket(
+              createSupportEvent(sub, 'failed_charge', [
+                'Payment failure recorded during billing run',
+                `Next billing date remains ${sub.nextBillingDate.toISOString()}`,
+                `Notifications ${sub.notificationsEnabled === false ? 'disabled' : 'enabled'}`,
+              ])
+            );
+        }
+      },
+
+      getCreditAccount: (accountId) => {
+        const resolvedAccountId = accountId ?? getDefaultAccountId();
+        const accounts = get().creditAccounts;
+        return (
+          accounts[resolvedAccountId] ?? buildCreditAccount(resolvedAccountId, getDefaultCurrency())
+        );
+      },
+
+      setCreditPolicy: async (policy, accountId) => {
+        set({ isLoading: true, error: null });
+        try {
+          const resolvedAccountId = accountId ?? getDefaultAccountId();
+          set((state) => {
+            const accounts = ensureCreditAccount(state.creditAccounts, resolvedAccountId);
+            const current = accounts[resolvedAccountId];
+            return {
+              creditAccounts: {
+                ...accounts,
+                [resolvedAccountId]: {
+                  ...current,
+                  policy: {
+                    ...current.policy,
+                    ...policy,
+                  },
+                  revision: current.revision + 1,
+                },
+              },
+              isLoading: false,
+            };
+          });
+        } catch (error) {
+          set({
+            error: errorHandler.handleError(error as Error, {
+              action: 'setCreditPolicy',
+              metadata: { policy, accountId },
+            }),
+            isLoading: false,
+          });
+        }
+      },
+
+      purchaseCredit: async (input, accountId) => {
+        set({ isLoading: true, error: null });
+        try {
+          const resolvedAccountId = accountId ?? getDefaultAccountId();
+          set((state) => {
+            const accounts = ensureCreditAccount(state.creditAccounts, resolvedAccountId);
+            const current = accounts[resolvedAccountId];
+            const nextAccount = purchaseCredit(current, {
+              ...input,
+              currency: input.currency ?? current.currency,
+              expectedRevision: input.expectedRevision ?? current.revision,
+            });
+            return {
+              creditAccounts: {
+                ...accounts,
+                [resolvedAccountId]: nextAccount,
+              },
+              isLoading: false,
+            };
+          });
+
+          if (input.subscriptionId) {
+            const applied = await applyCreditsAcrossOpenInvoices(
+              get(),
+              resolvedAccountId,
+              input.subscriptionId
+            );
+            set((state) => ({
+              creditAccounts: {
+                ...state.creditAccounts,
+                [resolvedAccountId]: applied.account,
+              },
+            }));
+          }
+        } catch (error) {
+          set({
+            error: errorHandler.handleError(error as Error, {
+              action: 'purchaseCredit',
+              metadata: { input, accountId },
+            }),
+            isLoading: false,
+          });
+        }
+      },
+
+      transferCredit: async (input, recipientAccountId, accountId) => {
+        set({ isLoading: true, error: null });
+        try {
+          const sourceAccountId = accountId ?? getDefaultAccountId();
+          set((state) => {
+            const accounts = ensureCreditAccount(
+              ensureCreditAccount(state.creditAccounts, sourceAccountId),
+              recipientAccountId
+            );
+            const source = accounts[sourceAccountId];
+            const target = accounts[recipientAccountId];
+            const next = transferCredit(source, target, {
+              ...input,
+              currency: input.currency ?? source.currency,
+              expectedRevision: input.expectedRevision ?? source.revision,
+            });
+            return {
+              creditAccounts: {
+                ...accounts,
+                [sourceAccountId]: next.source,
+                [recipientAccountId]: next.target,
+              },
+              isLoading: false,
+            };
+          });
+        } catch (error) {
+          set({
+            error: errorHandler.handleError(error as Error, {
+              action: 'transferCredit',
+              metadata: { input, recipientAccountId, accountId },
+            }),
+            isLoading: false,
+          });
+        }
+      },
+
+      applyCreditToInvoice: async (invoiceId, subscriptionId, accountId) => {
+        const resolvedAccountId = accountId ?? getDefaultAccountId();
+        const invoices = useInvoiceStore.getState().invoices;
+        const invoice = invoices.find((entry) => entry.id === invoiceId);
+        if (!invoice) return null;
+
+        const state = get();
+        const accounts = ensureCreditAccount(state.creditAccounts, resolvedAccountId);
+        const current = accounts[resolvedAccountId];
+        const result = applyCreditToInvoice(current, {
+          invoiceId,
+          subscriptionId,
+          invoiceTotal: invoice.total,
+          currency: invoice.currency,
+          reference: `invoice:${invoice.invoiceNumber}`,
+          note: 'Manual or automatic credit application',
+          expectedRevision: current.revision,
+        });
+
+        if (!result.application || result.appliedAmount <= 0) return result;
+
+        set((currentState) => ({
+          creditAccounts: {
+            ...currentState.creditAccounts,
+            [resolvedAccountId]: result.account,
+          },
+        }));
+
+        await useInvoiceStore
+          .getState()
+          .updateInvoiceStatus(
+            invoice.id,
+            result.remainingDue > 0 ? InvoiceStatus.PARTIAL : InvoiceStatus.PAID
+          );
+
+        return result;
+      },
+
+      expireCredits: async (accountId) => {
+        set({ isLoading: true, error: null });
+        try {
+          const resolvedAccountId = accountId ?? getDefaultAccountId();
+          const state = get();
+          const accounts = ensureCreditAccount(state.creditAccounts, resolvedAccountId);
+          const current = accounts[resolvedAccountId];
+          const result = expireCredits(current);
+          set((currentState) => ({
+            creditAccounts: {
+              ...currentState.creditAccounts,
+              [resolvedAccountId]: result.account,
+            },
+            isLoading: false,
+          }));
+          if (result.notificationMessage) {
+            await presentLocalNotification({
+              title: 'Credits expired',
+              body: result.notificationMessage,
+              data: {
+                accountId: resolvedAccountId,
+                expiredAmount: result.expiredAmount,
+              },
+            });
+          }
+        } catch (error) {
+          set({
+            error: errorHandler.handleError(error as Error, {
+              action: 'expireCredits',
+              metadata: { accountId },
+            }),
+            isLoading: false,
+          });
         }
       },
 
@@ -581,7 +990,11 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       name: STORAGE_KEY,
       version: STORE_VERSION,
       storage: createJSONStorage(() => debouncedAsyncStorage),
-      partialize: (state) => serializeForStorage({ subscriptions: state.subscriptions }),
+      partialize: (state) =>
+        serializeForStorage({
+          subscriptions: state.subscriptions,
+          creditAccounts: state.creditAccounts,
+        }),
       migrate: (persistedState, version) => migratePersistedState(persistedState, version),
       merge: (persistedState, currentState) => ({
         ...currentState,
@@ -596,6 +1009,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
               true
             ),
             subscriptions: [...dummySubscriptions],
+            creditAccounts: {},
             isLoading: false,
           });
           useSubscriptionStore.getState().calculateStats();
@@ -606,8 +1020,13 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         const subscriptions = Array.isArray(state?.subscriptions)
           ? state.subscriptions
           : [...dummySubscriptions];
+        const creditAccounts =
+          state?.creditAccounts && typeof state.creditAccounts === 'object'
+            ? state.creditAccounts
+            : {};
         useSubscriptionStore.setState({
           subscriptions,
+          creditAccounts,
           isLoading: false,
           error: null,
         });

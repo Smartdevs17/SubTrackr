@@ -4,6 +4,7 @@ export { useTransactionQueueStore } from './transactionQueueStore';
 export { useWalletStore } from './walletStore';
 export { useNetworkStore } from './networkStore';
 export { useSettingsStore } from './settingsStore';
+export { useUserStore } from './userStore';
 export { useCommunityStore } from './communityStore';
 export { useFraudStore } from './fraudStore';
 export { useGroupStore } from './groupStore';
