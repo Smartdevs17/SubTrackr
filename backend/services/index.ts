@@ -116,6 +116,18 @@ export type {
 export { BatchChargeService } from './batchChargeService';
 export type { BatchChargeCandidate, BatchChargeOptions, BatchChargeResult } from './batchChargeService';
 
+// ── Idempotency (Issue #425) ─────────────────────────────────────────────────
+export {
+  IdempotencyService,
+  idempotencyService,
+  IdempotencyKeyCollisionError,
+  IdempotencyRequestInFlightError,
+  hashRequest,
+  generateIdempotencyKey,
+  IDEMPOTENCY_KEY_HEADER,
+} from './idempotencyService';
+export type { IdempotencyRecord, IdempotencyResult, IdempotencyStatus } from './idempotencyService';
+export { idempotencyMiddleware } from './idempotencyMiddleware';
 // ── Payment Timeout & Recovery (Issue #427) ─────────────────────────────────
 export {
   PaymentTimeoutService,
