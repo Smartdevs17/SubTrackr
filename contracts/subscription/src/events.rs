@@ -22,6 +22,10 @@ pub enum SubscriptionEventType {
     RefundRejected,
     TransferRequested,
     TransferAccepted,
+    PaymentTimedOut,
+    PaymentRecoveryAttempted,
+    PaymentRecoveryResolved,
+    PaymentRecoveryAbandoned,
 }
 
 #[contracttype]

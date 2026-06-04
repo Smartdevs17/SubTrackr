@@ -46,6 +46,9 @@ export type RootStackParamList = {
   CampaignManagement: undefined;
   PerformanceDashboard: undefined;
   BillingSettings: undefined;
+  ChangePlan: { subscriptionId: string };
+  PaymentMethods: undefined;
+  AnalyticsDashboard: undefined;
 };
 
 export type TabParamList = {

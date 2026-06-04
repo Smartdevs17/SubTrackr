@@ -26,7 +26,11 @@ const TaxSettingsScreen: React.FC = () => {
   };
 
   const handleReport = () => {
-    createReport('US-CA', new Date('2026-05-01T00:00:00.000Z'), new Date('2026-05-31T23:59:59.999Z'));
+    createReport(
+      'US-CA',
+      new Date('2026-05-01T00:00:00.000Z'),
+      new Date('2026-05-31T23:59:59.999Z')
+    );
   };
 
   return (

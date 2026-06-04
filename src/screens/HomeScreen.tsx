@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -35,7 +35,7 @@ type HomeNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation<HomeNavigationProp>();
-  const { subscriptions, stats, fetchSubscriptions, calculateStats, toggleSubscriptionStatus, deleteSubscription } =
+  const { subscriptions, stats, fetchSubscriptions, refreshSubscriptions, calculateStats, toggleSubscriptionStatus, deleteSubscription, isLoading } =
     useSubscriptionStore();
 
   const isOnline = useTransactionQueueStore((state) => state.isOnline);
@@ -46,8 +46,7 @@ const HomeScreen: React.FC = () => {
   const [upcomingSubscriptions, setUpcomingSubscriptions] = useState<Subscription[]>([]);
   const [showFilterModal, setShowFilterModal] = useState(false);
 
-
-  // Use the new hook
+  // Use the filter tracking hook
   const { filters, filteredAndSorted, activeFilterCount, hasActiveFilters, clearAllFilters } =
     useFilteredSubscriptions(subscriptions);
 
@@ -66,11 +65,13 @@ const HomeScreen: React.FC = () => {
     if (subscriptions) setUpcomingSubscriptions(getUpcomingSubscriptions(subscriptions));
   }, [subscriptions, calculateStats, preferredCurrency, exchangeRates]);
 
-
   const onRefresh = async () => {
     await refresh({
-      clearBefore: () => useSubscriptionStore.setState({ subscriptions: [] }),
-      fetcher: fetchSubscriptions,
+      fetcher: refreshSubscriptions,
+      minDurationMs: 400,
+      onError: (err) => {
+        console.error('Pull-to-refresh failed:', err);
+      },
     });
   };
 
@@ -91,7 +92,7 @@ const HomeScreen: React.FC = () => {
         style={styles.scrollView}
         refreshControl={
           <RefreshControl
-            refreshing={refreshing}
+            refreshing={refreshing || isLoading}
             onRefresh={onRefresh}
             tintColor={colors.primary}
           />
@@ -156,7 +157,6 @@ const HomeScreen: React.FC = () => {
           onWalletPress={() => navigation.navigate('WalletConnect')}
           currency={preferredCurrency}
         />
-
 
         {!isOnline && (
           <View style={styles.offlineBanner}>

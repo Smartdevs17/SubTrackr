@@ -10,49 +10,33 @@ import {
   ActivityIndicator,
   Modal,
   FlatList,
-  Share,
 } from 'react-native';
-import { FlashList } from '@shopify/flash-list';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
-import { useThemeColors } from '../hooks/useThemeColors';
 import { useLoyaltyStore } from '../store/loyaltyStore';
 import { useWalletStore } from '../store/walletStore';
-import { useGamificationStore } from '../store/gamificationStore';
 import { Card } from '../components/common/Card';
-import { LoyaltyTier, RewardType, TierBenefits, PointTxType, StreakInfo } from '../types/loyalty';
+import { LoyaltyTier, TierBenefits } from '../types/loyalty';
 
 const LoyaltyDashboardScreen: React.FC = () => {
-  const colors = useThemeColors();
   const {
     loyaltyStatus,
     transactions,
     rewards,
     program,
-    streak,
-    referral,
     isLoading,
     initializeProgram,
-    fetchLoyaltyStatus,
-    accumulatePoints,
     redeemPoints,
-    earnReferralBonus,
-    generateReferralCode,
   } = useLoyaltyStore();
   const { address } = useWalletStore();
-  const { earnedBadges, earnedAchievements } = useGamificationStore();
 
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedReward, setSelectedReward] = useState<string>('');
-  const [badgeModalVisible, setBadgeModalVisible] = useState(false);
 
   useEffect(() => {
     if (!program) {
       initializeProgram();
     }
-    if (address) {
-      fetchLoyaltyStatus(address);
-    }
-  }, [program, initializeProgram, address, fetchLoyaltyStatus]);
+  }, [program, initializeProgram]);
 
   useEffect(() => {
     if (address && loyaltyStatus) {
@@ -62,18 +46,6 @@ const LoyaltyDashboardScreen: React.FC = () => {
       return () => clearInterval(timer);
     }
   }, [address, loyaltyStatus]);
-
-  const handleShareReferral = useCallback(async () => {
-    const code = generateReferralCode();
-    try {
-      await Share.share({
-        message: `Join SubTrackr and use my referral code: ${code}. You'll earn bonus points!`,
-        title: 'Invite a Friend',
-      });
-    } catch {
-      // user cancelled
-    }
-  }, [generateReferralCode]);
 
   const handleRedeemReward = useCallback(async () => {
     if (!selectedReward) {
@@ -94,99 +66,21 @@ const LoyaltyDashboardScreen: React.FC = () => {
   const getTierColor = (tier: LoyaltyTier): string => {
     switch (tier) {
       case LoyaltyTier.PLATINUM:
-        return colors.textSecondary;
+        return '#E5E4E2';
       case LoyaltyTier.GOLD:
-        return colors.status.warning;
+        return '#FFD700';
       case LoyaltyTier.SILVER:
-        return colors.border.default;
+        return '#C0C0C0';
       default:
-        return colors.brand.secondary;
+        return '#CD7F32';
     }
   };
 
   const getNextTierInfo = (): TierBenefits | null => {
     if (!program || !loyaltyStatus) return null;
-    const currentTierIndex = program.tiers.findIndex(t => t.tier === loyaltyStatus.tier);
+    const currentTierIndex = program.tiers.findIndex((t) => t.tier === loyaltyStatus.tier);
     if (currentTierIndex >= program.tiers.length - 1) return null;
     return program.tiers[currentTierIndex + 1];
-  };
-
-  const renderStreakCard = () => {
-    if (!loyaltyStatus) return null;
-    const currentStreak = loyaltyStatus.streak || streak.current;
-    return (
-      <Card style={styles.streakCard}>
-        <View style={styles.streakHeader}>
-          <Text style={styles.streakIcon}>🔥</Text>
-          <View style={styles.streakInfo}>
-            <Text style={styles.streakValue}>
-              {currentStreak > 0 ? `${currentStreak}-day streak` : 'Start a streak!'}
-            </Text>
-            <Text style={styles.streakSubtext}>
-              {currentStreak >= 10
-                ? 'Amazing! You earned a streak bonus!'
-                : currentStreak >= 5
-                  ? 'Keep going! Almost at bonus milestone.'
-                  : 'Pay on time to build your streak.'}
-            </Text>
-          </View>
-        </View>
-        {currentStreak > 0 && (
-          <View style={styles.streakProgress}>
-            <View style={styles.streakBar}>
-              <View
-                style={[
-                  styles.streakFill,
-                  { width: `${Math.min(100, (currentStreak % 10) * 10)}%` },
-                ]}
-              />
-            </View>
-            <Text style={styles.streakMilestone}>
-              {10 - (currentStreak % 10)} charges to next streak bonus
-            </Text>
-          </View>
-        )}
-      </Card>
-    );
-  };
-
-  const renderReferralCard = () => (
-    <Card style={styles.referralCard}>
-      <Text style={styles.referralTitle}>Refer a Friend</Text>
-      <Text style={styles.referralDesc}>
-        Earn {referral.bonusPoints} bonus points for each friend who joins!
-      </Text>
-      <TouchableOpacity style={styles.shareButton} onPress={handleShareReferral}>
-        <Text style={styles.shareButtonText}>Share Referral Code</Text>
-      </TouchableOpacity>
-      {referral.totalReferrals > 0 && (
-        <Text style={styles.referralStats}>
-          {referral.totalReferrals} friend{referral.totalReferrals > 1 ? 's' : ''} joined
-        </Text>
-      )}
-    </Card>
-  );
-
-  const renderBadgesCard = () => {
-    if (earnedBadges.length === 0 && earnedAchievements.length === 0) return null;
-    return (
-      <Card style={styles.badgesCard}>
-        <View style={styles.badgesHeader}>
-          <Text style={styles.badgesTitle}>Badges & Achievements</Text>
-          <TouchableOpacity onPress={() => setBadgeModalVisible(true)}>
-            <Text style={styles.badgesViewAll}>View all →</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.badgeRow}>
-          {earnedBadges.slice(0, 4).map((badge, idx) => (
-            <View key={idx} style={styles.badgeItem}>
-              <Text style={styles.badgeIcon}>🏆</Text>
-              <Text style={styles.badgeName} numberOfLines={1}>{badge}</Text>
-            </View>
-          ))}
-        </View>
-      </Card>
-    );
   };
 
   const renderStatusCard = () => {
@@ -194,33 +88,22 @@ const LoyaltyDashboardScreen: React.FC = () => {
       return (
         <Card style={styles.statusCard}>
           <Text style={styles.emptyText}>No loyalty status yet</Text>
-          <Text style={styles.emptySubtext}>
-            Start subscribing to earn rewards!
-          </Text>
+          <Text style={styles.emptySubtext}>Start subscribing to earn rewards!</Text>
         </Card>
       );
     }
 
     const nextTier = getNextTierInfo();
-    const pointsToNextTier = nextTier
-      ? nextTier.pointsThreshold - loyaltyStatus.lifetimePoints
-      : 0;
+    const pointsToNextTier = nextTier ? nextTier.pointsThreshold - loyaltyStatus.lifetimePoints : 0;
 
     return (
       <Card style={styles.statusCard}>
         <View style={styles.tierHeader}>
-          <View
-            style={[
-              styles.tierBadge,
-              { backgroundColor: getTierColor(loyaltyStatus.tier) },
-            ]}>
-            <Text style={styles.tierBadgeText}>
-              {loyaltyStatus.tier.toUpperCase()}
-            </Text>
+          <View style={[styles.tierBadge, { backgroundColor: getTierColor(loyaltyStatus.tier) }]}>
+            <Text style={styles.tierBadgeText}>{loyaltyStatus.tier.toUpperCase()}</Text>
           </View>
           <Text style={styles.memberSince}>
-            Member since{' '}
-            {new Date(loyaltyStatus.memberSince).toLocaleDateString()}
+            Member since {new Date(loyaltyStatus.memberSince).toLocaleDateString()}
           </Text>
         </View>
 
@@ -251,15 +134,11 @@ const LoyaltyDashboardScreen: React.FC = () => {
 
         <View style={styles.statsGrid}>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>
-              {loyaltyStatus.lifetimePoints.toLocaleString()}
-            </Text>
+            <Text style={styles.statValue}>{loyaltyStatus.lifetimePoints.toLocaleString()}</Text>
             <Text style={styles.statLabel}>Lifetime Points</Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>
-              ${loyaltyStatus.totalSpent.toFixed(0)}
-            </Text>
+            <Text style={styles.statValue}>${loyaltyStatus.totalSpent.toFixed(0)}</Text>
             <Text style={styles.statLabel}>Total Spent</Text>
           </View>
         </View>
@@ -279,10 +158,9 @@ const LoyaltyDashboardScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      <FlashList
+      <FlatList
         data={rewards.filter((r) => r.isActive)}
         keyExtractor={(item) => item.id}
-        scrollEnabled={false}
         renderItem={({ item: reward }) => (
           <TouchableOpacity
             style={styles.rewardItem}
@@ -310,18 +188,10 @@ const LoyaltyDashboardScreen: React.FC = () => {
       {transactions.length === 0 ? (
         <Text style={styles.emptyText}>No transactions yet</Text>
       ) : (
-        transactions.slice(0, 15).map((tx) => (
+        transactions.slice(0, 10).map((tx) => (
           <View key={tx.id} style={styles.transactionItem}>
             <View style={styles.transactionInfo}>
               <Text style={styles.transactionDesc}>{tx.description}</Text>
-              <Text style={styles.transactionType}>
-                {tx.type === PointTxType.EARNED && 'Earned'}
-                {tx.type === PointTxType.REDEEMED && 'Redeemed'}
-                {tx.type === PointTxType.EXPIRED && 'Expired'}
-                {tx.type === PointTxType.REFERRAL_BONUS && 'Referral'}
-                {tx.type === PointTxType.STREAK_BONUS && 'Streak Bonus'}
-                {tx.type === PointTxType.ACHIEVEMENT && 'Achievement'}
-              </Text>
               <Text style={styles.transactionDate}>
                 {new Date(tx.createdAt).toLocaleDateString()}
               </Text>
@@ -340,7 +210,7 @@ const LoyaltyDashboardScreen: React.FC = () => {
     </Card>
   );
 
-  const renderTierComparison = () => {
+  const renderMembers = () => {
     if (!program) return null;
     return (
       <Card style={styles.membersCard}>
@@ -348,17 +218,10 @@ const LoyaltyDashboardScreen: React.FC = () => {
         {program.tiers.map((tier) => (
           <View key={tier.tier} style={styles.tierItem}>
             <View style={styles.tierInfo}>
-              <View
-                style={[
-                  styles.tierDot,
-                  { backgroundColor: getTierColor(tier.tier) },
-                ]}
-              />
+              <View style={[styles.tierDot, { backgroundColor: getTierColor(tier.tier) }]} />
               <Text style={styles.tierName}>{tier.tier.toUpperCase()}</Text>
             </View>
-            <Text style={styles.tierThreshold}>
-              {tier.pointsThreshold.toLocaleString()} pts
-            </Text>
+            <Text style={styles.tierThreshold}>{tier.pointsThreshold.toLocaleString()} pts</Text>
           </View>
         ))}
       </Card>
@@ -385,12 +248,9 @@ const LoyaltyDashboardScreen: React.FC = () => {
         </View>
 
         {renderStatusCard()}
-        {renderStreakCard()}
-        {renderBadgesCard()}
-        {renderReferralCard()}
         {renderRewardsCard()}
         {renderTransactionsCard()}
-        {renderTierComparison()}
+        {renderMembers()}
       </ScrollView>
 
       <Modal
@@ -401,11 +261,9 @@ const LoyaltyDashboardScreen: React.FC = () => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Redeem Reward</Text>
-            <Text style={styles.modalSubtitle}>
-              Select a reward to redeem your points
-            </Text>
+            <Text style={styles.modalSubtitle}>Select a reward to redeem your points</Text>
 
-            <FlashList
+            <FlatList
               data={rewards.filter((r) => r.isActive)}
               keyExtractor={(item) => item.id}
               renderItem={({ item: reward }) => (
@@ -419,9 +277,7 @@ const LoyaltyDashboardScreen: React.FC = () => {
                     <Text style={styles.rewardOptionName}>{reward.name}</Text>
                     <Text style={styles.rewardOptionDesc}>{reward.description}</Text>
                   </View>
-                  <Text style={styles.rewardOptionCost}>
-                    {reward.pointsCost} pts
-                  </Text>
+                  <Text style={styles.rewardOptionCost}>{reward.pointsCost} pts</Text>
                 </TouchableOpacity>
               )}
             />
@@ -435,42 +291,10 @@ const LoyaltyDashboardScreen: React.FC = () => {
                 }}>
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.confirmButton}
-                onPress={handleRedeemReward}>
+              <TouchableOpacity style={styles.confirmButton} onPress={handleRedeemReward}>
                 <Text style={styles.confirmButtonText}>Redeem</Text>
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal
-        visible={badgeModalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setBadgeModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Badges & Achievements</Text>
-            <Text style={styles.modalSubtitle}>
-              {earnedBadges.length} badges earned
-            </Text>
-            <FlatList
-              data={earnedBadges}
-              keyExtractor={(item, idx) => `${idx}`}
-              renderItem={({ item: badge }) => (
-                <View style={styles.badgeRow}>
-                  <Text style={styles.badgeIcon}>🏆</Text>
-                  <Text style={styles.badgeName}>{badge}</Text>
-                </View>
-              )}
-            />
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={() => setBadgeModalVisible(false)}>
-              <Text style={styles.cancelButtonText}>Close</Text>
-            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -492,19 +316,19 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: spacing.sm,
     color: colors.textSecondary,
-    fontSize: typography.fontSizeMd,
+    fontSize: typography.body2.fontSize,
   },
   header: {
     padding: spacing.md,
     paddingTop: spacing.lg,
   },
   title: {
-    fontSize: typography.fontSizeXl,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.h2.fontSize,
+    fontWeight: typography.h2.fontWeight,
     color: colors.text,
   },
   subtitle: {
-    fontSize: typography.fontSizeMd,
+    fontSize: typography.body2.fontSize,
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
@@ -526,11 +350,11 @@ const styles = StyleSheet.create({
   },
   tierBadgeText: {
     color: colors.text,
-    fontSize: typography.fontSizeSm,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.small.fontSize,
+    fontWeight: '700',
   },
   memberSince: {
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.small.fontSize,
     color: colors.textSecondary,
   },
   pointsDisplay: {
@@ -539,11 +363,11 @@ const styles = StyleSheet.create({
   },
   pointsValue: {
     fontSize: 48,
-    fontWeight: typography.fontWeightBold,
+    fontWeight: '700',
     color: colors.text,
   },
   pointsLabel: {
-    fontSize: typography.fontSizeMd,
+    fontSize: typography.body2.fontSize,
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
@@ -556,7 +380,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   progressText: {
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.small.fontSize,
     color: colors.textSecondary,
   },
   progressBar: {
@@ -581,12 +405,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statValue: {
-    fontSize: typography.fontSizeLg,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.h3.fontSize,
+    fontWeight: typography.h3.fontWeight,
     color: colors.text,
   },
   statLabel: {
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.small.fontSize,
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
@@ -602,14 +426,14 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   rewardsTitle: {
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.body.fontSize,
+    fontWeight: '700',
     color: colors.text,
   },
   redeemLink: {
-    fontSize: typography.fontSizeMd,
+    fontSize: typography.body.fontSize,
     color: colors.primary,
-    fontWeight: typography.fontWeightMedium,
+    fontWeight: '600',
   },
   rewardItem: {
     flexDirection: 'row',
@@ -623,12 +447,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   rewardName: {
-    fontSize: typography.fontSizeMd,
+    fontSize: typography.body.fontSize,
     color: colors.text,
-    fontWeight: typography.fontWeightMedium,
+    fontWeight: '600',
   },
   rewardDesc: {
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.body2.fontSize,
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
@@ -636,12 +460,12 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   costValue: {
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.body.fontSize,
+    fontWeight: '700',
     color: colors.primary,
   },
   costLabel: {
-    fontSize: typography.fontSizeXs,
+    fontSize: typography.small.fontSize,
     color: colors.textSecondary,
   },
   transactionsCard: {
@@ -650,8 +474,8 @@ const styles = StyleSheet.create({
     marginTop: 0,
   },
   transactionsTitle: {
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.body.fontSize,
+    fontWeight: '700',
     color: colors.text,
     marginBottom: spacing.md,
   },
@@ -666,23 +490,23 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   transactionDesc: {
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.body2.fontSize,
     color: colors.text,
   },
   transactionDate: {
-    fontSize: typography.fontSizeXs,
+    fontSize: typography.small.fontSize,
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
   transactionAmount: {
-    fontSize: typography.fontSizeSm,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.body2.fontSize,
+    fontWeight: '700',
   },
   positiveAmount: {
     color: colors.success,
   },
   negativeAmount: {
-    color: colors.danger,
+    color: colors.error,
   },
   membersCard: {
     padding: spacing.md,
@@ -691,8 +515,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   membersTitle: {
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.body.fontSize,
+    fontWeight: '700',
     color: colors.text,
     marginBottom: spacing.md,
   },
@@ -715,144 +539,24 @@ const styles = StyleSheet.create({
     marginRight: spacing.sm,
   },
   tierName: {
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.body2.fontSize,
     color: colors.text,
-    fontWeight: typography.fontWeightMedium,
+    fontWeight: '600',
   },
   tierThreshold: {
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.body2.fontSize,
     color: colors.textSecondary,
   },
   emptyText: {
-    fontSize: typography.fontSizeMd,
+    fontSize: typography.body2.fontSize,
     color: colors.textSecondary,
     textAlign: 'center',
   },
   emptySubtext: {
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.small.fontSize,
     color: colors.textSecondary,
     textAlign: 'center',
     marginTop: spacing.xs,
-  },
-  transactionType: {
-    fontSize: typography.fontSizeXs,
-    color: colors.primary,
-    marginTop: spacing.xs,
-  },
-  streakCard: {
-    padding: spacing.md,
-    margin: spacing.md,
-    marginTop: 0,
-  },
-  streakHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  streakIcon: {
-    fontSize: 32,
-    marginRight: spacing.md,
-  },
-  streakInfo: {
-    flex: 1,
-  },
-  streakValue: {
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
-    color: colors.text,
-  },
-  streakSubtext: {
-    fontSize: typography.fontSizeSm,
-    color: colors.textSecondary,
-    marginTop: spacing.xs,
-  },
-  streakProgress: {
-    marginTop: spacing.md,
-  },
-  streakBar: {
-    height: 6,
-    backgroundColor: colors.border,
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  streakFill: {
-    height: '100%',
-    backgroundColor: '#FF6B35',
-  },
-  streakMilestone: {
-    fontSize: typography.fontSizeXs,
-    color: colors.textSecondary,
-    marginTop: spacing.xs,
-  },
-  referralCard: {
-    padding: spacing.md,
-    margin: spacing.md,
-    marginTop: 0,
-  },
-  referralTitle: {
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
-    color: colors.text,
-    marginBottom: spacing.xs,
-  },
-  referralDesc: {
-    fontSize: typography.fontSizeSm,
-    color: colors.textSecondary,
-    marginBottom: spacing.md,
-  },
-  shareButton: {
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    alignItems: 'center',
-  },
-  shareButtonText: {
-    color: colors.text,
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
-  },
-  referralStats: {
-    fontSize: typography.fontSizeSm,
-    color: colors.success,
-    marginTop: spacing.sm,
-    textAlign: 'center',
-  },
-  badgesCard: {
-    padding: spacing.md,
-    margin: spacing.md,
-    marginTop: 0,
-  },
-  badgesHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  badgesTitle: {
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
-    color: colors.text,
-  },
-  badgesViewAll: {
-    fontSize: typography.fontSizeSm,
-    color: colors.primary,
-  },
-  badgeRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  badgeItem: {
-    alignItems: 'center',
-    width: 60,
-  },
-  badgeIcon: {
-    fontSize: 28,
-  },
-  badgeName: {
-    fontSize: typography.fontSizeXs,
-    color: colors.textSecondary,
-    marginTop: spacing.xs,
-    textAlign: 'center',
   },
   modalOverlay: {
     flex: 1,
@@ -867,13 +571,13 @@ const styles = StyleSheet.create({
     maxHeight: '70%',
   },
   modalTitle: {
-    fontSize: typography.fontSizeLg,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.h3.fontSize,
+    fontWeight: '700',
     color: colors.text,
     marginBottom: spacing.xs,
   },
   modalSubtitle: {
-    fontSize: typography.fontSizeMd,
+    fontSize: typography.body2.fontSize,
     color: colors.textSecondary,
     marginBottom: spacing.lg,
   },
@@ -894,18 +598,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   rewardOptionName: {
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightMedium,
+    fontSize: typography.body.fontSize,
+    fontWeight: '600',
     color: colors.text,
   },
   rewardOptionDesc: {
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.body2.fontSize,
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
   rewardOptionCost: {
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.body.fontSize,
+    fontWeight: '700',
     color: colors.primary,
   },
   modalButtons: {
@@ -923,8 +627,8 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     color: colors.text,
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightMedium,
+    fontSize: typography.body.fontSize,
+    fontWeight: '600',
   },
   confirmButton: {
     flex: 1,
@@ -935,8 +639,8 @@ const styles = StyleSheet.create({
   },
   confirmButtonText: {
     color: colors.text,
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.body.fontSize,
+    fontWeight: '700',
   },
 });
 

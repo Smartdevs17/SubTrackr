@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import {
   SafeAreaView,
   ScrollView,
@@ -10,7 +10,6 @@ import {
 } from 'react-native';
 
 import { Card } from '../components/common/Card';
-import { Button } from '../components/common/Button';
 import { borderRadius, colors, spacing, typography } from '../utils/constants';
 
 type Role = 'Admin' | 'Merchant' | 'Subscriber' | 'Auditor';
@@ -105,8 +104,24 @@ const PERMISSION_LABELS: Record<Permission, string> = {
 
 const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   Admin: Object.keys(PERMISSION_LABELS) as Permission[],
-  Merchant: ['CreatePlan', 'DeactivatePlan', 'SetPlanQuotas', 'SetRevenueRule', 'ViewPlans', 'ViewSubscriptions'],
-  Subscriber: ['Subscribe', 'CancelSubscription', 'PauseSubscription', 'ResumeSubscription', 'ChargeSubscription', 'RequestRefund', 'RequestTransfer', 'AcceptTransfer'],
+  Merchant: [
+    'CreatePlan',
+    'DeactivatePlan',
+    'SetPlanQuotas',
+    'SetRevenueRule',
+    'ViewPlans',
+    'ViewSubscriptions',
+  ],
+  Subscriber: [
+    'Subscribe',
+    'CancelSubscription',
+    'PauseSubscription',
+    'ResumeSubscription',
+    'ChargeSubscription',
+    'RequestRefund',
+    'RequestTransfer',
+    'AcceptTransfer',
+  ],
   Auditor: ['ViewAnalytics', 'ViewAuditLog', 'ViewPlans', 'ViewSubscriptions'],
 };
 
@@ -118,41 +133,67 @@ const SAMPLE_USERS: UserRoleEntry[] = [
 ];
 
 const SAMPLE_HISTORY: RoleChangeEntry[] = [
-  { id: 1, user: 'GABCD...1234', role: 'Admin', action: 'Granted', changedBy: 'System', timestamp: Date.now() - 86400000 },
-  { id: 2, user: 'GEFGH...5678', role: 'Merchant', action: 'Granted', changedBy: 'GABCD...1234', timestamp: Date.now() - 43200000 },
-  { id: 3, user: 'GIJKL...9012', role: 'Subscriber', action: 'Granted', changedBy: 'GABCD...1234', timestamp: Date.now() - 21600000 },
+  {
+    id: 1,
+    user: 'GABCD...1234',
+    role: 'Admin',
+    action: 'Granted',
+    changedBy: 'System',
+    timestamp: Date.now() - 86400000,
+  },
+  {
+    id: 2,
+    user: 'GEFGH...5678',
+    role: 'Merchant',
+    action: 'Granted',
+    changedBy: 'GABCD...1234',
+    timestamp: Date.now() - 43200000,
+  },
+  {
+    id: 3,
+    user: 'GIJKL...9012',
+    role: 'Subscriber',
+    action: 'Granted',
+    changedBy: 'GABCD...1234',
+    timestamp: Date.now() - 21600000,
+  },
 ];
 
 const SAMPLE_DELEGATIONS: DelegationEntry[] = [
-  { delegator: 'GEFGH...5678', delegate: 'GQRST...7890', permission: 'ViewPlans', expiresAt: Date.now() + 3600000 },
+  {
+    delegator: 'GEFGH...5678',
+    delegate: 'GQRST...7890',
+    permission: 'ViewPlans',
+    expiresAt: Date.now() + 3600000,
+  },
 ];
 
 const RoleManagementScreen: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'users' | 'permissions' | 'history' | 'delegations'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'permissions' | 'history' | 'delegations'>(
+    'users'
+  );
   const [users] = useState<UserRoleEntry[]>(SAMPLE_USERS);
   const [history] = useState<RoleChangeEntry[]>(SAMPLE_HISTORY);
   const [delegations] = useState<DelegationEntry[]>(SAMPLE_DELEGATIONS);
 
   const handleGrantRole = (user: UserRoleEntry, role: Role) => {
-    Alert.alert(
-      'Grant Role',
-      `Grant ${role} role to ${user.label}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Grant', onPress: () => Alert.alert('Success', `${role} role granted to ${user.label}`) },
-      ],
-    );
+    Alert.alert('Grant Role', `Grant ${role} role to ${user.label}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Grant',
+        onPress: () => Alert.alert('Success', `${role} role granted to ${user.label}`),
+      },
+    ]);
   };
 
   const handleRevokeRole = (user: UserRoleEntry, role: Role) => {
-    Alert.alert(
-      'Revoke Role',
-      `Revoke ${role} role from ${user.label}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Revoke', onPress: () => Alert.alert('Success', `${role} role revoked from ${user.label}`) },
-      ],
-    );
+    Alert.alert('Revoke Role', `Revoke ${role} role from ${user.label}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Revoke',
+        onPress: () => Alert.alert('Success', `${role} role revoked from ${user.label}`),
+      },
+    ]);
   };
 
   const renderUserRow = (user: UserRoleEntry) => (
@@ -180,8 +221,9 @@ const RoleManagementScreen: React.FC = () => {
             <TouchableOpacity
               key={role}
               style={[styles.roleToggle, hasRole && styles.roleToggleActive]}
-              onPress={() => (hasRole ? handleRevokeRole(user, role) : handleGrantRole(user, role))}
-            >
+              onPress={() =>
+                hasRole ? handleRevokeRole(user, role) : handleGrantRole(user, role)
+              }>
               <Text style={[styles.roleToggleText, hasRole && styles.roleToggleTextActive]}>
                 {role}
               </Text>
@@ -213,7 +255,9 @@ const RoleManagementScreen: React.FC = () => {
   const renderHistoryRow = (entry: RoleChangeEntry) => (
     <View key={entry.id} style={styles.historyRow}>
       <View style={styles.historyDot}>
-        <View style={[styles.dot, entry.action === 'Granted' ? styles.dotGranted : styles.dotRevoked]} />
+        <View
+          style={[styles.dot, entry.action === 'Granted' ? styles.dotGranted : styles.dotRevoked]}
+        />
       </View>
       <View style={styles.historyInfo}>
         <Text style={styles.historyText}>
@@ -230,7 +274,8 @@ const RoleManagementScreen: React.FC = () => {
     <Card key={`${del.delegator}-${del.delegate}-${del.permission}`} style={styles.delegationCard}>
       <View style={styles.delegationInfo}>
         <Text style={styles.delegationText}>
-          <Text style={styles.bold}>{del.delegator}</Text> → <Text style={styles.bold}>{del.delegate}</Text>
+          <Text style={styles.bold}>{del.delegator}</Text> →{' '}
+          <Text style={styles.bold}>{del.delegate}</Text>
         </Text>
         <Text style={styles.delegationPerm}>{PERMISSION_LABELS[del.permission]}</Text>
         <Text style={styles.delegationExpiry}>
@@ -259,8 +304,7 @@ const RoleManagementScreen: React.FC = () => {
           <TouchableOpacity
             key={tab.key}
             style={[styles.tab, activeTab === tab.key && styles.tabActive]}
-            onPress={() => setActiveTab(tab.key)}
-          >
+            onPress={() => setActiveTab(tab.key)}>
             <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
               {tab.label}
             </Text>
@@ -272,9 +316,7 @@ const RoleManagementScreen: React.FC = () => {
         {activeTab === 'users' && (
           <View>
             <Text style={styles.sectionTitle}>All Users</Text>
-            <Text style={styles.sectionSubtitle}>
-              Tap a role to grant or revoke it for a user
-            </Text>
+            <Text style={styles.sectionSubtitle}>Tap a role to grant or revoke it for a user</Text>
             {users.map(renderUserRow)}
           </View>
         )}
@@ -282,9 +324,7 @@ const RoleManagementScreen: React.FC = () => {
         {activeTab === 'permissions' && (
           <View>
             <Text style={styles.sectionTitle}>Permission Map</Text>
-            <Text style={styles.sectionSubtitle}>
-              Each role grants the following permissions
-            </Text>
+            <Text style={styles.sectionSubtitle}>Each role grants the following permissions</Text>
             <Card style={styles.permissionCard}>
               {(Object.keys(PERMISSION_LABELS) as Permission[]).map(renderPermissionRow)}
             </Card>
@@ -297,9 +337,7 @@ const RoleManagementScreen: React.FC = () => {
             <Text style={styles.sectionSubtitle}>
               Chronological log of all role grants and revocations
             </Text>
-            <Card style={styles.historyCard}>
-              {history.map(renderHistoryRow)}
-            </Card>
+            <Card style={styles.historyCard}>{history.map(renderHistoryRow)}</Card>
           </View>
         )}
 

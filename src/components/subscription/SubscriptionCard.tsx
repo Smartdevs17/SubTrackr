@@ -18,7 +18,6 @@ import { useSettingsStore } from '../../store/settingsStore';
 import { currencyService } from '../../services/currencyService';
 import { SubscriptionIcon } from './SubscriptionIcon';
 
-
 export interface SubscriptionCardProps {
   subscription: Subscription;
   onPress: (subscription: Subscription) => void;
@@ -67,7 +66,6 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = React.memo(
       preferredCurrency,
       rates
     );
-
 
     return (
       <TouchableOpacity
@@ -146,7 +144,6 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = React.memo(
               ]}>
               /{formatBillingCycle(subscription.billingCycle)}
             </Text>
-
           </View>
 
           <View style={styles.billingInfo}>

@@ -1,3 +1,7 @@
+extern crate alloc;
+use alloc::format;
+use alloc::string::ToString;
+
 use soroban_sdk::{token, Address, Env, String, Symbol, Vec};
 use subtrackr_types::{
     PaymentMethod, PaymentMethodId, PaymentPriority, TokenType,
@@ -15,17 +19,17 @@ fn priority_weight(priority: &PaymentPriority) -> u32 {
 }
 
 fn user_method_list_key(env: &Env, user: &Address) -> Symbol {
-    let formatted = format!("pm_list_{}", user);
+    let formatted = format!("pm_list_{:?}", user);
     Symbol::new(env, &formatted)
 }
 
 fn method_key(env: &Env, user: &Address, method_id: PaymentMethodId) -> Symbol {
-    let formatted = format!("pm_{}_{}", user, method_id);
+    let formatted = format!("pm_{:?}_{}", user, method_id);
     Symbol::new(env, &formatted)
 }
 
 fn user_count_key(env: &Env, user: &Address) -> Symbol {
-    let formatted = format!("pm_count_{}", user);
+    let formatted = format!("pm_count_{:?}", user);
     Symbol::new(env, &formatted)
 }
 
@@ -244,7 +248,7 @@ pub(crate) fn set_payment_method_priority(
     assert!(method.user == *user, "Only owner can change priority");
 
     let now = env.ledger().timestamp();
-    method.priority = priority;
+    method.priority = priority.clone();
     method.updated_at = now;
 
     set_method(env, user, method_id, &method);
@@ -340,14 +344,14 @@ pub(crate) fn charge_with_fallback(
             &amount,
         );
 
-        let mut updated = get_method(env, user, method.id).unwrap_or(method);
+        let mut updated = get_method(env, user, method.id).unwrap_or(method.clone());
         updated.last_used_at = now;
         updated.updated_at = now;
         set_method(env, user, method.id, &updated);
 
         env.events().publish(
             (String::from_str(env, "payment_charge_success"), user.clone()),
-            (subscription_id, amount, method.id, method.token_type, now),
+            (subscription_id, amount, method.id, method.token_type.clone(), now),
         );
 
         return true;

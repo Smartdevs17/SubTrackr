@@ -12,6 +12,7 @@ members = [
     "credit",
     "metering",
     "access_control",
+    "security",
 ]
 
 [profile.release]

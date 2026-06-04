@@ -185,6 +185,10 @@ fn apply_event(
         SubscriptionEventType::TransferRequested
         | SubscriptionEventType::Updated
         | SubscriptionEventType::Renewed
-        | SubscriptionEventType::PaymentFailed => {}
+        | SubscriptionEventType::PaymentFailed
+        | SubscriptionEventType::PaymentTimedOut
+        | SubscriptionEventType::PaymentRecoveryAttempted
+        | SubscriptionEventType::PaymentRecoveryResolved
+        | SubscriptionEventType::PaymentRecoveryAbandoned => {}
     }
 }

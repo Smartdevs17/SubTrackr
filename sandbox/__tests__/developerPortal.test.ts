@@ -10,11 +10,7 @@ describe('DeveloperPortalService', () => {
 
   describe('createUser', () => {
     it('should create a new user', async () => {
-      const user = await service.createUser(
-        'test@example.com',
-        'Test User',
-        'Test Company'
-      );
+      const user = await service.createUser('test@example.com', 'Test User', 'Test Company');
 
       expect(user).toBeDefined();
       expect(user.email).toBe('test@example.com');
@@ -26,9 +22,9 @@ describe('DeveloperPortalService', () => {
     it('should not allow duplicate email', async () => {
       await service.createUser('test@example.com', 'User 1', 'Company 1');
 
-      await expect(
-        service.createUser('test@example.com', 'User 2', 'Company 2')
-      ).rejects.toThrow('User already exists');
+      await expect(service.createUser('test@example.com', 'User 2', 'Company 2')).rejects.toThrow(
+        'User already exists'
+      );
     });
 
     it('should create user with custom role', async () => {
@@ -50,11 +46,7 @@ describe('DeveloperPortalService', () => {
     });
 
     it('should return existing user', async () => {
-      const created = await service.createUser(
-        'test@example.com',
-        'Test User',
-        'Test Company'
-      );
+      const created = await service.createUser('test@example.com', 'Test User', 'Test Company');
 
       const retrieved = await service.getUser(created.id);
       expect(retrieved).toBeDefined();
@@ -64,11 +56,7 @@ describe('DeveloperPortalService', () => {
 
   describe('updateUser', () => {
     it('should update user details', async () => {
-      const user = await service.createUser(
-        'test@example.com',
-        'Test User',
-        'Test Company'
-      );
+      const user = await service.createUser('test@example.com', 'Test User', 'Test Company');
 
       const updated = await service.updateUser(user.id, {
         name: 'Updated Name',
@@ -91,11 +79,7 @@ describe('DeveloperPortalService', () => {
 
   describe('getDashboard', () => {
     it('should return dashboard data', async () => {
-      const user = await service.createUser(
-        'test@example.com',
-        'Test User',
-        'Test Company'
-      );
+      const user = await service.createUser('test@example.com', 'Test User', 'Test Company');
 
       const dashboard = await service.getDashboard(user.id);
 
@@ -111,25 +95,15 @@ describe('DeveloperPortalService', () => {
     });
 
     it('should throw for non-existent user', async () => {
-      await expect(service.getDashboard('non-existent')).rejects.toThrow(
-        'User not found'
-      );
+      await expect(service.getDashboard('non-existent')).rejects.toThrow('User not found');
     });
   });
 
   describe('logActivity', () => {
     it('should log user activity', async () => {
-      const user = await service.createUser(
-        'test@example.com',
-        'Test User',
-        'Test Company'
-      );
+      const user = await service.createUser('test@example.com', 'Test User', 'Test Company');
 
-      await service.logActivity(
-        user.id,
-        'api_key_created',
-        'New API key created'
-      );
+      await service.logActivity(user.id, 'api_key_created', 'New API key created');
 
       const dashboard = await service.getDashboard(user.id);
       expect(dashboard.recentActivity.length).toBeGreaterThan(0);
