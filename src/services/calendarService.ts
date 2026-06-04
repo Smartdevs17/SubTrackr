@@ -258,7 +258,10 @@ function escapeICalText(text: string): string {
 
 function formatICalDate(isoString: string): string {
   const d = new Date(isoString);
-  return d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  return d
+    .toISOString()
+    .replace(/[-:]/g, '')
+    .replace(/\.\d{3}/, '');
 }
 
 export function generateICalendarExport(
@@ -319,7 +322,7 @@ export function generateICalendarExport(
 
 export function detectScheduleConflicts(
   subscriptions: Subscription[],
-  existingEvents: CalendarSyncedEvent[]
+  _existingEvents: CalendarSyncedEvent[]
 ): ScheduleConflict[] {
   const conflictsByDate = new Map<string, ScheduleConflict>();
 
@@ -362,9 +365,7 @@ export function calculateProratedAdjustment(
   const msPerDay = 24 * 60 * 60 * 1000;
   const daysRemaining = Math.max(0, Math.round((nextBilling.getTime() - now.getTime()) / msPerDay));
 
-  const proratedAmount = Number(
-    ((subscription.price / daysInCycle) * daysRemaining).toFixed(2)
-  );
+  const proratedAmount = Number(((subscription.price / daysInCycle) * daysRemaining).toFixed(2));
 
   return {
     originalAmount: subscription.price,
@@ -464,7 +465,10 @@ export function isDSTTransitionPeriod(date: Date, timezone: string): boolean {
   return currentOffset !== laterOffset;
 }
 
-export function adjustForDST(event: CalendarEventTemplate, timezone: string): CalendarEventTemplate {
+export function adjustForDST(
+  event: CalendarEventTemplate,
+  timezone: string
+): CalendarEventTemplate {
   const startDate = new Date(event.startAt);
   if (isDSTTransitionPeriod(startDate, timezone)) {
     const offset = getTimezoneOffset(startDate, timezone);

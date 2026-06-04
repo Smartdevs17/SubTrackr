@@ -1,12 +1,5 @@
-import {
-  TestDataConfig,
-  SandboxEnvironment,
-} from '../../types/sandbox';
-import {
-  Subscription,
-  SubscriptionCategory,
-  BillingCycle,
-} from '../../types/subscription';
+import { TestDataConfig, SandboxEnvironment } from '../../types/sandbox';
+import { Subscription, SubscriptionCategory, BillingCycle } from '../../types/subscription';
 
 const DEFAULT_TEST_CONFIG: TestDataConfig = {
   subscriptions: 10,
@@ -19,14 +12,57 @@ const DEFAULT_TEST_CONFIG: TestDataConfig = {
 };
 
 const SAMPLE_SUBSCRIPTION_NAMES: Record<SubscriptionCategory, string[]> = {
-  [SubscriptionCategory.STREAMING]: ['Netflix', 'Disney+', 'Hulu', 'HBO Max', 'Apple TV+', 'Paramount+'],
-  [SubscriptionCategory.SOFTWARE]: ['Adobe Creative Cloud', 'Microsoft 365', 'Slack', 'Notion', 'Figma'],
-  [SubscriptionCategory.GAMING]: ['Xbox Game Pass', 'PlayStation Plus', 'Nintendo Online', 'EA Play', 'Steam'],
+  [SubscriptionCategory.STREAMING]: [
+    'Netflix',
+    'Disney+',
+    'Hulu',
+    'HBO Max',
+    'Apple TV+',
+    'Paramount+',
+  ],
+  [SubscriptionCategory.SOFTWARE]: [
+    'Adobe Creative Cloud',
+    'Microsoft 365',
+    'Slack',
+    'Notion',
+    'Figma',
+  ],
+  [SubscriptionCategory.GAMING]: [
+    'Xbox Game Pass',
+    'PlayStation Plus',
+    'Nintendo Online',
+    'EA Play',
+    'Steam',
+  ],
   [SubscriptionCategory.PRODUCTIVITY]: ['Todoist', 'Evernote', 'Asana', 'Trello', 'Monday.com'],
-  [SubscriptionCategory.FITNESS]: ['Peloton', 'Fitbit Premium', 'Strava', 'MyFitnessPal', 'Headspace'],
-  [SubscriptionCategory.EDUCATION]: ['Coursera', 'Udemy', 'MasterClass', 'Duolingo Plus', 'Skillshare'],
-  [SubscriptionCategory.FINANCE]: ['Mint Premium', 'YNAB', 'Robinhood Gold', 'Bloomberg', 'TradingView'],
-  [SubscriptionCategory.OTHER]: ['Amazon Prime', 'Costco', 'Sam\'s Club', 'Box Subscription', 'Custom Service'],
+  [SubscriptionCategory.FITNESS]: [
+    'Peloton',
+    'Fitbit Premium',
+    'Strava',
+    'MyFitnessPal',
+    'Headspace',
+  ],
+  [SubscriptionCategory.EDUCATION]: [
+    'Coursera',
+    'Udemy',
+    'MasterClass',
+    'Duolingo Plus',
+    'Skillshare',
+  ],
+  [SubscriptionCategory.FINANCE]: [
+    'Mint Premium',
+    'YNAB',
+    'Robinhood Gold',
+    'Bloomberg',
+    'TradingView',
+  ],
+  [SubscriptionCategory.OTHER]: [
+    'Amazon Prime',
+    'Costco',
+    "Sam's Club",
+    'Box Subscription',
+    'Custom Service',
+  ],
 };
 
 const CRYPTO_TOKENS = ['ETH', 'USDC', 'DAI', 'WBTC', 'MATIC'];
@@ -60,7 +96,9 @@ class TestDataGenerator {
         category,
         price: this.randomPrice(fullConfig.priceRange.min, fullConfig.priceRange.max),
         currency: this.randomFromArray(fullConfig.currencies),
-        billingCycle: this.randomFromArray(fullConfig.billingCycles as BillingCycle[]) as BillingCycle,
+        billingCycle: this.randomFromArray(
+          fullConfig.billingCycles as BillingCycle[]
+        ) as BillingCycle,
         nextBillingDate: this.randomFutureDate(),
         isActive,
         notificationsEnabled: Math.random() > 0.3,
@@ -119,12 +157,12 @@ class TestDataGenerator {
     return new Date(now.getTime() - daysToSubtract * 24 * 60 * 60 * 1000);
   }
 
-  generateUsageData(subscriptionCount: number): Array<{
+  generateUsageData(subscriptionCount: number): {
     date: Date;
     requests: number;
     errors: number;
     avgResponseTime: number;
-  }> {
+  }[] {
     const data = [];
     const now = new Date();
 

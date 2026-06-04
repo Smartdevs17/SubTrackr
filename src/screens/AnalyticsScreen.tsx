@@ -19,7 +19,6 @@ import { calculateSubscriptionAnalytics } from '../services/analyticsService';
 import { formatCurrency } from '../utils/formatting';
 import { useThemeColors } from '../hooks/useThemeColors';
 
-
 const { width: screenWidth } = Dimensions.get('window');
 const CHART_WIDTH = screenWidth - spacing.xl * 2;
 const CHART_HEIGHT = 200;
@@ -36,7 +35,6 @@ const AnalyticsScreen: React.FC = () => {
   useEffect(() => {
     calculateStats();
   }, [subscriptions, calculateStats, preferredCurrency, exchangeRates]);
-
 
   const categoryData = useMemo(() => {
     const categories = Object.values(SubscriptionCategory);
@@ -106,7 +104,6 @@ const AnalyticsScreen: React.FC = () => {
             else if (sub.billingCycle === BillingCycle.YEARLY) total += priceInPreferred / 12;
             else if (sub.billingCycle === BillingCycle.WEEKLY) total += priceInPreferred * 4;
           }
-
         }
       });
       return { month, amount: total };
@@ -198,7 +195,6 @@ const AnalyticsScreen: React.FC = () => {
               importantForAccessibility="no">
               {formatCurrency(stats.totalMonthlySpend, preferredCurrency)}
             </Text>
-
           </Card>
           <Card style={styles.summaryCard}>
             <Text
@@ -213,7 +209,6 @@ const AnalyticsScreen: React.FC = () => {
               importantForAccessibility="no">
               {formatCurrency(stats.totalYearlySpend, preferredCurrency)}
             </Text>
-
           </Card>
         </View>
         <View style={styles.summaryContainer}>
@@ -304,7 +299,6 @@ const AnalyticsScreen: React.FC = () => {
                       textAnchor="middle">
                       {formatCurrency(data.amount, preferredCurrency)}
                     </SvgText>
-
                   )}
                 </G>
               );
@@ -392,7 +386,6 @@ const AnalyticsScreen: React.FC = () => {
               {formatCurrency(stats.totalYearlySpend, preferredCurrency)}
             </Text>
           </View>
-
         </Card>
       </ScrollView>
     </SafeAreaView>

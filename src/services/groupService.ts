@@ -80,7 +80,8 @@ export const joinGroupWithInvite = (
   const invite = group.invites.find((entry) => entry.id === inviteId);
   if (!invite || invite.status !== 'pending') throw new Error('Invite is not available');
   if (invite.expiresAt.getTime() < Date.now()) throw new Error('Invite has expired');
-  if (group.members.length >= group.planSharingRules.seatLimit) throw new Error('Member limit reached');
+  if (group.members.length >= group.planSharingRules.seatLimit)
+    throw new Error('Member limit reached');
 
   const member: GroupMember = {
     address: invite.inviteeAddress,
@@ -102,8 +103,12 @@ export const joinGroupWithInvite = (
   };
 };
 
-export const removeGroupMember = (group: SubscriptionGroup, memberAddress: string): SubscriptionGroup => {
-  if (memberAddress === group.owner) throw new Error('Transfer ownership before removing the owner');
+export const removeGroupMember = (
+  group: SubscriptionGroup,
+  memberAddress: string
+): SubscriptionGroup => {
+  if (memberAddress === group.owner)
+    throw new Error('Transfer ownership before removing the owner');
 
   const member = group.members.find((entry) => entry.address === memberAddress);
   if (!member) return group;

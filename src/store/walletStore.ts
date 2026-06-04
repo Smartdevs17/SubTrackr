@@ -8,7 +8,6 @@ import {
   PaymentMethodFormData,
   PaymentPriority,
   PaymentAttempt,
-  PaymentMethodValidationResult,
 } from '../types/wallet';
 import {
   PaymentMethodService,
@@ -502,7 +501,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
         throw new Error('Payment method not found');
       }
 
-      const previousHash = method.metadata.token_code_hash ?? null;
+      const previousHash = method.metadata['token_code_hash'] ?? null;
       const result = await paymentService.detectTokenContractUpgrade(method, previousHash);
 
       if (result.upgraded && result.newHash) {
@@ -510,7 +509,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
           m.id === id
             ? {
                 ...m,
-                metadata: { ...m.metadata, token_code_hash: result.newHash },
+                metadata: { ...m.metadata, token_code_hash: result.newHash! },
                 updatedAt: new Date(),
               }
             : m
@@ -522,7 +521,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
           m.id === id
             ? {
                 ...m,
-                metadata: { ...m.metadata, token_code_hash: result.newHash },
+                metadata: { ...m.metadata, token_code_hash: result.newHash! },
                 updatedAt: new Date(),
               }
             : m

@@ -358,7 +358,14 @@ describe('WalletServiceManager', () => {
       });
 
       try {
-        await mgr.createSablierStream('0xToken', '10', Date.now(), Date.now() + 86400000, '0xRecipient', 1);
+        await mgr.createSablierStream(
+          '0xToken',
+          '10',
+          Date.now(),
+          Date.now() + 86400000,
+          '0xRecipient',
+          1
+        );
         fail('expected to throw');
       } catch (e) {
         expect(e).toBeInstanceOf(WalletError);
@@ -382,7 +389,12 @@ describe('WalletServiceManager', () => {
 
     it('preserves cause stack when cause is an Error', () => {
       const cause = new Error('rpc timeout');
-      const err = new WalletError(WalletErrorCode.UNKNOWN, 'Something went wrong.', undefined, cause);
+      const err = new WalletError(
+        WalletErrorCode.UNKNOWN,
+        'Something went wrong.',
+        undefined,
+        cause
+      );
       expect(err.stack).toContain('Caused by:');
     });
   });

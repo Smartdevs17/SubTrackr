@@ -36,6 +36,11 @@
 //! | 23   | EventStoreFull                 | Event store has reached maximum capacity.              |
 //! | 24   | InvalidEventSequence           | Invalid event sequence for subscription state.         |
 //! | 25   | ExportWindowExceeded           | Export range exceeds the maximum allowed window.       |
+//! | 26   | PaymentTimedOut                | Payment transaction timed out waiting for confirmation.|
+//! | 27   | RecoveryAttemptsExhausted      | All automatic recovery attempts have been exhausted.   |
+//! | 28   | TransactionNotRecoverable      | Transaction is not in a recoverable state.             |
+//! | 29   | InvalidTimeoutConfig           | Timeout configuration values are out of allowed range. |
+//! | 30   | ChainReorgDetected             | Chain reorganisation detected during timeout window.   |
 
 use soroban_sdk::contracterror;
 
@@ -93,6 +98,16 @@ pub enum ContractError {
     InvalidEventSequence = 24,
     /// Export range exceeds the maximum allowed window.
     ExportWindowExceeded = 25,
+    /// Payment transaction timed out waiting for on-chain confirmation.
+    PaymentTimedOut = 26,
+    /// All automatic recovery attempts have been exhausted.
+    RecoveryAttemptsExhausted = 27,
+    /// Transaction is not in a recoverable state (already resolved or abandoned).
+    TransactionNotRecoverable = 28,
+    /// Timeout configuration values are outside the allowed range.
+    InvalidTimeoutConfig = 29,
+    /// Chain reorganisation detected during the timeout window; recovery aborted.
+    ChainReorgDetected = 30,
 }
 
 impl ContractError {
@@ -127,6 +142,11 @@ impl ContractError {
             Self::EventStoreFull           => "Event store has reached maximum capacity.",
             Self::InvalidEventSequence     => "Invalid event sequence for subscription state.",
             Self::ExportWindowExceeded     => "Export range exceeds the maximum allowed window.",
+            Self::PaymentTimedOut          => "Payment transaction timed out waiting for confirmation.",
+            Self::RecoveryAttemptsExhausted => "All automatic recovery attempts have been exhausted.",
+            Self::TransactionNotRecoverable => "Transaction is not in a recoverable state.",
+            Self::InvalidTimeoutConfig     => "Timeout configuration values are out of allowed range.",
+            Self::ChainReorgDetected       => "Chain reorganisation detected during timeout window.",
         }
     }
 
@@ -165,7 +185,8 @@ mod tests {
             MaxPauseDurationExceeded, RateLimited, OracleUnavailable,
             StorageVersionMismatch, InvalidMigrationPath, RefundExceedsTotalPaid,
             PlanOwnerMismatch, EventNotFound, EventStoreFull, InvalidEventSequence,
-            ExportWindowExceeded,
+            ExportWindowExceeded, PaymentTimedOut, RecoveryAttemptsExhausted,
+            TransactionNotRecoverable, InvalidTimeoutConfig, ChainReorgDetected,
         ];
         for v in variants {
             let msg = v.user_message();

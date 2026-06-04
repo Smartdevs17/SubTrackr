@@ -47,10 +47,14 @@ export const useTaxStore = create<TaxState>((set, get) => ({
   remittances: [],
 
   addRate: (rate) =>
-    set((state) => ({ config: { ...state.config, ratesByRegion: [...state.config.ratesByRegion, rate] } })),
+    set((state) => ({
+      config: { ...state.config, ratesByRegion: [...state.config.ratesByRegion, rate] },
+    })),
 
   addExemption: (exemption) =>
-    set((state) => ({ config: { ...state.config, exemptions: [...state.config.exemptions, exemption] } })),
+    set((state) => ({
+      config: { ...state.config, exemptions: [...state.config.exemptions, exemption] },
+    })),
 
   calculateTax: (input) => {
     const result = calculateTaxAmount(get().config, input);

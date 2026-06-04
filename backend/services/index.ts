@@ -1,3 +1,12 @@
+feat/issues-394-405-414-386
+// ── Connection pool (#414) ────────────────────────────────────────────────────
+export { ConnectionPool, getPool, stellarPool } from './connectionPool';
+export type { PoolConfig, PoolMetrics } from './connectionPool';
+
+// ── Repository pattern (#405) ─────────────────────────────────────────────────
+export * from './repositories';
+
+// ── Existing services ─────────────────────────────────────────────────────────
 // ── API Response Envelope (Issue #401) ──────────────────────────────────────
 export {
   ok,
@@ -19,6 +28,7 @@ export type {
   PaginationMeta,
 } from './apiResponse';
 
+main
 export { AuditService } from './auditService';
 export { CampaignService } from './campaignService';
 export { DunningService, dunningService } from './dunningService';
@@ -28,8 +38,15 @@ export { OracleMonitorService, oracleMonitorService } from './oracleMonitorServi
 export { RateLimitingService, rateLimitingService } from './rateLimitingService';
 export type {
   AuditAction,
+  AuditArchiveEntry,
+  AuditContext,
   AuditEvent,
+  AuditQueryFilter,
+  AuditQueryResult,
   AuditReport,
+  AuditSeverity,
+  ArchivalPolicy,
+  ComplianceAuditReport,
   ExportFormat,
   RetentionPolicy,
 } from './auditTypes';
@@ -59,6 +76,22 @@ export {
 } from './webhook';
 export type { RegisterWebhookInput, WebhookDeliveryResult, WebhookEventInput } from './webhook';
 export {
+  buildExternalPayload,
+  buildSupportTicket,
+  calculateSupportSla,
+  dedupeSupportTickets,
+  recordExternalSync,
+  recordSupportAction,
+} from './supportAutomation';
+export type {
+  SupportActionRecord,
+  SupportActionType,
+  SupportIssueType,
+  SupportProvider,
+  SupportSlaSnapshot,
+  SupportTicketContext,
+  SupportTicketRecord,
+} from './supportAutomation';
   SubscriptionEventStore,
   subscriptionEventStore,
 } from './subscriptionEventStore';
@@ -68,6 +101,18 @@ export type {
   SubscriptionEventQuery,
   SubscriptionEventType,
 } from './subscriptionEventStore';
+
+
+
+export {
+  SubscriptionCacheService,
+} from './subscriptionCacheService';
+
+export type {
+  RedisClient,
+  SubscriptionCacheConfig,
+  CacheMetrics,
+} from './subscriptionCacheService';
 export { BatchChargeService } from './batchChargeService';
 export type { BatchChargeCandidate, BatchChargeOptions, BatchChargeResult } from './batchChargeService';
 
@@ -83,6 +128,29 @@ export {
 } from './idempotencyService';
 export type { IdempotencyRecord, IdempotencyResult, IdempotencyStatus } from './idempotencyService';
 export { idempotencyMiddleware } from './idempotencyMiddleware';
+// ── Payment Timeout & Recovery (Issue #427) ─────────────────────────────────
+export {
+  PaymentTimeoutService,
+  paymentTimeoutService,
+  DEFAULT_CHAIN_CONFIGS,
+} from './paymentTimeoutService';
+export type {
+  ChainTimeoutConfig,
+  PaymentTimeoutRecord,
+  RecoveryResult,
+  TimeoutHealthSummary,
+  TimeoutStatus,
+  ChainStatusProvider,
+} from './paymentTimeoutService';
+export {
+  TransactionHealthDashboard,
+  transactionHealthDashboard,
+} from './transactionHealthDashboard';
+export type {
+  StuckTransactionEntry,
+  TxHealthDashboardSnapshot,
+  ChainHealthEntry,
+} from './transactionHealthDashboard';
 
 // ── Feature Flags (Issue #TBD) ──────────────────────────────────────────────
 export { BackendFeatureFlagsService, backendFeatureFlagsService } from './featureFlags';
@@ -101,3 +169,18 @@ export type {
   ABTestAssignment,
   FeatureId,
 } from '../../src/types/feature';
+
+// ── Access Control / RBAC (Issue #420) ────────────────────────────────────────
+export { AccessControlService, AccessDeniedError, PermissionEscalationError, ROLE_PERMISSIONS, ROLE_HIERARCHY } from './accessControl';
+export type {
+  Role,
+  Resource,
+  Action,
+  Permission,
+  Effect,
+  RoleAssignment,
+  TemporaryElevation,
+  ApiKeyScope,
+  UnauthorizedAccessEvent,
+  AccessCheckOptions,
+} from './accessControl';

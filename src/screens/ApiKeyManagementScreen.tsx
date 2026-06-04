@@ -42,7 +42,11 @@ const ApiKeyManagementScreen: React.FC = () => {
     }
   };
 
-  const handleCopyKey = (key: string) => {
+  const handleCopyKey = (key?: string) => {
+    if (!key) {
+      Alert.alert('Key unavailable', 'This API key is only visible once and cannot be copied again.');
+      return;
+    }
     Clipboard.setString(key);
     Alert.alert('Copied', 'API key copied to clipboard.');
   };
@@ -121,9 +125,7 @@ const ApiKeyManagementScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
           <View style={styles.envHint}>
-            <Text style={styles.envHintText}>
-              Environment: Sandbox (Development)
-            </Text>
+            <Text style={styles.envHintText}>Environment: Sandbox (Development)</Text>
             <Text style={styles.envHintSubtext}>
               Keys are created for the current sandbox environment
             </Text>
@@ -142,14 +144,10 @@ const ApiKeyManagementScreen: React.FC = () => {
               </Text>
             </View>
             <View style={styles.keyActions}>
-              <TouchableOpacity
-                style={styles.copyButton}
-                onPress={() => handleCopyKey(showNewKey)}>
+              <TouchableOpacity style={styles.copyButton} onPress={() => handleCopyKey(showNewKey)}>
                 <Text style={styles.copyButtonText}>Copy Key</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.dismissButton}
-                onPress={() => setShowNewKey(null)}>
+              <TouchableOpacity style={styles.dismissButton} onPress={() => setShowNewKey(null)}>
                 <Text style={styles.dismissButtonText}>Dismiss</Text>
               </TouchableOpacity>
             </View>
@@ -180,8 +178,8 @@ const ApiKeyManagementScreen: React.FC = () => {
                             key.status === ApiKeyStatus.ACTIVE
                               ? colors.success
                               : key.status === ApiKeyStatus.REVOKED
-                              ? colors.error
-                              : colors.warning,
+                                ? colors.error
+                                : colors.warning,
                         },
                       ]}>
                       <Text style={styles.statusText}>{key.status}</Text>
@@ -192,16 +190,15 @@ const ApiKeyManagementScreen: React.FC = () => {
                   </Text>
                 </View>
 
-                <Text style={styles.keyValue}>
-                  {apiKeyService.maskApiKey(key.key)}
-                </Text>
+                <Text style={styles.keyValue}>{apiKeyService.maskApiKey(key.key)}</Text>
 
                 <View style={styles.keyMeta}>
                   <Text style={styles.keyMetaText}>
                     Permissions: {(key.permissions ?? key.scopes ?? ['read']).join(', ')}
                   </Text>
                   <Text style={styles.keyMetaText}>
-                    Rate: {key.rateLimit?.requestsPerMinute ?? 60}/min · {key.rateLimit?.requestsPerDay ?? 10000}/day
+                    Rate: {key.rateLimit?.requestsPerMinute ?? 60}/min ·{' '}
+                    {key.rateLimit?.requestsPerDay ?? 10000}/day
                   </Text>
                   {key.lastUsedAt && (
                     <Text style={styles.keyMetaText}>
@@ -215,7 +212,7 @@ const ApiKeyManagementScreen: React.FC = () => {
                     <>
                       <TouchableOpacity
                         style={styles.actionButton}
-                        onPress={() => handleCopyKey(key.key)}>
+                        onPress={() => handleCopyKey(key.plainKey)}>
                         <Text style={styles.actionButtonText}>Copy</Text>
                       </TouchableOpacity>
                       <TouchableOpacity

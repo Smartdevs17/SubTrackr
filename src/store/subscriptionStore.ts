@@ -9,10 +9,9 @@ import {
   BillingCycle, // eslint-disable-line
 } from '../types/subscription';
 import { dummySubscriptions } from '../utils/dummyData'; // eslint-disable-line
-import { calculateSubscriptionStats } from '../utils/stats';
 import { advanceBillingDate } from '../utils/billingDate';
 import { buildBillingPeriod } from '../utils/invoice';
-import { CACHE_CONSTANTS } from '../utils/constants/values';
+import { BILLING_CONVERSIONS, CACHE_CONSTANTS } from '../utils/constants/values';
 import {
   syncRenewalReminders,
   presentChargeSuccessNotification,
@@ -30,6 +29,9 @@ import { AchievementTrigger } from '../types/gamification';
 import { errorHandler, AppError } from '../services/errorHandler';
 import { useSettingsStore } from './settingsStore';
 import { currencyService } from '../services/currencyService';
+import { useSupportStore } from './supportStore';
+import { buildSupportEventMessage } from '../services/ticketingService';
+import { SubscriptionSupportContext, TicketIssueType } from '../types/support';
 import {
   previewProration,
   generateCreditMemo,
@@ -82,6 +84,44 @@ const normalizeSubscription = (raw: Partial<Subscription>): Subscription => {
     cryptoAmount: raw.cryptoAmount,
     createdAt: toValidDate(raw.createdAt, now),
     updatedAt: toValidDate(raw.updatedAt, now),
+  };
+};
+
+const buildSupportContext = (
+  subscription: Subscription,
+  history: string[]
+): SubscriptionSupportContext => ({
+  subscriptionName: subscription.name,
+  planName: subscription.name,
+  planTier: subscription.category,
+  billingCycle: subscription.billingCycle,
+  status: subscription.isActive ? 'active' : 'paused',
+  amount: subscription.price,
+  currency: subscription.currency,
+  createdAt: subscription.createdAt.toISOString(),
+  nextBillingDate:
+    subscription.nextBillingDate?.toISOString?.() ??
+    new Date(subscription.nextBillingDate).toISOString(),
+  failedPayments: subscription.chargeCount ? Math.max(subscription.chargeCount - 1, 0) : 0,
+  chargeCount: subscription.chargeCount ?? 0,
+  history,
+});
+
+const createSupportEvent = (
+  subscription: Subscription,
+  issueType: TicketIssueType,
+  history: string[],
+  actorId = 'system'
+) => {
+  const context = buildSupportContext(subscription, history);
+  return {
+    subscriptionId: subscription.id,
+    issueType,
+    message: buildSupportEventMessage(context, issueType),
+    occurredAt: new Date(),
+    context,
+    dedupeKey: `${subscription.id}:${issueType}`,
+    actorId,
   };
 };
 
@@ -194,8 +234,10 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         totalActive: 0,
         totalMonthlySpend: 0,
         totalYearlySpend: 0,
-        categoryBreakdown: {} as Record<string, number>,
+        categoryBreakdown: {} as Record<SubscriptionCategory, number>,
       },
+      isLoading: true,
+      error: null,
       prorationPreview: null,
       creditMemos: {},
 
@@ -226,21 +268,18 @@ export const useSubscriptionStore = create<SubscriptionState>()(
 
           const preview = previewProration(sub, newPlanData.price ?? sub.price, effectiveDate);
 
-          // Generate credit memo if downgrade
           const updatedCreditMemos = { ...get().creditMemos };
           if (preview.isCredit && preview.amount > 0) {
             const memo = generateCreditMemo(id, preview.amount, preview.description);
             updatedCreditMemos[id] = memo;
           }
 
-          // Update subscription
           const updates: Partial<Subscription> = {
             ...newPlanData,
             updatedAt: new Date(),
           };
 
           if (effectiveDate === 'immediate') {
-            // Reset billing cycle
             updates.nextBillingDate = advanceBillingDate(
               new Date(),
               newPlanData.billingCycle ?? sub.billingCycle
@@ -270,7 +309,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         const memo = get().creditMemos[id];
         if (!sub || !memo || memo.applied) return;
 
-        const { updatedMemo } = applyCreditMemo(sub.price, memo);
+        const { finalCharge, updatedMemo } = applyCreditMemo(sub.price, memo);
 
         set((state) => ({
           creditMemos: {
@@ -278,11 +317,9 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             [id]: updatedMemo,
           },
         }));
-      },
 
-      // Hydration state: keep loading true until persisted state is read.
-      isLoading: true,
-      error: null,
+        console.log(`Applied credit: final charge ${finalCharge}`);
+      },
 
       addSubscription: async (data: SubscriptionFormData) => {
         set({ isLoading: true, error: null });
@@ -358,6 +395,18 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       deleteSubscription: async (id: string) => {
         set({ isLoading: true, error: null });
         try {
+          const current = get().subscriptions.find((sub) => sub.id === id);
+          if (current) {
+            useSupportStore
+              .getState()
+              .createTicket(
+                createSupportEvent(current, 'cancellation', [
+                  'Cancellation requested from subscription management',
+                  'Subscription marked for removal',
+                ])
+              );
+          }
+
           set((state) => ({
             subscriptions: state.subscriptions.filter((sub) => sub.id !== id),
             isLoading: false,
@@ -486,13 +535,22 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             },
             0
           );
+        } else {
+          useSupportStore
+            .getState()
+            .createTicket(
+              createSupportEvent(sub, 'failed_charge', [
+                'Payment failure recorded during billing run',
+                `Next billing date remains ${sub.nextBillingDate.toISOString()}`,
+                `Notifications ${sub.notificationsEnabled === false ? 'disabled' : 'enabled'}`,
+              ])
+            );
         }
       },
 
       fetchSubscriptions: async () => {
         set({ isLoading: true, error: null });
         try {
-          // TODO: Replace with remote sync; local storage remains source-of-truth offline.
           await new Promise((resolve) => setTimeout(resolve, 1000));
           set({ isLoading: false });
           get().calculateStats();
@@ -511,6 +569,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       calculateStats: () => {
         const { subscriptions } = get();
 
+        // Safety check: ensure subscriptions is an array
         if (!subscriptions || !Array.isArray(subscriptions)) {
           set({
             stats: {
@@ -523,15 +582,62 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           return;
         }
 
+        const activeSubs = subscriptions.filter((sub) => sub.isActive);
+
         const { preferredCurrency, exchangeRates } = useSettingsStore.getState();
         const rates = exchangeRates?.rates || {};
 
-        const stats = calculateSubscriptionStats(
-          subscriptions,
-          (price, currency) => currencyService.convert(price, currency, preferredCurrency, rates)
+        const totalMonthlySpend = activeSubs.reduce((total, sub) => {
+          const priceInPreferred = currencyService.convert(
+            sub.price,
+            sub.currency,
+            preferredCurrency,
+            rates
+          );
+          if (sub.billingCycle === 'monthly') return total + priceInPreferred;
+          if (sub.billingCycle === 'yearly') return total + priceInPreferred / 12;
+          if (sub.billingCycle === 'weekly')
+            return total + priceInPreferred * BILLING_CONVERSIONS.WEEKS_PER_MONTH;
+          return total + priceInPreferred;
+        }, 0);
+
+        const totalYearlySpend = activeSubs.reduce((total, sub) => {
+          const priceInPreferred = currencyService.convert(
+            sub.price,
+            sub.currency,
+            preferredCurrency,
+            rates
+          );
+          if (sub.billingCycle === 'yearly') return total + priceInPreferred;
+          if (sub.billingCycle === 'monthly')
+            return total + priceInPreferred * BILLING_CONVERSIONS.MONTHS_PER_YEAR;
+          if (sub.billingCycle === 'weekly')
+            return total + priceInPreferred * BILLING_CONVERSIONS.WEEKS_PER_YEAR;
+          return total + priceInPreferred * BILLING_CONVERSIONS.MONTHS_PER_YEAR;
+        }, 0);
+
+        const categoryBreakdown = activeSubs.reduce(
+          (acc, sub) => {
+            acc[sub.category] = (acc[sub.category] || 0) + 1;
+            return acc;
+          },
+          {} as Record<string, number>
         );
 
-        set({ stats });
+        const totalGasSpent = activeSubs.reduce(
+          (total, sub) => total + (sub.totalGasSpent || 0),
+          0
+        );
+
+        set({
+          stats: {
+            totalActive: activeSubs.length,
+            totalMonthlySpend,
+            totalYearlySpend,
+            categoryBreakdown,
+            totalGasSpent,
+          },
+        });
       },
     }),
     {
