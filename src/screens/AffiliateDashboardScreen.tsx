@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { useAffiliateStore } from '../store/affiliateStore';
-import { useWalletStore } from '../store/walletStore';
+import { useWalletStore, selectAddress } from '../store/walletStore';
 import { Card } from '../components/common/Card';
 import { AffiliateStatus } from '../types/affiliate';
 
@@ -27,7 +27,7 @@ const AffiliateDashboardScreen: React.FC = () => {
     updateAffiliateStatus,
     getMetrics,
   } = useAffiliateStore();
-  const { address } = useWalletStore();
+  const address = useWalletStore(selectAddress);
 
   const [programModalVisible, setProgramModalVisible] = useState(false);
   const [selectedProgram, setSelectedProgram] = useState<string>('');

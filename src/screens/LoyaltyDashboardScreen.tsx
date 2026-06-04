@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { useLoyaltyStore } from '../store/loyaltyStore';
-import { useWalletStore } from '../store/walletStore';
+import { useWalletStore, selectAddress } from '../store/walletStore';
 import { Card } from '../components/common/Card';
 import { LoyaltyTier, TierBenefits } from '../types/loyalty';
 
@@ -27,7 +27,7 @@ const LoyaltyDashboardScreen: React.FC = () => {
     initializeProgram,
     redeemPoints,
   } = useLoyaltyStore();
-  const { address } = useWalletStore();
+  const address = useWalletStore(selectAddress);
 
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedReward, setSelectedReward] = useState<string>('');
