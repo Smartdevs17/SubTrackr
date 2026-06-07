@@ -90,8 +90,8 @@ export const ThemeBuilder: React.FC = () => {
           accessibilityLabel="Brand theme name"
         />
         {COLOR_FIELDS.map(({ key, label }) => (
-            <View key={key} style={styles.colorRow}>
-              <View style={[styles.colorDot, { backgroundColor: brandColors[key] }]} />
+          <View key={key} style={styles.colorRow}>
+            <View style={[styles.colorDot, { backgroundColor: brandColors[key] }]} />
             <Text style={[styles.colorLabel, { color: c.text.primary }]}>{label}</Text>
             <TextInput
               style={[

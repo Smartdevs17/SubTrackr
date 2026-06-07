@@ -10,7 +10,6 @@ import {
   NetworkErrorCode,
   ContractError,
   ContractErrorCode,
-  AppError,
 } from '../walletService';
 import { ethers } from 'ethers';
 import { getContractAddress, ERC20__factory } from '../../contracts';

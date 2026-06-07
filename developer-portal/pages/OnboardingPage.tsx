@@ -157,7 +157,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onComplete }) =>
       case 'create-sandbox':
         return (
           <View style={styles.stepForm}>
-            <Text style={styles.stepInfo}>
+            <Text style={styles.stepHelpText}>
               Your sandbox environment will be created with default settings. You can customize it
               later in the environment settings.
             </Text>
@@ -170,7 +170,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onComplete }) =>
       case 'generate-api-key':
         return (
           <View style={styles.stepForm}>
-            <Text style={styles.stepInfo}>
+            <Text style={styles.stepHelpText}>
               Generate an API key to authenticate your requests. Keep this key secure and never
               share it publicly.
             </Text>
@@ -183,7 +183,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onComplete }) =>
       case 'explore-docs':
         return (
           <View style={styles.stepForm}>
-            <Text style={styles.stepInfo}>
+            <Text style={styles.stepHelpText}>
               Review the API documentation to understand available endpoints, authentication, and
               best practices.
             </Text>
@@ -421,7 +421,7 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 16,
   },
-  stepInfo: {
+  stepHelpText: {
     fontSize: 14,
     color: '#6B7280',
     lineHeight: 20,

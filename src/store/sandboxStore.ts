@@ -27,16 +27,17 @@ const STORE_VERSION = 3;
 const API_KEY_PREFIX = 'sk_sandbox_';
 const KEY_PREFIX_LENGTH = 8;
 const HASH_COST = 10;
-const FALLBACK_HASH = bcrypt.hashSync('fallback-placeholder', HASH_COST);
+const _FALLBACK_HASH = bcrypt.hashSync('fallback-placeholder', HASH_COST);
 
 const generateId = (prefix: string): string =>
   `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 
 const getRandomChars = (length: number): string => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  const values = typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function'
-    ? crypto.getRandomValues(new Uint8Array(length))
-    : null;
+  const values =
+    typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function'
+      ? crypto.getRandomValues(new Uint8Array(length))
+      : null;
   let result = '';
 
   if (values) {
@@ -73,7 +74,11 @@ const hashApiKey = async (plaintext: string): Promise<string> => bcrypt.hash(pla
 const migrateStoredApiKeys = async (keys: ApiKey[]): Promise<ApiKey[]> => {
   return Promise.all(
     keys.map(async (key) => {
-      if (!key.hashedKey && key.key.startsWith(API_KEY_PREFIX) && key.key.length > KEY_PREFIX_LENGTH) {
+      if (
+        !key.hashedKey &&
+        key.key.startsWith(API_KEY_PREFIX) &&
+        key.key.length > KEY_PREFIX_LENGTH
+      ) {
         const hashedKey = await hashApiKey(key.key);
         return {
           ...key,
@@ -83,7 +88,11 @@ const migrateStoredApiKeys = async (keys: ApiKey[]): Promise<ApiKey[]> => {
           usageCount: key.usageCount ?? 0,
           auditLogs: [
             ...(key.auditLogs ?? []),
-            createAuditEntry(key.id, 'migration', 'Migrated stored plaintext API key to hashed storage'),
+            createAuditEntry(
+              key.id,
+              'migration',
+              'Migrated stored plaintext API key to hashed storage'
+            ),
           ],
         };
       }

@@ -40,7 +40,8 @@ import {
 import { useSubscriptionStore } from '../store';
 
 const ImportScreen: React.FC = () => {
-  const { subscriptions, addSubscription, updateSubscription, deleteSubscription } = useSubscriptionStore();
+  const { subscriptions, addSubscription, updateSubscription, deleteSubscription } =
+    useSubscriptionStore();
   const navigation = useNavigation<any>();
 
   const [importMode, setImportMode] = useState<ImportMode>('upsert');
@@ -74,7 +75,9 @@ const ImportScreen: React.FC = () => {
 
       if (format === 'csv') {
         parsedData =
-          platform === 'generic' ? parseCSV(importText) : parseCSVWithMapping(importText, selectedMapping);
+          platform === 'generic'
+            ? parseCSV(importText)
+            : parseCSVWithMapping(importText, selectedMapping);
       } else if (format === 'json') {
         parsedData = parseJSON(importText);
       } else {
@@ -83,11 +86,21 @@ const ImportScreen: React.FC = () => {
         return;
       }
 
-      setImportProgress({ step: 'parsing', totalRows: parsedData.length, processedRows: parsedData.length, percentage: 33 });
+      setImportProgress({
+        step: 'parsing',
+        totalRows: parsedData.length,
+        processedRows: parsedData.length,
+        percentage: 33,
+      });
 
       const validation = validateImport({ subscriptions: parsedData, mode: importMode });
       setValidationResult(validation);
-      setImportProgress({ step: 'validating', totalRows: parsedData.length, processedRows: validation.validRows.length, percentage: 66 });
+      setImportProgress({
+        step: 'validating',
+        totalRows: parsedData.length,
+        processedRows: validation.validRows.length,
+        percentage: 66,
+      });
 
       if (validation.validRows.length === 0) {
         Alert.alert(
@@ -123,7 +136,10 @@ const ImportScreen: React.FC = () => {
     }
   }, [importText, importMode, platform, subscriptions]);
 
-  const executeImport = async (parsedData: SubscriptionInput[], snapshot: ReturnType<typeof takeImportSnapshot>) => {
+  const executeImport = async (
+    parsedData: SubscriptionInput[],
+    _snapshot: ReturnType<typeof takeImportSnapshot>
+  ) => {
     setIsProcessing(true);
     const preImportIds = new Set(subscriptions.map((s) => s.id));
 
@@ -171,9 +187,17 @@ const ImportScreen: React.FC = () => {
         }
       }
 
-      setImportProgress({ step: 'done', totalRows: parsedData.length, processedRows: result.imported + result.updated, percentage: 100 });
+      setImportProgress({
+        step: 'done',
+        totalRows: parsedData.length,
+        processedRows: result.imported + result.updated,
+        percentage: 100,
+      });
 
-      const sourceName = platform === 'generic' ? 'Manual Import' : `${platform.charAt(0).toUpperCase() + platform.slice(1)} Import`;
+      const sourceName =
+        platform === 'generic'
+          ? 'Manual Import'
+          : `${platform.charAt(0).toUpperCase() + platform.slice(1)} Import`;
       await recordImport(sourceName, importMode, parsedData.length, result);
 
       Alert.alert(
@@ -244,8 +268,7 @@ const ImportScreen: React.FC = () => {
           {importProgress.step === 'parsing' && 'Parsing data...'}
           {importProgress.step === 'validating' && 'Validating rows...'}
           {importProgress.step === 'processing' && 'Processing...'}
-          {importProgress.step === 'done' &&
-            `Done: ${importProgress.processedRows} rows processed`}
+          {importProgress.step === 'done' && `Done: ${importProgress.processedRows} rows processed`}
           {importProgress.step === 'error' && 'Import failed — changes rolled back'}
         </Text>
         <View style={styles.progressTrack}>
@@ -254,8 +277,7 @@ const ImportScreen: React.FC = () => {
               styles.progressFill,
               {
                 width: `${importProgress.percentage}%` as any,
-                backgroundColor:
-                  importProgress.step === 'error' ? colors.error : colors.primary,
+                backgroundColor: importProgress.step === 'error' ? colors.error : colors.primary,
               },
             ]}
           />

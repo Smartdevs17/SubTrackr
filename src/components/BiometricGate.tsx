@@ -86,9 +86,7 @@ const BiometricGate: React.FC<Props> = ({ children }) => {
       <View style={styles.card}>
         <Text style={styles.icon}>{icon}</Text>
         <Text style={styles.title}>SubTrackr is Locked</Text>
-        <Text style={styles.subtitle}>
-          Authenticate to access your subscriptions and wallet.
-        </Text>
+        <Text style={styles.subtitle}>Authenticate to access your subscriptions and wallet.</Text>
 
         {isLoading ? (
           <ActivityIndicator
@@ -107,11 +105,16 @@ const BiometricGate: React.FC<Props> = ({ children }) => {
 
             <TouchableOpacity
               style={styles.btn}
-              onPress={() => { clearError(); void authenticate(); }}
+              onPress={() => {
+                clearError();
+                void authenticate();
+              }}
               accessibilityRole="button"
               accessibilityLabel="Unlock with biometrics">
               <Text style={styles.btnText}>
-                {cancelled ? 'Try Again' : `Unlock with ${supportedTypes[0] === 'facial' ? 'Face ID' : 'Biometrics'}`}
+                {cancelled
+                  ? 'Try Again'
+                  : `Unlock with ${supportedTypes[0] === 'facial' ? 'Face ID' : 'Biometrics'}`}
               </Text>
             </TouchableOpacity>
           </>

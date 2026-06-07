@@ -17,8 +17,6 @@ import {
   WalletConnection,
 } from '../services/walletService';
 
-type AppError = PaymentMethodError;
-
 interface WalletState {
   // Connection state from service
   connection: WalletConnection | null;

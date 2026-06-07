@@ -182,7 +182,7 @@ export class ApiKeyService {
 
   async getApiKeyAuditLog(keyId: string): Promise<ApiKeyAuditEntry[] | null> {
     const apiKey = this.apiKeys.get(keyId);
-    return apiKey ? apiKey.auditLogs ?? [] : null;
+    return apiKey ? (apiKey.auditLogs ?? []) : null;
   }
 
   private async hashKey(plainKey: string): Promise<string> {

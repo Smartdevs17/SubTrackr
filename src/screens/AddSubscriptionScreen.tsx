@@ -18,7 +18,8 @@ import { RootStackParamList } from '../navigation/types';
 import { useSubscriptionStore, useSettingsStore } from '../store';
 import { Button } from '../components/common/Button';
 import { getCurrencySymbol } from '../utils/formatting';
-import { colors, spacing, typography, borderRadius } from '../utils/constants';
+import { spacing, typography, borderRadius } from '../utils/constants';
+import { useThemeColors } from '../hooks/useThemeColors';
 import { advanceBillingDate } from '../utils/billingDate';
 
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
@@ -35,12 +36,12 @@ const getDefaultNextBillingDate = (cycle: BillingCycle) => advanceBillingDate(ne
 
 const AddSubscriptionScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const route = useRoute<RouteProp<RootStackParamList, 'AddSubscription'>>();
   const colors = useThemeColors();
   const styles = React.useMemo(() => createStyles(colors), [colors]);
   const { addSubscription, isLoading, error } = useSubscriptionStore();
   const { preferredCurrency } = useSettingsStore();
   const validation = validateAddSubscriptionParams(route.params ?? {});
-  const validationErrors = validation.errors;
   const initialFormData = buildInitialFormData(preferredCurrency, validation.sanitised);
 
   // Ref for the name input — used for delayed focus instead of autoFocus,
@@ -530,222 +531,222 @@ const AddSubscriptionScreen: React.FC = () => {
 
 function createStyles(colors: ReturnType<typeof useThemeColors>) {
   return StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background.primary,
-  },
-  keyboardAvoidingView: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContentKeyboardOpen: {
-    paddingBottom: 120,
-  },
-  header: {
-    padding: spacing.lg,
-    paddingBottom: spacing.md,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.xs,
-  },
-  cancelButton: {
-    padding: spacing.sm,
-  },
-  cancelText: {
-    ...typography.body,
-    color: colors.primary,
-    fontWeight: '500',
-  },
-  placeholderButton: {
-    width: 60,
-  },
-  title: {
-    ...typography.h1,
-    color: colors.text,
-    textAlign: 'center',
-  },
-  subtitle: {
-    ...typography.body,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-  form: {
-    padding: spacing.lg,
-    paddingTop: 0,
-  },
-  section: {
-    marginBottom: spacing.xl,
-  },
-  sectionTitle: {
-    ...typography.h3,
-    color: colors.text,
-    marginBottom: spacing.md,
-  },
-  inputGroup: {
-    marginBottom: spacing.md,
-  },
-  label: {
-    ...typography.body,
-    color: colors.text,
-    marginBottom: spacing.xs,
-    fontWeight: '500',
-  },
-  errorText: {
-    color: colors.error,
-    fontSize: 12,
-    marginTop: spacing.xs,
-  },
-  textInput: {
-    backgroundColor: colors.surface,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    color: colors.text,
-    ...typography.body,
-  },
-  textArea: {
-    height: 80,
-    textAlignVertical: 'top',
-  },
-  priceInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.md,
-  },
-  currencySymbol: {
-    ...typography.h3,
-    color: colors.textSecondary,
-    marginRight: spacing.sm,
-  },
-  priceInput: {
-    flex: 1,
-    paddingVertical: spacing.md,
-    color: colors.text,
-    ...typography.h3,
-    fontWeight: '600',
-  },
-  // Date picker styling
-  datePickerButton: {
-    backgroundColor: colors.surface,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    justifyContent: 'center',
-  },
-  datePickerText: {
-    ...typography.body,
-    color: colors.text,
-  },
-  categoryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  categoryItem: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  categoryItemSelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  categoryText: {
-    ...typography.caption,
-    color: colors.text,
-  },
-  categoryTextSelected: {
-    color: colors.text,
-    fontWeight: '600',
-  },
-  billingCycleContainer: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  billingCycleItem: {
-    flex: 1,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-  },
-  billingCycleItemSelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  billingCycleText: {
-    ...typography.caption,
-    color: colors.text,
-  },
-  billingCycleTextSelected: {
-    color: colors.text,
-    fontWeight: '600',
-  },
-  cryptoOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  cryptoToggle: {
-    padding: spacing.xs,
-  },
-  toggleSwitch: {
-    width: 50,
-    height: 28,
-    backgroundColor: colors.border,
-    borderRadius: borderRadius.full,
-    padding: 2,
-  },
-  toggleSwitchActive: {
-    backgroundColor: colors.primary,
-  },
-  toggleKnob: {
-    width: 24,
-    height: 24,
-    backgroundColor: colors.background.card,
-    borderRadius: borderRadius.full,
-  },
-  toggleKnobActive: {
-    transform: [{ translateX: 22 }],
-  },
-  cryptoLabel: {
-    ...typography.body,
-    color: colors.text,
-  },
-  notificationLabelWrap: {
-    flex: 1,
-    marginLeft: spacing.md,
-  },
-  notificationHint: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: spacing.xs,
-  },
-  footer: {
-    padding: spacing.lg,
-    paddingTop: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.background.primary,
-  },
-});
+    container: {
+      flex: 1,
+      backgroundColor: colors.background.primary,
+    },
+    keyboardAvoidingView: {
+      flex: 1,
+    },
+    scrollView: {
+      flex: 1,
+    },
+    scrollContentKeyboardOpen: {
+      paddingBottom: 120,
+    },
+    header: {
+      padding: spacing.lg,
+      paddingBottom: spacing.md,
+    },
+    headerContent: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: spacing.xs,
+    },
+    cancelButton: {
+      padding: spacing.sm,
+    },
+    cancelText: {
+      ...typography.body,
+      color: colors.primary,
+      fontWeight: '500',
+    },
+    placeholderButton: {
+      width: 60,
+    },
+    title: {
+      ...typography.h1,
+      color: colors.text,
+      textAlign: 'center',
+    },
+    subtitle: {
+      ...typography.body,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+    form: {
+      padding: spacing.lg,
+      paddingTop: 0,
+    },
+    section: {
+      marginBottom: spacing.xl,
+    },
+    sectionTitle: {
+      ...typography.h3,
+      color: colors.text,
+      marginBottom: spacing.md,
+    },
+    inputGroup: {
+      marginBottom: spacing.md,
+    },
+    label: {
+      ...typography.body,
+      color: colors.text,
+      marginBottom: spacing.xs,
+      fontWeight: '500',
+    },
+    errorText: {
+      color: colors.error,
+      fontSize: 12,
+      marginTop: spacing.xs,
+    },
+    textInput: {
+      backgroundColor: colors.surface,
+      padding: spacing.md,
+      borderRadius: borderRadius.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      color: colors.text,
+      ...typography.body,
+    },
+    textArea: {
+      height: 80,
+      textAlignVertical: 'top',
+    },
+    priceInputContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderRadius: borderRadius.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: spacing.md,
+    },
+    currencySymbol: {
+      ...typography.h3,
+      color: colors.textSecondary,
+      marginRight: spacing.sm,
+    },
+    priceInput: {
+      flex: 1,
+      paddingVertical: spacing.md,
+      color: colors.text,
+      ...typography.h3,
+      fontWeight: '600',
+    },
+    // Date picker styling
+    datePickerButton: {
+      backgroundColor: colors.surface,
+      padding: spacing.md,
+      borderRadius: borderRadius.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      justifyContent: 'center',
+    },
+    datePickerText: {
+      ...typography.body,
+      color: colors.text,
+    },
+    categoryGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.sm,
+    },
+    categoryItem: {
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderRadius: borderRadius.full,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    categoryItemSelected: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    categoryText: {
+      ...typography.caption,
+      color: colors.text,
+    },
+    categoryTextSelected: {
+      color: colors.text,
+      fontWeight: '600',
+    },
+    billingCycleContainer: {
+      flexDirection: 'row',
+      gap: spacing.sm,
+    },
+    billingCycleItem: {
+      flex: 1,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      borderRadius: borderRadius.md,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+    },
+    billingCycleItemSelected: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    billingCycleText: {
+      ...typography.caption,
+      color: colors.text,
+    },
+    billingCycleTextSelected: {
+      color: colors.text,
+      fontWeight: '600',
+    },
+    cryptoOption: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+    },
+    cryptoToggle: {
+      padding: spacing.xs,
+    },
+    toggleSwitch: {
+      width: 50,
+      height: 28,
+      backgroundColor: colors.border,
+      borderRadius: borderRadius.full,
+      padding: 2,
+    },
+    toggleSwitchActive: {
+      backgroundColor: colors.primary,
+    },
+    toggleKnob: {
+      width: 24,
+      height: 24,
+      backgroundColor: colors.background.card,
+      borderRadius: borderRadius.full,
+    },
+    toggleKnobActive: {
+      transform: [{ translateX: 22 }],
+    },
+    cryptoLabel: {
+      ...typography.body,
+      color: colors.text,
+    },
+    notificationLabelWrap: {
+      flex: 1,
+      marginLeft: spacing.md,
+    },
+    notificationHint: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      marginTop: spacing.xs,
+    },
+    footer: {
+      padding: spacing.lg,
+      paddingTop: spacing.md,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      backgroundColor: colors.background.primary,
+    },
+  });
 }
 
 export default AddSubscriptionScreen;

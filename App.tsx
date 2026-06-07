@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Alert, Platform } from 'react-native';
+import { View, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AppNavigator } from './src/navigation/AppNavigator';
@@ -9,7 +9,7 @@ import ErrorBoundary from './src/components/ErrorBoundary';
 import { initI18n } from './src/i18n/config';
 import i18n from './src/i18n/config';
 import { I18nextProvider } from 'react-i18next';
-import { crashReporter, CrashRecord } from './src/services/crashReporter';
+import { crashReporter } from './src/services/crashReporter';
 import * as Sentry from '@sentry/react-native';
 
 import './src/config/env';
@@ -24,7 +24,7 @@ import { EVM_RPC_URLS } from './src/config/evm';
 import { useNetworkStore, useSettingsStore } from './src/store';
 import { sessionService } from './src/services/auth/session';
 
-const projectId = env.WALLET_CONNECT_PROJECT_ID;
+const projectId = process.env.WALLET_CONNECT_PROJECT_ID || 'YOUR_PROJECT_ID';
 
 try {
   Sentry.init({

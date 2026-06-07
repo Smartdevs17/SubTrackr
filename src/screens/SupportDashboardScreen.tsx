@@ -126,29 +126,6 @@ const SupportDashboardScreen: React.FC = () => {
       <Text style={styles.metricValue}>{value}</Text>
       <Text style={styles.metricLabel}>{label}</Text>
       <Text style={styles.metricHint}>{hint}</Text>
-  const renderTicket = (ticket: SupportTicket) => (
-    <Card style={styles.card}>
-      <Text style={styles.cardTitle}>{ticket.title}</Text>
-      <Text style={styles.meta}>Priority: {ticket.priority}</Text>
-      <Text style={styles.meta}>Status: {ticket.status}</Text>
-      <Text style={styles.meta}>Subscription: {ticket.subscriptionId}</Text>
-      {ticket.externalTicketId ? (
-        <Text style={styles.meta}>External: {ticket.externalTicketId}</Text>
-      ) : null}
-      <View style={styles.actions}>
-        <Button
-          title="Assign"
-          size="small"
-          variant="outline"
-          onPress={() => assignTicket(ticket.id, 'support-team')}
-        />
-        <Button title="Sync" size="small" variant="outline" onPress={() => syncTicket(ticket.id)} />
-        <Button
-          title="Resolve"
-          size="small"
-          onPress={() => linkResolution(ticket.id, ticket.subscriptionId)}
-        />
-      </View>
     </Card>
   );
 

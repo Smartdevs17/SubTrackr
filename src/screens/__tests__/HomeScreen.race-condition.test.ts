@@ -41,7 +41,7 @@ describe('HomeScreen - Pull-to-Refresh Race Condition Fix', () => {
     });
 
     test('AC2: No stale data shown - refreshSubscriptions fetches before clearing', async () => {
-      const { result: storeResult } = renderHook(() => useSubscriptionStore());
+      renderHook(() => useSubscriptionStore());
 
       // Set initial subscriptions
       act(() => {
@@ -76,7 +76,7 @@ describe('HomeScreen - Pull-to-Refresh Race Condition Fix', () => {
     });
 
     test('AC3: Loading state is correct during refresh', async () => {
-      const { result: storeResult } = renderHook(() => useSubscriptionStore());
+      renderHook(() => useSubscriptionStore());
       const { result: refreshResult } = renderHook(() => useRefresh());
 
       const loadingStates: boolean[] = [];
@@ -121,7 +121,7 @@ describe('HomeScreen - Pull-to-Refresh Race Condition Fix', () => {
 
   describe('Race Condition Scenarios', () => {
     test('Scenario 1: User pulls to refresh while data is loading', async () => {
-      const { result: storeResult } = renderHook(() => useSubscriptionStore());
+      renderHook(() => useSubscriptionStore());
       const { result: refreshResult } = renderHook(() => useRefresh());
 
       const fetchDuration = 200;
@@ -169,7 +169,7 @@ describe('HomeScreen - Pull-to-Refresh Race Condition Fix', () => {
     });
 
     test('Scenario 3: Error during refresh does not leave infinite loading state', async () => {
-      const { result: storeResult } = renderHook(() => useSubscriptionStore());
+      renderHook(() => useSubscriptionStore());
       const { result: refreshResult } = renderHook(() => useRefresh());
 
       const testError = new Error('Fetch failed');
@@ -193,7 +193,7 @@ describe('HomeScreen - Pull-to-Refresh Race Condition Fix', () => {
 
   describe('State Consistency', () => {
     test('Subscriptions state remains consistent after refresh', async () => {
-      const { result: storeResult } = renderHook(() => useSubscriptionStore());
+      renderHook(() => useSubscriptionStore());
 
       const initialSub = {
         id: '1',

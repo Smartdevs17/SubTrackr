@@ -650,36 +650,6 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         ...currentState,
         ...migratePersistedState(persistedState, STORE_VERSION),
       }),
-      onRehydrateStorage: () => (state, error) => {
-        if (error) {
-          useSubscriptionStore.setState({
-            error: errorHandler.createError(
-              new Error('Stored subscription data is corrupted. Loaded fallback data.'),
-              { action: 'rehydrateSubscriptions' },
-              true
-            ),
-            subscriptions: [...dummySubscriptions],
-            isLoading: false,
-          });
-          useSubscriptionStore.getState().calculateStats();
-          void syncRenewalReminders(useSubscriptionStore.getState().subscriptions);
-          return;
-        }
-
-        const subscriptions = Array.isArray(state?.subscriptions)
-          ? state.subscriptions
-          : [...dummySubscriptions];
-        useSubscriptionStore.setState({
-          subscriptions,
-          isLoading: false,
-          error: null,
-        });
-        useSubscriptionStore.getState().calculateStats();
-        void syncRenewalReminders(useSubscriptionStore.getState().subscriptions);
-        void useCalendarStore
-          .getState()
-          .syncSubscriptions(useSubscriptionStore.getState().subscriptions);
-      },
     }
   )
 );

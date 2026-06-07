@@ -1,4 +1,8 @@
-import { startupTimeOptimizer, measureStartupTime, initHermesOptimizations } from '../../utils/startupTimeOptimizer';
+import {
+  startupTimeOptimizer,
+  measureStartupTime,
+  initHermesOptimizations,
+} from '../../utils/startupTimeOptimizer';
 import { Platform } from 'react-native';
 
 jest.mock('react-native', () => ({
@@ -31,12 +35,13 @@ describe('startupTimeOptimizer', () => {
 
   it('should mark app ready and calculate total time', () => {
     jest.spyOn(Date, 'now').mockReturnValueOnce(0).mockReturnValueOnce(1500);
-    const newOptimizer = Object.create(null);
+    const _newOptimizer = Object.create(null);
 
     expect(startupTimeOptimizer.isWithinBudget()).toBe(true);
   });
 
   it('should setup app state observer', () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const addEventListener = require('react-native').AppState.addEventListener;
     startupTimeOptimizer.setupAppStateObserver();
     expect(addEventListener).toHaveBeenCalled();
@@ -54,7 +59,9 @@ describe('measureStartupTime', () => {
 
   it('should warn on slow Android operations', async () => {
     const warnSpy = jest.spyOn(console, 'warn').mockImplementation();
-    const slowFn = jest.fn().mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 200)));
+    const slowFn = jest
+      .fn()
+      .mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 200)));
 
     await measureStartupTime(slowFn);
     expect(warnSpy).toHaveBeenCalled();

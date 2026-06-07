@@ -41,7 +41,12 @@ describe('ImageCacheManager', () => {
   describe('hydrate', () => {
     it('loads existing entries from AsyncStorage', async () => {
       const now = Date.now();
-      const entry = { url: 'https://example.com/icon.png', cachedAt: now, expiresAt: now + 10000, lastAccessedAt: now };
+      const entry = {
+        url: 'https://example.com/icon.png',
+        cachedAt: now,
+        expiresAt: now + 10000,
+        lastAccessedAt: now,
+      };
       mockStorage.getItem.mockResolvedValueOnce(JSON.stringify([entry]));
 
       const cache = makeCache();
@@ -130,7 +135,12 @@ describe('ImageCacheManager', () => {
 
     it('returns false for an expired entry', async () => {
       const now = Date.now();
-      const expired = { url: 'https://example.com/old.png', cachedAt: now - 20000, expiresAt: now - 1, lastAccessedAt: now - 20000 };
+      const expired = {
+        url: 'https://example.com/old.png',
+        cachedAt: now - 20000,
+        expiresAt: now - 1,
+        lastAccessedAt: now - 20000,
+      };
       mockStorage.getItem.mockResolvedValueOnce(JSON.stringify([expired]));
 
       const cache = makeCache();

@@ -3,10 +3,13 @@ module.exports = function (api) {
   const isProduction = api.env('production');
 
   const plugins = [
-    ['babel-plugin-module-resolver', {
-      root: ['./src'],
-      extensions: ['.js', '.jsx', '.ts', '.tsx'],
-    }],
+    [
+      'babel-plugin-module-resolver',
+      {
+        root: ['./src'],
+        extensions: ['.js', '.jsx', '.ts', '.tsx'],
+      },
+    ],
   ];
 
   if (isProduction) {

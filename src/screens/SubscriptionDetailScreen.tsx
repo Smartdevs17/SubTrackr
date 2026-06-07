@@ -21,7 +21,6 @@ import { colors, spacing, typography } from '../utils/constants';
 import { getCategoryIcon } from '../utils/subscriptionHelpers';
 import { RootStackParamList } from '../navigation/types';
 import { useGroupStore } from '../store/groupStore';
-import { shareSubscriptionLink } from '../utils/shareLink';
 import { validateSubscriptionId } from '../utils/deepLinkValidator';
 
 // Components

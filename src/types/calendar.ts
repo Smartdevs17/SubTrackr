@@ -32,7 +32,7 @@ export interface CalendarInvoice {
   subscriptionId: string;
   merchantId: string;
   periodStart: string; // ISO date string
-  periodEnd: string;   // ISO date string
+  periodEnd: string; // ISO date string
   billingDate: string; // ISO date string — the actual calendar-adjusted date
   amount: number;
   currency: string;

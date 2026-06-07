@@ -39,6 +39,7 @@ type RefreshOptions = {
 ```
 
 **Behavior**:
+
 - When `fetchBeforeClear: true`: Fetches data first, then clears old state
 - When `fetchBeforeClear: false` (default): Original behavior (clear first, then fetch)
 - Prevents showing empty state while fetching new data
@@ -48,6 +49,7 @@ type RefreshOptions = {
 **File**: `src/store/subscriptionStore.ts`
 
 Added dedicated `refreshSubscriptions()` method that:
+
 - Sets `isLoading: true` before fetching
 - Fetches fresh data atomically
 - Updates state only after fetch completes
@@ -59,7 +61,7 @@ refreshSubscriptions: async () => {
   try {
     // Fetch fresh data first
     await new Promise((resolve) => setTimeout(resolve, 1000));
-    
+
     // Update state atomically after fetch completes
     set({ isLoading: false });
     get().calculateStats();
@@ -73,7 +75,7 @@ refreshSubscriptions: async () => {
       isLoading: false,
     });
   }
-}
+};
 ```
 
 ### 3. Updated HomeScreen Integration
@@ -81,6 +83,7 @@ refreshSubscriptions: async () => {
 **File**: `src/screens/HomeScreen.tsx`
 
 Changes:
+
 - Import `refreshSubscriptions` from store
 - Import `isLoading` state
 - Use `refreshSubscriptions` as fetcher (no `clearBefore` needed)
@@ -110,20 +113,24 @@ const onRefresh = async () => {
 ## Acceptance Criteria Met
 
 ✅ **AC1: Pull-to-refresh always works**
+
 - Concurrent refreshes prevented via `inFlightRef`
 - Error handling ensures loading state is cleared
 
 ✅ **AC2: No stale data shown**
+
 - `refreshSubscriptions` fetches before updating state
 - No intermediate empty state displayed
 - Cache invalidation handled atomically
 
 ✅ **AC3: Loading state correct**
+
 - `isLoading` set before fetch, cleared after
 - RefreshControl reflects both `refreshing` and `isLoading`
 - Proper state transitions: false → true → false
 
 ✅ **AC4: No infinite refresh loops**
+
 - `inFlightRef` prevents concurrent refreshes
 - Rapid successive refreshes are serialized
 - Error handling prevents stuck loading state
@@ -133,6 +140,7 @@ const onRefresh = async () => {
 ### Race Condition Prevention
 
 **Before**:
+
 ```
 T=0ms:   clearBefore() → subscriptions: []
 T=0ms:   fetcher() starts
@@ -141,6 +149,7 @@ T=1s:    fetchSubscriptions completes → data populates
 ```
 
 **After**:
+
 ```
 T=0ms:   fetcher() starts
 T=0-1s:  UI shows previous data (no flash)
@@ -165,6 +174,7 @@ try {
 ### State Consistency
 
 All state updates happen atomically within a single `set()` call:
+
 - `isLoading` flag
 - `error` state
 - Subscription data (if changed)
@@ -176,6 +186,7 @@ All state updates happen atomically within a single `set()` call:
 **Test File**: `src/screens/__tests__/HomeScreen.race-condition.test.ts`
 
 Test coverage includes:
+
 - AC1: Pull-to-refresh always works
 - AC2: No stale data shown
 - AC3: Loading state correct
@@ -184,6 +195,7 @@ Test coverage includes:
 - State consistency verification
 
 Run tests:
+
 ```bash
 npm test -- HomeScreen.race-condition.test.ts
 ```
@@ -195,6 +207,7 @@ npm test -- HomeScreen.race-condition.test.ts
 If you have custom refresh implementations, update them:
 
 **Before**:
+
 ```typescript
 const onRefresh = async () => {
   await refresh({
@@ -205,6 +218,7 @@ const onRefresh = async () => {
 ```
 
 **After**:
+
 ```typescript
 const onRefresh = async () => {
   await refresh({

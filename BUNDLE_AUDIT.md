@@ -16,13 +16,13 @@ EXPO_BUNDLE_ANALYZE=true npx expo export
 
 ### Heavy dependencies — kept (required)
 
-| Package | Gzip size | Reason kept |
-|---|---|---|
-| `@stellar/stellar-sdk` | ~800 KB | Core crypto/wallet feature |
-| `@superfluid-finance/sdk-core` | ~300 KB | Streaming payments |
-| `ethers` | ~220 KB | EVM wallet + contract calls |
-| `@reown/appkit-ethers-react-native` | ~180 KB | WalletConnect v2 |
-| `i18next` + `react-i18next` | ~60 KB | Internationalisation |
+| Package                             | Gzip size | Reason kept                 |
+| ----------------------------------- | --------- | --------------------------- |
+| `@stellar/stellar-sdk`              | ~800 KB   | Core crypto/wallet feature  |
+| `@superfluid-finance/sdk-core`      | ~300 KB   | Streaming payments          |
+| `ethers`                            | ~220 KB   | EVM wallet + contract calls |
+| `@reown/appkit-ethers-react-native` | ~180 KB   | WalletConnect v2            |
+| `i18next` + `react-i18next`         | ~60 KB    | Internationalisation        |
 
 ### Tree-shaking improvements applied
 
@@ -42,10 +42,10 @@ Heavy modules are now evaluated on first use rather than at startup:
 
 ### Removed / replaced
 
-| Before | After | Saving |
-|---|---|---|
+| Before                                             | After                      | Saving                         |
+| -------------------------------------------------- | -------------------------- | ------------------------------ |
 | `@testing-library/react-hooks` (in `dependencies`) | Moved to `devDependencies` | Removed from production bundle |
-| `graphql` (unused at runtime in RN app) | Moved to `devDependencies` | ~50 KB |
+| `graphql` (unused at runtime in RN app)            | Moved to `devDependencies` | ~50 KB                         |
 
 ### Size-limit CI enforcement
 
