@@ -227,6 +227,19 @@ jobs:
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: npm ci --legacy-peer-deps
 
+      - name: Patch metro exports for @expo/cli compatibility
+        run: |
+          node -e "
+            const fs=require('fs');
+            const p='node_modules/metro/package.json';
+            if(!fs.existsSync(p)) process.exit(0);
+            const m=JSON.parse(fs.readFileSync(p,'utf8'));
+            if(!m.exports||m.exports['./src/lib/TerminalReporter']) process.exit(0);
+            m.exports['./src/lib/TerminalReporter']='./src/lib/TerminalReporter.js';
+            fs.writeFileSync(p,JSON.stringify(m,null,2));
+            console.log('Patched metro exports to add ./src/lib/TerminalReporter');
+          "
+
       - name: Run Expo export
         run: npm run build
         env:
@@ -427,6 +440,19 @@ jobs:
 
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
+
+      - name: Patch metro exports for @expo/cli compatibility
+        run: |
+          node -e "
+            const fs=require('fs');
+            const p='node_modules/metro/package.json';
+            if(!fs.existsSync(p)) process.exit(0);
+            const m=JSON.parse(fs.readFileSync(p,'utf8'));
+            if(!m.exports||m.exports['./src/lib/TerminalReporter']) process.exit(0);
+            m.exports['./src/lib/TerminalReporter']='./src/lib/TerminalReporter.js';
+            fs.writeFileSync(p,JSON.stringify(m,null,2));
+            console.log('Patched metro exports to add ./src/lib/TerminalReporter');
+          "
 
       - name: Check bundle size (PR)
         if: github.event_name == 'pull_request'

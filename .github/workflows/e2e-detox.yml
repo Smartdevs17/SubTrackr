@@ -82,6 +82,13 @@ jobs:
           java-version: '17'
       - name: Expo Prebuild
         run: npx expo prebuild -p android
+      - name: Patch Kotlin version for React Native 0.85 compatibility
+        run: |
+          if [ -f android/build.gradle ]; then
+            sed -i 's/kotlinVersion = "1\.[0-9][^"]*"/kotlinVersion = "2.1.20"/' android/build.gradle
+            echo "android/build.gradle kotlinVersion after patch:"
+            grep "kotlinVersion" android/build.gradle || echo "(not found)"
+          fi
       - name: Build Detox Android
         run: npm run e2e:build-android
       - name: Detox Android — core lifecycle
