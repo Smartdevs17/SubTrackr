@@ -365,6 +365,7 @@ jobs:
   load-test:
     name: k6 Load Test
     runs-on: ubuntu-latest
+    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:

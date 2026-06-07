@@ -1360,7 +1360,6 @@ impl SubTrackrSubscription {
 // These APIs depend on additional modules/types that are still evolving.
 // Enable with `--features extended` in the `subtrackr-subscription` crate.
 #[cfg(feature = "extended")]
-#[soroban_sdk::contractimpl]
 impl SubTrackrSubscription {
     // ── Revenue Recognition API ──
 
