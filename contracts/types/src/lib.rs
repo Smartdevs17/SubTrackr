@@ -1,6 +1,6 @@
 #![no_std]
 
-use soroban_sdk::{contracttype, Address, String, Vec};
+use soroban_sdk::{contracttype, Address, String, Symbol, Vec};
 
 /// Billing interval in seconds.
 #[contracttype]
@@ -420,6 +420,7 @@ pub enum RiskSignalKind {
     Chargeback,
     PatternShift,
     DeviceMismatch,
+    GeolocationAnomaly,
 }
 
 #[contracttype]
@@ -433,6 +434,16 @@ pub struct RiskSignal {
 
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
+pub struct FraudEvidence {
+    pub label: String,
+    pub value: String,
+    pub source: String,
+    pub captured_at: Timestamp,
+    pub confidence: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
 pub struct RiskScore {
     pub subscriber: Address,
     pub subscription_id: SubscriptionId,
@@ -441,10 +452,14 @@ pub struct RiskScore {
     pub velocity_score: u32,
     pub anomaly_score: u32,
     pub chargeback_score: u32,
+    pub device_mismatch_score: u32,
+    pub geolocation_score: u32,
+    pub pattern_shift_score: u32,
     pub action: FraudAction,
     pub reason: String,
     pub assessed_at: Timestamp,
     pub signals: Vec<RiskSignal>,
+    pub evidence: Vec<FraudEvidence>,
 }
 
 #[contracttype]
@@ -460,6 +475,8 @@ pub struct FraudCase {
     pub reason: String,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
+    pub evidence: Vec<FraudEvidence>,
+    pub reviewed_at: Timestamp,
 }
 
 #[contracttype]
@@ -473,8 +490,11 @@ pub struct FraudReport {
     pub average_risk: u32,
     pub velocity_alerts: u32,
     pub anomaly_alerts: u32,
+    pub geolocation_alerts: u32,
     pub chargeback_predictions: u32,
     pub high_risk_subscribers: u32,
+    pub pending_evidence_count: u32,
+    pub false_positive_feedback_count: u32,
     pub recent_cases: Vec<FraudCase>,
 }
 
@@ -555,6 +575,13 @@ pub enum DigitalGoodsClass {
     TelecomService,
 }
 
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum MaybeDigitalGoodsClass {
+    None,
+    Some(DigitalGoodsClass),
+}
+
 /// A tax rate entry for a specific jurisdiction and tax type.
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
@@ -579,7 +606,7 @@ pub struct CustomerTaxStatus {
     pub certificate_expiry: Timestamp,
     pub issuing_authority: String,
     pub exempt_jurisdictions: Vec<String>,
-    pub digital_goods_override: Option<DigitalGoodsClass>,
+    pub digital_goods_override: MaybeDigitalGoodsClass,
 }
 
 /// A single line in a tax remittance report recording collected tax by jurisdiction.
@@ -700,6 +727,11 @@ pub enum StorageKey {
     /// Temporary nonce used to deduplicate rapid charge attempts within a
     /// single ledger sequence window.  Expires after one ledger close (~5 s).
     TmpChargeNonce(u64),
+
+    // ── Added in storage version 7 (Plan limits) ──
+    /// Global maximum number of plans a merchant can create.
+    /// Stored in instance storage; if unset, the implementation default applies.
+    MaxPlansPerMerchant,
 }
 
 /// Slippage protection bounds for oracle-based pricing.
@@ -711,5 +743,5 @@ pub struct PriceBounds {
     /// Minimum allowed price as basis points of the stored plan price (e.g. 9500 = -5%).
     pub min_price_bps: u32,
     /// Quote currency symbol used for price lookup (e.g. "USD").
-    pub quote: String,
+    pub quote: Symbol,
 }

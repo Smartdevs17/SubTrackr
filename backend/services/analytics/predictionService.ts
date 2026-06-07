@@ -1,4 +1,5 @@
 import path from 'path';
+const ML_SERVICE_URL = process.env.ML_SERVICE_URL ?? 'http://localhost:8000';
 
 export interface RiskFactor {
   factor: string;
@@ -11,6 +12,7 @@ export interface ChurnPrediction {
   riskLevel: 'High' | 'Medium' | 'Low';
   riskFactors: RiskFactor[];
   recommendedAction: string;
+  modelVersion?: string;
 }
 
 export interface UserChurnData {
@@ -44,83 +46,87 @@ export class PredictionService {
     subscriberAddress: string,
     userData: UserChurnData
   ): Promise<ChurnPrediction> {
-    try {
-      // In production, invoke python shell here.
-
-      let riskScore = 0;
-      riskScore += Math.min(userData.recentPaymentFailures / 3.0, 1.0) * 0.4;
-
-      const drop = Math.max(
-        0,
-        (userData.baselineLoginsPerMonth - userData.recentLogins) /
-          Math.max(userData.baselineLoginsPerMonth, 1)
-      );
-      riskScore += drop * 0.25;
-
-      riskScore += Math.min(userData.openSupportTickets / 2.0, 1.0) * 0.15;
-
-      let riskLevel: 'High' | 'Medium' | 'Low' = 'Low';
-      if (riskScore >= 0.7) riskLevel = 'High';
-      else if (riskScore >= 0.4) riskLevel = 'Medium';
-
-      return {
+    const res = await fetch(`${ML_SERVICE_URL}/v1/churn/predict`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         subscriber: subscriberAddress,
-        churnProbability: Number(riskScore.toFixed(4)),
-        riskLevel,
-        riskFactors: [
-          { factor: 'payment_failures', impact: 0.25 },
-          { factor: 'login_frequency_drop', impact: 0.15 },
-        ],
-        recommendedAction: 'Send payment method update reminder with a discount.',
-      };
-    } catch (error) {
-      throw new Error('Failed to predict churn');
-    }
+        user_data: {
+          recent_payment_failures: userData.recentPaymentFailures,
+          baseline_logins_per_month: userData.baselineLoginsPerMonth,
+          recent_logins: userData.recentLogins,
+          open_support_tickets: userData.openSupportTickets,
+          price_sensitivity_index: userData.priceSensitivityIndex,
+        },
+      }),
+    });
+
+    if (!res.ok) throw new Error(`ML service error: ${res.status}`);
+
+    const data = await res.json();
+    return {
+      subscriber: data.subscriber,
+      churnProbability: data.churn_probability,
+      riskLevel: data.risk_level,
+      riskFactors: data.risk_factors ?? [],
+      recommendedAction: data.recommended_action,
+      modelVersion: data.model_version,
+    };
   }
 
-  /**
-   * Helper to specifically get just the risk factors for explainability dashboard.
-   */
-  static async getChurnRiskFactors(_subscriberAddress: string): Promise<RiskFactor[]> {
-    try {
-      // Simulate fetching from DB or running model inference
-      return [
-        { factor: 'payment_failures', impact: 0.25 },
-        { factor: 'login_frequency_drop', impact: 0.15 },
-        { factor: 'support_tickets', impact: 0.05 },
-      ];
-    } catch (error) {
-      throw new Error('Failed to fetch risk factors');
-    }
+  static async predictChurnBatch(
+    items: Array<{ subscriberAddress: string; userData: UserChurnData }>
+  ): Promise<ChurnPrediction[]> {
+    const res = await fetch(`${ML_SERVICE_URL}/v1/churn/predict/batch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        items: items.map((i) => ({
+          subscriber: i.subscriberAddress,
+          user_data: {
+            recent_payment_failures: i.userData.recentPaymentFailures,
+            baseline_logins_per_month: i.userData.baselineLoginsPerMonth,
+            recent_logins: i.userData.recentLogins,
+            open_support_tickets: i.userData.openSupportTickets,
+            price_sensitivity_index: i.userData.priceSensitivityIndex,
+          },
+        })),
+      }),
+    });
+
+    if (!res.ok) throw new Error(`ML service error: ${res.status}`);
+
+    const data = await res.json();
+    return data.results
+      .filter((r: any) => r.ok)
+      .map((r: any) => ({
+        subscriber: r.subscriber,
+        churnProbability: r.churn_probability,
+        riskLevel: r.risk_level,
+        riskFactors: r.risk_factors ?? [],
+        recommendedAction: r.recommended_action,
+        modelVersion: data.model_version,
+      }));
   }
 
   static async forecastRevenue(
     observations: RevenueObservation[],
     horizon = 3
   ): Promise<ForecastPoint[]> {
-    if (observations.length === 0) return [];
-
-    const values = observations.map((entry) => entry.revenue);
-    const latest = values[values.length - 1];
-    const deltas = values.slice(1).map((value, index) => value - values[index]);
-    const averageDelta = deltas.length
-      ? deltas.reduce((sum, delta) => sum + delta, 0) / deltas.length
-      : 0;
-    const variance = deltas.length
-      ? deltas.reduce((sum, delta) => sum + Math.pow(delta - averageDelta, 2), 0) / deltas.length
-      : Math.max(latest * 0.05, 1);
-    const deviation = Math.sqrt(variance);
-
-    return Array.from({ length: horizon }, (_, index) => {
-      const step = index + 1;
-      const expectedRevenue = Math.max(0, latest + averageDelta * step);
-      const confidence = deviation * Math.sqrt(step) * 1.96;
-      return {
-        period: `forecast_${step}`,
-        expectedRevenue: Number(expectedRevenue.toFixed(2)),
-        lowerBound: Number(Math.max(0, expectedRevenue - confidence).toFixed(2)),
-        upperBound: Number((expectedRevenue + confidence).toFixed(2)),
-      };
+    const res = await fetch(`${ML_SERVICE_URL}/v1/churn/forecast`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ observations, horizon }),
     });
+
+    if (!res.ok) throw new Error(`ML service error: ${res.status}`);
+
+    const data = await res.json();
+    return data.map((p: any) => ({
+      period: p.period,
+      expectedRevenue: p.expected_revenue,
+      lowerBound: p.lower_bound,
+      upperBound: p.upper_bound,
+    }));
   }
 }

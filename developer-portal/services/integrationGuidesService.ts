@@ -1,4 +1,4 @@
-import { IntegrationGuide, IntegrationStep } from '../types/portal';
+import { IntegrationGuide } from '../types/portal';
 
 export class IntegrationGuidesService {
   private guides: IntegrationGuide[] = [];

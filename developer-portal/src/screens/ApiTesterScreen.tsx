@@ -23,7 +23,7 @@ const EXAMPLE_ENDPOINTS = [
 ];
 
 const ApiTesterScreen: React.FC = () => {
-  const { developer, apiKeys } = useDeveloperPortalStore();
+  const { apiKeys } = useDeveloperPortalStore();
   const [selectedMethod, setSelectedMethod] = useState('GET');
   const [endpoint, setEndpoint] = useState('/api/v1/subscriptions');
   const [selectedApiKey, setSelectedApiKey] = useState('');

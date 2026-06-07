@@ -11,7 +11,7 @@ import {
   Dimensions,
 } from 'react-native';
 import Svg, { Rect, Text as SvgText, Line, G } from 'react-native-svg';
-import { colors, spacing, typography, borderRadius } from '../utils/constants';
+import { spacing, typography, borderRadius } from '../utils/constants';
 import { Card } from '../components/common/Card';
 import { useSubscriptionStore } from '../store/subscriptionStore';
 import {
@@ -20,6 +20,7 @@ import {
   billingCycleToMs,
   splitRecognisedDeferred,
 } from '../store/accountingStore';
+import { useThemeColors } from '../hooks/useThemeColors';
 
 const { width: screenWidth } = Dimensions.get('window');
 const CHART_WIDTH = screenWidth - spacing.xl * 2;
@@ -48,6 +49,8 @@ const BUCKET_LABELS: Record<PeriodRange, string[]> = {
 };
 
 const RevenueReportScreen: React.FC = () => {
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { subscriptions } = useSubscriptionStore();
   const {
     rules,
@@ -179,7 +182,7 @@ const RevenueReportScreen: React.FC = () => {
           </Card>
           <Card style={styles.summaryCard}>
             <Text style={styles.summaryLabel}>Deferred</Text>
-            <Text style={[styles.summaryValue, { color: '#FF9800' }]}>
+            <Text style={[styles.summaryValue, { color: colors.status.warning }]}>
               ${totalDeferred.toFixed(2)}
             </Text>
           </Card>
@@ -352,122 +355,124 @@ const RevenueReportScreen: React.FC = () => {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  scrollView: { flex: 1 },
-  header: { padding: spacing.lg, paddingBottom: spacing.md },
-  title: { ...typography.h1, color: colors.text, marginBottom: spacing.xs },
-  subtitle: { ...typography.body, color: colors.textSecondary },
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background.primary },
+    scrollView: { flex: 1 },
+    header: { padding: spacing.lg, paddingBottom: spacing.md },
+    title: { ...typography.h1, color: colors.text, marginBottom: spacing.xs },
+    subtitle: { ...typography.body, color: colors.textSecondary },
 
-  summaryRow: {
-    flexDirection: 'row',
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.md,
-    gap: spacing.md,
-  },
-  summaryCard: { flex: 1, alignItems: 'center' },
-  summaryLabel: { ...typography.caption, color: colors.textSecondary, marginBottom: spacing.xs },
-  summaryValue: { ...typography.h2, fontWeight: '700' },
+    summaryRow: {
+      flexDirection: 'row',
+      paddingHorizontal: spacing.lg,
+      marginBottom: spacing.md,
+      gap: spacing.md,
+    },
+    summaryCard: { flex: 1, alignItems: 'center' },
+    summaryLabel: { ...typography.caption, color: colors.textSecondary, marginBottom: spacing.xs },
+    summaryValue: { ...typography.h2, fontWeight: '700' },
 
-  periodRow: {
-    flexDirection: 'row',
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.md,
-    gap: spacing.sm,
-  },
-  periodBtn: {
-    flex: 1,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-  },
-  periodBtnActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  periodBtnText: { ...typography.body, color: colors.text },
-  periodBtnTextActive: { color: colors.text, fontWeight: '600' },
+    periodRow: {
+      flexDirection: 'row',
+      paddingHorizontal: spacing.lg,
+      marginBottom: spacing.md,
+      gap: spacing.sm,
+    },
+    periodBtn: {
+      flex: 1,
+      paddingVertical: spacing.sm,
+      borderRadius: borderRadius.md,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+    },
+    periodBtnActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+    periodBtnText: { ...typography.body, color: colors.text },
+    periodBtnTextActive: { color: colors.text, fontWeight: '600' },
 
-  chartCard: { marginHorizontal: spacing.lg, marginBottom: spacing.md },
-  chartTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.md },
-  noDataText: {
-    ...typography.body,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    paddingVertical: spacing.lg,
-  },
+    chartCard: { marginHorizontal: spacing.lg, marginBottom: spacing.md },
+    chartTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.md },
+    noDataText: {
+      ...typography.body,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      paddingVertical: spacing.lg,
+    },
 
-  tableCard: { marginHorizontal: spacing.lg, marginBottom: spacing.md },
-  tableRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  tableLeft: { flex: 1, marginRight: spacing.md },
-  tableName: { ...typography.body, color: colors.text, fontWeight: '600' },
-  tableMethod: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
-  tableRight: { alignItems: 'flex-end' },
-  tableRecognised: { ...typography.body, color: colors.primary, fontWeight: '600' },
-  tableDeferred: { ...typography.caption, color: '#FF9800' },
+    tableCard: { marginHorizontal: spacing.lg, marginBottom: spacing.md },
+    tableRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: spacing.sm,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    tableLeft: { flex: 1, marginRight: spacing.md },
+    tableName: { ...typography.body, color: colors.text, fontWeight: '600' },
+    tableMethod: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+    tableRight: { alignItems: 'flex-end' },
+    tableRecognised: { ...typography.body, color: colors.primary, fontWeight: '600' },
+    tableDeferred: { ...typography.caption, color: colors.status.warning },
 
-  configCard: { marginHorizontal: spacing.lg, marginBottom: spacing.xl },
-  configHint: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginBottom: spacing.md,
-  },
-  configRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  configName: { ...typography.body, color: colors.text, flex: 1 },
-  configChevron: { ...typography.body, color: colors.textSecondary, marginLeft: spacing.sm },
-  configDetail: {
-    backgroundColor: colors.background,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-  },
-  configDetailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  configDetailLabel: { ...typography.body, color: colors.text },
-  configMethodDesc: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginBottom: spacing.md,
-  },
-  simulateBtn: {
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.md,
-    paddingVertical: spacing.sm,
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  simulateBtnText: { ...typography.body, color: colors.text, fontWeight: '600' },
-  removeBtn: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: borderRadius.md,
-    paddingVertical: spacing.sm,
-    alignItems: 'center',
-  },
-  removeBtnText: { ...typography.body, color: colors.textSecondary },
+    configCard: { marginHorizontal: spacing.lg, marginBottom: spacing.xl },
+    configHint: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      marginBottom: spacing.md,
+    },
+    configRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: spacing.sm,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    configName: { ...typography.body, color: colors.text, flex: 1 },
+    configChevron: { ...typography.body, color: colors.textSecondary, marginLeft: spacing.sm },
+    configDetail: {
+      backgroundColor: colors.background.secondary,
+      borderRadius: borderRadius.md,
+      padding: spacing.md,
+      marginBottom: spacing.sm,
+    },
+    configDetailRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: spacing.sm,
+    },
+    configDetailLabel: { ...typography.body, color: colors.text },
+    configMethodDesc: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      marginBottom: spacing.md,
+    },
+    simulateBtn: {
+      backgroundColor: colors.primary,
+      borderRadius: borderRadius.md,
+      paddingVertical: spacing.sm,
+      alignItems: 'center',
+      marginBottom: spacing.sm,
+    },
+    simulateBtnText: { ...typography.body, color: colors.text, fontWeight: '600' },
+    removeBtn: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: borderRadius.md,
+      paddingVertical: spacing.sm,
+      alignItems: 'center',
+    },
+    removeBtnText: { ...typography.body, color: colors.textSecondary },
 
-  emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.xl },
-  emptyIcon: { fontSize: 64, marginBottom: spacing.md },
-  emptyTitle: { ...typography.h2, color: colors.text, marginBottom: spacing.sm },
-  emptyText: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
-});
+    emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.xl },
+    emptyIcon: { fontSize: 64, marginBottom: spacing.md },
+    emptyTitle: { ...typography.h2, color: colors.text, marginBottom: spacing.sm },
+    emptyText: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
+  });
+}
 
 export default RevenueReportScreen;

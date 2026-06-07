@@ -29,9 +29,11 @@ import { AchievementTrigger } from '../types/gamification';
 import { errorHandler, AppError } from '../services/errorHandler';
 import { useSettingsStore } from './settingsStore';
 import { currencyService } from '../services/currencyService';
+import { useSupportStore } from './supportStore';
+import { buildSupportEventMessage } from '../services/ticketingService';
+import { SubscriptionSupportContext, TicketIssueType } from '../types/support';
 import {
   previewProration,
-  calculateNetProration,
   generateCreditMemo,
   applyCreditMemo,
   ProrationPreview,
@@ -82,6 +84,44 @@ const normalizeSubscription = (raw: Partial<Subscription>): Subscription => {
     cryptoAmount: raw.cryptoAmount,
     createdAt: toValidDate(raw.createdAt, now),
     updatedAt: toValidDate(raw.updatedAt, now),
+  };
+};
+
+const buildSupportContext = (
+  subscription: Subscription,
+  history: string[]
+): SubscriptionSupportContext => ({
+  subscriptionName: subscription.name,
+  planName: subscription.name,
+  planTier: subscription.category,
+  billingCycle: subscription.billingCycle,
+  status: subscription.isActive ? 'active' : 'paused',
+  amount: subscription.price,
+  currency: subscription.currency,
+  createdAt: subscription.createdAt.toISOString(),
+  nextBillingDate:
+    subscription.nextBillingDate?.toISOString?.() ??
+    new Date(subscription.nextBillingDate).toISOString(),
+  failedPayments: subscription.chargeCount ? Math.max(subscription.chargeCount - 1, 0) : 0,
+  chargeCount: subscription.chargeCount ?? 0,
+  history,
+});
+
+const createSupportEvent = (
+  subscription: Subscription,
+  issueType: TicketIssueType,
+  history: string[],
+  actorId = 'system'
+) => {
+  const context = buildSupportContext(subscription, history);
+  return {
+    subscriptionId: subscription.id,
+    issueType,
+    message: buildSupportEventMessage(context, issueType),
+    occurredAt: new Date(),
+    context,
+    dedupeKey: `${subscription.id}:${issueType}`,
+    actorId,
   };
 };
 
@@ -194,9 +234,11 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         totalActive: 0,
         totalMonthlySpend: 0,
         totalYearlySpend: 0,
-        categoryBreakdown: {} as Record<string, number>,
-        prorationPreview: null,
+        categoryBreakdown: {} as Record<SubscriptionCategory, number>,
       },
+      isLoading: true,
+      error: null,
+      prorationPreview: null,
       creditMemos: {},
 
       previewPlanChange: (
@@ -227,7 +269,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           const preview = previewProration(sub, newPlanData.price ?? sub.price, effectiveDate);
 
           // Generate credit memo if downgrade
-          let updatedCreditMemos = { ...get().creditMemos };
+          const updatedCreditMemos = { ...get().creditMemos };
           if (preview.isCredit && preview.amount > 0) {
             const memo = generateCreditMemo(id, preview.amount, preview.description);
             updatedCreditMemos[id] = memo;
@@ -282,10 +324,6 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         // Could trigger a reduced charge here
         console.log(`Applied credit: final charge ${finalCharge}`);
       },
-
-      // Hydration state: keep loading true until persisted state is read.
-      isLoading: true,
-      error: null,
 
       addSubscription: async (data: SubscriptionFormData) => {
         set({ isLoading: true, error: null });
@@ -361,6 +399,18 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       deleteSubscription: async (id: string) => {
         set({ isLoading: true, error: null });
         try {
+          const current = get().subscriptions.find((sub) => sub.id === id);
+          if (current) {
+            useSupportStore
+              .getState()
+              .createTicket(
+                createSupportEvent(current, 'cancellation', [
+                  'Cancellation requested from subscription management',
+                  'Subscription marked for removal',
+                ])
+              );
+          }
+
           set((state) => ({
             subscriptions: state.subscriptions.filter((sub) => sub.id !== id),
             isLoading: false,
@@ -489,13 +539,22 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             },
             0
           );
+        } else {
+          useSupportStore
+            .getState()
+            .createTicket(
+              createSupportEvent(sub, 'failed_charge', [
+                'Payment failure recorded during billing run',
+                `Next billing date remains ${sub.nextBillingDate.toISOString()}`,
+                `Notifications ${sub.notificationsEnabled === false ? 'disabled' : 'enabled'}`,
+              ])
+            );
         }
       },
 
       fetchSubscriptions: async () => {
         set({ isLoading: true, error: null });
         try {
-          // TODO: Replace with remote sync; local storage remains source-of-truth offline.
           await new Promise((resolve) => setTimeout(resolve, 1000));
           set({ isLoading: false });
           get().calculateStats();

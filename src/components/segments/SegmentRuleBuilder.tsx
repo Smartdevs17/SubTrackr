@@ -62,25 +62,29 @@ export const SegmentRuleBuilder: React.FC<SegmentRuleBuilderProps> = ({
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.colors.text }]}>Criteria Rules</Text>
+        <Text style={[styles.title, { color: theme.colors.text.primary }]}>Criteria Rules</Text>
         <View style={styles.logicContainer}>
           <TouchableOpacity
             onPress={() => onLogicChange('AND')}
             style={[
               styles.logicButton,
-              logic === 'AND' && { backgroundColor: theme.colors.primary },
-              { borderColor: theme.colors.border },
+              logic === 'AND' && { backgroundColor: theme.colors.brand.primary },
+              { borderColor: theme.colors.border.default },
             ]}>
-            <Text style={[styles.logicText, logic === 'AND' && { color: '#fff' }]}>AND</Text>
+            <Text style={[styles.logicText, logic === 'AND' && { color: theme.colors.onPrimary }]}>
+              AND
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => onLogicChange('OR')}
             style={[
               styles.logicButton,
-              logic === 'OR' && { backgroundColor: theme.colors.primary },
-              { borderColor: theme.colors.border },
+              logic === 'OR' && { backgroundColor: theme.colors.brand.primary },
+              { borderColor: theme.colors.border.default },
             ]}>
-            <Text style={[styles.logicText, logic === 'OR' && { color: '#fff' }]}>OR</Text>
+            <Text style={[styles.logicText, logic === 'OR' && { color: theme.colors.onPrimary }]}>
+              OR
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -88,15 +92,15 @@ export const SegmentRuleBuilder: React.FC<SegmentRuleBuilderProps> = ({
       {rules.map((rule, index) => (
         <Card key={rule.id} style={styles.ruleCard}>
           <View style={styles.ruleHeader}>
-            <Text style={{ color: theme.colors.textSecondary }}>Rule #{index + 1}</Text>
+            <Text style={{ color: theme.colors.text.secondary }}>Rule #{index + 1}</Text>
             <TouchableOpacity onPress={() => removeRule(rule.id)}>
-              <Text style={{ color: theme.colors.error }}>Remove</Text>
+              <Text style={{ color: theme.colors.status.error }}>Remove</Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.ruleRow}>
             <View style={styles.selectContainer}>
-              <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Field</Text>
+              <Text style={[styles.label, { color: theme.colors.text.secondary }]}>Field</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 {FIELDS.map((f) => (
                   <TouchableOpacity
@@ -104,10 +108,14 @@ export const SegmentRuleBuilder: React.FC<SegmentRuleBuilderProps> = ({
                     onPress={() => updateRule(rule.id, { field: f.value })}
                     style={[
                       styles.chip,
-                      rule.field === f.value && { backgroundColor: theme.colors.primary },
-                      { borderColor: theme.colors.border },
+                      rule.field === f.value && { backgroundColor: theme.colors.brand.primary },
+                      { borderColor: theme.colors.border.default },
                     ]}>
-                    <Text style={[styles.chipText, rule.field === f.value && { color: '#fff' }]}>
+                    <Text
+                      style={[
+                        styles.chipText,
+                        rule.field === f.value && { color: theme.colors.onPrimary },
+                      ]}>
                       {f.label}
                     </Text>
                   </TouchableOpacity>
@@ -118,7 +126,7 @@ export const SegmentRuleBuilder: React.FC<SegmentRuleBuilderProps> = ({
 
           <View style={styles.ruleRow}>
             <View style={styles.selectContainer}>
-              <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Operator</Text>
+              <Text style={[styles.label, { color: theme.colors.text.secondary }]}>Operator</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 {OPERATORS.map((o) => (
                   <TouchableOpacity
@@ -127,9 +135,13 @@ export const SegmentRuleBuilder: React.FC<SegmentRuleBuilderProps> = ({
                     style={[
                       styles.chip,
                       rule.operator === o.value && { backgroundColor: theme.colors.accent },
-                      { borderColor: theme.colors.border },
+                      { borderColor: theme.colors.border.default },
                     ]}>
-                    <Text style={[styles.chipText, rule.operator === o.value && { color: '#fff' }]}>
+                    <Text
+                      style={[
+                        styles.chipText,
+                        rule.operator === o.value && { color: theme.colors.onPrimary },
+                      ]}>
                       {o.label}
                     </Text>
                   </TouchableOpacity>
@@ -140,11 +152,14 @@ export const SegmentRuleBuilder: React.FC<SegmentRuleBuilderProps> = ({
 
           <View style={styles.ruleRow}>
             <View style={styles.inputContainer}>
-              <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Value</Text>
+              <Text style={[styles.label, { color: theme.colors.text.secondary }]}>Value</Text>
               <TextInput
                 style={[
                   styles.input,
-                  { color: theme.colors.text, borderColor: theme.colors.border },
+                  {
+                    color: theme.colors.text.primary,
+                    borderColor: theme.colors.border.default,
+                  },
                 ]}
                 value={String(rule.value)}
                 onChangeText={(text) => {
@@ -152,7 +167,7 @@ export const SegmentRuleBuilder: React.FC<SegmentRuleBuilderProps> = ({
                   updateRule(rule.id, { value: val });
                 }}
                 placeholder="Enter value..."
-                placeholderTextColor={theme.colors.textSecondary}
+                placeholderTextColor={theme.colors.text.secondary}
               />
             </View>
           </View>

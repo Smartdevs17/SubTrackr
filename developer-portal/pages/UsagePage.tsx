@@ -26,7 +26,7 @@ interface UsagePageProps {
   environmentId?: string;
 }
 
-export const UsagePage: React.FC<UsagePageProps> = ({ environmentId }) => {
+export const UsagePage: React.FC<UsagePageProps> = ({ environmentId: _environmentId }) => {
   const [stats, setStats] = useState<UsageStats | null>(null);
   const [topEndpoints, setTopEndpoints] = useState<EndpointUsage[]>([]);
   const [hourlyData, setHourlyData] = useState<HourlyData[]>([]);

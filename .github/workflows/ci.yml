@@ -39,7 +39,7 @@ jobs:
         run: npm ci --legacy-peer-deps
 
       - name: Validate PR commits
-        run: npx commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.sha }} --verbose
+        run: npx commitlint --from=origin/${{ github.event.pull_request.base.ref }} --to=HEAD --verbose
 
   # ─────────────────────────────────────────────────────────
   # TypeScript / React Native Checks
@@ -50,6 +50,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -69,7 +72,30 @@ jobs:
         run: npm ci --legacy-peer-deps
 
       - name: Check formatting (Prettier)
+        id: prettier-check
         run: npm run format:check
+        continue-on-error: true
+
+      - name: Auto-fix formatting issues
+        if: steps.prettier-check.outcome == 'failure'
+        run: |
+          echo "Formatting inconsistencies detected. Executing auto-fixer..."
+          npm run format:write || npx prettier --write "src/**/*.{ts,tsx,js,json,md}"
+
+      - name: Commit and Push formatting fixes
+        if: steps.prettier-check.outcome == 'failure'
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: 'chore: automated code formatting fixes via CI pipeline'
+          commit_user_name: 'github-actions[bot]'
+          commit_user_email: 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Enforce strict layout check
+        if: steps.prettier-check.outcome == 'failure'
+        run: |
+          echo "❌ Code styles were inconsistent. Automated modifications have been pushed to your branch."
+          echo "Please pull latest changes locally or wait for the subsequent workflow run execution pass."
+          exit 1
 
       - name: Run ESLint
         run: npm run lint
@@ -265,9 +291,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
+            ~/cargo/registry/index/
+            ~/cargo/registry/cache/
+            ~/cargo/git/db/
             contracts/target/
           key: ${{ runner.os }}-cargo-${{ env.RUST_VERSION }}-${{ hashFiles('contracts/Cargo.lock') }}
           restore-keys: |
@@ -293,9 +319,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
+            ~/cargo/registry/index/
+            ~/cargo/registry/cache/
+            ~/cargo/git/db/
             contracts/target/
           key: ${{ runner.os }}-cargo-${{ env.RUST_VERSION }}-${{ hashFiles('contracts/Cargo.lock') }}
           restore-keys: |
@@ -321,9 +347,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
+            ~/cargo/registry/index/
+            ~/cargo/registry/cache/
+            ~/cargo/git/db/
             contracts/target/
           key: ${{ runner.os }}-cargo-${{ env.RUST_VERSION }}-${{ hashFiles('contracts/Cargo.lock') }}
           restore-keys: |
@@ -339,15 +365,39 @@ jobs:
   load-test:
     name: k6 Load Test
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [subscription, billing, contract]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Run k6 Load Test
-        uses: grafana/k6-action@v0.5.1
+      - name: Prepare reports directory
+        run: mkdir -p load-tests/reports
+
+      - name: Run k6 Load Test (${{ matrix.scenario }})
+        uses: grafana/k6-action@v0
         with:
           filename: load-tests/run.js
-          flags: --env SCENARIO=subscription
+          flags: --env SCENARIO=${{ matrix.scenario }} --quiet
+
+      - name: Rename report for this scenario
+        if: always()
+        run: |
+          for ext in json md html; do
+            if [ -f "load-tests/reports/summary.$ext" ]; then
+              mv "load-tests/reports/summary.$ext" "load-tests/reports/${{ matrix.scenario }}.$ext"
+            fi
+          done
+
+      - name: Upload load test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-test-report-${{ matrix.scenario }}
+          path: load-tests/reports/
+          if-no-files-found: ignore
 
   # ─────────────────────────────────────────────────────────
   # Bundle Size Monitoring
@@ -372,10 +422,9 @@ jobs:
 
       - name: Check bundle size (PR)
         if: github.event_name == 'pull_request'
-        uses: andresz1/size-limit-action@v1
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          build_script: 'npm run build'
+        run: npx size-limit
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build app
         if: github.event_name != 'pull_request'

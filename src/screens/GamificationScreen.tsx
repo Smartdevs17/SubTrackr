@@ -19,13 +19,13 @@ export const GamificationScreen: React.FC = () => {
   const leaderboard = gamificationService.getLeaderboard(points, user?.name || 'You');
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <ScrollView style={[styles.container, { backgroundColor: theme.colors.background.primary }]}>
       <View style={styles.header}>
         <LevelProgressBar points={points} level={level} />
       </View>
 
       <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Your Badges</Text>
+        <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>Your Badges</Text>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}

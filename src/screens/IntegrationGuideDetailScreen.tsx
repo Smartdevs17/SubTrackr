@@ -1,16 +1,18 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { useSandboxStore } from '../store/sandboxStore';
-import { colors } from '../utils/constants';
+import { useThemeColors } from '../hooks/useThemeColors';
 import { IntegrationStep } from '../types/sandbox';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export default function IntegrationGuideDetailScreen() {
   const navigation = useNavigation<NavigationProp>();
+  const colors = useThemeColors();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const { selectedGuide } = useSandboxStore();
 
   if (!selectedGuide) {
@@ -27,11 +29,11 @@ export default function IntegrationGuideDetailScreen() {
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
       case 'beginner':
-        return '#4CAF50';
+        return colors.status.success;
       case 'intermediate':
-        return '#FF9800';
+        return colors.status.warning;
       case 'advanced':
-        return '#F44336';
+        return colors.status.error;
       default:
         return colors.textSecondary;
     }
@@ -116,208 +118,210 @@ export default function IntegrationGuideDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  contentContainer: {
-    padding: 16,
-    paddingBottom: 32,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: colors.background,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    marginBottom: 16,
-  },
-  backButton: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  backButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-    fontSize: 16,
-  },
-  header: {
-    marginBottom: 20,
-  },
-  headerMeta: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  category: {
-    fontSize: 14,
-    color: colors.primary,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-  },
-  difficultyBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  difficultyText: {
-    fontSize: 13,
-    fontWeight: '600',
-    textTransform: 'capitalize',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: colors.text,
-    marginBottom: 8,
-  },
-  description: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    lineHeight: 24,
-    marginBottom: 16,
-  },
-  metaInfo: {
-    flexDirection: 'row',
-  },
-  metaItem: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginRight: 20,
-  },
-  tagContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 24,
-  },
-  tag: {
-    backgroundColor: colors.surface,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  tagText: {
-    fontSize: 13,
-    color: colors.textSecondary,
-  },
-  stepsContainer: {
-    marginBottom: 24,
-  },
-  stepsTitle: {
-    fontSize: 22,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 16,
-  },
-  stepCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  stepHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  stepNumber: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  stepNumberText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  stepTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.text,
-    flex: 1,
-  },
-  stepContent: {
-    fontSize: 15,
-    color: colors.textSecondary,
-    lineHeight: 22,
-    marginBottom: 12,
-  },
-  codeContainer: {
-    backgroundColor: '#1E1E1E',
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  codeHeader: {
-    backgroundColor: '#2D2D2D',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  codeLanguage: {
-    fontSize: 12,
-    color: '#AAAAAA',
-    textTransform: 'uppercase',
-  },
-  codeText: {
-    fontSize: 13,
-    fontFamily: 'monospace',
-    color: '#D4D4D4',
-    padding: 12,
-    lineHeight: 20,
-  },
-  completionCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  completionIcon: {
-    fontSize: 48,
-    marginBottom: 16,
-  },
-  completionTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: colors.text,
-    marginBottom: 8,
-  },
-  completionText: {
-    fontSize: 15,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 20,
-  },
-  startButton: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    borderRadius: 10,
-  },
-  startButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-});
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background.primary,
+    },
+    contentContainer: {
+      padding: 16,
+      paddingBottom: 32,
+    },
+    emptyContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: colors.background.primary,
+    },
+    emptyText: {
+      fontSize: 16,
+      color: colors.textSecondary,
+      marginBottom: 16,
+    },
+    backButton: {
+      backgroundColor: colors.primary,
+      paddingHorizontal: 24,
+      paddingVertical: 12,
+      borderRadius: 8,
+    },
+    backButtonText: {
+      color: colors.onPrimary,
+      fontWeight: '600',
+      fontSize: 16,
+    },
+    header: {
+      marginBottom: 20,
+    },
+    headerMeta: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    category: {
+      fontSize: 14,
+      color: colors.primary,
+      fontWeight: '600',
+      textTransform: 'uppercase',
+    },
+    difficultyBadge: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 12,
+    },
+    difficultyText: {
+      fontSize: 13,
+      fontWeight: '600',
+      textTransform: 'capitalize',
+    },
+    title: {
+      fontSize: 28,
+      fontWeight: 'bold',
+      color: colors.text,
+      marginBottom: 8,
+    },
+    description: {
+      fontSize: 16,
+      color: colors.textSecondary,
+      lineHeight: 24,
+      marginBottom: 16,
+    },
+    metaInfo: {
+      flexDirection: 'row',
+    },
+    metaItem: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      marginRight: 20,
+    },
+    tagContainer: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      marginBottom: 24,
+    },
+    tag: {
+      backgroundColor: colors.surface,
+      paddingHorizontal: 14,
+      paddingVertical: 6,
+      borderRadius: 16,
+    },
+    tagText: {
+      fontSize: 13,
+      color: colors.textSecondary,
+    },
+    stepsContainer: {
+      marginBottom: 24,
+    },
+    stepsTitle: {
+      fontSize: 22,
+      fontWeight: '600',
+      color: colors.text,
+      marginBottom: 16,
+    },
+    stepCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 12,
+      shadowColor: colors.overlay,
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      elevation: 1,
+    },
+    stepHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    stepNumber: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: colors.primary,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 12,
+    },
+    stepNumberText: {
+      color: colors.onPrimary,
+      fontSize: 16,
+      fontWeight: 'bold',
+    },
+    stepTitle: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: colors.text,
+      flex: 1,
+    },
+    stepContent: {
+      fontSize: 15,
+      color: colors.textSecondary,
+      lineHeight: 22,
+      marginBottom: 12,
+    },
+    codeContainer: {
+      backgroundColor: colors.background.secondary,
+      borderRadius: 8,
+      overflow: 'hidden',
+    },
+    codeHeader: {
+      backgroundColor: colors.background.card,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+    },
+    codeLanguage: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+    },
+    codeText: {
+      fontSize: 13,
+      fontFamily: 'monospace',
+      color: colors.text,
+      padding: 12,
+      lineHeight: 20,
+    },
+    completionCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      padding: 24,
+      alignItems: 'center',
+      shadowColor: colors.overlay,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 2,
+    },
+    completionIcon: {
+      fontSize: 48,
+      marginBottom: 16,
+    },
+    completionTitle: {
+      fontSize: 22,
+      fontWeight: 'bold',
+      color: colors.text,
+      marginBottom: 8,
+    },
+    completionText: {
+      fontSize: 15,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      lineHeight: 22,
+      marginBottom: 20,
+    },
+    startButton: {
+      backgroundColor: colors.primary,
+      paddingHorizontal: 32,
+      paddingVertical: 14,
+      borderRadius: 10,
+    },
+    startButtonText: {
+      color: colors.onPrimary,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+  });
+}

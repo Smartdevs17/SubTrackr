@@ -343,10 +343,6 @@ describe('detectSlaBreach', () => {
   });
 
   it('creates a breach when uptime is below target', async () => {
-    const notify = (
-      jest.requireMock('../../services/notificationService') as NotificationServiceMock
-    ).presentSlaBreachNotification;
-
     await act(async () => {
       await s().configureSla('detect-breach-merchant', {
         uptimeTarget: 99.9,

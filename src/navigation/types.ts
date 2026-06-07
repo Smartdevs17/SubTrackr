@@ -4,6 +4,7 @@ export type RootStackParamList = {
   Home: undefined;
   AddSubscription: undefined;
   SubscriptionDetail: { id: string };
+  EditSubscription: { id: string };
   CancellationFlow: { subscriptionId: string };
   WalletConnect: undefined;
   CryptoPayment: { subscriptionId?: string } | undefined;
@@ -43,6 +44,11 @@ export type RootStackParamList = {
   LoyaltyDashboard: undefined;
   CampaignManagement: undefined;
   PerformanceDashboard: undefined;
+  BillingSettings: undefined;
+  ChangePlan: { subscriptionId: string };
+  PaymentMethods: undefined;
+  AnalyticsDashboard: undefined;
+  NotFound: { reason?: string };
 };
 
 export type TabParamList = {
@@ -51,5 +57,5 @@ export type TabParamList = {
   WalletTab: undefined;
   AnalyticsTab: undefined;
   RevenueTab: undefined;
-  SettingsTab: undefined;
+  SettingsTab: NavigatorScreenParams<RootStackParamList> | undefined;
 };

@@ -1,4 +1,4 @@
-import { Developer, ApiKey, ApiPermission, UsageMetrics, RateLimit } from '../types/developer';
+import { Developer, ApiKey, ApiPermission, UsageMetrics } from '../types/developer';
 
 export class DeveloperPortalUtils {
   static validateEmail(email: string): boolean {
@@ -89,7 +89,7 @@ export class DeveloperPortalUtils {
 
   static generateOnboardingChecklist(
     developer: Developer
-  ): Array<{ step: string; completed: boolean; description: string }> {
+  ): { step: string; completed: boolean; description: string }[] {
     return [
       {
         step: 'register',

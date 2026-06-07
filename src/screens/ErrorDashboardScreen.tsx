@@ -1,23 +1,19 @@
 import React, { useMemo } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  SafeAreaView,
-  TouchableOpacity,
-  FlatList,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { errorHandler, ErrorType, ErrorSeverity, AppError } from '../services/errorHandler';
-import { colors, spacing, typography, borderRadius } from '../utils/constants';
+import { spacing, typography, borderRadius } from '../utils/constants';
+import { useThemeColors } from '../hooks/useThemeColors';
 
 type ErrorDashboardNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const ErrorDashboardScreen: React.FC = () => {
   const navigation = useNavigation<ErrorDashboardNavigationProp>();
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const errorStats = useMemo(() => errorHandler.getErrorStats(), []);
   const recentErrors = errorStats.recent;
@@ -27,11 +23,11 @@ const ErrorDashboardScreen: React.FC = () => {
       case ErrorSeverity.CRITICAL:
         return colors.error;
       case ErrorSeverity.HIGH:
-        return '#dc2626'; // Red-600
+        return colors.status.error;
       case ErrorSeverity.MEDIUM:
         return colors.warning;
       case ErrorSeverity.LOW:
-        return '#6b7280'; // Gray-500
+        return colors.textSecondary;
       default:
         return colors.error;
     }
@@ -42,11 +38,11 @@ const ErrorDashboardScreen: React.FC = () => {
       case ErrorType.VALIDATION:
         return colors.warning;
       case ErrorType.NETWORK:
-        return '#3b82f6'; // Blue-500
+        return colors.status.info;
       case ErrorType.CRYPTO:
         return colors.accent;
       case ErrorType.STORAGE:
-        return '#8b5cf6'; // Purple-500
+        return colors.brand.primary;
       default:
         return colors.error;
     }
@@ -96,14 +92,14 @@ const ErrorDashboardScreen: React.FC = () => {
           {renderStatCard(
             'High Priority',
             errorStats.bySeverity[ErrorSeverity.HIGH] || 0,
-            '#dc2626'
+            colors.status.error
           )}
           {renderStatCard(
             'Validation',
             errorStats.byType[ErrorType.VALIDATION] || 0,
             colors.warning
           )}
-          {renderStatCard('Network', errorStats.byType[ErrorType.NETWORK] || 0, '#3b82f6')}
+          {renderStatCard('Network', errorStats.byType[ErrorType.NETWORK] || 0, colors.status.info)}
           {renderStatCard('Crypto', errorStats.byType[ErrorType.CRYPTO] || 0, colors.accent)}
         </View>
 
@@ -124,7 +120,7 @@ const ErrorDashboardScreen: React.FC = () => {
           </View>
 
           {recentErrors.length > 0 ? (
-            <FlatList
+            <FlashList
               data={recentErrors}
               renderItem={renderErrorItem}
               keyExtractor={(item) => item.id}
@@ -158,158 +154,160 @@ const ErrorDashboardScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  header: {
-    padding: spacing.lg,
-    alignItems: 'center',
-  },
-  title: {
-    ...typography.h1,
-    color: colors.text,
-    marginBottom: spacing.xs,
-  },
-  subtitle: {
-    ...typography.body,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: spacing.md,
-    marginBottom: spacing.lg,
-  },
-  statCard: {
-    width: '48%',
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    margin: '1%',
-    borderLeftWidth: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  statValue: {
-    ...typography.h2,
-    color: colors.text,
-    fontWeight: 'bold',
-  },
-  statTitle: {
-    ...typography.body,
-    color: colors.textSecondary,
-    marginTop: spacing.xs,
-  },
-  section: {
-    marginBottom: spacing.lg,
-    paddingHorizontal: spacing.lg,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  sectionTitle: {
-    ...typography.h2,
-    color: colors.text,
-  },
-  clearButton: {
-    backgroundColor: colors.error,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.sm,
-  },
-  clearButtonText: {
-    color: colors.text,
-    ...typography.body,
-    fontWeight: '600',
-  },
-  errorItem: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    marginVertical: spacing.xs,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  errorHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  errorType: {
-    ...typography.body,
-    fontWeight: '600',
-    fontSize: 12,
-  },
-  errorSeverity: {
-    ...typography.body,
-    fontWeight: '600',
-    fontSize: 12,
-  },
-  errorMessage: {
-    ...typography.body,
-    color: colors.text,
-    marginBottom: spacing.sm,
-  },
-  errorTimestamp: {
-    ...typography.body,
-    color: colors.textSecondary,
-    fontSize: 12,
-  },
-  errorComponent: {
-    ...typography.body,
-    color: colors.textSecondary,
-    fontSize: 12,
-    marginTop: spacing.xs,
-  },
-  separator: {
-    height: 1,
-    backgroundColor: colors.border,
-    marginVertical: spacing.xs,
-  },
-  emptyState: {
-    alignItems: 'center',
-    padding: spacing.xl,
-  },
-  emptyStateText: {
-    ...typography.h3,
-    color: colors.text,
-    marginBottom: spacing.sm,
-  },
-  emptyStateSubtext: {
-    ...typography.body,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-  typeBreakdown: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.sm,
-    padding: spacing.md,
-    marginVertical: spacing.xs,
-  },
-  typeName: {
-    ...typography.body,
-    fontWeight: '600',
-  },
-  typeCount: {
-    ...typography.body,
-    color: colors.textSecondary,
-  },
-});
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background.primary,
+    },
+    scrollView: {
+      flex: 1,
+    },
+    header: {
+      padding: spacing.lg,
+      alignItems: 'center',
+    },
+    title: {
+      ...typography.h1,
+      color: colors.text,
+      marginBottom: spacing.xs,
+    },
+    subtitle: {
+      ...typography.body,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+    statsContainer: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      paddingHorizontal: spacing.md,
+      marginBottom: spacing.lg,
+    },
+    statCard: {
+      width: '48%',
+      backgroundColor: colors.surface,
+      borderRadius: borderRadius.md,
+      padding: spacing.md,
+      margin: '1%',
+      borderLeftWidth: 4,
+      shadowColor: colors.overlay,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 3,
+    },
+    statValue: {
+      ...typography.h2,
+      color: colors.text,
+      fontWeight: 'bold',
+    },
+    statTitle: {
+      ...typography.body,
+      color: colors.textSecondary,
+      marginTop: spacing.xs,
+    },
+    section: {
+      marginBottom: spacing.lg,
+      paddingHorizontal: spacing.lg,
+    },
+    sectionHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: spacing.md,
+    },
+    sectionTitle: {
+      ...typography.h2,
+      color: colors.text,
+    },
+    clearButton: {
+      backgroundColor: colors.error,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderRadius: borderRadius.sm,
+    },
+    clearButtonText: {
+      color: colors.onPrimary,
+      ...typography.body,
+      fontWeight: '600',
+    },
+    errorItem: {
+      backgroundColor: colors.surface,
+      borderRadius: borderRadius.md,
+      padding: spacing.md,
+      marginVertical: spacing.xs,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    errorHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: spacing.sm,
+    },
+    errorType: {
+      ...typography.body,
+      fontWeight: '600',
+      fontSize: 12,
+    },
+    errorSeverity: {
+      ...typography.body,
+      fontWeight: '600',
+      fontSize: 12,
+    },
+    errorMessage: {
+      ...typography.body,
+      color: colors.text,
+      marginBottom: spacing.sm,
+    },
+    errorTimestamp: {
+      ...typography.body,
+      color: colors.textSecondary,
+      fontSize: 12,
+    },
+    errorComponent: {
+      ...typography.body,
+      color: colors.textSecondary,
+      fontSize: 12,
+      marginTop: spacing.xs,
+    },
+    separator: {
+      height: 1,
+      backgroundColor: colors.border,
+      marginVertical: spacing.xs,
+    },
+    emptyState: {
+      alignItems: 'center',
+      padding: spacing.xl,
+    },
+    emptyStateText: {
+      ...typography.h3,
+      color: colors.text,
+      marginBottom: spacing.sm,
+    },
+    emptyStateSubtext: {
+      ...typography.body,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+    typeBreakdown: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderRadius: borderRadius.sm,
+      padding: spacing.md,
+      marginVertical: spacing.xs,
+    },
+    typeName: {
+      ...typography.body,
+      fontWeight: '600',
+    },
+    typeCount: {
+      ...typography.body,
+      color: colors.textSecondary,
+    },
+  });
+}
 
 export default ErrorDashboardScreen;

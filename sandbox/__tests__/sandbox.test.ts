@@ -1,8 +1,6 @@
 import { SandboxIsolationService } from '../services/sandboxIsolationService';
 import { ApiKeyService } from '../services/apiKeyService';
 import { UsageTrackingService } from '../services/usageTrackingService';
-import { SandboxService } from '../services/sandboxService';
-import { SandboxMiddleware } from '../middleware/sandboxMiddleware';
 import { SandboxUtils } from '../utils/sandboxUtils';
 
 describe('SandboxIsolationService', () => {

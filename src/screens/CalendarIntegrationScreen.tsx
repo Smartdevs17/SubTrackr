@@ -2,7 +2,6 @@ import React, { useEffect, useCallback } from 'react';
 import {
   Alert,
   Linking,
-  Platform,
   SafeAreaView,
   ScrollView,
   Share,

@@ -12,22 +12,15 @@ import {
   TextInput,
   ActivityIndicator,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { useSandboxStore } from '../store/sandboxStore';
 import { SandboxEnvironment, SandboxStatus } from '../types/sandbox';
-import { RootStackParamList } from '../navigation/types';
-
-type SandboxNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const SandboxScreen: React.FC = () => {
-  const navigation = useNavigation<SandboxNavigationProp>();
   const {
     sandboxes,
     currentSandbox,
     subscriptions,
-    transactions,
     metrics,
     isLoading,
     error,
