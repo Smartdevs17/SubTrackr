@@ -1,4 +1,9 @@
-import { Subscription, SubscriptionCategory, SubscriptionStats, BillingCycle } from '../types/subscription';
+import {
+  Subscription,
+  SubscriptionCategory,
+  SubscriptionStats,
+  BillingCycle,
+} from '../types/subscription';
 import { BILLING_CONVERSIONS } from './constants/values';
 
 /**
@@ -81,10 +86,7 @@ export const calculateSubscriptionStats = (
     {} as Record<SubscriptionCategory, number>
   );
 
-  const totalGasSpent = activeSubs.reduce(
-    (total, sub) => total + (sub.totalGasSpent || 0),
-    0
-  );
+  const totalGasSpent = activeSubs.reduce((total, sub) => total + (sub.totalGasSpent || 0), 0);
 
   return {
     totalActive: activeSubs.length,

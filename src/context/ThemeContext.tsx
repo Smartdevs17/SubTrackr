@@ -1,11 +1,4 @@
-import React, {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Appearance, ColorSchemeName } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { darkColors, lightColors, ColorTokens } from '../theme/colors';
@@ -37,10 +30,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
     AsyncStorage.getItem(STORAGE_KEY)
       .then((saved) => {
-        if (
-          mounted &&
-          (saved === 'light' || saved === 'dark' || saved === 'system')
-        ) {
+        if (mounted && (saved === 'light' || saved === 'dark' || saved === 'system')) {
           setModeState(saved);
         }
       })

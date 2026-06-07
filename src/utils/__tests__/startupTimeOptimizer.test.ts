@@ -1,4 +1,8 @@
-import { startupTimeOptimizer, measureStartupTime, initHermesOptimizations } from '../../utils/startupTimeOptimizer';
+import {
+  startupTimeOptimizer,
+  measureStartupTime,
+  initHermesOptimizations,
+} from '../../utils/startupTimeOptimizer';
 import { Platform } from 'react-native';
 
 jest.mock('react-native', () => ({
@@ -55,7 +59,9 @@ describe('measureStartupTime', () => {
 
   it('should warn on slow Android operations', async () => {
     const warnSpy = jest.spyOn(console, 'warn').mockImplementation();
-    const slowFn = jest.fn().mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 200)));
+    const slowFn = jest
+      .fn()
+      .mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 200)));
 
     await measureStartupTime(slowFn);
     expect(warnSpy).toHaveBeenCalled();

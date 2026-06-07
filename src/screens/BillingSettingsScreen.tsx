@@ -108,9 +108,7 @@ const BillingSettingsScreen: React.FC = () => {
 
   // ── Local form state ───────────────────────────────────────────────────
 
-  const [config, setConfig] = useState<CalendarBilling>(
-    existingSchedule?.config ?? DEFAULT_CONFIG
-  );
+  const [config, setConfig] = useState<CalendarBilling>(existingSchedule?.config ?? DEFAULT_CONFIG);
   const [showDayPicker, setShowDayPicker] = useState(false);
   const [_showProRataDemo, _setShowProRataDemo] = useState(false);
   const [proRataJoinDate, setProRataJoinDate] = useState(new Date());
@@ -222,18 +220,26 @@ const BillingSettingsScreen: React.FC = () => {
             <Text style={styles.sectionTitle}>Active schedule</Text>
             <View style={styles.metricRow}>
               <Text style={styles.metricLabel}>Billing day</Text>
-              <Text style={styles.metricValue}>{ordinal(existingSchedule.config.day_of_month)}</Text>
+              <Text style={styles.metricValue}>
+                {ordinal(existingSchedule.config.day_of_month)}
+              </Text>
             </View>
             <View style={styles.metricRow}>
               <Text style={styles.metricLabel}>Interval</Text>
               <Text style={styles.metricValue}>
-                {INTERVAL_OPTIONS.find((o) => o.value === existingSchedule.config.billing_months_interval)?.label ?? `Every ${existingSchedule.config.billing_months_interval} months`}
+                {INTERVAL_OPTIONS.find(
+                  (o) => o.value === existingSchedule.config.billing_months_interval
+                )?.label ?? `Every ${existingSchedule.config.billing_months_interval} months`}
               </Text>
             </View>
             <View style={styles.metricRow}>
               <Text style={styles.metricLabel}>Short-month policy</Text>
               <Text style={styles.metricValue}>
-                {ADJUSTMENT_POLICY_OPTIONS.find((o) => o.value === existingSchedule.config.adjustment_policy)?.label}
+                {
+                  ADJUSTMENT_POLICY_OPTIONS.find(
+                    (o) => o.value === existingSchedule.config.adjustment_policy
+                  )?.label
+                }
               </Text>
             </View>
             <View style={[styles.metricRow, styles.highlightRow]}>
@@ -261,10 +267,7 @@ const BillingSettingsScreen: React.FC = () => {
           </TouchableOpacity>
 
           {showDayPicker ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.dayScroll}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.dayScroll}>
               {DAY_OPTIONS.map((day) => (
                 <TouchableOpacity
                   key={day}
@@ -464,9 +467,7 @@ const BillingSettingsScreen: React.FC = () => {
           </Text>
 
           <Text style={styles.fieldLabel}>Subscription join date</Text>
-          <TouchableOpacity
-            style={styles.selectorButton}
-            onPress={() => setShowDatePicker(true)}>
+          <TouchableOpacity style={styles.selectorButton} onPress={() => setShowDatePicker(true)}>
             <Text style={styles.selectorButtonText}>
               {proRataJoinDate.toLocaleDateString('en-US', {
                 year: 'numeric',

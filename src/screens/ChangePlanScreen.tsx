@@ -124,8 +124,7 @@ const ChangePlanScreen: React.FC<Props> = ({ route }) => {
       </View>
       <Text style={styles.changeDesc}>{item.proration.description}</Text>
       <Text style={styles.changeDate}>
-        Effective: {item.effectiveType} · Created:{' '}
-        {new Date(item.createdAt).toLocaleDateString()}
+        Effective: {item.effectiveType} · Created: {new Date(item.createdAt).toLocaleDateString()}
       </Text>
       {item.status === 'pending' && (
         <View style={styles.changeActions}>

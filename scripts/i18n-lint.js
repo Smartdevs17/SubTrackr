@@ -11,11 +11,11 @@
  * Exit code 1 when any error is found (used in CI).
  */
 
-const fs   = require('fs');
+const fs = require('fs');
 const path = require('path');
 
 const LOCALES_DIR = path.resolve(__dirname, '../src/i18n/locales');
-const LOCALES     = ['en', 'hi', 'ar'];
+const LOCALES = ['en', 'hi', 'ar'];
 
 function flatten(obj, prefix = '') {
   const out = {};
@@ -36,7 +36,7 @@ function extractPlaceholders(str) {
 
 const locales = {};
 for (const lang of LOCALES) {
-  const raw  = fs.readFileSync(path.join(LOCALES_DIR, `${lang}.json`), 'utf8');
+  const raw = fs.readFileSync(path.join(LOCALES_DIR, `${lang}.json`), 'utf8');
   locales[lang] = flatten(JSON.parse(raw));
 }
 
@@ -44,9 +44,9 @@ let errors = 0;
 
 for (const key of Object.keys(locales.en)) {
   const enVal = String(locales.en[key]);
-  const enPH  = extractPlaceholders(enVal);
+  const enPH = extractPlaceholders(enVal);
 
-  for (const lang of LOCALES.filter(l => l !== 'en')) {
+  for (const lang of LOCALES.filter((l) => l !== 'en')) {
     if (!(key in locales[lang])) continue; // missing keys handled by i18n-extract
 
     const val = String(locales[lang][key]);

@@ -13,6 +13,15 @@ import type {
   ScheduleConflict,
 } from '../types/calendar';
 
+// ── Calendar-Based Billing ─────────────────────────────────────────────────
+
+import type {
+  AdjustmentPolicy,
+  CalendarBilling,
+  CalendarInvoice,
+  MerchantBillingSchedule,
+} from '../types/calendar';
+
 const DEFAULT_REDIRECT_URI = 'subtrackr://calendar/callback';
 const PROVIDER_SCOPES: Record<CalendarProvider, string> = {
   google: 'https://www.googleapis.com/auth/calendar.events',
@@ -483,10 +492,6 @@ export function adjustForDST(
   return event;
 }
 
-// ── Calendar-Based Billing ─────────────────────────────────────────────────
-
-import type { AdjustmentPolicy, CalendarBilling, CalendarInvoice, MerchantBillingSchedule } from '../types/calendar';
-
 /**
  * Returns the number of days in a given month/year pair.
  * Correctly handles leap years for February.
@@ -577,7 +582,12 @@ export function calculateNextBillingDate(current: Date, config: CalendarBilling)
 
   // Try up to 24 months to find a non-skipped date
   for (let attempt = 0; attempt < 24; attempt++) {
-    const normalized = normalizeBillingDay(day_of_month, candidateMonth, candidateYear, adjustment_policy);
+    const normalized = normalizeBillingDay(
+      day_of_month,
+      candidateMonth,
+      candidateYear,
+      adjustment_policy
+    );
 
     if (normalized !== null) {
       // Build a Date at midnight UTC on the normalized date
@@ -636,9 +646,10 @@ export function generateCalendarInvoice(
   joinDate?: Date
 ): CalendarInvoice {
   const isProratedPeriod = joinDate != null && joinDate > periodStart;
-  const proratedAmount = isProratedPeriod && joinDate
-    ? calculateProRataAmount(amount, periodStart, periodEnd, joinDate)
-    : undefined;
+  const proratedAmount =
+    isProratedPeriod && joinDate
+      ? calculateProRataAmount(amount, periodStart, periodEnd, joinDate)
+      : undefined;
 
   return {
     id: `inv_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,

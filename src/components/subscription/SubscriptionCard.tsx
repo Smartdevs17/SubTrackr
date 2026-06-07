@@ -173,7 +173,9 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = React.memo(
               testID={`subscription-toggle-${subscription.id}`}
               accessibilityRole="button"
               accessibilityLabel={
-                subscription.isActive ? `Pause ${subscription.name}` : `Activate ${subscription.name}`
+                subscription.isActive
+                  ? `Pause ${subscription.name}`
+                  : `Activate ${subscription.name}`
               }>
               <Text style={styles.toggleText}>{subscription.isActive ? 'Pause' : 'Activate'}</Text>
             </TouchableOpacity>

@@ -28,7 +28,10 @@ export const StreakCard: React.FC<StreakCardProps> = ({ streak, onShare }) => {
   const theme = useTheme();
 
   const handleShare = useCallback(async () => {
-    if (onShare) { onShare(); return; }
+    if (onShare) {
+      onShare();
+      return;
+    }
     await Share.share({
       message: `🔥 I'm on a ${streak.current}-day payment streak on SubTrackr! My longest is ${streak.longest} days. Join me!`,
     });
@@ -47,9 +50,7 @@ export const StreakCard: React.FC<StreakCardProps> = ({ streak, onShare }) => {
           </Text>
         </View>
         <View style={styles.streakBest}>
-          <Text style={[styles.streakBestLabel, { color: theme.colors.textSecondary }]}>
-            Best
-          </Text>
+          <Text style={[styles.streakBestLabel, { color: theme.colors.textSecondary }]}>Best</Text>
           <Text style={[styles.streakBestCount, { color: theme.colors.text }]}>
             {streak.longest}
           </Text>
@@ -83,7 +84,10 @@ export const AchievementCard: React.FC<AchievementCardProps> = ({ achievement, o
   const isUnlocked = !!achievement.unlockedAt;
 
   const handleShare = useCallback(async () => {
-    if (onShare) { onShare(achievement); return; }
+    if (onShare) {
+      onShare(achievement);
+      return;
+    }
     if (!isUnlocked) return;
     await Share.share({
       message: `${achievement.icon} I just unlocked "${achievement.name}" on SubTrackr! ${achievement.description}`,
@@ -99,9 +103,7 @@ export const AchievementCard: React.FC<AchievementCardProps> = ({ achievement, o
         ]}>
         <Text style={styles.achievementEmoji}>{achievement.icon}</Text>
       </View>
-      <Text
-        style={[styles.achievementName, { color: theme.colors.text }]}
-        numberOfLines={1}>
+      <Text style={[styles.achievementName, { color: theme.colors.text }]} numberOfLines={1}>
         {achievement.name}
       </Text>
       <Text
@@ -235,13 +237,15 @@ export const RewardsCatalog: React.FC<RewardsCatalogProps> = ({
                 styles.redeemBtnText,
                 { color: canRedeem ? '#fff' : theme.colors.textSecondary },
               ]}>
-              {canRedeem ? 'Redeem' : `Need ${(item.pointsCost - currentPoints).toLocaleString()} more`}
+              {canRedeem
+                ? 'Redeem'
+                : `Need ${(item.pointsCost - currentPoints).toLocaleString()} more`}
             </Text>
           </TouchableOpacity>
         </Card>
       );
     },
-    [currentPoints, onRedeem, theme],
+    [currentPoints, onRedeem, theme]
   );
 
   return (
@@ -294,7 +298,14 @@ const styles = StyleSheet.create({
   shareBtnText: { fontWeight: '600' },
 
   achievementCard: { width: 110, padding: 12, alignItems: 'center', marginRight: 10 },
-  achievementIcon: { width: 52, height: 52, borderRadius: 26, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
+  achievementIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   achievementEmoji: { fontSize: 26 },
   achievementName: { fontSize: 12, fontWeight: 'bold', textAlign: 'center' },
   achievementDesc: { fontSize: 10, textAlign: 'center', marginTop: 4 },

@@ -141,82 +141,82 @@ const GDPRSettingsScreen = () => {
 
 function createStyles(colors: ReturnType<typeof useThemeColors>) {
   return StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background.primary,
-  },
-  section: {
-    padding: 20,
-    backgroundColor: colors.background.card,
-    marginBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 8,
-  },
-  description: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginBottom: 20,
-    lineHeight: 20,
-  },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  labelContainer: {
-    flex: 1,
-    paddingRight: 10,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  subLabel: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  button: {
-    backgroundColor: colors.primary,
-    padding: 15,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  deleteButton: {
-    backgroundColor: colors.error,
-    marginTop: 30,
-  },
-  buttonText: {
-    color: colors.onPrimary,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  infoText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  footer: {
-    padding: 30,
-    alignItems: 'center',
-  },
-  footerText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-});
+    container: {
+      flex: 1,
+      backgroundColor: colors.background.primary,
+    },
+    section: {
+      padding: 20,
+      backgroundColor: colors.background.card,
+      marginBottom: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: '700',
+      color: colors.text,
+      marginBottom: 8,
+    },
+    description: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      marginBottom: 20,
+      lineHeight: 20,
+    },
+    row: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 20,
+    },
+    labelContainer: {
+      flex: 1,
+      paddingRight: 10,
+    },
+    label: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    subLabel: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    button: {
+      backgroundColor: colors.primary,
+      padding: 15,
+      borderRadius: 8,
+      alignItems: 'center',
+      marginTop: 10,
+    },
+    deleteButton: {
+      backgroundColor: colors.error,
+      marginTop: 30,
+    },
+    buttonText: {
+      color: colors.onPrimary,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    infoText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginTop: 8,
+      textAlign: 'center',
+    },
+    footer: {
+      padding: 30,
+      alignItems: 'center',
+    },
+    footerText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      lineHeight: 18,
+    },
+  });
 }
 
 export default GDPRSettingsScreen;

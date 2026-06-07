@@ -41,11 +41,15 @@ if (report.memoryMaxBytes > budget.memoryBytes) {
 }
 
 if (report.androidStartupMs && report.androidStartupMs > budget.androidStartupMs) {
-  failures.push(`Android startup ${report.androidStartupMs}ms exceeds ${budget.androidStartupMs}ms`);
+  failures.push(
+    `Android startup ${report.androidStartupMs}ms exceeds ${budget.androidStartupMs}ms`
+  );
 }
 
 if (report.androidFps && report.androidFps < budget.androidFrameRateFps) {
-  failures.push(`Android FPS ${report.androidFps}fps below target ${budget.androidFrameRateFps}fps`);
+  failures.push(
+    `Android FPS ${report.androidFps}fps below target ${budget.androidFrameRateFps}fps`
+  );
 }
 
 if (failures.length) {

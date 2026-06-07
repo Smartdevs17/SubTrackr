@@ -438,7 +438,9 @@ export const AppNavigator = () => {
   const { isDark } = useTheme();
 
   return (
-    <NavigationContainer ref={navigationRef} theme={isDark ? darkNavigationTheme : lightNavigationTheme}>
+    <NavigationContainer
+      ref={navigationRef}
+      theme={isDark ? darkNavigationTheme : lightNavigationTheme}>
       <TabNavigator />
     </NavigationContainer>
   );
