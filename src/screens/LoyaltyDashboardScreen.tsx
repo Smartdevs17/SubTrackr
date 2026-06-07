@@ -13,9 +13,9 @@ import {
 } from 'react-native';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { useLoyaltyStore } from '../store/loyaltyStore';
-import { useWalletStore } from '../store/walletStore';
+import { useWalletStore, selectAddress } from '../store/walletStore';
 import { Card } from '../components/common/Card';
-import { LoyaltyTier, RewardType, TierBenefits } from '../types/loyalty';
+import { LoyaltyTier, TierBenefits } from '../types/loyalty';
 
 const LoyaltyDashboardScreen: React.FC = () => {
   const {
@@ -25,10 +25,9 @@ const LoyaltyDashboardScreen: React.FC = () => {
     program,
     isLoading,
     initializeProgram,
-    accumulatePoints,
     redeemPoints,
   } = useLoyaltyStore();
-  const { address } = useWalletStore();
+  const address = useWalletStore(selectAddress);
 
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedReward, setSelectedReward] = useState<string>('');
@@ -317,19 +316,19 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: spacing.sm,
     color: colors.textSecondary,
-    fontSize: typography.fontSizeMd,
+    fontSize: typography.body2.fontSize,
   },
   header: {
     padding: spacing.md,
     paddingTop: spacing.lg,
   },
   title: {
-    fontSize: typography.fontSizeXl,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.h2.fontSize,
+    fontWeight: typography.h2.fontWeight,
     color: colors.text,
   },
   subtitle: {
-    fontSize: typography.fontSizeMd,
+    fontSize: typography.body2.fontSize,
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
@@ -351,11 +350,11 @@ const styles = StyleSheet.create({
   },
   tierBadgeText: {
     color: colors.text,
-    fontSize: typography.fontSizeSm,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.small.fontSize,
+    fontWeight: '700',
   },
   memberSince: {
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.small.fontSize,
     color: colors.textSecondary,
   },
   pointsDisplay: {
@@ -364,11 +363,11 @@ const styles = StyleSheet.create({
   },
   pointsValue: {
     fontSize: 48,
-    fontWeight: typography.fontWeightBold,
+    fontWeight: '700',
     color: colors.text,
   },
   pointsLabel: {
-    fontSize: typography.fontSizeMd,
+    fontSize: typography.body2.fontSize,
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
@@ -381,7 +380,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   progressText: {
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.small.fontSize,
     color: colors.textSecondary,
   },
   progressBar: {
@@ -406,12 +405,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statValue: {
-    fontSize: typography.fontSizeLg,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.h3.fontSize,
+    fontWeight: typography.h3.fontWeight,
     color: colors.text,
   },
   statLabel: {
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.small.fontSize,
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
@@ -427,14 +426,14 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   rewardsTitle: {
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.body.fontSize,
+    fontWeight: '700',
     color: colors.text,
   },
   redeemLink: {
-    fontSize: typography.fontSizeMd,
+    fontSize: typography.body.fontSize,
     color: colors.primary,
-    fontWeight: typography.fontWeightMedium,
+    fontWeight: '600',
   },
   rewardItem: {
     flexDirection: 'row',
@@ -448,12 +447,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   rewardName: {
-    fontSize: typography.fontSizeMd,
+    fontSize: typography.body.fontSize,
     color: colors.text,
-    fontWeight: typography.fontWeightMedium,
+    fontWeight: '600',
   },
   rewardDesc: {
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.body2.fontSize,
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
@@ -461,12 +460,12 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   costValue: {
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.body.fontSize,
+    fontWeight: '700',
     color: colors.primary,
   },
   costLabel: {
-    fontSize: typography.fontSizeXs,
+    fontSize: typography.small.fontSize,
     color: colors.textSecondary,
   },
   transactionsCard: {
@@ -475,8 +474,8 @@ const styles = StyleSheet.create({
     marginTop: 0,
   },
   transactionsTitle: {
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.body.fontSize,
+    fontWeight: '700',
     color: colors.text,
     marginBottom: spacing.md,
   },
@@ -491,23 +490,23 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   transactionDesc: {
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.body2.fontSize,
     color: colors.text,
   },
   transactionDate: {
-    fontSize: typography.fontSizeXs,
+    fontSize: typography.small.fontSize,
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
   transactionAmount: {
-    fontSize: typography.fontSizeSm,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.body2.fontSize,
+    fontWeight: '700',
   },
   positiveAmount: {
     color: colors.success,
   },
   negativeAmount: {
-    color: colors.danger,
+    color: colors.error,
   },
   membersCard: {
     padding: spacing.md,
@@ -516,8 +515,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   membersTitle: {
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.body.fontSize,
+    fontWeight: '700',
     color: colors.text,
     marginBottom: spacing.md,
   },
@@ -540,21 +539,21 @@ const styles = StyleSheet.create({
     marginRight: spacing.sm,
   },
   tierName: {
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.body2.fontSize,
     color: colors.text,
-    fontWeight: typography.fontWeightMedium,
+    fontWeight: '600',
   },
   tierThreshold: {
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.body2.fontSize,
     color: colors.textSecondary,
   },
   emptyText: {
-    fontSize: typography.fontSizeMd,
+    fontSize: typography.body2.fontSize,
     color: colors.textSecondary,
     textAlign: 'center',
   },
   emptySubtext: {
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.small.fontSize,
     color: colors.textSecondary,
     textAlign: 'center',
     marginTop: spacing.xs,
@@ -572,13 +571,13 @@ const styles = StyleSheet.create({
     maxHeight: '70%',
   },
   modalTitle: {
-    fontSize: typography.fontSizeLg,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.h3.fontSize,
+    fontWeight: '700',
     color: colors.text,
     marginBottom: spacing.xs,
   },
   modalSubtitle: {
-    fontSize: typography.fontSizeMd,
+    fontSize: typography.body2.fontSize,
     color: colors.textSecondary,
     marginBottom: spacing.lg,
   },
@@ -599,18 +598,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   rewardOptionName: {
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightMedium,
+    fontSize: typography.body.fontSize,
+    fontWeight: '600',
     color: colors.text,
   },
   rewardOptionDesc: {
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.body2.fontSize,
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
   rewardOptionCost: {
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.body.fontSize,
+    fontWeight: '700',
     color: colors.primary,
   },
   modalButtons: {
@@ -628,8 +627,8 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     color: colors.text,
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightMedium,
+    fontSize: typography.body.fontSize,
+    fontWeight: '600',
   },
   confirmButton: {
     flex: 1,
@@ -640,8 +639,8 @@ const styles = StyleSheet.create({
   },
   confirmButtonText: {
     color: colors.text,
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.body.fontSize,
+    fontWeight: '700',
   },
 });
 

@@ -11,10 +11,27 @@
   },
   "rules": {
     "prettier/prettier": "error",
-    "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+    "@typescript-eslint/no-unused-vars": [
+      "error",
+      { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_", "caughtErrorsIgnorePattern": "^_" }
+    ],
     "@typescript-eslint/explicit-function-return-type": "off",
     "@typescript-eslint/no-explicit-any": "warn",
-    "no-console": ["warn", { "allow": ["warn", "error"] }]
+    "no-console": ["warn", { "allow": ["warn", "error"] }],
+    "import/no-unresolved": [
+      "error",
+      {
+        "ignore": [
+          "@sentry/react-native",
+          "bcryptjs",
+          "expo-image",
+          "expo-linking",
+          "expo-local-authentication",
+          "react-native-performance",
+          "../../backend/services/shared/monitoring"
+        ]
+      }
+    ]
   },
   "ignorePatterns": [
     "node_modules/",

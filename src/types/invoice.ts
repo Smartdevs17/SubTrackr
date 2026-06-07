@@ -1,4 +1,4 @@
-import { BillingCycle, Subscription } from './subscription';
+import { BillingCycle, Subscription, SubscriptionCategory } from './subscription';
 
 export enum InvoiceStatus {
   DRAFT = 'draft',
@@ -29,6 +29,9 @@ export enum DigitalGoodsCategory {
   MARKETPLACE = 'marketplace',
   OTHER = 'other',
 }
+
+// Backward-compatible alias used by stores/UI.
+export type DigitalGoodsClass = DigitalGoodsCategory;
 
 export enum CertificateStatus {
   PENDING = 'pending',
@@ -157,6 +160,7 @@ export interface TaxRemittanceLineItem {
   taxableAmount: number;
   rateBps: number;
   taxCollected: number;
+  transactionCount?: number;
   currency: string;
   digitalGoodsCategory?: DigitalGoodsCategory;
   invoiceDate: Date;
@@ -225,6 +229,7 @@ export interface TaxInvoiceGenerationInput {
   isExempt: boolean;
   digitalGoodsCategory: DigitalGoodsCategory;
   effectiveTaxRateBps: number;
+  reverseCharge?: boolean;
 }
 
 export interface InvoiceLineItem {
@@ -266,6 +271,7 @@ export interface Invoice {
   digitalGoodsCategory?: DigitalGoodsCategory;
   isTaxExempt?: boolean;
   taxExemptionId?: string;
+  reverseCharge?: boolean;
 }
 
 export interface InvoiceConfig {
@@ -348,21 +354,21 @@ export const isTaxExempt = (status: CustomerTaxStatus | null): boolean => {
 };
 
 export const mapSubscriptionCategoryToDigitalGoods = (
-  category: import('./subscription').SubscriptionCategory
+  category: SubscriptionCategory
 ): DigitalGoodsCategory => {
   switch (category) {
-    case import('./subscription').SubscriptionCategory.STREAMING:
+    case SubscriptionCategory.STREAMING:
       return DigitalGoodsCategory.STREAMING;
-    case import('./subscription').SubscriptionCategory.SOFTWARE:
-    case import('./subscription').SubscriptionCategory.PRODUCTIVITY:
+    case SubscriptionCategory.SOFTWARE:
+    case SubscriptionCategory.PRODUCTIVITY:
       return DigitalGoodsCategory.SAAS;
-    case import('./subscription').SubscriptionCategory.GAMING:
+    case SubscriptionCategory.GAMING:
       return DigitalGoodsCategory.IN_APP_PURCHASE;
-    case import('./subscription').SubscriptionCategory.FINANCE:
+    case SubscriptionCategory.FINANCE:
       return DigitalGoodsCategory.ONLINE_SERVICE;
-    case import('./subscription').SubscriptionCategory.EDUCATION:
-    case import('./subscription').SubscriptionCategory.FITNESS:
-    case import('./subscription').SubscriptionCategory.OTHER:
+    case SubscriptionCategory.EDUCATION:
+    case SubscriptionCategory.FITNESS:
+    case SubscriptionCategory.OTHER:
     default:
       return DigitalGoodsCategory.OTHER;
   }

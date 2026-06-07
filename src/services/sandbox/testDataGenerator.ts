@@ -157,12 +157,12 @@ class TestDataGenerator {
     return new Date(now.getTime() - daysToSubtract * 24 * 60 * 60 * 1000);
   }
 
-  generateUsageData(subscriptionCount: number): Array<{
+  generateUsageData(subscriptionCount: number): {
     date: Date;
     requests: number;
     errors: number;
     avgResponseTime: number;
-  }> {
+  }[] {
     const data = [];
     const now = new Date();
 

@@ -10,31 +10,15 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
-  FlatList,
 } from 'react-native';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { useCampaignStore } from '../store/campaignStore';
 import { Card } from '../components/common/Card';
-import {
-  Campaign,
-  CampaignType,
-  CampaignStatus,
-  DeliveryChannel,
-  AutomationTrigger,
-} from '../types/campaign';
+import { Campaign, CampaignType, CampaignStatus, DeliveryChannel } from '../types/campaign';
 
 const CampaignManagementScreen: React.FC = () => {
-  const {
-    campaigns,
-    isLoading,
-    error,
-    createCampaign,
-    updateCampaign,
-    deleteCampaign,
-    launchCampaign,
-    pauseCampaign,
-    getCampaignAnalytics,
-  } = useCampaignStore();
+  const { campaigns, isLoading, createCampaign, deleteCampaign, launchCampaign, pauseCampaign } =
+    useCampaignStore();
 
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [newCampaign, setNewCampaign] = useState({
@@ -360,19 +344,19 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: spacing.sm,
     color: colors.textSecondary,
-    fontSize: typography.fontSizeMd,
+    fontSize: typography.body2.fontSize,
   },
   header: {
     padding: spacing.md,
     paddingTop: spacing.lg,
   },
   title: {
-    fontSize: typography.fontSizeXl,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.h2.fontSize,
+    fontWeight: typography.h2.fontWeight,
     color: colors.text,
   },
   subtitle: {
-    fontSize: typography.fontSizeMd,
+    fontSize: typography.body2.fontSize,
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
@@ -385,8 +369,8 @@ const styles = StyleSheet.create({
   },
   newButtonText: {
     color: colors.text,
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.body.fontSize,
+    fontWeight: '700',
   },
   campaignCard: {
     padding: spacing.md,
@@ -399,8 +383,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   campaignName: {
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.body.fontSize,
+    fontWeight: '700',
     color: colors.text,
   },
   campaignMeta: {
@@ -416,12 +400,12 @@ const styles = StyleSheet.create({
   },
   statusBadgeText: {
     color: colors.text,
-    fontSize: typography.fontSizeXs,
-    fontWeight: typography.fontWeightMedium,
+    fontSize: typography.small.fontSize,
+    fontWeight: '600',
     textTransform: 'capitalize',
   },
   campaignType: {
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.body2.fontSize,
     color: colors.textSecondary,
   },
   campaignActions: {
@@ -436,8 +420,8 @@ const styles = StyleSheet.create({
   },
   launchButtonText: {
     color: colors.text,
-    fontSize: typography.fontSizeSm,
-    fontWeight: typography.fontWeightMedium,
+    fontSize: typography.small.fontSize,
+    fontWeight: '600',
   },
   pauseButton: {
     paddingHorizontal: spacing.sm,
@@ -447,19 +431,19 @@ const styles = StyleSheet.create({
   },
   pauseButtonText: {
     color: colors.text,
-    fontSize: typography.fontSizeSm,
-    fontWeight: typography.fontWeightMedium,
+    fontSize: typography.small.fontSize,
+    fontWeight: '600',
   },
   deleteButton: {
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.sm,
     borderWidth: 1,
-    borderColor: colors.danger,
+    borderColor: colors.error,
   },
   deleteButtonText: {
-    color: colors.danger,
-    fontSize: typography.fontSizeSm,
+    color: colors.error,
+    fontSize: typography.small.fontSize,
   },
   analyticsGrid: {
     flexDirection: 'row',
@@ -473,12 +457,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   analyticsValue: {
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.body.fontSize,
+    fontWeight: '700',
     color: colors.text,
   },
   analyticsLabel: {
-    fontSize: typography.fontSizeXs,
+    fontSize: typography.small.fontSize,
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
@@ -494,7 +478,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   channelBadgeText: {
-    fontSize: typography.fontSizeXs,
+    fontSize: typography.small.fontSize,
     color: colors.textSecondary,
     textTransform: 'uppercase',
   },
@@ -504,12 +488,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emptyText: {
-    fontSize: typography.fontSizeMd,
+    fontSize: typography.body2.fontSize,
     color: colors.textSecondary,
     textAlign: 'center',
   },
   emptySubtext: {
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.small.fontSize,
     color: colors.textSecondary,
     textAlign: 'center',
     marginTop: spacing.xs,
@@ -527,12 +511,12 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   closeButton: {
-    fontSize: typography.fontSizeMd,
+    fontSize: typography.body.fontSize,
     color: colors.primary,
   },
   modalTitle: {
-    fontSize: typography.fontSizeLg,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.h3.fontSize,
+    fontWeight: '700',
     color: colors.text,
   },
   modalScroll: {
@@ -543,7 +527,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   inputLabel: {
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.body2.fontSize,
     color: colors.textSecondary,
     marginBottom: spacing.sm,
   },
@@ -551,7 +535,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: borderRadius.md,
     padding: spacing.md,
-    fontSize: typography.fontSizeMd,
+    fontSize: typography.body.fontSize,
     color: colors.text,
     borderWidth: 1,
     borderColor: colors.border,
@@ -578,11 +562,11 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
   },
   typeOptionText: {
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.body2.fontSize,
     color: colors.text,
   },
   typeOptionTextSelected: {
-    fontWeight: typography.fontWeightBold,
+    fontWeight: '700',
   },
   channelGrid: {
     flexDirection: 'row',
@@ -601,12 +585,12 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
   },
   channelOptionText: {
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.body2.fontSize,
     color: colors.text,
     textTransform: 'uppercase',
   },
   channelOptionTextSelected: {
-    fontWeight: typography.fontWeightBold,
+    fontWeight: '700',
   },
   createButton: {
     backgroundColor: colors.primary,
@@ -617,8 +601,8 @@ const styles = StyleSheet.create({
   },
   createButtonText: {
     color: colors.text,
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.body.fontSize,
+    fontWeight: '700',
   },
 });
 

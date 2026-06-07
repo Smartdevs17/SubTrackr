@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-// eslint-disable-next-line import/no-unresolved
-import { colors, spacing, typography, borderRadius } from '../../utils/constants';
+import { spacing, typography, borderRadius } from '../../utils/constants';
+import { useThemeColors } from '../../hooks/useThemeColors';
 
 interface EmptyStateProps {
   icon: string;
@@ -18,6 +18,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   actionText,
   onAction,
 }) => {
+  const colors = useThemeColors();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
+
   return (
     <View
       style={styles.container}
@@ -45,42 +48,44 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.xl * 2,
-    paddingHorizontal: spacing.lg,
-  },
-  icon: {
-    fontSize: 56,
-    marginBottom: spacing.md,
-  },
-  title: {
-    ...typography.h3,
-    color: colors.text,
-    marginBottom: spacing.sm,
-    textAlign: 'center',
-    fontWeight: '600',
-  },
-  message: {
-    ...typography.body,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: spacing.lg,
-  },
-  button: {
-    backgroundColor: colors.primary,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    borderRadius: borderRadius.md,
-    marginTop: spacing.md,
-  },
-  buttonText: {
-    ...typography.body,
-    color: colors.text,
-    fontWeight: '600',
-    fontSize: 16,
-  },
-});
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+    container: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: spacing.xl * 2,
+      paddingHorizontal: spacing.lg,
+    },
+    icon: {
+      fontSize: 56,
+      marginBottom: spacing.md,
+    },
+    title: {
+      ...typography.h3,
+      color: colors.text.primary,
+      marginBottom: spacing.sm,
+      textAlign: 'center',
+      fontWeight: '600',
+    },
+    message: {
+      ...typography.body,
+      color: colors.text.secondary,
+      textAlign: 'center',
+      lineHeight: 24,
+      marginBottom: spacing.lg,
+    },
+    button: {
+      backgroundColor: colors.brand.primary,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.lg,
+      borderRadius: borderRadius.md,
+      marginTop: spacing.md,
+    },
+    buttonText: {
+      ...typography.body,
+      color: colors.onPrimary,
+      fontWeight: '600',
+      fontSize: 16,
+    },
+  });
+}

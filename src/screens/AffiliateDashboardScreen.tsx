@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { useAffiliateStore } from '../store/affiliateStore';
-import { useWalletStore } from '../store/walletStore';
+import { useWalletStore, selectAddress } from '../store/walletStore';
 import { Card } from '../components/common/Card';
 import { AffiliateStatus } from '../types/affiliate';
 
@@ -30,7 +30,7 @@ const AffiliateDashboardScreen: React.FC = () => {
     triggerClawback,
     getMetrics,
   } = useAffiliateStore();
-  const { address } = useWalletStore();
+  const address = useWalletStore(selectAddress);
 
   const [programModalVisible, setProgramModalVisible] = useState(false);
   const [selectedProgram, setSelectedProgram] = useState<string>('');
@@ -601,7 +601,7 @@ const styles = StyleSheet.create({
   },
   metricsTitle: {
     fontSize: typography.body.fontSize,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: colors.text,
     marginBottom: spacing.md,
   },
@@ -620,7 +620,7 @@ const styles = StyleSheet.create({
   },
   metricValue: {
     fontSize: typography.h3.fontSize,
-    fontWeight: 'bold',
+    fontWeight: typography.h3.fontWeight,
     color: colors.text,
   },
   metricLabel: {
@@ -643,7 +643,7 @@ const styles = StyleSheet.create({
   },
   conversionValue: {
     fontSize: typography.body.fontSize,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: colors.primary,
   },
   listCard: {
@@ -654,7 +654,7 @@ const styles = StyleSheet.create({
   },
   listTitle: {
     fontSize: typography.body.fontSize,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: colors.text,
     marginBottom: spacing.md,
   },
@@ -677,7 +677,7 @@ const styles = StyleSheet.create({
   },
   affiliateProgramName: {
     fontSize: typography.body.fontSize,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: colors.text,
   },
   affiliateCode: {
@@ -692,7 +692,7 @@ const styles = StyleSheet.create({
   },
   fraudBadgeText: {
     fontSize: typography.small.fontSize,
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
   referralLinkSection: {
     flexDirection: 'row',
@@ -719,7 +719,7 @@ const styles = StyleSheet.create({
   copyButtonText: {
     color: '#ffffff',
     fontSize: typography.small.fontSize,
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
   affiliateStatsRow: {
     flexDirection: 'row',
@@ -748,7 +748,7 @@ const styles = StyleSheet.create({
   payoutActionText: {
     color: colors.text,
     fontSize: typography.body2.fontSize,
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
   pauseButton: {
     paddingHorizontal: spacing.md,
@@ -761,7 +761,7 @@ const styles = StyleSheet.create({
   pauseButtonText: {
     color: colors.warning,
     fontSize: typography.body2.fontSize,
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
   resumeButton: {
     paddingHorizontal: spacing.md,
@@ -774,7 +774,7 @@ const styles = StyleSheet.create({
   resumeButtonText: {
     color: colors.success,
     fontSize: typography.body2.fontSize,
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
   simulatorBench: {
     marginTop: spacing.lg,
@@ -786,7 +786,7 @@ const styles = StyleSheet.create({
   },
   simulatorTitle: {
     fontSize: typography.body2.fontSize,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: colors.text,
   },
   simulatorSubtitle: {
@@ -832,7 +832,7 @@ const styles = StyleSheet.create({
   },
   simBtnText: {
     fontSize: 11,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: colors.text,
   },
   programItem: {
@@ -848,7 +848,7 @@ const styles = StyleSheet.create({
   programName: {
     fontSize: typography.body.fontSize,
     color: colors.text,
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
   programDescription: {
     fontSize: typography.body2.fontSize,
@@ -865,7 +865,7 @@ const styles = StyleSheet.create({
   },
   rateValue: {
     fontSize: typography.body.fontSize,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: colors.primary,
   },
   rateLabel: {
@@ -885,7 +885,7 @@ const styles = StyleSheet.create({
   commissionId: {
     fontSize: typography.body2.fontSize,
     color: colors.text,
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
   commissionDate: {
     fontSize: typography.small.fontSize,
@@ -897,7 +897,7 @@ const styles = StyleSheet.create({
   },
   amountValue: {
     fontSize: typography.body.fontSize,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: colors.text,
   },
   commissionStatus: {
@@ -907,8 +907,9 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   commissionStatusText: {
+    color: colors.text,
     fontSize: typography.small.fontSize,
-    fontWeight: 'bold',
+    fontWeight: '700',
     textTransform: 'capitalize',
   },
   registerButton: {
@@ -921,7 +922,7 @@ const styles = StyleSheet.create({
   registerButtonText: {
     color: '#ffffff',
     fontSize: typography.body.fontSize,
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
   modalOverlay: {
     flex: 1,
@@ -940,7 +941,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: typography.h3.fontSize,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: colors.text,
     marginBottom: spacing.xs,
   },
@@ -965,7 +966,7 @@ const styles = StyleSheet.create({
   },
   programOptionName: {
     fontSize: typography.body.fontSize,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: colors.text,
   },
   programOptionDesc: {
@@ -993,7 +994,7 @@ const styles = StyleSheet.create({
   },
   sectionLabelHeader: {
     fontSize: typography.body.fontSize,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: colors.text,
     marginTop: spacing.md,
     marginBottom: spacing.xs,
@@ -1038,7 +1039,7 @@ const styles = StyleSheet.create({
   },
   optionSelectorTextActive: {
     color: colors.primary,
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
   modalButtons: {
     flexDirection: 'row',
@@ -1058,7 +1059,7 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     color: colors.text,
     fontSize: typography.body.fontSize,
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
   confirmButton: {
     flex: 1,
@@ -1070,7 +1071,7 @@ const styles = StyleSheet.create({
   confirmButtonText: {
     color: colors.background,
     fontSize: typography.body.fontSize,
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
 });
 

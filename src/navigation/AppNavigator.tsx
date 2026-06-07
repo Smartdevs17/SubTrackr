@@ -5,50 +5,19 @@ import { navigationRef } from './navigationRef';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
+import { lazyScreen } from '../utils/lazyLoading';
+import { RootStackParamList, TabParamList } from './types';
+import { useTheme } from '../theme';
+import { darkNavigationTheme, lightNavigationTheme } from '../theme/navigationTheme';
+
+// Eagerly loaded primary entrypoints for instant rendering
 import HomeScreen from '../screens/HomeScreen';
-import AddSubscriptionScreen from '../screens/AddSubscriptionScreen';
-import CancellationFlowScreen from '../screens/CancellationFlowScreen';
-import WalletConnectScreen from '../screens/WalletConnectV2Screen';
-import CryptoPaymentScreen from '../screens/CryptoPaymentScreen';
-import CommunityScreen from '../screens/CommunityScreen';
-import ProfileScreen from '../screens/ProfileScreen';
-import SubscriptionDetailScreen from '../screens/SubscriptionDetailScreen';
-import InvoiceListScreen from '../screens/InvoiceListScreen';
-import InvoiceDetailScreen from '../screens/InvoiceDetailScreen';
-import AnalyticsScreen from '../screens/AnalyticsScreen';
-import SlaDashboard from '../screens/SlaDashboard';
-import GDPRSettingsScreen from '../screens/GDPRSettingsScreen';
-import LanguageSettingsScreen from '../screens/LanguageSettingsScreen';
-import SessionManagementScreen from '../screens/SessionManagementScreen';
-import SettingsScreen from '../screens/SettingsScreen';
-import CalendarIntegrationScreen from '../screens/CalendarIntegrationScreen';
-import AccountingExportScreen from '../screens/AccountingExportScreen';
-import WebhookSettingsScreen from '../screens/WebhookSettingsScreen';
-import ErrorDashboardScreen from '../screens/ErrorDashboardScreen';
-import ImportScreen from '../screens/ImportScreen';
-import ExportScreen from '../screens/ExportScreen';
-import { BatchOperationsScreen } from '../../app/screens/BatchOperationsScreen';
-import AdminDashboardScreen from '../screens/AdminDashboardScreen';
-import FraudDashboard from '../screens/FraudDashboard';
-import GroupManagementScreen from '../screens/GroupManagementScreen';
-import TaxSettingsScreen from '../screens/TaxSettingsScreen';
-import SupportDashboardScreen from '../screens/SupportDashboardScreen';
-import { SegmentManagementScreen } from '../screens/SegmentManagementScreen';
-import { SegmentDetailScreen } from '../screens/SegmentDetailScreen';
-import { GamificationScreen } from '../screens/GamificationScreen';
-import RevenueReportScreen from '../screens/RevenueReportScreen';
-import UsageDashboardScreen from '../screens/UsageDashboard';
-import MerchantOnboardingScreen from '../screens/MerchantOnboardingScreen';
-import AffiliateDashboardScreen from '../screens/AffiliateDashboardScreen';
-import LoyaltyDashboardScreen from '../screens/LoyaltyDashboardScreen';
-import CampaignManagementScreen from '../screens/CampaignManagementScreen';
-import DeveloperPortalScreen from '../screens/DeveloperPortalScreen';
-import SandboxDashboardScreen from '../screens/SandboxDashboardScreen';
-import ApiKeyManagementScreen from '../screens/ApiKeyManagementScreen';
-import DocumentationPortalScreen from '../screens/DocumentationPortalScreen';
-import IntegrationGuidesScreen from '../screens/IntegrationGuidesScreen';
-import PerformanceDashboardScreen from '../screens/PerformanceDashboardScreen';
-import { colors } from '../utils/constants';
+import EditSubscriptionScreen from '../screens/EditSubscriptionScreen';
+import { SettingsScreen } from '../screens/SettingsScreen';
+import BillingSettingsScreen from '../screens/BillingSettingsScreen';
+import ChangePlanScreen from '../screens/ChangePlanScreen';
+import { PaymentMethodsScreen } from '../../app/screens/PaymentMethodsScreen';
+import AnalyticsDashboard from '../../app/screens/AnalyticsDashboard';
 
 // Lazy loaded auxiliary and heavy screens with suspense/retry support
 const AddSubscriptionScreen = lazyScreen(() => import('../screens/AddSubscriptionScreen'));
@@ -125,6 +94,16 @@ const HomeStack = () => (
       name="SubscriptionDetail"
       component={SubscriptionDetailScreen}
       options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="EditSubscription"
+      component={EditSubscriptionScreen}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="ChangePlan"
+      component={ChangePlanScreen}
+      options={{ title: 'Change Plan', headerShown: true }}
     />
     <Stack.Screen
       name="WalletConnect"
@@ -357,22 +336,38 @@ const SettingsStack = () => (
       component={PerformanceDashboardScreen}
       options={{ title: 'Performance', headerShown: true }}
     />
+    <Stack.Screen
+      name="BillingSettings"
+      component={BillingSettingsScreen}
+      options={{ title: 'Billing Settings', headerShown: true }}
+    />
+    <Stack.Screen
+      name="PaymentMethods"
+      component={PaymentMethodsScreen}
+      options={{ title: 'Payment Methods', headerShown: true }}
+    />
+    <Stack.Screen
+      name="AnalyticsDashboard"
+      component={AnalyticsDashboard}
+      options={{ title: 'Analytics Dashboard', headerShown: true }}
+    />
   </Stack.Navigator>
 );
 
 const TabNavigator = () => {
   const { t } = useTranslation();
+  const { colors } = useTheme();
 
   return (
     <Tab.Navigator
       screenOptions={{
         tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
+          backgroundColor: colors.navigation.tabBar,
+          borderTopColor: colors.navigation.tabBarBorder,
           borderTopWidth: 1,
         },
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textSecondary,
+        tabBarActiveTintColor: colors.navigation.activeTab,
+        tabBarInactiveTintColor: colors.navigation.inactiveTab,
         headerShown: false,
       }}>
       <Tab.Screen
@@ -440,8 +435,10 @@ const TabNavigator = () => {
 };
 
 export const AppNavigator = () => {
+  const { isDark } = useTheme();
+
   return (
-    <NavigationContainer ref={navigationRef}>
+    <NavigationContainer ref={navigationRef} theme={isDark ? darkNavigationTheme : lightNavigationTheme}>
       <TabNavigator />
     </NavigationContainer>
   );

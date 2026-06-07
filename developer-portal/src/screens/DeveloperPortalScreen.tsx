@@ -26,7 +26,6 @@ const DeveloperPortalScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     onboardingSteps,
     isLoading,
     error,
-    fetchDeveloper,
     fetchApiKeys,
     fetchUsageStats,
     fetchRecentUsage,

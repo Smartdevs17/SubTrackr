@@ -34,6 +34,7 @@ const FraudDashboard: React.FC = () => {
     approveSubscription,
     blockSubscription,
     resolveCase,
+    submitFalsePositiveFeedback,
     getFraudReport,
   } = useFraudStore();
 
@@ -63,8 +64,8 @@ const FraudDashboard: React.FC = () => {
           <View style={styles.heroCopy}>
             <Text style={styles.title}>Fraud Control Center</Text>
             <Text style={styles.subtitle}>
-              Risk scoring, velocity checks, usage anomaly detection, chargeback prediction, and a
-              manual review queue for subscription operations.
+              Risk scoring, velocity checks, geolocation anomaly detection, chargeback prediction,
+              and a manual review queue with evidence-backed decisions.
             </Text>
           </View>
           <View style={styles.heroActions}>
@@ -108,16 +109,28 @@ const FraudDashboard: React.FC = () => {
             colors.accent
           )}
           {renderMetric(
+            'Geo alerts',
+            analytics.geoAnomalyAlerts.toString(),
+            'Location drift and travel anomalies',
+            colors.warning
+          )}
+          {renderMetric(
             'Chargeback predictions',
             analytics.chargebackPredictions.toString(),
             'Predicted dispute exposure',
             colors.error
           )}
           {renderMetric(
-            'False positives',
-            analytics.falsePositiveEstimate.toString(),
-            'Estimated manual override rate',
+            'False positive rate',
+            `${analytics.falsePositiveRate}%`,
+            'Feedback loop for model tuning',
             colors.success
+          )}
+          {renderMetric(
+            'Model confidence',
+            `${analytics.modelConfidence}%`,
+            'Adjusted for false-positive feedback',
+            colors.primary
           )}
         </View>
 
@@ -125,7 +138,9 @@ const FraudDashboard: React.FC = () => {
           <Card style={[styles.sectionCard, isWide && styles.halfCard]}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Manual review queue</Text>
-              <Text style={styles.sectionMeta}>{reviewQueue.length} open cases</Text>
+              <Text style={styles.sectionMeta}>
+                {reviewQueue.length} open cases · {analytics.manualReviewsClosed} closed
+              </Text>
             </View>
             {reviewQueue.map((item) => (
               <View key={item.caseId} style={styles.caseRow}>
@@ -143,7 +158,28 @@ const FraudDashboard: React.FC = () => {
                     <View style={styles.badgeMuted}>
                       <Text style={styles.badgeMutedText}>Risk {item.riskScore}</Text>
                     </View>
+                    {item.outcome ? (
+                      <View style={styles.badgeMuted}>
+                        <Text style={styles.badgeMutedText}>{item.outcome.replace('_', ' ')}</Text>
+                      </View>
+                    ) : null}
                   </View>
+                  {item.evidence?.length ? (
+                    <View style={styles.evidenceBlock}>
+                      <Text style={styles.evidenceLabel}>Evidence</Text>
+                      <View style={styles.badgeRow}>
+                        {item.evidence.map((evidence) => (
+                          <View key={evidence.evidenceId} style={styles.evidenceChip}>
+                            <Text style={styles.evidenceChipText}>
+                              {evidence.label}: {evidence.value}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  ) : (
+                    <Text style={styles.caseDescription}>No evidence attached yet.</Text>
+                  )}
                 </View>
                 <View style={styles.caseActions}>
                   <TouchableOpacity
@@ -160,6 +196,16 @@ const FraudDashboard: React.FC = () => {
                     style={styles.caseButtonDanger}
                     onPress={() => blockSubscription(item.subscriptionId)}>
                     <Text style={styles.caseButtonText}>Block</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.caseButtonSecondary}
+                    onPress={() =>
+                      submitFalsePositiveFeedback(
+                        item.subscriptionId,
+                        'Reviewer marked as false positive'
+                      )
+                    }>
+                    <Text style={styles.caseButtonText}>False positive</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -222,6 +268,8 @@ const FraudDashboard: React.FC = () => {
                   <Text style={styles.reportMetric}>Velocity {report.velocityAlerts}</Text>
                   <Text style={styles.reportMetric}>Anomaly {report.anomalyAlerts}</Text>
                   <Text style={styles.reportMetric}>Chargeback {report.chargebackPredictions}</Text>
+                  <Text style={styles.reportMetric}>Geo {report.geolocationAlerts}</Text>
+                  <Text style={styles.reportMetric}>Evidence {report.pendingEvidenceCount}</Text>
                 </View>
               </View>
             ))}
@@ -478,6 +526,12 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.md,
     backgroundColor: colors.error,
   },
+  caseButtonSecondary: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.secondary,
+  },
   caseButtonText: {
     ...typography.caption,
     color: colors.text,
@@ -515,6 +569,29 @@ const styles = StyleSheet.create({
   reportMetric: {
     ...typography.caption,
     color: colors.textSecondary,
+  },
+  evidenceBlock: {
+    marginTop: spacing.sm,
+    gap: spacing.xs,
+  },
+  evidenceLabel: {
+    ...typography.caption,
+    color: colors.accent,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  evidenceChip: {
+    paddingVertical: 4,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  evidenceChipText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontWeight: '600',
   },
   scoreText: {
     ...typography.h3,

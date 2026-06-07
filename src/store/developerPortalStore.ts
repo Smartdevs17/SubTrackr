@@ -2,14 +2,13 @@ import { create } from 'zustand';
 import {
   DeveloperProfile,
   ApiKey,
-  ApiKeyPermission,
   ApiKeyStatus,
   UsageStats,
-  UsageRecord,
-  OnboardingStep,
+  UsageMetric,
   DocumentationSection,
   IntegrationGuide,
-} from '../types/developerPortal';
+  OnboardingStepInfo,
+} from '../types/sandbox';
 import { developerPortalService } from '../services/sandbox/developerPortalService';
 import { apiKeyService } from '../services/sandbox/apiKeyService';
 import { usageTrackingService } from '../services/sandbox/usageTrackingService';
@@ -19,8 +18,8 @@ interface DeveloperPortalState {
   developer: DeveloperProfile | null;
   apiKeys: ApiKey[];
   usageStats: UsageStats | null;
-  recentUsage: UsageRecord[];
-  onboardingSteps: OnboardingStep[];
+  recentUsage: UsageMetric[];
+  onboardingSteps: OnboardingStepInfo[];
   documentation: DocumentationSection[];
   integrationGuides: IntegrationGuide[];
   isLoading: boolean;
@@ -39,7 +38,6 @@ interface DeveloperPortalState {
   createApiKey: (
     developerId: string,
     name: string,
-    permissions?: ApiKeyPermission[],
     options?: { rateLimit?: number; dailyLimit?: number; expiresAt?: Date }
   ) => Promise<ApiKey>;
   revokeApiKey: (keyId: string) => Promise<void>;

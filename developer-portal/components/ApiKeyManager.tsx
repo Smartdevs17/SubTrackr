@@ -38,7 +38,7 @@ const AVAILABLE_PERMISSIONS = [
 ];
 
 export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
-  environmentId,
+  environmentId: _environmentId,
   apiKeys,
   onCreateKey,
   onRevokeKey,

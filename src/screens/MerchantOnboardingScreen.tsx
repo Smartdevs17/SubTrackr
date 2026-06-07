@@ -13,23 +13,17 @@ import {
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { useMerchantStore } from '../store/merchantStore';
 import { Card } from '../components/common/Card';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../navigation/types';
 import {
   OnboardingStep,
   OnboardingStatus,
-  VerificationTier,
   DocumentType,
   MerchantOnboardingFormData,
 } from '../types/merchant';
 
 const MerchantOnboardingScreen: React.FC = () => {
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const {
     onboarding,
     isLoading,
-    error,
     startOnboarding,
     submitDocument,
     nextStep,

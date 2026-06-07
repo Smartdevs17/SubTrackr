@@ -129,7 +129,10 @@ export type ErrorCode =
   | 'AUDIT_CAPTURE_FAILED'
   // ── Tax ──────────────────────────────────────────────────────────────────
   | 'TAX_CALCULATION_FAILED'
-  | 'TAX_JURISDICTION_NOT_FOUND';
+  | 'TAX_JURISDICTION_NOT_FOUND'
+  // ── Idempotency ──────────────────────────────────────────────────────────
+  | 'IDEMPOTENCY_KEY_COLLISION'
+  | 'IDEMPOTENCY_REQUEST_IN_FLIGHT';
 
 /**
  * Maps each error code to the HTTP status code that should be sent to the
@@ -180,6 +183,9 @@ export const ERROR_HTTP_STATUS_MAP: Record<ErrorCode, number> = {
   // Tax
   TAX_CALCULATION_FAILED: 500,
   TAX_JURISDICTION_NOT_FOUND: 404,
+  // Idempotency
+  IDEMPOTENCY_KEY_COLLISION: 422,
+  IDEMPOTENCY_REQUEST_IN_FLIGHT: 409,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

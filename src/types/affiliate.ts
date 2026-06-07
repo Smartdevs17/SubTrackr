@@ -74,6 +74,5 @@ export interface AffiliateMetrics {
   totalEarnings: number;
   pendingPayout: number;
   conversionRate: number;
-  // Extended fields
   totalClicks?: number;
 }
