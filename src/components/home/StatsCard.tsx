@@ -27,7 +27,7 @@ export const StatsCard: React.FC<StatsCardProps> = ({
           currency
         )}`}>
         <Text
-          style={styles.statLabel}
+          style={styles.label}
           accessibilityElementsHidden={true}
           importantForAccessibility="no">
           Monthly Spend

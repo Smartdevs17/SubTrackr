@@ -5,9 +5,10 @@ import { navigationRef } from './navigationRef';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
-import { colors } from '../utils/constants';
 import { lazyScreen, prefetchModule } from '../utils/lazyLoading';
 import { RootStackParamList, TabParamList } from './types';
+import { useTheme } from '../theme';
+import { darkNavigationTheme, lightNavigationTheme } from '../theme/navigationTheme';
 
 // Eagerly loaded primary entrypoints for instant rendering
 import HomeScreen from '../screens/HomeScreen';
@@ -67,6 +68,15 @@ const IntegrationGuidesScreen = lazyScreen(() => import('../screens/IntegrationG
 const PerformanceDashboardScreen = lazyScreen(
   () => import('../screens/PerformanceDashboardScreen')
 );
+const EditSubscriptionScreen = lazyScreen(() => import('../screens/EditSubscriptionScreen'));
+const ChangePlanScreen = lazyScreen(() => import('../screens/ChangePlanScreen'));
+const BillingSettingsScreen = lazyScreen(() => import('../screens/BillingSettingsScreen'));
+const PaymentMethodsScreen = lazyScreen(() =>
+  import('../../app/screens/PaymentMethodsScreen').then((m) => ({
+    default: m.PaymentMethodsScreen,
+  }))
+);
+const AnalyticsDashboard = lazyScreen(() => import('../../app/screens/AnalyticsDashboard'));
 
 const Tab = createBottomTabNavigator<TabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -88,6 +98,16 @@ const HomeStack = () => (
       name="SubscriptionDetail"
       component={SubscriptionDetailScreen}
       options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="EditSubscription"
+      component={EditSubscriptionScreen}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="ChangePlan"
+      component={ChangePlanScreen}
+      options={{ title: 'Change Plan', headerShown: true }}
     />
     <Stack.Screen
       name="WalletConnect"
@@ -320,22 +340,38 @@ const SettingsStack = () => (
       component={PerformanceDashboardScreen}
       options={{ title: 'Performance', headerShown: true }}
     />
+    <Stack.Screen
+      name="BillingSettings"
+      component={BillingSettingsScreen}
+      options={{ title: 'Billing Settings', headerShown: true }}
+    />
+    <Stack.Screen
+      name="PaymentMethods"
+      component={PaymentMethodsScreen}
+      options={{ title: 'Payment Methods', headerShown: true }}
+    />
+    <Stack.Screen
+      name="AnalyticsDashboard"
+      component={AnalyticsDashboard}
+      options={{ title: 'Analytics Dashboard', headerShown: true }}
+    />
   </Stack.Navigator>
 );
 
 const TabNavigator = () => {
   const { t } = useTranslation();
+  const { colors } = useTheme();
 
   return (
     <Tab.Navigator
       screenOptions={{
         tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
+          backgroundColor: colors.navigation.tabBar,
+          borderTopColor: colors.navigation.tabBarBorder,
           borderTopWidth: 1,
         },
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textSecondary,
+        tabBarActiveTintColor: colors.navigation.activeTab,
+        tabBarInactiveTintColor: colors.navigation.inactiveTab,
         headerShown: false,
       }}>
       <Tab.Screen
@@ -404,15 +440,16 @@ const TabNavigator = () => {
 
 export const AppNavigator = () => {
   React.useEffect(() => {
-    // Prefetch critical modules on app idle to optimize startup transition
     prefetchModule('AddSubscription', () => import('../screens/AddSubscriptionScreen'));
     prefetchModule('WalletConnect', () => import('../screens/WalletConnectV2Screen'));
     prefetchModule('Analytics', () => import('../screens/AnalyticsScreen'));
     prefetchModule('SubscriptionDetail', () => import('../screens/SubscriptionDetailScreen'));
   }, []);
 
+  const { isDark } = useTheme();
+
   return (
-    <NavigationContainer ref={navigationRef}>
+    <NavigationContainer ref={navigationRef} theme={isDark ? darkNavigationTheme : lightNavigationTheme}>
       <TabNavigator />
     </NavigationContainer>
   );

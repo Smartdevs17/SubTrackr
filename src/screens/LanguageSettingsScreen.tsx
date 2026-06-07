@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { languageService } from '../services/i18n';
+import { useThemeColors } from '../hooks/useThemeColors';
 
 const LANGUAGES = [
   { code: 'en', name: 'English', nativeName: 'English' },
@@ -11,6 +12,8 @@ const LANGUAGES = [
 
 const LanguageSettingsScreen = () => {
   const { t, i18n } = useTranslation();
+  const colors = useThemeColors();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const currentLanguage = i18n.language;
 
   const handleLanguageChange = async (code: string) => {
@@ -62,25 +65,26 @@ const LanguageSettingsScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: colors.background.primary,
   },
   header: {
     padding: 20,
-    backgroundColor: '#FFF',
+    backgroundColor: colors.background.card,
     borderBottomWidth: 1,
-    borderBottomColor: '#EEE',
+    borderBottomColor: colors.border,
   },
   title: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#1A1A1A',
+    color: colors.text,
   },
   subtitle: {
     fontSize: 14,
-    color: '#666',
+    color: colors.textSecondary,
     marginTop: 5,
   },
   list: {
@@ -91,32 +95,32 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 20,
-    backgroundColor: '#FFF',
+    backgroundColor: colors.background.card,
     borderRadius: 12,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#EEE',
+    borderColor: colors.border,
   },
   activeItem: {
-    borderColor: '#007AFF',
-    backgroundColor: '#F0F7FF',
+    borderColor: colors.primary,
+    backgroundColor: colors.background.secondary,
   },
   nativeName: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: colors.text,
   },
   englishName: {
     fontSize: 12,
-    color: '#999',
+    color: colors.textSecondary,
     marginTop: 2,
   },
   activeText: {
-    color: '#007AFF',
+    color: colors.primary,
   },
   checkmark: {
     fontSize: 20,
-    color: '#007AFF',
+    color: colors.primary,
     fontWeight: 'bold',
   },
   footer: {
@@ -125,10 +129,11 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 12,
-    color: '#BBB',
+    color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 18,
   },
 });
+}
 
 export default LanguageSettingsScreen;

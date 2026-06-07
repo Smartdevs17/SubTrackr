@@ -2,9 +2,7 @@ import {
   SandboxEnvironment,
   SandboxConfig,
   Developer,
-  SandboxFeatures,
   RateLimit,
-  ApiKey,
   SandboxTestData,
 } from '../types/sandbox';
 import { createSandboxConfig, SANDBOX_CONSTANTS } from '../config/sandboxConfig';
@@ -317,7 +315,7 @@ export class SandboxIsolationService {
     subscriptions: SandboxTestData['subscriptions']
   ): SandboxTestData['payments'] {
     const payments: SandboxTestData['payments'] = [];
-    const methods: Array<'card' | 'crypto' | 'bank'> = ['card', 'crypto', 'bank'];
+    const methods: ('card' | 'crypto' | 'bank')[] = ['card', 'crypto', 'bank'];
 
     subscriptions.forEach((sub) => {
       for (let i = 0; i < 3; i++) {

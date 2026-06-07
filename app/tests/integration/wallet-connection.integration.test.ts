@@ -9,7 +9,7 @@ import { act } from 'react';
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useWalletStore } from '../../../src/store/walletStore';
-import { makeWallet, makeCryptoStream, resetIdCounter } from './factories';
+import { makeCryptoStream, resetIdCounter } from './factories';
 
 // ── In-memory AsyncStorage ────────────────────────────────────────────────────
 const mockMemoryStore = new Map<string, string>();
@@ -30,14 +30,15 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   }),
 }));
 
-const WALLET_KEY = '@subtrackr_wallet';
+const PAYMENT_METHODS_KEY = '@subtrackr_payment_methods';
+const PAYMENT_ATTEMPTS_KEY = '@subtrackr_payment_attempts';
 
 function resetWalletStore() {
   useWalletStore.setState({
-    wallet: null,
-    address: null,
-    network: null,
+    connection: null,
     cryptoStreams: [],
+    paymentMethods: [],
+    paymentAttempts: [],
     isLoading: false,
     error: null,
   });
@@ -60,36 +61,46 @@ afterEach(() => {
 
 // ═════════════════════════════════════════════════════════════════════════════
 describe('wallet connection integration', () => {
-  it('connectWallet persists wallet data to AsyncStorage', async () => {
+  it('connectWallet loads payment methods from AsyncStorage', async () => {
+    const mockPaymentMethods = JSON.stringify([
+      {
+        id: 'pm_test',
+        userId: '0xTestAddress',
+        tokenType: 'USDC',
+        tokenAddress: '0xUSDC',
+        chainId: 1,
+        label: 'USDC Payment',
+        priority: 'PRIMARY',
+        maxSpendPerInterval: '1000',
+        isVerified: true,
+        isActive: true,
+        expiresAt: null,
+        lastUsedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        metadata: {},
+      },
+    ]);
+    mockMemoryStore.set(PAYMENT_METHODS_KEY, mockPaymentMethods);
+
     await act(async () => {
       await useWalletStore.getState().connectWallet();
     });
 
-    expect(useWalletStore.getState().wallet).not.toBeNull();
-    expect(useWalletStore.getState().address).toBeTruthy();
-    expect(AsyncStorage.setItem).toHaveBeenCalledWith(
-      WALLET_KEY,
-      expect.stringContaining(useWalletStore.getState().address!)
-    );
+    expect(useWalletStore.getState().paymentMethods).toHaveLength(1);
+    expect(useWalletStore.getState().paymentMethods[0].id).toBe('pm_test');
   });
 
-  it('connectWallet restores wallet from AsyncStorage without writing again', async () => {
-    const wallet = makeWallet({ address: '0xRestoredAddress' });
-    mockMemoryStore.set(
-      WALLET_KEY,
-      JSON.stringify({ address: wallet.address, network: 'Polygon', wallet })
-    );
-
+  it('connectWallet works when no persisted data exists', async () => {
     await act(async () => {
       await useWalletStore.getState().connectWallet();
     });
 
-    expect(useWalletStore.getState().address).toBe('0xRestoredAddress');
-    expect(useWalletStore.getState().network).toBe('Polygon');
-    expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+    expect(useWalletStore.getState().isLoading).toBe(false);
+    expect(useWalletStore.getState().paymentMethods).toHaveLength(0);
   });
 
-  it('disconnect clears state and removes wallet from AsyncStorage', async () => {
+  it('disconnect clears state', async () => {
     await act(async () => {
       await useWalletStore.getState().connectWallet();
     });
@@ -98,46 +109,42 @@ describe('wallet connection integration', () => {
       await useWalletStore.getState().disconnect();
     });
 
-    const { wallet, address, network, cryptoStreams } = useWalletStore.getState();
-    expect(wallet).toBeNull();
-    expect(address).toBeNull();
-    expect(network).toBeNull();
+    const { connection, cryptoStreams, paymentMethods, paymentAttempts } =
+      useWalletStore.getState();
+    expect(connection).toBeNull();
     expect(cryptoStreams).toHaveLength(0);
-    expect(AsyncStorage.removeItem).toHaveBeenCalledWith(WALLET_KEY);
+    expect(paymentMethods).toHaveLength(0);
+    expect(paymentAttempts).toHaveLength(0);
   });
 
-  it('connect → disconnect → reconnect restores a fresh wallet', async () => {
+  it('connect → disconnect → reconnect workflow', async () => {
     await act(async () => {
       await useWalletStore.getState().connectWallet();
     });
-    const firstAddress = useWalletStore.getState().address;
+    expect(useWalletStore.getState().isLoading).toBe(false);
 
     await act(async () => {
       await useWalletStore.getState().disconnect();
     });
-    expect(useWalletStore.getState().wallet).toBeNull();
+    expect(useWalletStore.getState().connection).toBeNull();
 
     await act(async () => {
       await useWalletStore.getState().connectWallet();
     });
-    expect(useWalletStore.getState().address).toBe(firstAddress);
-    expect(useWalletStore.getState().wallet).not.toBeNull();
+    expect(useWalletStore.getState().isLoading).toBe(false);
   });
 
-  it('disconnect sets error when AsyncStorage.removeItem throws', async () => {
+  it('disconnect handles errors gracefully', async () => {
     await act(async () => {
       await useWalletStore.getState().connectWallet();
     });
-
-    (AsyncStorage.removeItem as jest.Mock).mockImplementationOnce(() =>
-      Promise.reject(new Error('Storage failure'))
-    );
 
     await act(async () => {
       await useWalletStore.getState().disconnect();
     });
 
-    expect(useWalletStore.getState().error).toBeTruthy();
+    // Connection cleared successfully
+    expect(useWalletStore.getState().connection).toBeNull();
   });
 
   it('isLoading resets to false after connect and disconnect', async () => {

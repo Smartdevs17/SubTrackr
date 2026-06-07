@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import {
   SafeAreaView,
   ScrollView,
@@ -10,7 +10,6 @@ import {
 } from 'react-native';
 
 import { Card } from '../components/common/Card';
-import { Button } from '../components/common/Button';
 import { borderRadius, colors, spacing, typography } from '../utils/constants';
 
 type Role = 'Admin' | 'Merchant' | 'Subscriber' | 'Auditor';
@@ -490,7 +489,6 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.sm,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: 'transparent',
   },
   roleToggleActive: {
     backgroundColor: colors.surfaceVariant,

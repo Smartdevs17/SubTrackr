@@ -11,7 +11,7 @@ import {
   Dimensions,
 } from 'react-native';
 import Svg, { Rect, Text as SvgText, Line, G } from 'react-native-svg';
-import { colors, spacing, typography, borderRadius } from '../utils/constants';
+import { spacing, typography, borderRadius } from '../utils/constants';
 import { Card } from '../components/common/Card';
 import { useSubscriptionStore } from '../store/subscriptionStore';
 import {
@@ -20,6 +20,7 @@ import {
   billingCycleToMs,
   splitRecognisedDeferred,
 } from '../store/accountingStore';
+import { useThemeColors } from '../hooks/useThemeColors';
 
 const { width: screenWidth } = Dimensions.get('window');
 const CHART_WIDTH = screenWidth - spacing.xl * 2;
@@ -48,6 +49,8 @@ const BUCKET_LABELS: Record<PeriodRange, string[]> = {
 };
 
 const RevenueReportScreen: React.FC = () => {
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { subscriptions } = useSubscriptionStore();
   const {
     rules,
@@ -179,7 +182,7 @@ const RevenueReportScreen: React.FC = () => {
           </Card>
           <Card style={styles.summaryCard}>
             <Text style={styles.summaryLabel}>Deferred</Text>
-            <Text style={[styles.summaryValue, { color: '#FF9800' }]}>
+            <Text style={[styles.summaryValue, { color: colors.status.warning }]}>
               ${totalDeferred.toFixed(2)}
             </Text>
           </Card>
@@ -352,8 +355,9 @@ const RevenueReportScreen: React.FC = () => {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background.primary },
   scrollView: { flex: 1 },
   header: { padding: spacing.lg, paddingBottom: spacing.md },
   title: { ...typography.h1, color: colors.text, marginBottom: spacing.xs },
@@ -411,7 +415,7 @@ const styles = StyleSheet.create({
   tableMethod: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
   tableRight: { alignItems: 'flex-end' },
   tableRecognised: { ...typography.body, color: colors.primary, fontWeight: '600' },
-  tableDeferred: { ...typography.caption, color: '#FF9800' },
+  tableDeferred: { ...typography.caption, color: colors.status.warning },
 
   configCard: { marginHorizontal: spacing.lg, marginBottom: spacing.xl },
   configHint: {
@@ -430,7 +434,7 @@ const styles = StyleSheet.create({
   configName: { ...typography.body, color: colors.text, flex: 1 },
   configChevron: { ...typography.body, color: colors.textSecondary, marginLeft: spacing.sm },
   configDetail: {
-    backgroundColor: colors.background,
+    backgroundColor: colors.background.secondary,
     borderRadius: borderRadius.md,
     padding: spacing.md,
     marginBottom: spacing.sm,
@@ -468,6 +472,7 @@ const styles = StyleSheet.create({
   emptyIcon: { fontSize: 64, marginBottom: spacing.md },
   emptyTitle: { ...typography.h2, color: colors.text, marginBottom: spacing.sm },
   emptyText: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
-});
+  });
+}
 
 export default RevenueReportScreen;

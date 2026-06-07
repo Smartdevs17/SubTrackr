@@ -1,5 +1,5 @@
 import { AuditService } from './auditService';
-import type { AuditAction, AuditEvent } from './auditTypes';
+import type { AuditAction, AuditContext, AuditEvent } from './auditTypes';
 import { isPiiField } from './encryption';
 
 export type PiiAccessAction =
@@ -31,9 +31,12 @@ export class PiiAuditService {
     resourceId: string,
     resourceType: string,
     fieldsAccessed: string[],
-    metadata: Record<string, unknown> = {}
+    metadata: Record<string, unknown> = {},
+    context?: AuditContext
   ): PiiAccessRecord {
     const piiFields = fieldsAccessed.filter((f) => isPiiField(f));
+
+    const severity = action === 'pii.exported' || action === 'pii.deleted' ? 'high' : 'medium';
 
     const event = this.auditService.capture(
       action as AuditAction,
@@ -45,7 +48,9 @@ export class PiiAuditService {
         piiFields: piiFields,
         accessTimestamp: Date.now(),
         isMasked: (process.env['APP_ENV'] ?? 'development') !== 'production',
-      }
+      },
+      severity,
+      context
     );
 
     return { event, fieldsAccessed: piiFields };

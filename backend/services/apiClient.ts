@@ -23,6 +23,7 @@ import type {
   PaginationMeta,
 } from './apiResponse';
 import { API_VERSION_HEADER, REQUEST_ID_HEADER } from './apiResponse';
+import { IDEMPOTENCY_KEY_HEADER, generateIdempotencyKey } from './idempotencyService';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Typed error
@@ -156,6 +157,24 @@ export class ApiClient {
 
   delete<T>(path: string, headers?: Record<string, string>) {
     return this.request<T>('DELETE', path, undefined, headers);
+  }
+
+  /**
+   * POST with an Idempotency-Key header attached.
+   * Pass an explicit key to reuse one (e.g. on retry); omit to auto-generate.
+   * Use this for all payment-mutating endpoints to prevent double charges.
+   */
+  postIdempotent<T>(
+    path: string,
+    body?: unknown,
+    idempotencyKey?: string,
+    headers?: Record<string, string>,
+  ) {
+    const key = idempotencyKey ?? generateIdempotencyKey();
+    return this.request<T>('POST', path, body, {
+      ...headers,
+      [IDEMPOTENCY_KEY_HEADER]: key,
+    });
   }
 
   // ── Cursor-based pagination helper ───────────────────────────────────────

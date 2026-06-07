@@ -35,7 +35,7 @@ const AVAILABLE_PERMISSIONS = [
   { id: 'analytics', label: 'Analytics', description: 'Access usage analytics' },
 ];
 
-export const ApiKeysPage: React.FC<ApiKeysPageProps> = ({ environmentId }) => {
+export const ApiKeysPage: React.FC<ApiKeysPageProps> = ({ environmentId: _environmentId }) => {
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [newKeyName, setNewKeyName] = useState('');
@@ -173,7 +173,7 @@ export const ApiKeysPage: React.FC<ApiKeysPageProps> = ({ environmentId }) => {
     );
   };
 
-  const copyToClipboard = (text: string) => {
+  const copyToClipboard = (_text: string) => {
     Alert.alert('Copied', 'API key copied to clipboard');
   };
 

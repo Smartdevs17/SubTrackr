@@ -9,34 +9,25 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
-  FlatList,
 } from 'react-native';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { useAffiliateStore } from '../store/affiliateStore';
-import { useWalletStore } from '../store/walletStore';
+import { useWalletStore, selectAddress } from '../store/walletStore';
 import { Card } from '../components/common/Card';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../navigation/types';
-import { AffiliateStatus, AffiliateProgram, Commission } from '../types/affiliate';
+import { AffiliateStatus } from '../types/affiliate';
 
 const AffiliateDashboardScreen: React.FC = () => {
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const {
     affiliates,
     programs,
     commissions,
     metrics,
     isLoading,
-    error,
     registerAffiliate,
-    trackReferral,
-    calculateCommission,
-    payoutCommission,
     updateAffiliateStatus,
     getMetrics,
   } = useAffiliateStore();
-  const { address } = useWalletStore();
+  const address = useWalletStore(selectAddress);
 
   const [programModalVisible, setProgramModalVisible] = useState(false);
   const [selectedProgram, setSelectedProgram] = useState<string>('');
@@ -59,22 +50,6 @@ const AffiliateDashboardScreen: React.FC = () => {
     setProgramModalVisible(false);
     Alert.alert('Success', 'You are now an affiliate!');
   }, [address, selectedProgram, registerAffiliate]);
-
-  const handlePayout = useCallback(
-    async (affiliateId: string) => {
-      const affiliate = affiliates.find((a) => a.id === affiliateId);
-      if (!affiliate || affiliate.pendingPayout < affiliate.paymentThreshold) {
-        Alert.alert(
-          'Minimum Threshold',
-          `You need at least $${affiliate?.paymentThreshold} to request a payout`
-        );
-        return;
-      }
-      await payoutCommission(affiliateId);
-      Alert.alert('Success', 'Payout requested!');
-    },
-    [affiliates, payoutCommission]
-  );
 
   const handleToggleStatus = useCallback(
     async (affiliateId: string, newStatus: AffiliateStatus) => {
@@ -141,7 +116,7 @@ const AffiliateDashboardScreen: React.FC = () => {
                         ? colors.success
                         : affiliate.status === AffiliateStatus.PAUSED
                           ? colors.warning
-                          : colors.danger,
+                          : colors.error,
                   },
                 ]}>
                 <Text style={styles.statusBadgeText}>{affiliate.status}</Text>
@@ -333,19 +308,19 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: spacing.sm,
     color: colors.textSecondary,
-    fontSize: typography.fontSizeMd,
+    fontSize: typography.body2.fontSize,
   },
   header: {
     padding: spacing.md,
     paddingTop: spacing.lg,
   },
   title: {
-    fontSize: typography.fontSizeXl,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.h2.fontSize,
+    fontWeight: typography.h2.fontWeight,
     color: colors.text,
   },
   subtitle: {
-    fontSize: typography.fontSizeMd,
+    fontSize: typography.body2.fontSize,
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
@@ -355,8 +330,8 @@ const styles = StyleSheet.create({
     marginTop: 0,
   },
   metricsTitle: {
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.body.fontSize,
+    fontWeight: '700',
     color: colors.text,
     marginBottom: spacing.md,
   },
@@ -374,12 +349,12 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.md,
   },
   metricValue: {
-    fontSize: typography.fontSizeLg,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.h3.fontSize,
+    fontWeight: typography.h3.fontWeight,
     color: colors.text,
   },
   metricLabel: {
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.small.fontSize,
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
@@ -392,12 +367,12 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
   },
   conversionLabel: {
-    fontSize: typography.fontSizeMd,
+    fontSize: typography.body2.fontSize,
     color: colors.textSecondary,
   },
   conversionValue: {
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.body2.fontSize,
+    fontWeight: '700',
     color: colors.primary,
   },
   listCard: {
@@ -406,13 +381,13 @@ const styles = StyleSheet.create({
     marginTop: 0,
   },
   listTitle: {
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.body.fontSize,
+    fontWeight: '700',
     color: colors.text,
     marginBottom: spacing.md,
   },
   emptyText: {
-    fontSize: typography.fontSizeMd,
+    fontSize: typography.body2.fontSize,
     color: colors.textSecondary,
     textAlign: 'center',
     paddingVertical: spacing.lg,
@@ -428,9 +403,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   affiliateAddress: {
-    fontSize: typography.fontSizeMd,
+    fontSize: typography.body2.fontSize,
     color: colors.text,
-    fontFamily: typography.fontFamilyMono,
   },
   affiliateStats: {
     flexDirection: 'row',
@@ -438,7 +412,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   affiliateStat: {
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.small.fontSize,
     color: colors.textSecondary,
   },
   affiliateActions: {
@@ -452,8 +426,8 @@ const styles = StyleSheet.create({
   },
   statusBadgeText: {
     color: colors.text,
-    fontSize: typography.fontSizeXs,
-    fontWeight: typography.fontWeightMedium,
+    fontSize: typography.small.fontSize,
+    fontWeight: '600',
     textTransform: 'capitalize',
   },
   pauseButton: {
@@ -465,7 +439,7 @@ const styles = StyleSheet.create({
   },
   pauseButtonText: {
     color: colors.warning,
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.small.fontSize,
   },
   resumeButton: {
     paddingHorizontal: spacing.sm,
@@ -476,7 +450,7 @@ const styles = StyleSheet.create({
   },
   resumeButtonText: {
     color: colors.success,
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.small.fontSize,
   },
   programItem: {
     flexDirection: 'row',
@@ -489,12 +463,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   programName: {
-    fontSize: typography.fontSizeMd,
+    fontSize: typography.body.fontSize,
     color: colors.text,
-    fontWeight: typography.fontWeightMedium,
+    fontWeight: '600',
   },
   programDescription: {
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.body2.fontSize,
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
@@ -502,12 +476,12 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   rateValue: {
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.body.fontSize,
+    fontWeight: '700',
     color: colors.primary,
   },
   rateLabel: {
-    fontSize: typography.fontSizeXs,
+    fontSize: typography.small.fontSize,
     color: colors.textSecondary,
   },
   commissionItem: {
@@ -521,12 +495,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   commissionId: {
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.body2.fontSize,
     color: colors.text,
-    fontFamily: typography.fontFamilyMono,
   },
   commissionDate: {
-    fontSize: typography.fontSizeXs,
+    fontSize: typography.small.fontSize,
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
@@ -534,8 +507,8 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   amountValue: {
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.body.fontSize,
+    fontWeight: '700',
     color: colors.text,
   },
   commissionStatus: {
@@ -546,8 +519,8 @@ const styles = StyleSheet.create({
   },
   commissionStatusText: {
     color: colors.text,
-    fontSize: typography.fontSizeXs,
-    fontWeight: typography.fontWeightMedium,
+    fontSize: typography.small.fontSize,
+    fontWeight: '600',
     textTransform: 'capitalize',
   },
   registerButton: {
@@ -559,8 +532,8 @@ const styles = StyleSheet.create({
   },
   registerButtonText: {
     color: colors.text,
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.body.fontSize,
+    fontWeight: '700',
   },
   modalOverlay: {
     flex: 1,
@@ -575,13 +548,13 @@ const styles = StyleSheet.create({
     maxHeight: '70%',
   },
   modalTitle: {
-    fontSize: typography.fontSizeLg,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.h3.fontSize,
+    fontWeight: '700',
     color: colors.text,
     marginBottom: spacing.xs,
   },
   modalSubtitle: {
-    fontSize: typography.fontSizeMd,
+    fontSize: typography.body2.fontSize,
     color: colors.textSecondary,
     marginBottom: spacing.lg,
   },
@@ -601,12 +574,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   programOptionName: {
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightMedium,
+    fontSize: typography.body.fontSize,
+    fontWeight: '600',
     color: colors.text,
   },
   programOptionDesc: {
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.body2.fontSize,
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
@@ -643,8 +616,8 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     color: colors.text,
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightMedium,
+    fontSize: typography.body.fontSize,
+    fontWeight: '600',
   },
   confirmButton: {
     flex: 1,
@@ -655,8 +628,8 @@ const styles = StyleSheet.create({
   },
   confirmButtonText: {
     color: colors.text,
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.body.fontSize,
+    fontWeight: '700',
   },
 });
 

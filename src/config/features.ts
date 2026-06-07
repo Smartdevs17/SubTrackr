@@ -1,9 +1,53 @@
-import { FeatureConfig, FeatureId } from '../types/feature';
+import { FeatureConfig, FeatureId, UserSegment } from '../types/feature';
 import { SubscriptionTier } from '../types/subscription';
+
+export const USER_SEGMENTS: UserSegment[] = [
+  {
+    id: 'beta_testers',
+    name: 'Beta Testers',
+    conditions: [{ attribute: 'isBetaTester', operator: 'eq', value: true }],
+    matchAll: true,
+  },
+  {
+    id: 'staff',
+    name: 'Staff Members',
+    conditions: [{ attribute: 'isStaff', operator: 'eq', value: true }],
+    matchAll: true,
+  },
+  {
+    id: 'new_users',
+    name: 'New Users',
+    conditions: [{ attribute: 'isNewUser', operator: 'eq', value: true }],
+    matchAll: true,
+  },
+  {
+    id: 'us_region',
+    name: 'US Region',
+    conditions: [{ attribute: 'region', operator: 'eq', value: 'us' }],
+    matchAll: true,
+  },
+  {
+    id: 'high_usage',
+    name: 'High Usage Users',
+    conditions: [{ attribute: 'totalSubscriptions', operator: 'gte', value: 10 }],
+    matchAll: true,
+  },
+  {
+    id: 'enterprise_tier',
+    name: 'Enterprise Tier',
+    conditions: [{ attribute: 'tier', operator: 'eq', value: SubscriptionTier.ENTERPRISE }],
+    matchAll: true,
+  },
+];
 
 export const FEATURE_CONFIG: FeatureConfig = {
   globalRolloutPercentage: 100,
   abTestEnabled: true,
+  segments: USER_SEGMENTS,
+  killSwitch: {
+    active: false,
+    overrides: {},
+  },
   plans: {
     [SubscriptionTier.FREE]: [
       FeatureId.BASIC_SUBSCRIPTION_TRACKING,
@@ -58,8 +102,14 @@ export const FEATURE_CONFIG: FeatureConfig = {
         SubscriptionTier.ENTERPRISE,
       ],
       rolloutPercentage: 100,
+      rolloutStages: [
+        { percentage: 10, label: 'internal_testing', createdAt: new Date('2024-01-01') },
+        { percentage: 25, label: 'closed_beta', createdAt: new Date('2024-01-05') },
+        { percentage: 50, label: 'open_beta', createdAt: new Date('2024-01-10') },
+        { percentage: 100, label: 'general_availability', createdAt: new Date('2024-01-15') },
+      ],
       createdAt: new Date('2024-01-01'),
-      updatedAt: new Date('2024-01-01'),
+      updatedAt: new Date('2024-01-15'),
     },
     [FeatureId.BASIC_ANALYTICS]: {
       id: FeatureId.BASIC_ANALYTICS,
@@ -73,8 +123,14 @@ export const FEATURE_CONFIG: FeatureConfig = {
         SubscriptionTier.ENTERPRISE,
       ],
       rolloutPercentage: 100,
+      rolloutStages: [
+        { percentage: 10, label: 'internal_testing', createdAt: new Date('2024-01-01') },
+        { percentage: 25, label: 'closed_beta', createdAt: new Date('2024-01-05') },
+        { percentage: 50, label: 'open_beta', createdAt: new Date('2024-01-10') },
+        { percentage: 100, label: 'general_availability', createdAt: new Date('2024-01-15') },
+      ],
       createdAt: new Date('2024-01-01'),
-      updatedAt: new Date('2024-01-01'),
+      updatedAt: new Date('2024-01-15'),
     },
     [FeatureId.PUSH_NOTIFICATIONS]: {
       id: FeatureId.PUSH_NOTIFICATIONS,
@@ -88,8 +144,14 @@ export const FEATURE_CONFIG: FeatureConfig = {
         SubscriptionTier.ENTERPRISE,
       ],
       rolloutPercentage: 100,
+      rolloutStages: [
+        { percentage: 10, label: 'internal_testing', createdAt: new Date('2024-01-01') },
+        { percentage: 25, label: 'closed_beta', createdAt: new Date('2024-01-05') },
+        { percentage: 50, label: 'open_beta', createdAt: new Date('2024-01-10') },
+        { percentage: 100, label: 'general_availability', createdAt: new Date('2024-01-15') },
+      ],
       createdAt: new Date('2024-01-01'),
-      updatedAt: new Date('2024-01-01'),
+      updatedAt: new Date('2024-01-15'),
     },
     [FeatureId.BUDGET_ALERTS]: {
       id: FeatureId.BUDGET_ALERTS,
@@ -99,8 +161,14 @@ export const FEATURE_CONFIG: FeatureConfig = {
       tierAccess: [SubscriptionTier.BASIC, SubscriptionTier.PREMIUM, SubscriptionTier.ENTERPRISE],
       dependencies: [FeatureId.BASIC_SUBSCRIPTION_TRACKING],
       rolloutPercentage: 100,
+      rolloutStages: [
+        { percentage: 10, label: 'internal_testing', createdAt: new Date('2024-01-01') },
+        { percentage: 25, label: 'closed_beta', createdAt: new Date('2024-01-05') },
+        { percentage: 50, label: 'open_beta', createdAt: new Date('2024-01-10') },
+        { percentage: 100, label: 'general_availability', createdAt: new Date('2024-01-15') },
+      ],
       createdAt: new Date('2024-01-01'),
-      updatedAt: new Date('2024-01-01'),
+      updatedAt: new Date('2024-01-15'),
     },
     [FeatureId.EXPORT_DATA]: {
       id: FeatureId.EXPORT_DATA,
@@ -121,6 +189,7 @@ export const FEATURE_CONFIG: FeatureConfig = {
       tierAccess: [SubscriptionTier.PREMIUM, SubscriptionTier.ENTERPRISE],
       dependencies: [FeatureId.BASIC_ANALYTICS],
       rolloutPercentage: 100,
+      segments: ['beta_testers', 'staff'],
       createdAt: new Date('2024-01-01'),
       updatedAt: new Date('2024-01-01'),
     },
@@ -140,9 +209,10 @@ export const FEATURE_CONFIG: FeatureConfig = {
       description: 'Pay subscriptions with cryptocurrency and track crypto holdings',
       enabled: true,
       tierAccess: [SubscriptionTier.PREMIUM, SubscriptionTier.ENTERPRISE],
-      rolloutPercentage: 100,
+      rolloutPercentage: 75,
+      segments: ['us_region'],
       createdAt: new Date('2024-01-01'),
-      updatedAt: new Date('2024-01-01'),
+      updatedAt: new Date('2024-06-01'),
     },
     [FeatureId.TEAM_COLLABORATION]: {
       id: FeatureId.TEAM_COLLABORATION,
@@ -150,9 +220,15 @@ export const FEATURE_CONFIG: FeatureConfig = {
       description: 'Share subscription management with team members',
       enabled: true,
       tierAccess: [SubscriptionTier.ENTERPRISE],
-      rolloutPercentage: 100,
-      createdAt: new Date('2024-01-01'),
-      updatedAt: new Date('2024-01-01'),
+      rolloutPercentage: 50,
+      rolloutStages: [
+        { percentage: 10, label: 'internal_testing', createdAt: new Date('2024-03-01') },
+        { percentage: 25, label: 'closed_beta', createdAt: new Date('2024-04-01') },
+        { percentage: 50, label: 'open_beta', createdAt: new Date('2024-05-01') },
+      ],
+      segments: ['beta_testers', 'enterprise_tier'],
+      createdAt: new Date('2024-03-01'),
+      updatedAt: new Date('2024-05-01'),
     },
     [FeatureId.CUSTOM_REPORTS]: {
       id: FeatureId.CUSTOM_REPORTS,
@@ -161,9 +237,14 @@ export const FEATURE_CONFIG: FeatureConfig = {
       enabled: true,
       tierAccess: [SubscriptionTier.ENTERPRISE],
       dependencies: [FeatureId.ADVANCED_ANALYTICS],
-      rolloutPercentage: 100,
-      createdAt: new Date('2024-01-01'),
-      updatedAt: new Date('2024-01-01'),
+      rolloutPercentage: 25,
+      rolloutStages: [
+        { percentage: 10, label: 'internal_testing', createdAt: new Date('2024-04-01') },
+        { percentage: 25, label: 'closed_beta', createdAt: new Date('2024-05-01') },
+      ],
+      segments: ['beta_testers', 'staff'],
+      createdAt: new Date('2024-04-01'),
+      updatedAt: new Date('2024-05-01'),
     },
     [FeatureId.API_ACCESS]: {
       id: FeatureId.API_ACCESS,

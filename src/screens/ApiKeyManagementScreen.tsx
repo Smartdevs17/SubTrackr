@@ -42,7 +42,11 @@ const ApiKeyManagementScreen: React.FC = () => {
     }
   };
 
-  const handleCopyKey = (key: string) => {
+  const handleCopyKey = (key?: string) => {
+    if (!key) {
+      Alert.alert('Key unavailable', 'This API key is only visible once and cannot be copied again.');
+      return;
+    }
     Clipboard.setString(key);
     Alert.alert('Copied', 'API key copied to clipboard.');
   };
@@ -208,7 +212,7 @@ const ApiKeyManagementScreen: React.FC = () => {
                     <>
                       <TouchableOpacity
                         style={styles.actionButton}
-                        onPress={() => handleCopyKey(key.key)}>
+                        onPress={() => handleCopyKey(key.plainKey)}>
                         <Text style={styles.actionButtonText}>Copy</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
