@@ -113,7 +113,7 @@ subscription = client.subscriptions.create(
 ];
 
 const SdkDownloadScreen: React.FC = () => {
-  const handleCopyInstall = (installCommand: string) => {
+  const handleCopyInstall = (_installCommand: string) => {
     // Copy to clipboard logic
     Alert.alert('Copied', 'Install command copied to clipboard');
   };

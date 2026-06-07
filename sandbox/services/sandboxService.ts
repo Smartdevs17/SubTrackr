@@ -23,7 +23,6 @@ export class SandboxService {
     config?: Partial<SandboxConfig>
   ): Promise<SandboxEnvironment> {
     const envId = this.generateEnvironmentId();
-    const defaultResourceLimits = this.getDefaultResourceLimits();
 
     const environment: SandboxEnvironment = {
       id: envId,
@@ -269,7 +268,7 @@ export class SandboxService {
 
   private generateTestPayments(subscriptions: TestSubscription[]): TestPayment[] {
     const payments: TestPayment[] = [];
-    const methods: Array<'card' | 'crypto' | 'bank'> = ['card', 'crypto', 'bank'];
+    const methods: ('card' | 'crypto' | 'bank')[] = ['card', 'crypto', 'bank'];
 
     subscriptions.forEach((sub) => {
       for (let i = 0; i < 3; i++) {

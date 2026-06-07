@@ -1,6 +1,5 @@
 import {
   Developer,
-  OnboardingStatus,
   ApiKey,
   ApiPermission,
   UsageMetrics,
@@ -107,7 +106,7 @@ export class DeveloperPortalService {
 
     this.developers.set(developerId, developer);
 
-    const apiKey = await this.createApiKey(developerId, 'Default API Key', 'test', [
+    const _apiKey = await this.createApiKey(developerId, 'Default API Key', 'test', [
       'subscriptions:read',
       'subscriptions:write',
       'payments:read',
@@ -415,7 +414,7 @@ export class DeveloperPortalService {
 
   private getQuickLinks(
     tier: string
-  ): Array<{ title: string; description: string; url: string; icon: string }> {
+  ): { title: string; description: string; url: string; icon: string }[] {
     const links = [
       {
         title: 'API Documentation',

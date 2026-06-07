@@ -21,7 +21,6 @@ const ApiKeyManagementScreen: React.FC = () => {
   const {
     developer,
     apiKeys,
-    isLoading,
     fetchApiKeys,
     createApiKey,
     revokeApiKey,

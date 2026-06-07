@@ -5,13 +5,25 @@ export type FraudSignalType =
   | 'usage-anomaly'
   | 'chargeback'
   | 'pattern-shift'
-  | 'device-mismatch';
+  | 'device-mismatch'
+  | 'geolocation-anomaly';
+export type FraudReviewOutcome = 'true_positive' | 'false_positive' | 'needs_follow_up';
+export type FraudEvidenceSource = 'payment' | 'device' | 'location' | 'support';
 
 export interface FraudSignal {
   kind: FraudSignalType;
   score: number;
   detail: string;
   observedAt: string;
+}
+
+export interface FraudEvidence {
+  evidenceId: string;
+  label: string;
+  value: string;
+  source: FraudEvidenceSource;
+  capturedAt: string;
+  confidence: number;
 }
 
 export interface FraudRiskScore {
@@ -27,6 +39,7 @@ export interface FraudRiskScore {
   reason: string;
   assessedAt: string;
   signals: FraudSignal[];
+  evidence?: FraudEvidence[];
 }
 
 export interface FraudCase {
@@ -43,6 +56,10 @@ export interface FraudCase {
   createdAt: string;
   updatedAt: string;
   notes?: string;
+  reviewer?: string;
+  reviewedAt?: string;
+  outcome?: FraudReviewOutcome;
+  evidence?: FraudEvidence[];
 }
 
 export interface FraudReport {
@@ -57,6 +74,9 @@ export interface FraudReport {
   anomalyAlerts: number;
   chargebackPredictions: number;
   highRiskSubscribers: number;
+  geolocationAlerts: number;
+  pendingEvidenceCount: number;
+  falsePositiveFeedbackCount: number;
   recentCases: FraudCase[];
 }
 
@@ -72,6 +92,12 @@ export interface FraudSubscriptionRecord {
   expectedUsage: number;
   observedUsage: number;
   chargebacks: number;
+  homeCountry?: string;
+  currentCountry?: string;
+  deviceFingerprint?: string;
+  trustedDeviceFingerprint?: string;
+  lastSeenAt?: string;
+  falsePositiveCount?: number;
   riskScore: number;
   action: FraudAction;
   reason: string;
@@ -89,6 +115,7 @@ export interface FraudMerchantRecord {
   blockedSubscriptions: number;
   averageRisk: number;
   monthlyVolume: number;
+  falsePositiveRate?: number;
 }
 
 export interface FraudAnalytics {
@@ -97,9 +124,13 @@ export interface FraudAnalytics {
   flagged: number;
   blocked: number;
   manualReviews: number;
+  manualReviewsClosed: number;
   avgRisk: number;
   velocityAlerts: number;
   anomalyAlerts: number;
+  geoAnomalyAlerts: number;
   chargebackPredictions: number;
   falsePositiveEstimate: number;
+  falsePositiveRate: number;
+  modelConfidence: number;
 }

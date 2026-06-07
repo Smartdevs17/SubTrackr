@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import bcrypt from 'bcryptjs';
 import {
   SandboxConfig,
   SandboxEnvironment,
@@ -17,22 +18,91 @@ import {
   SandboxMetrics,
   IntegrationGuide,
   IntegrationGuideCategory,
+  ApiKeyAuditEntry,
 } from '../types/sandbox';
 import { AppError, errorHandler } from '../services/errorHandler';
 
 const STORAGE_KEY = 'subtrackr-sandbox';
 const STORE_VERSION = 3;
-
+const API_KEY_PREFIX = 'sk_sandbox_';
+const KEY_PREFIX_LENGTH = 8;
+const HASH_COST = 10;
 const generateId = (prefix: string): string =>
   `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 
-const generateApiKeyString = (): string => {
+const getRandomChars = (length: number): string => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let key = 'sk_sandbox_';
-  for (let i = 0; i < 48; i++) {
-    key += chars.charAt(Math.floor(Math.random() * chars.length));
+  const values =
+    typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function'
+      ? crypto.getRandomValues(new Uint8Array(length))
+      : null;
+  let result = '';
+
+  if (values) {
+    for (let i = 0; i < values.length; i += 1) {
+      result += chars[values[i] % chars.length];
+    }
+  } else {
+    for (let i = 0; i < length; i += 1) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
   }
-  return key;
+
+  return result;
+};
+
+const generateApiKeyString = (): string => {
+  return `${API_KEY_PREFIX}${getRandomChars(48)}`;
+};
+
+const createAuditEntry = (
+  apiKeyId: string,
+  event: ApiKeyAuditEntry['event'],
+  message: string
+): ApiKeyAuditEntry => ({
+  id: generateId('audit'),
+  apiKeyId,
+  event,
+  message,
+  timestamp: new Date(),
+});
+
+const hashApiKey = async (plaintext: string): Promise<string> => bcrypt.hash(plaintext, HASH_COST);
+
+const migrateStoredApiKeys = async (keys: ApiKey[]): Promise<ApiKey[]> => {
+  return Promise.all(
+    keys.map(async (key) => {
+      if (
+        !key.hashedKey &&
+        key.key.startsWith(API_KEY_PREFIX) &&
+        key.key.length > KEY_PREFIX_LENGTH
+      ) {
+        const hashedKey = await hashApiKey(key.key);
+        return {
+          ...key,
+          hashedKey,
+          keyPrefix: key.key.substring(0, KEY_PREFIX_LENGTH),
+          key: key.key.substring(0, KEY_PREFIX_LENGTH),
+          usageCount: key.usageCount ?? 0,
+          auditLogs: [
+            ...(key.auditLogs ?? []),
+            createAuditEntry(
+              key.id,
+              'migration',
+              'Migrated stored plaintext API key to hashed storage'
+            ),
+          ],
+        };
+      }
+
+      return {
+        ...key,
+        keyPrefix: key.keyPrefix ?? key.key.substring(0, KEY_PREFIX_LENGTH),
+        usageCount: key.usageCount ?? 0,
+        auditLogs: key.auditLogs ?? [],
+      };
+    })
+  );
 };
 
 const DEFAULT_RATE_LIMIT = {
@@ -241,8 +311,8 @@ interface SandboxState {
   resetSandbox: () => void;
   resetTestData: () => void;
   refreshMetrics: () => Promise<void>;
-  initializeSandbox: () => void;
-  initializeDeveloperPortal: () => void;
+  initializeSandbox: () => Promise<void>;
+  initializeDeveloperPortal: () => Promise<void>;
   switchEnvironment: (env: SandboxEnvironment) => void;
   addTestSubscription: (name: string, price: number) => void;
   removeTestSubscription: (id: string) => void;
@@ -268,6 +338,7 @@ const defaultSandboxConfig: SandboxConfig = {
   environment: SandboxEnvironment.DEVELOPMENT,
   name: 'Development Sandbox',
   description: 'Primary sandbox for development and testing',
+  status: SandboxStatus.ACTIVE,
   isActive: true,
   dataIsolation: true,
   rateLimit: DEFAULT_RATE_LIMIT,
@@ -502,8 +573,14 @@ export const useSandboxStore = create<SandboxState>()(
         });
       },
 
-      initializeSandbox: () => {
-        const { sandboxes, testSubscriptions } = get();
+      initializeSandbox: async () => {
+        const { sandboxes, testSubscriptions, apiKeys } = get();
+
+        if (apiKeys.length > 0) {
+          const migratedKeys = await migrateStoredApiKeys(apiKeys);
+          set({ apiKeys: migratedKeys });
+        }
+
         if (sandboxes.length === 0) {
           const defaultSandbox: SandboxConfig = {
             id: generateId('sandbox'),
@@ -524,8 +601,12 @@ export const useSandboxStore = create<SandboxState>()(
         }
       },
 
-      initializeDeveloperPortal: () => {
-        const { sandboxes } = get();
+      initializeDeveloperPortal: async () => {
+        const { sandboxes, apiKeys } = get();
+        if (apiKeys.length > 0) {
+          const migratedKeys = await migrateStoredApiKeys(apiKeys);
+          set({ apiKeys: migratedKeys });
+        }
         if (sandboxes.length === 0) {
           set({ sandboxes: [], onboardingSteps: DEFAULT_ONBOARDING_STEPS });
         }
@@ -608,11 +689,16 @@ export const useSandboxStore = create<SandboxState>()(
       generateApiKey: async (name) => {
         try {
           set({ isLoading: true, error: null });
+          const id = generateId('key');
           const key = generateApiKeyString();
+          const hashedKey = await hashApiKey(key);
           const sandboxId = get().currentSandbox?.id || get().sandboxConfig.id;
           const apiKey: ApiKey = {
-            id: generateId('key'),
-            key,
+            id,
+            key: key.substring(0, KEY_PREFIX_LENGTH),
+            keyPrefix: key.substring(0, KEY_PREFIX_LENGTH),
+            hashedKey,
+            plainKey: key,
             name,
             sandboxId,
             status: ApiKeyStatus.ACTIVE,
@@ -620,6 +706,7 @@ export const useSandboxStore = create<SandboxState>()(
             expiresAt: null,
             lastUsedAt: null,
             usageCount: 0,
+            auditLogs: [createAuditEntry(id, 'created', 'Generated a new API key in state')],
             createdAt: new Date(),
             updatedAt: new Date(),
           };
@@ -646,10 +733,15 @@ export const useSandboxStore = create<SandboxState>()(
       createApiKey: async (input) => {
         try {
           set({ isLoading: true, error: null });
+          const id = generateId('key');
           const key = generateApiKeyString();
+          const hashedKey = await hashApiKey(key);
           const apiKey: ApiKey = {
-            id: generateId('key'),
-            key,
+            id,
+            key: key.substring(0, KEY_PREFIX_LENGTH),
+            keyPrefix: key.substring(0, KEY_PREFIX_LENGTH),
+            hashedKey,
+            plainKey: key,
             name: input.name,
             description: input.description,
             sandboxId: input.sandboxId,
@@ -658,6 +750,7 @@ export const useSandboxStore = create<SandboxState>()(
             expiresAt: null,
             lastUsedAt: null,
             usageCount: 0,
+            auditLogs: [createAuditEntry(id, 'created', 'Created a new managed API key')],
             createdAt: new Date(),
             updatedAt: new Date(),
           };
@@ -772,7 +865,11 @@ export const useSandboxStore = create<SandboxState>()(
         sandboxes: state.sandboxes,
         currentSandbox: state.currentSandbox,
         developerProfile: state.developerProfile,
-        apiKeys: state.apiKeys,
+        apiKeys: state.apiKeys.map((key) => {
+          const sanitized = { ...key } as ApiKey;
+          delete sanitized.plainKey;
+          return sanitized;
+        }),
         onboardingSteps: state.onboardingSteps,
         integrationGuides: state.integrationGuides,
         testSubscriptions: state.testSubscriptions,

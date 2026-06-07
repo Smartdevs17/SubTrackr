@@ -1,42 +1,36 @@
 #![no_std]
+use soroban_sdk::{Address, Env};
 
-use soroban_sdk::{contract, contractimpl, contracttype, Env, Symbol, Address};
+// We use generics `<M>` for the metric to automatically accept `QuotaMetric` 
+// from `lib.rs` without needing to directly import it here.
 
-#[contracttype]
-pub struct UsageRecord {
-    pub subscriber: Address,
-    pub api_calls: u64,
-    pub compute_usage: u64,
-    pub storage_consumption: u64,
-    pub overage_charges: i128,
+pub fn record_usage<M>(
+    _env: &Env,
+    _storage: &Address,
+    _subscription_id: u64,
+    _plan_id: u64,
+    _metric: M,
+    _amount: u64,
+) -> subtrackr_types::UsageRecord {
+    // Satisfies the compiler return type perfectly
+    unimplemented!("usage tracking logic to be implemented")
 }
 
-#[contract]
-pub struct UsageMeteringContract;
+pub fn get_usage_record<M>(
+    _env: &Env,
+    _storage: &Address,
+    _subscription_id: u64,
+    _metric: M,
+) -> subtrackr_types::UsageRecord {
+    unimplemented!("usage tracking logic to be implemented")
+}
 
-#[contractimpl]
-impl UsageMeteringContract {
-    /// Record real-time usage for a subscriber.
-    pub fn record_usage(
-        env: Env,
-        subscriber: Address,
-        api_calls: u64,
-        compute: u64,
-        storage: u64,
-    ) -> bool {
-        // Check thresholds: 80%, 100%, 120%
-        // Calculate overages if over 100%
-        env.events().publish((Symbol::new(&env, "usage_recorded"),), subscriber.clone());
-        true
-    }
-
-    /// Process rollover for unused credits at end of billing cycle.
-    pub fn process_rollover(
-        env: Env,
-        subscriber: Address,
-    ) -> bool {
-        // Rollover logic implementation
-        env.events().publish((Symbol::new(&env, "rollover_processed"),), subscriber.clone());
-        true
-    }
+pub fn check_quota<M>(
+    _env: &Env,
+    _storage: &Address,
+    _subscription_id: u64,
+    _plan_id: u64,
+    _metric: M,
+) -> subtrackr_types::QuotaStatus {
+    unimplemented!("usage tracking logic to be implemented")
 }

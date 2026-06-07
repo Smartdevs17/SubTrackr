@@ -88,7 +88,7 @@ export class DeveloperPortalService {
     this.activities.set(userId, activities.slice(0, 100));
   }
 
-  private async getEnvironmentSummaries(userId: string): Promise<EnvironmentSummary[]> {
+  private async getEnvironmentSummaries(_userId: string): Promise<EnvironmentSummary[]> {
     return [
       {
         id: '1',

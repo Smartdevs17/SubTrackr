@@ -1,15 +1,12 @@
 import { create } from 'zustand';
 import {
   DeveloperProfile,
-  ApiKey,
   ApiKeyPermission,
-  ApiKeyStatus,
-  UsageStats,
-  UsageRecord,
   OnboardingStep,
   DocumentationSection,
   IntegrationGuide,
 } from '../types/developerPortal';
+import { ApiKey, ApiKeyStatus, UsageStats, UsageMetric } from '../types/sandbox';
 import { developerPortalService } from '../services/sandbox/developerPortalService';
 import { apiKeyService } from '../services/sandbox/apiKeyService';
 import { usageTrackingService } from '../services/sandbox/usageTrackingService';
@@ -19,7 +16,7 @@ interface DeveloperPortalState {
   developer: DeveloperProfile | null;
   apiKeys: ApiKey[];
   usageStats: UsageStats | null;
-  recentUsage: UsageRecord[];
+  recentUsage: UsageMetric[];
   onboardingSteps: OnboardingStep[];
   documentation: DocumentationSection[];
   integrationGuides: IntegrationGuide[];
@@ -162,10 +159,18 @@ export const useDeveloperPortalStore = create<DeveloperPortalState>()((set, get)
     }
   },
 
-  createApiKey: async (developerId, name, permissions, _options) => {
+  createApiKey: async (
+    developerId: string,
+    name: string,
+    permissions?: ApiKeyPermission[],
+    _options?: { rateLimit?: number; dailyLimit?: number; expiresAt?: Date }
+  ) => {
     set({ isLoading: true, error: null });
     try {
-      const permissionStrings = permissions?.map((p) => p.toString()) || ['read', 'write'];
+      const permissionStrings = permissions?.map((p: ApiKeyPermission) => p.toString()) || [
+        'read',
+        'write',
+      ];
       const apiKey = await apiKeyService.createApiKey(
         developerId,
         name,

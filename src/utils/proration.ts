@@ -1,5 +1,5 @@
 import { Subscription, BillingCycle } from '../types/subscription';
-import { InvoiceLineItem, InvoicePeriod } from '../types/invoice';
+import { InvoiceLineItem } from '../types/invoice';
 
 export interface ProrationPreview {
   amount: number;
@@ -22,14 +22,9 @@ export interface CreditMemo {
 }
 
 const DAYS_IN_CYCLE: Record<BillingCycle, number> = {
-  [BillingCycle.DAILY]: 1,
   [BillingCycle.WEEKLY]: 7,
-  [BillingCycle.BIWEEKLY]: 14,
   [BillingCycle.MONTHLY]: 30,
-  [BillingCycle.BIMONTHLY]: 60,
-  [BillingCycle.QUARTERLY]: 90,
-  [BillingCycle.SEMI_ANNUALLY]: 182,
-  [BillingCycle.ANNUALLY]: 365,
+  [BillingCycle.YEARLY]: 365,
   [BillingCycle.CUSTOM]: 30,
 };
 

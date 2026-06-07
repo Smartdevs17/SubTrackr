@@ -1,4 +1,4 @@
-import { SandboxIsolationContext, SandboxResourceLimits } from '../types/sandbox';
+import { SandboxResourceLimits } from '../types/sandbox';
 import { sandboxService } from '../services/sandboxService';
 
 export interface SandboxRequest {
