@@ -495,22 +495,22 @@ const AffiliateDashboardScreen: React.FC = () => {
 
               {programs.map((program) => (
                 <TouchableOpacity
-                   key={program.id}
-                   style={[
-                     styles.programOption,
-                     selectedProgram === program.id && styles.programOptionSelected,
-                   ]}
-                   onPress={() => setSelectedProgram(program.id)}>
+                  key={program.id}
+                  style={[
+                    styles.programOption,
+                    selectedProgram === program.id && styles.programOptionSelected,
+                  ]}
+                  onPress={() => setSelectedProgram(program.id)}>
                   <View style={programOptionInfo}>
                     <Text style={styles.programOptionName}>{program.name}</Text>
                     <Text style={styles.programOptionDesc}>{program.description}</Text>
                   </View>
                   <View
-                     style={[
-                       styles.radioCircle,
-                       selectedProgram === program.id && styles.radioCircleSelected,
-                     ]}>
-                     {selectedProgram === program.id && <View style={styles.radioInner} />}
+                    style={[
+                      styles.radioCircle,
+                      selectedProgram === program.id && styles.radioCircleSelected,
+                    ]}>
+                    {selectedProgram === program.id && <View style={styles.radioInner} />}
                   </View>
                 </TouchableOpacity>
               ))}

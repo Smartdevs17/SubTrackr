@@ -99,11 +99,15 @@ export const AchievementCard: React.FC<AchievementCardProps> = ({ achievement, o
       <View
         style={[
           styles.achievementIcon,
-          { backgroundColor: isUnlocked ? theme.colors.primary + '22' : theme.colors.border.default },
+          {
+            backgroundColor: isUnlocked ? theme.colors.primary + '22' : theme.colors.border.default,
+          },
         ]}>
         <Text style={styles.achievementEmoji}>{achievement.icon}</Text>
       </View>
-      <Text style={[styles.achievementName, { color: theme.colors.text.primary }]} numberOfLines={1}>
+      <Text
+        style={[styles.achievementName, { color: theme.colors.text.primary }]}
+        numberOfLines={1}>
         {achievement.name}
       </Text>
       <Text
@@ -212,7 +216,9 @@ export const RewardsCatalog: React.FC<RewardsCatalogProps> = ({
       return (
         <Card style={styles.rewardCard}>
           <View style={styles.rewardHeader}>
-            <Text style={[styles.rewardName, { color: theme.colors.text.primary }]}>{item.name}</Text>
+            <Text style={[styles.rewardName, { color: theme.colors.text.primary }]}>
+              {item.name}
+            </Text>
             <Text style={[styles.rewardCost, { color: theme.colors.primary }]}>
               {item.pointsCost.toLocaleString()} pts
             </Text>
@@ -250,7 +256,9 @@ export const RewardsCatalog: React.FC<RewardsCatalogProps> = ({
 
   return (
     <View>
-      <Text style={[styles.catalogTitle, { color: theme.colors.text.primary }]}>Rewards Catalog</Text>
+      <Text style={[styles.catalogTitle, { color: theme.colors.text.primary }]}>
+        Rewards Catalog
+      </Text>
       <FlatList
         data={rewards.filter((r) => r.isActive)}
         keyExtractor={(r) => r.id}

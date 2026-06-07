@@ -6,12 +6,7 @@ import {
   DocumentationSection,
   IntegrationGuide,
 } from '../types/developerPortal';
-import {
-  ApiKey,
-  ApiKeyStatus,
-  UsageStats,
-  UsageMetric,
-} from '../types/sandbox';
+import { ApiKey, ApiKeyStatus, UsageStats, UsageMetric } from '../types/sandbox';
 import { developerPortalService } from '../services/sandbox/developerPortalService';
 import { apiKeyService } from '../services/sandbox/apiKeyService';
 import { usageTrackingService } from '../services/sandbox/usageTrackingService';
@@ -172,7 +167,10 @@ export const useDeveloperPortalStore = create<DeveloperPortalState>()((set, get)
   ) => {
     set({ isLoading: true, error: null });
     try {
-      const permissionStrings = permissions?.map((p: ApiKeyPermission) => p.toString()) || ['read', 'write'];
+      const permissionStrings = permissions?.map((p: ApiKeyPermission) => p.toString()) || [
+        'read',
+        'write',
+      ];
       const apiKey = await apiKeyService.createApiKey(
         developerId,
         name,

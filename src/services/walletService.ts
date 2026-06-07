@@ -108,7 +108,6 @@ export interface StreamSetup {
   protocol: 'superfluid' | 'sablier';
 }
 
-
 /** Result after an on-chain Superfluid CFA stream is created */
 export interface SuperfluidStreamResult {
   txHash: string;
