@@ -62,6 +62,9 @@ export { AuditService, auditService } from './shared/auditService';
 export { RateLimitingService, rateLimitingService } from './shared/rateLimitingService';
 export { MonitoringService, monitoringService } from './shared/monitoring';
 export { apiClient } from './shared/apiClient';
+
+// ── Upstream additions ────────────────────────────────────────────────────────
+export { ExportService, exportService } from './exportService';
 export type {
   AuditAction,
   AuditArchiveEntry,
@@ -183,6 +186,17 @@ export type {
   IWebsocketService,
 } from './notification/interfaces';
 export { NotificationError } from './notification/errors';
+
+// ── Support Automation additions ──────────────────────────────────────────────
+export type {
+  SupportActionRecord,
+  SupportActionType,
+  SupportIssueType,
+  SupportProvider,
+  SupportSlaSnapshot,
+  SupportTicketContext,
+  SupportTicketRecord,
+} from './supportAutomation';
 
 // ── Analytics Module ──────────────────────────────────────────────────────────
 export { CampaignService } from './analytics/campaignService';
