@@ -37,7 +37,9 @@ const EditSubscriptionScreen: React.FC = () => {
   const [price, setPrice] = useState(subscription?.price.toString() ?? '');
   const [priceError, setPriceError] = useState('');
   const [currency, setCurrency] = useState(subscription?.currency ?? 'USD');
-  const [billingCycle, setBillingCycle] = useState<BillingCycle>(subscription?.billingCycle ?? 'monthly');
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>(
+    subscription?.billingCycle ?? 'monthly'
+  );
   const [nextBillingDate, setNextBillingDate] = useState(
     new Date(subscription?.nextBillingDate ?? Date.now())
   );

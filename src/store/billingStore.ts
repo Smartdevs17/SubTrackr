@@ -140,7 +140,16 @@ export const useBillingStore = create<BillingState>()(
         }));
       },
 
-      generateInvoice: ({ subscriptionId, merchantId, periodStart, periodEnd, billingDate, amount, currency, joinDate }) => {
+      generateInvoice: ({
+        subscriptionId,
+        merchantId,
+        periodStart,
+        periodEnd,
+        billingDate,
+        amount,
+        currency,
+        joinDate,
+      }) => {
         const invoice = generateCalendarInvoice(
           subscriptionId,
           merchantId,

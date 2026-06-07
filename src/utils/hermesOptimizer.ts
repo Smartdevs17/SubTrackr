@@ -7,12 +7,7 @@
 
 import { Platform } from 'react-native';
 
-const CRITICAL_MODULES = [
-  'src/store',
-  'src/i18n',
-  'src/services/auth/session',
-  'src/navigation',
-];
+const CRITICAL_MODULES = ['src/store', 'src/i18n', 'src/services/auth/session', 'src/navigation'];
 
 export const hermesOptimizer = {
   isEnabled: () => Platform.OS === 'android',

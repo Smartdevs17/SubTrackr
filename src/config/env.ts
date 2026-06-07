@@ -24,9 +24,7 @@ import { z } from 'zod';
 const envSchema = z.object({
   // ── App environment ────────────────────────────────────────────────────────
   /** Current deployment environment. Defaults to 'development'. */
-  APP_ENV: z
-    .enum(['development', 'staging', 'production'])
-    .default('development'),
+  APP_ENV: z.enum(['development', 'staging', 'production']).default('development'),
 
   // ── API ────────────────────────────────────────────────────────────────────
   /** Base URL for the SubTrackr REST API. */

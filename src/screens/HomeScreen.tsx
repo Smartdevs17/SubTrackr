@@ -35,8 +35,15 @@ type HomeNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation<HomeNavigationProp>();
-  const { subscriptions, stats, refreshSubscriptions, calculateStats, toggleSubscriptionStatus, deleteSubscription, isLoading } =
-    useSubscriptionStore();
+  const {
+    subscriptions,
+    stats,
+    refreshSubscriptions,
+    calculateStats,
+    toggleSubscriptionStatus,
+    deleteSubscription,
+    isLoading,
+  } = useSubscriptionStore();
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -214,92 +221,92 @@ const HomeScreen: React.FC = () => {
 
 function createStyles(colors: ReturnType<typeof useThemeColors>) {
   return StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background.primary,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  header: {
-    padding: spacing.lg,
-    paddingBottom: spacing.sm,
-  },
-  headerTopRow: {
-    marginBottom: spacing.md,
-  },
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  title: {
-    ...typography.h1,
-    color: colors.text,
-  },
-  levelBadge: {
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.sm,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    marginLeft: spacing.sm,
-  },
-  levelText: {
-    color: colors.onPrimary,
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  subtitle: {
-    ...typography.body,
-    color: colors.textSecondary,
-  },
-  toolsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-    marginTop: spacing.sm,
-  },
-  toolButton: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
-    flex: 1,
-    alignItems: 'center',
-  },
-  toolButtonOutline: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    flex: 1,
-    alignItems: 'center',
-  },
-  toolButtonText: {
-    color: colors.onPrimary,
-    fontWeight: '700',
-    fontSize: 12,
-  },
-  toolButtonTextOutline: {
-    color: colors.text,
-    fontWeight: '700',
-    fontSize: 12,
-  },
-  offlineBanner: {
-    backgroundColor: colors.error + '20',
-    padding: spacing.md,
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.md,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.error,
-    alignItems: 'center',
-  },
-  offlineText: {
-    ...typography.caption,
-    color: colors.error,
-    fontWeight: '600',
-  },
+    container: {
+      flex: 1,
+      backgroundColor: colors.background.primary,
+    },
+    scrollView: {
+      flex: 1,
+    },
+    header: {
+      padding: spacing.lg,
+      paddingBottom: spacing.sm,
+    },
+    headerTopRow: {
+      marginBottom: spacing.md,
+    },
+    titleContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    title: {
+      ...typography.h1,
+      color: colors.text,
+    },
+    levelBadge: {
+      backgroundColor: colors.primary,
+      borderRadius: borderRadius.sm,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 2,
+      marginLeft: spacing.sm,
+    },
+    levelText: {
+      color: colors.onPrimary,
+      fontSize: 12,
+      fontWeight: 'bold',
+    },
+    subtitle: {
+      ...typography.body,
+      color: colors.textSecondary,
+    },
+    toolsRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.sm,
+      marginTop: spacing.sm,
+    },
+    toolButton: {
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderRadius: borderRadius.md,
+      flex: 1,
+      alignItems: 'center',
+    },
+    toolButtonOutline: {
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderRadius: borderRadius.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      flex: 1,
+      alignItems: 'center',
+    },
+    toolButtonText: {
+      color: colors.onPrimary,
+      fontWeight: '700',
+      fontSize: 12,
+    },
+    toolButtonTextOutline: {
+      color: colors.text,
+      fontWeight: '700',
+      fontSize: 12,
+    },
+    offlineBanner: {
+      backgroundColor: colors.error + '20',
+      padding: spacing.md,
+      marginHorizontal: spacing.lg,
+      marginBottom: spacing.md,
+      borderRadius: borderRadius.md,
+      borderWidth: 1,
+      borderColor: colors.error,
+      alignItems: 'center',
+    },
+    offlineText: {
+      ...typography.caption,
+      color: colors.error,
+      fontWeight: '600',
+    },
   });
 }
 
