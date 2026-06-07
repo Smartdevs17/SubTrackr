@@ -168,11 +168,11 @@ export function applyCreditMemo(
  */
 export function calculateNetProration(
   currentSubscription: Subscription,
-  priceChanges: Array<{
+  priceChanges: {
     oldPrice: number;
     newPrice: number;
     effectiveDate: 'immediate' | 'end_of_period';
-  }>
+  }[]
 ): ProrationPreview {
   let netAmount = 0;
 

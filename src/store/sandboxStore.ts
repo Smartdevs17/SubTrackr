@@ -280,13 +280,13 @@ interface SandboxState {
   testSubscriptions: TestSubscription[];
   subscriptions: TestSubscription[];
   sandboxSubscriptions: TestSubscription[];
-  transactions: Array<{
+  transactions: {
     id: string;
     type: string;
     amount: number;
     status: string;
     timestamp: Date;
-  }>;
+  }[];
   metrics: SandboxMetrics;
   onboardingSteps: OnboardingStepInfo[];
   integrationGuides: IntegrationGuide[];
