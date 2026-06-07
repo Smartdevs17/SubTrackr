@@ -100,9 +100,6 @@ function NotificationBootstrap() {
       const session = await sessionService.initializeCurrentSession();
       try {
         Sentry.setContext('session', { id: session.id, deviceName: session.deviceName });
-        if (wallet?.address) {
-          Sentry.setUser({ id: wallet.address });
-        }
       } catch (e) {
         // ignore
       }
@@ -114,6 +111,8 @@ function NotificationBootstrap() {
 
 export default function App() {
   const [i18nReady, setI18nReady] = React.useState(false);
+  const [, setPendingCrash] = React.useState<CrashRecord | null>(null);
+  const [, setShowRecoveryModal] = React.useState(false);
 
   React.useEffect(() => {
     let cancelled = false;

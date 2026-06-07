@@ -5,19 +5,14 @@ import { navigationRef } from './navigationRef';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
-import { lazyScreen } from '../utils/lazyLoading';
+import { lazyScreen, prefetchModule } from '../utils/lazyLoading';
 import { RootStackParamList, TabParamList } from './types';
 import { useTheme } from '../theme';
 import { darkNavigationTheme, lightNavigationTheme } from '../theme/navigationTheme';
 
 // Eagerly loaded primary entrypoints for instant rendering
 import HomeScreen from '../screens/HomeScreen';
-import EditSubscriptionScreen from '../screens/EditSubscriptionScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
-import BillingSettingsScreen from '../screens/BillingSettingsScreen';
-import ChangePlanScreen from '../screens/ChangePlanScreen';
-import { PaymentMethodsScreen } from '../../app/screens/PaymentMethodsScreen';
-import AnalyticsDashboard from '../../app/screens/AnalyticsDashboard';
 
 // Lazy loaded auxiliary and heavy screens with suspense/retry support
 const AddSubscriptionScreen = lazyScreen(() => import('../screens/AddSubscriptionScreen'));
@@ -73,6 +68,15 @@ const IntegrationGuidesScreen = lazyScreen(() => import('../screens/IntegrationG
 const PerformanceDashboardScreen = lazyScreen(
   () => import('../screens/PerformanceDashboardScreen')
 );
+const EditSubscriptionScreen = lazyScreen(() => import('../screens/EditSubscriptionScreen'));
+const ChangePlanScreen = lazyScreen(() => import('../screens/ChangePlanScreen'));
+const BillingSettingsScreen = lazyScreen(() => import('../screens/BillingSettingsScreen'));
+const PaymentMethodsScreen = lazyScreen(() =>
+  import('../../app/screens/PaymentMethodsScreen').then((m) => ({
+    default: m.PaymentMethodsScreen,
+  }))
+);
+const AnalyticsDashboard = lazyScreen(() => import('../../app/screens/AnalyticsDashboard'));
 
 const Tab = createBottomTabNavigator<TabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -435,6 +439,13 @@ const TabNavigator = () => {
 };
 
 export const AppNavigator = () => {
+  React.useEffect(() => {
+    prefetchModule('AddSubscription', () => import('../screens/AddSubscriptionScreen'));
+    prefetchModule('WalletConnect', () => import('../screens/WalletConnectV2Screen'));
+    prefetchModule('Analytics', () => import('../screens/AnalyticsScreen'));
+    prefetchModule('SubscriptionDetail', () => import('../screens/SubscriptionDetailScreen'));
+  }, []);
+
   const { isDark } = useTheme();
 
   return (

@@ -27,8 +27,6 @@ const STORE_VERSION = 3;
 const API_KEY_PREFIX = 'sk_sandbox_';
 const KEY_PREFIX_LENGTH = 8;
 const HASH_COST = 10;
-const _FALLBACK_HASH = bcrypt.hashSync('fallback-placeholder', HASH_COST);
-
 const generateId = (prefix: string): string =>
   `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 
@@ -282,13 +280,7 @@ interface SandboxState {
   testSubscriptions: TestSubscription[];
   subscriptions: TestSubscription[];
   sandboxSubscriptions: TestSubscription[];
-  transactions: {
-    id: string;
-    type: string;
-    amount: number;
-    status: string;
-    timestamp: Date;
-  }[];
+  transactions: { id: string; type: string; amount: number; status: string; timestamp: Date }[];
   metrics: SandboxMetrics;
   onboardingSteps: OnboardingStepInfo[];
   integrationGuides: IntegrationGuide[];
