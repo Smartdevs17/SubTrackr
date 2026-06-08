@@ -23,7 +23,9 @@ function resolveSystemScheme(scheme: ColorSchemeName): boolean {
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [mode, setModeState] = useState<ThemeMode>('system');
-  const [systemScheme, setSystemScheme] = useState<ColorSchemeName>(Appearance.getColorScheme());
+  const [systemScheme, setSystemScheme] = useState<ColorSchemeName>(
+    Appearance.getColorScheme() || 'light'
+  );
 
   useEffect(() => {
     let mounted = true;

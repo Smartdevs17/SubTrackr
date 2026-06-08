@@ -57,7 +57,7 @@ export const SegmentManagementScreen: React.FC = () => {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background.primary }]}>
       <FlashList
         data={segments}
         keyExtractor={(item) => item.id}

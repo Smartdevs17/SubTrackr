@@ -257,7 +257,7 @@ const AnalyticsScreen: React.FC = () => {
               y1={10}
               x2={30}
               y2={CHART_HEIGHT - 30}
-              stroke={colors.border}
+              stroke={colors.border.default}
               strokeWidth={1}
             />
             <Line
@@ -265,7 +265,7 @@ const AnalyticsScreen: React.FC = () => {
               y1={CHART_HEIGHT - 30}
               x2={CHART_WIDTH - 10}
               y2={CHART_HEIGHT - 30}
-              stroke={colors.border}
+              stroke={colors.border.default}
               strokeWidth={1}
             />
             {monthlyData.map((data, index) => {
@@ -295,7 +295,7 @@ const AnalyticsScreen: React.FC = () => {
                       x={x + barWidth / 2}
                       y={y - 5}
                       fontSize={10}
-                      fill={colors.text}
+                      fill={colors.text.primary}
                       textAnchor="middle">
                       {formatCurrency(data.amount, preferredCurrency)}
                     </SvgText>
@@ -397,7 +397,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     container: { flex: 1, backgroundColor: colors.background.primary },
     scrollView: { flex: 1 },
     header: { padding: spacing.lg, paddingBottom: spacing.md },
-    title: { ...typography.h1, color: colors.text, marginBottom: spacing.xs },
+    title: { ...typography.h1, color: colors.text.primary, marginBottom: spacing.xs },
     subtitle: { ...typography.body, color: colors.textSecondary },
     dateRangeContainer: {
       flexDirection: 'row',
@@ -412,12 +412,12 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       borderRadius: borderRadius.md,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.border.default,
       alignItems: 'center',
     },
     dateRangeButtonActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-    dateRangeButtonText: { ...typography.body, color: colors.text },
-    dateRangeButtonTextActive: { color: colors.text, fontWeight: '600' },
+    dateRangeButtonText: { ...typography.body, color: colors.text.primary },
+    dateRangeButtonTextActive: { color: colors.text.inverse, fontWeight: '600' },
     summaryContainer: {
       flexDirection: 'row',
       paddingHorizontal: spacing.lg,
@@ -426,14 +426,14 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     summaryCard: { flex: 1, alignItems: 'center' },
     summaryLabel: { ...typography.caption, color: colors.textSecondary, marginBottom: spacing.xs },
-    summaryValue: { ...typography.h2, color: colors.text },
+    summaryValue: { ...typography.h2, color: colors.text.primary },
     chartCard: { marginHorizontal: spacing.lg, marginBottom: spacing.md },
-    chartTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.md },
+    chartTitle: { ...typography.h3, color: colors.text.primary, marginBottom: spacing.md },
     categoryList: { gap: spacing.md },
     categoryItem: { marginBottom: spacing.sm },
     categoryLeft: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.xs },
     categoryIcon: { fontSize: 20, marginRight: spacing.sm },
-    categoryName: { ...typography.body, color: colors.text, flex: 1 },
+    categoryName: { ...typography.body, color: colors.text.primary, flex: 1 },
     categoryRight: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -442,7 +442,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       right: 0,
       top: 0,
     },
-    categoryCount: { ...typography.body, color: colors.text, fontWeight: '600' },
+    categoryCount: { ...typography.body, color: colors.text.primary, fontWeight: '600' },
     categoryPercentage: {
       ...typography.caption,
       color: colors.textSecondary,
@@ -451,7 +451,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     categoryBarContainer: {
       height: 8,
-      backgroundColor: colors.border,
+      backgroundColor: colors.border.default,
       borderRadius: borderRadius.full,
       overflow: 'hidden',
     },
@@ -468,14 +468,14 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       justifyContent: 'space-between',
       paddingVertical: spacing.md,
       borderBottomWidth: 1,
-      borderBottomColor: colors.border,
+      borderBottomColor: colors.border.default,
     },
     projectionItemLast: { borderBottomWidth: 0 },
     projectionLabel: { ...typography.body, color: colors.textSecondary },
-    projectionValue: { ...typography.body, color: colors.text, fontWeight: '600' },
+    projectionValue: { ...typography.body, color: colors.text.primary, fontWeight: '600' },
     emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.xl },
     emptyIcon: { fontSize: 64, marginBottom: spacing.md },
-    emptyTitle: { ...typography.h2, color: colors.text, marginBottom: spacing.sm },
+    emptyTitle: { ...typography.h2, color: colors.text.primary, marginBottom: spacing.sm },
     emptyText: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
   });
 }

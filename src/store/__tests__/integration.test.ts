@@ -20,6 +20,7 @@ import { useInvoiceStore } from '../invoiceStore';
 import { useWalletStore } from '../walletStore';
 import { SubscriptionCategory, BillingCycle } from '../../types/subscription';
 import { BILLING_CONVERSIONS } from '../../utils/constants/values';
+import { TaxType } from '../../types/invoice';
 
 // ── In-memory AsyncStorage ────────────────────────────────────────────────────
 // Provides real read/write semantics without disk I/O.
@@ -89,6 +90,7 @@ function resetInvoiceStore() {
       defaultTaxRateBps: 0,
       exchangeRateScale: 1_000_000,
       paymentTermsDays: 14,
+      defaultTaxType: TaxType.NONE,
     },
     nextSequence: 1,
     isLoading: false,

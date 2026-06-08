@@ -4,7 +4,7 @@ import {
   elasticsearchService,
   SearchQuery,
   SearchResult,
-} from '../../backend/services/search/ElasticsearchService';
+} from '../../backend/services/subscription/ElasticsearchService';
 
 const EMPTY_RESULT: SearchResult = {
   hits: [],

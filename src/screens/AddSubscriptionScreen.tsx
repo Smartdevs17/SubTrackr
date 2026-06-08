@@ -12,7 +12,7 @@ import {
   Platform,
   Keyboard,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { useSubscriptionStore, useSettingsStore } from '../store';
@@ -26,13 +26,34 @@ import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/dat
 import { errorHandler } from '../services/errorHandler';
 import type { SubscriptionFormData } from '../types/subscription';
 import { BillingCycle, SubscriptionCategory } from '../types/subscription';
-import { validateAddSubscriptionParams } from '../utils/deepLinkValidator';
+import { validateAddSubscriptionParams, AddSubscriptionPrefill } from '../utils/deepLinkValidator';
 
 interface AddSubscriptionFormData extends SubscriptionFormData {
   priceError: string;
 }
 
 const getDefaultNextBillingDate = (cycle: BillingCycle) => advanceBillingDate(new Date(), cycle);
+
+const buildInitialFormData = (
+  preferredCurrency: string,
+  prefill: AddSubscriptionPrefill
+): AddSubscriptionFormData => {
+  const cycle = prefill.cycle || BillingCycle.MONTHLY;
+  return {
+    name: prefill.name || '',
+    description: '',
+    category: SubscriptionCategory.OTHER,
+    price: prefill.amount || 0,
+    priceError: '',
+    currency: preferredCurrency,
+    billingCycle: cycle,
+    nextBillingDate: getDefaultNextBillingDate(cycle),
+    notificationsEnabled: true,
+    isCryptoEnabled: false,
+    cryptoToken: undefined,
+    cryptoAmount: undefined,
+  };
+};
 
 const AddSubscriptionScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -49,20 +70,7 @@ const AddSubscriptionScreen: React.FC = () => {
   const nameInputRef = useRef<TextInput>(null);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
-  const [formData, setFormData] = useState<AddSubscriptionFormData>({
-    name: '',
-    description: '',
-    category: SubscriptionCategory.OTHER,
-    price: 0,
-    priceError: '',
-    currency: preferredCurrency,
-    billingCycle: BillingCycle.MONTHLY,
-    nextBillingDate: getDefaultNextBillingDate(BillingCycle.MONTHLY),
-    notificationsEnabled: true,
-    isCryptoEnabled: false,
-    cryptoToken: undefined,
-    cryptoAmount: undefined,
-  });
+  const [formData, setFormData] = useState<AddSubscriptionFormData>(initialFormData);
 
   useEffect(() => {
     if (error) {
@@ -545,8 +553,12 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       paddingBottom: 120,
     },
     header: {
-      padding: spacing.lg,
-      paddingBottom: spacing.md,
+      paddingHorizontal: spacing.lg,
+      paddingTop: Platform.OS === 'ios' ? spacing.sm : spacing.md,
+      paddingBottom: spacing.sm,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border.default,
+      backgroundColor: colors.background.primary,
     },
     headerContent: {
       flexDirection: 'row',
@@ -567,7 +579,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     title: {
       ...typography.h1,
-      color: colors.text,
+      color: colors.text.primary,
       textAlign: 'center',
     },
     subtitle: {
@@ -584,7 +596,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     sectionTitle: {
       ...typography.h3,
-      color: colors.text,
+      color: colors.text.primary,
       marginBottom: spacing.md,
     },
     inputGroup: {
@@ -592,7 +604,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     label: {
       ...typography.body,
-      color: colors.text,
+      color: colors.text.primary,
       marginBottom: spacing.xs,
       fontWeight: '500',
     },
@@ -606,8 +618,8 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       padding: spacing.md,
       borderRadius: borderRadius.md,
       borderWidth: 1,
-      borderColor: colors.border,
-      color: colors.text,
+      borderColor: colors.border.default,
+      color: colors.text.primary,
       ...typography.body,
     },
     textArea: {
@@ -620,7 +632,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       backgroundColor: colors.surface,
       borderRadius: borderRadius.md,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.border.default,
       paddingHorizontal: spacing.md,
     },
     currencySymbol: {
@@ -631,7 +643,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     priceInput: {
       flex: 1,
       paddingVertical: spacing.md,
-      color: colors.text,
+      color: colors.text.primary,
       ...typography.h3,
       fontWeight: '600',
     },
@@ -641,12 +653,12 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       padding: spacing.md,
       borderRadius: borderRadius.md,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.border.default,
       justifyContent: 'center',
     },
     datePickerText: {
       ...typography.body,
-      color: colors.text,
+      color: colors.text.primary,
     },
     categoryGrid: {
       flexDirection: 'row',
@@ -659,7 +671,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       borderRadius: borderRadius.full,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.border.default,
     },
     categoryItemSelected: {
       backgroundColor: colors.primary,
@@ -667,10 +679,10 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     categoryText: {
       ...typography.caption,
-      color: colors.text,
+      color: colors.text.primary,
     },
     categoryTextSelected: {
-      color: colors.text,
+      color: colors.text.inverse,
       fontWeight: '600',
     },
     billingCycleContainer: {
@@ -684,7 +696,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       borderRadius: borderRadius.md,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.border.default,
       alignItems: 'center',
     },
     billingCycleItemSelected: {
@@ -693,10 +705,10 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     billingCycleText: {
       ...typography.caption,
-      color: colors.text,
+      color: colors.text.primary,
     },
     billingCycleTextSelected: {
-      color: colors.text,
+      color: colors.text.inverse,
       fontWeight: '600',
     },
     cryptoOption: {
@@ -710,7 +722,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     toggleSwitch: {
       width: 50,
       height: 28,
-      backgroundColor: colors.border,
+      backgroundColor: colors.border.default,
       borderRadius: borderRadius.full,
       padding: 2,
     },
@@ -728,7 +740,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     cryptoLabel: {
       ...typography.body,
-      color: colors.text,
+      color: colors.text.primary,
     },
     notificationLabelWrap: {
       flex: 1,
@@ -743,7 +755,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       padding: spacing.lg,
       paddingTop: spacing.md,
       borderTopWidth: 1,
-      borderTopColor: colors.border,
+      borderTopColor: colors.border.default,
       backgroundColor: colors.background.primary,
     },
   });

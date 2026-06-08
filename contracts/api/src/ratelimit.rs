@@ -52,15 +52,9 @@ pub fn check_rate_limit(env: &Env, key: &ApiKey, now: u64) -> RateLimitStatus {
         SECS_PER_DAY,
     );
 
-    let exceeded = if min_count > cfg.requests_per_minute {
-        true
-    } else if hour_count > cfg.requests_per_hour {
-        true
-    } else if day_count > cfg.requests_per_day {
-        true
-    } else {
-        false
-    };
+    let exceeded = min_count > cfg.requests_per_minute
+        || hour_count > cfg.requests_per_hour
+        || day_count > cfg.requests_per_day;
 
     if exceeded {
         let reset_at = core::cmp::min(core::cmp::min(min_reset, hour_reset), day_reset);

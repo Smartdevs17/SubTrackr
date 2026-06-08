@@ -75,12 +75,12 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       padding: 20,
       backgroundColor: colors.background.card,
       borderBottomWidth: 1,
-      borderBottomColor: colors.border,
+      borderBottomColor: colors.border.default,
     },
     title: {
       fontSize: 24,
       fontWeight: '700',
-      color: colors.text,
+      color: colors.text.primary,
     },
     subtitle: {
       fontSize: 14,
@@ -99,7 +99,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       borderRadius: 12,
       marginBottom: 10,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.border.default,
     },
     activeItem: {
       borderColor: colors.primary,
@@ -108,7 +108,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     nativeName: {
       fontSize: 18,
       fontWeight: '600',
-      color: colors.text,
+      color: colors.text.primary,
     },
     englishName: {
       fontSize: 12,

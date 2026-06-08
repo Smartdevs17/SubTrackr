@@ -1,5 +1,4 @@
 #![cfg(test)]
-
 use soroban_sdk::{testutils::Address as _, testutils::Ledger as _, Address, Bytes, BytesN, Env};
 use subtrackr_types::{ApiKeyConfig, ApiKeyStatus, RateLimitConfig, TimeRange, UsageTier};
 
@@ -49,7 +48,7 @@ fn test_create_api_key() {
 
     let (key_id, raw_key) = client.create_api_key(&owner, &default_config(&env));
     assert!(key_id >= 1, "Key id should be >= 1");
-    assert!(raw_key.len() > 0, "Raw key bytes should not be empty");
+    assert!(!raw_key.is_empty(), "Raw key bytes should not be empty");
 
     let stored = client.get_api_key(&key_id).unwrap();
     assert_eq!(stored.id, key_id);

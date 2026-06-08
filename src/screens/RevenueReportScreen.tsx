@@ -216,7 +216,7 @@ const RevenueReportScreen: React.FC = () => {
                 y1={10}
                 x2={30}
                 y2={CHART_HEIGHT - 30}
-                stroke={colors.border}
+                stroke={colors.border.default}
                 strokeWidth={1}
               />
               <Line
@@ -224,7 +224,7 @@ const RevenueReportScreen: React.FC = () => {
                 y1={CHART_HEIGHT - 30}
                 x2={CHART_WIDTH - 10}
                 y2={CHART_HEIGHT - 30}
-                stroke={colors.border}
+                stroke={colors.border.default}
                 strokeWidth={1}
               />
               {chartData.map((data, index) => {
@@ -254,7 +254,7 @@ const RevenueReportScreen: React.FC = () => {
                         x={x + barWidth / 2}
                         y={y - 4}
                         fontSize={9}
-                        fill={colors.text}
+                        fill={colors.text.primary}
                         textAnchor="middle">
                         ${data.amount.toFixed(0)}
                       </SvgText>
@@ -317,7 +317,7 @@ const RevenueReportScreen: React.FC = () => {
                         <Switch
                           value={method === 'usage-based'}
                           onValueChange={() => handleToggleMethod(sub.id, method)}
-                          trackColor={{ false: colors.border, true: colors.primary }}
+                          trackColor={{ false: colors.border.default, true: colors.primary }}
                           thumbColor={colors.surface}
                         />
                       </View>
@@ -360,7 +360,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     container: { flex: 1, backgroundColor: colors.background.primary },
     scrollView: { flex: 1 },
     header: { padding: spacing.lg, paddingBottom: spacing.md },
-    title: { ...typography.h1, color: colors.text, marginBottom: spacing.xs },
+    title: { ...typography.h1, color: colors.text.primary, marginBottom: spacing.xs },
     subtitle: { ...typography.body, color: colors.textSecondary },
 
     summaryRow: {
@@ -385,15 +385,15 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       borderRadius: borderRadius.md,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.border.default,
       alignItems: 'center',
     },
     periodBtnActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-    periodBtnText: { ...typography.body, color: colors.text },
-    periodBtnTextActive: { color: colors.text, fontWeight: '600' },
+    periodBtnText: { ...typography.body, color: colors.text.primary },
+    periodBtnTextActive: { color: colors.text.inverse, fontWeight: '600' },
 
     chartCard: { marginHorizontal: spacing.lg, marginBottom: spacing.md },
-    chartTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.md },
+    chartTitle: { ...typography.h3, color: colors.text.primary, marginBottom: spacing.md },
     noDataText: {
       ...typography.body,
       color: colors.textSecondary,
@@ -408,10 +408,10 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       alignItems: 'center',
       paddingVertical: spacing.sm,
       borderBottomWidth: 1,
-      borderBottomColor: colors.border,
+      borderBottomColor: colors.border.default,
     },
     tableLeft: { flex: 1, marginRight: spacing.md },
-    tableName: { ...typography.body, color: colors.text, fontWeight: '600' },
+    tableName: { ...typography.body, color: colors.text.primary, fontWeight: '600' },
     tableMethod: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
     tableRight: { alignItems: 'flex-end' },
     tableRecognised: { ...typography.body, color: colors.primary, fontWeight: '600' },
@@ -429,9 +429,9 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       alignItems: 'center',
       paddingVertical: spacing.sm,
       borderBottomWidth: 1,
-      borderBottomColor: colors.border,
+      borderBottomColor: colors.border.default,
     },
-    configName: { ...typography.body, color: colors.text, flex: 1 },
+    configName: { ...typography.body, color: colors.text.primary, flex: 1 },
     configChevron: { ...typography.body, color: colors.textSecondary, marginLeft: spacing.sm },
     configDetail: {
       backgroundColor: colors.background.secondary,
@@ -445,7 +445,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       alignItems: 'center',
       marginBottom: spacing.sm,
     },
-    configDetailLabel: { ...typography.body, color: colors.text },
+    configDetailLabel: { ...typography.body, color: colors.text.primary },
     configMethodDesc: {
       ...typography.caption,
       color: colors.textSecondary,
@@ -458,10 +458,10 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       alignItems: 'center',
       marginBottom: spacing.sm,
     },
-    simulateBtnText: { ...typography.body, color: colors.text, fontWeight: '600' },
+    simulateBtnText: { ...typography.body, color: colors.text.inverse, fontWeight: '600' },
     removeBtn: {
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.border.default,
       borderRadius: borderRadius.md,
       paddingVertical: spacing.sm,
       alignItems: 'center',
@@ -470,7 +470,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
 
     emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.xl },
     emptyIcon: { fontSize: 64, marginBottom: spacing.md },
-    emptyTitle: { ...typography.h2, color: colors.text, marginBottom: spacing.sm },
+    emptyTitle: { ...typography.h2, color: colors.text.primary, marginBottom: spacing.sm },
     emptyText: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
   });
 }

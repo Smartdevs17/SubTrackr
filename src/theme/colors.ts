@@ -122,4 +122,64 @@ export const darkColors = {
   textSecondary: '#9CA3AF',
 } as const;
 
-export type ColorTokens = typeof lightColors;
+export interface ColorTokens {
+  readonly background: {
+    readonly primary: string;
+    readonly secondary: string;
+    readonly card: string;
+    readonly modal: string;
+  };
+  readonly text: {
+    readonly primary: string;
+    readonly secondary: string;
+    readonly disabled: string;
+    readonly inverse: string;
+    readonly link: string;
+  };
+  readonly border: {
+    readonly default: string;
+    readonly focused: string;
+    readonly error: string;
+  };
+  readonly brand: {
+    readonly primary: string;
+    readonly primaryDark: string;
+    readonly secondary: string;
+  };
+  readonly status: {
+    readonly success: string;
+    readonly warning: string;
+    readonly error: string;
+    readonly info: string;
+  };
+  readonly subscription: {
+    readonly active: string;
+    readonly expiringSoon: string;
+    readonly expired: string;
+    readonly paused: string;
+  };
+  readonly navigation: {
+    readonly tabBar: string;
+    readonly tabBarBorder: string;
+    readonly activeTab: string;
+    readonly inactiveTab: string;
+    readonly header: string;
+    readonly headerText: string;
+  };
+  readonly surface: string;
+  readonly surfaceVariant: string;
+  readonly accent: string;
+  readonly onPrimary: string;
+  readonly onSecondary: string;
+  readonly onSurface: string;
+  readonly onSurfaceVariant: string;
+  readonly overlay: string;
+  readonly warningBackground: string;
+  readonly primary: string;
+  readonly secondary: string;
+  readonly success: string;
+  readonly warning: string;
+  readonly error: string;
+  readonly backgroundFlat: string;
+  readonly textSecondary: string;
+}

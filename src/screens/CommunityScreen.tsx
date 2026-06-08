@@ -84,7 +84,7 @@ const PostItem: React.FC<{
 
 const CommunityScreen: React.FC = () => {
   const navigation = useNavigation<CommunityNavigationProp>();
-  const address = useWalletStore((state) => state.address);
+  const address = useWalletStore((state) => state.connection?.address);
   const {
     currentSubscriber,
     setCurrentSubscriber,

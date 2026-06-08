@@ -15,8 +15,12 @@ import {
   TokenType,
   PaymentMethodValidationResult,
   PaymentAttempt,
-  GasEstimate,
 } from '../types/wallet';
+import { GasEstimate } from '../types/wallet';
+
+import { NetworkError, NetworkErrorCode, ContractError, ContractErrorCode } from '../errors';
+export { GasEstimate };
+export { NetworkError, NetworkErrorCode, ContractError, ContractErrorCode };
 
 // ── Structured error handling ──────────────────────────────────────
 
@@ -258,11 +262,11 @@ export class WalletServiceManager {
 
       return balances;
     } catch (error) {
-      throw toWalletError(
-        error,
-        WalletErrorCode.BALANCE_FETCH_FAILED,
+      throw new NetworkError(
+        NetworkErrorCode.RPC_ERROR,
         'Unable to fetch token balances.',
-        'Check your network connection and try again.'
+        'Check your network connection and try again.',
+        error
       );
     }
   }
@@ -653,11 +657,11 @@ export class WalletServiceManager {
           'Open your wallet and approve the request to continue.'
         );
       }
-      throw toWalletError(
-        error,
-        WalletErrorCode.APPROVAL_FAILED,
+      throw new ContractError(
+        ContractErrorCode.EXECUTION_FAILED,
         'Token approval failed.',
-        'Check your wallet connection and try again.'
+        'Check your wallet connection and try again.',
+        error
       );
     }
   }

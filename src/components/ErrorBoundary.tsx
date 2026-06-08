@@ -4,6 +4,7 @@ import { errorHandler, AppError, ErrorSeverity } from '../services/errorHandler'
 import { crashReporter } from '../services/crashReporter';
 import { spacing, typography, borderRadius } from '../utils/constants';
 import { Button } from '../components/common/Button';
+import { useThemeColors } from '../hooks/useThemeColors';
 
 interface Props {
   children: ReactNode;

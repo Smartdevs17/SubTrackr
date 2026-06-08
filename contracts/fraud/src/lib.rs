@@ -239,10 +239,6 @@ fn build_evidence(
             .device_fingerprint
             .clone()
             .unwrap_or_else(|| String::from_str(env, "unknown"));
-        let trusted = profile
-            .trusted_device_fingerprint
-            .clone()
-            .unwrap_or_else(|| String::from_str(env, "unknown"));
         evidence.push_back(subtrackr_types::FraudEvidence {
             label: String::from_str(env, "device mismatch"),
             value: current,
@@ -661,7 +657,7 @@ impl SubTrackrFraud {
                 }
 
                 if let Some(case) = review_case_for_subscription(&env, score.subscription_id) {
-                    if case.evidence.len() == 0 {
+                    if case.evidence.is_empty() {
                         pending_evidence += 1;
                     }
                     if case.status == FraudReviewStatus::Dismissed {
@@ -670,7 +666,7 @@ impl SubTrackrFraud {
                     recent_cases.push_back(case);
                 } else if score.total_score >= REVIEW_THRESHOLD {
                     let case = persist_case(&env, &score, FraudReviewStatus::Pending);
-                    if case.evidence.len() == 0 {
+                    if case.evidence.is_empty() {
                         pending_evidence += 1;
                     }
                     recent_cases.push_back(case);

@@ -38,7 +38,7 @@ const HomeScreen: React.FC = () => {
   const {
     subscriptions,
     stats,
-    refreshSubscriptions,
+    fetchSubscriptions,
     calculateStats,
     toggleSubscriptionStatus,
     deleteSubscription,
@@ -76,7 +76,7 @@ const HomeScreen: React.FC = () => {
 
   const onRefresh = async () => {
     await refresh({
-      fetcher: refreshSubscriptions,
+      fetcher: fetchSubscriptions,
       minDurationMs: 400,
       onError: (err) => {
         console.error('Pull-to-refresh failed:', err);
@@ -241,7 +241,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     title: {
       ...typography.h1,
-      color: colors.text,
+      color: colors.text.primary,
     },
     levelBadge: {
       backgroundColor: colors.primary,
@@ -277,7 +277,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       paddingVertical: spacing.sm,
       borderRadius: borderRadius.md,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.border.default,
       backgroundColor: colors.surface,
       flex: 1,
       alignItems: 'center',
@@ -288,7 +288,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       fontSize: 12,
     },
     toolButtonTextOutline: {
-      color: colors.text,
+      color: colors.text.primary,
       fontWeight: '700',
       fontSize: 12,
     },

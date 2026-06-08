@@ -102,7 +102,7 @@ class BiometricService {
     try {
       const types = await lib.supportedAuthenticationTypesAsync();
       const AuthType = lib.AuthenticationType;
-      return types.map((t) => {
+      return types.map((t: any) => {
         if (t === AuthType.FINGERPRINT) return 'fingerprint';
         if (t === AuthType.FACIAL_RECOGNITION) return 'facial';
         if (t === AuthType.IRIS) return 'iris';

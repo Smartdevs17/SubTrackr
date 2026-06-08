@@ -8,7 +8,7 @@ import {
   SubscriptionEvent,
   SubscriptionEventType,
   EventFilter,
-} from '../../backend/services/websocket';
+} from '../../backend/services/notification/websocket';
 
 export type EventHandler = (event: SubscriptionEvent) => void;
 

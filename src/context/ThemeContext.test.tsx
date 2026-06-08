@@ -9,12 +9,12 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 );
 
 const mockRemove = jest.fn();
-const mockAddChangeListener = jest.fn(() => ({ remove: mockRemove }));
+const mockAddChangeListener = jest.fn((_cb: any) => ({ remove: mockRemove }));
 const mockGetColorScheme = jest.fn();
 
 jest.mock('react-native/Libraries/Utilities/Appearance', () => ({
-  getColorScheme: (...args: unknown[]) => mockGetColorScheme(...args),
-  addChangeListener: (...args: unknown[]) => mockAddChangeListener(...args),
+  getColorScheme: () => mockGetColorScheme(),
+  addChangeListener: (cb: any) => mockAddChangeListener(cb),
 }));
 
 const wrapper = ({ children }: { children: React.ReactNode }) => (

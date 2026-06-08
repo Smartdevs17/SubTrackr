@@ -178,7 +178,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     title: {
       fontSize: 28,
       fontWeight: 'bold',
-      color: colors.text,
+      color: colors.text.primary,
       marginBottom: 8,
     },
     description: {
@@ -217,7 +217,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     stepsTitle: {
       fontSize: 22,
       fontWeight: '600',
-      color: colors.text,
+      color: colors.text.primary,
       marginBottom: 16,
     },
     stepCard: {
@@ -253,7 +253,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     stepTitle: {
       fontSize: 18,
       fontWeight: '600',
-      color: colors.text,
+      color: colors.text.primary,
       flex: 1,
     },
     stepContent: {
@@ -280,7 +280,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     codeText: {
       fontSize: 13,
       fontFamily: 'monospace',
-      color: colors.text,
+      color: colors.text.primary,
       padding: 12,
       lineHeight: 20,
     },
@@ -302,7 +302,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     completionTitle: {
       fontSize: 22,
       fontWeight: 'bold',
-      color: colors.text,
+      color: colors.text.primary,
       marginBottom: 8,
     },
     completionText: {

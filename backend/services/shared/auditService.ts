@@ -1,6 +1,6 @@
 import { createHmac, randomUUID } from 'crypto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { AlertingService, AlertDispatcher } from './alerting';
+import type { AlertingService, AlertDispatcher } from '../notification/alerting';
 import type {
   AuditAction,
   AuditArchiveEntry,

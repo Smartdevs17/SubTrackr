@@ -230,7 +230,8 @@ const SandboxScreen: React.FC = () => {
               Created: {new Date(sandbox.createdAt).toLocaleDateString()}
             </Text>
             <Text style={styles.sandboxDate}>
-              Expires: {new Date(sandbox.expiresAt).toLocaleDateString()}
+              Expires:{' '}
+              {sandbox.expiresAt ? new Date(sandbox.expiresAt).toLocaleDateString() : 'Never'}
             </Text>
           </TouchableOpacity>
         ))

@@ -1,6 +1,6 @@
-import { AccessControlService, ROLE_HIERARCHY, ROLE_PERMISSIONS } from '../accessControl';
+import { AccessControlService, ROLE_HIERARCHY, ROLE_PERMISSIONS } from '../../accessControl';
 import { AuditService } from '../auditService';
-import { AlertingService } from '../alerting';
+import { AlertingService } from '../../notification/alerting';
 
 describe('AccessControlService', () => {
   let svc: AccessControlService;
