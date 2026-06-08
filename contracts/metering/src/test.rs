@@ -71,7 +71,10 @@ fn supports_multiple_meters_and_charges() {
     let meters = client.get_meters(&7);
     assert_eq!(meters.len(), 2);
 
-    let period = TimeRange { start: 0, end: 100_000 };
+    let period = TimeRange {
+        start: 0,
+        end: 100_000,
+    };
     let charge = client.calculate_usage_charge(&7, &period);
     assert_eq!(charge.total, 120);
     assert_eq!(charge.lines.len(), 2);
@@ -89,7 +92,13 @@ fn charge_excludes_usage_outside_period() {
     client.record_metered_usage(&reporter, &1, &api, &7); // bucket @97_200
 
     // Period covering only the first bucket.
-    let charge = client.calculate_usage_charge(&1, &TimeRange { start: 0, end: 50_000 });
+    let charge = client.calculate_usage_charge(
+        &1,
+        &TimeRange {
+            start: 0,
+            end: 50_000,
+        },
+    );
     assert_eq!(charge.total, 10);
 }
 
@@ -111,6 +120,12 @@ fn rejects_inverted_period() {
     let (env, client, reporter) = setup();
     let api = Symbol::new(&env, "api_calls");
     client.register_meter(&reporter, &1, &api, &1, &0, &86_400, &0);
-    let res = client.try_calculate_usage_charge(&1, &TimeRange { start: 100, end: 50 });
+    let res = client.try_calculate_usage_charge(
+        &1,
+        &TimeRange {
+            start: 100,
+            end: 50,
+        },
+    );
     assert_eq!(res, Err(Ok(MeteringError::InvalidPeriod)));
 }

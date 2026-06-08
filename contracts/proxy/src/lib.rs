@@ -398,11 +398,7 @@ impl UpgradeableProxy {
         invoke_impl(
             &env,
             "get_max_plans_per_merchant",
-            soroban_sdk::vec![
-                &env,
-                proxy_addr.into_val(&env),
-                storage_addr.into_val(&env)
-            ],
+            soroban_sdk::vec![&env, proxy_addr.into_val(&env), storage_addr.into_val(&env)],
         )
     }
 

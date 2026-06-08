@@ -226,10 +226,28 @@ fn integration_plan_limit_blocks_third_plan() {
     let token_id = env.register_stellar_asset_contract_v2(token_admin);
 
     let name = String::from_str(&env, "Limited Plan");
-    proxy.create_plan(&merchant, &name, &500, &token_id.address(), &Interval::Monthly);
-    proxy.create_plan(&merchant, &name, &600, &token_id.address(), &Interval::Monthly);
+    proxy.create_plan(
+        &merchant,
+        &name,
+        &500,
+        &token_id.address(),
+        &Interval::Monthly,
+    );
+    proxy.create_plan(
+        &merchant,
+        &name,
+        &600,
+        &token_id.address(),
+        &Interval::Monthly,
+    );
 
-    let res = proxy.try_create_plan(&merchant, &name, &700, &token_id.address(), &Interval::Monthly);
+    let res = proxy.try_create_plan(
+        &merchant,
+        &name,
+        &700,
+        &token_id.address(),
+        &Interval::Monthly,
+    );
     assert!(res.is_err());
 }
 
@@ -242,9 +260,27 @@ fn integration_lowering_plan_limit_does_not_affect_existing_plans() {
     let token_id = env.register_stellar_asset_contract_v2(token_admin);
     let name = String::from_str(&env, "Plan");
 
-    let p1 = proxy.create_plan(&merchant, &name, &100, &token_id.address(), &Interval::Monthly);
-    let p2 = proxy.create_plan(&merchant, &name, &200, &token_id.address(), &Interval::Monthly);
-    let p3 = proxy.create_plan(&merchant, &name, &300, &token_id.address(), &Interval::Monthly);
+    let p1 = proxy.create_plan(
+        &merchant,
+        &name,
+        &100,
+        &token_id.address(),
+        &Interval::Monthly,
+    );
+    let p2 = proxy.create_plan(
+        &merchant,
+        &name,
+        &200,
+        &token_id.address(),
+        &Interval::Monthly,
+    );
+    let p3 = proxy.create_plan(
+        &merchant,
+        &name,
+        &300,
+        &token_id.address(),
+        &Interval::Monthly,
+    );
 
     proxy.set_max_plans_per_merchant(&2u32);
 
@@ -252,6 +288,12 @@ fn integration_lowering_plan_limit_does_not_affect_existing_plans() {
     assert!(proxy.get_plan(&p2).active);
     assert!(proxy.get_plan(&p3).active);
 
-    let res = proxy.try_create_plan(&merchant, &name, &400, &token_id.address(), &Interval::Monthly);
+    let res = proxy.try_create_plan(
+        &merchant,
+        &name,
+        &400,
+        &token_id.address(),
+        &Interval::Monthly,
+    );
     assert!(res.is_err());
 }

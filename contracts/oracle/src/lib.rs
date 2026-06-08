@@ -18,9 +18,13 @@
 
 mod price;
 
-pub use price::{deviation_bps, is_stale, select_price, CircuitState, FeedConfig, Price, PriceSource};
+pub use price::{
+    deviation_bps, is_stale, select_price, CircuitState, FeedConfig, Price, PriceSource,
+};
 
-use soroban_sdk::{contract, contracterror, contractimpl, contracttype, symbol_short, Address, Env, Symbol};
+use soroban_sdk::{
+    contract, contracterror, contractimpl, contracttype, symbol_short, Address, Env, Symbol,
+};
 
 /// Number of consecutive faults that trips a feed's circuit breaker.
 const CIRCUIT_FAULT_LIMIT: u32 = 3;
@@ -162,8 +166,10 @@ impl SubTrackrOracle {
                 if circuit.consecutive_faults >= CIRCUIT_FAULT_LIMIT && !circuit.tripped {
                     circuit.tripped = true;
                     circuit.tripped_at = now;
-                    env.events()
-                        .publish((symbol_short!("breaker"), token.clone(), quote.clone()), now);
+                    env.events().publish(
+                        (symbol_short!("breaker"), token.clone(), quote.clone()),
+                        now,
+                    );
                 }
             } else {
                 circuit.consecutive_faults = 0;
@@ -321,9 +327,11 @@ impl SubTrackrOracle {
     }
 
     fn latest(env: &Env, token: &Symbol, quote: &Symbol, source: &PriceSource) -> Option<Price> {
-        env.storage()
-            .persistent()
-            .get(&DataKey::Latest(token.clone(), quote.clone(), source.clone()))
+        env.storage().persistent().get(&DataKey::Latest(
+            token.clone(),
+            quote.clone(),
+            source.clone(),
+        ))
     }
 
     fn circuit(env: &Env, token: &Symbol, quote: &Symbol) -> CircuitState {

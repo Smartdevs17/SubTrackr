@@ -1,6 +1,6 @@
 module.exports = function (api) {
   api.cache(true);
-  const isProduction = api.env('production');
+  const isProduction = process.env.NODE_ENV === 'production';
 
   const plugins = [
     [
