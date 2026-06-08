@@ -1,6 +1,6 @@
 #![no_std]
 
-use soroban_sdk::{contracttype, Address, String, Symbol, Vec};
+use soroban_sdk::{contracttype, Address, BytesN, String, Symbol, Vec};
 
 /// Billing interval in seconds.
 #[contracttype]
@@ -744,4 +744,138 @@ pub struct PriceBounds {
     pub min_price_bps: u32,
     /// Quote currency symbol used for price lookup (e.g. "USD").
     pub quote: Symbol,
+}
+
+pub type ApiKeyId = u64;
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum ApiKeyStatus {
+    Active,
+    Revoked,
+    Expired,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum UsageTier {
+    Free,
+    Basic,
+    Pro,
+    Enterprise,
+}
+
+impl UsageTier {
+    pub fn default_rate_limit(&self) -> RateLimitConfig {
+        match self {
+            UsageTier::Free => RateLimitConfig {
+                requests_per_minute: 100,
+                requests_per_hour: 1_000,
+                requests_per_day: 10_000,
+                burst_limit: 10,
+            },
+            UsageTier::Basic => RateLimitConfig {
+                requests_per_minute: 1_000,
+                requests_per_hour: 10_000,
+                requests_per_day: 100_000,
+                burst_limit: 50,
+            },
+            UsageTier::Pro => RateLimitConfig {
+                requests_per_minute: 10_000,
+                requests_per_hour: 100_000,
+                requests_per_day: 1_000_000,
+                burst_limit: 200,
+            },
+            UsageTier::Enterprise => RateLimitConfig {
+                requests_per_minute: 100_000,
+                requests_per_hour: 1_000_000,
+                requests_per_day: 10_000_000,
+                burst_limit: 1000,
+            },
+        }
+    }
+
+    pub fn price_per_thousand(&self) -> i128 {
+        match self {
+            UsageTier::Free => 0,
+            UsageTier::Basic => 1,    // 0.001 per 1k requests (in stroops)
+            UsageTier::Pro => 5,      // 0.005 per 1k
+            UsageTier::Enterprise => 10, // 0.01 per 1k
+        }
+    }
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct RateLimitConfig {
+    pub requests_per_minute: u32,
+    pub requests_per_hour: u32,
+    pub requests_per_day: u32,
+    pub burst_limit: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ApiKeyConfig {
+    pub name: String,
+    pub rate_limit: RateLimitConfig,
+    pub usage_tier: UsageTier,
+    pub expires_at: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ApiKey {
+    pub id: ApiKeyId,
+    pub owner: Address,
+    pub key_hash: BytesN<32>,
+    pub name: String,
+    pub rate_limit: RateLimitConfig,
+    pub usage_tier: UsageTier,
+    pub status: ApiKeyStatus,
+    pub created_at: u64,
+    pub expires_at: u64,
+    pub last_used_at: u64,
+    pub revoked_at: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct RateLimitWindow {
+    pub window_start: u64,
+    pub count: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ApiUsageRecord {
+    pub window_start: u64,
+    pub count: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct RateLimitStatus {
+    pub is_allowed: bool,
+    pub remaining: u32,
+    pub reset_at: u64,
+    pub retry_after: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct UsageReport {
+    pub key_id: ApiKeyId,
+    pub period: TimeRange,
+    pub total_requests: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ApiKeyAuditEntry {
+    pub id: u64,
+    pub key_id: ApiKeyId,
+    pub action: String,
+    pub changed_by: Address,
+    pub timestamp: u64,
 }
