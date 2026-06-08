@@ -475,6 +475,36 @@ jobs:
           path: bundle-size-report.json
 
   # ─────────────────────────────────────────────────────────
+  # Performance Monitoring
+  # ─────────────────────────────────────────────────────────
+  performance:
+    name: Performance Budget Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Cache node modules
+        uses: actions/cache@v4
+        id: cache-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm ci --legacy-peer-deps
+
+      - name: Run performance benchmark
+        run: npm run performance:benchmark
+
+  # ─────────────────────────────────────────────────────────
   # Merge Protection (only on PRs)
   # ─────────────────────────────────────────────────────────
   merge-protection:
@@ -495,6 +525,7 @@ jobs:
         rust-build,
         load-test,
         bundle-size,
+        performance,
       ]
     steps:
       - name: All checks passed
@@ -521,6 +552,7 @@ jobs:
         rust-build,
         load-test,
         bundle-size,
+        performance,
       ]
     steps:
       - name: Check for failures
@@ -539,7 +571,8 @@ jobs:
              [ "${{ needs.rust-tests.result }}" != "success" ] || \
              [ "${{ needs.rust-build.result }}" != "success" ] || \
              [ "${{ needs.load-test.result }}" != "success" ] || \
-             [ "${{ needs.bundle-size.result }}" != "success" ]; then
+             [ "${{ needs.bundle-size.result }}" != "success" ] || \
+             [ "${{ needs.performance.result }}" != "success" ]; then
             echo "One or more CI checks failed"
             exit 1
           fi

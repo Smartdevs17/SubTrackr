@@ -19,6 +19,7 @@
     "test": "jest --passWithNoTests",
     "test:coverage": "jest --coverage",
     "performance:ci": "node scripts/check-performance-budget.js",
+    "performance:benchmark": "node scripts/check-performance-budget.js",
     "mutation:test": "npx --yes @stryker-mutator/core@9.0.0 run",
     "build": "expo export",
     "build:android": "expo run:android --variant release",
