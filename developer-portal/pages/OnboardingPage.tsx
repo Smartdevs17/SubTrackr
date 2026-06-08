@@ -75,6 +75,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onComplete }) =>
   });
 
   const completedCount = steps.filter((s) => s.completed).length;
+  const _requiredCount = steps.filter((s) => s.isRequired).length;
   const allRequiredCompleted = steps.filter((s) => s.isRequired).every((s) => s.completed);
 
   const handleCompleteStep = (stepId: string) => {

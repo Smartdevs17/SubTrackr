@@ -483,6 +483,7 @@ const scoreSubscription = (
     evidence,
   };
 };
+
 const computeAnalytics = (
   subscriptions: FraudSubscriptionRecord[],
   reviewQueue: FraudCase[]

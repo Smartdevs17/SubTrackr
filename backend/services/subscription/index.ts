@@ -3,4 +3,4 @@ export type { SubscriptionEvent, SubscriptionEventPage, SubscriptionEventQuery, 
 export { ElasticsearchService, elasticsearchService } from './ElasticsearchService';
 export type { SearchQuery, SearchHit, FacetResult, SearchResult, SearchAnalyticsEvent } from './ElasticsearchService';
 export type { ISubscriptionEventStore, IElasticsearchService } from './interfaces';
-export { SubscriptionError } from './errors';
+export { SubscriptionError, SubscriptionErrorCode } from './errors';

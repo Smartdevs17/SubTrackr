@@ -7,4 +7,4 @@ export type { RegisterWebhookInput, WebhookDeliveryResult } from './webhook';
 export { WebSocketServer, webSocketServer } from './websocket';
 export type { SubscriptionEventType, SubscriptionEvent, EventFilter, ClientInfo } from './websocket';
 export type { INotificationPreferenceService, IAlertingService, IWebhookDeliveryService, IWebsocketService } from './interfaces';
-export { NotificationError } from './errors';
+export { NotificationError, NotificationErrorCode } from './errors';
