@@ -798,8 +798,8 @@ impl UsageTier {
     pub fn price_per_thousand(&self) -> i128 {
         match self {
             UsageTier::Free => 0,
-            UsageTier::Basic => 1,    // 0.001 per 1k requests (in stroops)
-            UsageTier::Pro => 5,      // 0.005 per 1k
+            UsageTier::Basic => 1,       // 0.001 per 1k requests (in stroops)
+            UsageTier::Pro => 5,         // 0.005 per 1k
             UsageTier::Enterprise => 10, // 0.01 per 1k
         }
     }

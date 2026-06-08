@@ -5,9 +5,9 @@
  */
 
 import { randomUUID } from 'crypto';
-import { AuditService } from './auditService';
-import { AlertingService } from './alerting';
-import type { Alert } from './types';
+import { AuditService } from './shared/auditService';
+import { AlertingService } from './notification/alerting';
+import type { Alert } from './shared/types';
 
 // ─── Resource & Action Types ──────────────────────────────────────────────────
 

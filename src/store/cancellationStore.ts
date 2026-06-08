@@ -7,7 +7,7 @@ import {
   RetentionOffer,
   CancellationRecord,
   UserSegmentContext,
-} from '../../backend/services/retentionService';
+} from '../../backend/services/analytics/retentionService';
 import { useSubscriptionStore } from './subscriptionStore';
 import { useUserStore } from './userStore';
 

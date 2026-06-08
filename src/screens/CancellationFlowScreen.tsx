@@ -13,7 +13,7 @@ import { Card } from '../components/common/Card';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { RootStackParamList } from '../navigation/types';
 import { useCancellationStore, CANCELLATION_REASONS } from '../store/cancellationStore';
-import { RetentionOffer } from '../../backend/services/retentionService';
+import { RetentionOffer } from '../../backend/services/analytics/retentionService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CancellationFlow'>;
 

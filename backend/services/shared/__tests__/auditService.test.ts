@@ -1,4 +1,4 @@
-import { AlertingService } from '../alerting';
+import { AlertingService } from '../../notification/alerting';
 import { AuditService } from '../auditService';
 
 const SECRET = 'test-secret-key';

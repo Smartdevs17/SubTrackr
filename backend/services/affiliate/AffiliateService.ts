@@ -1,5 +1,5 @@
-import { AuditService } from '../auditService';
-import type { AuditAction } from '../auditTypes';
+import { AuditService } from '../shared/auditService';
+import type { AuditAction } from '../shared/auditTypes';
 import {
   Affiliate,
   AffiliateProgram,

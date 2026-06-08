@@ -60,7 +60,7 @@ pub fn create_api_key(
         .get(&DataKey::OwnerKeys(owner.clone()))
         .unwrap_or(Vec::new(env));
     assert!(
-        (owner_keys.len() as u32) < MAX_KEYS_PER_OWNER,
+        owner_keys.len() < MAX_KEYS_PER_OWNER,
         "Max keys per owner reached"
     );
     let mut new_owner_keys = owner_keys;
