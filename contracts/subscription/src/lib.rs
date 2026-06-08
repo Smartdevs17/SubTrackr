@@ -644,12 +644,7 @@ impl SubTrackrSubscription {
 
     // ── Plan Limit Admin ──
 
-    pub fn set_max_plans_per_merchant(
-        env: Env,
-        proxy: Address,
-        storage: Address,
-        new_limit: u32,
-    ) {
+    pub fn set_max_plans_per_merchant(env: Env, proxy: Address, storage: Address, new_limit: u32) {
         proxy.require_auth();
         let admin = get_admin(&env, &storage);
         require_permission(&env, &storage, &admin, Permission::SetPlanQuotas);
@@ -683,9 +678,8 @@ impl SubTrackrSubscription {
         merchant.require_auth();
         assert!(price > 0, "Price must be positive");
 
-        let max_plans: u32 =
-            storage_instance_get(&env, &storage, StorageKey::MaxPlansPerMerchant)
-                .unwrap_or(MAX_PLANS_PER_MERCHANT);
+        let max_plans: u32 = storage_instance_get(&env, &storage, StorageKey::MaxPlansPerMerchant)
+            .unwrap_or(MAX_PLANS_PER_MERCHANT);
         assert!(max_plans > 0, "Max plans per merchant must be > 0");
 
         let mut count: u64 =
@@ -1352,7 +1346,6 @@ impl SubTrackrSubscription {
         proxy.require_auth();
         storage_instance_get(&env, &storage, StorageKey::SubscriptionCount).unwrap_or(0)
     }
-
 }
 
 // ── Extended APIs (disabled by default) ──
@@ -1360,7 +1353,6 @@ impl SubTrackrSubscription {
 // These APIs depend on additional modules/types that are still evolving.
 // Enable with `--features extended` in the `subtrackr-subscription` crate.
 #[cfg(feature = "extended")]
-#[soroban_sdk::contractimpl]
 impl SubTrackrSubscription {
     // ── Revenue Recognition API ──
 

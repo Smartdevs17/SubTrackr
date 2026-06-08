@@ -113,20 +113,56 @@ impl GasOptimizationTargets {
     pub fn all_targets(env: &Env) -> Vec<(String, u64)> {
         soroban_sdk::vec![
             env,
-            (String::from_str(env, "initialize"), Self::initialize_target()),
-            (String::from_str(env, "create_plan"), Self::create_plan_target()),
+            (
+                String::from_str(env, "initialize"),
+                Self::initialize_target()
+            ),
+            (
+                String::from_str(env, "create_plan"),
+                Self::create_plan_target()
+            ),
             (String::from_str(env, "subscribe"), Self::subscribe_target()),
-            (String::from_str(env, "charge_subscription"), Self::charge_subscription_target()),
-            (String::from_str(env, "cancel_subscription"), Self::cancel_subscription_target()),
-            (String::from_str(env, "pause_subscription"), Self::pause_subscription_target()),
-            (String::from_str(env, "resume_subscription"), Self::resume_subscription_target()),
-            (String::from_str(env, "request_refund"), Self::request_refund_target()),
-            (String::from_str(env, "approve_refund"), Self::approve_refund_target()),
-            (String::from_str(env, "request_transfer"), Self::request_transfer_target()),
-            (String::from_str(env, "accept_transfer"), Self::accept_transfer_target()),
+            (
+                String::from_str(env, "charge_subscription"),
+                Self::charge_subscription_target()
+            ),
+            (
+                String::from_str(env, "cancel_subscription"),
+                Self::cancel_subscription_target()
+            ),
+            (
+                String::from_str(env, "pause_subscription"),
+                Self::pause_subscription_target()
+            ),
+            (
+                String::from_str(env, "resume_subscription"),
+                Self::resume_subscription_target()
+            ),
+            (
+                String::from_str(env, "request_refund"),
+                Self::request_refund_target()
+            ),
+            (
+                String::from_str(env, "approve_refund"),
+                Self::approve_refund_target()
+            ),
+            (
+                String::from_str(env, "request_transfer"),
+                Self::request_transfer_target()
+            ),
+            (
+                String::from_str(env, "accept_transfer"),
+                Self::accept_transfer_target()
+            ),
             (String::from_str(env, "get_plan"), Self::get_plan_target()),
-            (String::from_str(env, "get_subscription"), Self::get_subscription_target()),
-            (String::from_str(env, "get_user_subscriptions"), Self::get_user_subscriptions_target()),
+            (
+                String::from_str(env, "get_subscription"),
+                Self::get_subscription_target()
+            ),
+            (
+                String::from_str(env, "get_user_subscriptions"),
+                Self::get_user_subscriptions_target()
+            ),
         ]
     }
 }
@@ -136,7 +172,11 @@ pub struct GasOptimizations;
 
 impl GasOptimizations {
     /// Get optimization recommendations for a specific function
-    pub fn get_recommendations_for_function(env: &Env, function_name: &str, current_gas: u64) -> Vec<String> {
+    pub fn get_recommendations_for_function(
+        env: &Env,
+        function_name: &str,
+        current_gas: u64,
+    ) -> Vec<String> {
         let mut recommendations = Vec::new(env);
 
         match function_name {
@@ -193,7 +233,10 @@ impl GasOptimizations {
                 }
             }
             _ => {
-                recommendations.push_back(String::from_str(env, "Monitor function for optimization opportunities"));
+                recommendations.push_back(String::from_str(
+                    env,
+                    "Monitor function for optimization opportunities",
+                ));
             }
         }
 
@@ -277,7 +320,7 @@ pub fn get_optimization_priorities(
 
 /// Best practices for gas efficiency
 pub mod best_practices {
-    use soroban_sdk::{String, Vec, Env};
+    use soroban_sdk::{Env, String, Vec};
 
     pub fn get_storage_best_practices(env: &Env) -> Vec<String> {
         let mut practices = Vec::new(env);
@@ -351,10 +394,7 @@ pub mod best_practices {
     pub fn get_validation_best_practices(env: &Env) -> Vec<String> {
         let mut practices = Vec::new(env);
 
-        practices.push_back(String::from_str(
-            env,
-            "Validate inputs early to fail fast",
-        ));
+        practices.push_back(String::from_str(env, "Validate inputs early to fail fast"));
         practices.push_back(String::from_str(
             env,
             "Use assertions for critical validations",
