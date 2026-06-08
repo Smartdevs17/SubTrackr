@@ -1,3 +1,4 @@
+#![cfg(test)]
 use soroban_sdk::{testutils::Address as _, testutils::Ledger as _, Address, Bytes, BytesN, Env};
 use subtrackr_types::{ApiKeyConfig, ApiKeyStatus, RateLimitConfig, TimeRange, UsageTier};
 
