@@ -5,7 +5,7 @@
 // configured tolerance). Returned data is embedded in the generated report and
 // printed to stdout so CI surfaces regressions even when raw thresholds pass.
 
-import baseline from '../baseline.json';
+const baseline = JSON.parse(open('../baseline.json'));
 
 function pct(measured, base) {
   if (base === 0) return measured === 0 ? 0 : 100;

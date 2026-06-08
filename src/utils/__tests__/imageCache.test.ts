@@ -32,7 +32,7 @@ beforeEach(() => {
   mockStorage.setItem.mockResolvedValue(undefined);
   mockStorage.removeItem.mockResolvedValue(undefined);
   mockImage.prefetch.mockResolvedValue(true);
-  mockImage.clearDiskCache.mockResolvedValue(undefined);
+  mockImage.clearDiskCache.mockResolvedValue(true);
 });
 
 // ── Tests ─────────────────────────────────────────────────────────────────────

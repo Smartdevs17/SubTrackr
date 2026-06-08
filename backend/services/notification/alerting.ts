@@ -3,7 +3,7 @@
  * Channels are pluggable; add as many as needed.
  */
 
-import type { Alert, AlertChannelConfig } from './types';
+import type { Alert, AlertChannelConfig } from '../shared/types';
 
 export interface AlertDispatcher {
   send(alert: Alert): Promise<void>;

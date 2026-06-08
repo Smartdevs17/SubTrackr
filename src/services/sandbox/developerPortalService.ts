@@ -363,7 +363,7 @@ client = SubTrackr(api_key=os.environ["SUBTRACKR_API_KEY"])`,
         code: `subscriptions = client.subscriptions.list(page=1, limit=20)
 
 for sub in subscriptions.data:
-    print(f"{sub.name}: ${sub.price}/{sub.billing_cycle}")`,
+    print(f"{sub.name}: \${sub.price}/{sub.billing_cycle}")`,
         language: 'python',
       },
       {

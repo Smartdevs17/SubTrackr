@@ -2,6 +2,16 @@ const { getDefaultConfig } = require('expo/metro-config');
 
 const config = getDefaultConfig(__dirname);
 
+config.transformer = {
+  ...config.transformer,
+  getTransformOptions: async () => ({
+    transform: {
+      experimentalImportSupport: true,
+      inlineRequires: true,
+    },
+  }),
+};
+
 config.transformer.hermesEnabled = true;
 config.transformer.unstable_transformImportMeta = true;
 

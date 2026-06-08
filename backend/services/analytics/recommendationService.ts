@@ -1,3 +1,4 @@
+import path from 'path';
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL ?? 'http://localhost:8000';
 
 export interface Recommendation {
@@ -16,6 +17,13 @@ export interface RecommendationContext {
 }
 
 export class RecommendationService {
+  // Path for future Python bridge integration
+  private static readonly _PYTHON_PATH = path.join(__dirname, '../../ml/recommendationModel.py');
+
+  /**
+   * Fetches subscription recommendations for a given subscriber using the ML model.
+   * Uses a mock implementation matching the ML output format for now.
+   */
   static async getRecommendations(
     subscriberAddress: string,
     context?: RecommendationContext

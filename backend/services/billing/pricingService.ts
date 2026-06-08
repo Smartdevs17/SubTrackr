@@ -29,7 +29,7 @@ export interface PricingContext {
 
 export class PricingService {
   // Keeping the path for future reference if we implement the bridge properly
-  private static readonly _PYTHON_PATH = path.join(__dirname, '../ml/pricingModel.py');
+  private static readonly _PYTHON_PATH = path.join(__dirname, '../../ml/pricingModel.py');
 
   /**
    * Calculates the optimal price for a subscription using the ML model.

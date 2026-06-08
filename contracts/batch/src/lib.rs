@@ -1,9 +1,7 @@
 #![no_std]
 #![allow(clippy::too_many_arguments)]
 
-use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, Address, Env, Vec,
-};
+use soroban_sdk::{contract, contracterror, contractimpl, contracttype, Address, Env, Vec};
 
 const MAX_BATCH_ITEMS: u32 = 100;
 const GAS_BASE: u64 = 50_000;
@@ -136,7 +134,11 @@ impl SubTrackrBatch {
             return Err(BatchError::InvalidBatch);
         }
 
-        let mut count: u64 = env.storage().instance().get(&DataKey::BatchCount).unwrap_or(0);
+        let mut count: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::BatchCount)
+            .unwrap_or(0);
         count += 1;
         env.storage().instance().set(&DataKey::BatchCount, &count);
 
@@ -152,9 +154,12 @@ impl SubTrackrBatch {
         env.storage()
             .persistent()
             .set(&DataKey::BatchExecuted(count), &false);
-        env.storage()
-            .persistent()
-            .set(&DataKey::BatchStatus(count), &BatchStatus { state: BatchState::Pending });
+        env.storage().persistent().set(
+            &DataKey::BatchStatus(count),
+            &BatchStatus {
+                state: BatchState::Pending,
+            },
+        );
 
         let mut history: Vec<u64> = env.storage().instance().get(&DataKey::History).unwrap();
         history.push_back(count);
@@ -214,7 +219,10 @@ impl SubTrackrBatch {
             let idx: u32 = i as u32;
             match op.operation_type {
                 OperationType::Create => {
-                    let sub = SubscriptionRecord { id: sub_id, charged: 0 };
+                    let sub = SubscriptionRecord {
+                        id: sub_id,
+                        charged: 0,
+                    };
                     if atomic {
                         staged.push_back(sub);
                     } else {
@@ -261,12 +269,6 @@ impl SubTrackrBatch {
                     .persistent()
                     .set(&DataKey::Subscription(sub.id), &sub);
             }
-            _ => OperationResult {
-                subscription_id,
-                success: false,
-                code: 5,
-                reason: Some(String::from_small_str("SubscriptionMissing")),
-            },
         }
 
         let state = if rolled_back {

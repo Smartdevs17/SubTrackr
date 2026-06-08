@@ -31,6 +31,14 @@ export interface KeyRotationResult {
   reEncryptionNeeded: boolean;
 }
 
+export interface KeyRotationInfo {
+  lastRotation: number;
+  nextRotation: number;
+  intervalDays: number;
+  activeKeys: number;
+  isDue: boolean;
+}
+
 const DEFAULT_ROTATION_INTERVAL = 90 * 24 * 60 * 60 * 1000;
 const KEY_STORE_KEY = '@subtrackr:pii:keystore';
 const MASTER_KEY_KEY = '@subtrackr:pii:masterkey';
@@ -171,13 +179,7 @@ export class KeyManager {
     };
   }
 
-  getRotationInfo(): {
-    lastRotation: number;
-    nextRotation: number;
-    intervalDays: number;
-    activeKeys: number;
-    isDue: boolean;
-  } {
+  getRotationInfo(): KeyRotationInfo {
     if (!this.store) {
       return {
         lastRotation: 0,

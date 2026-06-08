@@ -253,7 +253,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onComplete }) =>
                   <Text style={styles.stepNumberText}>{index + 1}</Text>
                 )}
               </View>
-              <View style={styles.stepInfo}>
+              <View style={styles.stepInfoContainer}>
                 <Text style={[styles.stepTitle, step.completed && styles.stepTitleCompleted]}>
                   {step.title}
                 </Text>
@@ -376,7 +376,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: 'bold',
   },
-  stepInfo: {
+  stepInfoContainer: {
     flex: 1,
   },
   stepTitle: {

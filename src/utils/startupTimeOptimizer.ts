@@ -73,8 +73,9 @@ export const initHermesOptimizations = () => {
 
   startupTimeOptimizer.setupAppStateObserver();
 
-  const hermesFlags = global.HermesInternal?.getInstrumentedFlags?.() ?? {};
-  const isHermesEnabled = !!global.HermesInternal;
+  const hermesInternal = (global as any).HermesInternal;
+  const hermesFlags = hermesInternal?.getInstrumentedFlags?.() ?? {};
+  const isHermesEnabled = !!hermesInternal;
 
   if (__DEV__) {
     console.info('[Hermes] Optimizations initialized', {

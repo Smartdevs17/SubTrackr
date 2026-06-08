@@ -268,18 +268,21 @@ export const useSubscriptionStore = create<SubscriptionState>()(
 
           const preview = previewProration(sub, newPlanData.price ?? sub.price, effectiveDate);
 
+          // Generate credit memo if downgrade
           const updatedCreditMemos = { ...get().creditMemos };
           if (preview.isCredit && preview.amount > 0) {
             const memo = generateCreditMemo(id, preview.amount, preview.description);
             updatedCreditMemos[id] = memo;
           }
 
+          // Update subscription
           const updates: Partial<Subscription> = {
             ...newPlanData,
             updatedAt: new Date(),
           };
 
           if (effectiveDate === 'immediate') {
+            // Reset billing cycle
             updates.nextBillingDate = advanceBillingDate(
               new Date(),
               newPlanData.billingCycle ?? sub.billingCycle
@@ -318,6 +321,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           },
         }));
 
+        // Could trigger a reduced charge here
         console.log(`Applied credit: final charge ${finalCharge}`);
       },
 

@@ -1,14 +1,12 @@
 import { create } from 'zustand';
 import {
   DeveloperProfile,
-  ApiKey,
-  ApiKeyStatus,
-  UsageStats,
-  UsageMetric,
+  ApiKeyPermission,
+  OnboardingStep,
   DocumentationSection,
   IntegrationGuide,
-  OnboardingStepInfo,
-} from '../types/sandbox';
+} from '../types/developerPortal';
+import { ApiKey, ApiKeyStatus, UsageStats, UsageMetric } from '../types/sandbox';
 import { developerPortalService } from '../services/sandbox/developerPortalService';
 import { apiKeyService } from '../services/sandbox/apiKeyService';
 import { usageTrackingService } from '../services/sandbox/usageTrackingService';
@@ -19,7 +17,7 @@ interface DeveloperPortalState {
   apiKeys: ApiKey[];
   usageStats: UsageStats | null;
   recentUsage: UsageMetric[];
-  onboardingSteps: OnboardingStepInfo[];
+  onboardingSteps: OnboardingStep[];
   documentation: DocumentationSection[];
   integrationGuides: IntegrationGuide[];
   isLoading: boolean;
@@ -38,6 +36,7 @@ interface DeveloperPortalState {
   createApiKey: (
     developerId: string,
     name: string,
+    permissions?: ApiKeyPermission[],
     options?: { rateLimit?: number; dailyLimit?: number; expiresAt?: Date }
   ) => Promise<ApiKey>;
   revokeApiKey: (keyId: string) => Promise<void>;
@@ -160,10 +159,18 @@ export const useDeveloperPortalStore = create<DeveloperPortalState>()((set, get)
     }
   },
 
-  createApiKey: async (developerId, name, permissions, _options) => {
+  createApiKey: async (
+    developerId: string,
+    name: string,
+    permissions?: ApiKeyPermission[],
+    _options?: { rateLimit?: number; dailyLimit?: number; expiresAt?: Date }
+  ) => {
     set({ isLoading: true, error: null });
     try {
-      const permissionStrings = permissions?.map((p) => p.toString()) || ['read', 'write'];
+      const permissionStrings = permissions?.map((p: ApiKeyPermission) => p.toString()) || [
+        'read',
+        'write',
+      ];
       const apiKey = await apiKeyService.createApiKey(
         developerId,
         name,

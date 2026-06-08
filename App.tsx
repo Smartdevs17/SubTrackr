@@ -9,7 +9,7 @@ import ErrorBoundary from './src/components/ErrorBoundary';
 import { initI18n } from './src/i18n/config';
 import i18n from './src/i18n/config';
 import { I18nextProvider } from 'react-i18next';
-import { crashReporter } from './src/services/crashReporter';
+import { crashReporter, CrashRecord } from './src/services/crashReporter';
 import * as Sentry from '@sentry/react-native';
 
 import './src/config/env';
@@ -24,6 +24,7 @@ import { EVM_RPC_URLS } from './src/config/evm';
 import { useNetworkStore, useSettingsStore } from './src/store';
 import { sessionService } from './src/services/auth/session';
 
+// Get projectId from environment variable
 const projectId = process.env.WALLET_CONNECT_PROJECT_ID || 'YOUR_PROJECT_ID';
 
 try {
@@ -100,9 +101,6 @@ function NotificationBootstrap() {
       const session = await sessionService.initializeCurrentSession();
       try {
         Sentry.setContext('session', { id: session.id, deviceName: session.deviceName });
-        if (wallet?.address) {
-          Sentry.setUser({ id: wallet.address });
-        }
       } catch (e) {
         // ignore
       }
@@ -114,6 +112,8 @@ function NotificationBootstrap() {
 
 export default function App() {
   const [i18nReady, setI18nReady] = React.useState(false);
+  const [, setPendingCrash] = React.useState<CrashRecord | null>(null);
+  const [, setShowRecoveryModal] = React.useState(false);
 
   React.useEffect(() => {
     let cancelled = false;

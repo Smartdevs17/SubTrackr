@@ -27,8 +27,6 @@ const STORE_VERSION = 3;
 const API_KEY_PREFIX = 'sk_sandbox_';
 const KEY_PREFIX_LENGTH = 8;
 const HASH_COST = 10;
-const _FALLBACK_HASH = bcrypt.hashSync('fallback-placeholder', HASH_COST);
-
 const generateId = (prefix: string): string =>
   `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 
@@ -691,11 +689,12 @@ export const useSandboxStore = create<SandboxState>()(
       generateApiKey: async (name) => {
         try {
           set({ isLoading: true, error: null });
+          const id = generateId('key');
           const key = generateApiKeyString();
           const hashedKey = await hashApiKey(key);
           const sandboxId = get().currentSandbox?.id || get().sandboxConfig.id;
           const apiKey: ApiKey = {
-            id: generateId('key'),
+            id,
             key: key.substring(0, KEY_PREFIX_LENGTH),
             keyPrefix: key.substring(0, KEY_PREFIX_LENGTH),
             hashedKey,
@@ -707,11 +706,10 @@ export const useSandboxStore = create<SandboxState>()(
             expiresAt: null,
             lastUsedAt: null,
             usageCount: 0,
-            auditLogs: [createAuditEntry('', 'created', 'Generated a new API key in state')],
+            auditLogs: [createAuditEntry(id, 'created', 'Generated a new API key in state')],
             createdAt: new Date(),
             updatedAt: new Date(),
           };
-          apiKey.auditLogs[0].apiKeyId = apiKey.id;
           set((state) => ({
             apiKeys: [...state.apiKeys, apiKey],
             onboardingSteps: state.onboardingSteps.map((s) =>
@@ -735,10 +733,11 @@ export const useSandboxStore = create<SandboxState>()(
       createApiKey: async (input) => {
         try {
           set({ isLoading: true, error: null });
+          const id = generateId('key');
           const key = generateApiKeyString();
           const hashedKey = await hashApiKey(key);
           const apiKey: ApiKey = {
-            id: generateId('key'),
+            id,
             key: key.substring(0, KEY_PREFIX_LENGTH),
             keyPrefix: key.substring(0, KEY_PREFIX_LENGTH),
             hashedKey,
@@ -751,11 +750,10 @@ export const useSandboxStore = create<SandboxState>()(
             expiresAt: null,
             lastUsedAt: null,
             usageCount: 0,
-            auditLogs: [createAuditEntry('', 'created', 'Created a new managed API key')],
+            auditLogs: [createAuditEntry(id, 'created', 'Created a new managed API key')],
             createdAt: new Date(),
             updatedAt: new Date(),
           };
-          apiKey.auditLogs[0].apiKeyId = apiKey.id;
           set((state) => ({
             apiKeys: [...state.apiKeys, apiKey],
             isLoading: false,

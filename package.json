@@ -26,6 +26,7 @@
     "contracts:fmt": "cd contracts && cargo fmt --check",
     "contracts:clippy": "cd contracts && cargo clippy --all-targets -- -D warnings",
     "contracts:build": "cd contracts && cargo build --release",
+    "contracts:codegen:check": "cd contracts && cargo check --quiet",
     "contracts:migrate": "./scripts/run-migration.sh",
     "contracts:migrate:validate": "./scripts/validate-migration.sh",
     "contracts:migrate:rollback": "./scripts/rollback-migration.sh",
@@ -135,7 +136,6 @@
     "react-test-renderer": "^19.2.5",
     "semantic-release": "^24.2.9",
     "size-limit": "^11.1.4",
-    "@shopify/metro-serializer-hermes": "^1.0.0",
     "ts-jest": "^29.4.11",
     "typechain": "^8.3.2",
     "typescript": "~5.8.3"

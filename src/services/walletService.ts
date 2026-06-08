@@ -108,12 +108,6 @@ export interface StreamSetup {
   protocol: 'superfluid' | 'sablier';
 }
 
-export interface GasEstimate {
-  gasLimit: string;
-  gasPrice: string;
-  estimatedCost: string;
-}
-
 /** Result after an on-chain Superfluid CFA stream is created */
 export interface SuperfluidStreamResult {
   txHash: string;

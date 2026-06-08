@@ -11,6 +11,7 @@ import {
   FraudRiskScore,
   FraudReviewStatus,
   FraudSubscriptionRecord,
+  FraudSignal,
 } from '../types/fraud';
 
 const STORAGE_KEY = 'subtrackr-fraud-store';
@@ -482,7 +483,6 @@ const scoreSubscription = (
     evidence,
   };
 };
-
 const computeAnalytics = (
   subscriptions: FraudSubscriptionRecord[],
   reviewQueue: FraudCase[]

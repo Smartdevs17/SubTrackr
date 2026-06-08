@@ -1,3 +1,4 @@
+import path from 'path';
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL ?? 'http://localhost:8000';
 
 export interface RiskFactor {
@@ -35,6 +36,12 @@ export interface ForecastPoint {
 }
 
 export class PredictionService {
+  // Path for future Python bridge integration
+  private static readonly _PYTHON_PATH = path.join(__dirname, '../../ml/churnModel.py');
+
+  /**
+   * Predicts the likelihood of a subscriber churning and assigns a risk score.
+   */
   static async predictChurn(
     subscriberAddress: string,
     userData: UserChurnData
