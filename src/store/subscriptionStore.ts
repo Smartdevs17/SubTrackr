@@ -54,8 +54,6 @@ const generateUniqueId = (): string => {
   return `${timestamp}-${randomComponent}`;
 };
 
-type PersistedSubscriptionSlice = Pick<SubscriptionState, 'subscriptions'>;
-
 const toValidDate = (value: unknown, fallback = new Date()): Date => {
   if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
   if (typeof value === 'string' || typeof value === 'number') {
@@ -125,31 +123,6 @@ const createSupportEvent = (
   };
 };
 
-const serializeForStorage = (state: PersistedSubscriptionSlice): PersistedSubscriptionSlice => ({
-  subscriptions: state.subscriptions.map((sub) => ({
-    ...sub,
-    nextBillingDate: new Date(sub.nextBillingDate),
-    createdAt: new Date(sub.createdAt),
-    updatedAt: new Date(sub.updatedAt),
-  })),
-});
-
-const migratePersistedState = (
-  persisted: unknown,
-  _version: number
-): PersistedSubscriptionSlice => {
-  if (!persisted || typeof persisted !== 'object') {
-    return { subscriptions: [] };
-  }
-
-  const maybeState = persisted as Partial<PersistedSubscriptionSlice>;
-  const subscriptions = Array.isArray(maybeState.subscriptions)
-    ? maybeState.subscriptions.map((entry) => normalizeSubscription(entry as Partial<Subscription>))
-    : [];
-
-  return { subscriptions };
-};
-
 const pendingWrites = new Map<string, string>();
 let writeTimer: ReturnType<typeof setTimeout> | null = null;
 let writeQueue = Promise.resolve();
@@ -195,6 +168,20 @@ const debouncedAsyncStorage: StateStorage = {
   },
 };
 
+export type ProrationEffectiveType = 'immediate' | 'end_of_period' | 'custom_date';
+
+export interface SubscriptionChange {
+  id: string;
+  subscriptionId: string;
+  fromPrice: number;
+  toPrice: number;
+  effectiveType: ProrationEffectiveType;
+  status: 'pending' | 'executed' | 'rejected';
+  proration: ProrationPreview;
+  createdAt: Date;
+  newPlanData: Partial<Subscription>;
+}
+
 interface SubscriptionState {
   subscriptions: Subscription[];
   stats: SubscriptionStats;
@@ -202,6 +189,7 @@ interface SubscriptionState {
   error: AppError | null;
   prorationPreview: ProrationPreview | null;
   creditMemos: Record<string, CreditMemo>;
+  planChanges: SubscriptionChange[];
 
   // Actions
   addSubscription: (data: SubscriptionFormData) => Promise<void>;
@@ -224,7 +212,53 @@ interface SubscriptionState {
   recordBillingOutcome: (id: string, outcome: 'success' | 'failed') => Promise<void>;
   fetchSubscriptions: () => Promise<void>;
   calculateStats: () => void;
+  queuePlanChange: (
+    id: string,
+    newPlanData: Partial<Subscription>,
+    effectiveDate: ProrationEffectiveType
+  ) => void;
+  approvePlanChange: (changeId: string) => Promise<void>;
+  rejectPlanChange: (changeId: string) => void;
+  getChangeHistory: (subscriptionId: string) => SubscriptionChange[];
 }
+
+type PersistedSubscriptionSlice = Pick<SubscriptionState, 'subscriptions' | 'planChanges'>;
+
+const serializeForStorage = (state: PersistedSubscriptionSlice): PersistedSubscriptionSlice => ({
+  subscriptions: (state.subscriptions || []).map((sub) => ({
+    ...sub,
+    nextBillingDate: new Date(sub.nextBillingDate),
+    createdAt: new Date(sub.createdAt),
+    updatedAt: new Date(sub.updatedAt),
+  })),
+  planChanges: (state.planChanges || []).map((change) => ({
+    ...change,
+    createdAt: new Date(change.createdAt),
+  })),
+});
+
+const migratePersistedState = (
+  persisted: unknown,
+  _version: number
+): PersistedSubscriptionSlice => {
+  if (!persisted || typeof persisted !== 'object') {
+    return { subscriptions: [], planChanges: [] };
+  }
+
+  const maybeState = persisted as Partial<PersistedSubscriptionSlice>;
+  const subscriptions = Array.isArray(maybeState.subscriptions)
+    ? maybeState.subscriptions.map((entry) => normalizeSubscription(entry as Partial<Subscription>))
+    : [];
+
+  const planChanges = Array.isArray(maybeState.planChanges)
+    ? maybeState.planChanges.map((entry) => ({
+        ...entry,
+        createdAt: new Date(entry.createdAt),
+      }))
+    : [];
+
+  return { subscriptions, planChanges };
+};
 
 export const useSubscriptionStore = create<SubscriptionState>()(
   persist(
@@ -240,6 +274,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       error: null,
       prorationPreview: null,
       creditMemos: {},
+      planChanges: [],
 
       previewPlanChange: (
         id: string,
@@ -323,6 +358,64 @@ export const useSubscriptionStore = create<SubscriptionState>()(
 
         // Could trigger a reduced charge here
         console.log(`Applied credit: final charge ${finalCharge}`);
+      },
+
+      queuePlanChange: (
+        id: string,
+        newPlanData: Partial<Subscription>,
+        effectiveDate: ProrationEffectiveType
+      ) => {
+        const sub = get().subscriptions.find((s) => s.id === id);
+        if (!sub) throw new Error('Subscription not found');
+        const preview = previewProration(
+          sub,
+          newPlanData.price ?? sub.price,
+          effectiveDate === 'end_of_period' ? 'end_of_period' : 'immediate'
+        );
+        const change: SubscriptionChange = {
+          id: generateUniqueId(),
+          subscriptionId: id,
+          fromPrice: sub.price,
+          toPrice: newPlanData.price ?? sub.price,
+          effectiveType: effectiveDate,
+          status: 'pending',
+          proration: preview,
+          createdAt: new Date(),
+          newPlanData,
+        };
+        set((state) => ({
+          planChanges: [...(state.planChanges || []), change],
+        }));
+      },
+
+      approvePlanChange: async (changeId: string) => {
+        const change = (get().planChanges || []).find((c) => c.id === changeId);
+        if (!change) throw new Error('Change request not found');
+        if (change.status !== 'pending') throw new Error('Change request is not pending');
+
+        await get().executePlanChange(
+          change.subscriptionId,
+          change.newPlanData,
+          change.effectiveType === 'end_of_period' ? 'end_of_period' : 'immediate'
+        );
+
+        set((state) => ({
+          planChanges: (state.planChanges || []).map((c) =>
+            c.id === changeId ? { ...c, status: 'executed' } : c
+          ),
+        }));
+      },
+
+      rejectPlanChange: (changeId: string) => {
+        set((state) => ({
+          planChanges: (state.planChanges || []).map((c) =>
+            c.id === changeId ? { ...c, status: 'rejected' } : c
+          ),
+        }));
+      },
+
+      getChangeHistory: (subscriptionId: string) => {
+        return (get().planChanges || []).filter((c) => c.subscriptionId === subscriptionId);
       },
 
       addSubscription: async (data: SubscriptionFormData) => {
@@ -648,7 +741,8 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       name: STORAGE_KEY,
       version: STORE_VERSION,
       storage: createJSONStorage(() => debouncedAsyncStorage),
-      partialize: (state) => serializeForStorage({ subscriptions: state.subscriptions }),
+      partialize: (state) =>
+        serializeForStorage({ subscriptions: state.subscriptions, planChanges: state.planChanges }),
       migrate: (persistedState, version) => migratePersistedState(persistedState, version),
       merge: (persistedState, currentState) => ({
         ...currentState,

@@ -4,6 +4,7 @@ import {
   SandboxEnvironment,
   TestSubscription,
   RateLimitConfig,
+  SandboxStatus,
 } from '../../types/sandbox';
 
 const SANDBOX_STORAGE_KEY = '@subtrackr_sandbox_config';
@@ -79,6 +80,7 @@ const DEFAULT_SANDBOX_CONFIG: SandboxConfig = {
   name: 'Development Sandbox',
   description: 'Isolated sandbox environment for testing integrations',
   isActive: true,
+  status: SandboxStatus.ACTIVE,
   dataIsolation: true,
   rateLimit: ENV_RATE_LIMITS[SandboxEnvironment.DEVELOPMENT],
   dataResetInterval: 'weekly',

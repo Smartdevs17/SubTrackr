@@ -10,7 +10,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { colors, spacing, typography, borderRadius } from '../utils/constants';
+import { colors, spacing, borderRadius } from '../utils/constants';
 import { useMerchantStore } from '../store/merchantStore';
 import { Card } from '../components/common/Card';
 import {
@@ -232,7 +232,7 @@ const MerchantOnboardingScreen: React.FC = () => {
 
     const statusColors: Record<string, string> = {
       [OnboardingStatus.VERIFIED]: colors.success,
-      [OnboardingStatus.REJECTED]: colors.danger,
+      [OnboardingStatus.REJECTED]: colors.error,
       [OnboardingStatus.PENDING_REVIEW]: colors.warning,
       [OnboardingStatus.IN_PROGRESS]: colors.primary,
     };
@@ -358,19 +358,19 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: spacing.sm,
     color: colors.textSecondary,
-    fontSize: typography.fontSizeMd,
+    fontSize: 16,
   },
   header: {
     padding: spacing.md,
     paddingTop: spacing.lg,
   },
   title: {
-    fontSize: typography.fontSizeXl,
-    fontWeight: typography.fontWeightBold,
+    fontSize: 24,
+    fontWeight: 'bold',
     color: colors.text,
   },
   subtitle: {
-    fontSize: typography.fontSizeMd,
+    fontSize: 16,
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
@@ -400,32 +400,32 @@ const styles = StyleSheet.create({
   },
   stepNumber: {
     color: colors.textSecondary,
-    fontSize: typography.fontSizeSm,
-    fontWeight: typography.fontWeightBold,
+    fontSize: 14,
+    fontWeight: 'bold',
   },
   stepNumberActive: {
     color: colors.text,
   },
   stepLabel: {
     marginTop: spacing.xs,
-    fontSize: typography.fontSizeXs,
+    fontSize: 12,
     color: colors.textSecondary,
   },
   stepLabelActive: {
     color: colors.primary,
-    fontWeight: typography.fontWeightBold,
+    fontWeight: 'bold',
   },
   stepContent: {
     padding: spacing.md,
   },
   sectionTitle: {
-    fontSize: typography.fontSizeLg,
-    fontWeight: typography.fontWeightBold,
+    fontSize: 20,
+    fontWeight: 'bold',
     color: colors.text,
     marginBottom: spacing.md,
   },
   stepDescription: {
-    fontSize: typography.fontSizeMd,
+    fontSize: 16,
     color: colors.textSecondary,
     marginBottom: spacing.md,
   },
@@ -433,7 +433,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   inputLabel: {
-    fontSize: typography.fontSizeSm,
+    fontSize: 14,
     color: colors.textSecondary,
     marginBottom: spacing.xs,
   },
@@ -441,7 +441,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: borderRadius.md,
     padding: spacing.md,
-    fontSize: typography.fontSizeMd,
+    fontSize: 16,
     color: colors.text,
     borderWidth: 1,
     borderColor: colors.border,
@@ -461,12 +461,12 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   uploadText: {
-    fontSize: typography.fontSizeMd,
+    fontSize: 16,
     color: colors.text,
-    fontWeight: typography.fontWeightMedium,
+    fontWeight: '500',
   },
   uploadHint: {
-    fontSize: typography.fontSizeSm,
+    fontSize: 14,
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
@@ -482,13 +482,13 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   summaryLabel: {
-    fontSize: typography.fontSizeSm,
+    fontSize: 14,
     color: colors.textSecondary,
   },
   summaryValue: {
-    fontSize: typography.fontSizeSm,
+    fontSize: 14,
     color: colors.text,
-    fontWeight: typography.fontWeightMedium,
+    fontWeight: '500',
   },
   submitButton: {
     backgroundColor: colors.primary,
@@ -498,8 +498,8 @@ const styles = StyleSheet.create({
   },
   submitButtonText: {
     color: colors.text,
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   navigationButtons: {
     flexDirection: 'row',
@@ -517,8 +517,8 @@ const styles = StyleSheet.create({
   },
   backButtonText: {
     color: colors.text,
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightMedium,
+    fontSize: 16,
+    fontWeight: '500',
   },
   nextButton: {
     flex: 1,
@@ -529,8 +529,8 @@ const styles = StyleSheet.create({
   },
   nextButtonText: {
     color: colors.text,
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   statusCard: {
     padding: spacing.md,
@@ -538,8 +538,8 @@ const styles = StyleSheet.create({
     marginTop: 0,
   },
   statusTitle: {
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
+    fontSize: 16,
+    fontWeight: 'bold',
     color: colors.text,
     marginBottom: spacing.sm,
   },
@@ -555,8 +555,8 @@ const styles = StyleSheet.create({
   },
   statusBadgeText: {
     color: colors.text,
-    fontSize: typography.fontSizeSm,
-    fontWeight: typography.fontWeightMedium,
+    fontSize: 14,
+    fontWeight: '500',
     textTransform: 'capitalize',
   },
   startCard: {
@@ -565,13 +565,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   startTitle: {
-    fontSize: typography.fontSizeLg,
-    fontWeight: typography.fontWeightBold,
+    fontSize: 20,
+    fontWeight: 'bold',
     color: colors.text,
     marginBottom: spacing.sm,
   },
   startDescription: {
-    fontSize: typography.fontSizeMd,
+    fontSize: 16,
     color: colors.textSecondary,
     textAlign: 'center',
     marginBottom: spacing.lg,
@@ -585,8 +585,8 @@ const styles = StyleSheet.create({
   },
   startButtonText: {
     color: colors.text,
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
 

@@ -150,12 +150,12 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       backgroundColor: colors.background.card,
       marginBottom: 10,
       borderBottomWidth: 1,
-      borderBottomColor: colors.border,
+      borderBottomColor: colors.border.default,
     },
     sectionTitle: {
       fontSize: 18,
       fontWeight: '700',
-      color: colors.text,
+      color: colors.text.primary,
       marginBottom: 8,
     },
     description: {
@@ -177,7 +177,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     label: {
       fontSize: 16,
       fontWeight: '600',
-      color: colors.text,
+      color: colors.text.primary,
     },
     subLabel: {
       fontSize: 12,

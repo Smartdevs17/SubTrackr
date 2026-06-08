@@ -169,7 +169,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     title: {
       ...typography.h1,
-      color: colors.text,
+      color: colors.text.primary,
       marginBottom: spacing.xs,
     },
     subtitle: {
@@ -198,7 +198,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     statValue: {
       ...typography.h2,
-      color: colors.text,
+      color: colors.text.primary,
       fontWeight: 'bold',
     },
     statTitle: {
@@ -218,7 +218,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     sectionTitle: {
       ...typography.h2,
-      color: colors.text,
+      color: colors.text.primary,
     },
     clearButton: {
       backgroundColor: colors.error,
@@ -237,7 +237,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       padding: spacing.md,
       marginVertical: spacing.xs,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.border.default,
     },
     errorHeader: {
       flexDirection: 'row',
@@ -257,7 +257,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     errorMessage: {
       ...typography.body,
-      color: colors.text,
+      color: colors.text.primary,
       marginBottom: spacing.sm,
     },
     errorTimestamp: {
@@ -273,7 +273,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     separator: {
       height: 1,
-      backgroundColor: colors.border,
+      backgroundColor: colors.border.default,
       marginVertical: spacing.xs,
     },
     emptyState: {
@@ -282,7 +282,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     emptyStateText: {
       ...typography.h3,
-      color: colors.text,
+      color: colors.text.primary,
       marginBottom: spacing.sm,
     },
     emptyStateSubtext: {

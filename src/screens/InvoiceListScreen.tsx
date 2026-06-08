@@ -115,12 +115,12 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     container: { flex: 1, backgroundColor: colors.background.primary },
     content: { padding: spacing.lg, gap: spacing.md },
     header: { marginBottom: spacing.xs },
-    title: { ...typography.h1, color: colors.text },
+    title: { ...typography.h1, color: colors.text.primary },
     subtitle: { ...typography.body, color: colors.textSecondary, marginTop: spacing.xs },
     invoiceCard: { marginBottom: spacing.sm },
     row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     meta: { flex: 1, paddingRight: spacing.md },
-    invoiceNumber: { ...typography.h3, color: colors.text },
+    invoiceNumber: { ...typography.h3, color: colors.text.primary },
     invoiceName: { ...typography.body, color: colors.textSecondary, marginTop: 2 },
     statusBadge: {
       borderRadius: borderRadius.full,
@@ -128,7 +128,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       paddingVertical: 4,
       alignSelf: 'flex-start',
     },
-    statusText: { ...typography.caption, color: colors.text, fontWeight: '700' },
+    statusText: { ...typography.caption, color: colors.text.inverse, fontWeight: '700' },
     detailsRow: {
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -141,7 +141,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       textTransform: 'uppercase',
       marginBottom: 2,
     },
-    detailValue: { ...typography.body, color: colors.text },
+    detailValue: { ...typography.body, color: colors.text.primary },
     totalValue: { ...typography.h3, color: colors.accent },
   });
 }

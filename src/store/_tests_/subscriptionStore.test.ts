@@ -3,6 +3,7 @@ import { expect, describe, it, beforeEach, jest } from '@jest/globals';
 import { useSubscriptionStore } from '../subscriptionStore';
 import { useInvoiceStore } from '../invoiceStore';
 import { SubscriptionCategory, BillingCycle } from '../../types/subscription';
+import { TaxType } from '../../types/invoice';
 
 // 🔥 Mock AsyncStorage
 jest.mock('@react-native-async-storage/async-storage', () => ({
@@ -56,6 +57,7 @@ describe('subscriptionStore', () => {
         defaultTaxRateBps: 0,
         exchangeRateScale: 1_000_000,
         paymentTermsDays: 14,
+        defaultTaxType: TaxType.NONE,
       },
       nextSequence: 1,
       isLoading: false,
