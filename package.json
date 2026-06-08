@@ -37,6 +37,7 @@
     "pretypecheck": "husky",
     "ci": "npm run lint && npx tsc --noEmit && npm run test && npm run contracts:test && npm run contracts:fmt && npm run contracts:clippy",
     "prepare": "husky",
+    "postinstall": "node scripts/patch-metro.js",
     "load:test": "k6 run load-tests/run.js",
     "load:test:subscription": "k6 run load-tests/run.js --env SCENARIO=subscription",
     "load:test:billing": "k6 run load-tests/run.js --env SCENARIO=billing",
@@ -143,10 +144,6 @@
     "typescript": "~5.8.3"
   },
   "private": false,
-  "overrides": {
-    "hermes-parser": "0.33.3",
-    "babel-plugin-syntax-hermes-parser": "0.33.3"
-  },
   "repository": {
     "type": "git",
     "url": "https://github.com/Smartdevs17/SubTrackr.git"
