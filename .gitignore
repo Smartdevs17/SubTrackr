@@ -75,6 +75,9 @@ coverage/
 mutation-reports/
 *.mutation-report.json
 *.mutation-report.html
+# Load test reports (generated) — keep the dir so k6 can write into it
+load-tests/reports/*
+!load-tests/reports/.gitkeep
 
 # VS Code
 .vscode/settings.json

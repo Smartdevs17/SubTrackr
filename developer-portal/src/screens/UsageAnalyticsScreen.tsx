@@ -183,8 +183,8 @@ const UsageAnalyticsScreen: React.FC = () => {
                         request.statusCode >= 200 && request.statusCode < 300
                           ? '#4CAF50'
                           : request.statusCode >= 400 && request.statusCode < 500
-                          ? '#FF9800'
-                          : '#F44336',
+                            ? '#FF9800'
+                            : '#F44336',
                     },
                   ]}>
                   <Text style={styles.statusText}>{request.statusCode}</Text>
@@ -207,9 +207,7 @@ const UsageAnalyticsScreen: React.FC = () => {
           <View style={styles.rateLimitCard}>
             <View style={styles.rateLimitHeader}>
               <Text style={styles.rateLimitTitle}>Current Usage</Text>
-              <Text style={styles.rateLimitValue}>
-                {usageStats?.totalCalls || 0} / 10,000
-              </Text>
+              <Text style={styles.rateLimitValue}>{usageStats?.totalCalls || 0} / 10,000</Text>
             </View>
             <View style={styles.rateLimitBar}>
               <View

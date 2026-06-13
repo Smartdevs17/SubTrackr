@@ -11,9 +11,12 @@ import {
 } from 'react-native';
 import { useUserStore } from '../store/userStore';
 import { gdprService } from '../services/gdpr';
+import { useThemeColors } from '../hooks/useThemeColors';
 
 const GDPRSettingsScreen = () => {
   const { consent, setConsent } = useUserStore();
+  const colors = useThemeColors();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const [loading, setLoading] = useState(false);
 
   const handleExport = async () => {
@@ -102,7 +105,7 @@ const GDPRSettingsScreen = () => {
           accessibilityHint="Downloads a copy of your profile, subscriptions, and billing history"
           accessibilityState={{ disabled: loading, busy: loading }}>
           {loading ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={colors.onPrimary} />
           ) : (
             <Text style={styles.buttonText}>Export My Data (JSON)</Text>
           )}
@@ -136,82 +139,84 @@ const GDPRSettingsScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8F9FA',
-  },
-  section: {
-    padding: 20,
-    backgroundColor: '#FFF',
-    marginBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#EEE',
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1A1A1A',
-    marginBottom: 8,
-  },
-  description: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 20,
-    lineHeight: 20,
-  },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  labelContainer: {
-    flex: 1,
-    paddingRight: 10,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-  },
-  subLabel: {
-    fontSize: 12,
-    color: '#888',
-    marginTop: 2,
-  },
-  button: {
-    backgroundColor: '#007AFF',
-    padding: 15,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  deleteButton: {
-    backgroundColor: '#FF3B30',
-    marginTop: 30,
-  },
-  buttonText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  infoText: {
-    fontSize: 12,
-    color: '#999',
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  footer: {
-    padding: 30,
-    alignItems: 'center',
-  },
-  footerText: {
-    fontSize: 12,
-    color: '#BBB',
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-});
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background.primary,
+    },
+    section: {
+      padding: 20,
+      backgroundColor: colors.background.card,
+      marginBottom: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border.default,
+    },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: '700',
+      color: colors.text.primary,
+      marginBottom: 8,
+    },
+    description: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      marginBottom: 20,
+      lineHeight: 20,
+    },
+    row: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 20,
+    },
+    labelContainer: {
+      flex: 1,
+      paddingRight: 10,
+    },
+    label: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.text.primary,
+    },
+    subLabel: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    button: {
+      backgroundColor: colors.primary,
+      padding: 15,
+      borderRadius: 8,
+      alignItems: 'center',
+      marginTop: 10,
+    },
+    deleteButton: {
+      backgroundColor: colors.error,
+      marginTop: 30,
+    },
+    buttonText: {
+      color: colors.onPrimary,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    infoText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginTop: 8,
+      textAlign: 'center',
+    },
+    footer: {
+      padding: 30,
+      alignItems: 'center',
+    },
+    footerText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      lineHeight: 18,
+    },
+  });
+}
 
 export default GDPRSettingsScreen;

@@ -11,6 +11,21 @@ import {
   LoyaltyProgram,
 } from '../types/loyalty';
 
+export interface StreakData {
+  current: number;
+  longest: number;
+  lastPaymentDate?: string | null;
+  frozenUntil?: string | null;
+}
+
+export interface Achievement {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  unlockedAt?: Date | null | string;
+}
+
 const STORAGE_KEY = 'subtrackr-loyalty';
 const STORE_VERSION = 1;
 

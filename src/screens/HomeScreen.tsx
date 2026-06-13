@@ -11,7 +11,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-import { colors, spacing, typography, borderRadius } from '../utils/constants';
+import { spacing, typography, borderRadius } from '../utils/constants';
 import { useSubscriptionStore, useSettingsStore } from '../store';
 
 import { getUpcomingSubscriptions } from '../utils/dummyData';
@@ -20,6 +20,7 @@ import { RootStackParamList } from '../navigation/types';
 import { useGamificationStore } from '../store/gamificationStore';
 import { useTransactionQueueStore } from '../store/transactionQueueStore';
 import { usePerformanceProfiler } from '../hooks/usePerformanceProfiler';
+import useRefresh from '../hooks/useRefresh';
 
 // Components
 import { FloatingActionButton } from '../components/common/FloatingActionButton';
@@ -28,24 +29,33 @@ import { FilterBar } from '../components/home/FilterBar';
 import { FilterModal } from '../components/home/FilterModal';
 import { StatsCard } from '../components/home/StatsCard';
 import { SubscriptionList } from '../components/home/SubscriptionList';
+import { useThemeColors } from '../hooks/useThemeColors';
 
 type HomeNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation<HomeNavigationProp>();
-  const { subscriptions, stats, fetchSubscriptions, calculateStats, toggleSubscriptionStatus } =
-    useSubscriptionStore();
+  const {
+    subscriptions,
+    stats,
+    fetchSubscriptions,
+    calculateStats,
+    toggleSubscriptionStatus,
+    deleteSubscription,
+    isLoading,
+  } = useSubscriptionStore();
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const isOnline = useTransactionQueueStore((state) => state.isOnline);
   const pendingTransactions = useTransactionQueueStore((state) => state.queuedTransactions.length);
   const { level } = useGamificationStore();
   const { preferredCurrency, exchangeRates } = useSettingsStore();
-  const [refreshing, setRefreshing] = useState(false);
+  const { refreshing, refresh } = useRefresh();
   const [upcomingSubscriptions, setUpcomingSubscriptions] = useState<Subscription[]>([]);
   const [showFilterModal, setShowFilterModal] = useState(false);
 
-
-  // Use the new hook
+  // Use the filter tracking hook
   const { filters, filteredAndSorted, activeFilterCount, hasActiveFilters, clearAllFilters } =
     useFilteredSubscriptions(subscriptions);
 
@@ -64,15 +74,22 @@ const HomeScreen: React.FC = () => {
     if (subscriptions) setUpcomingSubscriptions(getUpcomingSubscriptions(subscriptions));
   }, [subscriptions, calculateStats, preferredCurrency, exchangeRates]);
 
-
   const onRefresh = async () => {
-    setRefreshing(true);
-    await fetchSubscriptions();
-    setRefreshing(false);
+    await refresh({
+      fetcher: fetchSubscriptions,
+      minDurationMs: 400,
+      onError: (err) => {
+        console.error('Pull-to-refresh failed:', err);
+      },
+    });
   };
 
   const handleToggleStatus = async (id: string) => {
     await toggleSubscriptionStatus(id);
+  };
+
+  const handleDelete = async (id: string) => {
+    await deleteSubscription(id);
   };
 
   return (
@@ -84,7 +101,7 @@ const HomeScreen: React.FC = () => {
         style={styles.scrollView}
         refreshControl={
           <RefreshControl
-            refreshing={refreshing}
+            refreshing={refreshing || isLoading}
             onRefresh={onRefresh}
             tintColor={colors.primary}
           />
@@ -150,7 +167,6 @@ const HomeScreen: React.FC = () => {
           currency={preferredCurrency}
         />
 
-
         {!isOnline && (
           <View style={styles.offlineBanner}>
             <Text style={styles.offlineText}>
@@ -169,6 +185,7 @@ const HomeScreen: React.FC = () => {
           totalCount={subscriptions.length}
           onSubscriptionPress={(sub) => navigation.navigate('SubscriptionDetail', { id: sub.id })}
           onToggleStatus={handleToggleStatus}
+          onDelete={handleDelete}
           onAddFirstPress={() => navigation.navigate('AddSubscription')}
         />
       </ScrollView>
@@ -202,93 +219,95 @@ const HomeScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  header: {
-    padding: spacing.lg,
-    paddingBottom: spacing.sm,
-  },
-  headerTopRow: {
-    marginBottom: spacing.md,
-  },
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  title: {
-    ...typography.h1,
-    color: colors.text,
-  },
-  levelBadge: {
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.sm,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    marginLeft: spacing.sm,
-  },
-  levelText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  subtitle: {
-    ...typography.body,
-    color: colors.textSecondary,
-  },
-  toolsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-    marginTop: spacing.sm,
-  },
-  toolButton: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
-    flex: 1,
-    alignItems: 'center',
-  },
-  toolButtonOutline: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    flex: 1,
-    alignItems: 'center',
-  },
-  toolButtonText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 12,
-  },
-  toolButtonTextOutline: {
-    color: colors.text,
-    fontWeight: '700',
-    fontSize: 12,
-  },
-  offlineBanner: {
-    backgroundColor: colors.error + '20', // Translucent red
-    padding: spacing.md,
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.md,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.error,
-    alignItems: 'center',
-  },
-  offlineText: {
-    ...typography.caption,
-    color: colors.error,
-    fontWeight: '600',
-  },
-});
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background.primary,
+    },
+    scrollView: {
+      flex: 1,
+    },
+    header: {
+      padding: spacing.lg,
+      paddingBottom: spacing.sm,
+    },
+    headerTopRow: {
+      marginBottom: spacing.md,
+    },
+    titleContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    title: {
+      ...typography.h1,
+      color: colors.text.primary,
+    },
+    levelBadge: {
+      backgroundColor: colors.primary,
+      borderRadius: borderRadius.sm,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 2,
+      marginLeft: spacing.sm,
+    },
+    levelText: {
+      color: colors.onPrimary,
+      fontSize: 12,
+      fontWeight: 'bold',
+    },
+    subtitle: {
+      ...typography.body,
+      color: colors.textSecondary,
+    },
+    toolsRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.sm,
+      marginTop: spacing.sm,
+    },
+    toolButton: {
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderRadius: borderRadius.md,
+      flex: 1,
+      alignItems: 'center',
+    },
+    toolButtonOutline: {
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderRadius: borderRadius.md,
+      borderWidth: 1,
+      borderColor: colors.border.default,
+      backgroundColor: colors.surface,
+      flex: 1,
+      alignItems: 'center',
+    },
+    toolButtonText: {
+      color: colors.onPrimary,
+      fontWeight: '700',
+      fontSize: 12,
+    },
+    toolButtonTextOutline: {
+      color: colors.text.primary,
+      fontWeight: '700',
+      fontSize: 12,
+    },
+    offlineBanner: {
+      backgroundColor: colors.error + '20',
+      padding: spacing.md,
+      marginHorizontal: spacing.lg,
+      marginBottom: spacing.md,
+      borderRadius: borderRadius.md,
+      borderWidth: 1,
+      borderColor: colors.error,
+      alignItems: 'center',
+    },
+    offlineText: {
+      ...typography.caption,
+      color: colors.error,
+      fontWeight: '600',
+    },
+  });
+}
 
 export default HomeScreen;

@@ -1,5 +1,13 @@
 {
   "renderMs": 250,
   "apiLatencyMs": 1200,
-  "memoryBytes": 262144000
+  "memoryBytes": 262144000,
+  "androidStartupMs": 2000,
+  "androidFrameRateFps": 60,
+  "androidFpsTarget": "mid-range",
+  "hermesOptimizations": {
+    "inlineStoreOnPut": true,
+    "allocationProfile": true,
+    "bytecodeCache": true
+  }
 }

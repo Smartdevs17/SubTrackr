@@ -35,7 +35,8 @@ const updateGroup = (
   groups: SubscriptionGroup[],
   groupId: GroupId,
   updater: (group: SubscriptionGroup) => SubscriptionGroup
-): SubscriptionGroup[] => groups.map((group) => (group.groupId === groupId ? updater(group) : group));
+): SubscriptionGroup[] =>
+  groups.map((group) => (group.groupId === groupId ? updater(group) : group));
 
 export const useGroupStore = create<GroupState>((set, get) => ({
   groups: [],
@@ -78,7 +79,9 @@ export const useGroupStore = create<GroupState>((set, get) => ({
   removeMember: (groupId, memberAddress) => {
     try {
       set((state) => ({
-        groups: updateGroup(state.groups, groupId, (group) => removeGroupMember(group, memberAddress)),
+        groups: updateGroup(state.groups, groupId, (group) =>
+          removeGroupMember(group, memberAddress)
+        ),
         error: null,
       }));
     } catch (error) {

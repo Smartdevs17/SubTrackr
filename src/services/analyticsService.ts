@@ -32,6 +32,8 @@ export interface SubscriptionAnalyticsReport {
   mrr: number;
   arr: number;
   ltv: number;
+  arpu: number;
+  subscriberCount: number;
   churn: ChurnMetrics;
   revenueTrend: RevenuePoint[];
   cohorts: CohortMetric[];
@@ -41,9 +43,13 @@ export interface SubscriptionAnalyticsReport {
 const MONTHS_PER_YEAR = 12;
 const WEEKS_PER_MONTH = 4.345;
 
-export const toMonthlyRevenue = (subscription: Pick<Subscription, 'price' | 'billingCycle'>): number => {
-  if (subscription.billingCycle === BillingCycle.YEARLY) return subscription.price / MONTHS_PER_YEAR;
-  if (subscription.billingCycle === BillingCycle.WEEKLY) return subscription.price * WEEKS_PER_MONTH;
+export const toMonthlyRevenue = (
+  subscription: Pick<Subscription, 'price' | 'billingCycle'>
+): number => {
+  if (subscription.billingCycle === BillingCycle.YEARLY)
+    return subscription.price / MONTHS_PER_YEAR;
+  if (subscription.billingCycle === BillingCycle.WEEKLY)
+    return subscription.price * WEEKS_PER_MONTH;
   return subscription.price;
 };
 
@@ -68,9 +74,15 @@ export const calculateSubscriptionAnalytics = (
     (sum, subscription) => sum + toMonthlyRevenue(subscription),
     0
   );
-  const netChurnRate = mrr + churnedRevenue > 0 ? Math.max(0, (churnedRevenue - expansionRevenue) / (mrr + churnedRevenue)) : 0;
+  const netChurnRate =
+    mrr + churnedRevenue > 0
+      ? Math.max(0, (churnedRevenue - expansionRevenue) / (mrr + churnedRevenue))
+      : 0;
   const averageMonthlyRevenue = active.length ? mrr / active.length : 0;
-  const ltv = grossChurnRate > 0 ? averageMonthlyRevenue / grossChurnRate : averageMonthlyRevenue * MONTHS_PER_YEAR;
+  const ltv =
+    grossChurnRate > 0
+      ? averageMonthlyRevenue / grossChurnRate
+      : averageMonthlyRevenue * MONTHS_PER_YEAR;
 
   const cohorts = Array.from(
     subscriptions.reduce((map, subscription) => {
@@ -118,6 +130,8 @@ export const calculateSubscriptionAnalytics = (
     mrr,
     arr,
     ltv,
+    arpu: averageMonthlyRevenue,
+    subscriberCount: active.length,
     churn: {
       grossChurnRate,
       netChurnRate,
