@@ -2,23 +2,18 @@
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
   "schemaVersion": "1.0",
   "packageManager": "npm",
-  "_comment": "Frontend mutation testing configuration for React Native/TypeScript",
+  "_comment": "Backend mutation testing configuration for Node.js/TypeScript services",
   "mutate": [
-    "src/**/*.{ts,tsx}",
-    "app/**/*.{ts,tsx}",
-    "!src/**/*.test.{ts,tsx}",
-    "!src/**/__tests__/**",
-    "!app/**/*.test.{ts,tsx}",
-    "!app/**/__tests__/**",
-    "!src/**/*.d.ts",
-    "!src/**/index.{ts,tsx}",
-    "!app/**/index.{ts,tsx}",
-    "!src/contracts/types/**"
+    "backend/**/*.ts",
+    "!backend/**/*.test.ts",
+    "!backend/**/__tests__/**",
+    "!backend/**/*.d.ts",
+    "!backend/**/index.ts"
   ],
   "testRunner": "jest",
   "jest": {
     "projectType": "custom",
-    "configFile": "jest.config.js",
+    "configFile": "jest.backend.config.js",
     "enableFindRelatedTests": true
   },
   "checkers": ["typescript"],
@@ -27,15 +22,15 @@
   },
   "reporters": ["progress", "clear-text", "html", "json", "dashboard"],
   "htmlReporter": {
-    "fileName": "mutation-reports/frontend/index.html"
+    "fileName": "mutation-reports/backend/index.html"
   },
   "jsonReporter": {
-    "fileName": "mutation-reports/frontend/mutation-report.json"
+    "fileName": "mutation-reports/backend/mutation-report.json"
   },
   "dashboard": {
     "project": "github.com/Smartdevs17/SubTrackr",
-    "version": "frontend",
-    "module": "react-native",
+    "version": "backend",
+    "module": "node-services",
     "reportType": "full"
   },
   "coverageAnalysis": "perTest",
@@ -51,12 +46,11 @@
     "node_modules",
     "coverage",
     "dist",
-    ".expo",
     "e2e",
-    "load-tests",
+    "app",
+    "src",
     "contracts"
   ],
-  "incrementalFile": ".stryker-tmp/incremental-frontend.json",
-  "buildCommand": "npm run contracts:codegen",
+  "incrementalFile": ".stryker-tmp/incremental-backend.json",
   "cleanTempDir": true
 }

@@ -19,6 +19,12 @@
     "test": "jest --passWithNoTests",
     "test:coverage": "jest --coverage",
     "performance:ci": "node scripts/check-performance-budget.js",
+    "mutation:test": "stryker run",
+    "mutation:test:frontend": "stryker run --configFile stryker.conf.json",
+    "mutation:test:backend": "stryker run --configFile stryker.backend.conf.json",
+    "mutation:test:incremental": "node scripts/run-incremental-mutation.js",
+    "mutation:test:report": "node scripts/generate-mutation-report.js",
+    "mutation:analyze": "node scripts/analyze-equivalent-mutants.js",
     "performance:benchmark": "node scripts/check-performance-budget.js",
     "mutation:test": "npx --yes @stryker-mutator/core@9.0.0 run",
     "build": "expo export",
@@ -142,7 +148,12 @@
     "size-limit": "^11.1.4",
     "ts-jest": "^29.4.11",
     "typechain": "^8.3.2",
-    "typescript": "~5.8.3"
+    "typescript": "~5.8.3",
+    "@stryker-mutator/core": "^9.0.0",
+    "@stryker-mutator/jest-runner": "^9.0.0",
+    "@stryker-mutator/typescript-checker": "^9.0.0",
+    "@stryker-mutator/api": "^9.0.0",
+    "simple-git": "^3.27.0"
   },
   "private": false,
   "repository": {

@@ -1,0 +1,281 @@
+name: Mutation Testing
+
+on:
+  pull_request:
+    branches: [main, dev, develop]
+    paths:
+      - 'src/**/*.ts'
+      - 'src/**/*.tsx'
+      - 'app/**/*.ts'
+      - 'app/**/*.tsx'
+      - 'backend/**/*.ts'
+      - '**/*.test.ts'
+      - '**/*.test.tsx'
+      - 'stryker*.conf.json'
+      - 'jest*.config.js'
+  push:
+    branches: [main]
+    paths:
+      - 'src/**/*.ts'
+      - 'src/**/*.tsx'
+      - 'app/**/*.ts'
+      - 'app/**/*.tsx'
+      - 'backend/**/*.ts'
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: 'Test scope (frontend, backend, or both)'
+        required: true
+        default: 'both'
+        type: choice
+        options:
+          - both
+          - frontend
+          - backend
+      incremental:
+        description: 'Run incremental mutation testing'
+        required: false
+        default: true
+        type: boolean
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  mutation-test:
+    name: Mutation Testing
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Needed for incremental testing
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Cache node modules
+        uses: actions/cache@v4
+        id: cache-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-${{ env.NODE_VERSION }}-
+
+      - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm ci --legacy-peer-deps
+
+      - name: Cache Stryker incremental files
+        uses: actions/cache@v4
+        with:
+          path: .stryker-tmp
+          key: ${{ runner.os }}-stryker-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-stryker-
+
+      - name: Download previous mutation history
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow: mutation-testing.yml
+          branch: main
+          name: mutation-history
+          path: mutation-reports/
+          if_no_artifact_found: ignore
+
+      # Incremental mutation testing for PRs
+      - name: Run incremental mutation testing (PR)
+        if: github.event_name == 'pull_request' && (github.event.inputs.incremental != 'false')
+        run: npm run mutation:test:incremental
+        continue-on-error: true
+        env:
+          GITHUB_BASE_REF: ${{ github.event.pull_request.base.ref }}
+
+      # Full mutation testing for main branch or manual trigger
+      - name: Run full frontend mutation testing
+        if: (github.event_name == 'push' || github.event.inputs.incremental == 'false') && (github.event.inputs.scope != 'backend')
+        run: npm run mutation:test:frontend
+        continue-on-error: true
+
+      - name: Run full backend mutation testing
+        if: (github.event_name == 'push' || github.event.inputs.incremental == 'false') && (github.event.inputs.scope != 'frontend')
+        run: npm run mutation:test:backend
+        continue-on-error: true
+
+      # Manual workflow dispatch
+      - name: Run frontend mutation testing (manual)
+        if: github.event_name == 'workflow_dispatch' && (github.event.inputs.scope == 'frontend' || github.event.inputs.scope == 'both')
+        run: npm run mutation:test:frontend
+        continue-on-error: true
+
+      - name: Run backend mutation testing (manual)
+        if: github.event_name == 'workflow_dispatch' && (github.event.inputs.scope == 'backend' || github.event.inputs.scope == 'both')
+        run: npm run mutation:test:backend
+        continue-on-error: true
+
+      - name: Generate mutation reports
+        if: always()
+        run: npm run mutation:test:report
+        continue-on-error: true
+
+      - name: Upload frontend mutation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report-frontend-${{ github.sha }}
+          path: mutation-reports/frontend/
+          retention-days: 30
+
+      - name: Upload backend mutation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report-backend-${{ github.sha }}
+          path: mutation-reports/backend/
+          retention-days: 30
+
+      - name: Upload mutation history
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-history
+          path: mutation-reports/mutation-history.json
+          retention-days: 90
+
+      - name: Upload mutation summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-summary-${{ github.sha }}
+          path: mutation-reports/mutation-summary.md
+          retention-days: 30
+
+      # Post PR comment with results
+      - name: Read mutation summary
+        if: github.event_name == 'pull_request' && always()
+        id: mutation-summary
+        run: |
+          if [ -f mutation-reports/mutation-summary.md ]; then
+            {
+              echo 'SUMMARY<<EOF'
+              cat mutation-reports/mutation-summary.md
+              echo EOF
+            } >> "$GITHUB_OUTPUT"
+          else
+            echo "SUMMARY=Mutation testing report not available." >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Comment PR with mutation results
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const summary = `${{ steps.mutation-summary.outputs.SUMMARY }}`;
+            
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes('🧬 Mutation Testing Report')
+            );
+
+            const commentBody = summary + '\n\n---\n*Updated: ' + new Date().toUTCString() + '*';
+
+            if (botComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: commentBody
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: commentBody
+              });
+            }
+
+      # Check mutation score threshold
+      - name: Check mutation score threshold
+        if: always()
+        run: |
+          if [ -f mutation-reports/mutation-history.json ]; then
+            SCORE=$(node -e "
+              const history = require('./mutation-reports/mutation-history.json');
+              const latest = history[history.length - 1];
+              console.log(latest.scores.overall.toFixed(2));
+            ")
+            echo "Mutation Score: $SCORE%"
+            
+            THRESHOLD=75
+            if (( $(echo "$SCORE < $THRESHOLD" | bc -l) )); then
+              echo "❌ Mutation score $SCORE% is below threshold $THRESHOLD%"
+              exit 1
+            else
+              echo "✅ Mutation score $SCORE% meets threshold $THRESHOLD%"
+            fi
+          else
+            echo "⚠️ No mutation history found, skipping threshold check"
+          fi
+
+  # Create mutation testing badge
+  mutation-badge:
+    name: Update Mutation Badge
+    runs-on: ubuntu-latest
+    needs: mutation-test
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download mutation history
+        uses: actions/download-artifact@v4
+        with:
+          name: mutation-history
+          path: mutation-reports/
+
+      - name: Create mutation badge
+        run: |
+          SCORE=$(node -e "
+            const history = require('./mutation-reports/mutation-history.json');
+            const latest = history[history.length - 1];
+            console.log(latest.scores.overall.toFixed(0));
+          ")
+          
+          COLOR="red"
+          if [ "$SCORE" -ge 75 ]; then
+            COLOR="brightgreen"
+          elif [ "$SCORE" -ge 60 ]; then
+            COLOR="yellow"
+          fi
+          
+          curl -s "https://img.shields.io/badge/mutation-${SCORE}%25-${COLOR}" > mutation-badge.svg
+
+      - name: Upload badge
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-badge
+          path: mutation-badge.svg
+          retention-days: 90
