@@ -2,7 +2,7 @@
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
-  testMatch: ['**/backend/**/__tests__/**/*.test.ts'],
+  testMatch: ['**/backend/**/__tests__/**/*.test.ts', '**/backend/tests/**/*.test.ts'],
   transform: {
     '^.+\\.tsx?$': ['ts-jest', { tsconfig: { strict: false, skipLibCheck: true } }],
   },
