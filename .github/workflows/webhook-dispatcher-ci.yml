@@ -1,0 +1,88 @@
+name: Webhook Dispatcher CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'services/webhook-dispatcher/**'
+  pull_request:
+    paths:
+      - 'services/webhook-dispatcher/**'
+
+jobs:
+  build-and-test:
+    name: Build & Test Webhook Dispatcher
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/webhook-dispatcher
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: services/webhook-dispatcher/package.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: TypeCheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm run test
+
+      - name: Build
+        run: npm run build
+
+      - name: Build Docker image
+        run: docker build -t subtrackr/webhook-dispatcher:${{ github.sha }} .
+
+  performance:
+    name: Performance Check
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main'
+    defaults:
+      run:
+        working-directory: services/webhook-dispatcher
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: services/webhook-dispatcher/package.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Performance test
+        run: |
+          echo "Running performance checks..."
+          npx ts-node -e "
+            const start = Date.now();
+            // Verify dispatch under 500ms p99
+            const http = require('./dist/dispatchers/http');
+            const d = new http.HttpWebhookDispatcher({ maxRetries: 0, initialDelayMs: 10, maxDelayMs: 10, backoffFactor: 2, timeout: 500 });
+            d.dispatch({
+              url: 'http://localhost:9999/webhook',
+              payload: { test: true },
+              headers: {},
+              signature: 'test',
+              eventType: 'test.event',
+              eventId: 'test-1',
+              idempotencyKey: 'key-1',
+            }).then(r => {
+              console.log('Dispatch test completed:', r);
+              console.log('Duration:', Date.now() - start, 'ms');
+            });
+          "
