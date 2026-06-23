@@ -1,3 +1,14 @@
+// Orchestrator — Docker-based ephemeral sandbox lifecycle
+export { ContainerManager, containerManager, MaxSandboxesError, TtlExtensionLimitError } from './orchestrator/containerManager';
+export type { SandboxContainerSpec, SandboxContainerStatus } from './orchestrator/containerManager';
+
+// Cleanup worker — TTL checker and container teardown cron
+export { CleanupWorker } from './cleanup-worker/cleanupWorker';
+
+// Seed data runner
+export { SeedRunner } from './seed/index';
+export type { SeedConfig } from './seed/index';
+
 export { SandboxService, sandboxService } from './services/sandboxService';
 export { SandboxIsolationService } from './services/sandboxIsolationService';
 export { ApiKeyService } from './services/apiKeyService';

@@ -1,0 +1,59 @@
+# Sandbox stack template - placeholders are replaced by the orchestrator at provision time
+version: "3.8"
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: subtrackr_sandbox_{{SANDBOX_ID}}_db
+    environment:
+      POSTGRES_USER: subtrackr
+      POSTGRES_PASSWORD: {{DB_PASSWORD}}
+      POSTGRES_DB: subtrackr_sandbox
+    volumes:
+      - sandbox_data_{{SANDBOX_ID}}:/var/lib/postgresql/data
+      - ./seed/seed.sql:/docker-entrypoint-initdb.d/01-seed.sql
+    ports:
+      - "{{DB_HOST_PORT}}:5432"
+    networks:
+      - sandbox_net_{{SANDBOX_ID}}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U subtrackr -d subtrackr_sandbox"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    mem_limit: 256m
+    cpus: 0.5
+    restart: unless-stopped
+
+  api:
+    image: subtrackr/sandbox-api:latest
+    container_name: subtrackr_sandbox_{{SANDBOX_ID}}_api
+    environment:
+      NODE_ENV: sandbox
+      DATABASE_URL: postgres://subtrackr:{{DB_PASSWORD}}@db:5432/subtrackr_sandbox
+      SANDBOX_ID: "{{SANDBOX_ID}}"
+      STELLAR_NETWORK: testnet
+      STELLAR_HORIZON_URL: https://horizon-testnet.stellar.org
+      FRIENDBOT_URL: https://friendbot.stellar.org
+      STELLAR_SANDBOX_ACCOUNT: {{STELLAR_ACCOUNT}}
+      LOG_LEVEL: debug
+      IDLE_TIMEOUT_MINUTES: "30"
+    ports:
+      - "{{API_HOST_PORT}}:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - sandbox_net_{{SANDBOX_ID}}
+    mem_limit: 256m
+    cpus: 0.5
+    restart: unless-stopped
+
+networks:
+  sandbox_net_{{SANDBOX_ID}}:
+    driver: bridge
+
+volumes:
+  sandbox_data_{{SANDBOX_ID}}:
+    name: subtrackr_sandbox_data_{{SANDBOX_ID}}
+    driver: local

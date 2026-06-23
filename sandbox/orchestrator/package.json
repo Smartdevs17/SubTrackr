@@ -1,0 +1,15 @@
+{
+  "name": "@subtrackr/sandbox-orchestrator",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Docker API orchestration service for ephemeral sandbox instances",
+  "main": "index.ts",
+  "dependencies": {
+    "dockerode": "^4.0.0",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/dockerode": "^4.0.0",
+    "@types/uuid": "^9.0.0"
+  }
+}
