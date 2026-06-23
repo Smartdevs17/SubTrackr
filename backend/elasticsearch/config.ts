@@ -12,6 +12,8 @@ export interface ElasticsearchConfig {
   searchFields: { field: string; boost: number }[];
   maxResults: number;
   analyticsEnabled: boolean;
+  /** Analyzer locales used for multilingual tokenization */
+  analyzerLocales: string[];
 }
 
 export const DEFAULT_ES_CONFIG: ElasticsearchConfig = {
@@ -19,13 +21,18 @@ export const DEFAULT_ES_CONFIG: ElasticsearchConfig = {
   fuzzyMaxEdits: 1,
   fuzzyMinLength: 4,
   searchFields: [
-    { field: 'name', boost: 3 },
+    { field: 'customerName', boost: 3 },
+    { field: 'customerEmail', boost: 3 },
+    { field: 'planName', boost: 3 },
+    { field: 'name', boost: 2 },
+    { field: 'notes', boost: 2 },
     { field: 'description', boost: 1 },
-    { field: 'category', boost: 2 },
+    { field: 'category', boost: 1 },
     { field: 'currency', boost: 1 },
   ],
   maxResults: 100,
   analyticsEnabled: true,
+  analyzerLocales: ['en', 'fr', 'de', 'es'],
 };
 
 export interface IndexMapping {
@@ -37,6 +44,10 @@ export interface IndexMapping {
 
 export const SUBSCRIPTION_INDEX_MAPPING: IndexMapping = {
   properties: {
+    customerName: { type: 'text', analyzer: 'standard' },
+    customerEmail: { type: 'text', analyzer: 'standard' },
+    planName: { type: 'text', analyzer: 'standard' },
+    notes: { type: 'text', analyzer: 'standard' },
     name: { type: 'text', analyzer: 'standard' },
     description: { type: 'text', analyzer: 'standard' },
     category: { type: 'keyword' },

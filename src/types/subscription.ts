@@ -27,6 +27,14 @@ export interface Subscription {
   oraclePriceDeviationBps?: number;
   groupId?: string;
   groupMemberAddress?: string;
+  /** Customer name for search and B2B subscriptions */
+  customerName?: string;
+  /** Customer email associated with the subscription */
+  customerEmail?: string;
+  /** Plan name (defaults to subscription name when unset) */
+  planName?: string;
+  /** Free-form notes indexed for advanced search */
+  notes?: string;
   timezone?: string;
   createdAt: Date;
   updatedAt: Date;

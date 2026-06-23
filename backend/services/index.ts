@@ -102,14 +102,16 @@ export type {
   SubscriptionEventQuery,
   SubscriptionEventType,
 } from './subscription/subscriptionEventStore';
-export { ElasticsearchService, elasticsearchService } from './subscription/ElasticsearchService';
+export { ElasticsearchService, elasticsearchService } from './search/ElasticsearchService';
 export type {
   SearchQuery,
   SearchHit,
   FacetResult,
   SearchResult,
   SearchAnalyticsEvent,
-} from './subscription/ElasticsearchService';
+  SavedSearchDefinition,
+  SavedSearchMatchNotification,
+} from './search/ElasticsearchService';
 export type { ISubscriptionEventStore, IElasticsearchService } from './subscription/interfaces';
 export { SubscriptionError } from './subscription/errors';
 
