@@ -328,3 +328,42 @@ export type {
 
 // ── DI Container ──────────────────────────────────────────────────────────────
 export { container, Container } from './container';
+
+// ── Soroban Node Reputation (#612) ───────────────────────────────────────────
+export {
+  SorobanNodeRegistry,
+  sorobanNodeRegistry,
+  DEFAULT_SOROBAN_NODES,
+} from '../config/sorobanNodeRegistry';
+export type { SorobanNodeConfig, SorobanNetwork } from '../config/sorobanNodeRegistry';
+export { NodeScoreCache } from '../shared/cache/nodeScoreCache';
+export type { NodeScoreRecord, NodeScoreCacheConfig } from '../shared/cache/nodeScoreCache';
+export {
+  NodeReputationService,
+  nodeReputationService,
+  NodeSelector,
+  nodeSelector,
+  REPUTATION_WEIGHTS,
+  REPUTATION_THRESHOLDS,
+} from '../shared/soroban';
+export type {
+  LivenessProvider,
+  OpsAlertDispatcher,
+  RandomSource,
+  LatencyPercentiles,
+  NodeMetrics,
+  NodeReputationScore,
+  NodeSelectionResult,
+  CircuitBreakerState,
+  RpcRequestOutcome,
+  NodeHealthSnapshot,
+  ReputationDashboardSnapshot,
+} from '../shared/soroban';
+export {
+  NodeReputationMetrics,
+  nodeReputationMetrics,
+} from '../monitoring/nodeReputationMetrics';
+export type {
+  NodeMetricEntry,
+  NodeReputationMetricsSnapshot,
+} from '../monitoring/nodeReputationMetrics';
