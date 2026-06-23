@@ -1,0 +1,16 @@
+version: '3.8'
+services:
+  stellar-standalone:
+    build:
+      context: ./docker
+      dockerfile: stellar-standalone.Dockerfile
+    image: subtrackr/stellar-standalone:test
+    ports:
+      - '8000:8000'
+      - '11626:11626'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    shm_size: '64mb'
