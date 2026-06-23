@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { asyncStorageAdapter } from '../utils/storage';
 import {
   FraudAction,
   FraudAnalytics,
@@ -838,7 +838,7 @@ export const useFraudStore = create<FraudState>()(
     }),
     {
       name: STORAGE_KEY,
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => asyncStorageAdapter),
     }
   )
 );

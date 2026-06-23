@@ -6,6 +6,7 @@ import { AppNavigator } from './src/navigation/AppNavigator';
 import { useNotifications } from './src/hooks/useNotifications';
 import { useTransactionQueue } from './src/hooks/useTransactionQueue';
 import ErrorBoundary from './src/components/ErrorBoundary';
+import { HydrationGate } from './src/components/HydrationGate';
 import { initI18n } from './src/i18n/config';
 import i18n from './src/i18n/config';
 import { I18nextProvider } from 'react-i18next';
@@ -152,8 +153,10 @@ export default function App() {
         <StatusBar style="light" />
         <ErrorBoundary>
           <I18nextProvider i18n={i18n}>
-            <NotificationBootstrap />
-            <AppNavigator />
+            <HydrationGate>
+              <NotificationBootstrap />
+              <AppNavigator />
+            </HydrationGate>
           </I18nextProvider>
         </ErrorBoundary>
         <AppKit />

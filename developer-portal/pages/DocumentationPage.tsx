@@ -8,6 +8,7 @@ import {
   TextInput,
   FlatList,
 } from 'react-native';
+import { useDebounce } from '../../src/hooks/useDebounce';
 
 interface DocSection {
   id: string;
@@ -147,11 +148,12 @@ const QUICK_START_GUIDES: QuickStartGuide[] = [
 export const DocumentationPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSection, setSelectedSection] = useState<DocSection | null>(null);
+  const debouncedSearchQuery = useDebounce(searchQuery);
 
   const filteredSections = DOC_SECTIONS.filter(
     (section) =>
-      section.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      section.content.toLowerCase().includes(searchQuery.toLowerCase())
+      section.title.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+      section.content.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
   );
 
   const getDifficultyColor = (difficulty: string): string => {

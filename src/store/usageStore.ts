@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { asyncStorageAdapter } from '../utils/storage';
 import { UsageRecord, Quota, QuotaMetric, QuotaStatus } from '../types/usage';
 import { errorHandler } from '../services/errorHandler';
 
@@ -103,7 +103,7 @@ export const useUsageStore = create<UsageState>()(
     }),
     {
       name: 'subtrackr-usage-store',
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => asyncStorageAdapter),
     }
   )
 );
