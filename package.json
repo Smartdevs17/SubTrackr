@@ -58,7 +58,15 @@
     "sdk:test:go": "cd sdks/go && go test ./...",
     "bundle-size": "size-limit",
     "bundle-size:why": "size-limit --why",
-    "bundle-analyze": "EXPO_BUNDLE_ANALYZE=true npx expo export"
+    "bundle-analyze": "EXPO_BUNDLE_ANALYZE=true npx expo export",
+    "db:migrate:dryrun": "node scripts/db-migrate-dryrun.js",
+    "db:migrate:lint": "node scripts/db-migration-lint.js",
+    "db:schema:drift": "node scripts/db-schema-drift.js",
+    "db:migrate:emc": "node scripts/db-expand-migrate-contract.js",
+    "db:migrate:up": "echo 'Configure db:migrate:up with your migration runner (e.g. knex, prisma, flyway)'",
+    "db:migrate:down": "echo 'Configure db:migrate:down with your migration runner'",
+    "isr:validate": "node scripts/isr-validate.js",
+    "isr:validate:dry": "node scripts/isr-validate.js --dry-run"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.1.2",
