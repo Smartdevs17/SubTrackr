@@ -77,6 +77,11 @@ const PaymentMethodsScreen = lazyScreen(() =>
   }))
 );
 const AnalyticsDashboard = lazyScreen(() => import('../../app/screens/AnalyticsDashboard'));
+const AdvancedSearchScreen = lazyScreen(() =>
+  import('../../app/screens/AdvancedSearchScreen').then((m) => ({
+    default: m.AdvancedSearchScreen,
+  }))
+);
 
 const Tab = createBottomTabNavigator<TabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -354,6 +359,11 @@ const SettingsStack = () => (
       name="AnalyticsDashboard"
       component={AnalyticsDashboard}
       options={{ title: 'Analytics Dashboard', headerShown: true }}
+    />
+    <Stack.Screen
+      name="AdvancedSearch"
+      component={AdvancedSearchScreen}
+      options={{ title: 'Advanced Search', headerShown: true }}
     />
   </Stack.Navigator>
 );

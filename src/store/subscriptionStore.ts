@@ -80,6 +80,10 @@ const normalizeSubscription = (raw: Partial<Subscription>): Subscription => {
     cryptoStreamId: raw.cryptoStreamId,
     cryptoToken: raw.cryptoToken,
     cryptoAmount: raw.cryptoAmount,
+    customerName: raw.customerName,
+    customerEmail: raw.customerEmail,
+    planName: raw.planName,
+    notes: raw.notes,
     createdAt: toValidDate(raw.createdAt, now),
     updatedAt: toValidDate(raw.updatedAt, now),
   };

@@ -4,7 +4,7 @@ import {
   elasticsearchService,
   SearchQuery,
   SearchResult,
-} from '../../backend/services/subscription/ElasticsearchService';
+} from '../../backend/services/search/ElasticsearchService';
 
 const EMPTY_RESULT: SearchResult = {
   hits: [],
@@ -13,6 +13,8 @@ const EMPTY_RESULT: SearchResult = {
   facets: {
     categories: [],
     billingCycles: [],
+    plans: [],
+    statuses: [],
     priceStats: { min: 0, max: 0, avg: 0 },
     activeCount: 0,
     cryptoCount: 0,
