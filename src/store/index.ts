@@ -1,5 +1,6 @@
 export { useSubscriptionStore } from './subscriptionStore';
 export { useInvoiceStore } from './invoiceStore';
+export { useCreditStore } from './creditStore';
 export { useTransactionQueueStore } from './transactionQueueStore';
 export { useDunningStore } from './dunningStore';
 export { useWalletStore } from './walletStore';
