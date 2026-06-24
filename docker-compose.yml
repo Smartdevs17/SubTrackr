@@ -1,0 +1,68 @@
+# Issue #600: Local PgBouncer for serverless connection-multiplexing dev/test.
+#
+# Brings up PostgreSQL plus a PgBouncer transaction-pooling proxy so local
+# handlers connect through the same multiplexing path as production.
+#
+#   App / serverless handlers -> PgBouncer :6432 -> PostgreSQL :5432
+#
+# Credentials are read from a local .env file (see .env.example) — never
+# hardcoded here. Copy .env.example to .env and set DB_PASSWORD before running:
+#   cp .env.example .env && docker compose up
+#
+# Point the app at the proxy:
+#   DB_PROXY_HOST=localhost  DB_PROXY_PORT=6432  DB_PROXY_AUTH_MODE=scram-256
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-subtrackr}
+      POSTGRES_USER: ${DB_USER:-subtrackr_app}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      # SCRAM-SHA-256 so PgBouncer auth matches production.
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-subtrackr_app} -d ${DB_NAME:-subtrackr}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  pgbouncer:
+    image: edoburu/pgbouncer:1.23.1
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # DB_USER / DB_PASSWORD / DB_NAME interpolated from .env (see below).
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: ${DB_USER:-subtrackr_app}
+      DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      DB_NAME: ${DB_NAME:-subtrackr}
+      # Transaction pooling: small server pool fans out to many clients.
+      POOL_MODE: transaction
+      AUTH_TYPE: scram-sha-256
+      MAX_CLIENT_CONN: "500"
+      DEFAULT_POOL_SIZE: "50"
+      MIN_POOL_SIZE: "5"
+      RESERVE_POOL_SIZE: "10"
+      # Prepared-statement support in transaction mode (PgBouncer >= 1.21).
+      MAX_PREPARED_STATEMENTS: "256"
+      # Force-close server connections abandoned past the leak threshold (30s).
+      SERVER_IDLE_TIMEOUT: "30"
+      QUERY_TIMEOUT: "30"
+    ports:
+      - "6432:6432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 6432 -U ${DB_USER:-subtrackr_app}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:
