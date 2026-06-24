@@ -13,20 +13,22 @@ describe('Button Component', () => {
   // ========================================================================
 
   it('should render with label text', () => {
-    render(
-      <Button
-        label="Click Me"
-        onPress={() => {}}
-        accessibilityLabel="Click button"
-      />
-    );
+    render(<Button label="Click Me" onPress={() => {}} accessibilityLabel="Click button" />);
 
     const button = screen.getByText('Click Me');
     expect(button).toBeTruthy();
   });
 
   it('should render all variants', () => {
-    const variants = ['primary', 'secondary', 'outline', 'ghost', 'danger', 'success', 'crypto'] as const;
+    const variants = [
+      'primary',
+      'secondary',
+      'outline',
+      'ghost',
+      'danger',
+      'success',
+      'crypto',
+    ] as const;
 
     variants.forEach((variant) => {
       const { unmount } = render(
@@ -70,13 +72,7 @@ describe('Button Component', () => {
   it('should call onPress when tapped', () => {
     const mockOnPress = jest.fn();
 
-    render(
-      <Button
-        label="Press Me"
-        onPress={mockOnPress}
-        accessibilityLabel="Press button"
-      />
-    );
+    render(<Button label="Press Me" onPress={mockOnPress} accessibilityLabel="Press button" />);
 
     const button = screen.getByText('Press Me');
     fireEvent.press(button);
@@ -105,13 +101,7 @@ describe('Button Component', () => {
   it('should handle async onPress', async () => {
     const mockOnPress = jest.fn().mockResolvedValue(undefined);
 
-    render(
-      <Button
-        label="Async Button"
-        onPress={mockOnPress}
-        accessibilityLabel="Async button"
-      />
-    );
+    render(<Button label="Async Button" onPress={mockOnPress} accessibilityLabel="Async button" />);
 
     const button = screen.getByText('Async Button');
     fireEvent.press(button);
@@ -172,12 +162,7 @@ describe('Button Component', () => {
 
   it('should display loading indicator', () => {
     render(
-      <Button
-        label="Loading"
-        onPress={() => {}}
-        loading
-        accessibilityLabel="Loading button"
-      />
+      <Button label="Loading" onPress={() => {}} loading accessibilityLabel="Loading button" />
     );
 
     // The loading indicator should be rendered
@@ -220,9 +205,10 @@ describe('Button Component', () => {
     );
 
     const button = getByTestId('full-width-button');
-    expect(button).toHaveProp('style', expect.arrayContaining([
-      expect.objectContaining({ width: '100%' }),
-    ]));
+    expect(button).toHaveProp(
+      'style',
+      expect.arrayContaining([expect.objectContaining({ width: '100%' })])
+    );
   });
 
   // ========================================================================
@@ -244,11 +230,7 @@ describe('Button Component', () => {
 
   it('should generate test ID from label', () => {
     const { getByTestId } = render(
-      <Button
-        label="Auto Test ID"
-        onPress={() => {}}
-        accessibilityLabel="Auto ID button"
-      />
+      <Button label="Auto Test ID" onPress={() => {}} accessibilityLabel="Auto ID button" />
     );
 
     expect(getByTestId('button-auto-test-id')).toBeTruthy();

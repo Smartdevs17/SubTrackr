@@ -79,10 +79,7 @@ export const localStorageAdapter: StateStorage = {
 // Reads are served from the pending-write cache first, avoiding stale reads.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function makeDebouncedAdapter(
-  base: StateStorage,
-  debounceMs: number,
-): StateStorage {
+export function makeDebouncedAdapter(base: StateStorage, debounceMs: number): StateStorage {
   const pending = new Map<string, string>();
   let timer: ReturnType<typeof setTimeout> | null = null;
   let writeQueue: Promise<void> = Promise.resolve();
@@ -92,7 +89,7 @@ export function makeDebouncedAdapter(
     const writes = Array.from(pending.entries());
     pending.clear();
     writeQueue = writeQueue.then(() =>
-      Promise.all(writes.map(([k, v]) => base.setItem(k, v))).then(() => undefined),
+      Promise.all(writes.map(([k, v]) => base.setItem(k, v))).then(() => undefined)
     );
   };
 
