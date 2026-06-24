@@ -2,6 +2,13 @@ import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react-native';
 import { FloatingActionButton } from './FloatingActionButton';
 
+jest.mock('../../hooks/useThemeColors', () => ({
+  useThemeColors: () => ({
+    brand: { primary: '#2563eb' },
+    onPrimary: '#ffffff',
+  }),
+}));
+
 describe('FloatingActionButton', () => {
   beforeEach(() => {
     jest.clearAllMocks();
