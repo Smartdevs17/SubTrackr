@@ -1,0 +1,892 @@
+openapi: 3.1.0
+info:
+  title: SubTrackr API
+  description: |
+    OpenAPI 3.1 specification for the SubTrackr subscription management platform.
+    This is the single source of truth for all SDK client generation.
+    All SDKs are auto-generated from this spec via openapi-generator in CI.
+  version: 2.0.0
+  contact:
+    name: SubTrackr
+    url: https://github.com/Smartdevs17/SubTrackr
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.subtrackr.dev/v1
+    description: Development API
+  - url: https://api.subtrackr.com/v1
+    description: Production API
+
+paths:
+  /subscriptions:
+    get:
+      summary: List subscriptions
+      description: Retrieve paginated list of subscriptions for the authenticated user.
+      operationId: listSubscriptions
+      tags: [Subscriptions]
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, paused, cancelled, past_due]
+      responses:
+        '200':
+          description: Paginated list of subscriptions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Subscription'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      summary: Create subscription
+      description: Create a new subscription for a user.
+      operationId: createSubscription
+      tags: [Subscriptions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSubscriptionRequest'
+      responses:
+        '201':
+          description: Subscription created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /subscriptions/{id}:
+    get:
+      summary: Get subscription
+      description: Retrieve a single subscription by ID.
+      operationId: getSubscription
+      tags: [Subscriptions]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Subscription details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      summary: Update subscription
+      description: Update an existing subscription.
+      operationId: updateSubscription
+      tags: [Subscriptions]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSubscriptionRequest'
+      responses:
+        '200':
+          description: Subscription updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      summary: Cancel subscription
+      description: Cancel an active subscription.
+      operationId: cancelSubscription
+      tags: [Subscriptions]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Subscription cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /plans:
+    get:
+      summary: List plans
+      description: Retrieve paginated list of subscription plans.
+      operationId: listPlans
+      tags: [Plans]
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: active
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Paginated list of plans
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Plan'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+    post:
+      summary: Create plan
+      description: Create a new subscription plan.
+      operationId: createPlan
+      tags: [Plans]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePlanRequest'
+      responses:
+        '201':
+          description: Plan created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Plan'
+
+  /plans/{id}:
+    get:
+      summary: Get plan
+      description: Retrieve a single plan by ID.
+      operationId: getPlan
+      tags: [Plans]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Plan details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Plan'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      summary: Update plan
+      description: Update an existing plan.
+      operationId: updatePlan
+      tags: [Plans]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePlanRequest'
+      responses:
+        '200':
+          description: Plan updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Plan'
+
+  /analytics/mrr:
+    get:
+      summary: Get MRR
+      description: Retrieve Monthly Recurring Revenue analytics.
+      operationId: getMonthlyRecurringRevenue
+      tags: [Analytics]
+      parameters:
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: MRR data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MRRDataPoint'
+
+  /analytics/churn:
+    get:
+      summary: Get churn rate
+      description: Retrieve churn rate analytics.
+      operationId: getChurnRate
+      tags: [Analytics]
+      parameters:
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Churn rate data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChurnDataPoint'
+
+  /analytics/cohort-retention:
+    get:
+      summary: Get cohort retention
+      description: Retrieve cohort retention analysis.
+      operationId: getCohortRetention
+      tags: [Analytics]
+      parameters:
+        - name: cohort
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Cohort retention data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CohortRetention'
+
+  /analytics/ltv:
+    get:
+      summary: Get LTV
+      description: Retrieve Lifetime Value analytics.
+      operationId: getLifetimeValue
+      tags: [Analytics]
+      parameters:
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: LTV data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LTVDataPoint'
+
+  /audit/events:
+    get:
+      summary: Search audit events
+      description: Search tamper-evident audit log events with filtering and pagination.
+      operationId: searchAuditEvents
+      tags: [Audit]
+      parameters:
+        - name: actor_id
+          in: query
+          schema:
+            type: string
+        - name: action
+          in: query
+          schema:
+            type: string
+        - name: resource_type
+          in: query
+          schema:
+            type: string
+        - name: resource_id
+          in: query
+          schema:
+            type: string
+        - name: from
+          in: query
+          schema:
+            type: integer
+        - name: to
+          in: query
+          schema:
+            type: integer
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Paginated audit events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AuditEvent'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+
+  /audit/verify:
+    post:
+      summary: Verify audit chain
+      description: Verify the integrity of the audit hash chain.
+      operationId: verifyAuditChain
+      tags: [Audit]
+      responses:
+        '200':
+          description: Chain integrity status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditVerificationResult'
+
+  /benchmark/reports:
+    get:
+      summary: Get benchmark reports
+      description: Retrieve anonymized benchmark comparison reports.
+      operationId: getBenchmarkReports
+      tags: [Benchmark]
+      parameters:
+        - name: vertical
+          in: query
+          schema:
+            type: string
+            enum: [saas, ecommerce, media, education, healthcare, fintech]
+        - name: region
+          in: query
+          schema:
+            type: string
+        - name: company_size
+          in: query
+          schema:
+            type: string
+            enum: [small, medium, large, enterprise]
+      responses:
+        '200':
+          description: Benchmark report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BenchmarkReport'
+
+  /benchmark/consent:
+    post:
+      summary: Set benchmark consent
+      description: Opt in or out of anonymized benchmark data contribution.
+      operationId: setBenchmarkConsent
+      tags: [Benchmark]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BenchmarkConsentRequest'
+      responses:
+        '200':
+          description: Consent updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BenchmarkConsent'
+
+  /benchmark/consent/purge:
+    post:
+      summary: Purge benchmark data
+      description: Withdraw consent and purge all contributed benchmark data.
+      operationId: purgeBenchmarkData
+      tags: [Benchmark]
+      responses:
+        '200':
+          description: Data purged
+
+components:
+  schemas:
+    Subscription:
+      type: object
+      required: [id, plan_id, user_id, status, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        plan_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+        status:
+          type: string
+          enum: [active, paused, cancelled, past_due]
+        amount:
+          type: number
+          format: float
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+        billing_cycle:
+          type: string
+          enum: [weekly, monthly, quarterly, yearly]
+        next_billing_date:
+          type: string
+          format: date-time
+        started_at:
+          type: string
+          format: date-time
+        cancelled_at:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateSubscriptionRequest:
+      type: object
+      required: [plan_id, user_id]
+      properties:
+        plan_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+        metadata:
+          type: object
+
+    UpdateSubscriptionRequest:
+      type: object
+      properties:
+        metadata:
+          type: object
+
+    Plan:
+      type: object
+      required: [id, name, price, currency, interval, active]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+          format: float
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+        interval:
+          type: string
+          enum: [weekly, monthly, quarterly, yearly]
+        trial_period_days:
+          type: integer
+        active:
+          type: boolean
+        metadata:
+          type: object
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreatePlanRequest:
+      type: object
+      required: [name, price, currency, interval]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+          format: float
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+        interval:
+          type: string
+          enum: [weekly, monthly, quarterly, yearly]
+        trial_period_days:
+          type: integer
+        metadata:
+          type: object
+
+    UpdatePlanRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+          format: float
+        active:
+          type: boolean
+        metadata:
+          type: object
+
+    PaginationMeta:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+
+    MRRDataPoint:
+      type: object
+      properties:
+        month:
+          type: string
+          format: date
+        mrr:
+          type: number
+          format: float
+        new_subscriptions:
+          type: integer
+        upgrades:
+          type: number
+          format: float
+        downgrades:
+          type: number
+          format: float
+        churn:
+          type: number
+          format: float
+
+    ChurnDataPoint:
+      type: object
+      properties:
+        month:
+          type: string
+          format: date
+        churn_rate:
+          type: number
+          format: float
+        voluntary_churn:
+          type: number
+          format: float
+        involuntary_churn:
+          type: number
+          format: float
+        active_subscriptions_start:
+          type: integer
+        cancelled:
+          type: integer
+
+    CohortRetention:
+      type: object
+      properties:
+        cohort:
+          type: string
+          format: date
+        periods:
+          type: array
+          items:
+            type: object
+            properties:
+              period:
+                type: integer
+              retained:
+                type: integer
+              retention_pct:
+                type: number
+                format: float
+
+    LTVDataPoint:
+      type: object
+      properties:
+        month:
+          type: string
+          format: date
+        average_ltv:
+          type: number
+          format: float
+        median_ltv:
+          type: number
+          format: float
+        p25_ltv:
+          type: number
+          format: float
+        p75_ltv:
+          type: number
+          format: float
+
+    AuditEvent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        actor_id:
+          type: string
+        action:
+          type: string
+        resource_type:
+          type: string
+        resource_id:
+          type: string
+        old_state:
+          type: object
+        new_state:
+          type: object
+        timestamp:
+          type: integer
+        prev_hash:
+          type: string
+        hash:
+          type: string
+        metadata:
+          type: object
+
+    AuditVerificationResult:
+      type: object
+      properties:
+        valid:
+          type: boolean
+        first_invalid_index:
+          type: integer
+          nullable: true
+        checked_entries:
+          type: integer
+        anchored_entries:
+          type: integer
+        last_anchored_at:
+          type: integer
+          nullable: true
+
+    BenchmarkReport:
+      type: object
+      properties:
+        merchant_id:
+          type: string
+        vertical:
+          type: string
+        region:
+          type: string
+        company_size:
+          type: string
+        generated_at:
+          type: string
+          format: date-time
+        metrics:
+          type: object
+          properties:
+            mrr_growth:
+              $ref: '#/components/schemas/BenchmarkMetric'
+            churn_rate:
+              $ref: '#/components/schemas/BenchmarkMetric'
+            conversion_rate:
+              $ref: '#/components/schemas/BenchmarkMetric'
+            arpa:
+              $ref: '#/components/schemas/BenchmarkMetric'
+        trend:
+          type: string
+          enum: [improving, declining, stable]
+
+    BenchmarkMetric:
+      type: object
+      properties:
+        merchant_value:
+          type: number
+          format: float
+        p25:
+          type: number
+          format: float
+        p50:
+          type: number
+          format: float
+        p75:
+          type: number
+          format: float
+        unit:
+          type: string
+        cohort_size:
+          type: integer
+
+    BenchmarkConsentRequest:
+      type: object
+      required: [opted_in]
+      properties:
+        opted_in:
+          type: boolean
+        vertical:
+          type: string
+          enum: [saas, ecommerce, media, education, healthcare, fintech]
+        region:
+          type: string
+        company_size:
+          type: string
+          enum: [small, medium, large, enterprise]
+        revenue_band:
+          type: string
+
+    BenchmarkConsent:
+      type: object
+      properties:
+        user_id:
+          type: string
+        opted_in:
+          type: boolean
+        vertical:
+          type: string
+        region:
+          type: string
+        company_size:
+          type: string
+        revenue_band:
+          type: string
+        consented_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+
+  responses:
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              code:
+                type: string
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              code:
+                type: string
+              details:
+                type: object
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              code:
+                type: string
+
+tags:
+  - name: Subscriptions
+    description: Subscription management operations
+  - name: Plans
+    description: Plan management operations
+  - name: Analytics
+    description: Analytics and reporting
+  - name: Audit
+    description: Tamper-evident audit trail
+  - name: Benchmark
+    description: Industry benchmark comparisons
