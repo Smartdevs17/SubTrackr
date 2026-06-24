@@ -1,6 +1,7 @@
 #![no_std]
 
-use soroban_sdk::{contract, contractimpl, contracttype, token, Address, Env, String, Vec};
+use soroban_sdk::{contract, contractimpl, contracttype, token, Address, Bytes, BytesN, Env, String, Vec};
+use utils::merkle::{self, MerkleProof};
 
 /// Billing interval in seconds
 #[contracttype]
@@ -578,6 +579,43 @@ impl SubTrackrContract {
             .unwrap_or(0)
     }
 
+    // ── Batch Storage Operations (Merkle Tree) ──
+
+    /// Batch read multiple storage keys using Merkle accumulator
+    pub fn batch_get_storage(
+        env: Env,
+        key_prefix: Bytes,
+        keys: Vec<Bytes>,
+    ) -> (Vec<(Bytes, Option<Bytes>)>, MerkleProof) {
+        merkle::batch_get(&env, &key_prefix, &keys)
+    }
+
+    /// Batch insert multiple key-value pairs with Merkle root update
+    pub fn batch_insert_storage(
+        env: Env,
+        key_prefix: Bytes,
+        values: Vec<(Bytes, Bytes)>,
+    ) {
+        merkle::batch_insert(&env, &key_prefix, &values);
+    }
+
+    /// Verify a batch of key-value pairs against stored Merkle root
+    pub fn verify_batch_storage(
+        env: Env,
+        key_prefix: Bytes,
+        keys: Vec<Bytes>,
+        values: Vec<Option<Bytes>>,
+        proof: MerkleProof,
+    ) -> bool {
+        merkle::verify_batch(&env, &key_prefix, &keys, &values, &proof)
+    }
+
+    /// Get the Merkle root for a given key prefix
+    pub fn get_merkle_root(env: Env, key_prefix: Bytes) -> Option<BytesN<32>> {
+        let root_key = make_root_key(&env, &key_prefix);
+        env.storage().instance().get(&root_key)
+    }
+
     // ── Internal Helpers ──
 
     fn check_and_resume_internal(env: &Env, sub: &mut Subscription) -> bool {
@@ -592,6 +630,13 @@ impl SubTrackrContract {
         }
         false
     }
+}
+
+fn make_root_key(env: &Env, prefix: &Bytes) -> Bytes {
+    let mut root_key = Bytes::new(env);
+    root_key.append(prefix);
+    root_key.append(&Bytes::from_slice(env, b"_merkle_root"));
+    root_key
 }
 
 #[cfg(test)]

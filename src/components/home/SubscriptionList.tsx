@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { colors, spacing, typography, borderRadius, shadows } from '../../utils/constants';
-import { SubscriptionCard } from '../subscription/SubscriptionCard';
+import { colors, spacing, typography, borderRadius } from '../../utils/constants';
+import { SubscriptionListItem } from '../common/SubscriptionListItem';
+import { OptimizedFlatList } from '../common/OptimizedFlatList';
 import { Subscription } from '../../types/subscription';
 
 interface SubscriptionListProps {
@@ -17,6 +18,8 @@ interface SubscriptionListProps {
   onAddFirstPress: () => void;
 }
 
+const UPCOMING_ITEM_HEIGHT = 48;
+
 export const SubscriptionList: React.FC<SubscriptionListProps> = ({
   subscriptions: _subscriptions,
   activeSubscriptions,
@@ -29,73 +32,104 @@ export const SubscriptionList: React.FC<SubscriptionListProps> = ({
   onToggleStatus,
   onAddFirstPress,
 }) => {
+  const sortedUpcoming = useMemo(
+    () =>
+      upcomingSubscriptions
+        ?.slice()
+        .sort(
+          (a, b) => new Date(a.nextBillingDate).getTime() - new Date(b.nextBillingDate).getTime()
+        ) ?? [],
+    [upcomingSubscriptions]
+  );
+
+  const topUpcoming = useMemo(() => sortedUpcoming.slice(0, 3), [sortedUpcoming]);
+
+  const renderSubscriptionItem = useMemo(
+    () =>
+      ({ item }: { item: Subscription }) => (
+        <SubscriptionListItem
+          subscription={item}
+          onPress={onSubscriptionPress}
+          onToggleStatus={onToggleStatus}
+        />
+      ),
+    [onSubscriptionPress, onToggleStatus]
+  );
+
+  const subscriptionKeyExtractor = useMemo(() => (item: Subscription) => item.id, []);
+
+  const activeLabel = useMemo(
+    () =>
+      `${activeSubscriptions.length} subscription${activeSubscriptions.length !== 1 ? 's' : ''}`,
+    [activeSubscriptions.length]
+  );
+
+  const upcomingKeyExtractor = (item: Subscription) => `upcoming-${item.id}`;
+
+  if (!hasSubscriptions) {
+    return (
+      <View style={styles.emptyState}>
+        <Text style={styles.emptyIcon}>📱</Text>
+        <Text style={styles.emptyText}>No subscriptions yet</Text>
+        <Text style={styles.emptySubtext}>
+          Add your first subscription to start tracking your spending
+        </Text>
+        <TouchableOpacity style={styles.addFirstButton} onPress={onAddFirstPress}>
+          <Text style={styles.addFirstButtonText}>Add Subscription</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <View>
-      {/* Upcoming Billing Section */}
-      {upcomingSubscriptions && upcomingSubscriptions.length > 0 && (
+      {topUpcoming.length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Upcoming Billing</Text>
           <Text style={styles.sectionSubtitle}>
-            {upcomingSubscriptions.length} subscription
-            {upcomingSubscriptions.length !== 1 ? 's' : ''} due this week
+            {sortedUpcoming.length} subscription{sortedUpcoming.length !== 1 ? 's' : ''} due this
+            week
           </Text>
           <View style={styles.upcomingContainer}>
-            {upcomingSubscriptions.slice(0, 3).map((subscription) => (
-              <View key={subscription.id} style={styles.upcomingItem}>
-                <Text style={styles.upcomingName} numberOfLines={1}>
-                  {subscription.name}
-                </Text>
-                <Text style={styles.upcomingDate}>
-                  {new Date(subscription.nextBillingDate).toLocaleDateString()}
-                </Text>
-              </View>
-            ))}
+            <OptimizedFlatList
+              data={topUpcoming}
+              renderItem={({ item }) => (
+                <View style={styles.upcomingItem}>
+                  <Text style={styles.upcomingName} numberOfLines={1}>
+                    {item.name}
+                  </Text>
+                  <Text style={styles.upcomingDate}>
+                    {new Date(item.nextBillingDate).toLocaleDateString()}
+                  </Text>
+                </View>
+              )}
+              keyExtractor={upcomingKeyExtractor}
+              estimatedItemSize={UPCOMING_ITEM_HEIGHT}
+              scrollEnabled={false}
+            />
           </View>
         </View>
       )}
 
-      {/* Main List Section */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Your Subscriptions</Text>
-          {hasSubscriptions && (
-            <View style={styles.sectionHeaderRight}>
-              {hasActiveFilters && (
-                <Text style={styles.activeFiltersText}>
-                  {filteredCount} of {totalCount}
-                </Text>
-              )}
-              <Text style={styles.subscriptionCount}>
-                {activeSubscriptions.length} subscription
-                {activeSubscriptions.length !== 1 ? 's' : ''}
+          <View style={styles.sectionHeaderRight}>
+            {hasActiveFilters && (
+              <Text style={styles.activeFiltersText}>
+                {filteredCount} of {totalCount}
               </Text>
-            </View>
-          )}
+            )}
+            <Text style={styles.subscriptionCount}>{activeLabel}</Text>
+          </View>
         </View>
-
-        {hasSubscriptions ? (
-          <View style={styles.subscriptionsList}>
-            {activeSubscriptions.map((subscription) => (
-              <SubscriptionCard
-                key={subscription.id}
-                subscription={subscription}
-                onPress={onSubscriptionPress}
-                onToggleStatus={onToggleStatus}
-              />
-            ))}
-          </View>
-        ) : (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>📱</Text>
-            <Text style={styles.emptyText}>No subscriptions yet</Text>
-            <Text style={styles.emptySubtext}>
-              Add your first subscription to start tracking your spending
-            </Text>
-            <TouchableOpacity style={styles.addFirstButton} onPress={onAddFirstPress}>
-              <Text style={styles.addFirstButtonText}>Add Subscription</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+        <OptimizedFlatList
+          data={activeSubscriptions}
+          renderItem={renderSubscriptionItem}
+          keyExtractor={subscriptionKeyExtractor}
+          estimatedItemSize={84}
+          scrollEnabled={false}
+        />
       </View>
     </View>
   );
@@ -139,7 +173,6 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     padding: spacing.md,
     marginBottom: spacing.lg,
-    ...shadows.sm,
   },
   upcomingItem: {
     flexDirection: 'row',

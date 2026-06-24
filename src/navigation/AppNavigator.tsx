@@ -1,43 +1,49 @@
-import React from 'react';
+import React, { lazy } from 'react';
 import { Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { navigationRef } from './navigationRef';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import HomeScreen from '../screens/HomeScreen';
-import AddSubscriptionScreen from '../screens/AddSubscriptionScreen';
-import WalletConnectScreen from '../screens/WalletConnectScreen';
-import CryptoPaymentScreen from '../screens/CryptoPaymentScreen';
-import SubscriptionDetailScreen from '../screens/SubscriptionDetailScreen';
-import AnalyticsScreen from '../screens/AnalyticsScreen';
-import SettingsScreen from '../screens/SettingsScreen';
 import { colors } from '../utils/constants';
 import { RootStackParamList, TabParamList } from './types';
+import { LazyScreen } from '../components/common/LazyScreen';
+
+const HomeScreen = lazy(() => import('../screens/HomeScreen'));
+const AddSubscriptionScreen = lazy(() => import('../screens/AddSubscriptionScreen'));
+const WalletConnectScreen = lazy(() => import('../screens/WalletConnectScreen'));
+const CryptoPaymentScreen = lazy(() => import('../screens/CryptoPaymentScreen'));
+const SubscriptionDetailScreen = lazy(() => import('../screens/SubscriptionDetailScreen'));
+const AnalyticsScreen = lazy(() => import('../screens/AnalyticsScreen'));
+const SettingsScreen = lazy(() => import('../screens/SettingsScreen'));
 
 const Tab = createBottomTabNavigator<TabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const HomeStack = () => (
   <Stack.Navigator>
-    <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
+    <Stack.Screen
+      name="Home"
+      component={() => <LazyScreen component={HomeScreen} />}
+      options={{ headerShown: false }}
+    />
     <Stack.Screen
       name="AddSubscription"
-      component={AddSubscriptionScreen}
+      component={() => <LazyScreen component={AddSubscriptionScreen} />}
       options={{ headerShown: false }}
     />
     <Stack.Screen
       name="SubscriptionDetail"
-      component={SubscriptionDetailScreen}
+      component={() => <LazyScreen component={SubscriptionDetailScreen} />}
       options={{ headerShown: false }}
     />
     <Stack.Screen
       name="WalletConnect"
-      component={WalletConnectScreen}
+      component={() => <LazyScreen component={WalletConnectScreen} />}
       options={{ headerShown: false }}
     />
     <Stack.Screen
       name="CryptoPayment"
-      component={CryptoPaymentScreen}
+      component={() => <LazyScreen component={CryptoPaymentScreen} />}
       options={{ headerShown: false }}
     />
   </Stack.Navigator>
@@ -67,7 +73,7 @@ const TabNavigator = () => (
     />
     <Tab.Screen
       name="AddTab"
-      component={AddSubscriptionScreen}
+      component={() => <LazyScreen component={AddSubscriptionScreen} />}
       options={{
         tabBarLabel: 'Add',
         tabBarIcon: ({ color, size }) => (
@@ -77,7 +83,7 @@ const TabNavigator = () => (
     />
     <Tab.Screen
       name="WalletTab"
-      component={WalletConnectScreen}
+      component={() => <LazyScreen component={WalletConnectScreen} />}
       options={{
         tabBarLabel: 'Wallet',
         tabBarIcon: ({ color, size }) => (
@@ -87,7 +93,7 @@ const TabNavigator = () => (
     />
     <Tab.Screen
       name="AnalyticsTab"
-      component={AnalyticsScreen}
+      component={() => <LazyScreen component={AnalyticsScreen} />}
       options={{
         tabBarLabel: 'Analytics',
         tabBarIcon: ({ color, size }) => (
@@ -97,7 +103,7 @@ const TabNavigator = () => (
     />
     <Tab.Screen
       name="SettingsTab"
-      component={SettingsScreen}
+      component={() => <LazyScreen component={SettingsScreen} />}
       options={{
         tabBarLabel: 'Settings',
         tabBarIcon: ({ color, size }) => (

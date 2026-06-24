@@ -100,6 +100,7 @@
     "typechain": "^8.3.2",
     "typescript": "~5.8.3"
   },
+  "sideEffects": false,
   "private": false,
   "repository": {
     "type": "git",
