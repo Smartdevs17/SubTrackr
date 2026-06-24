@@ -5,6 +5,7 @@ import {
   TaxAmount,
   TaxCalculationInput,
   TaxConfig,
+  TaxProvider,
   TaxRate,
   TaxReport,
 } from '../types/tax';
@@ -19,6 +20,7 @@ interface TaxState {
   calculateTax: (input: TaxCalculationInput) => TaxAmount;
   createReport: (region: string, periodStart: Date, periodEnd: Date) => TaxReport;
   setReverseChargeRegions: (regions: string[]) => void;
+  setTaxProvider: (provider: TaxProvider) => void;
 }
 
 export const useTaxStore = create<TaxState>((set, get) => ({
@@ -41,6 +43,7 @@ export const useTaxStore = create<TaxState>((set, get) => ({
     remittanceSchedule: 'monthly',
     exemptions: [],
     reverseChargeRegions: [],
+    provider: 'BUILT_IN',
   },
   calculations: [],
   reports: [],
@@ -74,4 +77,7 @@ export const useTaxStore = create<TaxState>((set, get) => ({
 
   setReverseChargeRegions: (regions) =>
     set((state) => ({ config: { ...state.config, reverseChargeRegions: regions } })),
+
+  setTaxProvider: (provider) =>
+    set((state) => ({ config: { ...state.config, provider } })),
 }));
