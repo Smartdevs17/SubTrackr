@@ -21,7 +21,7 @@ import {
   IdempotencyKeyCollisionError,
   IdempotencyRequestInFlightError,
 } from './idempotencyService';
-import { fail } from './apiResponse';
+import { fail } from './shared/apiResponse';
 
 export function idempotencyMiddleware(req: Request, res: Response, next: NextFunction): void {
   const key = req.headers[IDEMPOTENCY_KEY_HEADER.toLowerCase()] as string | undefined;
