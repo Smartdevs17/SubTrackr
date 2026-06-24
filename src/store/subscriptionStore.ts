@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import { debouncedAsyncStorageAdapter } from '../utils/storage';
 import {
   Subscription, // eslint-disable-line
   SubscriptionFormData,
@@ -123,50 +123,8 @@ const createSupportEvent = (
   };
 };
 
-const pendingWrites = new Map<string, string>();
-let writeTimer: ReturnType<typeof setTimeout> | null = null;
-let writeQueue = Promise.resolve();
-
-const flushPendingWrites = async (): Promise<void> => {
-  if (pendingWrites.size === 0) return;
-
-  const writes = Array.from(pendingWrites.entries());
-  pendingWrites.clear();
-
-  writeQueue = writeQueue.then(async () => {
-    await Promise.all(writes.map(([key, value]) => AsyncStorage.setItem(key, value)));
-  });
-
-  try {
-    await writeQueue;
-  } catch (error) {
-    console.warn('Failed to persist subscriptions:', error);
-  }
-};
-
-const debouncedAsyncStorage: StateStorage = {
-  getItem: async (name) => {
-    if (pendingWrites.has(name)) return pendingWrites.get(name) ?? null;
-    await writeQueue;
-    return AsyncStorage.getItem(name);
-  },
-  setItem: async (name, value) => {
-    pendingWrites.set(name, value);
-    if (writeTimer) clearTimeout(writeTimer);
-    writeTimer = setTimeout(() => {
-      void flushPendingWrites();
-    }, WRITE_DEBOUNCE_MS);
-  },
-  removeItem: async (name) => {
-    pendingWrites.delete(name);
-    if (writeTimer && pendingWrites.size === 0) {
-      clearTimeout(writeTimer);
-      writeTimer = null;
-    }
-    await writeQueue;
-    await AsyncStorage.removeItem(name);
-  },
-};
+// Debounced writes are provided by the shared debouncedAsyncStorageAdapter
+// (see src/utils/storage.ts). This removes the copy-pasted boilerplate.
 
 export type ProrationEffectiveType = 'immediate' | 'end_of_period' | 'custom_date';
 
@@ -740,7 +698,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
     {
       name: STORAGE_KEY,
       version: STORE_VERSION,
-      storage: createJSONStorage(() => debouncedAsyncStorage),
+      storage: createJSONStorage(() => debouncedAsyncStorageAdapter),
       partialize: (state) =>
         serializeForStorage({ subscriptions: state.subscriptions, planChanges: state.planChanges }),
       migrate: (persistedState, version) => migratePersistedState(persistedState, version),
@@ -748,6 +706,19 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         ...currentState,
         ...migratePersistedState(persistedState, STORE_VERSION),
       }),
+      onRehydrateStorage: () => (_state, error) => {
+        if (error) {
+          console.warn('[subscriptionStore] Hydration error — resetting to defaults:', error);
+          useSubscriptionStore.setState({
+            subscriptions: [],
+            planChanges: [],
+            isLoading: false,
+            error: null,
+            prorationPreview: null,
+            creditMemos: {},
+          });
+        }
+      },
     }
   )
 );

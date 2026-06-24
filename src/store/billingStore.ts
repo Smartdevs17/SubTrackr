@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { asyncStorageAdapter } from '../utils/storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
@@ -199,11 +199,17 @@ export const useBillingStore = create<BillingState>()(
     }),
     {
       name: STORAGE_KEY,
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => asyncStorageAdapter),
       partialize: (state) => ({
         schedules: state.schedules,
         invoices: state.invoices,
       }),
+      onRehydrateStorage: () => (_state, error) => {
+        if (error) {
+          console.warn('[billingStore] Hydration error — resetting to defaults:', error);
+          useBillingStore.setState({ schedules: {}, invoices: {}, isLoading: false, error: null });
+        }
+      },
     }
   )
 );

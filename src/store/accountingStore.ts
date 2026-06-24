@@ -12,7 +12,7 @@
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { asyncStorageAdapter } from '../utils/storage';
 import { BillingCycle } from '../types/subscription';
 
 // ── Domain types ──────────────────────────────────────────────────────────────
@@ -357,7 +357,7 @@ export const useAccountingStore = create<AccountingState>()(
     }),
     {
       name: STORAGE_KEY,
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => asyncStorageAdapter),
     }
   )
 );

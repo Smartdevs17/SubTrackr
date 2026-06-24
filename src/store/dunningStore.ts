@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { asyncStorageAdapter } from '../utils/storage';
 import {
   DunningEntry,
   DunningStage,
@@ -299,8 +299,19 @@ export const useDunningStore = create<DunningState>()(
     {
       name: STORAGE_KEY,
       version: 1,
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => asyncStorageAdapter),
       partialize: (s) => ({ entries: s.entries, configurations: s.configurations }),
+      onRehydrateStorage: () => (_state, error) => {
+        if (error) {
+          console.warn('[dunningStore] Hydration error — resetting to defaults:', error);
+          useDunningStore.setState({
+            entries: [],
+            configurations: { default: DEFAULT_CONFIG },
+            isLoading: false,
+            error: null,
+          });
+        }
+      },
     }
   )
 );

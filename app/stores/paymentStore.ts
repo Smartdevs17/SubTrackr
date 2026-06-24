@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import { asyncStorageAdapter } from '../../src/utils/storage';
 
 export type PaymentPriority = 'primary' | 'backup' | 'fallback';
 
@@ -54,137 +56,149 @@ interface PaymentStoreState {
   getExpiringMethods: (withinDays?: number) => PaymentMethod[];
 }
 
-export const usePaymentStore = create<PaymentStoreState>()((set, get) => ({
-  methods: [],
-  attemptLog: [],
+export const usePaymentStore = create<PaymentStoreState>()(
+  persist(
+    (set, get) => ({
+      methods: [],
+      attemptLog: [],
 
-  addMethod: (input) => {
-    if (get().methods.length >= MAX_METHODS) {
-      throw new Error(`Cannot add more than ${MAX_METHODS} payment methods`);
-    }
-    const now = Date.now();
-    const method: PaymentMethod = {
-      ...input,
-      id: generateId(),
-      isVerified: false,
-      isActive: true,
-      lastUsedAt: null,
-      createdAt: now,
-      updatedAt: now,
-    };
-    set((s) => ({ methods: [...s.methods, method] }));
-    return method;
-  },
-
-  removeMethod: (id) => {
-    set((s) => ({ methods: s.methods.filter((m) => m.id !== id) }));
-  },
-
-  verifyMethod: (id) => {
-    set((s) => ({
-      methods: s.methods.map((m) =>
-        m.id === id ? { ...m, isVerified: true, updatedAt: Date.now() } : m
-      ),
-    }));
-  },
-
-  setPriority: (id, priority) => {
-    set((s) => ({
-      methods: s.methods.map((m) =>
-        m.id === id ? { ...m, priority, updatedAt: Date.now() } : m
-      ),
-    }));
-  },
-
-  setExpiry: (id, expiresAt) => {
-    set((s) => ({
-      methods: s.methods.map((m) =>
-        m.id === id ? { ...m, expiresAt, updatedAt: Date.now() } : m
-      ),
-    }));
-  },
-
-  deactivateExpired: () => {
-    const now = Date.now();
-    let count = 0;
-    set((s) => ({
-      methods: s.methods.map((m) => {
-        if (m.isActive && isExpired(m, now)) {
-          count++;
-          return { ...m, isActive: false, updatedAt: now };
+      addMethod: (input) => {
+        if (get().methods.length >= MAX_METHODS) {
+          throw new Error(`Cannot add more than ${MAX_METHODS} payment methods`);
         }
-        return m;
+        const now = Date.now();
+        const method: PaymentMethod = {
+          ...input,
+          id: generateId(),
+          isVerified: false,
+          isActive: true,
+          lastUsedAt: null,
+          createdAt: now,
+          updatedAt: now,
+        };
+        set((s) => ({ methods: [...s.methods, method] }));
+        return method;
+      },
+
+      removeMethod: (id) => {
+        set((s) => ({ methods: s.methods.filter((m) => m.id !== id) }));
+      },
+
+      verifyMethod: (id) => {
+        set((s) => ({
+          methods: s.methods.map((m) =>
+            m.id === id ? { ...m, isVerified: true, updatedAt: Date.now() } : m
+          ),
+        }));
+      },
+
+      setPriority: (id, priority) => {
+        set((s) => ({
+          methods: s.methods.map((m) =>
+            m.id === id ? { ...m, priority, updatedAt: Date.now() } : m
+          ),
+        }));
+      },
+
+      setExpiry: (id, expiresAt) => {
+        set((s) => ({
+          methods: s.methods.map((m) =>
+            m.id === id ? { ...m, expiresAt, updatedAt: Date.now() } : m
+          ),
+        }));
+      },
+
+      deactivateExpired: () => {
+        const now = Date.now();
+        let count = 0;
+        set((s) => ({
+          methods: s.methods.map((m) => {
+            if (m.isActive && isExpired(m, now)) {
+              count++;
+              return { ...m, isActive: false, updatedAt: now };
+            }
+            return m;
+          }),
+        }));
+        return count;
+      },
+
+      chargeWithFallback: (amount) => {
+        const now = Date.now();
+        const sorted = get().getMethodsSortedByPriority();
+        let lastResult: PaymentAttemptResult | null = null;
+
+        for (const method of sorted) {
+          if (!method.isActive) continue;
+
+          if (isExpired(method, now)) {
+            lastResult = {
+              methodId: method.id,
+              success: false,
+              failureReason: 'expired',
+              amount,
+              timestamp: now,
+            };
+            set((s) => ({ attemptLog: [...s.attemptLog, lastResult!] }));
+            continue;
+          }
+
+          if (method.maxSpendPerInterval > 0 && amount > method.maxSpendPerInterval) {
+            lastResult = {
+              methodId: method.id,
+              success: false,
+              failureReason: 'limit_exceeded',
+              amount,
+              timestamp: now,
+            };
+            set((s) => ({ attemptLog: [...s.attemptLog, lastResult!] }));
+            continue;
+          }
+
+          const successResult: PaymentAttemptResult = {
+            methodId: method.id,
+            success: true,
+            amount,
+            timestamp: now,
+          };
+          set((s) => ({
+            attemptLog: [...s.attemptLog, successResult],
+            methods: s.methods.map((m) =>
+              m.id === method.id ? { ...m, lastUsedAt: now, updatedAt: now } : m
+            ),
+          }));
+          return successResult;
+        }
+
+        return lastResult;
+      },
+
+      getMethodsSortedByPriority: () => {
+        return [...get().methods]
+          .filter((m) => m.isActive)
+          .sort((a, b) => {
+            const pDiff = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
+            if (pDiff !== 0) return pDiff;
+            if (a.lastUsedAt !== null && b.lastUsedAt !== null) return b.lastUsedAt - a.lastUsedAt;
+            return 0;
+          });
+      },
+
+      getExpiringMethods: (withinDays = 30) => {
+        const now = Date.now();
+        const cutoff = now + withinDays * 24 * 60 * 60 * 1000;
+        return get().methods.filter(
+          (m) => m.isActive && m.expiresAt !== null && m.expiresAt > now && m.expiresAt <= cutoff
+        );
+      },
+    }),
+    {
+      name: 'subtrackr-payment-store',
+      storage: createJSONStorage(() => asyncStorageAdapter),
+      partialize: (state) => ({
+        methods: state.methods,
+        attemptLog: state.attemptLog,
       }),
-    }));
-    return count;
-  },
-
-  chargeWithFallback: (amount) => {
-    const now = Date.now();
-    const sorted = get().getMethodsSortedByPriority();
-    let lastResult: PaymentAttemptResult | null = null;
-
-    for (const method of sorted) {
-      if (!method.isActive) continue;
-
-      if (isExpired(method, now)) {
-        lastResult = {
-          methodId: method.id,
-          success: false,
-          failureReason: 'expired',
-          amount,
-          timestamp: now,
-        };
-        set((s) => ({ attemptLog: [...s.attemptLog, lastResult!] }));
-        continue;
-      }
-
-      if (method.maxSpendPerInterval > 0 && amount > method.maxSpendPerInterval) {
-        lastResult = {
-          methodId: method.id,
-          success: false,
-          failureReason: 'limit_exceeded',
-          amount,
-          timestamp: now,
-        };
-        set((s) => ({ attemptLog: [...s.attemptLog, lastResult!] }));
-        continue;
-      }
-
-      const successResult: PaymentAttemptResult = {
-        methodId: method.id,
-        success: true,
-        amount,
-        timestamp: now,
-      };
-      set((s) => ({
-        attemptLog: [...s.attemptLog, successResult],
-        methods: s.methods.map((m) =>
-          m.id === method.id ? { ...m, lastUsedAt: now, updatedAt: now } : m
-        ),
-      }));
-      return successResult;
     }
-
-    return lastResult;
-  },
-
-  getMethodsSortedByPriority: () => {
-    return [...get().methods]
-      .filter((m) => m.isActive)
-      .sort((a, b) => {
-        const pDiff = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
-        if (pDiff !== 0) return pDiff;
-        if (a.lastUsedAt !== null && b.lastUsedAt !== null) return b.lastUsedAt - a.lastUsedAt;
-        return 0;
-      });
-  },
-
-  getExpiringMethods: (withinDays = 30) => {
-    const now = Date.now();
-    const cutoff = now + withinDays * 24 * 60 * 60 * 1000;
-    return get().methods.filter(
-      (m) => m.isActive && m.expiresAt !== null && m.expiresAt > now && m.expiresAt <= cutoff
-    );
-  },
-}));
+  )
+);

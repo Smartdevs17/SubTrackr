@@ -5,6 +5,7 @@ import {
   SearchQuery,
   SearchResult,
 } from '../../backend/services/subscription/ElasticsearchService';
+import { useDebounce } from './useDebounce';
 
 const EMPTY_RESULT: SearchResult = {
   hits: [],
@@ -23,6 +24,11 @@ export function useElasticsearchSearch(subscriptions: Subscription[]) {
   const [query, setQuery] = useState<SearchQuery>({});
   const [result, setResult] = useState<SearchResult>(EMPTY_RESULT);
 
+  // Separate state for the raw text so TextInput stays responsive, while the
+  // actual search query only fires after the network-aware debounce delay.
+  const [pendingText, setPendingText] = useState<string>('');
+  const debouncedText = useDebounce(pendingText);
+
   useEffect(() => {
     elasticsearchService.bulkIndex(subscriptions);
     setResult(elasticsearchService.search(query));
@@ -33,8 +39,13 @@ export function useElasticsearchSearch(subscriptions: Subscription[]) {
     setResult(elasticsearchService.search(query));
   }, [query]);
 
+  // Apply the debounced text into the query object.
+  useEffect(() => {
+    setQuery((prev) => ({ ...prev, query: debouncedText }));
+  }, [debouncedText]);
+
   const setSearchText = useCallback((text: string) => {
-    setQuery((prev) => ({ ...prev, query: text }));
+    setPendingText(text);
   }, []);
 
   const setFilters = useCallback((filters: SearchQuery['filters']) => {

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { asyncStorageAdapter } from '../utils/storage';
 import bcrypt from 'bcryptjs';
 import {
   SandboxConfig,
@@ -860,7 +860,7 @@ export const useSandboxStore = create<SandboxState>()(
     {
       name: STORAGE_KEY,
       version: STORE_VERSION,
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => asyncStorageAdapter),
       partialize: (state) => ({
         sandboxes: state.sandboxes,
         currentSandbox: state.currentSandbox,

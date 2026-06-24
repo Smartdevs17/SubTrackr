@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import { debouncedAsyncStorageAdapter } from '../utils/storage';
 import {
   DEFAULT_INVOICE_CONFIG,
   Invoice,
@@ -129,50 +129,8 @@ const migratePersistedState = (persisted: unknown): PersistedInvoiceSlice => {
   };
 };
 
-const pendingWrites = new Map<string, string>();
-let writeTimer: ReturnType<typeof setTimeout> | null = null;
-let writeQueue = Promise.resolve();
-
-const flushPendingWrites = async (): Promise<void> => {
-  if (pendingWrites.size === 0) return;
-
-  const writes = Array.from(pendingWrites.entries());
-  pendingWrites.clear();
-
-  writeQueue = writeQueue.then(async () => {
-    await Promise.all(writes.map(([key, value]) => AsyncStorage.setItem(key, value)));
-  });
-
-  try {
-    await writeQueue;
-  } catch (error) {
-    console.warn('Failed to persist invoices:', error);
-  }
-};
-
-const debouncedAsyncStorage: StateStorage = {
-  getItem: async (name: string) => {
-    if (pendingWrites.has(name)) return pendingWrites.get(name) ?? null;
-    await writeQueue;
-    return AsyncStorage.getItem(name);
-  },
-  setItem: async (name: string, value: string) => {
-    pendingWrites.set(name, value);
-    if (writeTimer) clearTimeout(writeTimer);
-    writeTimer = setTimeout(() => {
-      void flushPendingWrites();
-    }, WRITE_DEBOUNCE_MS);
-  },
-  removeItem: async (name: string) => {
-    pendingWrites.delete(name);
-    if (writeTimer && pendingWrites.size === 0) {
-      clearTimeout(writeTimer);
-      writeTimer = null;
-    }
-    await writeQueue;
-    await AsyncStorage.removeItem(name);
-  },
-};
+// Debounced writes are provided by the shared debouncedAsyncStorageAdapter
+// (see src/utils/storage.ts). This removes the copy-pasted boilerplate.
 
 const BPS_SCALE = 10_000;
 
@@ -664,7 +622,7 @@ export const useInvoiceStore = create<InvoiceState>()(
     {
       name: STORAGE_KEY,
       version: STORE_VERSION,
-      storage: createJSONStorage(() => debouncedAsyncStorage),
+      storage: createJSONStorage(() => debouncedAsyncStorageAdapter),
       partialize: (state) =>
         serializeForStorage({
           invoices: state.invoices,

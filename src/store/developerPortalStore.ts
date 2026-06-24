@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import { asyncStorageAdapter } from '../utils/storage';
 import {
   DeveloperProfile,
   ApiKeyPermission,
@@ -58,7 +60,9 @@ interface DeveloperPortalState {
   clearError: () => void;
 }
 
-export const useDeveloperPortalStore = create<DeveloperPortalState>()((set, get) => ({
+export const useDeveloperPortalStore = create<DeveloperPortalState>()(
+  persist(
+    (set, get) => ({
   developer: null,
   apiKeys: [],
   usageStats: null,
@@ -327,4 +331,27 @@ export const useDeveloperPortalStore = create<DeveloperPortalState>()((set, get)
   },
 
   clearError: () => set({ error: null }),
-}));
+    }),
+    {
+      name: 'subtrackr-developer-portal',
+      storage: createJSONStorage(() => asyncStorageAdapter),
+      partialize: (state) => ({
+        developer: state.developer,
+        apiKeys: state.apiKeys,
+        onboardingSteps: state.onboardingSteps,
+      }),
+      onRehydrateStorage: () => (_state, error) => {
+        if (error) {
+          console.warn('[developerPortalStore] Hydration error — resetting:', error);
+          useDeveloperPortalStore.setState({
+            developer: null,
+            apiKeys: [],
+            onboardingSteps: [],
+            isLoading: false,
+            error: null,
+          });
+        }
+      },
+    }
+  )
+);

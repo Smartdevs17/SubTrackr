@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { asyncStorageAdapter } from '../utils/storage';
 import { currencyService, ExchangeRates } from '../services/currencyService';
 
 interface SettingsState {
@@ -48,7 +48,18 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'subtrackr-settings-store',
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => asyncStorageAdapter),
+      onRehydrateStorage: () => (_state, error) => {
+        if (error) {
+          console.warn('[settingsStore] Hydration error — resetting to defaults:', error);
+          useSettingsStore.setState({
+            preferredCurrency: 'USD',
+            notificationsEnabled: true,
+            exchangeRates: null,
+            isLoading: false,
+          });
+        }
+      },
     }
   )
 );

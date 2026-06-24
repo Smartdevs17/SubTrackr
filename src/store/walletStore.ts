@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import { asyncStorageAdapter } from '../utils/storage';
 import {
   CryptoStream,
   StreamSetup,
@@ -61,13 +62,14 @@ interface WalletState {
   checkTokenContractUpgrade: (id: string) => Promise<boolean>;
 }
 
-const PAYMENT_METHODS_STORAGE_KEY = '@subtrackr_payment_methods';
-const PAYMENT_ATTEMPTS_STORAGE_KEY = '@subtrackr_payment_attempts';
+const PAYMENT_STORAGE_KEY = '@subtrackr_payment_methods';
 
 const walletService = WalletServiceManager.getInstance();
 const paymentService = PaymentMethodService.getInstance();
 
-export const useWalletStore = create<WalletState>((set, get) => {
+export const useWalletStore = create<WalletState>()(
+  persist(
+    (set, get) => {
   // Listen to wallet service connection changes
   walletService.addListener((connection) => {
     set({ connection });
@@ -84,18 +86,8 @@ export const useWalletStore = create<WalletState>((set, get) => {
     connectWallet: async () => {
       set({ isLoading: true, error: null });
       try {
-        // Restore persisted payment methods and attempts
-        const savedMethods = await AsyncStorage.getItem(PAYMENT_METHODS_STORAGE_KEY);
-        if (savedMethods) {
-          set({ paymentMethods: JSON.parse(savedMethods) });
-        }
-
-        const savedAttempts = await AsyncStorage.getItem(PAYMENT_ATTEMPTS_STORAGE_KEY);
-        if (savedAttempts) {
-          set({ paymentAttempts: JSON.parse(savedAttempts) });
-        }
-
-        // Connection state is managed by walletService
+        // Connection state is managed by walletService;
+        // persisted payment methods and attempts are rehydrated automatically.
         const connection = walletService.getConnection();
         set({ connection, isLoading: false });
       } catch (error) {
@@ -287,7 +279,6 @@ export const useWalletStore = create<WalletState>((set, get) => {
         }
 
         const updatedMethods = [...paymentMethods, newMethod];
-        await AsyncStorage.setItem(PAYMENT_METHODS_STORAGE_KEY, JSON.stringify(updatedMethods));
 
         set({
           paymentMethods: updatedMethods,
@@ -314,7 +305,6 @@ export const useWalletStore = create<WalletState>((set, get) => {
       try {
         const { paymentMethods } = get();
         const updatedMethods = paymentMethods.filter((m) => m.id !== id);
-        await AsyncStorage.setItem(PAYMENT_METHODS_STORAGE_KEY, JSON.stringify(updatedMethods));
         set({ paymentMethods: updatedMethods, isLoading: false });
       } catch (error) {
         set({
@@ -336,7 +326,6 @@ export const useWalletStore = create<WalletState>((set, get) => {
         const updatedMethods = paymentMethods.map((m) =>
           m.id === id ? { ...m, ...updates, updatedAt: new Date() } : m
         );
-        await AsyncStorage.setItem(PAYMENT_METHODS_STORAGE_KEY, JSON.stringify(updatedMethods));
         set({ paymentMethods: updatedMethods, isLoading: false });
       } catch (error) {
         set({
@@ -365,7 +354,6 @@ export const useWalletStore = create<WalletState>((set, get) => {
           const updatedMethods = paymentMethods.map((m) =>
             m.id === id ? { ...m, isVerified: true, updatedAt: new Date() } : m
           );
-          await AsyncStorage.setItem(PAYMENT_METHODS_STORAGE_KEY, JSON.stringify(updatedMethods));
           set({ paymentMethods: updatedMethods, isLoading: false });
         }
         return verified;
@@ -395,7 +383,6 @@ export const useWalletStore = create<WalletState>((set, get) => {
         const updatedMethods = paymentMethods.map((m) =>
           m.id === id ? { ...m, priority, updatedAt: new Date() } : m
         );
-        await AsyncStorage.setItem(PAYMENT_METHODS_STORAGE_KEY, JSON.stringify(updatedMethods));
         set({ paymentMethods: updatedMethods, isLoading: false });
       } catch (error) {
         set({
@@ -433,10 +420,8 @@ export const useWalletStore = create<WalletState>((set, get) => {
           }
           return m;
         });
-        await AsyncStorage.setItem(PAYMENT_METHODS_STORAGE_KEY, JSON.stringify(updatedMethods));
 
         const newAttempts = [...get().paymentAttempts, result.attempt, ...result.fallbackAttempts];
-        await AsyncStorage.setItem(PAYMENT_ATTEMPTS_STORAGE_KEY, JSON.stringify(newAttempts));
 
         set({
           paymentMethods: updatedMethods,
@@ -501,7 +486,6 @@ export const useWalletStore = create<WalletState>((set, get) => {
                 }
               : m
           );
-          await AsyncStorage.setItem(PAYMENT_METHODS_STORAGE_KEY, JSON.stringify(updatedMethods));
           set({ paymentMethods: updatedMethods, isLoading: false });
         } else if (result.newHash && !previousHash) {
           const updatedMethods = paymentMethods.map((m) =>
@@ -513,7 +497,6 @@ export const useWalletStore = create<WalletState>((set, get) => {
                 }
               : m
           );
-          await AsyncStorage.setItem(PAYMENT_METHODS_STORAGE_KEY, JSON.stringify(updatedMethods));
           set({ paymentMethods: updatedMethods, isLoading: false });
         }
 
@@ -533,7 +516,24 @@ export const useWalletStore = create<WalletState>((set, get) => {
       }
     },
   };
-});
+  },
+    {
+      name: PAYMENT_STORAGE_KEY,
+      storage: createJSONStorage(() => asyncStorageAdapter),
+      // Only persist payment methods and attempts; connection and streams are ephemeral
+      partialize: (state) => ({
+        paymentMethods: state.paymentMethods,
+        paymentAttempts: state.paymentAttempts,
+      }),
+      onRehydrateStorage: () => (_state, error) => {
+        if (error) {
+          console.warn('[walletStore] Hydration error — resetting payment data:', error);
+          useWalletStore.setState({ paymentMethods: [], paymentAttempts: [] });
+        }
+      },
+    }
+  )
+);
 
 // Selectors for common queries
 export const selectAddress = (state: WalletState) => state.connection?.address ?? null;
