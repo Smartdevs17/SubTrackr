@@ -4,10 +4,13 @@ mod gas_optimization;
 mod gas_profiler;
 mod gas_storage;
 mod revenue;
-use soroban_sdk::{token, Address, Env, IntoVal, String, Symbol, TryFromVal, Val, Vec};
+#[cfg(test)]
+mod test;
+
+use soroban_sdk::{token, Address, BytesN, Env, IntoVal, String, Symbol, TryFromVal, Val, Vec};
 use subtrackr_oracle::{OracleError, SubTrackrOracleClient};
 use subtrackr_types::{
-    Interval, Invoice, Permission, Plan, PriceBounds, StorageKey, Subscription, SubscriptionStatus,
+    ChargeCommitment, Interval, Invoice, Permission, Plan, PriceBounds, StorageKey, Subscription, SubscriptionStatus,
     TimeRange,
 };
 
@@ -659,6 +662,21 @@ impl SubTrackrSubscription {
             .unwrap_or(MAX_PLANS_PER_MERCHANT)
     }
 
+    // ── MEV Protection Admin ──
+
+    pub fn set_large_charge_threshold(env: Env, proxy: Address, storage: Address, threshold: i128) {
+        proxy.require_auth();
+        let admin = get_admin(&env, &storage);
+        admin.require_auth();
+        assert!(threshold > 0, "Threshold must be positive");
+        storage_instance_set(&env, &storage, StorageKey::LargeChargeThreshold, threshold);
+    }
+
+    pub fn get_large_charge_threshold(env: Env, proxy: Address, storage: Address) -> i128 {
+        proxy.require_auth();
+        storage_instance_get(&env, &storage, StorageKey::LargeChargeThreshold).unwrap_or(10_000_000_000) // Default 1000 units
+    }
+
     // ── Plan Management ──
 
     pub fn create_plan(
@@ -981,7 +999,40 @@ impl SubTrackrSubscription {
 
     // ── Payment Processing ──
 
+    pub fn commit_charge(env: Env, proxy: Address, storage: Address, subscription_id: u64, hash: BytesN<32>) {
+        proxy.require_auth();
+        let sub: Subscription =
+            storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
+                .expect("Subscription not found");
+
+        if sub.subscriber != get_admin(&env, &storage) {
+            enforce_rate_limit(&env, &storage, &sub.subscriber, "commit_charge");
+        }
+        sub.subscriber.require_auth();
+
+        let now = env.ledger().timestamp();
+        let commitment = ChargeCommitment {
+            hash,
+            committed_at: now,
+        };
+
+        // Store commitment temporarily for a generous timeframe, e.g., 100 ledgers (~8 mins)
+        let ttl_ledgers = 100;
+        storage_temporary_set(&env, &storage, StorageKey::TmpChargeCommitment(subscription_id), commitment, ttl_ledgers);
+    }
+
     pub fn charge_subscription(env: Env, proxy: Address, storage: Address, subscription_id: u64) {
+        Self::reveal_charge(env, proxy, storage, subscription_id, 0, false);
+    }
+
+    pub fn reveal_charge(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscription_id: u64,
+        expected_gas_bid: i128,
+        is_private_mempool: bool,
+    ) {
         proxy.require_auth();
         let mut sub: Subscription =
             storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
@@ -1014,6 +1065,36 @@ impl SubTrackrSubscription {
             .expect("Plan not found");
 
         let charge_price = resolve_charge_price(&env, &storage, &plan);
+
+        // ── MEV Protection: Commit-Reveal & Gas Analysis ──
+        let threshold = storage_instance_get(&env, &storage, StorageKey::LargeChargeThreshold)
+            .unwrap_or(10_000_000_000);
+
+        if charge_price >= threshold {
+            let commitment_opt: Option<ChargeCommitment> =
+                storage_temporary_get(&env, &storage, StorageKey::TmpChargeCommitment(subscription_id));
+            let commitment = commitment_opt.expect("Large charge requires prior commit_charge");
+
+            let mut payload = soroban_sdk::Bytes::new(&env);
+            payload.append(&soroban_sdk::Bytes::from_array(&env, &subscription_id.to_be_bytes()));
+            payload.append(&soroban_sdk::Bytes::from_array(&env, &expected_gas_bid.to_be_bytes()));
+            let is_priv = if is_private_mempool { 1u8 } else { 0u8 };
+            payload.append(&soroban_sdk::Bytes::from_array(&env, &[is_priv]));
+
+            let expected_hash = env.crypto().sha256(&payload);
+            assert!(commitment.hash == expected_hash.into(), "Commitment hash mismatch");
+
+            // Prevent commitment reuse
+            storage_temporary_remove(&env, &storage, StorageKey::TmpChargeCommitment(subscription_id));
+        }
+
+        // Gas price analysis for attack detection
+        if expected_gas_bid > 0 {
+            env.events().publish(
+                (String::from_str(&env, "mev_monitoring"), subscription_id),
+                (expected_gas_bid, is_private_mempool, now),
+            );
+        }
 
         token::Client::new(&env, &plan.token).transfer(
             &sub.subscriber,
