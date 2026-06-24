@@ -1,0 +1,11 @@
+minimum_pre_commit_version: '2.19.0'
+
+repos:
+  - repo: local
+    hooks:
+      - id: gitleaks-staged
+        name: GitLeaks staged secret scan
+        entry: bash scripts/pre-commit-gitleaks.sh
+        language: system
+        pass_filenames: false
+        stages: [commit]

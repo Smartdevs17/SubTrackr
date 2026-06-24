@@ -1,0 +1,10 @@
+title = "SubTrackr GitLeaks baseline"
+description = "Allowlist for known false positives and approved non-secret patterns."
+
+# Add known false positives here to keep GitLeaks scans actionable.
+# Example:
+# [[allowlist]]
+# description = "Known false positive sample data in documentation"
+# regex = '''EXAMPLE_BASE64_PLACEHOLDER'''
+# paths = ["docs/SECURITY.md"]
+
