@@ -14,6 +14,11 @@ export type { WebhookEventInput } from '../../../src/types/webhook';
 
 type FetchLike = typeof fetch;
 
+export interface RedisStreamClient {
+  xadd: (key: string, ...args: string[]) => Promise<string | null>;
+  xlen: (key: string) => Promise<number>;
+}
+
 export interface RegisterWebhookInput {
   merchantId: string;
   url: string;
@@ -36,6 +41,8 @@ const DEFAULT_RETRY_POLICY: WebhookRetryPolicy = {
   maxDelayMs: 8_000,
   backoffFactor: 2,
 };
+
+const REDIS_STREAM_KEY = process.env.REDIS_STREAM_KEY || 'webhook:events';
 
 const now = (): number => Date.now();
 
@@ -92,14 +99,20 @@ export const isWebhookEventAllowed = (
 export class WebhookDeliveryService {
   private readonly fetchImpl: FetchLike;
   private readonly sleepImpl: (ms: number) => Promise<void>;
+  private readonly redisClient: RedisStreamClient | null;
   private readonly webhooks = new Map<string, WebhookConfig>();
   private readonly deliveries = new Map<string, WebhookDelivery>();
   private readonly deliveredKeys = new Set<string>();
   private readonly rateLimitWindows = new Map<string, number[]>();
 
-  constructor(options: { fetchImpl?: FetchLike; sleepImpl?: (ms: number) => Promise<void> } = {}) {
+  constructor(options: {
+    fetchImpl?: FetchLike;
+    sleepImpl?: (ms: number) => Promise<void>;
+    redisClient?: RedisStreamClient;
+  } = {}) {
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.sleepImpl = options.sleepImpl ?? sleep;
+    this.redisClient = options.redisClient ?? null;
   }
 
   registerWebhook(input: RegisterWebhookInput): WebhookConfig {
@@ -319,6 +332,13 @@ export class WebhookDeliveryService {
     };
 
     this.deliveries.set(delivery.id, delivery);
+
+    if (this.redisClient) {
+      await this.enqueueToRedis(delivery);
+      this.deliveredKeys.add(idempotencyKey);
+      return { delivery };
+    }
+
     const result = await this.sendWithRetry(webhook, delivery);
     this.deliveries.set(delivery.id, result.delivery);
 
@@ -326,6 +346,33 @@ export class WebhookDeliveryService {
       this.deliveredKeys.add(idempotencyKey);
     }
     return result;
+  }
+
+  private async enqueueToRedis(delivery: WebhookDelivery): Promise<void> {
+    if (!this.redisClient) return;
+
+    const payload = JSON.stringify(delivery.payload);
+    if (Buffer.byteLength(payload, 'utf8') > MAX_PAYLOAD_BYTES) {
+      throw new Error('Payload exceeds 1MB limit');
+    }
+
+    await this.redisClient.xadd(
+      REDIS_STREAM_KEY,
+      '*',
+      'eventId', delivery.eventId,
+      'webhookId', delivery.webhookId,
+      'url', delivery.url,
+      'eventType', delivery.eventType,
+      'payload', payload,
+      'signature', delivery.signature,
+      'idempotencyKey', delivery.idempotencyKey,
+      'headers', JSON.stringify({
+        'X-SubTrackr-Signature': delivery.signature,
+        'X-SubTrackr-Event-Type': delivery.eventType,
+        'X-SubTrackr-Event-Id': delivery.eventId,
+        'X-SubTrackr-Idempotency-Key': delivery.idempotencyKey,
+      }),
+    );
   }
 
   async retryWebhookDelivery(deliveryId: string): Promise<WebhookDeliveryResult> {

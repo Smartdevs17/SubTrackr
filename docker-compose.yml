@@ -1,0 +1,94 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  webhook-dispatcher:
+    build:
+      context: ./services/webhook-dispatcher
+      dockerfile: Dockerfile
+    ports:
+      - '3001:3001'
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - REDIS_STREAM_KEY=webhook:events
+      - REDIS_CONSUMER_GROUP=webhook-dispatchers
+      - DISPATCHER_CONCURRENCY=10
+      - DATABASE_URL=postgresql://postgres:postgres@postgres_dispatcher:5432/webhook_dispatcher
+      - PORT=3001
+      - SHUTDOWN_TIMEOUT_MS=30000
+      - QUEUE_BUFFER_SIZE=100000
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres_dispatcher:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      replicas: 2
+
+  postgres_dispatcher:
+    image: postgres:16-alpine
+    ports:
+      - '5433:5432'
+    environment:
+      - POSTGRES_DB=webhook_dispatcher
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - postgres_dispatcher_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d webhook_dispatcher']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  postgres_main:
+    image: postgres:16-alpine
+    ports:
+      - '5432:5432'
+    environment:
+      - POSTGRES_DB=subtrackr
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - postgres_main_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d subtrackr']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - '4000:4000'
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - REDIS_STREAM_KEY=webhook:events
+      - DATABASE_URL=postgresql://postgres:postgres@postgres_main:5432/subtrackr
+      - PORT=4000
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres_main:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+  postgres_dispatcher_data:
+  postgres_main_data:

@@ -1,0 +1,103 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: webhook-dispatcher-hpa
+  namespace: subtrackr
+  labels:
+    app: webhook-dispatcher
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: webhook-dispatcher
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+        - type: Percent
+          value: 50
+          periodSeconds: 60
+      selectPolicy: Max
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webhook-dispatcher
+  namespace: subtrackr
+  labels:
+    app: webhook-dispatcher
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: webhook-dispatcher
+  template:
+    metadata:
+      labels:
+        app: webhook-dispatcher
+    spec:
+      containers:
+        - name: dispatcher
+          image: subtrackr/webhook-dispatcher:latest
+          ports:
+            - containerPort: 3001
+              name: http
+          env:
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: redis-credentials
+                  key: url
+            - name: DISPATCHER_CONCURRENCY
+              value: '10'
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: dispatcher-db-credentials
+                  key: url
+            - name: PORT
+              value: '3001'
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3001
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3001
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      terminationGracePeriodSeconds: 30
