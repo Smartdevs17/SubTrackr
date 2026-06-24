@@ -15,7 +15,10 @@ module.exports = {
   ],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
-    '^@react-native-community/netinfo$': '<rootDir>/src/__mocks__/@react-native-community/netinfo.js',
+    '^@react-native-community/netinfo$':
+      '<rootDir>/src/__mocks__/@react-native-community/netinfo.js',
+    '^@react-native-async-storage/async-storage$':
+      '<rootDir>/src/__mocks__/@react-native-async-storage/async-storage.js',
   },
   setupFilesAfterEnv: [],
   testEnvironment: 'node',

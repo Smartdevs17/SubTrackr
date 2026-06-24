@@ -79,10 +79,7 @@ export interface LWWRegister<T> {
 }
 
 /** Merge two LWW-Registers: the one with the later timestamp wins. */
-export function mergeLWWRegister<T>(
-  local: LWWRegister<T>,
-  remote: LWWRegister<T>,
-): LWWRegister<T> {
+export function mergeLWWRegister<T>(local: LWWRegister<T>, remote: LWWRegister<T>): LWWRegister<T> {
   if (remote.timestamp > local.timestamp) return remote;
   if (remote.timestamp < local.timestamp) return local;
   // Tie-break by nodeId for determinism
@@ -96,7 +93,7 @@ export function mergeLWWRegister<T>(
  * Each element has a unique tag (UUID) to distinguish concurrent add/remove.
  * An element is in the set if any of its tags are in `added` but not in `removed`.
  */
-export interface ORSet<T> {
+export interface ORSet<_T> {
   /** Map from element key (serialised) to a set of unique add-tags. */
   added: Record<string, string[]>;
   /** Set of removed tags. */
@@ -207,7 +204,7 @@ export function lwwMapSet<T>(
   key: string,
   value: T,
   nodeId: string,
-  clock: VectorClock,
+  clock: VectorClock
 ): LWWMap<T> {
   return {
     ...map,

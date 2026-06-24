@@ -1,6 +1,6 @@
 /**
  * Storybook Preview Configuration
- * 
+ *
  * Location: .storybook/preview.js
  */
 
