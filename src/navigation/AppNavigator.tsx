@@ -65,6 +65,7 @@ const SandboxDashboardScreen = lazyScreen(() => import('../screens/SandboxDashbo
 const ApiKeyManagementScreen = lazyScreen(() => import('../screens/ApiKeyManagementScreen'));
 const DocumentationPortalScreen = lazyScreen(() => import('../screens/DocumentationPortalScreen'));
 const IntegrationGuidesScreen = lazyScreen(() => import('../screens/IntegrationGuidesScreen'));
+const PartnerDashboardScreen = lazyScreen(() => import('../screens/PartnerDashboardScreen'));
 const PerformanceDashboardScreen = lazyScreen(
   () => import('../screens/PerformanceDashboardScreen')
 );
@@ -197,9 +198,14 @@ const HomeStack = () => (
     <Stack.Screen
       name="IntegrationGuides"
       component={IntegrationGuidesScreen}
-      options={{ headerShown: false }}
+      options={{ title: 'Integrations', headerShown: true }}
     />
-  </Stack.Navigator>
+    <Stack.Screen
+      name="PartnerDashboard"
+      component={PartnerDashboardScreen}
+      options={{ title: 'Partner Dashboard', headerShown: true }}
+    />
+</Stack.Navigator>
 );
 
 const SettingsStack = () => (

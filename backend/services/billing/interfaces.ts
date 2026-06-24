@@ -20,6 +20,7 @@ import {
   ReconciliationResult,
   TransactionType,
 } from './accountingExportService';
+import { SplitConfiguration, PartnerPayoutSchedule } from '../../../src/types/partner';
 
 export interface IMeteringService {
   recordUsage(metric: UsageMetric): Promise<void>;
@@ -61,4 +62,21 @@ export interface IAccountingExportService {
     exported: TransactionRecord[],
     expected: Array<{ id: string; amount: number; transactionType: TransactionType }>
   ): ReconciliationResult;
+}
+
+export interface IPartnerService {
+  executeSplitAtSettlement(input: {
+    splitConfiguration: SplitConfiguration;
+    transactionId: string;
+    grossAmount: number;
+  }): SplitExecution;
+  shouldSchedulePayout(config: SplitConfiguration, lastPayoutDate: Date | null): {
+    shouldProcess: boolean;
+    nextScheduledDate: Date;
+    reason: string;
+  };
+  aggregatePendingPayouts(
+    configurations: SplitConfiguration[],
+    grossAmount: number
+  ): Map<string, number>;
 }
