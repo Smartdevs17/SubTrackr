@@ -15,7 +15,9 @@ module.exports = {
   ],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
-    '^@react-native-community/netinfo$': '<rootDir>/src/__mocks__/@react-native-community/netinfo.js',
+    '^bullmq$': '<rootDir>/backend/shared/queue/__mocks__/bullmq.ts',
+    '^@react-native-community/netinfo$':
+      '<rootDir>/src/__mocks__/@react-native-community/netinfo.js',
   },
   setupFilesAfterEnv: [],
   testEnvironment: 'node',

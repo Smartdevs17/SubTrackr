@@ -6,9 +6,15 @@
  *
  * Runs on a configurable interval (default 60 s for real-time views).
  * Exposes a Prometheus-style metric for view freshness monitoring.
+ *
+ * Queue priority: low (analytics / maintenance class).
  */
 
 import { QueryClient } from '../../../backend/shared/query/queryRouter';
+import type { PriorityClass } from '../../shared/queue';
+
+/** Background queue priority for MV refresh work. */
+export const MV_REFRESH_JOB_PRIORITY: PriorityClass = 'low';
 
 // ── View definitions ──────────────────────────────────────────────────────────
 
