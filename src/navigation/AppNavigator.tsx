@@ -77,6 +77,9 @@ const PaymentMethodsScreen = lazyScreen(() =>
   }))
 );
 const AnalyticsDashboard = lazyScreen(() => import('../../app/screens/AnalyticsDashboard'));
+const RenewalWorkspaceScreen = lazyScreen(() =>
+  import('../../app/screens/RenewalWorkspaceScreen').then((m) => ({ default: m.default }))
+);
 
 const Tab = createBottomTabNavigator<TabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -198,6 +201,11 @@ const HomeStack = () => (
       name="IntegrationGuides"
       component={IntegrationGuidesScreen}
       options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="RenewalWorkspace"
+      component={RenewalWorkspaceScreen}
+      options={{ title: 'Renewal Workspace', headerShown: true }}
     />
   </Stack.Navigator>
 );

@@ -89,3 +89,37 @@ contracts/migrations/history/*
 !contracts/migrations/history/.gitkeep
 contracts/migrations/snapshots/*
 !contracts/migrations/snapshots/.gitkeep
+
+# Test snapshots (generated — do not commit)
+**/__snapshots__/
+**/test_snapshots/**/*.json
+contracts/test_snapshots/
+contracts/proxy/test_snapshots/
+contracts/sla/test_snapshots/
+contracts/invoice/test_snapshots/
+
+# Stray working files committed by mistake
+*.tmp
+*.bak
+SubTrackr
+package-fixed.json
+package.json.backup
+tsc_output*.txt
+lint_output*.txt
+lint_final_error.txt
+final_lint_check.txt
+test_output.txt
+RACE_CONDITION_FIX.md
+JS_BUNDLE_FIX.md
+BUILD_FIX_GUIDE.md
+BUNDLE_AUDIT.md
+COMPLETION_SUMMARY.md
+DESIGN_SYSTEM_IMPLEMENTATION.md
+DESIGN_SYSTEM_INTEGRATION.md
+DESIGN_SYSTEM_SETUP.md
+FORMATTING.md
+QUICK_START.md
+PR_BODY_SUBSCRIPTION_ADVANCED_SEARCH.md
+PR_CI_Optimizations.md
+WCAG_COMPLIANCE.md
+issue*.json
