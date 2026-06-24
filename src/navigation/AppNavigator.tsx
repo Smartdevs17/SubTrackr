@@ -32,6 +32,7 @@ const SessionManagementScreen = lazyScreen(() => import('../screens/SessionManag
 const CalendarIntegrationScreen = lazyScreen(() => import('../screens/CalendarIntegrationScreen'));
 const AccountingExportScreen = lazyScreen(() => import('../screens/AccountingExportScreen'));
 const WebhookSettingsScreen = lazyScreen(() => import('../screens/WebhookSettingsScreen'));
+const WebhookLogsScreen = lazyScreen(() => import('../screens/WebhookLogsScreen'));
 const ErrorDashboardScreen = lazyScreen(() => import('../screens/ErrorDashboardScreen'));
 const ImportScreen = lazyScreen(() => import('../screens/ImportScreen'));
 const ExportScreen = lazyScreen(() => import('../screens/ExportScreen'));
@@ -274,6 +275,11 @@ const SettingsStack = () => (
       name="WebhookSettings"
       component={WebhookSettingsScreen}
       options={{ title: 'Webhooks', headerShown: true }}
+    />
+    <Stack.Screen
+      name="WebhookLogs"
+      component={WebhookLogsScreen}
+      options={{ title: 'Delivery Logs', headerShown: true }}
     />
     <Stack.Screen
       name="SessionManagement"

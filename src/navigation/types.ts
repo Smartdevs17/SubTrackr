@@ -18,6 +18,7 @@ export type RootStackParamList = {
   Settings: undefined;
   CalendarIntegration: undefined;
   WebhookSettings: undefined;
+  WebhookLogs: { webhookId: string };
   AccountingExport: undefined;
   AdminDashboard: undefined;
   LanguageSettings: undefined;
