@@ -216,3 +216,7 @@ container.bind('IPredictionService', () => new PredictionService());
 container.bind('IRecommendationService', () => new RecommendationService());
 container.bind('IRetentionService', () => new RetentionService());
 container.register('IOracleMonitorService', oracleMonitorService);
+// ── Simulation ────────────────────────────────────────────────────────────────
+import { SimulationService } from '../simulation/simulation.service';
+import { sorobanSimulationClient } from '../simulation/connectors/soroban-simulation.client';
+container.bind('ISimulationService', () => new SimulationService(sorobanSimulationClient));

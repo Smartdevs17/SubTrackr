@@ -328,3 +328,6 @@ export type {
 
 // ── DI Container ──────────────────────────────────────────────────────────────
 export { container, Container } from './container';
+
+// ── Simulation Module ────────────────────────────────────────────────────────
+export * from '../simulation';

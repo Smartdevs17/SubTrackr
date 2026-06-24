@@ -1,0 +1,1 @@
+sed -i "/const \[selectedProtocol, setSelectedProtocol\] = useState/a \  const [simulationResult, setSimulationResult] = useState<any>(null);\n  const [isSimulationVisible, setIsSimulationVisible] = useState(false);\n" src/screens/CryptoPaymentScreen.tsx
