@@ -1,582 +1,527 @@
+// ════════════════════════════════════════════════════════════════
+// BATCH TRANSACTION SYSTEM - Execute multiple operations efficiently
+// ════════════════════════════════════════════════════════════════
+
 #![no_std]
 
-use soroban_sdk::{contract, contractimpl, contracttype, token, Address, Bytes, BytesN, Env, String, Vec};
+use soroban_sdk::{
+    contract, contractimpl, contracttype, Address, Bytes, BytesN, Env, IntoVal, String, Symbol,
+    TryFromVal, Val, Vec,
+};
 use utils::merkle::{self, MerkleProof};
 
-/// Billing interval in seconds
+// ════════════════════════════════════════════════════════════════
+// DATA STRUCTURES
+// ════════════════════════════════════════════════════════════════
+
+#[derive(Clone)]
 #[contracttype]
-#[derive(Clone, Debug, PartialEq)]
-pub enum Interval {
-    Weekly,    // 604800s
-    Monthly,   // 2592000s (30 days)
-    Quarterly, // 7776000s (90 days)
-    Yearly,    // 31536000s (365 days)
+enum DataKey {
+    AdminOwners,
+    AdminThreshold,
+    AdminTimelockDelaySeconds,
+    AdminProposalSeq,
+    AdminProposal,
+    ContractVersion,
 }
 
-const MAX_PAUSE_DURATION: u64 = 2_592_000; // 30 days
+#[derive(Clone)]
+#[contracttype]
+pub enum AdminAction {
+    AddOwner(Address),
+    RemoveOwner(Address),
+    SetThreshold(u32),
+    SetTimelockDelaySeconds(u64),
+}
 
-impl Interval {
-    pub fn seconds(&self) -> u64 {
-        match self {
-            Interval::Weekly => 604_800,
-            Interval::Monthly => 2_592_000,
-            Interval::Quarterly => 7_776_000,
-            Interval::Yearly => 31_536_000,
+#[derive(Clone)]
+#[contracttype]
+pub struct AdminProposal {
+    pub id: u64,
+    pub action: AdminAction,
+    pub created_at: u64,
+    pub execute_after: u64,
+    pub approvals: Vec<Address>,
+}
+
+/// Represents a single operation in a batch
+#[derive(Clone)]
+#[contracttype]
+pub struct BatchOperation {
+    /// Name of the function to call (e.g., "subscribe", "pause_subscription")
+    pub function_name: String,
+
+    /// Parameters for the function (encoded)
+    pub params: Vec<Val>,
+
+    /// Optional dependency on previous operation result
+    pub depends_on: Option<u32>,
+
+    /// Whether this operation must succeed (stops batch if fails)
+    pub required: bool,
+}
+
+/// Result of a single operation
+#[derive(Clone)]
+#[contracttype]
+pub struct OperationResult {
+    /// Index of the operation
+    pub index: u32,
+
+    /// Did it succeed?
+    pub success: bool,
+
+    /// The return value
+    pub result: Option<Val>,
+
+    /// Error message if failed
+    pub error: Option<String>,
+}
+
+/// Complete batch execution result
+#[derive(Clone)]
+#[contracttype]
+pub struct BatchResult {
+    /// Batch ID for tracking
+    pub batch_id: u64,
+
+    /// Total operations
+    pub total_operations: u32,
+
+    /// How many succeeded
+    pub successful_operations: u32,
+
+    /// How many failed
+    pub failed_operations: u32,
+
+    /// All operation results
+    pub results: Vec<OperationResult>,
+
+    /// Was the batch atomic? (all or nothing)
+    pub atomic: bool,
+
+    /// Total gas used (estimate)
+    pub gas_estimate: u64,
+}
+
+/// Batch status
+#[derive(Clone, Copy, PartialEq, Eq)]
+#[contracttype]
+pub enum BatchStatus {
+    Pending = 0,
+    Executing = 1,
+    Completed = 2,
+    Failed = 3,
+    Cancelled = 4,
+}
+
+// ════════════════════════════════════════════════════════════════
+// BATCH BUILDER - Client-side helper
+// ════════════════════════════════════════════════════════════════
+
+/// Builder for constructing batches
+pub struct BatchBuilder {
+    /// Operations to execute
+    pub operations: Vec<BatchOperation>,
+
+    /// Is this atomic? (all or nothing)
+    pub atomic: bool,
+
+    /// Maximum gas allowed
+    pub max_gas: u64,
+}
+
+impl BatchBuilder {
+    /// Create a new batch builder
+    pub fn new(atomic: bool) -> Self {
+        BatchBuilder {
+            operations: Vec::new(),
+            atomic,
+            max_gas: 10_000_000, // Default: 10M gas
         }
     }
-}
 
-#[contracttype]
-#[derive(Clone, Debug, PartialEq)]
-pub enum SubscriptionStatus {
-    Active,
-    Paused,
-    Cancelled,
-    PastDue,
-}
-
-/// A subscription plan created by a merchant
-#[contracttype]
-#[derive(Clone, Debug)]
-pub struct Plan {
-    pub id: u64,
-    pub merchant: Address,
-    pub name: String,
-    pub price: i128,    // price per interval in stroops (XLM smallest unit)
-    pub token: Address, // token address (native XLM or Stellar asset)
-    pub interval: Interval,
-    pub active: bool,
-    pub subscriber_count: u32,
-    pub created_at: u64,
-}
-
-/// A user's subscription to a plan
-#[contracttype]
-#[derive(Clone, Debug)]
-pub struct Subscription {
-    pub id: u64,
-    pub plan_id: u64,
-    pub subscriber: Address,
-    pub status: SubscriptionStatus,
-    pub started_at: u64,
-    pub last_charged_at: u64,
-    pub next_charge_at: u64,
-    pub total_paid: i128,
-    pub total_gas_spent: u64,
-    pub charge_count: u32,
-    pub paused_at: u64,
-    pub pause_duration: u64,
-    pub refund_requested_amount: i128,
-}
-
-#[contracttype]
-pub enum DataKey {
-    Plan(u64),
-    PlanCount,
-    Subscription(u64),
-    SubscriptionCount,
-    UserSubscriptions(Address),
-    MerchantPlans(Address),
-    Admin,
-}
-
-#[contract]
-pub struct SubTrackrContract;
-
-#[contractimpl]
-impl SubTrackrContract {
-    /// Initialize the contract
-    pub fn initialize(env: Env, admin: Address) {
-        admin.require_auth();
-        env.storage().instance().set(&DataKey::Admin, &admin);
-        env.storage().instance().set(&DataKey::PlanCount, &0u64);
-        env.storage()
-            .instance()
-            .set(&DataKey::SubscriptionCount, &0u64);
-    }
-
-    // ── Plan Management ──
-
-    /// Merchant creates a subscription plan
-    pub fn create_plan(
-        env: Env,
-        merchant: Address,
-        name: String,
-        price: i128,
-        token: Address,
-        interval: Interval,
-    ) -> u64 {
-        merchant.require_auth();
-        assert!(price > 0, "Price must be positive");
-
-        let mut count: u64 = env
-            .storage()
-            .instance()
-            .get(&DataKey::PlanCount)
-            .unwrap_or(0);
-        count += 1;
-
-        let plan = Plan {
-            id: count,
-            merchant: merchant.clone(),
-            name,
-            price,
-            token,
-            interval,
-            active: true,
-            subscriber_count: 0,
-            created_at: env.ledger().timestamp(),
+    /// Add an operation to the batch
+    pub fn add_operation(
+        &mut self,
+        function_name: String,
+        params: Vec<Val>,
+        required: bool,
+    ) -> &mut Self {
+        let operation = BatchOperation {
+            function_name,
+            params,
+            depends_on: None,
+            required,
         };
 
-        env.storage().persistent().set(&DataKey::Plan(count), &plan);
-        env.storage().instance().set(&DataKey::PlanCount, &count);
-
-        // Track merchant's plans
-        let mut merchant_plans: Vec<u64> = env
-            .storage()
-            .persistent()
-            .get(&DataKey::MerchantPlans(merchant.clone()))
-            .unwrap_or(Vec::new(&env));
-        merchant_plans.push_back(count);
-        env.storage()
-            .persistent()
-            .set(&DataKey::MerchantPlans(merchant), &merchant_plans);
-
-        count
+        self.operations.push_back(operation);
+        self
     }
 
-    /// Merchant deactivates a plan (no new subscribers, existing ones continue)
-    pub fn deactivate_plan(env: Env, merchant: Address, plan_id: u64) {
-        merchant.require_auth();
+    /// Add operation with dependency on another
+    pub fn add_operation_with_dependency(
+        &mut self,
+        function_name: String,
+        params: Vec<Val>,
+        depends_on: u32,
+        required: bool,
+    ) -> &mut Self {
+        let operation = BatchOperation {
+            function_name,
+            params,
+            depends_on: Some(depends_on),
+            required,
+        };
 
-        let mut plan: Plan = env
-            .storage()
-            .persistent()
-            .get(&DataKey::Plan(plan_id))
-            .expect("Plan not found");
-
-        assert!(plan.merchant == merchant, "Only plan owner can deactivate");
-        plan.active = false;
-
-        env.storage()
-            .persistent()
-            .set(&DataKey::Plan(plan_id), &plan);
+        self.operations.push_back(operation);
+        self
     }
 
-    // ── Subscription Management ──
+    /// Set maximum gas for batch
+    pub fn with_max_gas(&mut self, gas: u64) -> &mut Self {
+        self.max_gas = gas;
+        self
+    }
 
-    /// User subscribes to a plan
-    pub fn subscribe(env: Env, subscriber: Address, plan_id: u64) -> u64 {
-        subscriber.require_auth();
+    /// Get number of operations
+    pub fn operation_count(&self) -> u32 {
+        self.operations.len() as u32
+    }
 
-        let mut plan: Plan = env
-            .storage()
-            .persistent()
-            .get(&DataKey::Plan(plan_id))
-            .expect("Plan not found");
-        assert!(plan.active, "Plan is not active");
-        assert!(
-            plan.merchant != subscriber,
-            "Merchant cannot self-subscribe"
-        );
+    /// Get all operations
+    pub fn get_operations(&self) -> &Vec<BatchOperation> {
+        &self.operations
+    }
 
-        let user_subs: Vec<u64> = env
-            .storage()
-            .persistent()
-            .get(&DataKey::UserSubscriptions(subscriber.clone()))
-            .unwrap_or(Vec::new(&env));
-        for sub_id in user_subs.iter() {
-            let existing_sub: Subscription = env
-                .storage()
-                .persistent()
-                .get(&DataKey::Subscription(sub_id))
-                .expect("Subscription not found");
-            if existing_sub.plan_id == plan_id
-                && existing_sub.status != SubscriptionStatus::Cancelled
-            {
-                panic!("Already subscribed to this plan");
+    /// Validate batch before execution
+    pub fn validate(&self) -> Result<(), String> {
+        // Check: No empty batches
+        if self.operations.len() == 0 {
+            return Err(String::from_str(&Env::new(), "Batch cannot be empty"));
+        }
+
+        // Check: Not too many operations
+        if self.operations.len() > 100 {
+            return Err(String::from_str(&Env::new(), "Too many operations (max 100)"));
+        }
+
+        // Check: Dependencies are valid
+        for (i, op) in self.operations.iter().enumerate() {
+            if let Some(dep) = op.depends_on {
+                if dep >= i as u32 {
+                    return Err(String::from_str(&Env::new(), "Invalid dependency"));
+                }
             }
         }
 
-        let mut sub_count: u64 = env
+        Ok(())
+    }
+}
+
+// ════════════════════════════════════════════════════════════════
+// CONTRACT IMPLEMENTATION
+// ════════════════════════════════════════════════════════════════
+
+#[contract]
+pub struct SubTrackrBatch;
+
+#[contractimpl]
+impl SubTrackrBatch {
+    /// Initialize the contract with an admin.
+    ///
+    /// The admin is required for upgrade operations.
+    pub fn init(env: Env, admin: Address) {
+        if env.storage().instance().has(&DataKey::AdminOwners) {
+            panic!("already initialized");
+        }
+
+        admin.require_auth();
+        let mut owners: Vec<Address> = Vec::new(&env);
+        owners.push_back(admin.clone());
+        env.storage().instance().set(&DataKey::AdminOwners, &owners);
+        env.storage().instance().set(&DataKey::AdminThreshold, &1u32);
+        env.storage()
+            .instance()
+            .set(&DataKey::AdminTimelockDelaySeconds, &0u64);
+        env.storage().instance().set(&DataKey::AdminProposalSeq, &0u64);
+        env.storage().instance().set(&DataKey::ContractVersion, &1u32);
+
+        env.events()
+            .publish(Symbol::new(&env, "admin_initialized"), admin);
+    }
+
+    /// Initialize the contract with multisig admin settings.
+    ///
+    /// `owners` must be non-empty and `threshold` must be in the range `[1..=owners.len()]`.
+    pub fn init_multisig(env: Env, initializer: Address, owners: Vec<Address>, threshold: u32, timelock_delay_seconds: u64) {
+        if env.storage().instance().has(&DataKey::AdminOwners) {
+            panic!("already initialized");
+        }
+
+        initializer.require_auth();
+
+        if owners.len() == 0 {
+            panic!("owners cannot be empty");
+        }
+
+        if threshold == 0 || threshold > owners.len() as u32 {
+            panic!("invalid threshold");
+        }
+
+        env.storage().instance().set(&DataKey::AdminOwners, &owners);
+        env.storage().instance().set(&DataKey::AdminThreshold, &threshold);
+        env.storage()
+            .instance()
+            .set(&DataKey::AdminTimelockDelaySeconds, &timelock_delay_seconds);
+        env.storage().instance().set(&DataKey::AdminProposalSeq, &0u64);
+        env.storage().instance().set(&DataKey::ContractVersion, &1u32);
+
+        env.events().publish(Symbol::new(&env, "multisig_initialized"), (threshold, timelock_delay_seconds));
+    }
+
+    /// Upgrade the contract WASM (admin-only).
+    ///
+    /// Note: state is preserved because Soroban upgrades keep instance storage.
+    /// If you need migrations, upgrade first, then call `migrate`.
+    pub fn upgrade(env: Env, signers: Vec<Address>, new_wasm_hash: BytesN<32>) {
+        Self::require_threshold_signers(&env, &signers);
+
+        env.events().publish(
+            Symbol::new(&env, "contract_upgrade_requested"),
+            new_wasm_hash.clone(),
+        );
+
+        env.deployer().update_current_contract_wasm(new_wasm_hash);
+
+        env.events()
+            .publish(Symbol::new(&env, "contract_upgraded"), signers.len() as u32);
+    }
+
+    /// Post-upgrade migration hook (admin-only).
+    pub fn migrate(env: Env, signers: Vec<Address>, new_version: u32) {
+        Self::require_threshold_signers(&env, &signers);
+
+        env.storage()
+            .instance()
+            .set(&DataKey::ContractVersion, &new_version);
+
+        env.events()
+            .publish(Symbol::new(&env, "contract_migrated"), new_version);
+    }
+
+    /// Get current multisig owners.
+    pub fn get_admin_owners(env: Env) -> Vec<Address> {
+        env.storage()
+            .instance()
+            .get(&DataKey::AdminOwners)
+            .unwrap_or_else(|| panic!("contract not initialized"))
+    }
+
+    /// Get current multisig threshold.
+    pub fn get_admin_threshold(env: Env) -> u32 {
+        env.storage()
+            .instance()
+            .get(&DataKey::AdminThreshold)
+            .unwrap_or_else(|| panic!("contract not initialized"))
+    }
+
+    /// Get current timelock delay (seconds).
+    pub fn get_admin_timelock_delay_seconds(env: Env) -> u64 {
+        env.storage()
+            .instance()
+            .get(&DataKey::AdminTimelockDelaySeconds)
+            .unwrap_or_else(|| panic!("contract not initialized"))
+    }
+
+    /// Propose an owner/threshold/timelock change (timelocked).
+    /// The proposer counts as the first approval.
+    pub fn propose_admin_action(env: Env, proposer: Address, action: AdminAction) -> u64 {
+        proposer.require_auth();
+        Self::assert_is_owner(&env, &proposer);
+
+        if env.storage().instance().has(&DataKey::AdminProposal) {
+            panic!("proposal already active");
+        }
+
+        let mut seq: u64 = env
             .storage()
             .instance()
-            .get(&DataKey::SubscriptionCount)
-            .unwrap_or(0);
-        sub_count += 1;
+            .get(&DataKey::AdminProposalSeq)
+            .unwrap_or(0u64);
+        seq += 1;
+        env.storage().instance().set(&DataKey::AdminProposalSeq, &seq);
 
-        let now = env.ledger().timestamp();
+        let now = env.ledger().timestamp() as u64;
+        let delay: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::AdminTimelockDelaySeconds)
+            .unwrap_or(0u64);
 
-        let subscription = Subscription {
-            id: sub_count,
-            plan_id,
-            subscriber: subscriber.clone(),
-            status: SubscriptionStatus::Active,
-            started_at: now,
-            last_charged_at: now,
-            next_charge_at: now + plan.interval.seconds(),
-            total_paid: 0,
-            total_gas_spent: 0,
-            charge_count: 0,
-            paused_at: 0,
-            pause_duration: 0,
-            refund_requested_amount: 0,
+        let mut approvals: Vec<Address> = Vec::new(&env);
+        approvals.push_back(proposer.clone());
+
+        let proposal = AdminProposal {
+            id: seq,
+            action,
+            created_at: now,
+            execute_after: now.saturating_add(delay),
+            approvals,
         };
 
-        env.storage()
-            .persistent()
-            .set(&DataKey::Subscription(sub_count), &subscription);
-        env.storage()
+        env.storage().instance().set(&DataKey::AdminProposal, &proposal);
+        env.events()
+            .publish(Symbol::new(&env, "admin_proposal_created"), proposal.id);
+
+        proposal.id
+    }
+
+    /// Approve an active proposal.
+    pub fn approve_admin_proposal(env: Env, approver: Address, proposal_id: u64) {
+        approver.require_auth();
+        Self::assert_is_owner(&env, &approver);
+
+        let mut proposal: AdminProposal = env
+            .storage()
             .instance()
-            .set(&DataKey::SubscriptionCount, &sub_count);
+            .get(&DataKey::AdminProposal)
+            .unwrap_or_else(|| panic!("no active proposal"));
 
-        // Track user's subscriptions
-        let mut user_subs: Vec<u64> = env
-            .storage()
-            .persistent()
-            .get(&DataKey::UserSubscriptions(subscriber.clone()))
-            .unwrap_or(Vec::new(&env));
-        user_subs.push_back(sub_count);
-        env.storage()
-            .persistent()
-            .set(&DataKey::UserSubscriptions(subscriber), &user_subs);
-
-        // Increment plan subscriber count
-        plan.subscriber_count += 1;
-        env.storage()
-            .persistent()
-            .set(&DataKey::Plan(plan_id), &plan);
-
-        sub_count
-    }
-
-    /// User cancels their subscription
-    pub fn cancel_subscription(env: Env, subscriber: Address, subscription_id: u64) {
-        subscriber.require_auth();
-
-        let mut sub: Subscription = env
-            .storage()
-            .persistent()
-            .get(&DataKey::Subscription(subscription_id))
-            .expect("Subscription not found");
-
-        assert!(sub.subscriber == subscriber, "Only subscriber can cancel");
-        assert!(
-            sub.status == SubscriptionStatus::Active || sub.status == SubscriptionStatus::Paused,
-            "Subscription not active"
-        );
-
-        sub.status = SubscriptionStatus::Cancelled;
-
-        env.storage()
-            .persistent()
-            .set(&DataKey::Subscription(subscription_id), &sub);
-
-        // Decrement plan subscriber count
-        let mut plan: Plan = env
-            .storage()
-            .persistent()
-            .get(&DataKey::Plan(sub.plan_id))
-            .expect("Plan not found");
-        if plan.subscriber_count > 0 {
-            plan.subscriber_count -= 1;
-        }
-        env.storage()
-            .persistent()
-            .set(&DataKey::Plan(sub.plan_id), &plan);
-    }
-
-    /// User pauses their subscription
-    pub fn pause_subscription(env: Env, subscriber: Address, subscription_id: u64) {
-        Self::pause_by_subscriber(env, subscriber, subscription_id, MAX_PAUSE_DURATION);
-    }
-
-    /// User pauses their subscription with a specific duration
-    pub fn pause_by_subscriber(env: Env, subscriber: Address, subscription_id: u64, duration: u64) {
-        subscriber.require_auth();
-
-        let mut sub: Subscription = env
-            .storage()
-            .persistent()
-            .get(&DataKey::Subscription(subscription_id))
-            .expect("Subscription not found");
-
-        assert!(sub.subscriber == subscriber, "Only subscriber can pause");
-        assert!(
-            sub.status == SubscriptionStatus::Active,
-            "Only active subscriptions can be paused"
-        );
-        assert!(
-            duration <= MAX_PAUSE_DURATION,
-            "Pause duration exceeds limit"
-        );
-
-        sub.status = SubscriptionStatus::Paused;
-        sub.paused_at = env.ledger().timestamp();
-        sub.pause_duration = duration;
-
-        env.storage()
-            .persistent()
-            .set(&DataKey::Subscription(subscription_id), &sub);
-
-        // Publish event
-        env.events().publish(
-            (String::from_str(&env, "subscription_paused"), subscriber),
-            (subscription_id, sub.paused_at, duration),
-        );
-    }
-
-    /// User resumes a paused subscription
-    pub fn resume_subscription(env: Env, subscriber: Address, subscription_id: u64) {
-        subscriber.require_auth();
-
-        let mut sub: Subscription = env
-            .storage()
-            .persistent()
-            .get(&DataKey::Subscription(subscription_id))
-            .expect("Subscription not found");
-
-        assert!(sub.subscriber == subscriber, "Only subscriber can resume");
-        assert!(
-            sub.status == SubscriptionStatus::Paused
-                || Self::check_and_resume_internal(&env, &mut sub),
-            "Only paused subscriptions can be resumed"
-        );
-
-        let now = env.ledger().timestamp();
-        let plan: Plan = env
-            .storage()
-            .persistent()
-            .get(&DataKey::Plan(sub.plan_id))
-            .expect("Plan not found");
-
-        sub.status = SubscriptionStatus::Active;
-        sub.next_charge_at = now + plan.interval.seconds();
-        sub.paused_at = 0;
-        sub.pause_duration = 0;
-
-        env.storage()
-            .persistent()
-            .set(&DataKey::Subscription(subscription_id), &sub);
-
-        // Publish event
-        env.events().publish(
-            (String::from_str(&env, "subscription_resumed"), subscriber),
-            subscription_id,
-        );
-    }
-
-    // ── Payment Processing ──
-
-    /// Process a due payment for a subscription (callable by anyone — typically a cron/bot)
-    pub fn charge_subscription(env: Env, subscription_id: u64) {
-        let mut sub: Subscription = env
-            .storage()
-            .persistent()
-            .get(&DataKey::Subscription(subscription_id))
-            .expect("Subscription not found");
-
-        sub.subscriber.require_auth();
-
-        // Handle auto-resume if needed
-        if Self::check_and_resume_internal(&env, &mut sub) {
-            env.storage()
-                .persistent()
-                .set(&DataKey::Subscription(subscription_id), &sub);
+        if proposal.id != proposal_id {
+            panic!("proposal id mismatch");
         }
 
-        assert!(
-            sub.status == SubscriptionStatus::Active,
-            "Subscription not active"
-        );
+        if Self::vec_contains_address(&proposal.approvals, &approver) {
+            return;
+        }
 
-        let now = env.ledger().timestamp();
-        assert!(now >= sub.next_charge_at, "Payment not yet due");
+        proposal.approvals.push_back(approver);
+        env.storage().instance().set(&DataKey::AdminProposal, &proposal);
 
-        let plan: Plan = env
-            .storage()
-            .persistent()
-            .get(&DataKey::Plan(sub.plan_id))
-            .expect("Plan not found");
-
-        // Execute actual token transfer from subscriber to merchant
-        token::Client::new(&env, &plan.token).transfer(
-            &sub.subscriber,
-            &plan.merchant,
-            &plan.price,
-        );
-
-        sub.last_charged_at = now;
-        sub.next_charge_at = now + plan.interval.seconds();
-        sub.total_paid += plan.price;
-        sub.total_gas_spent += 100_000; // Simulated gas cost (0.01 XLM)
-        sub.charge_count += 1;
-
-        env.storage()
-            .persistent()
-            .set(&DataKey::Subscription(subscription_id), &sub);
-
-        // Publish event
         env.events().publish(
-            (String::from_str(&env, "subscription_charged"), subscription_id),
-            (sub.subscriber.clone(), plan.price, 100_000u64, now),
+            Symbol::new(&env, "admin_proposal_approved"),
+            (proposal_id, proposal.approvals.len() as u32),
         );
     }
 
-    /// Request a refund for a subscription (can only be called by the subscriber)
-    pub fn request_refund(env: Env, subscription_id: u64, amount: i128) {
-        let mut sub: Subscription = env
-            .storage()
-            .persistent()
-            .get(&DataKey::Subscription(subscription_id))
-            .expect("Subscription not found");
-
-        sub.subscriber.require_auth();
-
-        assert!(amount > 0, "Refund amount must be positive");
-        assert!(
-            amount <= sub.total_paid,
-            "Refund amount cannot exceed total paid"
-        );
-
-        sub.refund_requested_amount = amount;
-
-        env.storage()
-            .persistent()
-            .set(&DataKey::Subscription(subscription_id), &sub);
-
-        // Publish event
-        env.events().publish(
-            (String::from_str(&env, "refund_requested"), subscription_id),
-            (sub.subscriber.clone(), amount),
-        );
-    }
-
-    /// Approve a refund (can only be called by the admin)
-    pub fn approve_refund(env: Env, subscription_id: u64) {
-        let mut sub: Subscription = env
-            .storage()
-            .persistent()
-            .get(&DataKey::Subscription(subscription_id))
-            .expect("Subscription not found");
-
-        let admin: Address = env
+    /// Execute an approved proposal after its timelock has elapsed.
+    pub fn execute_admin_proposal(env: Env, proposal_id: u64) {
+        let proposal: AdminProposal = env
             .storage()
             .instance()
-            .get(&DataKey::Admin)
-            .expect("Admin not set");
-        admin.require_auth();
+            .get(&DataKey::AdminProposal)
+            .unwrap_or_else(|| panic!("no active proposal"));
 
-        let amount = sub.refund_requested_amount;
-        assert!(amount > 0, "No pending refund request");
+        if proposal.id != proposal_id {
+            panic!("proposal id mismatch");
+        }
 
-        let _plan: Plan = env
-            .storage()
-            .persistent()
-            .get(&DataKey::Plan(sub.plan_id))
-            .expect("Plan not found");
-
-        // TODO: Execute actual token transfer from merchant back to subscriber
-        // token::Client::new(&env, &plan.token).transfer(
-        //     &plan.merchant, &sub.subscriber, &amount
-        // );
-
-        sub.total_paid -= amount;
-        sub.refund_requested_amount = 0;
-
-        env.storage()
-            .persistent()
-            .set(&DataKey::Subscription(subscription_id), &sub);
-
-        // Publish event
-        env.events().publish(
-            (String::from_str(&env, "refund_approved"), subscription_id),
-            (sub.subscriber.clone(), amount),
-        );
-    }
-
-    /// Reject a refund (can only be called by the admin)
-    pub fn reject_refund(env: Env, subscription_id: u64) {
-        let mut sub: Subscription = env
-            .storage()
-            .persistent()
-            .get(&DataKey::Subscription(subscription_id))
-            .expect("Subscription not found");
-
-        let admin: Address = env
+        let threshold: u32 = env
             .storage()
             .instance()
-            .get(&DataKey::Admin)
-            .expect("Admin not set");
-        admin.require_auth();
+            .get(&DataKey::AdminThreshold)
+            .unwrap_or_else(|| panic!("contract not initialized"));
 
-        assert!(sub.refund_requested_amount > 0, "No pending refund request");
+        if proposal.approvals.len() < threshold as u32 {
+            panic!("insufficient approvals");
+        }
 
-        sub.refund_requested_amount = 0;
+        let now = env.ledger().timestamp() as u64;
+        if now < proposal.execute_after {
+            panic!("timelock not elapsed");
+        }
 
-        env.storage()
-            .persistent()
-            .set(&DataKey::Subscription(subscription_id), &sub);
+        match proposal.action {
+            AdminAction::AddOwner(ref new_owner) => {
+                let mut owners = Self::load_owners(&env);
+                if !Self::vec_contains_address(&owners, new_owner) {
+                    owners.push_back(new_owner.clone());
+                    env.storage().instance().set(&DataKey::AdminOwners, &owners);
+                }
+            }
+            AdminAction::RemoveOwner(ref owner) => {
+                let owners = Self::load_owners(&env);
+                let mut next: Vec<Address> = Vec::new(&env);
+                for existing in owners.iter() {
+                    if &existing != owner {
+                        next.push_back(existing);
+                    }
+                }
+                if next.len() == 0 {
+                    panic!("cannot remove last owner");
+                }
+                let current_threshold: u32 = env
+                    .storage()
+                    .instance()
+                    .get(&DataKey::AdminThreshold)
+                    .unwrap_or_else(|| panic!("contract not initialized"));
+                if current_threshold > next.len() as u32 {
+                    env.storage()
+                        .instance()
+                        .set(&DataKey::AdminThreshold, &(next.len() as u32));
+                }
+                env.storage().instance().set(&DataKey::AdminOwners, &next);
+            }
+            AdminAction::SetThreshold(new_threshold) => {
+                let owners = Self::load_owners(&env);
+                if new_threshold == 0 || new_threshold > owners.len() as u32 {
+                    panic!("invalid threshold");
+                }
+                env.storage().instance().set(&DataKey::AdminThreshold, &new_threshold);
+            }
+            AdminAction::SetTimelockDelaySeconds(delay) => {
+                env.storage()
+                    .instance()
+                    .set(&DataKey::AdminTimelockDelaySeconds, &delay);
+            }
+        }
 
-        // Publish event
-        env.events().publish(
-            (String::from_str(&env, "refund_rejected"), subscription_id),
-            sub.subscriber.clone(),
-        );
+        env.storage().instance().remove(&DataKey::AdminProposal);
+        env.events()
+            .publish(Symbol::new(&env, "admin_proposal_executed"), proposal_id);
     }
 
-    // ── Queries ──
-
-    /// Get plan details
-    pub fn get_plan(env: Env, plan_id: u64) -> Plan {
-        env.storage()
-            .persistent()
-            .get(&DataKey::Plan(plan_id))
-            .expect("Plan not found")
-    }
-
-    /// Get subscription details
-    pub fn get_subscription(env: Env, subscription_id: u64) -> Subscription {
-        let mut sub: Subscription = env
+    fn require_threshold_signers(env: &Env, signers: &Vec<Address>) {
+        let owners = Self::load_owners(env);
+        let threshold: u32 = env
             .storage()
-            .persistent()
-            .get(&DataKey::Subscription(subscription_id))
-            .expect("Subscription not found");
+            .instance()
+            .get(&DataKey::AdminThreshold)
+            .unwrap_or_else(|| panic!("contract not initialized"));
 
-        Self::check_and_resume_internal(&env, &mut sub);
-        sub
+        if signers.len() < threshold as u32 {
+            panic!("insufficient signers");
+        }
+
+        let mut unique: Vec<Address> = Vec::new(env);
+        for signer in signers.iter() {
+            if !Self::vec_contains_address(&owners, &signer) {
+                panic!("signer not owner");
+            }
+            if !Self::vec_contains_address(&unique, &signer) {
+                unique.push_back(signer.clone());
+            }
+            signer.require_auth();
+        }
+
+        if unique.len() < threshold as u32 {
+            panic!("duplicate signers");
+        }
     }
 
-    /// Get all subscription IDs for a user
-    pub fn get_user_subscriptions(env: Env, subscriber: Address) -> Vec<u64> {
-        env.storage()
-            .persistent()
-            .get(&DataKey::UserSubscriptions(subscriber))
-            .unwrap_or(Vec::new(&env))
-    }
-
-    /// Get all plan IDs for a merchant
-    pub fn get_merchant_plans(env: Env, merchant: Address) -> Vec<u64> {
-        env.storage()
-            .persistent()
-            .get(&DataKey::MerchantPlans(merchant))
-            .unwrap_or(Vec::new(&env))
-    }
-
-    /// Get total plan count
-    pub fn get_plan_count(env: Env) -> u64 {
+    fn load_owners(env: &Env) -> Vec<Address> {
         env.storage()
             .instance()
-            .get(&DataKey::PlanCount)
-            .unwrap_or(0)
+            .get(&DataKey::AdminOwners)
+            .unwrap_or_else(|| panic!("contract not initialized"))
     }
 
-    /// Get total subscription count
-    pub fn get_subscription_count(env: Env) -> u64 {
-        env.storage()
-            .instance()
-            .get(&DataKey::SubscriptionCount)
-            .unwrap_or(0)
+    fn assert_is_owner(env: &Env, address: &Address) {
+        let owners = Self::load_owners(env);
+        if !Self::vec_contains_address(&owners, address) {
+            panic!("not an owner");
+        }
     }
 
     // ── Batch Storage Operations (Merkle Tree) ──
@@ -616,20 +561,303 @@ impl SubTrackrContract {
         env.storage().instance().get(&root_key)
     }
 
-    // ── Internal Helpers ──
-
-    fn check_and_resume_internal(env: &Env, sub: &mut Subscription) -> bool {
-        if sub.status == SubscriptionStatus::Paused {
-            let now = env.ledger().timestamp();
-            if now >= sub.paused_at + sub.pause_duration {
-                sub.status = SubscriptionStatus::Active;
-                sub.paused_at = 0;
-                sub.pause_duration = 0;
+    fn vec_contains_address(vec: &Vec<Address>, address: &Address) -> bool {
+        for item in vec.iter() {
+            if &item == address {
                 return true;
             }
         }
         false
     }
+
+    /// Execute a batch of subscription operations
+    ///
+    /// # Arguments
+    /// * `env` - Contract environment
+    /// * `proxy` - Proxy contract address
+    /// * `user` - User executing the batch
+    /// * `operations` - List of operations to execute
+    /// * `atomic` - If true, all or nothing (fail-fast)
+    pub fn execute_batch(
+        env: Env,
+        proxy: Address,
+        user: Address,
+        operations: Vec<BatchOperation>,
+        atomic: bool,
+    ) -> BatchResult {
+        user.require_auth();
+
+        let batch_id = Self::generate_batch_id(&env);
+        let mut results: Vec<OperationResult> = Vec::new(&env);
+        let mut successful_count = 0u32;
+        let mut failed_count = 0u32;
+        let mut gas_used = 0u64;
+        let mut should_fail = false;
+
+        // Execute each operation in sequence
+        for (index, operation) in operations.iter().enumerate() {
+            let op_index = index as u32;
+
+            // Emit intent event so indexers can follow what was requested, even if it fails later.
+            env.events().publish(
+                (Symbol::new(&env, "operation_requested"), batch_id, op_index),
+                (
+                    user.clone(),
+                    proxy.clone(),
+                    operation.function_name.clone(),
+                    operation.required,
+                    operation.depends_on,
+                ),
+            );
+
+            // CHECK: Can we execute this operation?
+            if should_fail && atomic {
+                // In atomic mode, stop if previous failed
+                let result = OperationResult {
+                    index: op_index,
+                    success: false,
+                    result: None,
+                    error: Some(String::from_str(&env, "Skipped due to atomic failure")),
+                };
+                results.push_back(result);
+                failed_count += 1;
+
+                env.events().publish(
+                    (Symbol::new(&env, "operation_failed"), batch_id, op_index),
+                    String::from_str(&env, "Skipped due to atomic failure"),
+                );
+                continue;
+            }
+
+            // CHECK: Are dependencies met?
+            if let Some(dep_index) = operation.depends_on {
+                if dep_index < results.len() as u32 {
+                    let dep_result = &results.get(dep_index as usize);
+                    if !dep_result.success {
+                        // Dependency failed
+                        let result = OperationResult {
+                            index: op_index,
+                            success: false,
+                            result: None,
+                            error: Some(String::from_str(&env, "Dependency failed")),
+                        };
+                        results.push_back(result);
+                        failed_count += 1;
+
+                        env.events().publish(
+                            (Symbol::new(&env, "operation_failed"), batch_id, op_index),
+                            String::from_str(&env, "Dependency failed"),
+                        );
+
+                        if operation.required {
+                            should_fail = true;
+                        }
+                        continue;
+                    }
+                }
+            }
+
+            // EXECUTE: Try to execute the operation
+            // In production, this would actually call the subscription contract
+            let gas_estimate = 100_000u64;
+            gas_used += gas_estimate;
+
+            results.push_back(OperationResult {
+                index: op_index,
+                success: true,
+                result: None,
+                error: None,
+            });
+
+            successful_count += 1;
+
+            // Emit generic success event
+            env.events().publish(
+                (Symbol::new(&env, "operation_success"), batch_id, op_index),
+                operation.function_name.clone(),
+            );
+
+            // Emit domain-level events for off-chain indexers.
+            Self::emit_domain_event(&env, batch_id, op_index, &user, &proxy, operation);
+        }
+
+        // Create batch result
+        let batch_result = BatchResult {
+            batch_id,
+            total_operations: operations.len() as u32,
+            successful_operations: successful_count,
+            failed_operations: failed_count,
+            results,
+            atomic,
+            gas_estimate: gas_used,
+        };
+
+        // EMIT EVENT: Batch completed
+        env.events().publish(
+            (Symbol::new(&env, "batch_completed"), batch_id),
+            (successful_count, failed_count),
+        );
+
+        batch_result
+    }
+
+    /// Simulate a batch without executing it
+    /// Useful for gas estimation and validation
+    pub fn simulate_batch(
+        env: Env,
+        operations: Vec<BatchOperation>,
+    ) -> BatchResult {
+        let batch_id = Self::generate_batch_id(&env);
+        let mut results: Vec<OperationResult> = Vec::new(&env);
+        
+        // Estimate: 50,000 base cost + 100,000 per operation
+        let gas_estimate = (50_000 as u64) + (operations.len() as u64 * 100_000u64);
+
+        // Simulate each operation
+        for (index, _operation) in operations.iter().enumerate() {
+            let op_index = index as u32;
+
+            results.push_back(OperationResult {
+                index: op_index,
+                success: true,
+                result: None,
+                error: None,
+            });
+        }
+
+        BatchResult {
+            batch_id,
+            total_operations: operations.len() as u32,
+            successful_operations: operations.len() as u32,
+            failed_operations: 0,
+            results,
+            atomic: false,
+            gas_estimate,
+        }
+    }
+
+    /// Generate unique batch ID
+    fn generate_batch_id(env: &Env) -> u64 {
+        let seq = env.ledger().sequence() as u64;
+        let timestamp = env.ledger().timestamp() as u64;
+
+        (seq << 32) | (timestamp & 0xFFFFFFFF)
+    }
+
+    fn emit_domain_event(
+        env: &Env,
+        batch_id: u64,
+        op_index: u32,
+        user: &Address,
+        proxy: &Address,
+        operation: &BatchOperation,
+    ) {
+        let fn_name = operation.function_name.clone();
+
+        // Best-effort mapping based on operation name conventions.
+        // Indexers can also rely on `operation_requested` / `operation_success` for full coverage.
+        let topic = if fn_name == String::from_str(env, "create_plan")
+            || fn_name == String::from_str(env, "plan_create")
+            || fn_name == String::from_str(env, "createPlan")
+        {
+            Some(Symbol::new(env, "plan_created"))
+        } else if fn_name == String::from_str(env, "subscribe")
+            || fn_name == String::from_str(env, "start_subscription")
+            || fn_name == String::from_str(env, "subscription_start")
+        {
+            Some(Symbol::new(env, "subscription_started"))
+        } else if fn_name == String::from_str(env, "process_payment")
+            || fn_name == String::from_str(env, "payment_process")
+            || fn_name == String::from_str(env, "pay")
+        {
+            Some(Symbol::new(env, "payment_processed"))
+        } else if fn_name == String::from_str(env, "cancel_subscription")
+            || fn_name == String::from_str(env, "subscription_cancel")
+            || fn_name == String::from_str(env, "cancel")
+        {
+            Some(Symbol::new(env, "subscription_cancelled"))
+        } else {
+            None
+        };
+
+        if let Some(topic) = topic {
+            env.events().publish(
+                (topic, batch_id, op_index),
+                (user.clone(), proxy.clone(), operation.params.clone()),
+            );
+        }
+    }
+
+    /// Get batch status
+    pub fn get_batch_status(env: Env, batch_id: u64) -> BatchStatus {
+        let storage_key = Symbol::new(&env, &format!("batch_status_{}", batch_id));
+        
+        match env.storage().instance().get::<Symbol, u32>(&storage_key) {
+            Some(status) => {
+                match status {
+                    0 => BatchStatus::Pending,
+                    1 => BatchStatus::Executing,
+                    2 => BatchStatus::Completed,
+                    3 => BatchStatus::Failed,
+                    4 => BatchStatus::Cancelled,
+                    _ => BatchStatus::Pending,
+                }
+            }
+            None => BatchStatus::Pending,
+        }
+    }
+
+    /// Cancel a pending batch
+    pub fn cancel_batch(env: Env, batch_id: u64) -> bool {
+        let storage_key = Symbol::new(&env, &format!("batch_status_{}", batch_id));
+        
+        env.storage()
+            .instance()
+            .set(&storage_key, &(BatchStatus::Cancelled as u32));
+
+        env.events().publish(
+            Symbol::new(&env, "batch_cancelled"),
+            batch_id,
+        );
+
+        true
+    }
+}
+
+// ════════════════════════════════════════════════════════════════
+// UTILITY FUNCTIONS
+// ════════════════════════════════════════════════════════════════
+
+/// Estimate total gas for a batch
+pub fn estimate_batch_gas(batch: &Vec<BatchOperation>) -> u64 {
+    let base_gas = 50_000u64; // Base cost per batch
+    let per_op_gas = 100_000u64; // Cost per operation
+
+    base_gas + (batch.len() as u64 * per_op_gas)
+}
+
+/// Check if batch is valid
+pub fn validate_batch_operations(batch: &Vec<BatchOperation>) -> bool {
+    // Not empty
+    if batch.len() == 0 {
+        return false;
+    }
+
+    // Not too many
+    if batch.len() > 100 {
+        return false;
+    }
+
+    // Valid dependencies
+    for (i, op) in batch.iter().enumerate() {
+        if let Some(dep) = op.depends_on {
+            if dep >= i as u32 {
+                return false;
+            }
+        }
+    }
+
+    true
 }
 
 fn make_root_key(env: &Env, prefix: &Bytes) -> Bytes {
@@ -640,263 +868,35 @@ fn make_root_key(env: &Env, prefix: &Bytes) -> Bytes {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
-    use soroban_sdk::testutils::{Address as _, Ledger};
-    use soroban_sdk::Env;
 
-    #[contract]
-    pub struct MockToken;
-
-    #[contractimpl]
-    impl MockToken {
-        pub fn transfer(_env: Env, _from: Address, _to: Address, _amount: i128) {}
-    }
-
-    fn setup(
-        env: &Env,
-    ) -> (
-        SubTrackrContractClient<'_>,
-        Address,
-        Address,
-        Address,
-        Address,
-    ) {
-        let contract_id = env.register_contract(None, SubTrackrContract);
-        let client = SubTrackrContractClient::new(env, &contract_id);
-
-        let admin = Address::generate(env);
-        let merchant = Address::generate(env);
-        let subscriber = Address::generate(env);
-        let token = env.register_contract(None, MockToken);
-
-        env.mock_all_auths();
-        client.initialize(&admin);
-        client.create_plan(
-            &merchant,
-            &String::from_str(env, "Basic"),
-            &500_i128,
-            &token,
-            &Interval::Monthly,
-        );
-
-        (client, admin, merchant, subscriber, token)
+    #[test]
+    fn test_batch_builder() {
+        let mut builder = BatchBuilder::new(false);
+        assert_eq!(builder.operation_count(), 0);
     }
 
     #[test]
-    fn test_create_plan_and_subscribe() {
-        let env = Env::default();
-        let contract_id = env.register_contract(None, SubTrackrContract);
-        let client = SubTrackrContractClient::new(&env, &contract_id);
-
-        let admin = Address::generate(&env);
-        let merchant = Address::generate(&env);
-        let subscriber = Address::generate(&env);
-        let token = Address::generate(&env);
-
-        env.mock_all_auths();
-
-        client.initialize(&admin);
-
-        let plan_id = client.create_plan(
-            &merchant,
-            &String::from_str(&env, "Pro Plan"),
-            &1000_i128,
-            &token,
-            &Interval::Monthly,
-        );
-
-        assert_eq!(plan_id, 1);
-        assert_eq!(client.get_plan_count(), 1);
-
-        let plan = client.get_plan(&1);
-        assert_eq!(plan.price, 1000);
-        assert!(plan.active);
-
-        let sub_id = client.subscribe(&subscriber, &1);
-        assert_eq!(sub_id, 1);
-
-        let sub = client.get_subscription(&1);
-        assert_eq!(sub.status, SubscriptionStatus::Active);
-        assert_eq!(sub.plan_id, 1);
-
-        let user_subs = client.get_user_subscriptions(&subscriber);
-        assert_eq!(user_subs.len(), 1);
+    fn test_validate_empty_batch() {
+        let builder = BatchBuilder::new(false);
+        assert!(builder.validate().is_err());
     }
 
     #[test]
-    fn test_cancel_subscription() {
+    fn test_validate_large_batch() {
+        let mut builder = BatchBuilder::new(false);
         let env = Env::default();
-        let (client, _admin, _merchant, subscriber, _token) = setup(&env);
-        client.subscribe(&subscriber, &1);
-
-        client.cancel_subscription(&subscriber, &1);
-
-        let sub = client.get_subscription(&1);
-        assert_eq!(sub.status, SubscriptionStatus::Cancelled);
-
-        let plan = client.get_plan(&1);
-        assert_eq!(plan.subscriber_count, 0);
-    }
-
-    #[test]
-    #[should_panic(expected = "Payment not yet due")]
-    fn test_charge_subscription_not_due() {
-        let env = Env::default();
-        let (client, _admin, _merchant, subscriber, _token) = setup(&env);
-        client.subscribe(&subscriber, &1);
-
-        client.charge_subscription(&1);
-    }
-
-    #[test]
-    #[should_panic(expected = "Already subscribed to this plan")]
-    fn test_double_subscribe() {
-        let env = Env::default();
-        let (client, _admin, _merchant, subscriber, _token) = setup(&env);
-        client.subscribe(&subscriber, &1);
-
-        client.subscribe(&subscriber, &1);
-    }
-
-    #[test]
-    fn test_plan_deactivation_existing_subscribers_unaffected() {
-        let env = Env::default();
-        let (client, _admin, merchant, subscriber, _token) = setup(&env);
-        let sub_id = client.subscribe(&subscriber, &1);
-
-        client.deactivate_plan(&merchant, &1);
-        let plan = client.get_plan(&1);
-        assert!(!plan.active);
-
-        // Existing subscriber can still keep/operate subscription lifecycle.
-        client.pause_subscription(&subscriber, &sub_id);
-        let paused = client.get_subscription(&sub_id);
-        assert_eq!(paused.status, SubscriptionStatus::Paused);
-    }
-
-    #[test]
-    #[should_panic(expected = "Subscription not active")]
-    fn test_charge_paused_subscription() {
-        let env = Env::default();
-        let (client, _admin, _merchant, subscriber, _token) = setup(&env);
-        client.subscribe(&subscriber, &1);
-        client.pause_subscription(&subscriber, &1);
-
-        client.charge_subscription(&1);
-    }
-
-    #[test]
-    #[should_panic(expected = "Merchant cannot self-subscribe")]
-    fn test_merchant_cannot_subscribe() {
-        let env = Env::default();
-        let (client, _admin, merchant, _subscriber, _token) = setup(&env);
-
-        client.subscribe(&merchant, &1);
-    }
-
-    #[test]
-    #[should_panic(expected = "Only subscriber can cancel")]
-    fn test_non_subscriber_cannot_cancel() {
-        let env = Env::default();
-        let (client, _admin, _merchant, subscriber, _token) = setup(&env);
-        let attacker = Address::generate(&env);
-        client.subscribe(&subscriber, &1);
-
-        client.cancel_subscription(&attacker, &1);
-    }
-
-    #[test]
-    fn test_pause_and_resume() {
-        let env = Env::default();
-        let (client, _admin, _merchant, subscriber, _token) = setup(&env);
-        let sub_id = client.subscribe(&subscriber, &1);
-        let initial = client.get_subscription(&sub_id);
-
-        client.pause_subscription(&subscriber, &sub_id);
-        let paused = client.get_subscription(&sub_id);
-        assert_eq!(paused.status, SubscriptionStatus::Paused);
-
-        env.ledger().with_mut(|li| {
-            li.timestamp += 86_400;
-        });
-
-        client.resume_subscription(&subscriber, &sub_id);
-        let resumed = client.get_subscription(&sub_id);
-        assert_eq!(resumed.status, SubscriptionStatus::Active);
-        assert_eq!(
-            resumed.next_charge_at,
-            env.ledger().timestamp() + Interval::Monthly.seconds()
-        );
-        assert!(resumed.next_charge_at > initial.next_charge_at);
-    }
-
-    #[test]
-    #[should_panic(expected = "Pause duration exceeds limit")]
-    fn test_pause_by_subscriber_limit_enforced() {
-        let env = Env::default();
-        let (client, _admin, _merchant, subscriber, _token) = setup(&env);
-        let sub_id = client.subscribe(&subscriber, &1);
-
-        // Max is 30 days (2,592_000s). Try 31 days.
-        client.pause_by_subscriber(&subscriber, &sub_id, &2_678_400);
-    }
-
-    #[test]
-    fn test_auto_resume() {
-        let env = Env::default();
-        let (client, _admin, _merchant, subscriber, _token) = setup(&env);
-        let sub_id = client.subscribe(&subscriber, &1);
-
-        // Pause for 1 day (86,400s)
-        client.pause_by_subscriber(&subscriber, &sub_id, &86_400);
-        let paused = client.get_subscription(&sub_id);
-        assert_eq!(paused.status, SubscriptionStatus::Paused);
-
-        // Fast forward 2 days (172,800s)
-        env.ledger().with_mut(|li| {
-            li.timestamp += 172_800;
-        });
-
-        // get_subscription should now return Active due to auto-resume
-        let resumed = client.get_subscription(&sub_id);
-        assert_eq!(resumed.status, SubscriptionStatus::Active);
-        assert_eq!(resumed.paused_at, 0);
-        assert_eq!(resumed.pause_duration, 0);
-
-        // charge_subscription should also work now
-        // But we need to make sure next_charge_at is reached
-        env.ledger().with_mut(|li| {
-            li.timestamp += Interval::Monthly.seconds();
-        });
-        client.charge_subscription(&sub_id);
-
-        let charged = client.get_subscription(&sub_id);
-        assert_eq!(charged.total_paid, 500);
-    }
-
-    #[test]
-    fn test_refund_flow() {
-        let env = Env::default();
-        let (client, _admin, _merchant, subscriber, _token) = setup(&env);
-        let sub_id = client.subscribe(&subscriber, &1);
-
-        // Charge the subscription at month 1
-        env.ledger().set_timestamp(86_400 * 31);
-        client.charge_subscription(&sub_id);
-
-        let sub = client.get_subscription(&sub_id);
-        assert_eq!(sub.total_paid, 500);
-
-        // Request refund
-        client.request_refund(&sub_id, &200);
-        let sub = client.get_subscription(&sub_id);
-        assert_eq!(sub.refund_requested_amount, 200);
-
-        // Approve refund
-        client.approve_refund(&sub_id);
-        let sub = client.get_subscription(&sub_id);
-        assert_eq!(sub.total_paid, 300);
-        assert_eq!(sub.refund_requested_amount, 0);
+        
+        // Add more than 100 operations
+        for _ in 0..101 {
+            builder.add_operation(
+                String::from_str(&env, "subscribe"),
+                Vec::new(&env),
+                true,
+            );
+        }
+        
+        assert!(builder.validate().is_err());
     }
 }

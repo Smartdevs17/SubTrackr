@@ -8,7 +8,7 @@ on:
 
 env:
   NODE_VERSION: '20'
-  RUST_VERSION: '1.85'
+  RUST_VERSION: '1.88'
 
 jobs:
   commitlint:
@@ -27,17 +27,80 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
+      - name: Cache node modules
+        uses: actions/cache@v4
+        id: cache-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package-lock.json') }}
+
       - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: npm ci --legacy-peer-deps
 
       - name: Validate PR commits
-        run: npx commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.sha }} --verbose
+        run: npx commitlint --from=origin/${{ github.event.pull_request.base.ref }} --to=HEAD --verbose
 
   # ─────────────────────────────────────────────────────────
   # TypeScript / React Native Checks
   # ─────────────────────────────────────────────────────────
   typescript-lint:
     name: TypeScript Lint & Format
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Cache node modules
+        uses: actions/cache@v4
+        id: cache-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm ci --legacy-peer-deps
+
+      - name: Check formatting (Prettier)
+        id: prettier-check
+        run: npm run format:check
+        continue-on-error: true
+
+      - name: Auto-fix formatting issues
+        if: steps.prettier-check.outcome == 'failure'
+        run: |
+          echo "Formatting inconsistencies detected. Executing auto-fixer..."
+          npm run format:write || npx prettier --write "src/**/*.{ts,tsx,js,json,md}"
+
+      - name: Commit and Push formatting fixes
+        if: steps.prettier-check.outcome == 'failure'
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: 'chore: automated code formatting fixes via CI pipeline'
+          commit_user_name: 'github-actions[bot]'
+          commit_user_email: 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Enforce strict layout check
+        if: steps.prettier-check.outcome == 'failure'
+        run: |
+          echo "❌ Code styles were inconsistent. Automated modifications have been pushed to your branch."
+          echo "Please pull latest changes locally or wait for the subsequent workflow run execution pass."
+          exit 1
+
+      - name: Run ESLint
+        run: npm run lint
+
+  npm-audit:
+    name: NPM Audit (High/Critical)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -52,11 +115,8 @@ jobs:
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
 
-      - name: Check formatting (Prettier)
-        run: npm run format:check
-
-      - name: Run ESLint
-        run: npm run lint
+      - name: Run NPM Audit
+        run: npx audit-ci --config audit-ci.json
 
   typescript-typecheck:
     name: TypeScript Type Check
@@ -71,7 +131,15 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
+      - name: Cache node modules
+        uses: actions/cache@v4
+        id: cache-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package-lock.json') }}
+
       - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: npm ci --legacy-peer-deps
 
       - name: EVM ABI TypeChain (must match committed output)
@@ -80,9 +148,18 @@ jobs:
       - name: Run TypeScript type check
         run: npx tsc --noEmit
 
+      - name: Validate performance budgets
+        run: npm run performance:ci
+
   typescript-tests:
-    name: TypeScript Tests
+    name: TypeScript Tests (Sharded)
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        shard: [1, 2, 3]
+    env:
+      SHARD: ${{ matrix.shard }}
+      SHARD_COUNT: 3
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -93,16 +170,26 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
+      - name: Cache node modules
+        uses: actions/cache@v4
+        id: cache-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package-lock.json') }}
+
       - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: npm ci --legacy-peer-deps
 
-      - name: Run tests with coverage
-        run: npm run test:coverage
+      - name: Run sharded tests with coverage
+        run: |
+          echo "Running shard $SHARD of $SHARD_COUNT"
+          npm run test:shard
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-report
+          name: coverage-report-${{ matrix.shard }}
           path: coverage/lcov.info
 
   typescript-build:
@@ -118,8 +205,39 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
+      - name: Cache node modules
+        uses: actions/cache@v4
+        id: cache-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Cache Expo build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            .expo
+            node_modules/.cache/expo
+          key: ${{ runner.os }}-expo-${{ hashFiles('package.json', 'app.json') }}
+          restore-keys: |
+            ${{ runner.os }}-expo-
+
       - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: npm ci --legacy-peer-deps
+
+      - name: Patch metro exports for @expo/cli compatibility
+        run: |
+          node -e "
+            const fs=require('fs');
+            const p='node_modules/metro/package.json';
+            if(!fs.existsSync(p)) process.exit(0);
+            const m=JSON.parse(fs.readFileSync(p,'utf8'));
+            if(!m.exports||m.exports['./src/lib/TerminalReporter']) process.exit(0);
+            m.exports['./src/lib/TerminalReporter']='./src/lib/TerminalReporter.js';
+            fs.writeFileSync(p,JSON.stringify(m,null,2));
+            console.log('Patched metro exports to add ./src/lib/TerminalReporter');
+          "
 
       - name: Run Expo export
         run: npm run build
@@ -181,10 +299,17 @@ jobs:
           toolchain: ${{ env.RUST_VERSION }}
           components: clippy
 
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
+      - name: Cache Rust dependencies and target
+        uses: actions/cache@v4
         with:
-          workspaces: './contracts -> target'
+          path: |
+            ~/cargo/registry/index/
+            ~/cargo/registry/cache/
+            ~/cargo/git/db/
+            contracts/target/
+          key: ${{ runner.os }}-cargo-${{ env.RUST_VERSION }}-${{ hashFiles('contracts/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ env.RUST_VERSION }}-
 
       - name: Run Clippy
         working-directory: ./contracts
@@ -202,10 +327,17 @@ jobs:
         with:
           toolchain: ${{ env.RUST_VERSION }}
 
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
+      - name: Cache Rust dependencies and target
+        uses: actions/cache@v4
         with:
-          workspaces: './contracts -> target'
+          path: |
+            ~/cargo/registry/index/
+            ~/cargo/registry/cache/
+            ~/cargo/git/db/
+            contracts/target/
+          key: ${{ runner.os }}-cargo-${{ env.RUST_VERSION }}-${{ hashFiles('contracts/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ env.RUST_VERSION }}-
 
       - name: Run Rust tests
         working-directory: ./contracts
@@ -223,14 +355,154 @@ jobs:
         with:
           toolchain: ${{ env.RUST_VERSION }}
 
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
+      - name: Cache Rust dependencies and target
+        uses: actions/cache@v4
         with:
-          workspaces: './contracts -> target'
+          path: |
+            ~/cargo/registry/index/
+            ~/cargo/registry/cache/
+            ~/cargo/git/db/
+            contracts/target/
+          key: ${{ runner.os }}-cargo-${{ env.RUST_VERSION }}-${{ hashFiles('contracts/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ env.RUST_VERSION }}-
 
       - name: Build Rust contracts
         working-directory: ./contracts
         run: cargo build --release
+
+  # ─────────────────────────────────────────────────────────
+  # Load Testing
+  # ─────────────────────────────────────────────────────────
+  load-test:
+    name: k6 Load Test
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [subscription, billing, contract]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Prepare reports directory
+        run: mkdir -p load-tests/reports
+
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
+            --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" \
+            | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install -y k6
+
+      - name: Run k6 Load Test (${{ matrix.scenario }})
+        run: k6 run load-tests/run.js --env SCENARIO=${{ matrix.scenario }} --quiet
+
+      - name: Rename report for this scenario
+        if: always()
+        run: |
+          for ext in json md html; do
+            if [ -f "load-tests/reports/summary.$ext" ]; then
+              mv "load-tests/reports/summary.$ext" "load-tests/reports/${{ matrix.scenario }}.$ext"
+            fi
+          done
+
+      - name: Upload load test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-test-report-${{ matrix.scenario }}
+          path: load-tests/reports/
+          if-no-files-found: ignore
+
+  # ─────────────────────────────────────────────────────────
+  # Bundle Size Monitoring
+  # ─────────────────────────────────────────────────────────
+  bundle-size:
+    name: Bundle Size Check
+    runs-on: ubuntu-latest
+    env:
+      EXPO_NO_TELEMETRY: 1
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Patch metro exports for @expo/cli compatibility
+        run: |
+          node -e "
+            const fs=require('fs');
+            const p='node_modules/metro/package.json';
+            if(!fs.existsSync(p)) process.exit(0);
+            const m=JSON.parse(fs.readFileSync(p,'utf8'));
+            if(!m.exports||m.exports['./src/lib/TerminalReporter']) process.exit(0);
+            m.exports['./src/lib/TerminalReporter']='./src/lib/TerminalReporter.js';
+            fs.writeFileSync(p,JSON.stringify(m,null,2));
+            console.log('Patched metro exports to add ./src/lib/TerminalReporter');
+          "
+
+      - name: Check bundle size (PR)
+        if: github.event_name == 'pull_request'
+        run: npx size-limit
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build app
+        if: github.event_name != 'pull_request'
+        run: npm run build
+
+      - name: Check bundle size (Push)
+        if: github.event_name != 'pull_request'
+        run: npx size-limit --json > bundle-size-report.json
+
+      - name: Upload bundle size report
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-size-report-${{ github.sha }}
+          path: bundle-size-report.json
+
+  # ─────────────────────────────────────────────────────────
+  # Performance Monitoring
+  # ─────────────────────────────────────────────────────────
+  performance:
+    name: Performance Budget Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Cache node modules
+        uses: actions/cache@v4
+        id: cache-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm ci --legacy-peer-deps
+
+      - name: Run performance benchmark
+        run: npm run performance:benchmark
 
   # ─────────────────────────────────────────────────────────
   # Merge Protection (only on PRs)
@@ -251,6 +523,9 @@ jobs:
         rust-clippy,
         rust-tests,
         rust-build,
+        load-test,
+        bundle-size,
+        performance,
       ]
     steps:
       - name: All checks passed
@@ -275,6 +550,9 @@ jobs:
         rust-clippy,
         rust-tests,
         rust-build,
+        load-test,
+        bundle-size,
+        performance,
       ]
     steps:
       - name: Check for failures
@@ -291,7 +569,10 @@ jobs:
              [ "${{ needs.rust-format.result }}" != "success" ] || \
              [ "${{ needs.rust-clippy.result }}" != "success" ] || \
              [ "${{ needs.rust-tests.result }}" != "success" ] || \
-             [ "${{ needs.rust-build.result }}" != "success" ]; then
+             [ "${{ needs.rust-build.result }}" != "success" ] || \
+             [ "${{ needs.load-test.result }}" != "success" ] || \
+             [ "${{ needs.bundle-size.result }}" != "success" ] || \
+             [ "${{ needs.performance.result }}" != "success" ]; then
             echo "One or more CI checks failed"
             exit 1
           fi

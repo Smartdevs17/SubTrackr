@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
+import { useDebounce } from './useDebounce';
 import { Subscription, SubscriptionCategory, BillingCycle } from '../types/subscription';
 
 export const useFilteredSubscriptions = (subscriptions: Subscription[]) => {
@@ -11,7 +12,8 @@ export const useFilteredSubscriptions = (subscriptions: Subscription[]) => {
   const [sortBy, setSortBy] = useState<'name' | 'price' | 'nextBilling' | 'category'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
-  const normalizedSearch = useMemo(() => searchQuery.trim().toLowerCase(), [searchQuery]);
+  const debouncedSearchQuery = useDebounce(searchQuery);
+  const normalizedSearch = useMemo(() => debouncedSearchQuery.trim().toLowerCase(), [debouncedSearchQuery]);
 
   const matchesSearch = useCallback(
     (sub: Subscription): boolean => {
@@ -77,40 +79,29 @@ export const useFilteredSubscriptions = (subscriptions: Subscription[]) => {
     [sortBy, sortOrder]
   );
 
-  const searchedSubscriptions = useMemo(
-    () => (subscriptions || []).filter(matchesSearch),
-    [subscriptions, matchesSearch]
-  );
+  const filteredAndSorted = useMemo(() => {
+    const source = subscriptions || [];
+    const filtered = source.filter(
+      (sub) =>
+        matchesSearch(sub) &&
+        matchesCategory(sub) &&
+        matchesBillingCycle(sub) &&
+        matchesPriceRange(sub) &&
+        matchesActiveOnly(sub) &&
+        matchesCryptoOnly(sub)
+    );
 
-  const categoryFilteredSubscriptions = useMemo(
-    () => searchedSubscriptions.filter(matchesCategory),
-    [searchedSubscriptions, matchesCategory]
-  );
-
-  const billingCycleFilteredSubscriptions = useMemo(
-    () => categoryFilteredSubscriptions.filter(matchesBillingCycle),
-    [categoryFilteredSubscriptions, matchesBillingCycle]
-  );
-
-  const priceFilteredSubscriptions = useMemo(
-    () => billingCycleFilteredSubscriptions.filter(matchesPriceRange),
-    [billingCycleFilteredSubscriptions, matchesPriceRange]
-  );
-
-  const activeFilteredSubscriptions = useMemo(
-    () => priceFilteredSubscriptions.filter(matchesActiveOnly),
-    [priceFilteredSubscriptions, matchesActiveOnly]
-  );
-
-  const cryptoFilteredSubscriptions = useMemo(
-    () => activeFilteredSubscriptions.filter(matchesCryptoOnly),
-    [activeFilteredSubscriptions, matchesCryptoOnly]
-  );
-
-  const filteredAndSorted = useMemo(
-    () => [...cryptoFilteredSubscriptions].sort(comparator),
-    [cryptoFilteredSubscriptions, comparator]
-  );
+    return filtered.sort(comparator);
+  }, [
+    subscriptions,
+    matchesSearch,
+    matchesCategory,
+    matchesBillingCycle,
+    matchesPriceRange,
+    matchesActiveOnly,
+    matchesCryptoOnly,
+    comparator,
+  ]);
 
   const clearAllFilters = useCallback(() => {
     setSearchQuery('');

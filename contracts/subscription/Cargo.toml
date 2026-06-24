@@ -1,0 +1,22 @@
+[package]
+name = "subtrackr-subscription"
+version = "0.2.0"
+edition = "2021"
+authors = ["SubTrackr Team"]
+description = "SubTrackr subscription implementation contract (Soroban)"
+
+[lib]
+name = "subtrackr_subscription"
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+soroban-sdk = "21.0.0"
+subtrackr-types = { path = "../types" }
+subtrackr-oracle = { path = "../oracle" }
+
+[features]
+extended = []
+
+[dev-dependencies]
+soroban-sdk = { version = "21.0.0", features = ["testutils"] }

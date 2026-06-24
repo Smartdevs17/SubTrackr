@@ -1,10 +1,11 @@
 import React from 'react';
-import { View, StyleSheet, ViewStyle } from 'react-native';
-import { colors, spacing, borderRadius, shadows } from '../../utils/constants';
+import { StyleProp, View, StyleSheet, ViewStyle } from 'react-native';
+import { spacing, borderRadius, shadows } from '../../utils/constants';
+import { useThemeColors } from '../../hooks/useThemeColors';
 
 export interface CardProps {
   children: React.ReactNode;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   variant?: 'default' | 'elevated' | 'outlined';
   padding?: 'none' | 'small' | 'medium' | 'large';
 }
@@ -15,6 +16,9 @@ export const Card: React.FC<CardProps> = ({
   variant = 'default',
   padding = 'medium',
 }) => {
+  const colors = useThemeColors();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
+
   const getPaddingStyle = () => {
     switch (padding) {
       case 'none':
@@ -35,34 +39,32 @@ export const Card: React.FC<CardProps> = ({
   return <View style={cardStyle}>{children}</View>;
 };
 
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.lg,
-  },
-
-  // Variants
-  default: {
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  elevated: {
-    ...shadows.md,
-  },
-  outlined: {
-    borderWidth: 2,
-    borderColor: colors.border,
-  },
-
-  // Padding variants
-  paddingNone: {},
-  paddingSmall: {
-    padding: spacing.sm,
-  },
-  paddingMedium: {
-    padding: spacing.md,
-  },
-  paddingLarge: {
-    padding: spacing.lg,
-  },
-});
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+    card: {
+      backgroundColor: colors.background.card,
+      borderRadius: borderRadius.lg,
+    },
+    default: {
+      borderWidth: 1,
+      borderColor: colors.border.default,
+    },
+    elevated: {
+      ...shadows.md,
+    },
+    outlined: {
+      borderWidth: 2,
+      borderColor: colors.border.default,
+    },
+    paddingNone: {},
+    paddingSmall: {
+      padding: spacing.sm,
+    },
+    paddingMedium: {
+      padding: spacing.md,
+    },
+    paddingLarge: {
+      padding: spacing.lg,
+    },
+  });
+}

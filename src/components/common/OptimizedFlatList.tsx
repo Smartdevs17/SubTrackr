@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback } from 'react';
 import { FlatList, FlatListProps, View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { colors, spacing, typography } from '../../utils/constants';
 
@@ -14,20 +14,17 @@ interface OptimizedFlatListProps<T> extends Omit<FlatListProps<T>, 'data' | 'ren
   estimatedItemSize?: number;
 }
 
-function OptimizedFlatListInner<T>(
-  {
-    data,
-    renderItem,
-    keyExtractor,
-    emptyText = 'No items',
-    emptyIcon = '📋',
-    loading = false,
-    estimatedItemSize = ITEM_HEIGHT,
-    contentContainerStyle,
-    ...rest
-  }: OptimizedFlatListProps<T>,
-  ref: React.ForwardedRef<FlatList<T>>
-) {
+export function OptimizedFlatList<T>({
+  data,
+  renderItem,
+  keyExtractor,
+  emptyText = 'No items',
+  emptyIcon = '📋',
+  loading = false,
+  estimatedItemSize = ITEM_HEIGHT,
+  contentContainerStyle,
+  ...rest
+}: OptimizedFlatListProps<T>) {
   const initialNumToRender = 10;
   const maxToRenderPerBatch = 5;
   const windowSize = 10;
@@ -52,11 +49,10 @@ function OptimizedFlatListInner<T>(
 
   return (
     <FlatList
-      ref={ref}
       data={data}
       renderItem={renderItem}
       keyExtractor={keyExtractor}
-      getItemLayout={(_data, index) => ({
+      getItemLayout={(_data: ArrayLike<T> | null | undefined, index: number) => ({
         length: estimatedItemSize,
         offset: estimatedItemSize * index,
         index,
@@ -75,10 +71,6 @@ function OptimizedFlatListInner<T>(
     />
   );
 }
-
-export const OptimizedFlatList = React.forwardRef(OptimizedFlatListInner) as <T>(
-  props: OptimizedFlatListProps<T> & { ref?: React.ForwardedRef<FlatList<T>> }
-) => React.ReactElement;
 
 const styles = StyleSheet.create({
   contentContainer: {

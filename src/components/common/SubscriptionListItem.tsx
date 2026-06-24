@@ -6,6 +6,7 @@ interface SubscriptionListItemProps extends SubscriptionCardProps {
   subscription: Subscription;
   onPress: (subscription: Subscription) => void;
   onToggleStatus?: (id: string) => void;
+  onDelete?: (id: string) => void;
 }
 
 const areEqual = (prev: SubscriptionListItemProps, next: SubscriptionListItemProps): boolean => {
@@ -26,11 +27,12 @@ const areEqual = (prev: SubscriptionListItemProps, next: SubscriptionListItemPro
 };
 
 export const SubscriptionListItem = React.memo(
-  ({ subscription, onPress, onToggleStatus }: SubscriptionListItemProps) => (
+  ({ subscription, onPress, onToggleStatus, onDelete }: SubscriptionListItemProps) => (
     <SubscriptionCard
       subscription={subscription}
       onPress={onPress}
       onToggleStatus={onToggleStatus}
+      onDelete={onDelete}
     />
   ),
   areEqual

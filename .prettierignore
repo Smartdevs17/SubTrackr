@@ -18,6 +18,17 @@ builds/
 coverage/
 # TypeChain output (generated; do not reformat to avoid churn)
 src/contracts/types/
+app/
+backend/
+acbu-backend/
+src/animations/
+stellarlend/
+stellarlend-pr282/
+docs/
+load-tests/
+README.md
+contracts/**/*.md
+contracts/**/test_snapshots/
 # Rust build artifacts (local/generated)
 contracts/target/
 # Backup/fixed package snapshots

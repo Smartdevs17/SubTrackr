@@ -1,0 +1,37 @@
+name: Chaos Engineering
+
+on:
+  push:
+    branches: [main, dev, develop, 'feature/*']
+  pull_request:
+    branches: [main, dev, develop, 'feature/*']
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  chaos-tests:
+    name: Chaos Experiments
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Run chaos experiments
+        run: npx jest --testPathPattern=chaos --no-coverage --ci
+
+      - name: Upload chaos results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chaos-results
+          path: chaos/

@@ -16,11 +16,9 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
-import walletServiceManager, {
-  GasEstimate,
-  WalletConnection,
-  TokenBalance,
-} from '../services/walletService';
+import walletServiceManager, { WalletConnection, TokenBalance } from '../services/walletService';
+import { GasEstimate } from '../types/wallet';
+import { ADDRESS_CONSTANTS } from '../utils/constants/values';
 import { useTransactionQueueStore } from '../store/transactionQueueStore';
 
 interface RouteParams {
@@ -45,6 +43,11 @@ const CryptoPaymentScreen: React.FC = () => {
   const [selectedProtocol, setSelectedProtocol] = useState<'superfluid' | 'sablier'>('superfluid');
   const [gasEstimate, setGasEstimate] = useState<GasEstimate | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  // Approval workflow (ERC20 + Sablier)
+  const [needsApproval, setNeedsApproval] = useState<boolean>(false);
+  const [isApproving, setIsApproving] = useState<boolean>(false);
+  const [approvalGas, setApprovalGas] = useState<GasEstimate | null>(null);
+  const [approvalMode, setApprovalMode] = useState<'infinite' | 'exact'>('infinite');
 
   const [availableTokens, setAvailableTokens] = useState<TokenBalance[]>([]);
   const [connection, setConnection] = useState<WalletConnection | null>(null);
@@ -69,6 +72,57 @@ const CryptoPaymentScreen: React.FC = () => {
       estimateGas();
     }
   }, [amount, recipientAddress, connection, selectedProtocol, selectedToken]);
+
+  // Detect ERC20 allowance needs for Sablier and estimate approval gas
+  useEffect(() => {
+    const checkAllowance = async () => {
+      try {
+        setNeedsApproval(false);
+        setApprovalGas(null);
+        if (!isWalletConnected(connection)) return;
+        if (selectedProtocol !== 'sablier') return;
+        const tokenInfo = availableTokens.find((t) => t.symbol === selectedToken);
+        if (
+          !tokenInfo ||
+          !tokenInfo.address ||
+          tokenInfo.address === ethers.constants.AddressZero
+        ) {
+          return;
+        }
+        if (!amount || parseFloat(amount) <= 0) return;
+
+        const owner = connection.address;
+        const spender = ADDRESS_CONSTANTS.SABLIER_V2_LOCKUP_LINEAR;
+        const allowance = await walletServiceManager.getErc20Allowance(
+          tokenInfo.address,
+          owner,
+          spender,
+          connection.chainId
+        );
+        const required = ethers.utils.parseUnits(amount, tokenInfo.decimals);
+        const needs = allowance.lt(required);
+        setNeedsApproval(needs);
+
+        if (needs) {
+          const approveAmount =
+            approvalMode === 'infinite' ? ethers.constants.MaxUint256 : required;
+          const gas = await walletServiceManager.estimateApproveGas(
+            tokenInfo.address,
+            spender,
+            approveAmount,
+            connection.chainId
+          );
+          setApprovalGas(gas);
+        }
+      } catch (err) {
+        console.warn('Allowance check failed:', err);
+        setNeedsApproval(false);
+        setApprovalGas(null);
+      }
+    };
+
+    checkAllowance();
+  }, [selectedProtocol, selectedToken, amount, connection, availableTokens, approvalMode]);
 
   // Internal validation for type narrowing
   const isWalletConnected = (conn: WalletConnection | null): conn is WalletConnection => {
@@ -169,6 +223,30 @@ const CryptoPaymentScreen: React.FC = () => {
       const startTime = Math.floor(Date.now() / 1000);
       const stopTime = startTime + 30 * 24 * 60 * 60;
 
+      // If approval is required for Sablier ERC20, perform it first
+      if (
+        selectedProtocol === 'sablier' &&
+        needsApproval &&
+        selectedTokenInfo?.address &&
+        selectedTokenInfo.address !== ethers.constants.AddressZero
+      ) {
+        setIsApproving(true);
+        try {
+          const approveAmount =
+            approvalMode === 'infinite'
+              ? ethers.constants.MaxUint256
+              : ethers.utils.parseUnits(amount, selectedTokenInfo.decimals);
+          const spender = ADDRESS_CONSTANTS.SABLIER_V2_LOCKUP_LINEAR;
+          await walletServiceManager.approveErc20(
+            selectedTokenInfo.address,
+            spender,
+            approveAmount
+          );
+        } finally {
+          setIsApproving(false);
+        }
+      }
+
       const result = await executeOrQueueTransaction({
         protocol: selectedProtocol,
         token: tokenForExecution,
@@ -265,8 +343,13 @@ const CryptoPaymentScreen: React.FC = () => {
                     styles.tokenOption,
                     selectedToken === token.symbol && styles.tokenOptionSelected,
                   ]}
-                  onPress={() => handleTokenSelect(token.symbol)}>
-                  <Text style={styles.tokenIcon}>{getTokenIcon(token.symbol)}</Text>
+                  onPress={() => handleTokenSelect(token.symbol)}
+                  accessibilityRole="radio"
+                  accessibilityLabel={`${token.symbol}, balance ${parseFloat(token.balance).toFixed(4)}`}
+                  accessibilityState={{ checked: selectedToken === token.symbol }}>
+                  <Text style={styles.tokenIcon} accessibilityElementsHidden={true}>
+                    {getTokenIcon(token.symbol)}
+                  </Text>
                   <Text style={styles.tokenSymbol}>{token.symbol}</Text>
                   <Text style={styles.tokenBalance}>{parseFloat(token.balance).toFixed(4)}</Text>
                 </TouchableOpacity>
@@ -286,6 +369,8 @@ const CryptoPaymentScreen: React.FC = () => {
                 placeholder="0.00"
                 placeholderTextColor={colors.textSecondary}
                 keyboardType="decimal-pad"
+                accessibilityLabel={`Payment amount in ${selectedToken}`}
+                accessibilityHint="Enter the amount to stream per payment cycle"
               />
             </View>
             <Text style={styles.amountDescription}>Amount to stream per payment cycle</Text>
@@ -302,6 +387,8 @@ const CryptoPaymentScreen: React.FC = () => {
               placeholderTextColor={colors.textSecondary}
               autoCapitalize="none"
               autoCorrect={false}
+              accessibilityLabel="Recipient wallet address"
+              accessibilityHint="Enter the Ethereum address that will receive the payments"
             />
             <Text style={styles.addressDescription}>
               The address that will receive the payments
@@ -317,8 +404,13 @@ const CryptoPaymentScreen: React.FC = () => {
                   styles.protocolOption,
                   selectedProtocol === 'superfluid' && styles.protocolOptionSelected,
                 ]}
-                onPress={() => handleProtocolSelect('superfluid')}>
-                <Text style={styles.protocolIcon}>🌊</Text>
+                onPress={() => handleProtocolSelect('superfluid')}
+                accessibilityRole="radio"
+                accessibilityLabel="Superfluid, continuous streaming payments"
+                accessibilityState={{ checked: selectedProtocol === 'superfluid' }}>
+                <Text style={styles.protocolIcon} accessibilityElementsHidden={true}>
+                  🌊
+                </Text>
                 <Text style={styles.protocolName}>Superfluid</Text>
                 <Text style={styles.protocolDescription}>Continuous streaming payments</Text>
               </TouchableOpacity>
@@ -328,13 +420,119 @@ const CryptoPaymentScreen: React.FC = () => {
                   styles.protocolOption,
                   selectedProtocol === 'sablier' && styles.protocolOptionSelected,
                 ]}
-                onPress={() => handleProtocolSelect('sablier')}>
-                <Text style={styles.protocolIcon}>⏰</Text>
+                onPress={() => handleProtocolSelect('sablier')}
+                accessibilityRole="radio"
+                accessibilityLabel="Sablier, time-locked payment streams"
+                accessibilityState={{ checked: selectedProtocol === 'sablier' }}>
+                <Text style={styles.protocolIcon} accessibilityElementsHidden={true}>
+                  ⏰
+                </Text>
                 <Text style={styles.protocolName}>Sablier</Text>
                 <Text style={styles.protocolDescription}>Time-locked payment streams</Text>
               </TouchableOpacity>
             </View>
           </Card>
+
+          {/* Approval Step (Sablier ERC20) */}
+          {selectedProtocol === 'sablier' && needsApproval && (
+            <Card variant="elevated" padding="large">
+              <Text style={styles.sectionTitle}>Token Approval Required</Text>
+              <Text style={styles.pendingText}>
+                Approve this token for the Sablier contract before creating the stream.
+              </Text>
+
+              <View style={{ height: spacing.sm }} />
+
+              <View style={styles.protocolOptions}>
+                <TouchableOpacity
+                  style={[
+                    styles.protocolOption,
+                    approvalMode === 'infinite' && styles.protocolOptionSelected,
+                  ]}
+                  onPress={() => setApprovalMode('infinite')}>
+                  <Text style={styles.protocolName}>Infinite approval</Text>
+                  <Text style={styles.protocolDescription}>
+                    Approve once for future streams with this token.
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.protocolOption,
+                    approvalMode === 'exact' && styles.protocolOptionSelected,
+                  ]}
+                  onPress={() => setApprovalMode('exact')}>
+                  <Text style={styles.protocolName}>Exact amount approval</Text>
+                  <Text style={styles.protocolDescription}>
+                    Approve only the exact amount for this stream.
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {approvalGas && (
+                <View style={{ marginTop: spacing.md }}>
+                  <Text style={styles.sectionTitle}>Approval Gas Estimate</Text>
+                  <View style={styles.gasInfo}>
+                    <View style={styles.gasRow}>
+                      <Text style={styles.gasLabel}>Gas Limit:</Text>
+                      <Text style={styles.gasValue}>{approvalGas.gasLimit}</Text>
+                    </View>
+                    <View style={styles.gasRow}>
+                      <Text style={styles.gasLabel}>Gas Price:</Text>
+                      <Text style={styles.gasValue}>{approvalGas.gasPrice} Gwei</Text>
+                    </View>
+                    <View style={styles.gasRow}>
+                      <Text style={styles.gasLabel}>Estimated Cost:</Text>
+                      <Text style={styles.gasValue}>
+                        {parseFloat(approvalGas.estimatedCost).toFixed(6)}{' '}
+                        {connection ? (connection.chainId === 137 ? 'MATIC' : 'ETH') : 'ETH'}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              )}
+
+              <View style={{ marginTop: spacing.md }}>
+                <Button
+                  title={isApproving ? 'Approving...' : 'Approve Token'}
+                  onPress={async () => {
+                    if (!isWalletConnected(connection)) return;
+                    const tokenInfo = availableTokens.find((t) => t.symbol === selectedToken);
+                    if (!tokenInfo?.address || tokenInfo.address === ethers.constants.AddressZero)
+                      return;
+                    setIsApproving(true);
+                    try {
+                      const approveAmount =
+                        approvalMode === 'infinite'
+                          ? ethers.constants.MaxUint256
+                          : ethers.utils.parseUnits(amount || '0', tokenInfo.decimals);
+                      await walletServiceManager.approveErc20(
+                        tokenInfo.address,
+                        ADDRESS_CONSTANTS.SABLIER_V2_LOCKUP_LINEAR,
+                        approveAmount
+                      );
+                      setNeedsApproval(false);
+                      setApprovalGas(null);
+                      Alert.alert(
+                        'Approved',
+                        'Token approved successfully. You can now create the stream.'
+                      );
+                    } catch (e) {
+                      const message =
+                        e instanceof Error ? e.message : 'Token approval failed. Please try again.';
+                      Alert.alert('Approval Failed', message);
+                    } finally {
+                      setIsApproving(false);
+                    }
+                  }}
+                  loading={isApproving}
+                  variant="crypto"
+                  fullWidth
+                  size="large"
+                />
+              </View>
+            </Card>
+          )}
 
           {/* Gas Estimation */}
           {gasEstimate && (

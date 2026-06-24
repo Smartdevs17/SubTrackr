@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { Framework, SFError } from '@superfluid-finance/sdk-core';
+import { Framework } from '@superfluid-finance/sdk-core';
 
 import { ERC20__factory, getContractAddress } from '../contracts';
 import { getEvmRpcUrl } from '../config/evm';
@@ -9,6 +9,81 @@ import {
   CHAIN_IDS,
   ADDRESS_CONSTANTS,
 } from '../utils/constants/values';
+import {
+  PaymentMethod,
+  PaymentPriority,
+  TokenType,
+  PaymentMethodValidationResult,
+  PaymentAttempt,
+} from '../types/wallet';
+import { GasEstimate } from '../types/wallet';
+
+import { NetworkError, NetworkErrorCode, ContractError, ContractErrorCode } from '../errors';
+export { GasEstimate };
+export { NetworkError, NetworkErrorCode, ContractError, ContractErrorCode };
+
+// ── Structured error handling ──────────────────────────────────────
+
+export enum WalletErrorCode {
+  NOT_CONNECTED = 'WALLET_NOT_CONNECTED',
+  USER_REJECTED = 'USER_REJECTED',
+  NETWORK_MISMATCH = 'NETWORK_MISMATCH',
+  BALANCE_FETCH_FAILED = 'BALANCE_FETCH_FAILED',
+  GAS_ESTIMATION_FAILED = 'GAS_ESTIMATION_FAILED',
+  STREAM_CREATION_FAILED = 'STREAM_CREATION_FAILED',
+  APPROVAL_FAILED = 'APPROVAL_FAILED',
+  INVALID_PARAMS = 'INVALID_PARAMS',
+  UNKNOWN = 'UNKNOWN',
+}
+
+export class WalletError extends Error {
+  readonly code: WalletErrorCode;
+  readonly userMessage: string;
+  readonly recovery?: string;
+
+  constructor(code: WalletErrorCode, userMessage: string, recovery?: string, cause?: unknown) {
+    super(userMessage);
+    this.name = 'WalletError';
+    this.code = code;
+    this.userMessage = userMessage;
+    this.recovery = recovery;
+    // Preserve original stack if available
+    if (cause instanceof Error && cause.stack) {
+      this.stack = `${this.stack}\nCaused by: ${cause.stack}`;
+    }
+  }
+}
+
+// ── Error rate tracker ─────────────────────────────────────────────
+
+interface ErrorRecord {
+  count: number;
+  lastSeen: number;
+}
+
+class ErrorRateTracker {
+  private readonly counts = new Map<WalletErrorCode, ErrorRecord>();
+
+  record(code: WalletErrorCode): void {
+    const existing = this.counts.get(code);
+    if (existing) {
+      existing.count += 1;
+      existing.lastSeen = Date.now();
+    } else {
+      this.counts.set(code, { count: 1, lastSeen: Date.now() });
+    }
+  }
+
+  getStats(): Record<string, ErrorRecord> {
+    return Object.fromEntries(this.counts.entries());
+  }
+
+  reset(): void {
+    this.counts.clear();
+  }
+}
+
+export const errorTracker = new ErrorRateTracker();
 
 export interface WalletConnection {
   address: string;
@@ -35,12 +110,6 @@ export interface StreamSetup {
   startDate: Date;
   endDate?: Date;
   protocol: 'superfluid' | 'sablier';
-}
-
-export interface GasEstimate {
-  gasLimit: string;
-  gasPrice: string;
-  estimatedCost: string;
 }
 
 /** Result after an on-chain Superfluid CFA stream is created */
@@ -77,14 +146,16 @@ function superTokenResolverSymbol(chainId: number, tokenSymbol: string): string 
   return `${s}x`;
 }
 
-function formatSuperfluidError(error: unknown): string {
-  if (error instanceof SFError) {
-    return error.message;
-  }
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return 'Superfluid stream creation failed';
+function toWalletError(
+  error: unknown,
+  code: WalletErrorCode,
+  userMessage: string,
+  recovery?: string
+): WalletError {
+  errorTracker.record(code);
+  // Log full detail for debugging without leaking to the user
+  console.error(`[WalletError] ${code}:`, error);
+  return new WalletError(code, userMessage, recovery, error);
 }
 
 // This is a hook-based service that needs to be used within React components
@@ -191,8 +262,12 @@ export class WalletServiceManager {
 
       return balances;
     } catch (error) {
-      console.error('Failed to get token balances:', error);
-      throw error;
+      throw new NetworkError(
+        NetworkErrorCode.RPC_ERROR,
+        'Unable to fetch token balances.',
+        'Check your network connection and try again.',
+        error
+      );
     }
   }
 
@@ -203,11 +278,20 @@ export class WalletServiceManager {
     chainId: number,
     userGasLimitOverride?: string
   ): Promise<GasEstimate> {
-    const provider = this.getProvider(chainId);
+    let provider: ethers.providers.JsonRpcProvider;
+    let gasPrice: ethers.BigNumber;
 
-    // Use getFeeData for EIP-1559 support
-    const feeData = await provider.getFeeData();
-    const gasPrice = feeData.maxFeePerGas ?? feeData.gasPrice ?? ethers.BigNumber.from(0);
+    try {
+      provider = this.getProvider(chainId);
+      gasPrice = await this.resolveGasPrice(provider);
+    } catch (error) {
+      throw toWalletError(
+        error,
+        WalletErrorCode.GAS_ESTIMATION_FAILED,
+        'Could not retrieve gas price.',
+        'Check your network connection and try again.'
+      );
+    }
 
     let gasLimit: ethers.BigNumber;
 
@@ -243,7 +327,13 @@ export class WalletServiceManager {
   private getWalletSigner(): ethers.Signer {
     const conn = this.connection;
     if (!conn?.eip1193Provider) {
-      throw new Error('Wallet is not connected or does not expose a signing provider.');
+      const err = new WalletError(
+        WalletErrorCode.NOT_CONNECTED,
+        'Wallet is not connected.',
+        'Connect your wallet and try again.'
+      );
+      errorTracker.record(WalletErrorCode.NOT_CONNECTED);
+      throw err;
     }
     const web3Provider = new ethers.providers.Web3Provider(conn.eip1193Provider);
     return web3Provider.getSigner();
@@ -372,10 +462,19 @@ export class WalletServiceManager {
       };
     } catch (error) {
       if (isUserRejectedError(error)) {
-        throw new Error('Transaction was rejected in your wallet.');
+        errorTracker.record(WalletErrorCode.USER_REJECTED);
+        throw new WalletError(
+          WalletErrorCode.USER_REJECTED,
+          'Transaction was rejected in your wallet.',
+          'Open your wallet and approve the transaction to continue.'
+        );
       }
-      console.error('Failed to create Superfluid stream:', error);
-      throw new Error(formatSuperfluidError(error));
+      throw toWalletError(
+        error,
+        WalletErrorCode.STREAM_CREATION_FAILED,
+        'Stream creation failed.',
+        'Check your token balance and try again.'
+      );
     }
   }
 
@@ -400,6 +499,7 @@ export class WalletServiceManager {
       const erc20Abi = [
         'function decimals() view returns (uint8)',
         'function approve(address spender, uint256 amount) returns (bool)',
+        'function allowance(address owner, address spender) view returns (uint256)',
       ];
       const erc20 = new ethers.Contract(token, erc20Abi, signer);
       const decimals = await erc20.decimals();
@@ -408,9 +508,16 @@ export class WalletServiceManager {
       // Sablier V2 LockupLinear is consistently deployed at this address across major EVM networks
       const SABLIER_V2_LOCKUP_LINEAR = ADDRESS_CONSTANTS.SABLIER_V2_LOCKUP_LINEAR;
 
-      // 2. Approve Token Spending
-      const txApprove = await erc20.approve(SABLIER_V2_LOCKUP_LINEAR, amountBn);
-      await txApprove.wait();
+      // 2. Ensure Allowance (approve exact amount if insufficient)
+      const owner = await signer.getAddress();
+      const currentAllowance: ethers.BigNumber = await erc20.allowance(
+        owner,
+        SABLIER_V2_LOCKUP_LINEAR
+      );
+      if (currentAllowance.lt(amountBn)) {
+        const txApprove = await erc20.approve(SABLIER_V2_LOCKUP_LINEAR, amountBn);
+        await txApprove.wait();
+      }
 
       // 3. Create the Sablier Stream
       const abi = [
@@ -447,15 +554,135 @@ export class WalletServiceManager {
       return receipt.transactionHash;
     } catch (error) {
       if (isUserRejectedError(error)) {
-        throw new Error('Transaction was rejected in your wallet.');
+        errorTracker.record(WalletErrorCode.USER_REJECTED);
+        throw new WalletError(
+          WalletErrorCode.USER_REJECTED,
+          'Transaction was rejected in your wallet.',
+          'Open your wallet and approve the transaction to continue.'
+        );
       }
-      console.error('Failed to create Sablier stream:', error);
-      throw error;
+      throw toWalletError(
+        error,
+        WalletErrorCode.STREAM_CREATION_FAILED,
+        'Stream creation failed.',
+        'Check your token balance and allowance, then try again.'
+      );
+    }
+  }
+
+  /**
+   * Returns the ERC20 allowance that `owner` granted to `spender`.
+   */
+  async getErc20Allowance(
+    token: string,
+    owner: string,
+    spender: string,
+    chainId: number
+  ): Promise<ethers.BigNumber> {
+    const provider = this.getProvider(chainId);
+    const erc20Abi = ['function allowance(address owner, address spender) view returns (uint256)'];
+    const erc20 = new ethers.Contract(token, erc20Abi, provider);
+    return erc20.allowance(owner, spender);
+  }
+
+  /**
+   * Estimates gas for approving an ERC20 allowance to `spender`.
+   */
+  async estimateApproveGas(
+    token: string,
+    spender: string,
+    amount: ethers.BigNumberish,
+    chainId: number
+  ): Promise<GasEstimate> {
+    const provider = this.getProvider(chainId);
+    const gasPrice = await this.resolveGasPrice(provider);
+
+    const erc20Abi = ['function approve(address spender, uint256 amount) returns (bool)'];
+    const conn = this.connection;
+    if (!conn?.eip1193Provider) {
+      const err = new WalletError(
+        WalletErrorCode.NOT_CONNECTED,
+        'Wallet is not connected.',
+        'Connect your wallet and try again.'
+      );
+      errorTracker.record(WalletErrorCode.NOT_CONNECTED);
+      throw err;
+    }
+    const web3Provider = new ethers.providers.Web3Provider(conn.eip1193Provider);
+    const signer = web3Provider.getSigner();
+    const erc20WithSigner = new ethers.Contract(token, erc20Abi, signer);
+
+    let gasLimit: ethers.BigNumber;
+    try {
+      const estimated = await erc20WithSigner.estimateGas.approve(spender, amount);
+      const bufferMultiplier =
+        chainId === CHAIN_IDS.POLYGON
+          ? CRYPTO_CONSTANTS.POLYGON_GAS_BUFFER_MULTIPLIER
+          : CRYPTO_CONSTANTS.DEFAULT_GAS_BUFFER_MULTIPLIER;
+      gasLimit = estimated.mul(bufferMultiplier).div(100);
+    } catch (err) {
+      console.warn('Approve gas estimation failed, using fallback:', err);
+      gasLimit = ethers.BigNumber.from(CRYPTO_CONSTANTS.FALLBACK_GAS_LIMIT);
+    }
+
+    const estimatedCost = gasPrice.mul(gasLimit);
+    return {
+      gasLimit: gasLimit.toString(),
+      gasPrice: ethers.utils.formatUnits(gasPrice, 'gwei'),
+      estimatedCost: ethers.utils.formatEther(estimatedCost),
+    };
+  }
+
+  /**
+   * Performs an ERC20 approve for `spender` and waits for mining.
+   * Returns transaction hash.
+   */
+  async approveErc20(token: string, spender: string, amount: ethers.BigNumberish): Promise<string> {
+    const signer = this.getWalletSigner();
+    const erc20Abi = ['function approve(address spender, uint256 amount) returns (bool)'];
+    const erc20 = new ethers.Contract(token, erc20Abi, signer);
+    try {
+      const tx = await erc20.approve(spender, amount);
+      const receipt = await tx.wait();
+      if (!receipt?.transactionHash) {
+        throw new Error('Approval transaction mined without a hash');
+      }
+      return receipt.transactionHash;
+    } catch (error) {
+      if (isUserRejectedError(error)) {
+        errorTracker.record(WalletErrorCode.USER_REJECTED);
+        throw new WalletError(
+          WalletErrorCode.USER_REJECTED,
+          'Approval was rejected in your wallet.',
+          'Open your wallet and approve the request to continue.'
+        );
+      }
+      throw new ContractError(
+        ContractErrorCode.EXECUTION_FAILED,
+        'Token approval failed.',
+        'Check your wallet connection and try again.',
+        error
+      );
     }
   }
 
   private getProvider(chainId: number): ethers.providers.JsonRpcProvider {
     return new ethers.providers.JsonRpcProvider(getEvmRpcUrl(chainId));
+  }
+
+  private async resolveGasPrice(
+    provider: ethers.providers.JsonRpcProvider
+  ): Promise<ethers.BigNumber> {
+    if (typeof provider.getFeeData === 'function') {
+      const feeData = await provider.getFeeData();
+      return feeData.maxFeePerGas ?? feeData.gasPrice ?? ethers.BigNumber.from(0);
+    }
+
+    if (typeof provider.getGasPrice === 'function') {
+      return provider.getGasPrice();
+    }
+
+    return ethers.BigNumber.from(0);
   }
 
   private getNativeSymbol(chainId: number): string {
@@ -481,6 +708,478 @@ export class WalletServiceManager {
   }
 }
 
+// ── Payment method management ───────────────────────────────────────
+
+export enum PaymentMethodErrorCode {
+  DUPLICATE = 'PAYMENT_METHOD_DUPLICATE',
+  INVALID_TOKEN = 'PAYMENT_METHOD_INVALID_TOKEN',
+  INVALID_CHAIN = 'PAYMENT_METHOD_INVALID_CHAIN',
+  MAX_METHODS = 'PAYMENT_METHOD_MAX_REACHED',
+  VERIFICATION_FAILED = 'PAYMENT_METHOD_VERIFICATION_FAILED',
+  EXPIRED = 'PAYMENT_METHOD_EXPIRED',
+  INSUFFICIENT_BALANCE = 'INSUFFICIENT_BALANCE',
+  GAS_PRICE_SPIKE = 'GAS_PRICE_SPIKE',
+  TOKEN_CONTRACT_UPGRADED = 'TOKEN_CONTRACT_UPGRADED',
+  FALLBACK_FAILED = 'FALLBACK_FAILED',
+}
+
+export class PaymentMethodError extends Error {
+  readonly code: PaymentMethodErrorCode;
+  readonly userMessage: string;
+  readonly recovery?: string;
+
+  constructor(
+    code: PaymentMethodErrorCode,
+    userMessage: string,
+    recovery?: string,
+    cause?: unknown
+  ) {
+    super(userMessage);
+    this.name = 'PaymentMethodError';
+    this.code = code;
+    this.userMessage = userMessage;
+    this.recovery = recovery;
+    if (cause instanceof Error && cause.stack) {
+      this.stack = `${this.stack}\nCaused by: ${cause.stack}`;
+    }
+  }
+}
+
+const MAX_PAYMENT_METHODS_PER_USER = 10;
+const EXPIRY_WARNING_DAYS = 30;
+const TOKEN_TYPE_TO_NATIVE_SYMBOL: Record<number, Record<TokenType, string>> = {
+  [CHAIN_IDS.ETHEREUM]: { XLM: '', USDC: 'USDC', ETH: 'ETH', NATIVE: 'ETH', MATIC: '', ARB: '' },
+  [CHAIN_IDS.POLYGON]: {
+    XLM: '',
+    USDC: 'USDC',
+    ETH: 'ETH',
+    NATIVE: 'MATIC',
+    MATIC: 'MATIC',
+    ARB: '',
+  },
+  [CHAIN_IDS.ARBITRUM]: { XLM: '', USDC: 'USDC', ETH: 'ETH', NATIVE: 'ETH', MATIC: '', ARB: 'ARB' },
+};
+
+const PRIORITY_ORDER: Record<PaymentPriority, number> = {
+  [PaymentPriority.PRIMARY]: 0,
+  [PaymentPriority.BACKUP]: 1,
+  [PaymentPriority.FALLBACK]: 2,
+};
+
+export interface PaymentMethodExpiryCheck {
+  method: PaymentMethod;
+  daysUntilExpiry: number | null;
+  isExpired: boolean;
+  isExpiringSoon: boolean;
+}
+
+export class PaymentMethodService {
+  private static instance: PaymentMethodService;
+  private readonly walletManager: WalletServiceManager;
+
+  static getInstance(): PaymentMethodService {
+    if (!PaymentMethodService.instance) {
+      PaymentMethodService.instance = new PaymentMethodService();
+    }
+    return PaymentMethodService.instance;
+  }
+
+  private constructor() {
+    this.walletManager = WalletServiceManager.getInstance();
+  }
+
+  generateId(): string {
+    return `pm_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  }
+
+  validatePaymentMethodForm(data: {
+    tokenType: TokenType;
+    tokenAddress: string;
+    chainId: number;
+    label: string;
+    priority: PaymentPriority;
+    maxSpendPerInterval: string;
+  }): PaymentMethodValidationResult {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    if (!Object.values(TokenType).includes(data.tokenType)) {
+      errors.push(`Unsupported token type: ${data.tokenType}`);
+    }
+
+    if (data.tokenType !== TokenType.NATIVE && !ethers.utils.isAddress(data.tokenAddress)) {
+      errors.push('Invalid token address');
+    }
+
+    const validChainIds = Object.values(CHAIN_IDS) as number[];
+    if (!validChainIds.includes(data.chainId)) {
+      errors.push(`Unsupported chain ID: ${data.chainId}`);
+    }
+
+    if (!data.label || data.label.trim().length === 0) {
+      errors.push('Label is required');
+    }
+
+    if (
+      !data.maxSpendPerInterval ||
+      isNaN(Number(data.maxSpendPerInterval)) ||
+      Number(data.maxSpendPerInterval) <= 0
+    ) {
+      errors.push('Max spend per interval must be a positive number');
+    }
+
+    const nativeSymbol = TOKEN_TYPE_TO_NATIVE_SYMBOL[data.chainId]?.[data.tokenType];
+    if (nativeSymbol === '') {
+      warnings.push(`Token type ${data.tokenType} may not be supported on chain ${data.chainId}`);
+    }
+
+    if (Number(data.maxSpendPerInterval) > 1e12) {
+      warnings.push('Max spend per interval is very high; consider setting a lower cap');
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+      warnings,
+      requiresVerification: data.tokenType !== TokenType.NATIVE,
+      estimatedGas: null,
+    };
+  }
+
+  async verifyPaymentMethod(method: PaymentMethod): Promise<boolean> {
+    const conn = this.walletManager.getConnection();
+    if (!conn || !conn.isConnected) {
+      throw new PaymentMethodError(
+        PaymentMethodErrorCode.VERIFICATION_FAILED,
+        'Wallet not connected.',
+        'Connect your wallet to verify payment methods.'
+      );
+    }
+
+    if (method.tokenType === TokenType.NATIVE) {
+      return true;
+    }
+
+    try {
+      const provider = new ethers.providers.JsonRpcProvider(getEvmRpcUrl(method.chainId));
+      const erc20Abi = [
+        'function decimals() view returns (uint8)',
+        'function symbol() view returns (string)',
+      ];
+      const contract = new ethers.Contract(method.tokenAddress, erc20Abi, provider);
+
+      const decimals = await contract.decimals();
+      if (decimals < 0 || decimals > 18) {
+        throw new Error('Invalid decimals');
+      }
+
+      const symbol = await contract.symbol();
+      const expectedSymbol = method.tokenType.toString();
+      if (symbol.toUpperCase() !== expectedSymbol.toUpperCase() && expectedSymbol !== 'NATIVE') {
+        throw new Error(`Symbol mismatch: expected ${expectedSymbol}, got ${symbol}`);
+      }
+
+      return true;
+    } catch (error) {
+      throw new PaymentMethodError(
+        PaymentMethodErrorCode.VERIFICATION_FAILED,
+        `Failed to verify token ${method.tokenAddress}.`,
+        'Check the token address and try again.',
+        error
+      );
+    }
+  }
+
+  sortByPriority(methods: PaymentMethod[]): PaymentMethod[] {
+    return [...methods].sort((a, b) => {
+      const priorityDiff = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
+      if (priorityDiff !== 0) return priorityDiff;
+
+      const aTime = a.lastUsedAt?.getTime() ?? a.createdAt.getTime();
+      const bTime = b.lastUsedAt?.getTime() ?? b.createdAt.getTime();
+      return bTime - aTime;
+    });
+  }
+
+  getPrimaryMethods(methods: PaymentMethod[]): PaymentMethod[] {
+    return methods.filter(
+      (m) => m.priority === PaymentPriority.PRIMARY && m.isActive && m.isVerified
+    );
+  }
+
+  getBackupMethods(methods: PaymentMethod[]): PaymentMethod[] {
+    return methods.filter(
+      (m) => m.priority === PaymentPriority.BACKUP && m.isActive && m.isVerified
+    );
+  }
+
+  getFallbackMethods(methods: PaymentMethod[]): PaymentMethod[] {
+    return methods.filter(
+      (m) => m.priority === PaymentPriority.FALLBACK && m.isActive && m.isVerified
+    );
+  }
+
+  getActiveVerifiedMethods(methods: PaymentMethod[]): PaymentMethod[] {
+    return this.sortByPriority(methods.filter((m) => m.isActive && m.isVerified));
+  }
+
+  calculateFallbackOrder(methods: PaymentMethod[]): PaymentMethod[] {
+    const active = this.getActiveVerifiedMethods(methods);
+    return this.sortByPriority(active);
+  }
+
+  canAddMethod(currentCount: number): { canAdd: boolean; reason?: string } {
+    if (currentCount >= MAX_PAYMENT_METHODS_PER_USER) {
+      return {
+        canAdd: false,
+        reason: `Maximum of ${MAX_PAYMENT_METHODS_PER_USER} payment methods reached.`,
+      };
+    }
+    return { canAdd: true };
+  }
+
+  isDuplicateMethod(
+    existingMethods: PaymentMethod[],
+    tokenAddress: string,
+    chainId: number,
+    tokenType: TokenType
+  ): boolean {
+    return existingMethods.some(
+      (m) =>
+        m.tokenAddress.toLowerCase() === tokenAddress.toLowerCase() &&
+        m.chainId === chainId &&
+        m.tokenType === tokenType
+    );
+  }
+
+  ensurePriorityBalance(methods: PaymentMethod[]): void {
+    const priorities = [PaymentPriority.PRIMARY, PaymentPriority.BACKUP, PaymentPriority.FALLBACK];
+    const present = new Set(methods.map((m) => m.priority));
+
+    for (const priority of priorities) {
+      if (!present.has(priority)) {
+        throw new PaymentMethodError(
+          PaymentMethodErrorCode.INVALID_TOKEN,
+          `No payment method with priority "${priority}" exists. Add a method with this priority level.`,
+          'Configure at least one payment method per priority level.'
+        );
+      }
+    }
+  }
+
+  async checkBalance(
+    method: PaymentMethod,
+    requiredAmount: string,
+    chainId: number
+  ): Promise<{ sufficient: boolean; balance: string; symbol: string }> {
+    try {
+      const provider = new ethers.providers.JsonRpcProvider(getEvmRpcUrl(chainId));
+      const conn = this.walletManager.getConnection();
+      if (!conn) {
+        return { sufficient: false, balance: '0', symbol: method.tokenType };
+      }
+
+      let balance: ethers.BigNumber;
+
+      if (method.tokenType === TokenType.NATIVE) {
+        balance = await provider.getBalance(conn.address);
+      } else {
+        const erc20Abi = ['function balanceOf(address) view returns (uint256)'];
+        const contract = new ethers.Contract(method.tokenAddress, erc20Abi, provider);
+        balance = await contract.balanceOf(conn.address);
+      }
+
+      const required = ethers.utils.parseUnits(
+        requiredAmount,
+        method.tokenType === TokenType.USDC ? 6 : 18
+      );
+      return {
+        sufficient: balance.gte(required),
+        balance: balance.toString(),
+        symbol: method.tokenType.toString(),
+      };
+    } catch {
+      return { sufficient: false, balance: '0', symbol: method.tokenType.toString() };
+    }
+  }
+
+  async validateGasPrice(
+    chainId: number,
+    maxGasPriceGwei: number
+  ): Promise<{ acceptable: boolean; currentGasPrice: string }> {
+    try {
+      const provider = new ethers.providers.JsonRpcProvider(getEvmRpcUrl(chainId));
+      const gasPrice = await provider.getGasPrice();
+      const gasPriceGwei = parseFloat(ethers.utils.formatUnits(gasPrice, 'gwei'));
+
+      return {
+        acceptable: gasPriceGwei <= maxGasPriceGwei,
+        currentGasPrice: gasPriceGwei.toFixed(2),
+      };
+    } catch {
+      return { acceptable: false, currentGasPrice: '0' };
+    }
+  }
+
+  checkExpiry(method: PaymentMethod): PaymentMethodExpiryCheck {
+    if (!method.expiresAt) {
+      return { method, daysUntilExpiry: null, isExpired: false, isExpiringSoon: false };
+    }
+
+    const now = Date.now();
+    const expiryTime = method.expiresAt.getTime();
+    const daysUntilExpiry = Math.ceil((expiryTime - now) / (1000 * 60 * 60 * 24));
+    const isExpired = daysUntilExpiry <= 0;
+    const isExpiringSoon = !isExpired && daysUntilExpiry <= EXPIRY_WARNING_DAYS;
+
+    return { method, daysUntilExpiry, isExpired, isExpiringSoon };
+  }
+
+  getExpiredMethods(methods: PaymentMethod[]): PaymentMethod[] {
+    return methods.filter((m) => {
+      const check = this.checkExpiry(m);
+      return check.isExpired;
+    });
+  }
+
+  getExpiringSoonMethods(methods: PaymentMethod[]): PaymentMethod[] {
+    return methods.filter((m) => {
+      const check = this.checkExpiry(m);
+      return check.isExpiringSoon;
+    });
+  }
+
+  async processPaymentWithFallback(
+    paymentMethods: PaymentMethod[],
+    subscriptionId: string,
+    amount: string,
+    chainId: number,
+    maxGasPriceGwei: number = 500
+  ): Promise<{ success: boolean; attempt: PaymentAttempt; fallbackAttempts: PaymentAttempt[] }> {
+    const sorted = this.calculateFallbackOrder(paymentMethods);
+    if (sorted.length === 0) {
+      throw new PaymentMethodError(
+        PaymentMethodErrorCode.FALLBACK_FAILED,
+        'No active payment methods available.',
+        'Add at least one verified payment method.'
+      );
+    }
+
+    const fallbackAttempts: PaymentAttempt[] = [];
+
+    for (const method of sorted) {
+      const attempt: PaymentAttempt = {
+        id: `attempt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        paymentMethodId: method.id,
+        subscriptionId,
+        amount,
+        tokenType: method.tokenType,
+        status: 'pending',
+        attemptedAt: new Date(),
+      };
+
+      try {
+        const expiry = this.checkExpiry(method);
+        if (expiry.isExpired) {
+          attempt.status = 'failed';
+          attempt.failureReason = `Payment method expired ${expiry.daysUntilExpiry} days ago`;
+          attempt.resolvedAt = new Date();
+          fallbackAttempts.push(attempt);
+          continue;
+        }
+
+        const gasCheck = await this.validateGasPrice(chainId, maxGasPriceGwei);
+        if (!gasCheck.acceptable) {
+          attempt.status = 'failed';
+          attempt.failureReason = `Gas price ${gasCheck.currentGasPrice} gwei exceeds max ${maxGasPriceGwei} gwei`;
+          attempt.gasPrice = gasCheck.currentGasPrice;
+          attempt.resolvedAt = new Date();
+          fallbackAttempts.push(attempt);
+          continue;
+        }
+
+        const balanceCheck = await this.checkBalance(method, amount, chainId);
+        if (!balanceCheck.sufficient) {
+          attempt.status = 'failed';
+          attempt.failureReason = `Insufficient ${method.tokenType} balance: have ${balanceCheck.balance}, need ${amount}`;
+          attempt.resolvedAt = new Date();
+          fallbackAttempts.push(attempt);
+          continue;
+        }
+
+        if (
+          method.maxSpendPerInterval &&
+          ethers.BigNumber.from(amount).gt(method.maxSpendPerInterval)
+        ) {
+          attempt.status = 'failed';
+          attempt.failureReason = `Amount ${amount} exceeds max spend per interval ${method.maxSpendPerInterval}`;
+          attempt.resolvedAt = new Date();
+          fallbackAttempts.push(attempt);
+          continue;
+        }
+
+        attempt.status = 'success';
+        attempt.gasPrice = gasCheck.currentGasPrice;
+        attempt.resolvedAt = new Date();
+        method.lastUsedAt = new Date();
+
+        return { success: true, attempt, fallbackAttempts };
+      } catch (error) {
+        attempt.status = 'failed';
+        attempt.failureReason = error instanceof Error ? error.message : 'Unknown error';
+        attempt.resolvedAt = new Date();
+        fallbackAttempts.push(attempt);
+      }
+    }
+
+    throw new PaymentMethodError(
+      PaymentMethodErrorCode.FALLBACK_FAILED,
+      `All ${sorted.length} payment methods failed.`,
+      'Check your balances, gas prices, and payment method configurations.',
+      new Error(
+        `Failed attempts: ${fallbackAttempts.map((a) => `${a.tokenType}: ${a.failureReason}`).join('; ')}`
+      )
+    );
+  }
+
+  async detectTokenContractUpgrade(
+    method: PaymentMethod,
+    previousHash: string | null
+  ): Promise<{ upgraded: boolean; newHash?: string }> {
+    if (method.tokenType === TokenType.NATIVE || !method.tokenAddress) {
+      return { upgraded: false };
+    }
+
+    try {
+      const provider = new ethers.providers.JsonRpcProvider(getEvmRpcUrl(method.chainId));
+      const code = await provider.getCode(method.tokenAddress);
+      const newHash = ethers.utils.keccak256(code);
+
+      if (previousHash && newHash !== previousHash) {
+        return { upgraded: true, newHash };
+      }
+
+      return { upgraded: false, newHash };
+    } catch {
+      return { upgraded: false };
+    }
+  }
+
+  markPaymentMethodExpired(method: PaymentMethod): PaymentMethod {
+    return {
+      ...method,
+      isActive: false,
+      metadata: {
+        ...method.metadata,
+        deactivated_reason: 'expired',
+        deactivated_at: new Date().toISOString(),
+      },
+      updatedAt: new Date(),
+    };
+  }
+}
+
 // Export singleton instance
 export const walletServiceManager = WalletServiceManager.getInstance();
+export const paymentMethodService = PaymentMethodService.getInstance();
 export default walletServiceManager;
