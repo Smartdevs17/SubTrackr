@@ -19,6 +19,7 @@ import {
   RecognitionMethod,
   billingCycleToMs,
   splitRecognisedDeferred,
+  ErpExportFormat,
 } from '../store/accountingStore';
 import { useThemeColors } from '../hooks/useThemeColors';
 
@@ -60,6 +61,10 @@ const RevenueReportScreen: React.FC = () => {
     removeRecognitionRule,
     generateRevenueSchedule,
     getRevenueAnalyticsByPeriod,
+    getRevenueWaterfallReport,
+    exportForErp,
+    accelerateRevenueOnTermination,
+    handleFreeTrialConversion,
   } = useAccountingStore();
 
   const [periodRange, setPeriodRange] = useState<PeriodRange>('month');
@@ -147,6 +152,63 @@ const RevenueReportScreen: React.FC = () => {
       if (configSubId === subId) setConfigSubId(null);
     },
     [removeRecognitionRule, configSubId]
+  );
+
+  const handleExportErp = useCallback(
+    (format: ErpExportFormat) => {
+      const nameMap: Record<string, string> = {};
+      subscriptions.forEach((s) => {
+        nameMap[s.id] = s.name;
+      });
+      const exported = exportForErp(format, nameMap);
+      Alert.alert(
+        `${format.toUpperCase()} Export Ready`,
+        `${exported.rows.length} line(s) generated.\n\nPreview:\n${exported.raw.slice(0, 200)}${exported.raw.length > 200 ? '...' : ''}`,
+        [{ text: 'OK' }]
+      );
+    },
+    [subscriptions, exportForErp]
+  );
+
+  const handleWaterfallReport = useCallback(() => {
+    const nameMap: Record<string, string> = {};
+    subscriptions.forEach((s) => {
+      nameMap[s.id] = s.name;
+    });
+    const report = getRevenueWaterfallReport(nameMap);
+    Alert.alert(
+      'Revenue Waterfall',
+      `Deferred: $${report.totals.deferred.toFixed(2)}\nRecognized: $${report.totals.recognized.toFixed(2)}\nRealized: $${report.totals.realized.toFixed(2)}`,
+      [{ text: 'OK' }]
+    );
+  }, [subscriptions, getRevenueWaterfallReport]);
+
+  const handleTerminate = useCallback(
+    (subId: string) => {
+      Alert.alert('Terminate Subscription', 'Accelerate remaining deferred revenue to today?', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Accelerate',
+          style: 'destructive',
+          onPress: () => {
+            accelerateRevenueOnTermination(subId, Date.now());
+            Alert.alert('Done', 'Remaining deferred revenue recognized.');
+          },
+        },
+      ]);
+    },
+    [accelerateRevenueOnTermination]
+  );
+
+  const handleFreeTrialSim = useCallback(
+    (subId: string) => {
+      const sub = subscriptions.find((s) => s.id === subId);
+      if (!sub) return;
+      const trialEnd = Date.now(); // trial ends now
+      handleFreeTrialConversion(subId, trialEnd, sub.price, sub.billingCycle);
+      Alert.alert('Free Trial Converted', `Revenue schedule starts from today for "${sub.name}".`);
+    },
+    [subscriptions, handleFreeTrialConversion]
   );
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -342,11 +404,41 @@ const RevenueReportScreen: React.FC = () => {
                           <Text style={styles.removeBtnText}>Reset to Default</Text>
                         </TouchableOpacity>
                       )}
+
+                      {/* Edge cases */}
+                      <TouchableOpacity
+                        style={styles.removeBtn}
+                        onPress={() => handleTerminate(sub.id)}>
+                        <Text style={styles.removeBtnText}>⚡ Early Termination</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.removeBtn}
+                        onPress={() => handleFreeTrialSim(sub.id)}>
+                        <Text style={styles.removeBtnText}>🎁 Convert Free Trial</Text>
+                      </TouchableOpacity>
                     </View>
                   )}
                 </View>
               );
             })}
+        </Card>
+
+        {/* Waterfall & ERP Export */}
+        <Card style={styles.configCard}>
+          <Text style={styles.chartTitle}>ASC 606 Waterfall & Export</Text>
+          <TouchableOpacity style={styles.simulateBtn} onPress={handleWaterfallReport}>
+            <Text style={styles.simulateBtnText}>📊 View Revenue Waterfall</Text>
+          </TouchableOpacity>
+          <View style={styles.exportRow}>
+            <TouchableOpacity
+              style={[styles.exportBtn, { marginRight: spacing.sm }]}
+              onPress={() => handleExportErp('csv')}>
+              <Text style={styles.exportBtnText}>Export CSV</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.exportBtn} onPress={() => handleExportErp('json')}>
+              <Text style={styles.exportBtnText}>Export JSON</Text>
+            </TouchableOpacity>
+          </View>
         </Card>
       </ScrollView>
     </SafeAreaView>
@@ -467,6 +559,17 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       alignItems: 'center',
     },
     removeBtnText: { ...typography.body, color: colors.textSecondary },
+
+    exportRow: { flexDirection: 'row', marginTop: spacing.sm },
+    exportBtn: {
+      flex: 1,
+      borderWidth: 1,
+      borderColor: colors.primary,
+      borderRadius: borderRadius.md,
+      paddingVertical: spacing.sm,
+      alignItems: 'center',
+    },
+    exportBtnText: { ...typography.body, color: colors.primary, fontWeight: '600' },
 
     emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.xl },
     emptyIcon: { fontSize: 64, marginBottom: spacing.md },

@@ -81,6 +81,17 @@ load-tests/reports/*
 # React Native
 .expo-shared/
 
+# Jest test snapshots
+**/__snapshots__/
+*.snap
+
+# Storybook
+storybook-static/
+
+# Misc generated
+*.tsbuildinfo
+.parcel-cache/
+
 
 # Build artifacts
 build_errors*.txt

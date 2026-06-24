@@ -19,6 +19,53 @@ import { BillingCycle } from '../types/subscription';
 
 export type RecognitionMethod = 'straight-line' | 'usage-based';
 
+/** ASC 606 waterfall: deferred (unearned), recognized (earned this period), realized (cash collected). */
+export interface RevenueWaterfallRow {
+  subscriptionId: string;
+  subscriptionName?: string;
+  totalCharged: number;
+  deferred: number;
+  recognized: number;
+  realized: number;
+}
+
+export interface RevenueWaterfallReport {
+  asOf: number;
+  rows: RevenueWaterfallRow[];
+  totals: { deferred: number; recognized: number; realized: number };
+}
+
+/** Contract modification re-scheduling instruction. */
+export interface ContractModification {
+  subscriptionId: string;
+  newTotalAmount: number;
+  modificationDate: number;
+  newBillingCycle: BillingCycle;
+  merchantId?: string;
+}
+
+/** Export format for ERP systems. */
+export type ErpExportFormat = 'csv' | 'json';
+
+export interface ErpExportRow {
+  subscriptionId: string;
+  subscriptionName?: string;
+  chargeDate: string;
+  periodStart: string;
+  periodEnd: string;
+  recognizedAmount: number;
+  deferredAmount: number;
+  totalAmount: number;
+  method: string;
+}
+
+export interface ErpExport {
+  format: ErpExportFormat;
+  generatedAt: string;
+  rows: ErpExportRow[];
+  raw: string; // CSV or JSON string
+}
+
 export interface RevenueRecognitionRule {
   /** Subscription ID this rule applies to. */
   subscriptionId: string;
@@ -112,6 +159,49 @@ interface AccountingState {
    * @param to        Range end (Unix ms).
    */
   getRevenueAnalyticsByPeriod: (periodMs: number, from: number, to: number) => PeriodRevenue[];
+
+  /**
+   * Build ASC 606 revenue waterfall report (deferred / recognized / realized).
+   * @param subscriptionNames  Optional map of id→name for display.
+   * @param asOf               Snapshot time (defaults to now).
+   */
+  getRevenueWaterfallReport: (
+    subscriptionNames?: Record<string, string>,
+    asOf?: number
+  ) => RevenueWaterfallReport;
+
+  /**
+   * Handle early termination: accelerate recognition of remaining deferred
+   * revenue into the termination date (ASC 606 §606-10-55-279).
+   */
+  accelerateRevenueOnTermination: (
+    subscriptionId: string,
+    terminationDate: number,
+    merchantId?: string
+  ) => void;
+
+  /**
+   * Handle free-trial subscriptions: mark schedule as zero-revenue until
+   * the trial ends and conversion occurs.
+   */
+  handleFreeTrialConversion: (
+    subscriptionId: string,
+    trialEndDate: number,
+    postTrialAmount: number,
+    billingCycle: BillingCycle,
+    merchantId?: string
+  ) => RevenueSchedule;
+
+  /**
+   * Re-schedule revenue when a contract is modified (upgrade/downgrade).
+   * Remaining deferred revenue is redistributed from the modification date.
+   */
+  applyContractModification: (mod: ContractModification) => RevenueSchedule;
+
+  /**
+   * Export revenue data as CSV or JSON for ERP import (QuickBooks, Xero).
+   */
+  exportForErp: (format: ErpExportFormat, subscriptionNames?: Record<string, string>) => ErpExport;
 
   /** Flush all accounting data (useful for testing). */
   reset: () => void;
@@ -351,6 +441,166 @@ export const useAccountingStore = create<AccountingState>()(
         }
 
         return buckets;
+      },
+
+      getRevenueWaterfallReport: (subscriptionNames = {}, asOf = Date.now()) => {
+        const state = get();
+        const rows: RevenueWaterfallRow[] = Object.values(state.schedules).map((schedule) => {
+          const { recognised, deferred } = splitRecognisedDeferred(schedule, asOf);
+          return {
+            subscriptionId: schedule.subscriptionId,
+            subscriptionName: subscriptionNames[schedule.subscriptionId],
+            totalCharged: schedule.totalAmount,
+            deferred,
+            recognized: recognised,
+            realized: asOf >= schedule.chargeDate ? schedule.totalAmount : 0,
+          };
+        });
+        const totals = rows.reduce(
+          (acc, row) => ({
+            deferred: acc.deferred + row.deferred,
+            recognized: acc.recognized + row.recognized,
+            realized: acc.realized + row.realized,
+          }),
+          { deferred: 0, recognized: 0, realized: 0 }
+        );
+        return { asOf, rows, totals };
+      },
+
+      accelerateRevenueOnTermination: (
+        subscriptionId,
+        terminationDate,
+        merchantId = DEFAULT_MERCHANT
+      ) => {
+        set((state) => {
+          const schedule = state.schedules[subscriptionId];
+          if (!schedule) return state;
+          const { deferred: remainingDeferred } = splitRecognisedDeferred(
+            schedule,
+            terminationDate
+          );
+          const acceleratedEntries = schedule.entries.map((entry) => ({
+            ...entry,
+            periodEnd: Math.min(entry.periodEnd, terminationDate),
+            isRecognised: true,
+          }));
+          const currentDeferred = state.deferredRevenue[merchantId] ?? 0;
+          const currentRecognized = state.recognisedRevenue[merchantId] ?? 0;
+          return {
+            schedules: {
+              ...state.schedules,
+              [subscriptionId]: { ...schedule, entries: acceleratedEntries },
+            },
+            deferredRevenue: {
+              ...state.deferredRevenue,
+              [merchantId]: Math.max(0, currentDeferred - remainingDeferred),
+            },
+            recognisedRevenue: {
+              ...state.recognisedRevenue,
+              [merchantId]: currentRecognized + remainingDeferred,
+            },
+          };
+        });
+      },
+
+      handleFreeTrialConversion: (
+        subscriptionId,
+        trialEndDate,
+        postTrialAmount,
+        billingCycle,
+        merchantId = DEFAULT_MERCHANT
+      ) => {
+        // Zero revenue during trial — schedule starts at conversion date
+        const intervalMs = billingCycleToMs(billingCycle);
+        const schedule = buildStraightLineSchedule(
+          subscriptionId,
+          postTrialAmount,
+          trialEndDate,
+          intervalMs,
+          1
+        );
+        set((state) => ({
+          schedules: { ...state.schedules, [subscriptionId]: schedule },
+          deferredRevenue: {
+            ...state.deferredRevenue,
+            [merchantId]: (state.deferredRevenue[merchantId] ?? 0) + postTrialAmount,
+          },
+        }));
+        return schedule;
+      },
+
+      applyContractModification: (mod) => {
+        const merchantId = mod.merchantId ?? DEFAULT_MERCHANT;
+        const existingSchedule = get().schedules[mod.subscriptionId];
+        if (existingSchedule) {
+          const { deferred: oldDeferred } = splitRecognisedDeferred(
+            existingSchedule,
+            mod.modificationDate
+          );
+          set((state) => ({
+            deferredRevenue: {
+              ...state.deferredRevenue,
+              [merchantId]: Math.max(0, (state.deferredRevenue[merchantId] ?? 0) - oldDeferred),
+            },
+          }));
+        }
+        const intervalMs = billingCycleToMs(mod.newBillingCycle);
+        const schedule = buildStraightLineSchedule(
+          mod.subscriptionId,
+          mod.newTotalAmount,
+          mod.modificationDate,
+          intervalMs,
+          1
+        );
+        set((state) => ({
+          schedules: { ...state.schedules, [mod.subscriptionId]: schedule },
+          deferredRevenue: {
+            ...state.deferredRevenue,
+            [merchantId]: (state.deferredRevenue[merchantId] ?? 0) + mod.newTotalAmount,
+          },
+        }));
+        return schedule;
+      },
+
+      exportForErp: (format, subscriptionNames = {}) => {
+        const state = get();
+        const now = Date.now();
+        const rows: ErpExportRow[] = Object.values(state.schedules).flatMap((schedule) => {
+          const rule = state.rules[schedule.subscriptionId];
+          return schedule.entries.map((entry) => {
+            const { recognised, deferred } = splitRecognisedDeferred(
+              { ...schedule, entries: [entry] },
+              now
+            );
+            return {
+              subscriptionId: schedule.subscriptionId,
+              subscriptionName: subscriptionNames[schedule.subscriptionId],
+              chargeDate: new Date(schedule.chargeDate).toISOString(),
+              periodStart: new Date(entry.periodStart).toISOString(),
+              periodEnd: new Date(entry.periodEnd).toISOString(),
+              recognizedAmount: Math.round(recognised * 100) / 100,
+              deferredAmount: Math.round(deferred * 100) / 100,
+              totalAmount: entry.recognisedAmount,
+              method: rule?.method ?? 'straight-line',
+            };
+          });
+        });
+        const nowIso = new Date(now).toISOString();
+        let raw: string;
+        if (format === 'csv') {
+          const header =
+            'subscriptionId,subscriptionName,chargeDate,periodStart,periodEnd,recognizedAmount,deferredAmount,totalAmount,method';
+          const body = rows
+            .map(
+              (r) =>
+                `"${r.subscriptionId}","${r.subscriptionName ?? ''}","${r.chargeDate}","${r.periodStart}","${r.periodEnd}",${r.recognizedAmount},${r.deferredAmount},${r.totalAmount},"${r.method}"`
+            )
+            .join('\n');
+          raw = `${header}\n${body}`;
+        } else {
+          raw = JSON.stringify({ generatedAt: nowIso, rows }, null, 2);
+        }
+        return { format, generatedAt: nowIso, rows, raw };
       },
 
       reset: () => set(initialState),
