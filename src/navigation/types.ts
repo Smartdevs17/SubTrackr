@@ -48,6 +48,7 @@ export type RootStackParamList = {
   ChangePlan: { subscriptionId: string };
   PaymentMethods: undefined;
   AnalyticsDashboard: undefined;
+  TrialDetails: undefined;
   NotFound: { reason?: string };
 };
 
