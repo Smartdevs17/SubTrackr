@@ -48,6 +48,8 @@ export type RootStackParamList = {
   ChangePlan: { subscriptionId: string };
   PaymentMethods: undefined;
   AnalyticsDashboard: undefined;
+  ChargebackDashboard: undefined;
+  CommunicationPreferences: undefined;
   NotFound: { reason?: string };
 };
 

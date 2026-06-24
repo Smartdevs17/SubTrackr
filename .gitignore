@@ -89,3 +89,29 @@ contracts/migrations/history/*
 !contracts/migrations/history/.gitkeep
 contracts/migrations/snapshots/*
 !contracts/migrations/snapshots/.gitkeep
+
+# Test snapshots (generated — do not commit)
+**/__snapshots__/
+**/test_snapshots/
+contracts/test_snapshots/
+contracts/proxy/test_snapshots/
+contracts/sla/test_snapshots/
+contracts/invoice/test_snapshots/
+
+# Unnecessary root-level output/debug files
+test_output.txt
+tsc_output.txt
+tsc_output_2.txt
+lint_output.txt
+lint_final_error.txt
+final_lint_check.txt
+contracts/clippy_output.txt
+
+# Duplicate/backup files
+*.backup
+package.json.backup
+**/src/lib\ copy.rs
+SubTrackr
+
+# Storybook build
+storybook-static/

@@ -77,6 +77,10 @@ const PaymentMethodsScreen = lazyScreen(() =>
   }))
 );
 const AnalyticsDashboard = lazyScreen(() => import('../../app/screens/AnalyticsDashboard'));
+const ChargebackDashboardScreen = lazyScreen(() => import('../screens/ChargebackDashboardScreen'));
+const CommunicationPreferencesScreen = lazyScreen(
+  () => import('../screens/CommunicationPreferencesScreen')
+);
 
 const Tab = createBottomTabNavigator<TabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -354,6 +358,16 @@ const SettingsStack = () => (
       name="AnalyticsDashboard"
       component={AnalyticsDashboard}
       options={{ title: 'Analytics Dashboard', headerShown: true }}
+    />
+    <Stack.Screen
+      name="ChargebackDashboard"
+      component={ChargebackDashboardScreen}
+      options={{ title: 'Chargebacks', headerShown: true }}
+    />
+    <Stack.Screen
+      name="CommunicationPreferences"
+      component={CommunicationPreferencesScreen}
+      options={{ title: 'Communication Preferences', headerShown: true }}
     />
   </Stack.Navigator>
 );
