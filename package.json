@@ -101,8 +101,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.29.0",
-    "babel-plugin-module-resolver": "^5.0.2",
-    "babel-plugin-transform-remove-console": "^6.3.0",
+    "@babel/plugin-transform-flow-strip-types": "^8.0.1",
     "@commitlint/cli": "^20.5.2",
     "@commitlint/config-conventional": "^20.5.0",
     "@config-plugins/detox": "^11.0.0",
@@ -125,6 +124,8 @@
     "@types/react-dom": "^19.2.3",
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
+    "babel-plugin-module-resolver": "^5.0.2",
+    "babel-plugin-transform-remove-console": "^6.3.0",
     "cross-env": "^10.1.0",
     "detox": "^20.51.0",
     "eslint": "^8.57.0",
