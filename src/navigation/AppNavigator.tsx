@@ -60,6 +60,7 @@ const MerchantOnboardingScreen = lazyScreen(() => import('../screens/MerchantOnb
 const AffiliateDashboardScreen = lazyScreen(() => import('../screens/AffiliateDashboardScreen'));
 const LoyaltyDashboardScreen = lazyScreen(() => import('../screens/LoyaltyDashboardScreen'));
 const CampaignManagementScreen = lazyScreen(() => import('../screens/CampaignManagementScreen'));
+const PromotionManagementScreen = lazyScreen(() => import('../screens/PromotionManagementScreen'));
 const DeveloperPortalScreen = lazyScreen(() => import('../screens/DeveloperPortalScreen'));
 const SandboxDashboardScreen = lazyScreen(() => import('../screens/SandboxDashboardScreen'));
 const ApiKeyManagementScreen = lazyScreen(() => import('../screens/ApiKeyManagementScreen'));
@@ -320,6 +321,11 @@ const SettingsStack = () => (
       name="CampaignManagement"
       component={CampaignManagementScreen}
       options={{ title: 'Campaigns', headerShown: true }}
+    />
+    <Stack.Screen
+      name="PromotionManagement"
+      component={PromotionManagementScreen}
+      options={{ headerShown: false }}
     />
     <Stack.Screen
       name="DeveloperPortal"

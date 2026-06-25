@@ -43,6 +43,7 @@ export type RootStackParamList = {
   AffiliateDashboard: undefined;
   LoyaltyDashboard: undefined;
   CampaignManagement: undefined;
+  PromotionManagement: undefined;
   PerformanceDashboard: undefined;
   BillingSettings: undefined;
   BillingAlignment: undefined;
