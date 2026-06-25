@@ -12,4 +12,5 @@ export { useTaxStore } from './taxStore';
 export { useSupportStore } from './supportStore';
 export { useAuthStore } from './authStore';
 export { useCancellationStore } from './cancellationStore';
+export { useHealthStore } from './healthStore';
 

@@ -44,6 +44,7 @@ export type RootStackParamList = {
   LoyaltyDashboard: undefined;
   CampaignManagement: undefined;
   PerformanceDashboard: undefined;
+  CustomerHealth: undefined;
   BillingSettings: undefined;
   ChangePlan: { subscriptionId: string };
   PaymentMethods: undefined;
