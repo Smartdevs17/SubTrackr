@@ -110,9 +110,7 @@ export const animationPresets = {
  * @param preset - The animation preset key
  * @returns The animation configuration
  */
-export function getAnimationPreset(
-  preset: keyof typeof animationPresets
-): {
+export function getAnimationPreset(preset: keyof typeof animationPresets): {
   duration: number;
   easing: string;
 } {
@@ -124,9 +122,7 @@ export function getAnimationPreset(
  * @param speed - The animation speed ('fastest', 'fast', 'normal', 'slow', 'slowest')
  * @returns The duration in milliseconds
  */
-export function getAnimationDuration(
-  speed: keyof typeof animation.duration
-): number {
+export function getAnimationDuration(speed: keyof typeof animation.duration): number {
   return animation.duration[speed];
 }
 
@@ -135,9 +131,7 @@ export function getAnimationDuration(
  * @param easeType - The easing type
  * @returns The easing function name
  */
-export function getEasing(
-  easeType: keyof typeof animation.easing
-): string {
+export function getEasing(easeType: keyof typeof animation.easing): string {
   return animation.easing[easeType];
 }
 

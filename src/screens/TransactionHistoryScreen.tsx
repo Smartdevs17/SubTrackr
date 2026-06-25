@@ -77,9 +77,7 @@ const TransactionRow: React.FC<RowProps> = ({ tx, onPress }) => (
       <Text style={styles.rowMeta}>
         {formatDate(tx.date)} · {TYPE_LABEL[tx.type]}
       </Text>
-      {tx.txHash ? (
-        <Text style={styles.rowHash}>{shortHash(tx.txHash)}</Text>
-      ) : null}
+      {tx.txHash ? <Text style={styles.rowHash}>{shortHash(tx.txHash)}</Text> : null}
     </View>
     <View style={styles.rowRight}>
       <Text style={styles.rowAmount}>
@@ -103,8 +101,7 @@ interface DetailProps {
 }
 
 const TransactionDetail: React.FC<DetailProps> = ({ tx, onClose }) => {
-  const explorerLink =
-    tx.txHash && tx.explorerUrl ? `${tx.explorerUrl}/tx/${tx.txHash}` : null;
+  const explorerLink = tx.txHash && tx.explorerUrl ? `${tx.explorerUrl}/tx/${tx.txHash}` : null;
 
   const openExplorer = async () => {
     if (!explorerLink) return;
@@ -239,16 +236,16 @@ const TransactionHistoryScreen: React.FC = () => {
 
       {/* Count */}
       {filtered.length > 0 && (
-        <Text style={styles.count}>{filtered.length} transaction{filtered.length !== 1 ? 's' : ''}</Text>
+        <Text style={styles.count}>
+          {filtered.length} transaction{filtered.length !== 1 ? 's' : ''}
+        </Text>
       )}
 
       {/* List */}
       <FlatList
         data={filtered}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <TransactionRow tx={item} onPress={(tx) => setSelectedTx(tx)} />
-        )}
+        renderItem={({ item }) => <TransactionRow tx={item} onPress={(tx) => setSelectedTx(tx)} />}
         ListEmptyComponent={renderEmpty}
         contentContainerStyle={filtered.length === 0 ? styles.listEmpty : styles.list}
         showsVerticalScrollIndicator={false}
@@ -336,7 +333,12 @@ const styles = StyleSheet.create({
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
   emptyIcon: { fontSize: 48, marginBottom: spacing.md },
   emptyTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.sm },
-  emptyBody: { ...typography.body, color: colors.textSecondary, textAlign: 'center', lineHeight: 22 },
+  emptyBody: {
+    ...typography.body,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
   // Detail overlay
   detailOverlay: {
     ...StyleSheet.absoluteFillObject,
