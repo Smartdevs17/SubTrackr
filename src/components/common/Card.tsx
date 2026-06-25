@@ -10,7 +10,20 @@ export interface CardProps {
   padding?: 'none' | 'small' | 'medium' | 'large';
   accessible?: boolean;
   accessibilityLabel?: string;
-  accessibilityRole?: 'none' | 'text' | 'button' | 'link' | 'search' | 'image' | 'keyboardkey' | 'text' | 'adjustable' | 'imagebutton' | 'header' | 'summary' | 'alert';
+  accessibilityRole?:
+    | 'none'
+    | 'text'
+    | 'button'
+    | 'link'
+    | 'search'
+    | 'image'
+    | 'keyboardkey'
+    | 'text'
+    | 'adjustable'
+    | 'imagebutton'
+    | 'header'
+    | 'summary'
+    | 'alert';
 }
 
 export const Card: React.FC<CardProps> = ({
