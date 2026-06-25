@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 const root = process.cwd();
-const openApiPath = path.join(root, 'docs/openapi.yaml');
+const openApiPath = path.join(root, 'spec/openapi.yaml');
 const outputDir = path.join(root, 'sdks/generated');
 const outputPath = path.join(outputDir, 'endpoints.json');
 
@@ -28,7 +28,7 @@ fs.writeFileSync(
   outputPath,
   `${JSON.stringify(
     {
-      source: 'docs/openapi.yaml',
+      source: 'spec/openapi.yaml',
       generatedBy: 'scripts/generate-sdks.js',
       endpoints,
     },

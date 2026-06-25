@@ -79,7 +79,12 @@ export const Button: React.FC<ButtonProps> = ({
           size="small"
         />
       ) : (
-        <Text style={textStyle}>{title}</Text>
+        <Text 
+          style={textStyle} 
+          maxFontSizeMultiplier={1.5}
+          allowFontScaling={true}>
+          {title}
+        </Text>
       )}
     </TouchableOpacity>
   );
