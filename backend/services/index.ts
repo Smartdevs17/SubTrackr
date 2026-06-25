@@ -256,6 +256,21 @@ export type {
 export { BatchChargeService } from './batchChargeService';
 export type { BatchChargeCandidate, BatchChargeOptions, BatchChargeResult } from './batchChargeService';
 
+// ── Plan metadata cache ───────────────────────────────────────────────────────
+export { bootstrapPlanCache, shutdownPlanCache } from '../subscription/bootstrap';
+export type { PlanCacheBootstrap, BootstrapPlanCacheOptions } from '../subscription/bootstrap';
+export { PlanCacheService } from '../subscription/domain/PlanCacheService';
+export type { PlanCacheConfig } from '../subscription/domain/PlanCacheService';
+export { PostgresPlanRepository, planMetadataToRow } from '../subscription/domain/PostgresPlanRepository';
+export { getPlanCacheService, setPlanCacheService } from '../subscription/planCacheRegistry';
+export { runPlanCacheWarming, cacheWarmingJob } from '../subscription/jobs/cacheWarming';
+export type { PlanMetadata, CreatePlanInput, UpdatePlanInput } from '../subscription/domain/types';
+export { createPlanController } from '../subscription/controller/planController';
+export { loadRedisConfig, redisConnectionUrl } from '../config/redis';
+export { createRedisClient, RedisCacheService, createNullRedisClient } from '../shared/cache';
+export { startServer } from '../server';
+export type { RunningServer, StartServerOptions } from '../server';
+
 // ── Idempotency (Issue #425) ─────────────────────────────────────────────────
 export {
   IdempotencyService,
