@@ -17,6 +17,9 @@ import { SettingsScreen } from '../screens/SettingsScreen';
 // Lazy loaded auxiliary and heavy screens with suspense/retry support
 const AddSubscriptionScreen = lazyScreen(() => import('../screens/AddSubscriptionScreen'));
 const CancellationFlowScreen = lazyScreen(() => import('../screens/CancellationFlowScreen'));
+const CancellationFunnelDashboard = lazyScreen(
+  () => import('../screens/CancellationFunnelDashboard')
+);
 const WalletConnectScreen = lazyScreen(() => import('../screens/WalletConnectV2Screen'));
 const CryptoPaymentScreen = lazyScreen(() => import('../screens/CryptoPaymentScreen'));
 const CommunityScreen = lazyScreen(() => import('../screens/CommunityScreen'));
@@ -95,6 +98,11 @@ const HomeStack = () => (
       name="CancellationFlow"
       component={CancellationFlowScreen}
       options={{ title: 'Cancel Subscription', headerShown: true }}
+    />
+    <Stack.Screen
+      name="CancellationFunnelDashboard"
+      component={CancellationFunnelDashboard}
+      options={{ headerShown: false }}
     />
     <Stack.Screen
       name="SubscriptionDetail"

@@ -6,6 +6,7 @@ export type RootStackParamList = {
   SubscriptionDetail: { id: string };
   EditSubscription: { id: string };
   CancellationFlow: { subscriptionId: string };
+  CancellationFunnelDashboard: undefined;
   WalletConnect: undefined;
   CryptoPayment: { subscriptionId?: string } | undefined;
   Community: undefined;
