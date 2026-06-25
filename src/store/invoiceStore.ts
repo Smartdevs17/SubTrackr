@@ -21,13 +21,11 @@ import {
   isTaxExempt as checkIsTaxExempt,
 } from '../types/invoice';
 import { buildInvoice, calculateInvoiceTotals } from '../utils/invoice';
-import { CACHE_CONSTANTS } from '../utils/constants/values';
 import { errorHandler, AppError } from '../services/errorHandler';
 import { presentLocalNotification } from '../services/notificationService';
 
 const STORAGE_KEY = 'subtrackr-invoices';
 const STORE_VERSION = 1;
-const WRITE_DEBOUNCE_MS = CACHE_CONSTANTS.WRITE_DEBOUNCE_MS;
 
 type PersistedInvoiceSlice = Pick<
   InvoiceState,

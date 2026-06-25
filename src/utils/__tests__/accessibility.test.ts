@@ -1,13 +1,12 @@
 /**
  * Accessibility Test Utilities for React Native
- * 
+ *
  * This file provides utilities for testing accessibility in React Native components.
  * Since jest-axe is designed for web (React DOM), we use React Native Testing Library
  * with custom accessibility checks.
  */
 
 import { render, RenderAPI } from '@testing-library/react-native';
-import { AccessibilityInfo } from 'react-native';
 
 /**
  * Accessibility test result
@@ -35,10 +34,10 @@ export function checkAccessibilityLabels(rendered: RenderAPI): AccessibilityViol
 
   // Check all touchable elements
   const touchables = rendered.getAllByRole('button');
-  
+
   touchables.forEach((element) => {
     const props = element.props;
-    
+
     // Check for accessibilityLabel
     if (!props.accessibilityLabel && !props.accessibilityLabelledBy) {
       violations.push({
@@ -73,9 +72,9 @@ export function checkTextContrast(rendered: RenderAPI): AccessibilityViolation[]
   // This is a placeholder - actual contrast checking would require
   // extracting computed styles from the rendered component
   // For now, we just check that text elements exist
-  
+
   const textElements = rendered.getAllByText(/./);
-  
+
   if (textElements.length === 0) {
     violations.push({
       id: 'no-text-found',
@@ -95,10 +94,10 @@ export function checkAccessibilityHints(rendered: RenderAPI): AccessibilityViola
 
   // Check elements that might need hints (complex interactions)
   const touchables = rendered.getAllByRole('button');
-  
+
   touchables.forEach((element) => {
     const props = element.props;
-    
+
     // Elements with complex interactions should have hints
     if (props.onLongPress && !props.accessibilityHint) {
       violations.push({
@@ -151,9 +150,7 @@ export function testComponentAccessibility(
  */
 export function expectNoAccessibilityViolations(result: AccessibilityTestResult) {
   if (!result.passed) {
-    const message = result.violations
-      .map((v) => `[${v.impact}] ${v.description}`)
-      .join('\n');
+    const message = result.violations.map((v) => `[${v.impact}] ${v.description}`).join('\n');
     throw new Error(`Accessibility violations found:\n${message}`);
   }
 }
