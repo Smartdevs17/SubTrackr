@@ -13,6 +13,8 @@ members = [
     "metering",
     "access_control",
     "security",
+    "audit",
+    "utils",
 ]
 
 [profile.release]
