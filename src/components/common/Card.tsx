@@ -8,6 +8,9 @@ export interface CardProps {
   style?: StyleProp<ViewStyle>;
   variant?: 'default' | 'elevated' | 'outlined';
   padding?: 'none' | 'small' | 'medium' | 'large';
+  accessible?: boolean;
+  accessibilityLabel?: string;
+  accessibilityRole?: 'none' | 'text' | 'button' | 'link' | 'search' | 'image' | 'keyboardkey' | 'text' | 'adjustable' | 'imagebutton' | 'header' | 'summary' | 'alert';
 }
 
 export const Card: React.FC<CardProps> = ({
@@ -15,6 +18,9 @@ export const Card: React.FC<CardProps> = ({
   style,
   variant = 'default',
   padding = 'medium',
+  accessible = false,
+  accessibilityLabel,
+  accessibilityRole,
 }) => {
   const colors = useThemeColors();
   const styles = React.useMemo(() => createStyles(colors), [colors]);
@@ -36,7 +42,15 @@ export const Card: React.FC<CardProps> = ({
 
   const cardStyle = [styles.card, styles[variant], getPaddingStyle(), style];
 
-  return <View style={cardStyle}>{children}</View>;
+  return (
+    <View
+      style={cardStyle}
+      accessible={accessible}
+      accessibilityLabel={accessibilityLabel}
+      accessibilityRole={accessibilityRole}>
+      {children}
+    </View>
+  );
 };
 
 function createStyles(colors: ReturnType<typeof useThemeColors>) {
