@@ -1,19 +1,54 @@
 import { BillingCycle } from './subscription';
 
 export type WebhookEventType =
+  // Subscription lifecycle
   | 'subscription.created'
   | 'subscription.updated'
-  | 'subscription.renewed'
   | 'subscription.cancelled'
-  | 'subscription.payment_failed'
-  | 'subscription.upgraded'
   | 'subscription.paused'
   | 'subscription.resumed'
+  | 'subscription.expired'
+  | 'subscription.renewed'
+  | 'subscription.upgraded'
+  | 'subscription.downgraded'
+  | 'subscription.transfer_requested'
+  | 'subscription.transfer_completed'
+  | 'subscription.grace_period_started'
+  | 'subscription.grace_period_ended'
+  // Payment
+  | 'payment.succeeded'
+  | 'payment.failed'
+  | 'payment.refunded'
+  | 'payment.disputed'
+  | 'payment.chargeback'
+  | 'payment.method_updated'
+  | 'payment.retry_scheduled'
+  // Invoice
+  | 'invoice.created'
+  | 'invoice.finalized'
+  | 'invoice.paid'
+  | 'invoice.voided'
+  | 'invoice.overdue'
+  // Trial
+  | 'trial.started'
+  | 'trial.ending_soon'
+  | 'trial.ended'
+  | 'trial.converted'
+  // Usage
+  | 'usage.threshold_reached'
+  | 'usage.limit_exceeded'
+  | 'usage.recorded'
+  // Plan
+  | 'plan.created'
+  | 'plan.updated'
+  | 'plan.archived'
+  | 'plan.price_changed'
+  // Deprecated (kept for backward compatibility)
+  | 'subscription.payment_failed'
   | 'subscription.charged'
   | 'subscription.refund_requested'
   | 'subscription.refund_approved'
   | 'subscription.refund_rejected'
-  | 'subscription.transfer_requested'
   | 'subscription.transfer_accepted';
 
 export interface WebhookRetryPolicy {
