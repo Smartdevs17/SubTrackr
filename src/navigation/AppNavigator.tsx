@@ -78,6 +78,16 @@ const PaymentMethodsScreen = lazyScreen(() =>
 );
 const AnalyticsDashboard = lazyScreen(() => import('../../app/screens/AnalyticsDashboard'));
 
+// Issue #547: GDPR
+const PrivacyCenterScreen = lazyScreen(() => import('../screens/PrivacyCenterScreen'));
+const DataExportScreen = lazyScreen(() => import('../screens/DataExportScreen'));
+// Issue #548: Push notifications
+const NotificationPreferencesScreen = lazyScreen(() => import('../screens/NotificationPreferencesScreen'));
+// Issue #549: Email templates
+const EmailTemplateEditorScreen = lazyScreen(() => import('../screens/EmailTemplateEditorScreen'));
+// Issue #550: Advanced dunning
+const DunningDashboardScreen = lazyScreen(() => import('../screens/DunningDashboardScreen'));
+
 const Tab = createBottomTabNavigator<TabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -354,6 +364,40 @@ const SettingsStack = () => (
       name="AnalyticsDashboard"
       component={AnalyticsDashboard}
       options={{ title: 'Analytics Dashboard', headerShown: true }}
+    />
+    {/* Issue #547: GDPR */}
+    <Stack.Screen
+      name="PrivacyCenter"
+      component={PrivacyCenterScreen}
+      options={{ title: 'Privacy Center', headerShown: true }}
+    />
+    <Stack.Screen
+      name="DataExport"
+      component={DataExportScreen}
+      options={{ title: 'Export My Data', headerShown: true }}
+    />
+    <Stack.Screen
+      name="DPALog"
+      component={DataExportScreen}
+      options={{ title: 'Data Processing Log', headerShown: true }}
+    />
+    {/* Issue #548: Push notifications */}
+    <Stack.Screen
+      name="NotificationPreferences"
+      component={NotificationPreferencesScreen}
+      options={{ title: 'Notification Preferences', headerShown: true }}
+    />
+    {/* Issue #549: Email templates */}
+    <Stack.Screen
+      name="EmailTemplateEditor"
+      component={EmailTemplateEditorScreen}
+      options={{ title: 'Email Template Editor', headerShown: true }}
+    />
+    {/* Issue #550: Advanced dunning */}
+    <Stack.Screen
+      name="DunningDashboard"
+      component={DunningDashboardScreen}
+      options={{ title: 'Dunning Dashboard', headerShown: true }}
     />
   </Stack.Navigator>
 );

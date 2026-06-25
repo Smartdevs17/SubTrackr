@@ -89,3 +89,41 @@ contracts/migrations/history/*
 !contracts/migrations/history/.gitkeep
 contracts/migrations/snapshots/*
 !contracts/migrations/snapshots/.gitkeep
+
+# Test snapshots (Rust / Jest)
+contracts/test_snapshots/
+contracts/**/test_snapshots/
+src/**/__snapshots__/
+**/__snapshots__/
+*.snap
+
+# Unnecessary generated / temp root files
+test_output.txt
+tsc_output.txt
+tsc_output_2.txt
+lint_output.txt
+lint_final_error.txt
+final_lint_check.txt
+contracts/clippy_output.txt
+issue*.json
+PR_*.md
+*_FIX*.md
+*_FIX_GUIDE*.md
+COMPLETION_SUMMARY.md
+RACE_CONDITION_FIX.md
+JS_BUNDLE_FIX.md
+BUNDLE_AUDIT.md
+BUILD_FIX_GUIDE.md
+QUICK_START.md
+PR_CI_Optimizations.md
+FORMATTING.md
+DESIGN_SYSTEM_INTEGRATION.md
+DESIGN_SYSTEM_IMPLEMENTATION.md
+DESIGN_SYSTEM_SETUP.md
+WCAG_COMPLIANCE.md
+
+# Backup / duplicate files
+*.backup
+*\ copy.*
+package.json.backup
+SubTrackr

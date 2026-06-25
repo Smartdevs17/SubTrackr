@@ -49,6 +49,16 @@ export type RootStackParamList = {
   PaymentMethods: undefined;
   AnalyticsDashboard: undefined;
   NotFound: { reason?: string };
+  // Issue #547: GDPR
+  PrivacyCenter: undefined;
+  DataExport: undefined;
+  DPALog: undefined;
+  // Issue #548: Push notifications
+  NotificationPreferences: undefined;
+  // Issue #549: Email templates
+  EmailTemplateEditor: undefined;
+  // Issue #550: Advanced dunning
+  DunningDashboard: undefined;
 };
 
 export type TabParamList = {
