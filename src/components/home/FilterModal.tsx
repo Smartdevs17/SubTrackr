@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,9 +9,12 @@ import {
   TouchableOpacity,
   TextInput,
   Switch,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { colors, spacing, typography, borderRadius } from '../../utils/constants';
 import { SubscriptionCategory, BillingCycle } from '../../types/subscription';
+import { useFocusManagement } from '../../hooks/useFocusManagement';
 
 interface FilterModalProps {
   visible: boolean;
@@ -52,6 +55,16 @@ export const FilterModal: React.FC<FilterModalProps> = ({
   setSortOrder,
   clearAllFilters,
 }) => {
+  const { setInitialFocus } = useFocusManagement(visible);
+  const firstCategoryRef = useRef<any>(null);
+
+  // Set initial focus to first category when modal opens
+  useEffect(() => {
+    if (visible && firstCategoryRef.current) {
+      setInitialFocus(firstCategoryRef.current);
+    }
+  }, [visible, setInitialFocus]);
+
   return (
     <Modal
       visible={visible}
@@ -59,19 +72,23 @@ export const FilterModal: React.FC<FilterModalProps> = ({
       presentationStyle="pageSheet"
       onRequestClose={onClose}
       accessibilityViewIsModal={true}>
-      <SafeAreaView style={styles.modalContainer}>
-        <View style={styles.modalHeader}>
-          <Text style={styles.modalTitle} accessibilityRole="header">
-            Filter &amp; Sort
-          </Text>
-          <TouchableOpacity
-            onPress={onClose}
-            accessibilityRole="button"
-            accessibilityLabel="Close filter modal"
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Text style={styles.closeButton}>✕</Text>
-          </TouchableOpacity>
-        </View>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardContainer}>
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle} accessibilityRole="header">
+              Filter &amp; Sort
+            </Text>
+            <TouchableOpacity
+              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel="Close filter modal"
+              accessibilityHint="Closes the filter modal without applying changes"
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={styles.closeButton}>✕</Text>
+            </TouchableOpacity>
+          </View>
 
         <ScrollView style={styles.modalContent}>
           {/* Categories */}
@@ -80,12 +97,13 @@ export const FilterModal: React.FC<FilterModalProps> = ({
               Categories
             </Text>
             <View style={styles.categoryGrid}>
-              {Object.values(SubscriptionCategory).map((category) => {
+              {Object.values(SubscriptionCategory).map((category, index) => {
                 const isSelected = selectedCategories.includes(category);
                 const label = category.charAt(0).toUpperCase() + category.slice(1);
                 return (
                   <TouchableOpacity
                     key={category}
+                    ref={index === 0 ? firstCategoryRef : null}
                     style={[styles.categoryChip, isSelected && styles.categoryChipSelected]}
                     onPress={() => toggleCategory(category)}
                     accessibilityRole="checkbox"
@@ -95,7 +113,8 @@ export const FilterModal: React.FC<FilterModalProps> = ({
                       style={[
                         styles.categoryChipText,
                         isSelected && styles.categoryChipTextSelected,
-                      ]}>
+                      ]}
+                      maxFontSizeMultiplier={1.5}>
                       {label}
                     </Text>
                   </TouchableOpacity>
@@ -297,12 +316,14 @@ export const FilterModal: React.FC<FilterModalProps> = ({
             <Text style={styles.applyFiltersButtonText}>Apply Filters</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+        </SafeAreaView>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
+  keyboardContainer: { flex: 1 },
   modalContainer: { flex: 1, backgroundColor: colors.background },
   modalHeader: {
     flexDirection: 'row',

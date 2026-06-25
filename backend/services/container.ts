@@ -35,6 +35,8 @@ import { subscriptionLockIntegration } from './subscription/lockIntegration';
 import { kmsProvider, vaultProvider, ColumnEncryptionService } from './shared/encryption';
 import { apiKeyRotationService } from './auth';
 import { paymentRouter, StripeAdapter, CircleAdapter, StellarAdapter } from './payment';
+import { getPlanCacheService } from '../subscription/planCacheRegistry';
+import type { PlanCacheService } from '../subscription/domain/PlanCacheService';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -241,3 +243,14 @@ paymentRouter.registerGateway('stripe', new StripeAdapter());
 paymentRouter.registerGateway('circle', new CircleAdapter());
 paymentRouter.registerGateway('stellar', new StellarAdapter());
 container.register('IPaymentRouter', paymentRouter);
+
+// ── Plan cache (requires bootstrapPlanCache() at startup) ─────────────────────
+container.bind('IPlanCacheService', () => {
+  const svc = getPlanCacheService();
+  if (!svc) {
+    throw new Error(
+      '[Container] IPlanCacheService not available. Call bootstrapPlanCache() during startup.',
+    );
+  }
+  return svc as PlanCacheService;
+});

@@ -23,6 +23,25 @@ export interface BiometricSettings {
   enabled: boolean;
   /** Whether to fall back to device PIN/passcode when biometrics fail. */
   fallbackToPIN: boolean;
+  /** Hashed app PIN (bcrypt) — minimum 6 digits. */
+  pinHash?: string;
+  /** Consecutive biometric failure count (for exponential backoff). */
+  failureCount?: number;
+  /** Timestamp when lockout expires (0 = no lockout). */
+  lockoutUntil?: number;
+  /** Whether device-bound key pair has been generated. */
+  keyBound?: boolean;
+  /** Hash of enrolled biometrics at time of setup (detect enrollment changes). */
+  enrollmentHash?: string;
+}
+
+export interface BiometricPolicy {
+  /** Lockout tiers: [failures, lockoutMinutes] */
+  lockoutTiers: [number, number][];
+  /** Minimum PIN length */
+  minPinLength: number;
+  /** Whether device integrity check is required */
+  requireDeviceAttestation: boolean;
 }
 
 export interface BiometricAuthResult {
@@ -170,6 +189,96 @@ class BiometricService {
     const settings = await this.getSettings();
     if (!settings.enabled) return { success: true };
     return this.authenticate(reason, settings.fallbackToPIN);
+  }
+
+  // ── Hardening: Exponential backoff ────────────────────────────────────────
+
+  private static readonly LOCKOUT_TIERS: [number, number][] = [
+    [3, 3],    // 3 failures → 3 min lockout
+    [6, 10],   // 6 failures → 10 min lockout
+    [9, 30],   // 9 failures → 30 min lockout
+  ];
+
+  async checkLockout(): Promise<{ locked: boolean; remainingMs: number }> {
+    const settings = await this.getSettings();
+    const now = Date.now();
+    const lockoutUntil = settings.lockoutUntil ?? 0;
+    if (lockoutUntil > now) {
+      return { locked: true, remainingMs: lockoutUntil - now };
+    }
+    return { locked: false, remainingMs: 0 };
+  }
+
+  async recordFailure(): Promise<void> {
+    const settings = await this.getSettings();
+    const failures = (settings.failureCount ?? 0) + 1;
+    let lockoutUntil = 0;
+
+    for (const [threshold, minutes] of BiometricService.LOCKOUT_TIERS) {
+      if (failures >= threshold) {
+        lockoutUntil = Date.now() + minutes * 60 * 1000;
+      }
+    }
+
+    await this.saveSettings({ failureCount: failures, lockoutUntil });
+  }
+
+  async resetFailures(): Promise<void> {
+    await this.saveSettings({ failureCount: 0, lockoutUntil: 0 });
+  }
+
+  // ── Hardening: Authenticated with lockout enforcement ─────────────────────
+
+  async authenticateHardened(reason?: string): Promise<BiometricAuthResult> {
+    const lockout = await this.checkLockout();
+    if (lockout.locked) {
+      const mins = Math.ceil(lockout.remainingMs / 60000);
+      return { success: false, error: `Too many failures. Try again in ${mins} minute(s).` };
+    }
+
+    const result = await this.authenticate(reason);
+    if (result.success) {
+      await this.resetFailures();
+    } else if (!result.cancelled) {
+      await this.recordFailure();
+    }
+    return result;
+  }
+
+  // ── PIN management ────────────────────────────────────────────────────────
+
+  async setPinHash(pinHash: string): Promise<void> {
+    await this.saveSettings({ pinHash });
+  }
+
+  async verifyPin(inputHash: string): Promise<boolean> {
+    const settings = await this.getSettings();
+    return settings.pinHash === inputHash;
+  }
+
+  // ── Enrollment change detection ───────────────────────────────────────────
+
+  async setEnrollmentHash(hash: string): Promise<void> {
+    await this.saveSettings({ enrollmentHash: hash });
+  }
+
+  async hasEnrollmentChanged(): Promise<boolean> {
+    const settings = await this.getSettings();
+    if (!settings.enrollmentHash) return false;
+    // In production, compare against current biometric enrollment via native module
+    // Placeholder: always returns false (no native enrollment hash API in Expo)
+    return false;
+  }
+
+  // ── Key binding ───────────────────────────────────────────────────────────
+
+  async markKeyBound(): Promise<void> {
+    await this.saveSettings({ keyBound: true });
+  }
+
+  async isKeyBound(): Promise<boolean> {
+    const settings = await this.getSettings();
+    return settings.keyBound ?? false;
   }
 }
 
