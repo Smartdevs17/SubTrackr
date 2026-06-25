@@ -2,6 +2,9 @@
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
+  moduleNameMapper: {
+    '^bullmq$': '<rootDir>/backend/shared/queue/__mocks__/bullmq.ts',
+  },
   setupFilesAfterEnv: ['<rootDir>/backend/__tests__/setup.ts'],
   testMatch: ['**/backend/**/__tests__/**/*.test.ts'],
   transform: {
