@@ -1,0 +1,75 @@
+name: Build Rust Contracts
+description: Setup Rust toolchain, install Soroban CLI, cache dependencies, build contracts, and optionally upload artifacts
+
+inputs:
+  rust-version:
+    description: Rust toolchain version
+    required: false
+    default: '1.88'
+  rust-components:
+    description: Comma-separated extra Rust components to install
+    required: false
+    default: ''
+  cargo-command:
+    description: Cargo command to run inside ./contracts
+    required: false
+    default: build --release
+  soroban-cli-version:
+    description: Soroban CLI version to install
+    required: false
+    default: latest
+  upload-artifact:
+    description: Whether to upload the build artifact
+    required: false
+    default: 'false'
+  artifact-name:
+    description: Name of the uploaded artifact
+    required: false
+    default: wasm-contracts
+  artifact-path:
+    description: Path to upload as artifact
+    required: false
+    default: contracts/target/wasm32-unknown-unknown/release/*.wasm
+
+runs:
+  using: composite
+  steps:
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: ${{ inputs.rust-version }}
+        components: ${{ inputs.rust-components }}
+
+    - name: Install Soroban CLI
+      shell: bash
+      run: |
+        if command -v soroban >/dev/null 2>&1; then
+          soroban --version
+          exit 0
+        fi
+        cargo install --locked --version "${{ inputs.soroban-cli-version }}" soroban-cli || cargo install --locked soroban-cli
+
+    - name: Cache Rust dependencies and target
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          contracts/target/
+        key: ${{ runner.os }}-cargo-${{ inputs.rust-version }}-${{ hashFiles('contracts/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-${{ inputs.rust-version }}-
+
+    - name: Run cargo command
+      shell: bash
+      working-directory: ./contracts
+      run: cargo ${{ inputs.cargo-command }}
+
+    - name: Upload WASM artifact
+      if: inputs.upload-artifact == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ inputs.artifact-path }}
+        retention-days: 7

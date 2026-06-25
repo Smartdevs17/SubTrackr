@@ -1,0 +1,71 @@
+name: Setup Node.js Environment
+description: Checkout, setup Node.js with caching, install dependencies, and optionally generate .env from secrets
+
+inputs:
+  node-version:
+    description: Node.js version to use
+    required: false
+    default: '20'
+  fetch-depth:
+    description: Number of commits to fetch (0 = full history)
+    required: false
+    default: '1'
+  github-token:
+    description: GitHub token for checkout
+    required: false
+    default: ''
+  registry-url:
+    description: npm registry URL (for publish jobs)
+    required: false
+    default: ''
+  env-file:
+    description: Path to write generated env content
+    required: false
+    default: .env
+  env-vars:
+    description: Newline-separated KEY=VALUE pairs to write into the env file
+    required: false
+    default: ''
+  install-command:
+    description: Dependency install command
+    required: false
+    default: npm ci --legacy-peer-deps
+
+runs:
+  using: composite
+  steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: ${{ inputs.fetch-depth }}
+        token: ${{ inputs.github-token != '' && inputs.github-token || github.token }}
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: npm
+        registry-url: ${{ inputs.registry-url }}
+
+    - name: Cache node modules
+      uses: actions/cache@v4
+      id: cache-node-modules
+      with:
+        path: node_modules
+        key: ${{ runner.os }}-node-${{ inputs.node-version }}-${{ hashFiles('package-lock.json') }}
+        restore-keys: |
+          ${{ runner.os }}-node-${{ inputs.node-version }}-
+
+    - name: Install dependencies
+      if: steps.cache-node-modules.outputs.cache-hit != 'true'
+      shell: bash
+      run: ${{ inputs.install-command }}
+
+    - name: Generate env file
+      if: inputs.env-vars != ''
+      shell: bash
+      env:
+        ACTION_ENV_FILE: ${{ inputs.env-file }}
+      run: |
+        mkdir -p "$(dirname "$ACTION_ENV_FILE")"
+        printf '%s\n' "${{ inputs.env-vars }}" > "$ACTION_ENV_FILE"

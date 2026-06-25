@@ -1,0 +1,29 @@
+name: Contracts Core
+on:
+  workflow_call:
+jobs:
+  contract-invariants:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./.github/actions/build-contracts
+        with:
+          cargo-command: test --verbose
+      - run: cargo test --test invariants -- --nocapture 2>&1 | tee invariant-test-results.txt
+        working-directory: ./contracts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: invariant-test-results
+          path: contracts/invariant-test-results.txt
+  contract-invariants-extended:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
+    steps:
+      - uses: ./.github/actions/build-contracts
+        with:
+          cargo-command: test --verbose
+      - run: cargo test --test invariants -- --nocapture 2>&1 | tee extended-fuzz-results.txt
+        working-directory: ./contracts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: extended-fuzz-results
+          path: contracts/extended-fuzz-results.txt

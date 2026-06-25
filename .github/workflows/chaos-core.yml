@@ -1,0 +1,15 @@
+name: Chaos Core
+on:
+  workflow_call:
+jobs:
+  chaos-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./.github/actions/setup-node
+      - uses: ./.github/actions/run-tests
+        with:
+          test-command: npx jest --testPathPattern=chaos --no-coverage --ci
+          upload-coverage: 'false'
+          upload-junit: 'true'
+          junit-artifact-name: chaos-results
+          junit-path: chaos/

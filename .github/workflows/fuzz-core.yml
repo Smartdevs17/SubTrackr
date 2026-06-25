@@ -1,0 +1,21 @@
+name: Fuzz Core
+on:
+  workflow_call:
+jobs:
+  cargo-fuzz:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [subscription, pricing, rate_limit, state_machine]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+          components: llvm-tools
+      - run: cargo install --git https://github.com/rust-fuzz/cargo-fuzz cargo-fuzz
+      - run: mkdir -p contracts/fuzz/corpus/${{ matrix.target }}
+      - run: cargo fuzz run ${{ matrix.target }} --sanitizer=address -j 4 -- -max_total_time=1800 -print_final_stats=1 -artifact_prefix=artifacts/${{ matrix.target }}/
+        working-directory: contracts/fuzz

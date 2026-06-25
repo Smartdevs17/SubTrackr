@@ -1,0 +1,26 @@
+name: E2E Core
+on:
+  workflow_call:
+jobs:
+  test-ios:
+    runs-on: macos-latest
+    steps:
+      - uses: ./.github/actions/setup-node
+        with:
+          install-command: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
+      - run: npx expo prebuild -p ios
+      - uses: ruby/setup-ruby@v1
+        with: { ruby-version: '3.2' }
+      - run: cd ios && pod install --repo-update
+      - run: brew tap wix/brew && brew install applesimutils
+      - run: npm run e2e:build-ios
+  test-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./.github/actions/setup-node
+        with:
+          install-command: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
+      - uses: actions/setup-java@v3
+        with: { distribution: 'zulu', java-version: '17' }
+      - run: npx expo prebuild -p android
+      - run: npm run e2e:build-android

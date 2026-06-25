@@ -1,0 +1,85 @@
+name: Run Tests
+description: Run test commands with optional coverage, JUnit report output, and artifact upload
+
+inputs:
+  test-command:
+    description: Command to run tests
+    required: false
+    default: npm run test:shard
+  coverage:
+    description: Whether to collect coverage
+    required: false
+    default: 'true'
+  coverage-check:
+    description: Command that enforces coverage thresholds
+    required: false
+    default: npm run test:coverage
+  junit-report:
+    description: Whether to output a JUnit XML report
+    required: false
+    default: 'true'
+  junit-command:
+    description: Command used when JUnit output is requested
+    required: false
+    default: npx jest --ci --runInBand --reporters=default --reporters=jest-junit
+  upload-coverage:
+    description: Whether to upload coverage artifact
+    required: false
+    default: 'true'
+  coverage-artifact-name:
+    description: Artifact name for coverage report
+    required: false
+    default: coverage-report
+  coverage-path:
+    description: Path to the coverage report file
+    required: false
+    default: coverage/lcov.info
+  junit-path:
+    description: Path to the JUnit report file
+    required: false
+    default: test-results/junit.xml
+  upload-junit:
+    description: Whether to upload JUnit artifact
+    required: false
+    default: 'false'
+  junit-artifact-name:
+    description: Artifact name for JUnit report
+    required: false
+    default: junit-report
+
+runs:
+  using: composite
+  steps:
+    - name: Run tests
+      shell: bash
+      env:
+        JEST_JUNIT_OUTPUT: ${{ inputs.junit-path }}
+      run: ${{ inputs.test-command }}
+
+    - name: Enforce coverage thresholds
+      if: inputs.coverage == 'true'
+      shell: bash
+      run: ${{ inputs.coverage-check }}
+
+    - name: Run JUnit report command
+      if: inputs.junit-report == 'true'
+      shell: bash
+      env:
+        JEST_JUNIT_OUTPUT: ${{ inputs.junit-path }}
+      run: ${{ inputs.junit-command }}
+
+    - name: Upload coverage report
+      if: inputs.upload-coverage == 'true' && always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.coverage-artifact-name }}
+        path: ${{ inputs.coverage-path }}
+        if-no-files-found: ignore
+
+    - name: Upload JUnit report
+      if: inputs.upload-junit == 'true' && always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.junit-artifact-name }}
+        path: ${{ inputs.junit-path }}
+        if-no-files-found: ignore

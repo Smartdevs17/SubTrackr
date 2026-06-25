@@ -1,0 +1,40 @@
+name: Deploy Core
+on:
+  workflow_call:
+jobs:
+  deploy-dev:
+    runs-on: ubuntu-latest
+    environment: { name: development }
+    steps:
+      - uses: ./.github/actions/deploy-service
+        with:
+          image-name: ${{ github.repository }}/app
+          registry-username: ${{ github.actor }}
+          registry-password: ${{ secrets.GITHUB_TOKEN }}
+          helm-release: subtrackr-dev
+          helm-chart: charts/subtrackr
+          helm-namespace: development
+  deploy-staging:
+    runs-on: ubuntu-latest
+    environment: { name: staging, url: https://staging.subtrackr.app }
+    steps:
+      - uses: ./.github/actions/deploy-service
+        with:
+          image-name: ${{ github.repository }}/app
+          registry-username: ${{ github.actor }}
+          registry-password: ${{ secrets.GITHUB_TOKEN }}
+          helm-release: subtrackr-staging
+          helm-chart: charts/subtrackr
+          helm-namespace: staging
+  deploy-prod:
+    runs-on: ubuntu-latest
+    environment: { name: production, url: https://subtrackr.app }
+    steps:
+      - uses: ./.github/actions/deploy-service
+        with:
+          image-name: ${{ github.repository }}/app
+          registry-username: ${{ github.actor }}
+          registry-password: ${{ secrets.GITHUB_TOKEN }}
+          helm-release: subtrackr-prod
+          helm-chart: charts/subtrackr
+          helm-namespace: production

@@ -1,0 +1,14 @@
+name: i18n Core
+on:
+  workflow_call:
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./.github/actions/setup-node
+      - run: node scripts/i18n-extract.js
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./.github/actions/setup-node
+      - run: node scripts/i18n-lint.js

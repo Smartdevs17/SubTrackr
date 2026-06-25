@@ -1,0 +1,37 @@
+name: Release Core
+on:
+  workflow_call:
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./.github/actions/setup-node
+        with:
+          fetch-depth: '0'
+          registry-url: https://registry.npmjs.org
+      - run: npx semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+  expo-canary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./.github/actions/setup-node
+      - run: npx expo login --token $EXPO_TOKEN && npx expo publish --release-channel canary
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+  expo-promote:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./.github/actions/setup-node
+      - run: npx expo login --token $EXPO_TOKEN && npx expo publish --release-channel production --release-channel canary
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+  expo-rollback:
+    runs-on: ubuntu-latest
+    steps:
+      - run: git fetch --tags && PREV_TAG=$(git describe --tags --abbrev=0 HEAD~1) && git checkout "$PREV_TAG"
+      - uses: ./.github/actions/setup-node
+      - run: npx expo login --token $EXPO_TOKEN && npx expo publish --release-channel production
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}

@@ -1,62 +1,13 @@
 name: i18n Translation Management
-
-# Issue #407 — Automated translation extraction and management pipeline.
-#
-# Jobs:
-#   extract   — scan codebase for t('key') calls and detect missing/unused keys
-#   lint      — check placeholder consistency, plural completeness, stub detection
-#
-# Both jobs run on every PR that touches src/ or locale files.
-# The extract job fails CI when new keys are found without translations,
-# preventing untranslated strings from reaching production.
-
 on:
   push:
     branches: [main, develop]
-    paths:
-      - 'src/**'
-      - 'src/i18n/locales/**'
+    paths: ['src/**', 'src/i18n/locales/**']
   pull_request:
-    paths:
-      - 'src/**'
-      - 'src/i18n/locales/**'
-
+    paths: ['src/**', 'src/i18n/locales/**']
 permissions:
   contents: read
-
 jobs:
-  # ── 1. Key extraction and missing-translation detection ────────────────────
-  extract:
-    name: Detect missing / unused translation keys
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci --legacy-peer-deps
-
-      - name: Extract translation keys and check coverage
-        run: node scripts/i18n-extract.js
-
-  # ── 2. i18n linting ─────────────────────────────────────────────────────────
-  lint:
-    name: Lint locale files (placeholders, plurals, stubs)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci --legacy-peer-deps
-
-      - name: Lint locale files
-        run: node scripts/i18n-lint.js
+  i18n:
+    uses: ./.github/workflows/i18n-core.yml
+    secrets: inherit
