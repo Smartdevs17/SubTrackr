@@ -55,6 +55,8 @@ export interface ApiError {
   message: string;
   /** Optional field-level validation details. */
   details?: Record<string, string>;
+  /** For OCC conflicts, the current version of the resource on the server. */
+  version?: number;
 }
 
 /** Successful response envelope. */
@@ -94,6 +96,8 @@ export type ErrorCode =
   | 'UNAUTHORIZED'
   | 'FORBIDDEN'
   | 'CONFLICT'
+  /** Optimistic Concurrency Control failure. */
+  | 'CONFLICT_VERSION_MISMATCH'
   | 'BAD_REQUEST'
   | 'SERVICE_UNAVAILABLE'
   // ── Rate limiting ─────────────────────────────────────────────────────────
@@ -168,6 +172,7 @@ export const ERROR_HTTP_STATUS_MAP: Record<ErrorCode, number> = {
   UNAUTHORIZED: 401,
   FORBIDDEN: 403,
   CONFLICT: 409,
+  CONFLICT_VERSION_MISMATCH: 409,
   BAD_REQUEST: 400,
   SERVICE_UNAVAILABLE: 503,
   // Rate limiting
@@ -279,11 +284,12 @@ export function fail(
   code: ErrorCode,
   message: string,
   requestId?: string,
-  details?: Record<string, string>,
+  details?: Record<string, string> | { version?: number },
 ): ApiErrorResponse {
+  const errorPayload: ApiError = { code, message, ...details };
   return {
     success: false,
-    error: { code, message, ...(details ? { details } : {}) },
+    error: errorPayload,
     meta: buildMeta(requestId),
   };
 }
