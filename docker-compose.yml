@@ -4,12 +4,8 @@
 #   docker compose up -d
 #   npm run server:start
 #
-# With read-replica routing (PgBouncer → replica simulation):
-#   DB_READ_REPLICAS=localhost:6433,localhost:6434 npm run server:start
-#
 # Environment (optional .env):
-#   DB_HOST=localhost DB_PORT=6432 DB_NAME=subtrackr DB_USER=postgres DB_PASSWORD=postgres
-#   DB_READ_REPLICAS=localhost:6433,localhost:6434
+#   DB_HOST=localhost DB_PORT=5432 DB_NAME=subtrackr DB_USER=postgres DB_PASSWORD=postgres
 #   REDIS_HOST=localhost REDIS_PORT=6379
 
 services:
@@ -27,112 +23,11 @@ services:
     volumes:
       - redis-data:/data
 
-  postgres-primary:
-    image: postgres:16-alpine
-    container_name: subtrackr-postgres-primary
-    ports:
-      - '${DB_PORT:-5432}:5432'
-    environment:
-      POSTGRES_DB: ${DB_NAME:-subtrackr}
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
-    healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-subtrackr}']
-      interval: 5s
-      timeout: 3s
-      retries: 5
-    volumes:
-      - postgres-primary-data:/var/lib/postgresql/data
-
-  # Read-replica simulation — separate Postgres instances for routing tests.
-  # In production, replicas stream from the primary via RDS.
-  postgres-replica-1:
-    image: postgres:16-alpine
-    container_name: subtrackr-postgres-replica-1
-    ports:
-      - '5433:5432'
-    environment:
-      POSTGRES_DB: ${DB_NAME:-subtrackr}
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
-    healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-subtrackr}']
-      interval: 5s
-      timeout: 3s
-      retries: 5
-    volumes:
-      - postgres-replica-1-data:/var/lib/postgresql/data
-
-  postgres-replica-2:
-    image: postgres:16-alpine
-    container_name: subtrackr-postgres-replica-2
-    ports:
-      - '5434:5432'
-    environment:
-      POSTGRES_DB: ${DB_NAME:-subtrackr}
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
-    healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-subtrackr}']
-      interval: 5s
-      timeout: 3s
-      retries: 5
-    volumes:
-      - postgres-replica-2-data:/var/lib/postgresql/data
-
-  # PgBouncer connection poolers (default pool size: 25)
-  pgbouncer-primary:
-    image: edoburu/pgbouncer:1.22.1-p0
-    container_name: subtrackr-pgbouncer-primary
-    ports:
-      - '6432:5432'
-    environment:
-      DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres-primary:5432/${DB_NAME:-subtrackr}
-      POOL_MODE: transaction
-      DEFAULT_POOL_SIZE: ${DB_REPLICA_POOL_SIZE:-25}
-      MAX_CLIENT_CONN: 200
-      AUTH_TYPE: plain
-    depends_on:
-      postgres-primary:
-        condition: service_healthy
-
-  pgbouncer-replica-1:
-    image: edoburu/pgbouncer:1.22.1-p0
-    container_name: subtrackr-pgbouncer-replica-1
-    ports:
-      - '6433:5432'
-    environment:
-      DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres-replica-1:5432/${DB_NAME:-subtrackr}
-      POOL_MODE: transaction
-      DEFAULT_POOL_SIZE: ${DB_REPLICA_POOL_SIZE:-25}
-      MAX_CLIENT_CONN: 200
-      AUTH_TYPE: plain
-    depends_on:
-      postgres-replica-1:
-        condition: service_healthy
-
-  pgbouncer-replica-2:
-    image: edoburu/pgbouncer:1.22.1-p0
-    container_name: subtrackr-pgbouncer-replica-2
-    ports:
-      - '6434:5432'
-    environment:
-      DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres-replica-2:5432/${DB_NAME:-subtrackr}
-      POOL_MODE: transaction
-      DEFAULT_POOL_SIZE: ${DB_REPLICA_POOL_SIZE:-25}
-      MAX_CLIENT_CONN: 200
-      AUTH_TYPE: plain
-    depends_on:
-      postgres-replica-2:
-        condition: service_healthy
-
-  # Backward-compatible alias for scripts expecting `postgres` service name
   postgres:
     image: postgres:16-alpine
     container_name: subtrackr-postgres
-    profiles: ['legacy']
     ports:
-      - '5435:5432'
+      - '${DB_PORT:-5432}:5432'
     environment:
       POSTGRES_DB: ${DB_NAME:-subtrackr}
       POSTGRES_USER: ${DB_USER:-postgres}
@@ -147,7 +42,4 @@ services:
 
 volumes:
   redis-data:
-  postgres-primary-data:
-  postgres-replica-1-data:
-  postgres-replica-2-data:
   postgres-data:

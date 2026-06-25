@@ -29,6 +29,8 @@ import { PredictionService } from './analytics/predictionService';
 import { RecommendationService } from './analytics/recommendationService';
 import { RetentionService } from './analytics/retentionService';
 import { oracleMonitorService } from './analytics/oracleMonitorService';
+import { getPlanCacheService } from '../subscription/planCacheRegistry';
+import type { PlanCacheService } from '../subscription/domain/PlanCacheService';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -216,3 +218,14 @@ container.bind('IPredictionService', () => new PredictionService());
 container.bind('IRecommendationService', () => new RecommendationService());
 container.bind('IRetentionService', () => new RetentionService());
 container.register('IOracleMonitorService', oracleMonitorService);
+
+// ── Plan cache (requires bootstrapPlanCache() at startup) ─────────────────────
+container.bind('IPlanCacheService', () => {
+  const svc = getPlanCacheService();
+  if (!svc) {
+    throw new Error(
+      '[Container] IPlanCacheService not available. Call bootstrapPlanCache() during startup.',
+    );
+  }
+  return svc as PlanCacheService;
+});
