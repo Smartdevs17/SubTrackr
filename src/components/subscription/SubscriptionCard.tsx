@@ -34,18 +34,18 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = React.memo(
       if (onToggleStatus) {
         const newStatus = subscription.isActive ? 'paused' : 'activated';
         announce(`${subscription.name} has been ${newStatus}`);
-        
+
         Alert.alert(
           subscription.isActive ? 'Pause Subscription' : 'Activate Subscription',
           `Are you sure you want to ${subscription.isActive ? 'pause' : 'activate'} ${subscription.name}?`,
           [
             { text: 'Cancel', style: 'cancel' },
-            { 
-              text: 'Confirm', 
+            {
+              text: 'Confirm',
               onPress: () => {
                 onToggleStatus(subscription.id);
                 announce(`${subscription.name} ${newStatus} successfully`);
-              }
+              },
             },
           ]
         );
@@ -58,19 +58,19 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = React.memo(
           ? '\n\nThis subscription has an active crypto stream. On-chain cancellation cannot be undone.'
           : '';
         announce(`Deleting ${subscription.name}`);
-        
+
         Alert.alert(
           'Delete Subscription',
           `Remove "${subscription.name}" from your subscriptions?${cryptoWarning}`,
           [
             { text: 'Cancel', style: 'cancel' },
-            { 
-              text: 'Delete', 
-              style: 'destructive', 
+            {
+              text: 'Delete',
+              style: 'destructive',
               onPress: () => {
                 onDelete(subscription.id);
                 announce(`${subscription.name} deleted successfully`);
-              }
+              },
             },
           ]
         );
@@ -121,8 +121,8 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = React.memo(
               allowFontScaling={true}>
               {subscription.name}
             </Text>
-            <Text 
-              style={styles.category} 
+            <Text
+              style={styles.category}
               numberOfLines={1}
               maxFontSizeMultiplier={1.3}
               allowFontScaling={true}>
@@ -158,14 +158,11 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = React.memo(
               preferredCurrency
             )} per ${formatBillingCycle(subscription.billingCycle)}`}
             style={styles.priceContainer}>
-            <Text 
-              style={styles.price}
-              maxFontSizeMultiplier={1.5}
-              allowFontScaling={true}>
+            <Text style={styles.price} maxFontSizeMultiplier={1.5} allowFontScaling={true}>
               {formatCurrency(convertedPrice, preferredCurrency)}
             </Text>
             {subscription.currency !== preferredCurrency && (
-              <Text 
+              <Text
                 style={styles.originalPrice}
                 maxFontSizeMultiplier={1.2}
                 allowFontScaling={true}>
@@ -184,10 +181,7 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = React.memo(
           </View>
 
           <View style={styles.billingInfo}>
-            <Text 
-              style={styles.billingLabel}
-              maxFontSizeMultiplier={1.2}
-              allowFontScaling={true}>
+            <Text style={styles.billingLabel} maxFontSizeMultiplier={1.2} allowFontScaling={true}>
               Next billing:
             </Text>
             <Text

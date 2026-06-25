@@ -87,7 +87,7 @@ const HomeScreen: React.FC = () => {
       },
       onSuccess: () => {
         announce('Subscriptions refreshed successfully');
-      }
+      },
     });
   };
 
