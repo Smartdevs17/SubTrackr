@@ -48,6 +48,12 @@ class ModelRegistry:
         self._models: Dict[str, Any] = {}
         self._meta: Dict[str, ModelMeta] = {}
         self._versions = self._load_version_file()
+        # Explanation storage and aggregates
+        self._explanations_file = os.path.join(os.path.dirname(__file__), "explanations.json")
+        # in-memory aggregates: {model_name: {feature: {"sum_abs": float, "count": int}}}
+        self._explanation_aggregates: Dict[str, Dict[str, Dict[str, float]]] = {}
+        # segment profiles: {model_name: {segment_key: {feature: avg_value}}}
+        self._segment_profiles: Dict[str, Dict[str, Dict[str, float]]] = {}
 
     def _load_version_file(self) -> Dict:
         if os.path.exists(REGISTRY_FILE):
@@ -73,6 +79,66 @@ class ModelRegistry:
             self._meta[name] = ModelMeta(name=name, version=self._versions.get(name, "1.0.0"))
 
         logger.info(f"Loaded models: {list(self._models.keys())}")
+
+    def _append_explanation_file(self, record: Dict):
+        try:
+            data = []
+            if os.path.exists(self._explanations_file):
+                with open(self._explanations_file, "r") as f:
+                    try:
+                        data = json.load(f)
+                    except Exception:
+                        data = []
+            data.append(record)
+            with open(self._explanations_file, "w") as f:
+                json.dump(data, f)
+        except Exception as e:
+            logger.exception("Failed to write explanation record: %s", e)
+
+    def record_explanation(self, model_name: str, subscriber: str, input_features: Dict, attributions: Dict, segment: Optional[str] = None):
+        """Store an explanation audit record and update aggregates and segment profiles."""
+        ts = time.time()
+        record = {
+            "timestamp": ts,
+            "model": model_name,
+            "subscriber": subscriber,
+            "segment": segment,
+            "input_features": input_features,
+            "attributions": attributions,
+        }
+        # append to file (audit trail)
+        self._append_explanation_file(record)
+
+        # update aggregates
+        agg = self._explanation_aggregates.setdefault(model_name, {})
+        for feat, val in (attributions or {}).items():
+            entry = agg.setdefault(feat, {"sum_abs": 0.0, "count": 0})
+            entry["sum_abs"] += abs(float(val))
+            entry["count"] += 1
+
+        # update segment profiles (simple running avg of attributions)
+        if segment:
+            segmap = self._segment_profiles.setdefault(model_name, {})
+            profile = segmap.setdefault(segment, {})
+            for feat, val in (attributions or {}).items():
+                prev = profile.get(feat, {"sum": 0.0, "count": 0})
+                prev["sum"] += float(val)
+                prev["count"] += 1
+                profile[feat] = prev
+
+    def get_global_feature_importance(self, model_name: str) -> Dict[str, float]:
+        """Return average absolute attribution per feature for a model."""
+        agg = self._explanation_aggregates.get(model_name, {})
+        out = {}
+        for feat, v in agg.items():
+            if v["count"]:
+                out[feat] = round(v["sum_abs"] / v["count"], 6)
+        return out
+
+    def get_segment_profile(self, model_name: str, segment: str) -> Dict[str, float]:
+        segmap = self._segment_profiles.get(model_name, {})
+        profile = segmap.get(segment, {})
+        return {feat: round(vals["sum"] / vals["count"], 6) for feat, vals in profile.items() if vals["count"]}
 
     def get(self, name: str) -> Any:
         model = self._models.get(name)

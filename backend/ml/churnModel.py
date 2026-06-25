@@ -69,6 +69,25 @@ class ChurnPredictionModel:
             "risk_factors": top_factors,
             "recommended_action": self._get_recommended_action(risk_level, top_factors)
         }
+
+    def explain_churn(self, user_data: Dict) -> Dict:
+        """Return per-feature attributions approximating SHAP values for this linear-style model.
+
+        This is a lightweight approximation: contribution = feature_value * weight.
+        """
+        features = self._extract_features(user_data)
+        contributions = {}
+        for feat, val in features.items():
+            w = self.feature_weights.get(feat, 0.0)
+            contributions[feat] = round(val * w, 6)
+
+        # base value is the model bias; since this model is sum of contributions, base=0
+        base_value = 0.0
+        return {
+            "base_value": round(base_value, 6),
+            "attributions": contributions,
+            "approx_method": "linear_contribution"
+        }
         
     def _get_recommended_action(self, risk_level: str, top_factors: List[Dict]) -> str:
         if risk_level == "Low":

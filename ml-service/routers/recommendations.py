@@ -30,7 +30,7 @@ class FeedbackRequest(BaseModel):
 
 
 @router.post("/predict")
-def get_recommendations(req: RecommendationRequest):
+def get_recommendations(req: RecommendationRequest, explain: bool = False):
     from main import registry
     try:
         model = registry.get("recommendations")
@@ -38,6 +38,18 @@ def get_recommendations(req: RecommendationRequest):
         ctx = req.context.model_dump() if req.context else {}
         result = model.get_recommendations(req.subscriber, ctx)
         meta.record_prediction()
+        if explain:
+            # optional explain hook on recommendation models
+            expl = {}
+            try:
+                expl = getattr(model, "explain_recommendations", lambda s, c: {})(req.subscriber, ctx)
+            except Exception:
+                expl = {"error": "explanation_failed"}
+            try:
+                registry.record_explanation("recommendations", req.subscriber, ctx, expl.get("attributions", {}), segment=None)
+            except Exception:
+                pass
+            return {"model_version": meta.version, "recommendations": result, "explanation": expl}
         return {"model_version": meta.version, "recommendations": result}
     except Exception as e:
         registry.meta("recommendations").record_error()
@@ -45,7 +57,7 @@ def get_recommendations(req: RecommendationRequest):
 
 
 @router.post("/predict/batch")
-def get_recommendations_batch(req: BatchRecommendationRequest):
+def get_recommendations_batch(req: BatchRecommendationRequest, explain: bool = False):
     from main import registry
     model = registry.get("recommendations")
     meta = registry.meta("recommendations")
@@ -55,7 +67,18 @@ def get_recommendations_batch(req: BatchRecommendationRequest):
             ctx = item.context.model_dump() if item.context else {}
             recs = model.get_recommendations(item.subscriber, ctx)
             meta.record_prediction()
-            results.append({"ok": True, "subscriber": item.subscriber, "recommendations": recs})
+            if explain:
+                try:
+                    expl = getattr(model, "explain_recommendations", lambda s, c: {})(item.subscriber, ctx)
+                except Exception:
+                    expl = {"error": "explanation_failed"}
+                try:
+                    registry.record_explanation("recommendations", item.subscriber, ctx, expl.get("attributions", {}), segment=None)
+                except Exception:
+                    pass
+                results.append({"ok": True, "subscriber": item.subscriber, "recommendations": recs, "explanation": expl})
+            else:
+                results.append({"ok": True, "subscriber": item.subscriber, "recommendations": recs})
         except Exception as e:
             meta.record_error()
             results.append({"ok": False, "subscriber": item.subscriber, "error": str(e)})

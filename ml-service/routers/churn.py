@@ -33,13 +33,25 @@ class ForecastRequest(BaseModel):
 
 
 @router.post("/predict")
-def predict_churn(req: ChurnRequest):
+def predict_churn(req: ChurnRequest, explain: bool = False):
     from main import registry
     try:
         model = registry.get("churn")
         meta = registry.meta("churn")
         result = model.predict_churn(req.subscriber, req.user_data.model_dump())
         meta.record_prediction()
+        # optionally compute explanations and record audit
+        if explain:
+            try:
+                expl = model.explain_churn(req.user_data.model_dump())
+            except Exception:
+                expl = {"error": "explanation_failed"}
+            # store audit trail
+            try:
+                registry.record_explanation("churn", req.subscriber, req.user_data.model_dump(), expl.get("attributions", {}), segment=None)
+            except Exception:
+                pass
+            return {"model_version": meta.version, **result, "explanation": expl}
         return {"model_version": meta.version, **result}
     except Exception as e:
         registry.meta("churn").record_error()
@@ -47,7 +59,7 @@ def predict_churn(req: ChurnRequest):
 
 
 @router.post("/predict/batch")
-def predict_churn_batch(req: BatchChurnRequest):
+def predict_churn_batch(req: BatchChurnRequest, explain: bool = False):
     from main import registry
     results = []
     model = registry.get("churn")
@@ -56,7 +68,18 @@ def predict_churn_batch(req: BatchChurnRequest):
         try:
             result = model.predict_churn(item.subscriber, item.user_data.model_dump())
             meta.record_prediction()
-            results.append({"ok": True, **result})
+            if explain:
+                try:
+                    expl = model.explain_churn(item.user_data.model_dump())
+                except Exception:
+                    expl = {"error": "explanation_failed"}
+                try:
+                    registry.record_explanation("churn", item.subscriber, item.user_data.model_dump(), expl.get("attributions", {}), segment=None)
+                except Exception:
+                    pass
+                results.append({"ok": True, **result, "explanation": expl})
+            else:
+                results.append({"ok": True, **result})
         except Exception as e:
             meta.record_error()
             results.append({"ok": False, "subscriber": item.subscriber, "error": str(e)})

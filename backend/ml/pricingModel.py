@@ -58,6 +58,34 @@ class PricingOptimizationEngine:
             "recommendation": "Increase" if optimal_price > current_price else "Decrease" if optimal_price < current_price else "Maintain"
         }
 
+    def explain_price(self, context: Dict) -> Dict:
+        """Return per-factor attributions for the computed target price.
+
+        This provides an approximate explanation by exposing the weighted components used
+        in the target price calculation.
+        """
+        current_price = context.get("current_price", 10.0)
+        competitor_avg = context.get("competitor_avg", current_price)
+        demand = context.get("current_demand", 1.0)
+        wtp_estimate = self.estimate_willingness_to_pay(context.get("usage_data", {}))
+
+        # contributions mirror the weighted average used for target_price
+        contrib_wtp = round(wtp_estimate * 0.4, 6)
+        contrib_competitor = round(competitor_avg * 0.4, 6)
+        contrib_current = round(current_price * demand * 0.2, 6)
+        total = round(contrib_wtp + contrib_competitor + contrib_current, 6)
+
+        return {
+            "base_value": 0.0,
+            "attributions": {
+                "willingness_to_pay": contrib_wtp,
+                "competitor_benchmark": contrib_competitor,
+                "current_price_demand_adjusted": contrib_current,
+            },
+            "target_price_sum": total,
+            "approx_method": "weighted_components"
+        }
+
     def get_price_recommendations(self, plan_id: str, historical_data: List[Dict]) -> List[Dict]:
         """
         Returns a range of price recommendations for a specific plan.

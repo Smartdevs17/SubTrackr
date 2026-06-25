@@ -31,7 +31,7 @@ class ABTestRequest(BaseModel):
 
 
 @router.post("/optimize")
-def optimize_price(req: PricingRequest):
+def optimize_price(req: PricingRequest, explain: bool = False):
     from main import registry
     try:
         model = registry.get("pricing")
@@ -45,6 +45,16 @@ def optimize_price(req: PricingRequest):
             ctx["price_ceiling"] = ctx["current_price"] * 1.5
         result = model.calculate_optimal_price(req.subscription_id, ctx)
         meta.record_prediction()
+        if explain:
+            try:
+                expl = model.explain_price(ctx)
+            except Exception:
+                expl = {"error": "explanation_failed"}
+            try:
+                registry.record_explanation("pricing", req.subscription_id, ctx, expl.get("attributions", {}), segment=None)
+            except Exception:
+                pass
+            return {"model_version": meta.version, **result, "explanation": expl}
         return {"model_version": meta.version, **result}
     except Exception as e:
         registry.meta("pricing").record_error()
