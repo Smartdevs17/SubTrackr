@@ -3,7 +3,10 @@ import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 import { ExecuteOrQueueResult, useTransactionQueueStore } from '../transactionQueueStore';
 
-const mockCreateSuperfluidStream = jest.fn<Promise<{ streamId: string; txHash: string }>, unknown[]>();
+const mockCreateSuperfluidStream = jest.fn<
+  Promise<{ streamId: string; txHash: string }>,
+  unknown[]
+>();
 const mockCreateSablierStream = jest.fn();
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
