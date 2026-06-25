@@ -132,7 +132,11 @@ export type ErrorCode =
   | 'TAX_JURISDICTION_NOT_FOUND'
   // ── Idempotency ──────────────────────────────────────────────────────────
   | 'IDEMPOTENCY_KEY_COLLISION'
-  | 'IDEMPOTENCY_REQUEST_IN_FLIGHT';
+  | 'IDEMPOTENCY_REQUEST_IN_FLIGHT'
+  // ── Usage metering ───────────────────────────────────────────────────────
+  | 'USAGE_BATCH_TOO_LARGE'
+  | 'USAGE_INVALID_EVENT'
+  | 'USAGE_HARD_LIMIT_EXCEEDED';
 
 /**
  * Maps each error code to the HTTP status code that should be sent to the
@@ -186,6 +190,10 @@ export const ERROR_HTTP_STATUS_MAP: Record<ErrorCode, number> = {
   // Idempotency
   IDEMPOTENCY_KEY_COLLISION: 422,
   IDEMPOTENCY_REQUEST_IN_FLIGHT: 409,
+  // Usage metering
+  USAGE_BATCH_TOO_LARGE: 413,
+  USAGE_INVALID_EVENT: 422,
+  USAGE_HARD_LIMIT_EXCEEDED: 402,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

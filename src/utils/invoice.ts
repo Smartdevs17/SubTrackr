@@ -8,6 +8,7 @@ import {
   InvoiceStatus,
   InvoiceTotals,
 } from '../types/invoice';
+import { MeterUsageBreakdown } from '../types/usage';
 import { formatCurrency, formatDate } from './formatting';
 import { ProrationPreview, buildProrationLineItem } from './proration';
 
@@ -119,6 +120,72 @@ export const buildInvoice = (
     subscriptionName: subscription.name,
     merchantName: subscription.description ?? subscription.name,
     lineItems: [lineItem],
+    tax: totals.tax,
+    total: totals.total,
+    subtotal: totals.subtotal,
+    dueDate,
+    status: InvoiceStatus.DRAFT,
+    currency: config.defaultCurrency,
+    region,
+    exchangeRate,
+    period,
+    createdAt,
+    updatedAt: createdAt,
+    recipientEmail,
+    notes,
+  };
+};
+
+/** Builds one invoice line item per metered usage breakdown (issue #554). */
+export const buildUsageLineItems = (
+  breakdowns: MeterUsageBreakdown[],
+  config: InvoiceConfig = DEFAULT_INVOICE_CONFIG,
+  exchangeRate = config.exchangeRateScale,
+  taxRateBps = config.defaultTaxRateBps
+): InvoiceLineItem[] =>
+  breakdowns
+    .filter((b) => b.billableUnits > 0)
+    .map((b) => {
+      const unitPrice = b.billableUnits > 0 ? Math.round(b.amount / b.billableUnits) : 0;
+      return {
+        description: `${b.metric} usage (${b.billableUnits.toLocaleString()} billable of ${b.unitsUsed.toLocaleString()} units, ${b.includedUnits.toLocaleString()} included)`,
+        quantity: b.billableUnits,
+        unitPrice,
+        currency: config.defaultCurrency,
+        exchangeRate,
+        taxRateBps,
+        lineTotal: b.amount,
+      };
+    });
+
+/** Builds a base subscription invoice plus per-meter usage line items (issue #554). */
+export const buildInvoiceWithUsage = (
+  subscription: Subscription,
+  sequence: number,
+  period: InvoicePeriod,
+  usageBreakdowns: MeterUsageBreakdown[],
+  config: InvoiceConfig = DEFAULT_INVOICE_CONFIG,
+  taxRateBps = config.defaultTaxRateBps,
+  exchangeRate = config.exchangeRateScale,
+  region = config.defaultRegion,
+  recipientEmail?: string,
+  notes?: string
+): Invoice => {
+  const baseLineItem = buildInvoiceLineItem(subscription, config, exchangeRate, taxRateBps);
+  const usageLineItems = buildUsageLineItems(usageBreakdowns, config, exchangeRate, taxRateBps);
+  const lineItems = [baseLineItem, ...usageLineItems];
+
+  const totals = calculateInvoiceTotals(lineItems, taxRateBps);
+  const createdAt = new Date();
+  const dueDate = new Date(period.end.getTime() + config.paymentTermsDays * DAY);
+
+  return {
+    id: `${subscription.id}-${sequence}`,
+    invoiceNumber: formatInvoiceNumber(sequence, config),
+    subscriptionId: subscription.id,
+    subscriptionName: subscription.name,
+    merchantName: subscription.description ?? subscription.name,
+    lineItems,
     tax: totals.tax,
     total: totals.total,
     subtotal: totals.subtotal,
