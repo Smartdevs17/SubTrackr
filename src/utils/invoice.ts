@@ -202,6 +202,50 @@ export const buildInvoiceWithUsage = (
   };
 };
 
+/**
+ * Builds a single consolidated invoice covering multiple subscriptions that
+ * share a billing date (issue #566). Free subscriptions are excluded.
+ */
+export const buildConsolidatedInvoice = (
+  subscriptions: Subscription[],
+  sequence: number,
+  period: InvoicePeriod,
+  config: InvoiceConfig = DEFAULT_INVOICE_CONFIG,
+  taxRateBps = config.defaultTaxRateBps,
+  exchangeRate = config.exchangeRateScale,
+  region = config.defaultRegion,
+  recipientEmail?: string
+): Invoice => {
+  const billable = subscriptions.filter((s) => s.price > 0);
+  const lineItems = billable.map((s) => buildInvoiceLineItem(s, config, exchangeRate, taxRateBps));
+  const totals = calculateInvoiceTotals(lineItems, taxRateBps);
+  const createdAt = new Date();
+  const dueDate = new Date(period.end.getTime() + config.paymentTermsDays * DAY);
+  const primary = billable[0];
+
+  return {
+    id: `consolidated-${sequence}`,
+    invoiceNumber: formatInvoiceNumber(sequence, config),
+    subscriptionId: billable.map((s) => s.id).join(','),
+    subscriptionName: `Consolidated (${billable.length} subscriptions)`,
+    merchantName: primary?.description ?? primary?.name ?? 'Consolidated invoice',
+    lineItems,
+    tax: totals.tax,
+    total: totals.total,
+    subtotal: totals.subtotal,
+    dueDate,
+    status: InvoiceStatus.DRAFT,
+    currency: config.defaultCurrency,
+    region,
+    exchangeRate,
+    period,
+    createdAt,
+    updatedAt: createdAt,
+    recipientEmail,
+    notes: `Consolidated billing for: ${billable.map((s) => s.name).join(', ')}`,
+  };
+};
+
 export const generateInvoicePdfPreview = (invoice: Invoice): string => {
   const lines = [
     'SubTrackr Invoice',

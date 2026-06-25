@@ -71,6 +71,7 @@ const PerformanceDashboardScreen = lazyScreen(
 const EditSubscriptionScreen = lazyScreen(() => import('../screens/EditSubscriptionScreen'));
 const ChangePlanScreen = lazyScreen(() => import('../screens/ChangePlanScreen'));
 const BillingSettingsScreen = lazyScreen(() => import('../screens/BillingSettingsScreen'));
+const BillingAlignmentScreen = lazyScreen(() => import('../screens/BillingAlignmentScreen'));
 const PaymentMethodsScreen = lazyScreen(() =>
   import('../../app/screens/PaymentMethodsScreen').then((m) => ({
     default: m.PaymentMethodsScreen,
@@ -344,6 +345,11 @@ const SettingsStack = () => (
       name="BillingSettings"
       component={BillingSettingsScreen}
       options={{ title: 'Billing Settings', headerShown: true }}
+    />
+    <Stack.Screen
+      name="BillingAlignment"
+      component={BillingAlignmentScreen}
+      options={{ headerShown: false }}
     />
     <Stack.Screen
       name="PaymentMethods"
