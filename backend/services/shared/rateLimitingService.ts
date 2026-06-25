@@ -12,6 +12,7 @@ import {
   type UsageMeteringEntry,
   type TierUpgradeRecommendation,
 } from '../../src/types/rateLimiting';
+import { RateLimitAnomalyService } from './rateLimitAnomalyService';
 
 const ONE_HOUR_MS = 3_600_000;
 const ONE_DAY_MS = 86_400_000;
@@ -30,6 +31,7 @@ export class RateLimitingService {
   private usages = new Map<string, ApiKeyUsage>();
   private requestLog: UsageMeteringEntry[] = [];
   private readonly maxLogEntries = 100_000;
+  private readonly anomalyService = new RateLimitAnomalyService();
 
   getOrCreateUsage(apiKey: string, tier: SubscriptionTier): ApiKeyUsage {
     const existing = this.usages.get(apiKey);
@@ -57,37 +59,95 @@ export class RateLimitingService {
     return usage;
   }
 
-  checkRateLimit(apiKey: string, tier: SubscriptionTier): { allowed: boolean; retryAfterMs?: number } {
+  checkRateLimit(
+    apiKey: string,
+    tier: SubscriptionTier,
+    context?: {
+      userId?: string;
+      endpoint?: string;
+      payloadSize?: number;
+      userAgent?: string;
+      country?: string;
+    }
+  ): { allowed: boolean; retryAfterMs?: number; anomalyScore?: number; throttleLevel?: string } {
     const usage = this.getOrCreateUsage(apiKey, tier);
-    const limits = TIER_RATE_LIMITS[tier];
+    let limits = TIER_RATE_LIMITS[tier];
     const now_ts = now();
 
     this.resetIfExpired(usage);
+
+    const anomalyDecision = this.anomalyService.evaluate(
+      {
+        apiKey,
+        userId: context?.userId,
+        endpoint: context?.endpoint ?? 'unknown',
+        payloadSize: context?.payloadSize,
+        userAgent: context?.userAgent,
+        country: context?.country,
+      },
+      tier
+    );
+
+    if (anomalyDecision.throttleLevel !== 'normal') {
+      limits = {
+        ...limits,
+        hourlyLimit: anomalyDecision.effectiveHourlyLimit,
+      };
+    }
 
     const hourlyRemaining = limits.hourlyLimit - usage.hourly;
     const dailyRemaining = limits.dailyLimit - usage.daily;
     const monthlyRemaining = limits.monthlyLimit - usage.monthly;
 
     if (monthlyRemaining <= 0) {
-      return { allowed: false, retryAfterMs: usage.monthlyResetAt - now_ts };
+      return {
+        allowed: false,
+        retryAfterMs: usage.monthlyResetAt - now_ts,
+        anomalyScore: anomalyDecision.anomalyScore,
+        throttleLevel: anomalyDecision.throttleLevel,
+      };
     }
     if (dailyRemaining <= 0) {
-      return { allowed: false, retryAfterMs: usage.dailyResetAt - now_ts };
+      return {
+        allowed: false,
+        retryAfterMs: usage.dailyResetAt - now_ts,
+        anomalyScore: anomalyDecision.anomalyScore,
+        throttleLevel: anomalyDecision.throttleLevel,
+      };
     }
     if (hourlyRemaining <= 0) {
-      return { allowed: false, retryAfterMs: usage.hourlyResetAt - now_ts };
+      return {
+        allowed: false,
+        retryAfterMs: usage.hourlyResetAt - now_ts,
+        anomalyScore: anomalyDecision.anomalyScore,
+        throttleLevel: anomalyDecision.throttleLevel,
+      };
     }
 
     this.refillBurstTokens(usage, limits);
     if (usage.burstTokens <= 0) {
-      return { allowed: false, retryAfterMs: 1_000 };
+      return {
+        allowed: false,
+        retryAfterMs: 1_000,
+        anomalyScore: anomalyDecision.anomalyScore,
+        throttleLevel: anomalyDecision.throttleLevel,
+      };
     }
 
     if (usage.concurrentRequests >= limits.concurrentLimit) {
-      return { allowed: false, retryAfterMs: 500 };
+      return {
+        allowed: false,
+        retryAfterMs: 500,
+        anomalyScore: anomalyDecision.anomalyScore,
+        throttleLevel: anomalyDecision.throttleLevel,
+      };
     }
 
-    return { allowed: true };
+    return {
+      allowed: true,
+      anomalyScore: anomalyDecision.anomalyScore,
+      throttleLevel: anomalyDecision.throttleLevel,
+    };
   }
 
   recordRequest(
@@ -123,6 +183,8 @@ export class RateLimitingService {
     };
 
     this.requestLog.push(entry);
+    this.anomalyService.recordUsage(entry);
+
     if (this.requestLog.length > this.maxLogEntries) {
       this.requestLog = this.requestLog.slice(-this.maxLogEntries / 2);
     }
@@ -272,6 +334,10 @@ export class RateLimitingService {
         monthly: usage.monthlyResetAt,
       },
     };
+  }
+
+  getRecentAnomalies(limit = 50) {
+    return this.anomalyService.listRecentAnomalies(limit);
   }
 
   private resetIfExpired(usage: ApiKeyUsage): void {
