@@ -203,10 +203,7 @@ class CrashReporterService {
       }
 
       if (__DEV__) {
-        console.info(
-          '[CrashReporter] Data recovery complete. Removed keys:',
-          keysToRemove.length
-        );
+        console.info('[CrashReporter] Data recovery complete. Removed keys:', keysToRemove.length);
       }
 
       return true;
@@ -305,9 +302,7 @@ class CrashReporterService {
 
   private async _markRecoveryAttempted(crashId: string): Promise<void> {
     const records = await this._loadRecords();
-    const updated = records.map((r) =>
-      r.id === crashId ? { ...r, recoveryAttempted: true } : r
-    );
+    const updated = records.map((r) => (r.id === crashId ? { ...r, recoveryAttempted: true } : r));
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
   }
 

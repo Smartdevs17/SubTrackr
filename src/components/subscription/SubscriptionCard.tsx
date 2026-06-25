@@ -17,7 +17,7 @@ import {
 import { useSettingsStore } from '../../store/settingsStore';
 import { currencyService } from '../../services/currencyService';
 import { SubscriptionIcon } from './SubscriptionIcon';
-
+import { useAccessibilityAnnouncement } from '../../hooks/useAccessibilityAnnouncement';
 
 export interface SubscriptionCardProps {
   subscription: Subscription;
@@ -28,14 +28,25 @@ export interface SubscriptionCardProps {
 
 export const SubscriptionCard: React.FC<SubscriptionCardProps> = React.memo(
   ({ subscription, onPress, onToggleStatus, onDelete }) => {
+    const { announce } = useAccessibilityAnnouncement();
+
     const handleToggleStatus = () => {
       if (onToggleStatus) {
+        const newStatus = subscription.isActive ? 'paused' : 'activated';
+        announce(`${subscription.name} has been ${newStatus}`);
+        
         Alert.alert(
           subscription.isActive ? 'Pause Subscription' : 'Activate Subscription',
           `Are you sure you want to ${subscription.isActive ? 'pause' : 'activate'} ${subscription.name}?`,
           [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Confirm', onPress: () => onToggleStatus(subscription.id) },
+            { 
+              text: 'Confirm', 
+              onPress: () => {
+                onToggleStatus(subscription.id);
+                announce(`${subscription.name} ${newStatus} successfully`);
+              }
+            },
           ]
         );
       }
@@ -46,12 +57,21 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = React.memo(
         const cryptoWarning = subscription.isCryptoEnabled
           ? '\n\nThis subscription has an active crypto stream. On-chain cancellation cannot be undone.'
           : '';
+        announce(`Deleting ${subscription.name}`);
+        
         Alert.alert(
           'Delete Subscription',
           `Remove "${subscription.name}" from your subscriptions?${cryptoWarning}`,
           [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Delete', style: 'destructive', onPress: () => onDelete(subscription.id) },
+            { 
+              text: 'Delete', 
+              style: 'destructive', 
+              onPress: () => {
+                onDelete(subscription.id);
+                announce(`${subscription.name} deleted successfully`);
+              }
+            },
           ]
         );
       }
@@ -67,7 +87,6 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = React.memo(
       preferredCurrency,
       rates
     );
-
 
     return (
       <TouchableOpacity
@@ -97,10 +116,16 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = React.memo(
             <Text
               testID={`subscription-name-${subscription.id}`}
               style={styles.name}
-              numberOfLines={1}>
+              numberOfLines={1}
+              maxFontSizeMultiplier={1.5}
+              allowFontScaling={true}>
               {subscription.name}
             </Text>
-            <Text style={styles.category} numberOfLines={1}>
+            <Text 
+              style={styles.category} 
+              numberOfLines={1}
+              maxFontSizeMultiplier={1.3}
+              allowFontScaling={true}>
               {formatCategory(subscription.category)}
             </Text>
           </View>
@@ -133,9 +158,17 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = React.memo(
               preferredCurrency
             )} per ${formatBillingCycle(subscription.billingCycle)}`}
             style={styles.priceContainer}>
-            <Text style={styles.price}>{formatCurrency(convertedPrice, preferredCurrency)}</Text>
+            <Text 
+              style={styles.price}
+              maxFontSizeMultiplier={1.5}
+              allowFontScaling={true}>
+              {formatCurrency(convertedPrice, preferredCurrency)}
+            </Text>
             {subscription.currency !== preferredCurrency && (
-              <Text style={styles.originalPrice}>
+              <Text 
+                style={styles.originalPrice}
+                maxFontSizeMultiplier={1.2}
+                allowFontScaling={true}>
                 ({formatCurrency(subscription.price, subscription.currency)})
               </Text>
             )}
@@ -143,19 +176,27 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = React.memo(
               style={[
                 styles.billingCycle,
                 { color: getBillingCycleColor(subscription.billingCycle) },
-              ]}>
+              ]}
+              maxFontSizeMultiplier={1.3}
+              allowFontScaling={true}>
               /{formatBillingCycle(subscription.billingCycle)}
             </Text>
-
           </View>
 
           <View style={styles.billingInfo}>
-            <Text style={styles.billingLabel}>Next billing:</Text>
+            <Text 
+              style={styles.billingLabel}
+              maxFontSizeMultiplier={1.2}
+              allowFontScaling={true}>
+              Next billing:
+            </Text>
             <Text
               style={[styles.billingDate, upcoming && styles.upcomingDate]}
               accessibilityLabel={`Next billing date ${formatRelativeDate(
                 new Date(subscription.nextBillingDate)
-              )}`}>
+              )}`}
+              maxFontSizeMultiplier={1.3}
+              allowFontScaling={true}>
               {formatRelativeDate(new Date(subscription.nextBillingDate))}
             </Text>
           </View>
@@ -176,7 +217,9 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = React.memo(
               testID={`subscription-toggle-${subscription.id}`}
               accessibilityRole="button"
               accessibilityLabel={
-                subscription.isActive ? `Pause ${subscription.name}` : `Activate ${subscription.name}`
+                subscription.isActive
+                  ? `Pause ${subscription.name}`
+                  : `Activate ${subscription.name}`
               }>
               <Text style={styles.toggleText}>{subscription.isActive ? 'Pause' : 'Activate'}</Text>
             </TouchableOpacity>

@@ -1,0 +1,17 @@
+[package]
+name = "subtrackr-security"
+version = "0.1.0"
+edition = "2021"
+authors = ["SubTrackr Team"]
+description = "SubTrackr security contract: PII encryption at rest, key management & rotation (Soroban)"
+
+[lib]
+name = "subtrackr_security"
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+soroban-sdk = "21.0.0"
+
+[dev-dependencies]
+soroban-sdk = { version = "21.0.0", features = ["testutils"] }

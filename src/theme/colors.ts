@@ -53,20 +53,11 @@ export const lightColors = {
   warningBackground: 'rgba(245, 158, 11, 0.16)',
   primary: '#6366F1',
   secondary: '#10B981',
-  accent: '#06B6D4',
   success: '#10B981',
   warning: '#F59E0B',
   error: '#EF4444',
   backgroundFlat: '#FFFFFF',
-  surface: '#FFFFFF',
-  surfaceVariant: '#F3F4F6',
-  text: '#1A1A1A',
   textSecondary: '#6B7280',
-  border: '#E5E7EB',
-  onPrimary: '#FFFFFF',
-  onSecondary: '#FFFFFF',
-  onSurface: '#1A1A1A',
-  onSurfaceVariant: '#6B7280',
 } as const;
 
 export const darkColors = {
@@ -124,20 +115,71 @@ export const darkColors = {
   warningBackground: 'rgba(251, 191, 36, 0.16)',
   primary: '#6366F1',
   secondary: '#34D399',
-  accent: '#34D399',
   success: '#34D399',
   warning: '#FBBF24',
   error: '#F87171',
   backgroundFlat: '#000000',
-  surface: '#1A1A1A',
-  surfaceVariant: '#262626',
-  text: '#F9FAFB',
   textSecondary: '#9CA3AF',
-  border: '#374151',
-  onPrimary: '#1A1A1A',
-  onSecondary: '#1A1A1A',
-  onSurface: '#F9FAFB',
-  onSurfaceVariant: '#9CA3AF',
 } as const;
 
-export type ColorTokens = typeof lightColors;
+export interface ColorTokens {
+  readonly background: {
+    readonly primary: string;
+    readonly secondary: string;
+    readonly card: string;
+    readonly modal: string;
+  };
+  readonly text: {
+    readonly primary: string;
+    readonly secondary: string;
+    readonly disabled: string;
+    readonly inverse: string;
+    readonly link: string;
+  };
+  readonly border: {
+    readonly default: string;
+    readonly focused: string;
+    readonly error: string;
+  };
+  readonly brand: {
+    readonly primary: string;
+    readonly primaryDark: string;
+    readonly secondary: string;
+  };
+  readonly status: {
+    readonly success: string;
+    readonly warning: string;
+    readonly error: string;
+    readonly info: string;
+  };
+  readonly subscription: {
+    readonly active: string;
+    readonly expiringSoon: string;
+    readonly expired: string;
+    readonly paused: string;
+  };
+  readonly navigation: {
+    readonly tabBar: string;
+    readonly tabBarBorder: string;
+    readonly activeTab: string;
+    readonly inactiveTab: string;
+    readonly header: string;
+    readonly headerText: string;
+  };
+  readonly surface: string;
+  readonly surfaceVariant: string;
+  readonly accent: string;
+  readonly onPrimary: string;
+  readonly onSecondary: string;
+  readonly onSurface: string;
+  readonly onSurfaceVariant: string;
+  readonly overlay: string;
+  readonly warningBackground: string;
+  readonly primary: string;
+  readonly secondary: string;
+  readonly success: string;
+  readonly warning: string;
+  readonly error: string;
+  readonly backgroundFlat: string;
+  readonly textSecondary: string;
+}

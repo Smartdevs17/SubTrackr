@@ -54,7 +54,11 @@ const DeveloperPortalScreen: React.FC = () => {
       Alert.alert('Required fields', 'Name and email are required.');
       return;
     }
-    await createDeveloperProfile(profileForm.name, profileForm.email, profileForm.company || undefined);
+    await createDeveloperProfile(
+      profileForm.name,
+      profileForm.email,
+      profileForm.company || undefined
+    );
     await completeOnboardingStep(DeveloperOnboardingStep.CREATE_ACCOUNT);
     setShowOnboarding(false);
   };
@@ -63,7 +67,10 @@ const DeveloperPortalScreen: React.FC = () => {
     const name = newKeyName || 'Default Key';
     try {
       const key = await generateApiKey(name);
-      Alert.alert('API Key Generated', `Your new API key:\n\n${key}\n\nCopy it now, it won't be shown again.`);
+      Alert.alert(
+        'API Key Generated',
+        `Your new API key:\n\n${key}\n\nCopy it now, it won't be shown again.`
+      );
       setNewKeyName('');
     } catch {
       Alert.alert('Error', 'Failed to generate API key.');
@@ -161,31 +168,28 @@ const DeveloperPortalScreen: React.FC = () => {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <Text style={styles.title}>Developer Portal</Text>
-          <Text style={styles.subtitle}>
-            Welcome back, {developerProfile?.name || 'Developer'}
-          </Text>
+          <Text style={styles.subtitle}>Welcome back, {developerProfile?.name || 'Developer'}</Text>
         </View>
 
         <View style={styles.envBar}>
-          {[SandboxEnvironment.DEVELOPMENT, SandboxEnvironment.STAGING, SandboxEnvironment.PRODUCTION].map(
-            (env) => (
-              <EnvironmentBadge
-                key={env}
-                environment={env}
-                isActive={sandboxConfig.environment === env}
-                onPress={() => switchEnvironment(env)}
-              />
-            )
-          )}
+          {[
+            SandboxEnvironment.DEVELOPMENT,
+            SandboxEnvironment.STAGING,
+            SandboxEnvironment.PRODUCTION,
+          ].map((env) => (
+            <EnvironmentBadge
+              key={env}
+              environment={env}
+              isActive={sandboxConfig.environment === env}
+              onPress={() => switchEnvironment(env)}
+            />
+          ))}
         </View>
 
         <View style={styles.statsGrid}>
           <StatCard label="API Keys" value={apiKeys.length} />
           <StatCard label="Test Subs" value={testSubscriptions.length} />
-          <StatCard
-            label="API Calls"
-            value={usageStats?.totalRequests?.toLocaleString() || '0'}
-          />
+          <StatCard label="API Calls" value={usageStats?.totalRequests?.toLocaleString() || '0'} />
           <StatCard
             label="Success Rate"
             value={
@@ -305,9 +309,7 @@ const DeveloperPortalScreen: React.FC = () => {
                   {guide.difficulty} · {guide.estimatedTime}
                 </Text>
               </View>
-              {guide.isCompleted && (
-                <Text style={styles.completedBadge}>✓</Text>
-              )}
+              {guide.isCompleted && <Text style={styles.completedBadge}>✓</Text>}
             </View>
           ))}
         </Card>
@@ -330,8 +332,8 @@ const DeveloperPortalScreen: React.FC = () => {
                       sub.status === 'active'
                         ? colors.success
                         : sub.status === 'paused'
-                        ? colors.warning
-                        : colors.error,
+                          ? colors.warning
+                          : colors.error,
                   },
                 ]}>
                 <Text style={styles.statusText}>{sub.status}</Text>

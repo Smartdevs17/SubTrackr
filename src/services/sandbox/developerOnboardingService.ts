@@ -1,9 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {
-  DeveloperProfile,
-  DeveloperOnboardingStep,
-  SandboxEnvironment,
-} from '../../types/sandbox';
+import { DeveloperProfile, DeveloperOnboardingStep, SandboxEnvironment } from '../../types/sandbox';
 import { sandboxService } from './sandboxService';
 import { apiKeyService } from './apiKeyService';
 

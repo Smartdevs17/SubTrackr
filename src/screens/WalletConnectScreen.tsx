@@ -29,6 +29,7 @@ import * as Clipboard from 'expo-clipboard';
 const WalletConnectScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const colors = useThemeColors();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const { open } = useAppKit();
   const { address, isConnected, chainId } = useAppKitAccount();
   const { walletProvider } = useAppKitProvider();
@@ -474,352 +475,354 @@ const WalletConnectScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  header: {
-    padding: spacing.lg,
-    paddingBottom: spacing.md,
-  },
-  title: {
-    ...typography.h1,
-    color: colors.text,
-    marginBottom: spacing.xs,
-  },
-  subtitle: {
-    ...typography.body,
-    color: colors.textSecondary,
-  },
-  connectSection: {
-    padding: spacing.lg,
-    paddingTop: 0,
-  },
-  connectedSection: {
-    padding: spacing.lg,
-    paddingTop: 0,
-  },
-  sectionTitle: {
-    ...typography.h3,
-    color: colors.text,
-    marginBottom: spacing.sm,
-  },
-  sectionDescription: {
-    ...typography.body,
-    color: colors.textSecondary,
-    marginBottom: spacing.lg,
-    lineHeight: 22,
-  },
-  connectHeader: {
-    alignItems: 'center',
-    marginBottom: spacing.lg,
-  },
-  connectIcon: {
-    fontSize: 48,
-    marginBottom: spacing.sm,
-  },
-  walletOptions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-around',
-    marginBottom: spacing.lg,
-    gap: spacing.md,
-  },
-  walletOption: {
-    alignItems: 'center',
-    minWidth: 80,
-  },
-  walletIconContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.sm,
-    ...shadows.sm,
-  },
-  walletIcon: {
-    fontSize: 28,
-  },
-  walletName: {
-    ...typography.caption,
-    color: colors.text,
-    textAlign: 'center',
-    fontWeight: '600',
-    marginBottom: spacing.xs,
-  },
-  walletDescription: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    fontSize: 10,
-  },
-  connectButtonContainer: {
-    marginTop: spacing.md,
-    alignItems: 'center',
-  },
-  connectNote: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginTop: spacing.sm,
-    fontStyle: 'italic',
-  },
-  connectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  connectionStatus: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  statusIndicator: {
-    width: 12,
-    height: 12,
-    borderRadius: borderRadius.full,
-    marginRight: spacing.sm,
-  },
-  statusText: {
-    ...typography.body,
-    color: colors.text,
-    fontWeight: '600',
-  },
-  connectionTime: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginLeft: spacing.sm,
-  },
-  disconnectButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.sm,
-    backgroundColor: colors.error,
-    borderRadius: borderRadius.md,
-  },
-  disconnectIcon: {
-    fontSize: 16,
-    marginRight: spacing.xs,
-  },
-  disconnectText: {
-    ...typography.caption,
-    color: colors.text,
-    fontWeight: '600',
-  },
-  walletInfo: {
-    marginBottom: spacing.md,
-  },
-  addressContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.xs,
-  },
-  addressLabel: {
-    ...typography.caption,
-    color: colors.textSecondary,
-  },
-  addressCopyButton: {
-    padding: spacing.xs,
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.sm,
-  },
-  copyIcon: {
-    fontSize: 16,
-    color: colors.textSecondary,
-  },
-  addressText: {
-    ...typography.h3,
-    color: colors.text,
-    fontFamily: 'monospace',
-    marginBottom: spacing.md,
-  },
-  chainInfo: {
-    alignItems: 'flex-start',
-  },
-  chainBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.full,
-    marginBottom: spacing.xs,
-  },
-  chainIcon: {
-    fontSize: 16,
-    marginRight: spacing.xs,
-  },
-  chainText: {
-    ...typography.caption,
-    color: colors.text,
-    fontWeight: '600',
-  },
-  chainDescription: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginLeft: spacing.md,
-  },
-  balancesHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  balancesTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  balancesIcon: {
-    fontSize: 24,
-    marginRight: spacing.sm,
-  },
-  refreshButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.sm,
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.md,
-  },
-  refreshIcon: {
-    fontSize: 16,
-    marginRight: spacing.xs,
-  },
-  refreshText: {
-    ...typography.caption,
-    color: colors.text,
-    fontWeight: '600',
-  },
-  loadingContainer: {
-    alignItems: 'center',
-    paddingVertical: spacing.lg,
-  },
-  loadingText: {
-    ...typography.body,
-    color: colors.textSecondary,
-    marginTop: spacing.md,
-  },
-  balancesList: {
-    gap: spacing.sm,
-  },
-  balanceItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    backgroundColor: colors.background,
-    borderRadius: borderRadius.md,
-    marginBottom: spacing.xs,
-  },
-  tokenInfo: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  tokenIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.sm,
-    ...shadows.sm,
-  },
-  tokenIcon: {
-    fontSize: 20,
-  },
-  tokenDetails: {
-    flex: 1,
-  },
-  tokenSymbol: {
-    ...typography.body,
-    color: colors.text,
-    fontWeight: '600',
-    marginBottom: spacing.xs,
-  },
-  tokenName: {
-    ...typography.caption,
-    color: colors.textSecondary,
-  },
-  balanceInfo: {
-    alignItems: 'flex-end',
-  },
-  tokenBalance: {
-    ...typography.body,
-    color: colors.text,
-    fontWeight: '600',
-    marginBottom: spacing.xs,
-  },
-  tokenValue: {
-    ...typography.caption,
-    color: colors.textSecondary,
-  },
-  tokenPriceChange: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: spacing.xs / 2,
-  },
-  priceWarning: {
-    ...typography.caption,
-    color: colors.warning,
-    marginBottom: spacing.sm,
-  },
-  priceMetaText: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginBottom: spacing.sm,
-  },
-  setupButton: {
-    marginTop: spacing.md,
-  },
-  cryptoHeader: {
-    alignItems: 'center',
-    marginBottom: spacing.lg,
-  },
-  cryptoIcon: {
-    fontSize: 48,
-    marginBottom: spacing.sm,
-  },
-  protocolInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: spacing.lg,
-    gap: spacing.md,
-  },
-  protocolItem: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  protocolIcon: {
-    fontSize: 24,
-    marginBottom: spacing.xs,
-  },
-  protocolName: {
-    ...typography.caption,
-    color: colors.text,
-    fontWeight: '600',
-    marginBottom: spacing.xs,
-  },
-  protocolDesc: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    fontSize: 10,
-  },
-  readyHeader: {
-    alignItems: 'center',
-  },
-  readyIcon: {
-    fontSize: 48,
-    marginBottom: spacing.sm,
-  },
-});
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background.primary,
+    },
+    scrollView: {
+      flex: 1,
+    },
+    header: {
+      padding: spacing.lg,
+      paddingBottom: spacing.md,
+    },
+    title: {
+      ...typography.h1,
+      color: colors.text.primary,
+      marginBottom: spacing.xs,
+    },
+    subtitle: {
+      ...typography.body,
+      color: colors.textSecondary,
+    },
+    connectSection: {
+      padding: spacing.lg,
+      paddingTop: 0,
+    },
+    connectedSection: {
+      padding: spacing.lg,
+      paddingTop: 0,
+    },
+    sectionTitle: {
+      ...typography.h3,
+      color: colors.text.primary,
+      marginBottom: spacing.sm,
+    },
+    sectionDescription: {
+      ...typography.body,
+      color: colors.textSecondary,
+      marginBottom: spacing.lg,
+      lineHeight: 22,
+    },
+    connectHeader: {
+      alignItems: 'center',
+      marginBottom: spacing.lg,
+    },
+    connectIcon: {
+      fontSize: 48,
+      marginBottom: spacing.sm,
+    },
+    walletOptions: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'space-around',
+      marginBottom: spacing.lg,
+      gap: spacing.md,
+    },
+    walletOption: {
+      alignItems: 'center',
+      minWidth: 80,
+    },
+    walletIconContainer: {
+      width: 60,
+      height: 60,
+      borderRadius: borderRadius.full,
+      backgroundColor: colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: spacing.sm,
+      ...shadows.sm,
+    },
+    walletIcon: {
+      fontSize: 28,
+    },
+    walletName: {
+      ...typography.caption,
+      color: colors.text.primary,
+      textAlign: 'center',
+      fontWeight: '600',
+      marginBottom: spacing.xs,
+    },
+    walletDescription: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      fontSize: 10,
+    },
+    connectButtonContainer: {
+      marginTop: spacing.md,
+      alignItems: 'center',
+    },
+    connectNote: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      marginTop: spacing.sm,
+      fontStyle: 'italic',
+    },
+    connectionHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: spacing.md,
+    },
+    connectionStatus: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    statusIndicator: {
+      width: 12,
+      height: 12,
+      borderRadius: borderRadius.full,
+      marginRight: spacing.sm,
+    },
+    statusText: {
+      ...typography.body,
+      color: colors.text.primary,
+      fontWeight: '600',
+    },
+    connectionTime: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      marginLeft: spacing.sm,
+    },
+    disconnectButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: spacing.sm,
+      backgroundColor: colors.error,
+      borderRadius: borderRadius.md,
+    },
+    disconnectIcon: {
+      fontSize: 16,
+      marginRight: spacing.xs,
+    },
+    disconnectText: {
+      ...typography.caption,
+      color: colors.text.primary,
+      fontWeight: '600',
+    },
+    walletInfo: {
+      marginBottom: spacing.md,
+    },
+    addressContainer: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: spacing.xs,
+    },
+    addressLabel: {
+      ...typography.caption,
+      color: colors.textSecondary,
+    },
+    addressCopyButton: {
+      padding: spacing.xs,
+      backgroundColor: colors.surface,
+      borderRadius: borderRadius.sm,
+    },
+    copyIcon: {
+      fontSize: 16,
+      color: colors.textSecondary,
+    },
+    addressText: {
+      ...typography.h3,
+      color: colors.text.primary,
+      fontFamily: 'monospace',
+      marginBottom: spacing.md,
+    },
+    chainInfo: {
+      alignItems: 'flex-start',
+    },
+    chainBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderRadius: borderRadius.full,
+      marginBottom: spacing.xs,
+    },
+    chainIcon: {
+      fontSize: 16,
+      marginRight: spacing.xs,
+    },
+    chainText: {
+      ...typography.caption,
+      color: colors.text.primary,
+      fontWeight: '600',
+    },
+    chainDescription: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      marginLeft: spacing.md,
+    },
+    balancesHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: spacing.md,
+    },
+    balancesTitleContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    balancesIcon: {
+      fontSize: 24,
+      marginRight: spacing.sm,
+    },
+    refreshButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: spacing.sm,
+      backgroundColor: colors.primary,
+      borderRadius: borderRadius.md,
+    },
+    refreshIcon: {
+      fontSize: 16,
+      marginRight: spacing.xs,
+    },
+    refreshText: {
+      ...typography.caption,
+      color: colors.text.primary,
+      fontWeight: '600',
+    },
+    loadingContainer: {
+      alignItems: 'center',
+      paddingVertical: spacing.lg,
+    },
+    loadingText: {
+      ...typography.body,
+      color: colors.textSecondary,
+      marginTop: spacing.md,
+    },
+    balancesList: {
+      gap: spacing.sm,
+    },
+    balanceItem: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      backgroundColor: colors.background.primary,
+      borderRadius: borderRadius.md,
+      marginBottom: spacing.xs,
+    },
+    tokenInfo: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    tokenIconContainer: {
+      width: 40,
+      height: 40,
+      borderRadius: borderRadius.full,
+      backgroundColor: colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: spacing.sm,
+      ...shadows.sm,
+    },
+    tokenIcon: {
+      fontSize: 20,
+    },
+    tokenDetails: {
+      flex: 1,
+    },
+    tokenSymbol: {
+      ...typography.body,
+      color: colors.text.primary,
+      fontWeight: '600',
+      marginBottom: spacing.xs,
+    },
+    tokenName: {
+      ...typography.caption,
+      color: colors.textSecondary,
+    },
+    balanceInfo: {
+      alignItems: 'flex-end',
+    },
+    tokenBalance: {
+      ...typography.body,
+      color: colors.text.primary,
+      fontWeight: '600',
+      marginBottom: spacing.xs,
+    },
+    tokenValue: {
+      ...typography.caption,
+      color: colors.textSecondary,
+    },
+    tokenPriceChange: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      marginTop: spacing.xs / 2,
+    },
+    priceWarning: {
+      ...typography.caption,
+      color: colors.warning,
+      marginBottom: spacing.sm,
+    },
+    priceMetaText: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      marginBottom: spacing.sm,
+    },
+    setupButton: {
+      marginTop: spacing.md,
+    },
+    cryptoHeader: {
+      alignItems: 'center',
+      marginBottom: spacing.lg,
+    },
+    cryptoIcon: {
+      fontSize: 48,
+      marginBottom: spacing.sm,
+    },
+    protocolInfo: {
+      flexDirection: 'row',
+      justifyContent: 'space-around',
+      marginBottom: spacing.lg,
+      gap: spacing.md,
+    },
+    protocolItem: {
+      alignItems: 'center',
+      flex: 1,
+    },
+    protocolIcon: {
+      fontSize: 24,
+      marginBottom: spacing.xs,
+    },
+    protocolName: {
+      ...typography.caption,
+      color: colors.text.primary,
+      fontWeight: '600',
+      marginBottom: spacing.xs,
+    },
+    protocolDesc: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      fontSize: 10,
+    },
+    readyHeader: {
+      alignItems: 'center',
+    },
+    readyIcon: {
+      fontSize: 48,
+      marginBottom: spacing.sm,
+    },
+  });
+}
 
 export default WalletConnectScreen;

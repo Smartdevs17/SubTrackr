@@ -1,8 +1,5 @@
 #![cfg(test)]
-
-use soroban_sdk::{
-    testutils::Address as _, testutils::Ledger as _, Address, Bytes, BytesN, Env,
-};
+use soroban_sdk::{testutils::Address as _, testutils::Ledger as _, Address, Bytes, BytesN, Env};
 use subtrackr_types::{ApiKeyConfig, ApiKeyStatus, RateLimitConfig, TimeRange, UsageTier};
 
 use crate::{SubTrackrApi, SubTrackrApiClient};
@@ -51,7 +48,7 @@ fn test_create_api_key() {
 
     let (key_id, raw_key) = client.create_api_key(&owner, &default_config(&env));
     assert!(key_id >= 1, "Key id should be >= 1");
-    assert!(raw_key.len() > 0, "Raw key bytes should not be empty");
+    assert!(!raw_key.is_empty(), "Raw key bytes should not be empty");
 
     let stored = client.get_api_key(&key_id).unwrap();
     assert_eq!(stored.id, key_id);
@@ -158,8 +155,12 @@ fn test_list_api_keys_by_owner() {
     let mut found1 = false;
     let mut found2 = false;
     for k in keys.iter() {
-        if k.id == id1 { found1 = true; }
-        if k.id == id2 { found2 = true; }
+        if k.id == id1 {
+            found1 = true;
+        }
+        if k.id == id2 {
+            found2 = true;
+        }
     }
     assert!(found1);
     assert!(found2);
@@ -179,7 +180,11 @@ fn test_audit_trail() {
     client.revoke_api_key(&owner, &key_id);
 
     let audit = client.get_api_key_audit(&key_id);
-    assert_eq!(audit.len(), 2, "Should have rotate and revoke audit entries");
+    assert_eq!(
+        audit.len(),
+        2,
+        "Should have rotate and revoke audit entries"
+    );
     assert_eq!(
         audit.get(0).unwrap().action,
         soroban_sdk::String::from_str(&env, "rotated")
@@ -268,10 +273,7 @@ fn test_rate_limit_per_hour() {
         client.check_rate_limit(&key_id, &key_hash);
     }
     let status = client.check_rate_limit(&key_id, &key_hash);
-    assert!(
-        !status.is_allowed,
-        "Should be blocked by hourly limit"
-    );
+    assert!(!status.is_allowed, "Should be blocked by hourly limit");
 }
 
 #[test]

@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 
-import { borderRadius, shadows, spacing, typography } from '../../utils/constants';
+import { borderRadius, colors, shadows, spacing, typography } from '../../utils/constants';
 import {
   buildGestureDebugLabel,
   GestureDirection,
@@ -17,7 +17,6 @@ import {
   triggerGestureFeedback,
   validateHorizontalSwipe,
 } from '../../services/gestureService';
-import { useThemeColors } from '../../hooks/useThemeColors';
 
 interface SwipeableCardProps {
   children: React.ReactNode;
@@ -44,8 +43,6 @@ export const SwipeableCard: React.FC<SwipeableCardProps> = ({
   accessibilityLabel,
   debugEnabled = false,
 }) => {
-  const colors = useThemeColors();
-  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const translateX = useRef(new Animated.Value(0)).current;
   const draggingRef = useRef(false);
   const longPressTriggeredRef = useRef(false);
@@ -135,7 +132,11 @@ export const SwipeableCard: React.FC<SwipeableCardProps> = ({
 
   return (
     <View style={styles.wrapper}>
-      <View pointerEvents="none" style={styles.actionBackground}>
+      <View 
+        pointerEvents="none" 
+        style={styles.actionBackground}
+        accessibilityElementsHidden={true}
+        importantForAccessibility="no">
         <Text style={styles.leftActionText}>Quick toggle</Text>
         <Text style={styles.rightActionText}>Open</Text>
       </View>
@@ -144,7 +145,8 @@ export const SwipeableCard: React.FC<SwipeableCardProps> = ({
         style={[styles.animatedCard, { transform: [{ translateX }] }]}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={accessibilityLabel}
+          accessibilityLabel={accessibilityLabel || 'Swipeable card'}
+          accessibilityHint={onSwipeLeft && onSwipeRight ? 'Swipe left for quick toggle, swipe right to open, or tap to select' : undefined}
           delayLongPress={320}
           onLongPress={() => {
             if (draggingRef.current) return;
@@ -180,47 +182,49 @@ export const SwipeableCard: React.FC<SwipeableCardProps> = ({
   );
 };
 
-function createStyles(colors: ReturnType<typeof useThemeColors>) {
-  return StyleSheet.create({
-    wrapper: {
-      marginBottom: spacing.md,
-    },
-    actionBackground: {
-      ...StyleSheet.absoluteFillObject,
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      paddingHorizontal: spacing.lg,
-      borderRadius: borderRadius.lg,
-      backgroundColor: colors.brand.primary + '20',
-    },
-    leftActionText: {
-      ...typography.caption,
-      color: colors.accent,
-      fontWeight: '700',
-    },
-    rightActionText: {
-      ...typography.caption,
-      color: colors.status.success,
-      fontWeight: '700',
-    },
-    animatedCard: {
-      borderRadius: borderRadius.lg,
-      ...shadows.sm,
-    },
-    pressable: {
-      borderRadius: borderRadius.lg,
-    },
-    debugBadge: {
-      marginTop: spacing.xs,
-      backgroundColor: colors.background.card,
-      borderRadius: borderRadius.md,
-      paddingHorizontal: spacing.sm,
-      paddingVertical: spacing.xs,
-    },
-    debugText: {
-      ...typography.small,
-      color: colors.text.secondary,
-    },
-  });
-}
+const styles = StyleSheet.create({
+  wrapper: {
+    marginBottom: spacing.md,
+  },
+  actionBackground: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.lg,
+    backgroundColor: 'rgba(99, 102, 241, 0.12)',
+  },
+  leftActionText: {
+    ...typography.caption,
+    color: colors.accent,
+    fontWeight: '700',
+  },
+  rightActionText: {
+    ...typography.caption,
+    color: colors.success,
+    fontWeight: '700',
+  },
+  animatedCard: {
+    borderRadius: borderRadius.lg,
+    ...shadows.sm,
+  },
+  pressable: {
+    borderRadius: borderRadius.lg,
+  },
+  debugBadge: {
+    marginTop: spacing.xs,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  debugText: {
+    ...typography.small,
+    color: colors.textSecondary,
+  },
+});

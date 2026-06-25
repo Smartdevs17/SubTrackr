@@ -6,11 +6,7 @@ function addMonths(date: Date, months: number): Date {
   result.setDate(1);
   result.setMonth(result.getMonth() + months);
 
-  const daysInTargetMonth = new Date(
-    result.getFullYear(),
-    result.getMonth() + 1,
-    0
-  ).getDate();
+  const daysInTargetMonth = new Date(result.getFullYear(), result.getMonth() + 1, 0).getDate();
   result.setDate(Math.min(day, daysInTargetMonth));
 
   return result;
@@ -25,11 +21,7 @@ function addYears(date: Date, years: number): Date {
   result.setFullYear(result.getFullYear() + years);
   result.setMonth(month);
 
-  const daysInTargetMonth = new Date(
-    result.getFullYear(),
-    month + 1,
-    0
-  ).getDate();
+  const daysInTargetMonth = new Date(result.getFullYear(), month + 1, 0).getDate();
   result.setDate(Math.min(day, daysInTargetMonth));
 
   return result;

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { asyncStorageAdapter } from '../utils/storage';
 import { darkTheme, lightTheme, builtInThemes, createBrandTheme } from './themes';
 import type { Theme, BrandConfig } from './types';
 
@@ -63,7 +63,7 @@ export const useThemeStore = create<ThemeState>()(
     }),
     {
       name: 'subtrackr-theme',
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => asyncStorageAdapter),
       partialize: (s) => ({ activeThemeId: s.activeThemeId, customThemes: s.customThemes }),
       onRehydrateStorage: () => (state) => {
         if (state) {

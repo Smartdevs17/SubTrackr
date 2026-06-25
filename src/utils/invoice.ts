@@ -169,21 +169,21 @@ export const buildProratedInvoice = (
   notes?: string
 ): Invoice => {
   const lineItems: InvoiceLineItem[] = [];
-  
+
   // Base subscription line item
   const baseLineItem = buildInvoiceLineItem(subscription, config, exchangeRate, taxRateBps);
   lineItems.push(baseLineItem);
-  
+
   // Add proration line item if applicable
   if (prorationPreview && prorationPreview.amount > 0) {
     const prorationLineItem = buildProrationLineItem(prorationPreview, config.defaultCurrency);
     lineItems.push(prorationLineItem);
   }
-  
+
   const totals = calculateInvoiceTotals(lineItems, taxRateBps);
   const createdAt = new Date();
   const dueDate = new Date(period.end.getTime() + config.paymentTermsDays * DAY);
-  
+
   return {
     id: `${subscription.id}-${sequence}`,
     invoiceNumber: formatInvoiceNumber(sequence, config),
@@ -203,6 +203,6 @@ export const buildProratedInvoice = (
     createdAt,
     updatedAt: createdAt,
     recipientEmail,
-    notes: notes ?? (prorationPreview?.description),
+    notes: notes ?? prorationPreview?.description,
   };
 };

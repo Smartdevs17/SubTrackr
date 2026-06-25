@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Switch,
   RefreshControl,
+  Share,
 } from 'react-native';
 import useRefresh from '../hooks/useRefresh';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -21,7 +22,6 @@ import { colors, spacing, typography } from '../utils/constants';
 import { getCategoryIcon } from '../utils/subscriptionHelpers';
 import { RootStackParamList } from '../navigation/types';
 import { useGroupStore } from '../store/groupStore';
-import { shareSubscriptionLink } from '../utils/shareLink';
 import { validateSubscriptionId } from '../utils/deepLinkValidator';
 
 // Components
@@ -67,8 +67,21 @@ const SubscriptionDetailScreen: React.FC = () => {
   }, [subscription]);
 
   const handleEdit = useCallback(() => {
-    navigation.navigate('EditSubscription', { id: subscription.id });
+    if (subscription) {
+      navigation.navigate('EditSubscription', { id: subscription.id });
+    }
   }, [subscription, navigation]);
+
+  const handleShare = useCallback(async () => {
+    if (!subscription) return;
+    try {
+      await Share.share({
+        message: `Check out my subscription to ${subscription.name} on SubTrackr!`,
+      });
+    } catch (error) {
+      console.error('Error sharing:', error);
+    }
+  }, [subscription]);
 
   const handlePauseResume = useCallback(async () => {
     if (!subscription) return;

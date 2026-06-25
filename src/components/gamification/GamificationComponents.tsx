@@ -79,15 +79,15 @@ export const LeaderboardList: React.FC<LeaderboardListProps> = ({ data }) => {
   const theme = useTheme();
 
   const renderItem = ({ item }: { item: LeaderboardEntry }) => (
-      <View
-        style={[
-          styles.leaderboardItem,
-          { borderBottomColor: theme.colors.border.default },
-          item.isCurrentUser && {
-            backgroundColor: theme.colors.brand.primary + '20',
-            borderRadius: 8,
-          },
-        ]}>
+    <View
+      style={[
+        styles.leaderboardItem,
+        { borderBottomColor: theme.colors.border.default },
+        item.isCurrentUser && {
+          backgroundColor: theme.colors.brand.primary + '20',
+          borderRadius: 8,
+        },
+      ]}>
       <Text style={[styles.rankText, { color: theme.colors.text.secondary }]}>{item.rank}</Text>
       <View style={styles.userInfo}>
         <Text style={[styles.userName, { color: theme.colors.text.primary }]}>
@@ -97,13 +97,17 @@ export const LeaderboardList: React.FC<LeaderboardListProps> = ({ data }) => {
           Lvl {item.level}
         </Text>
       </View>
-      <Text style={[styles.userPoints, { color: theme.colors.brand.primary }]}>{item.points} XP</Text>
+      <Text style={[styles.userPoints, { color: theme.colors.brand.primary }]}>
+        {item.points} XP
+      </Text>
     </View>
   );
 
   return (
     <View style={styles.leaderboardContainer}>
-      <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>Global Leaderboard</Text>
+      <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>
+        Global Leaderboard
+      </Text>
       {data.map((item) => (
         <React.Fragment key={item.name}>{renderItem({ item })}</React.Fragment>
       ))}

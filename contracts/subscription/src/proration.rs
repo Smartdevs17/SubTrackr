@@ -2,7 +2,8 @@ use soroban_sdk::{Address, Env, String};
 use subtrackr_types::{Interval, Subscription};
 
 /// Proration calculation result
-#[derive(Clone, Debug)]
+#[soroban_sdk::contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProrationResult {
     /// Amount to charge (positive) or credit (negative)
     pub amount: i128,
@@ -138,7 +139,8 @@ pub fn generate_credit_memo(
 }
 
 /// Credit memo structure for on-chain storage
-#[derive(Clone, Debug)]
+#[soroban_sdk::contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CreditMemo {
     pub subscription_id: u64,
     pub amount: i128,

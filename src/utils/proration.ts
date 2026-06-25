@@ -1,5 +1,5 @@
 import { Subscription, BillingCycle } from '../types/subscription';
-import { InvoiceLineItem, InvoicePeriod } from '../types/invoice';
+import { InvoiceLineItem } from '../types/invoice';
 
 export interface ProrationPreview {
   amount: number;
@@ -22,14 +22,9 @@ export interface CreditMemo {
 }
 
 const DAYS_IN_CYCLE: Record<BillingCycle, number> = {
-  [BillingCycle.DAILY]: 1,
   [BillingCycle.WEEKLY]: 7,
-  [BillingCycle.BIWEEKLY]: 14,
   [BillingCycle.MONTHLY]: 30,
-  [BillingCycle.BIMONTHLY]: 60,
-  [BillingCycle.QUARTERLY]: 90,
-  [BillingCycle.SEMI_ANNUALLY]: 182,
-  [BillingCycle.ANNUALLY]: 365,
+  [BillingCycle.YEARLY]: 365,
   [BillingCycle.CUSTOM]: 30,
 };
 
@@ -52,7 +47,7 @@ export function getRemainingDays(subscription: Subscription): number {
 
 /**
  * Preview proration before confirming plan change
- * 
+ *
  * Formula: (newRate - oldRate) * remainingDays / periodDays
  */
 export function previewProration(
@@ -61,20 +56,20 @@ export function previewProration(
   effectiveDate: 'immediate' | 'end_of_period' = 'immediate'
 ): ProrationPreview {
   const periodDays = getPeriodDays(currentSubscription.billingCycle);
-  const remainingDays = effectiveDate === 'end_of_period' ? 0 : getRemainingDays(currentSubscription);
-  
+  const remainingDays =
+    effectiveDate === 'end_of_period' ? 0 : getRemainingDays(currentSubscription);
+
   const oldRate = currentSubscription.price;
   const oldDailyRate = oldRate / periodDays;
   const newDailyRate = newPrice / periodDays;
-  
-  const rawAmount = effectiveDate === 'end_of_period' 
-    ? 0 
-    : (newPrice - oldRate) * remainingDays / periodDays;
-  
+
+  const rawAmount =
+    effectiveDate === 'end_of_period' ? 0 : ((newPrice - oldRate) * remainingDays) / periodDays;
+
   // Round to 2 decimal places for currency
   const amount = Math.round(Math.abs(rawAmount) * 100) / 100;
   const isCredit = rawAmount < 0;
-  
+
   let description: string;
   if (amount === 0) {
     description = 'No proration required';
@@ -83,7 +78,7 @@ export function previewProration(
   } else {
     description = `Prorated charge of ${amount} for plan upgrade (${remainingDays} days remaining)`;
   }
-  
+
   return {
     amount,
     isCredit,
@@ -154,10 +149,10 @@ export function applyCreditMemo(
   if (creditMemo.applied || creditMemo.remainingBalance <= 0) {
     return { finalCharge: chargeAmount, updatedMemo: creditMemo };
   }
-  
+
   const creditToApply = Math.min(chargeAmount, creditMemo.remainingBalance);
   const newRemaining = creditMemo.remainingBalance - creditToApply;
-  
+
   return {
     finalCharge: Math.round((chargeAmount - creditToApply) * 100) / 100,
     updatedMemo: {
@@ -173,10 +168,14 @@ export function applyCreditMemo(
  */
 export function calculateNetProration(
   currentSubscription: Subscription,
-  priceChanges: Array<{ oldPrice: number; newPrice: number; effectiveDate: 'immediate' | 'end_of_period' }>
+  priceChanges: {
+    oldPrice: number;
+    newPrice: number;
+    effectiveDate: 'immediate' | 'end_of_period';
+  }[]
 ): ProrationPreview {
   let netAmount = 0;
-  
+
   for (const change of priceChanges) {
     const result = previewProration(
       { ...currentSubscription, price: change.oldPrice },
@@ -185,10 +184,10 @@ export function calculateNetProration(
     );
     netAmount += result.isCredit ? -result.amount : result.amount;
   }
-  
+
   const isCredit = netAmount < 0;
   const amount = Math.round(Math.abs(netAmount) * 100) / 100;
-  
+
   return {
     amount,
     isCredit,
@@ -196,9 +195,10 @@ export function calculateNetProration(
     periodDays: getPeriodDays(currentSubscription.billingCycle),
     oldDailyRate: 0,
     newDailyRate: 0,
-    description: amount === 0 
-      ? 'No net proration for multiple plan changes'
-      : `Net ${isCredit ? 'credit' : 'charge'} of ${amount} for multiple plan changes`,
+    description:
+      amount === 0
+        ? 'No net proration for multiple plan changes'
+        : `Net ${isCredit ? 'credit' : 'charge'} of ${amount} for multiple plan changes`,
     effectiveDate: 'immediate',
   };
 }

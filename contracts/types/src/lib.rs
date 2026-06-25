@@ -1,63 +1,26 @@
-//! Shared types crate for the SubTrackr smart-contract workspace — Issue #404.
-//!
-//! # Purpose
-//! Provides a single, versioned source of truth for all data structures shared
-//! across contract crates (`subscription`, `invoice`, `oracle`, `batch`, …).
-//! Every contract crate must import types from here rather than re-defining them.
-//!
-//! # Versioning
-//! The `TYPES_VERSION` constant is incremented whenever a **breaking** change
-//! is introduced (field removal, type change, variant reordering).  Non-breaking
-//! additions (new optional fields, new enum variants appended at the end) do
-//! **not** require a version bump.
-//!
-//! See `docs/TYPES_MIGRATION.md` for the migration guide and backward
-//! compatibility policy.
-//!
-//! # Re-export policy
-//! All public items in this crate are re-exported from each contract crate's
-//! root via `pub use subtrackr_types::*;` so downstream users only need one
-//! import path.
-
 #![no_std]
 
-use soroban_sdk::{contracttype, Address, BytesN, String, Vec};
-
-/// Current schema version of this types crate.
-///
-/// Increment this constant whenever a backward-incompatible change is made
-/// (field removal, type narrowing, enum variant reordering).  All deployed
-/// contracts embed this value in their storage so a version mismatch can be
-/// detected at upgrade time.
-pub const TYPES_VERSION: u32 = 1;
+use soroban_sdk::{contracttype, Address, BytesN, String, Symbol, Vec};
 
 /// Billing interval in seconds.
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
 pub enum Interval {
-    Daily,         // 86400s
-    Weekly,        // 604800s
-    BiWeekly,      // 1209600s (14 days)
-    Monthly,       // 2592000s (30 days)
-    BiMonthly,     // 5184000s (60 days)
-    Quarterly,     // 7776000s (90 days)
-    SemiAnnually,  // 15724800s (182 days)
-    Yearly,        // 31536000s (365 days)
-    Custom(u64),   // Custom interval in seconds
+    Daily,     // 86400s
+    Weekly,    // 604800s
+    Monthly,   // 2592000s (30 days)
+    Quarterly, // 7776000s (90 days)
+    Yearly,    // 31536000s (365 days)
 }
 
 impl Interval {
     pub fn seconds(&self) -> u64 {
         match self {
-            Interval::Daily        => 86_400,
-            Interval::Weekly       => 604_800,
-            Interval::BiWeekly     => 1_209_600,
-            Interval::Monthly      => 2_592_000,
-            Interval::BiMonthly    => 5_184_000,
-            Interval::Quarterly    => 7_776_000,
-            Interval::SemiAnnually => 15_724_800,
-            Interval::Yearly       => 31_536_000,
-            Interval::Custom(secs) => *secs,
+            Interval::Daily => 86_400,
+            Interval::Weekly => 604_800,
+            Interval::Monthly => 2_592_000,
+            Interval::Quarterly => 7_776_000,
+            Interval::Yearly => 31_536_000,
         }
     }
 }
@@ -291,62 +254,6 @@ pub struct Subscription {
     pub refund_requested_amount: i128,
 }
 
-/// Configuration for flexible billing schedules (Issue #170).
-#[contracttype]
-#[derive(Clone, Debug, PartialEq)]
-pub struct BillingSchedule {
-    pub interval: Interval,
-    /// Timestamp of the billing cycle start (0 = first charge date).
-    pub start_date: u64,
-    /// Trial period in days before first charge.
-    pub trial_period_days: u32,
-    /// Promotional rate applied during the promotional period (0 = no promo).
-    pub promotional_rate: i128,
-    /// Duration in days the promotional rate is active (0 = no promo).
-    pub promotional_duration_days: u32,
-    /// Preferred day of month for invoice generation (1-31, 0 = use interval).
-    pub custom_invoice_day: u32,
-}
-
-/// State of a multi-step charge attempt (Issue #169).
-#[contracttype]
-#[derive(Clone, Debug, PartialEq)]
-pub enum ChargeStatus {
-    Pending,
-    Attempting,
-    Failed,
-    Retrying,
-    Completed,
-    Exhausted,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, PartialEq)]
-pub struct ChargeAttempt {
-    pub id: u64,
-    pub subscription_id: u64,
-    pub status: ChargeStatus,
-    pub amount: i128,
-    pub attempted_at: u64,
-    pub completed_at: u64,
-    pub error_message: String,
-    pub retry_count: u32,
-    pub max_retries: u32,
-    pub next_retry_at: u64,
-    pub circuit_breaker_until: u64,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, PartialEq)]
-pub struct RetryConfig {
-    pub max_retries: u32,
-    pub base_delay_secs: u64,
-    pub max_delay_secs: u64,
-    pub backoff_factor: u32,
-    pub circuit_breaker_threshold: u32,
-    pub circuit_breaker_cooldown_secs: u64,
-}
-
 pub type Timestamp = u64;
 
 #[contracttype]
@@ -513,6 +420,7 @@ pub enum RiskSignalKind {
     Chargeback,
     PatternShift,
     DeviceMismatch,
+    GeolocationAnomaly,
 }
 
 #[contracttype]
@@ -526,6 +434,16 @@ pub struct RiskSignal {
 
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
+pub struct FraudEvidence {
+    pub label: String,
+    pub value: String,
+    pub source: String,
+    pub captured_at: Timestamp,
+    pub confidence: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
 pub struct RiskScore {
     pub subscriber: Address,
     pub subscription_id: SubscriptionId,
@@ -534,10 +452,14 @@ pub struct RiskScore {
     pub velocity_score: u32,
     pub anomaly_score: u32,
     pub chargeback_score: u32,
+    pub device_mismatch_score: u32,
+    pub geolocation_score: u32,
+    pub pattern_shift_score: u32,
     pub action: FraudAction,
     pub reason: String,
     pub assessed_at: Timestamp,
     pub signals: Vec<RiskSignal>,
+    pub evidence: Vec<FraudEvidence>,
 }
 
 #[contracttype]
@@ -553,6 +475,8 @@ pub struct FraudCase {
     pub reason: String,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
+    pub evidence: Vec<FraudEvidence>,
+    pub reviewed_at: Timestamp,
 }
 
 #[contracttype]
@@ -566,23 +490,14 @@ pub struct FraudReport {
     pub average_risk: u32,
     pub velocity_alerts: u32,
     pub anomaly_alerts: u32,
+    pub geolocation_alerts: u32,
     pub chargeback_predictions: u32,
     pub high_risk_subscribers: u32,
+    pub pending_evidence_count: u32,
+    pub false_positive_feedback_count: u32,
     pub recent_cases: Vec<FraudCase>,
 }
 
-// ── Loyalty & Rewards types ──
-
-#[contracttype]
-#[derive(Clone, Debug, PartialEq)]
-pub enum PointTxType {
-    Earned,
-    Redeemed,
-    Expired,
-    ReferralBonus,
-    StreakBonus,
-    Achievement,
-}
 // ── Access Control Types ──
 
 #[contracttype]
@@ -596,14 +511,6 @@ pub enum Role {
 
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
-pub struct LoyaltyTierConfig {
-    pub name: String,
-    pub points_threshold: u64,
-    pub discount_rate_bps: u32,
-    pub priority_support: bool,
-    pub reduced_fees_bps: u32,
-}
-
 pub enum Permission {
     GrantRole,
     RevokeRole,
@@ -639,12 +546,6 @@ pub enum Permission {
 
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
-pub struct LoyaltyConfig {
-    pub points_per_dollar: u64,
-    pub expiration_days: u64,
-    pub tiers: Vec<LoyaltyTierConfig>,
-    pub streak_bonus_threshold: u64,
-}
 pub enum RoleChangeAction {
     Granted,
     Revoked,
@@ -652,25 +553,6 @@ pub enum RoleChangeAction {
 
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
-pub struct PointTransaction {
-    pub id: u64,
-    pub subscriber: Address,
-    pub amount: i128,
-    pub tx_type: PointTxType,
-    pub timestamp: u64,
-    pub reference_id: u64,
-    pub description: String,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, PartialEq)]
-pub struct RewardsRedemption {
-    pub id: u64,
-    pub subscriber: Address,
-    pub points_cost: u64,
-    pub discount_amount: i128,
-    pub timestamp: u64,
-}
 pub struct RoleChangeEntry {
     pub id: u64,
     pub user: Address,
@@ -691,6 +573,13 @@ pub enum DigitalGoodsClass {
     Exempt,
     ReducedRate,
     TelecomService,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum MaybeDigitalGoodsClass {
+    None,
+    Some(DigitalGoodsClass),
 }
 
 /// A tax rate entry for a specific jurisdiction and tax type.
@@ -717,7 +606,7 @@ pub struct CustomerTaxStatus {
     pub certificate_expiry: Timestamp,
     pub issuing_authority: String,
     pub exempt_jurisdictions: Vec<String>,
-    pub digital_goods_override: Option<DigitalGoodsClass>,
+    pub digital_goods_override: MaybeDigitalGoodsClass,
 }
 
 /// A single line in a tax remittance report recording collected tax by jurisdiction.
@@ -808,42 +697,6 @@ pub enum StorageKey {
     /// Usage record for a subscription and metric (sub_id, metric -> UsageRecord)
     SubscriptionUsage(u64, QuotaMetric),
 
-    // ── Added in storage version 5 (API Key & Rate Limiting) ──
-    ApiKey(u64),
-    ApiKeyCount,
-    ApiKeysByOwner(Address),
-    ApiKeyAudit(u64),
-    ApiKeyAuditCount,
-    RateLimitMinute(u64, u64),
-    RateLimitHour(u64, u64),
-    RateLimitDay(u64, u64),
-    ApiUsage(u64, u64),
-   // ── Added in storage version 5 (Oracle Integration) ──
-    // ── Added in storage version 5 (Loyalty & Rewards) ──
-    /// Global loyalty program config.
-    LoyaltyConfig,
-    /// Current points balance for a subscriber.
-    LoyaltyPoints(Address),
-    /// Lifetime points earned for a subscriber.
-    LifetimePoints(Address),
-    /// Total amount spent by a subscriber.
-    TotalSpent(Address),
-    /// When the subscriber enrolled in the loyalty program.
-    MemberSince(Address),
-    /// Current consecutive on-time charge streak.
-    Streak(Address),
-    /// Timestamp of the last charge processed (for streak calculation).
-    LastChargeAt(Address),
-    /// When the subscriber's current points balance expires.
-    PointsExpiration(Address),
-    /// Counter for point transaction IDs.
-    PointTxCount,
-    /// Individual point transaction record.
-    PointTx(u64),
-    /// Counter for redemption IDs.
-    RedemptionCount,
-    /// Individual redemption record.
-    Redemption(u64),
     // ── Added in storage version 5 (Access Control) ──
     /// Address of the access_control contract for RBAC.
     AccessControl,
@@ -874,6 +727,23 @@ pub enum StorageKey {
     /// Temporary nonce used to deduplicate rapid charge attempts within a
     /// single ledger sequence window.  Expires after one ledger close (~5 s).
     TmpChargeNonce(u64),
+
+    // ── Added in storage version 7 (Plan limits) ──
+    /// Global maximum number of plans a merchant can create.
+    /// Stored in instance storage; if unset, the implementation default applies.
+    MaxPlansPerMerchant,
+}
+
+/// Slippage protection bounds for oracle-based pricing.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PriceBounds {
+    /// Maximum allowed price as basis points of the stored plan price (e.g. 10500 = +5%).
+    pub max_price_bps: u32,
+    /// Minimum allowed price as basis points of the stored plan price (e.g. 9500 = -5%).
+    pub min_price_bps: u32,
+    /// Quote currency symbol used for price lookup (e.g. "USD").
+    pub quote: Symbol,
 }
 
 pub type ApiKeyId = u64;
@@ -928,8 +798,8 @@ impl UsageTier {
     pub fn price_per_thousand(&self) -> i128 {
         match self {
             UsageTier::Free => 0,
-            UsageTier::Basic => 1,    // 0.001 per 1k requests (in stroops)
-            UsageTier::Pro => 5,      // 0.005 per 1k
+            UsageTier::Basic => 1,       // 0.001 per 1k requests (in stroops)
+            UsageTier::Pro => 5,         // 0.005 per 1k
             UsageTier::Enterprise => 10, // 0.01 per 1k
         }
     }
@@ -1008,16 +878,4 @@ pub struct ApiKeyAuditEntry {
     pub action: String,
     pub changed_by: Address,
     pub timestamp: u64,
-}
-
-/// Slippage protection bounds for oracle-based pricing.
-#[contracttype]
-#[derive(Clone, Debug, PartialEq)]
-pub struct PriceBounds {
-    /// Maximum allowed price as basis points of the stored plan price (e.g. 10500 = +5%).
-    pub max_price_bps: u32,
-    /// Minimum allowed price as basis points of the stored plan price (e.g. 9500 = -5%).
-    pub min_price_bps: u32,
-    /// Quote currency symbol used for price lookup (e.g. "USD").
-    pub quote: String,
 }

@@ -33,11 +33,7 @@ export const SettingsScreen = () => {
             onPress={() => setMode(option)}>
             <View style={styles.modeTextWrap}>
               <Text style={styles.modeLabel}>
-                {option === 'system'
-                  ? 'Follow System'
-                  : option === 'light'
-                    ? 'Light'
-                    : 'Dark'}
+                {option === 'system' ? 'Follow System' : option === 'light' ? 'Light' : 'Dark'}
               </Text>
               <Text style={styles.modeSubLabel}>
                 {option === 'system'

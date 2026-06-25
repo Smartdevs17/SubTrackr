@@ -101,7 +101,9 @@ export const SegmentDetailScreen: React.FC = () => {
         />
 
         <View style={styles.pricingSection}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>Pricing Rules</Text>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>
+            Pricing Rules
+          </Text>
           <Text style={[styles.label, { color: theme.colors.text.secondary }]}>
             Discount Percentage (%)
           </Text>

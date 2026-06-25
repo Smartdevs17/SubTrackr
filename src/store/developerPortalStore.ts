@@ -1,15 +1,14 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import { asyncStorageAdapter } from '../utils/storage';
 import {
   DeveloperProfile,
-  ApiKey,
   ApiKeyPermission,
-  ApiKeyStatus,
-  UsageStats,
-  UsageRecord,
   OnboardingStep,
   DocumentationSection,
   IntegrationGuide,
 } from '../types/developerPortal';
+import { ApiKey, ApiKeyStatus, UsageStats, UsageMetric } from '../types/sandbox';
 import { developerPortalService } from '../services/sandbox/developerPortalService';
 import { apiKeyService } from '../services/sandbox/apiKeyService';
 import { usageTrackingService } from '../services/sandbox/usageTrackingService';
@@ -19,7 +18,7 @@ interface DeveloperPortalState {
   developer: DeveloperProfile | null;
   apiKeys: ApiKey[];
   usageStats: UsageStats | null;
-  recentUsage: UsageRecord[];
+  recentUsage: UsageMetric[];
   onboardingSteps: OnboardingStep[];
   documentation: DocumentationSection[];
   integrationGuides: IntegrationGuide[];
@@ -61,7 +60,9 @@ interface DeveloperPortalState {
   clearError: () => void;
 }
 
-export const useDeveloperPortalStore = create<DeveloperPortalState>()((set, get) => ({
+export const useDeveloperPortalStore = create<DeveloperPortalState>()(
+  persist(
+    (set, get) => ({
   developer: null,
   apiKeys: [],
   usageStats: null,
@@ -100,10 +101,7 @@ export const useDeveloperPortalStore = create<DeveloperPortalState>()((set, get)
   fetchDeveloper: async (developerId: string) => {
     set({ isLoading: true, error: null });
     try {
-      await Promise.all([
-        developerPortalService.loadDevelopers(),
-        apiKeyService.loadApiKeys(),
-      ]);
+      await Promise.all([developerPortalService.loadDevelopers(), apiKeyService.loadApiKeys()]);
 
       const developer = await developerPortalService.getDeveloper(developerId);
       if (!developer) {
@@ -137,10 +135,7 @@ export const useDeveloperPortalStore = create<DeveloperPortalState>()((set, get)
 
     set({ isLoading: true, error: null });
     try {
-      const updated = await developerPortalService.updateDeveloper(
-        developer.id,
-        updates
-      );
+      const updated = await developerPortalService.updateDeveloper(developer.id, updates);
       set({ developer: updated, isLoading: false });
     } catch (error) {
       set({
@@ -168,10 +163,18 @@ export const useDeveloperPortalStore = create<DeveloperPortalState>()((set, get)
     }
   },
 
-  createApiKey: async (developerId, name, permissions, _options) => {
+  createApiKey: async (
+    developerId: string,
+    name: string,
+    permissions?: ApiKeyPermission[],
+    _options?: { rateLimit?: number; dailyLimit?: number; expiresAt?: Date }
+  ) => {
     set({ isLoading: true, error: null });
     try {
-      const permissionStrings = permissions?.map((p) => p.toString()) || ['read', 'write'];
+      const permissionStrings = permissions?.map((p: ApiKeyPermission) => p.toString()) || [
+        'read',
+        'write',
+      ];
       const apiKey = await apiKeyService.createApiKey(
         developerId,
         name,
@@ -183,10 +186,7 @@ export const useDeveloperPortalStore = create<DeveloperPortalState>()((set, get)
         isLoading: false,
       }));
 
-      await developerPortalService.completeOnboardingStep(
-        developerId,
-        'generate-api-key'
-      );
+      await developerPortalService.completeOnboardingStep(developerId, 'generate-api-key');
 
       const steps = await developerPortalService.getOnboardingSteps(developerId);
       set({ onboardingSteps: steps });
@@ -278,10 +278,7 @@ export const useDeveloperPortalStore = create<DeveloperPortalState>()((set, get)
   fetchRecentUsage: async (developerId, limit) => {
     set({ isLoading: true, error: null });
     try {
-      const recentUsage = await usageTrackingService.getRecentMetrics(
-        developerId,
-        limit
-      );
+      const recentUsage = await usageTrackingService.getRecentMetrics(developerId, limit);
       set({ recentUsage, isLoading: false });
     } catch (error) {
       set({
@@ -304,10 +301,7 @@ export const useDeveloperPortalStore = create<DeveloperPortalState>()((set, get)
 
   completeOnboardingStep: async (developerId, stepId) => {
     try {
-      const steps = await developerPortalService.completeOnboardingStep(
-        developerId,
-        stepId
-      );
+      const steps = await developerPortalService.completeOnboardingStep(developerId, stepId);
       if (steps) {
         set({ onboardingSteps: steps });
       }
@@ -337,4 +331,27 @@ export const useDeveloperPortalStore = create<DeveloperPortalState>()((set, get)
   },
 
   clearError: () => set({ error: null }),
-}));
+    }),
+    {
+      name: 'subtrackr-developer-portal',
+      storage: createJSONStorage(() => asyncStorageAdapter),
+      partialize: (state) => ({
+        developer: state.developer,
+        apiKeys: state.apiKeys,
+        onboardingSteps: state.onboardingSteps,
+      }),
+      onRehydrateStorage: () => (_state, error) => {
+        if (error) {
+          console.warn('[developerPortalStore] Hydration error — resetting:', error);
+          useDeveloperPortalStore.setState({
+            developer: null,
+            apiKeys: [],
+            onboardingSteps: [],
+            isLoading: false,
+            error: null,
+          });
+        }
+      },
+    }
+  )
+);

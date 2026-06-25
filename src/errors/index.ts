@@ -12,7 +12,8 @@ export class AppError extends Error {
     cause?: unknown,
     context?: Record<string, any>
   ) {
-    const fullMessage = cause instanceof Error ? `${userMessage} (Caused by: ${cause.message})` : userMessage;
+    const fullMessage =
+      cause instanceof Error ? `${userMessage} (Caused by: ${cause.message})` : userMessage;
     super(fullMessage);
     this.name = 'AppError';
     this.code = code;

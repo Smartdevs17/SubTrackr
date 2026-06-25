@@ -32,7 +32,7 @@ export interface CalendarInvoice {
   subscriptionId: string;
   merchantId: string;
   periodStart: string; // ISO date string
-  periodEnd: string;   // ISO date string
+  periodEnd: string; // ISO date string
   billingDate: string; // ISO date string — the actual calendar-adjusted date
   amount: number;
   currency: string;
@@ -139,7 +139,7 @@ export const SUBSCRIPTION_TIMEZONES = [
   'Pacific/Auckland',
 ] as const;
 
-export type SubscriptionTimezone = typeof SUBSCRIPTION_TIMEZONES[number];
+export type SubscriptionTimezone = (typeof SUBSCRIPTION_TIMEZONES)[number];
 
 export interface CalendarSyncedEvent extends CalendarEventTemplate {
   id: string;

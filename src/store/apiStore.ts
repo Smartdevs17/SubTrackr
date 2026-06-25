@@ -1,13 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import {
-  ApiKey,
-  ApiKeyStatus,
-  ApiKeyScope,
-  RateLimitConfig,
-  UsageStats,
-} from '../types/sandbox';
+import { asyncStorageAdapter } from '../utils/storage';
+import { ApiKey, ApiKeyStatus, ApiKeyScope, RateLimitConfig, UsageStats } from '../types/sandbox';
 
 const STORAGE_KEY = 'subtrackr-api-keys';
 const STORE_VERSION = 1;
@@ -26,9 +20,24 @@ const generateKeyString = (prefix = 'sk_'): string => {
 
 const DEFAULT_RATE_LIMITS: Record<string, RateLimitConfig> = {
   free: { requestsPerMinute: 100, requestsPerHour: 1000, requestsPerDay: 10000, burstLimit: 10 },
-  basic: { requestsPerMinute: 1000, requestsPerHour: 10000, requestsPerDay: 100000, burstLimit: 50 },
-  pro: { requestsPerMinute: 10000, requestsPerHour: 100000, requestsPerDay: 1000000, burstLimit: 200 },
-  enterprise: { requestsPerMinute: 100000, requestsPerHour: 1000000, requestsPerDay: 10000000, burstLimit: 1000 },
+  basic: {
+    requestsPerMinute: 1000,
+    requestsPerHour: 10000,
+    requestsPerDay: 100000,
+    burstLimit: 50,
+  },
+  pro: {
+    requestsPerMinute: 10000,
+    requestsPerHour: 100000,
+    requestsPerDay: 1000000,
+    burstLimit: 200,
+  },
+  enterprise: {
+    requestsPerMinute: 100000,
+    requestsPerHour: 1000000,
+    requestsPerDay: 10000000,
+    burstLimit: 1000,
+  },
 };
 
 interface ApiKeyState {
@@ -81,9 +90,7 @@ export const useApiStore = create<ApiKeyState>()(
       revokeApiKey: (keyId: string) => {
         set((state) => ({
           apiKeys: state.apiKeys.map((k) =>
-            k.id === keyId
-              ? { ...k, status: ApiKeyStatus.REVOKED, updatedAt: new Date() }
-              : k
+            k.id === keyId ? { ...k, status: ApiKeyStatus.REVOKED, updatedAt: new Date() } : k
           ),
         }));
       },
@@ -94,9 +101,7 @@ export const useApiStore = create<ApiKeyState>()(
         const newKey = generateKeyString();
         set((state) => ({
           apiKeys: state.apiKeys.map((k) =>
-            k.id === keyId
-              ? { ...k, key: newKey, lastUsedAt: null, updatedAt: new Date() }
-              : k
+            k.id === keyId ? { ...k, key: newKey, lastUsedAt: null, updatedAt: new Date() } : k
           ),
         }));
         return newKey;
@@ -155,7 +160,7 @@ export const useApiStore = create<ApiKeyState>()(
     {
       name: STORAGE_KEY,
       version: STORE_VERSION,
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => asyncStorageAdapter),
     }
   )
 );

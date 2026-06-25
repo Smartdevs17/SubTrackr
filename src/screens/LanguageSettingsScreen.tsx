@@ -67,73 +67,73 @@ const LanguageSettingsScreen = () => {
 
 function createStyles(colors: ReturnType<typeof useThemeColors>) {
   return StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background.primary,
-  },
-  header: {
-    padding: 20,
-    backgroundColor: colors.background.card,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginTop: 5,
-  },
-  list: {
-    padding: 15,
-  },
-  item: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    backgroundColor: colors.background.card,
-    borderRadius: 12,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  activeItem: {
-    borderColor: colors.primary,
-    backgroundColor: colors.background.secondary,
-  },
-  nativeName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  englishName: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  activeText: {
-    color: colors.primary,
-  },
-  checkmark: {
-    fontSize: 20,
-    color: colors.primary,
-    fontWeight: 'bold',
-  },
-  footer: {
-    padding: 30,
-    alignItems: 'center',
-  },
-  footerText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-});
+    container: {
+      flex: 1,
+      backgroundColor: colors.background.primary,
+    },
+    header: {
+      padding: 20,
+      backgroundColor: colors.background.card,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border.default,
+    },
+    title: {
+      fontSize: 24,
+      fontWeight: '700',
+      color: colors.text.primary,
+    },
+    subtitle: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      marginTop: 5,
+    },
+    list: {
+      padding: 15,
+    },
+    item: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: 20,
+      backgroundColor: colors.background.card,
+      borderRadius: 12,
+      marginBottom: 10,
+      borderWidth: 1,
+      borderColor: colors.border.default,
+    },
+    activeItem: {
+      borderColor: colors.primary,
+      backgroundColor: colors.background.secondary,
+    },
+    nativeName: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: colors.text.primary,
+    },
+    englishName: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    activeText: {
+      color: colors.primary,
+    },
+    checkmark: {
+      fontSize: 20,
+      color: colors.primary,
+      fontWeight: 'bold',
+    },
+    footer: {
+      padding: 30,
+      alignItems: 'center',
+    },
+    footerText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      lineHeight: 18,
+    },
+  });
 }
 
 export default LanguageSettingsScreen;

@@ -80,6 +80,24 @@ fn setup_integration() -> IntegrationSetup {
     }
 }
 
+fn setup_proxy_only() -> (Env, Address, Address, Address) {
+    let env = Env::default();
+    env.mock_all_auths_allowing_non_root_auth();
+    env.ledger().set_timestamp(1_700_000_000);
+
+    let admin = Address::generate(&env);
+    let merchant = Address::generate(&env);
+
+    let storage_id = env.register_contract(None, SubTrackrStorage);
+    let implementation_id = env.register_contract(None, SubTrackrSubscription);
+
+    let proxy_id = env.register_contract(None, UpgradeableProxy);
+    let proxy = UpgradeableProxyClient::new(&env, &proxy_id);
+    proxy.initialize(&admin, &storage_id, &implementation_id, &0u64, &0u64);
+
+    (env, proxy_id, admin, merchant)
+}
+
 #[test]
 fn integration_contract_deploys_and_state_persists() {
     let setup = setup_integration();
@@ -195,4 +213,87 @@ fn integration_multiple_contract_interactions_work() {
 
     assert_eq!(token.balance(&setup.merchant), 500);
     assert_eq!(second_token.balance(&second_merchant), 900);
+}
+
+#[test]
+fn integration_plan_limit_blocks_third_plan() {
+    let (env, proxy_id, _admin, merchant) = setup_proxy_only();
+    let proxy = UpgradeableProxyClient::new(&env, &proxy_id);
+
+    proxy.set_max_plans_per_merchant(&2u32);
+
+    let token_admin = Address::generate(&env);
+    let token_id = env.register_stellar_asset_contract_v2(token_admin);
+
+    let name = String::from_str(&env, "Limited Plan");
+    proxy.create_plan(
+        &merchant,
+        &name,
+        &500,
+        &token_id.address(),
+        &Interval::Monthly,
+    );
+    proxy.create_plan(
+        &merchant,
+        &name,
+        &600,
+        &token_id.address(),
+        &Interval::Monthly,
+    );
+
+    let res = proxy.try_create_plan(
+        &merchant,
+        &name,
+        &700,
+        &token_id.address(),
+        &Interval::Monthly,
+    );
+    assert!(res.is_err());
+}
+
+#[test]
+fn integration_lowering_plan_limit_does_not_affect_existing_plans() {
+    let (env, proxy_id, _admin, merchant) = setup_proxy_only();
+    let proxy = UpgradeableProxyClient::new(&env, &proxy_id);
+
+    let token_admin = Address::generate(&env);
+    let token_id = env.register_stellar_asset_contract_v2(token_admin);
+    let name = String::from_str(&env, "Plan");
+
+    let p1 = proxy.create_plan(
+        &merchant,
+        &name,
+        &100,
+        &token_id.address(),
+        &Interval::Monthly,
+    );
+    let p2 = proxy.create_plan(
+        &merchant,
+        &name,
+        &200,
+        &token_id.address(),
+        &Interval::Monthly,
+    );
+    let p3 = proxy.create_plan(
+        &merchant,
+        &name,
+        &300,
+        &token_id.address(),
+        &Interval::Monthly,
+    );
+
+    proxy.set_max_plans_per_merchant(&2u32);
+
+    assert!(proxy.get_plan(&p1).active);
+    assert!(proxy.get_plan(&p2).active);
+    assert!(proxy.get_plan(&p3).active);
+
+    let res = proxy.try_create_plan(
+        &merchant,
+        &name,
+        &400,
+        &token_id.address(),
+        &Interval::Monthly,
+    );
+    assert!(res.is_err());
 }

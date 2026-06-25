@@ -23,7 +23,7 @@ const EXAMPLE_ENDPOINTS = [
 ];
 
 const ApiTesterScreen: React.FC = () => {
-  const { developer, apiKeys } = useDeveloperPortalStore();
+  const { apiKeys } = useDeveloperPortalStore();
   const [selectedMethod, setSelectedMethod] = useState('GET');
   const [endpoint, setEndpoint] = useState('/api/v1/subscriptions');
   const [selectedApiKey, setSelectedApiKey] = useState('');
@@ -90,7 +90,7 @@ const ApiTesterScreen: React.FC = () => {
     }
   };
 
-  const loadExample = (example: typeof EXAMPLE_ENDPOINTS[0]) => {
+  const loadExample = (example: (typeof EXAMPLE_ENDPOINTS)[0]) => {
     setSelectedMethod(example.method);
     setEndpoint(example.path);
     if (example.method === 'POST' || example.method === 'PUT') {
@@ -133,10 +133,7 @@ const ApiTesterScreen: React.FC = () => {
             {activeKeys.map((key) => (
               <TouchableOpacity
                 key={key.id}
-                style={[
-                  styles.keyChip,
-                  selectedApiKey === key.id && styles.keyChipSelected,
-                ]}
+                style={[styles.keyChip, selectedApiKey === key.id && styles.keyChipSelected]}
                 onPress={() => setSelectedApiKey(key.id)}>
                 <Text
                   style={[
@@ -157,7 +154,10 @@ const ApiTesterScreen: React.FC = () => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Request</Text>
           <View style={styles.requestRow}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.methodScroll}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.methodScroll}>
               {HTTP_METHODS.map((method) => (
                 <TouchableOpacity
                   key={method}
@@ -252,16 +252,11 @@ const ApiTesterScreen: React.FC = () => {
           <View style={styles.section}>
             <View style={styles.responseHeader}>
               <Text style={styles.sectionTitle}>Response</Text>
-              {responseTime && (
-                <Text style={styles.responseTime}>{responseTime}ms</Text>
-              )}
+              {responseTime && <Text style={styles.responseTime}>{responseTime}ms</Text>}
             </View>
             <View style={styles.statusRow}>
               <View
-                style={[
-                  styles.statusBadge,
-                  { backgroundColor: getStatusColor(response.status) },
-                ]}>
+                style={[styles.statusBadge, { backgroundColor: getStatusColor(response.status) }]}>
                 <Text style={styles.statusText}>
                   {response.status} {response.statusText}
                 </Text>
