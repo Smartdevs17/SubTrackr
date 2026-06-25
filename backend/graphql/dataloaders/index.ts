@@ -10,6 +10,8 @@
  */
 
 import { Pool } from '../../shared/db/connectionPool';
+import { getPlanCacheService } from '../../subscription/planCacheRegistry';
+import { planMetadataToRow } from '../../subscription/domain/PostgresPlanRepository';
 
 // ── Minimal DataLoader-compatible interface ───────────────────────────────────
 // Install: npm i dataloader @types/dataloader
@@ -142,6 +144,15 @@ export async function createPlanLoader(pool: Pool): Promise<IDataLoader<string, 
   const { default: DataLoader } = await import('dataloader') as {
     default: new <K, V>(fn: (keys: readonly K[]) => Promise<Array<V | Error | null>>) => IDataLoader<K, V>;
   };
+
+  const planCache = getPlanCacheService();
+
+  if (planCache) {
+    return new DataLoader<string, PlanRow>(async (ids) => {
+      const plans = await Promise.all(ids.map((id) => planCache.getPlan(id)));
+      return plans.map((plan) => (plan ? planMetadataToRow(plan) : null));
+    });
+  }
 
   return new DataLoader<string, PlanRow>(async (ids) => {
     const result = await pool.query<PlanRow>(

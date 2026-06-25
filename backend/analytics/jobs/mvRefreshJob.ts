@@ -16,13 +16,9 @@ import type { PriorityClass } from '../../shared/queue';
 /** Background queue priority for MV refresh work. */
 export const MV_REFRESH_JOB_PRIORITY: PriorityClass = 'low';
 
-// ── View definitions ──────────────────────────────────────────────────────────
-
 interface ViewConfig {
   name: string;
-  /** Refresh interval in ms. */
   intervalMs: number;
-  /** Last successful refresh timestamp. */
   lastRefreshedAt: Date | null;
   isRefreshing: boolean;
 }
@@ -32,9 +28,10 @@ const DEFAULT_VIEWS: ViewConfig[] = [
   { name: 'subscriber_balance_mv',        intervalMs: 60_000,  lastRefreshedAt: null, isRefreshing: false },
   { name: 'monthly_revenue_mv',           intervalMs: 300_000, lastRefreshedAt: null, isRefreshing: false },
   { name: 'churn_summary_mv',             intervalMs: 300_000, lastRefreshedAt: null, isRefreshing: false },
+  { name: 'mrr_mv',                       intervalMs: 300_000, lastRefreshedAt: null, isRefreshing: false },
+  { name: 'cohort_retention_mv',          intervalMs: 3_600_000, lastRefreshedAt: null, isRefreshing: false },
+  { name: 'ltv_mv',                       intervalMs: 86_400_000, lastRefreshedAt: null, isRefreshing: false },
 ];
-
-// ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface RefreshMetric {
   viewName: string;
@@ -42,8 +39,6 @@ export interface RefreshMetric {
   lagMs: number;
   isStale: boolean;
 }
-
-// ── Job ───────────────────────────────────────────────────────────────────────
 
 export class MVRefreshJob {
   private db: QueryClient;
@@ -58,10 +53,7 @@ export class MVRefreshJob {
   start(): void {
     for (const view of this.views) {
       if (this.timers.has(view.name)) continue;
-
-      // Run immediately on start, then on interval
       void this.refresh(view.name);
-
       const timer = setInterval(
         () => void this.refresh(view.name),
         view.intervalMs,
@@ -77,7 +69,6 @@ export class MVRefreshJob {
     this.timers.clear();
   }
 
-  /** Refresh a single view by name. Skips if already refreshing. */
   async refresh(viewName: string): Promise<void> {
     const view = this.views.find((v) => v.name === viewName);
     if (!view || view.isRefreshing) return;
@@ -86,7 +77,6 @@ export class MVRefreshJob {
     const start = Date.now();
 
     try {
-      // CONCURRENTLY requires a unique index on the view — see migration 002
       await this.db.query(`REFRESH MATERIALIZED VIEW CONCURRENTLY ${viewName}`);
       view.lastRefreshedAt = new Date();
       console.info(`[MVRefreshJob] Refreshed ${viewName} in ${Date.now() - start}ms`);
@@ -97,7 +87,6 @@ export class MVRefreshJob {
     }
   }
 
-  /** Return freshness metrics for all views (used by monitoring service). */
   getMetrics(): RefreshMetric[] {
     return this.views.map((view) => {
       const lagMs = view.lastRefreshedAt
@@ -112,13 +101,6 @@ export class MVRefreshJob {
     });
   }
 
-  /**
-   * Prometheus-style text format for scraping.
-   *
-   * Metrics exposed:
-   *   subtrackr_mv_lag_ms{view="..."}   – lag in milliseconds
-   *   subtrackr_mv_is_stale{view="..."}  – 1 if stale, 0 if fresh
-   */
   prometheusMetrics(): string {
     const lines: string[] = [
       '# HELP subtrackr_mv_lag_ms Materialized view refresh lag in milliseconds',
