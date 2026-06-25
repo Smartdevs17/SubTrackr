@@ -85,6 +85,7 @@
     "@walletconnect/react-native-compat": "^2.23.9",
     "@walletconnect/utils": "^2.23.9",
     "bcryptjs": "^3.0.3",
+    "bullmq": "^5.79.1",
     "ethers": "^5.8.0",
     "expo": "~53.0.20",
     "@graphql-tools/schema": "^10.0.31",

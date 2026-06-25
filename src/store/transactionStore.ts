@@ -11,11 +11,7 @@ interface TransactionState {
 
   // Actions
   addTransaction: (tx: Omit<Transaction, 'id' | 'date'>) => Transaction;
-  updateTransactionStatus: (
-    id: string,
-    status: TransactionStatus,
-    failureReason?: string
-  ) => void;
+  updateTransactionStatus: (id: string, status: TransactionStatus, failureReason?: string) => void;
   getBySubscription: (subscriptionId: string) => Transaction[];
   getByStatus: (status: TransactionStatus) => Transaction[];
   clearHistory: () => void;
