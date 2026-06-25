@@ -49,6 +49,8 @@ export type RootStackParamList = {
   PaymentMethods: undefined;
   AnalyticsDashboard: undefined;
   RenewalWorkspace: { renewalId?: string } | undefined;
+  EntityManagement: undefined;
+  PauseSubscription: { subscriptionId: string };
   NotFound: { reason?: string };
 };
 

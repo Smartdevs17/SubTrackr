@@ -80,6 +80,8 @@ const AnalyticsDashboard = lazyScreen(() => import('../../app/screens/AnalyticsD
 const RenewalWorkspaceScreen = lazyScreen(() =>
   import('../../app/screens/RenewalWorkspaceScreen').then((m) => ({ default: m.default }))
 );
+const EntityManagementScreen = lazyScreen(() => import('../screens/EntityManagementScreen'));
+const PauseSubscriptionScreen = lazyScreen(() => import('../screens/PauseSubscriptionScreen'));
 
 const Tab = createBottomTabNavigator<TabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -206,6 +208,16 @@ const HomeStack = () => (
       name="RenewalWorkspace"
       component={RenewalWorkspaceScreen}
       options={{ title: 'Renewal Workspace', headerShown: true }}
+    />
+    <Stack.Screen
+      name="EntityManagement"
+      component={EntityManagementScreen}
+      options={{ title: 'Entity Management', headerShown: true }}
+    />
+    <Stack.Screen
+      name="PauseSubscription"
+      component={PauseSubscriptionScreen}
+      options={{ title: 'Pause Subscription', headerShown: true }}
     />
   </Stack.Navigator>
 );
@@ -362,6 +374,16 @@ const SettingsStack = () => (
       name="AnalyticsDashboard"
       component={AnalyticsDashboard}
       options={{ title: 'Analytics Dashboard', headerShown: true }}
+    />
+    <Stack.Screen
+      name="EntityManagement"
+      component={EntityManagementScreen}
+      options={{ title: 'Entity Management', headerShown: true }}
+    />
+    <Stack.Screen
+      name="PauseSubscription"
+      component={PauseSubscriptionScreen}
+      options={{ title: 'Pause Subscription', headerShown: true }}
     />
   </Stack.Navigator>
 );

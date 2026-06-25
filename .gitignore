@@ -123,3 +123,27 @@ PR_BODY_SUBSCRIPTION_ADVANCED_SEARCH.md
 PR_CI_Optimizations.md
 WCAG_COMPLIANCE.md
 issue*.json
+
+# Rust build artifacts
+contracts/target/
+target/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+*.so
+
+# Jest test snapshots (all locations)
+**/__snapshots__/**
+jest-results/
+test-results/
+
+# Misc generated
+*.orig
+lib copy.*
+*copy.*
