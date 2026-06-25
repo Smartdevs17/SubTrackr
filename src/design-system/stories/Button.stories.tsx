@@ -1,7 +1,7 @@
 /**
  * Button Component Stories for Storybook
  * Comprehensive component documentation and visual testing
- * 
+ *
  * Run: npm run storybook
  */
 
@@ -175,9 +175,7 @@ export const AllSizes: Story = {
         accessibilityLabel="Medium button"
       />
 
-      <Text style={{ fontSize: 14, fontWeight: '600', marginTop: 16, marginBottom: 8 }}>
-        Large
-      </Text>
+      <Text style={{ fontSize: 14, fontWeight: '600', marginTop: 16, marginBottom: 8 }}>Large</Text>
       <Button
         label="Large Button"
         variant="primary"
@@ -236,12 +234,7 @@ export const AllVariants: Story = {
         onPress={() => {}}
         accessibilityLabel="Outline variant"
       />
-      <Button
-        label="Ghost"
-        variant="ghost"
-        onPress={() => {}}
-        accessibilityLabel="Ghost variant"
-      />
+      <Button label="Ghost" variant="ghost" onPress={() => {}} accessibilityLabel="Ghost variant" />
       <Button
         label="Danger"
         variant="danger"
@@ -299,8 +292,8 @@ export const AccessibilityDocumentation: Story = {
     <View style={{ padding: 16, gap: 16 }}>
       <Text style={{ fontSize: 16, fontWeight: 'bold' }}>Accessibility Features</Text>
       <Text style={{ fontSize: 12 }}>
-        • Minimum 44x44pt touch target (WCAG 2.1 AA) • Proper accessibility labels •
-        Disabled state indication • Loading state feedback • Font scaling support
+        • Minimum 44x44pt touch target (WCAG 2.1 AA) • Proper accessibility labels • Disabled state
+        indication • Loading state feedback • Font scaling support
       </Text>
 
       <Text style={{ fontSize: 14, fontWeight: '600', marginTop: 12 }}>Examples:</Text>

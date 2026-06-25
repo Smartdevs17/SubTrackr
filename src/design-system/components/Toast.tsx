@@ -5,13 +5,7 @@
  */
 
 import React from 'react';
-import {
-  StyleSheet,
-  View,
-  Text,
-  Animated,
-  AccessibilityInfo,
-} from 'react-native';
+import { StyleSheet, View, Text, Animated } from 'react-native';
 import type { ViewStyle, TextStyle } from 'react-native';
 
 import { spacing, borderRadius, shadows, typography, animation } from '../tokens';
@@ -130,9 +124,7 @@ interface ToastThemeColors {
   actionText: string;
 }
 
-const getToastThemeColors = (
-  variant: ToastVariant
-): ToastThemeColors => {
+const getToastThemeColors = (variant: ToastVariant): ToastThemeColors => {
   // Mock theme colors
   const colors: Record<ToastVariant, ToastThemeColors> = {
     success: {
@@ -208,7 +200,7 @@ export const Toast = React.forwardRef<View, ToastProps>(
 
         return () => clearTimeout(timer);
       }
-    }, []);
+    }, [duration, handleClose, slideAnim, position]);
 
     const handleClose = () => {
       Animated.timing(slideAnim, {
@@ -251,14 +243,6 @@ export const Toast = React.forwardRef<View, ToastProps>(
       color: themeColors.text,
     };
 
-    const actionButtonStyle: ViewStyle = {
-      backgroundColor: themeColors.actionBackground,
-    };
-
-    const actionTextStyle: TextStyle = {
-      color: themeColors.actionText,
-    };
-
     const toastId = testID || `toast-${variant}`;
 
     return (
@@ -269,14 +253,12 @@ export const Toast = React.forwardRef<View, ToastProps>(
         accessibilityLabel={accessibilityLabel || message}
         accessibilityRole="alert"
         accessibilityLiveRegion="polite"
-        testID={toastId}
-      >
+        testID={toastId}>
         <Text
           style={[styles.messageText, messageStyle]}
           numberOfLines={3}
           allowFontScaling
-          maxFontSizeMultiplier={1.2}
-        >
+          maxFontSizeMultiplier={1.2}>
           {message}
         </Text>
 
@@ -284,11 +266,10 @@ export const Toast = React.forwardRef<View, ToastProps>(
           <View style={styles.actionButton}>
             {/* Pressable or TouchableOpacity would go here */}
             <Text
-              style={[styles.actionText, actionTextStyle]}
+              style={[styles.actionText, { color: themeColors.actionText }]}
               onPress={handleAction}
               allowFontScaling
-              maxFontSizeMultiplier={1.2}
-            >
+              maxFontSizeMultiplier={1.2}>
               {actionLabel}
             </Text>
           </View>

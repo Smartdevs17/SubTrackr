@@ -5,25 +5,11 @@
  */
 
 import React from 'react';
-import {
-  StyleSheet,
-  TouchableOpacity,
-  Text,
-  View,
-  ActivityIndicator,
-  Platform,
-  AccessibilityInfo,
-} from 'react-native';
+import { StyleSheet, TouchableOpacity, Text, View, ActivityIndicator } from 'react-native';
 import type { ViewStyle, TextStyle } from 'react-native';
 
-import {
-  spacing,
-  borderRadius,
-  typography,
-  shadows,
-  animation,
-} from '../tokens';
-import type { AccessibilityProps, ComponentSize } from '../types/design-tokens';
+import { spacing, borderRadius, typography } from '../tokens';
+import type { AccessibilityProps } from '../types/design-tokens';
 
 // ============================================================================
 // TYPES
@@ -274,7 +260,7 @@ const getButtonThemeColors = (
  * Supports multiple variants, sizes, and states
  * Compliant with WCAG 2.1 AA accessibility standards
  */
-export const Button = React.forwardRef<TouchableOpacity, ButtonProps>(
+export const Button = React.forwardRef<View, ButtonProps>(
   (
     {
       label,
@@ -291,6 +277,7 @@ export const Button = React.forwardRef<TouchableOpacity, ButtonProps>(
       accessibilityLabel,
       accessibilityHint,
       accessibilityRole = 'button',
+
       testID = `button-${label.toLowerCase()}`,
     },
     ref
@@ -335,9 +322,7 @@ export const Button = React.forwardRef<TouchableOpacity, ButtonProps>(
         ? themeColors.disabledBackground
         : themeColors.background,
       borderWidth: variant === 'outline' ? 1 : 0,
-      borderColor: isDisabledOrLoading
-        ? themeColors.disabledBorder
-        : themeColors.border,
+      borderColor: isDisabledOrLoading ? themeColors.disabledBorder : themeColors.border,
     };
 
     // Build text style
@@ -369,33 +354,21 @@ export const Button = React.forwardRef<TouchableOpacity, ButtonProps>(
         disabled={isDisabledOrLoading}
         activeOpacity={0.7}
         accessibilityLabel={accessibilityLabel || label}
-        accessibilityHint={
-          accessibilityHint || (disabled ? 'Button is disabled' : undefined)
-        }
+        accessibilityHint={accessibilityHint}
         accessibilityRole={accessibilityRole}
         accessibilityState={{
           disabled: isDisabledOrLoading,
         }}
-        testID={testID}
-      >
+        testID={testID}>
         {loading && (
-          <ActivityIndicator
-            size="small"
-            color={buttonTextStyle.color}
-            style={styles.spinner}
-          />
+          <ActivityIndicator size="small" color={buttonTextStyle.color} style={styles.spinner} />
         )}
         {leftIcon && !loading && <View style={styles.withLeftIcon}>{leftIcon}</View>}
 
         <Text
-          style={[
-            textSizeStyle,
-            buttonTextStyle,
-            textStyle,
-          ]}
+          style={[textSizeStyle, buttonTextStyle, textStyle]}
           allowFontScaling
-          maxFontSizeMultiplier={1.2}
-        >
+          maxFontSizeMultiplier={1.2}>
           {label}
         </Text>
 

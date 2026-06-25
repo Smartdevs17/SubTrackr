@@ -97,7 +97,7 @@ export class LazyErrorBoundary extends React.Component<ErrorBoundaryProps, Error
   }
 }
 
-export function lazyScreen<T extends React.ComponentType<any>>(
+export function lazyScreen<T extends React.ComponentType<Record<string, unknown>>>(
   importFn: () => Promise<{ default: T }>
 ) {
   const LazyComponent = lazyWithRetry(importFn);

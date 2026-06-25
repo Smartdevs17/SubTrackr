@@ -86,9 +86,7 @@ export function getShadow(level: keyof typeof shadows): ShadowStyle {
  * @param componentType - The component type
  * @returns The shadow style object
  */
-export function getComponentShadow(
-  componentType: keyof typeof shadowPresets
-): ShadowStyle {
+export function getComponentShadow(componentType: keyof typeof shadowPresets): ShadowStyle {
   return shadowPresets[componentType];
 }
 
@@ -98,10 +96,7 @@ export function getComponentShadow(
  * @param isDark - Whether the theme is dark
  * @returns The custom shadow style
  */
-export function createCustomShadow(
-  elevation: number,
-  isDark: boolean = false
-): ShadowStyle {
+export function createCustomShadow(elevation: number, isDark: boolean = false): ShadowStyle {
   const opacity = isDark ? 0.15 : 0.1;
   const offset = Math.round(elevation * 1.25);
 

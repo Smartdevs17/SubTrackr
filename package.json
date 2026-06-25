@@ -71,6 +71,7 @@
     "isr:validate:dry": "node scripts/isr-validate.js --dry-run"
   },
   "dependencies": {
+    "@graphql-tools/schema": "^10.0.31",
     "@react-native-async-storage/async-storage": "2.1.2",
     "@react-native-community/datetimepicker": "^9.1.0",
     "@react-native-community/netinfo": "11.4.1",
@@ -87,10 +88,6 @@
     "bcryptjs": "^3.0.3",
     "ethers": "^5.8.0",
     "expo": "~53.0.20",
-    "@graphql-tools/schema": "^10.0.31",
-    "graphql": "^16.13.2",
-    "graphql-http": "^1.22.4",
-    "pg": "^8.16.0",
     "expo-application": "~6.1.5",
     "expo-clipboard": "~7.1.5",
     "expo-dev-client": "~5.2.4",
@@ -98,8 +95,11 @@
     "expo-linking": "~7.1.7",
     "expo-notifications": "^0.31.5",
     "expo-status-bar": "~2.2.3",
+    "graphql": "^16.13.2",
+    "graphql-http": "^1.22.4",
     "i18next": "^26.0.8",
     "ioredis": "^5.11.1",
+    "pg": "^8.16.0",
     "react": "19.2.5",
     "react-i18next": "^17.0.6",
     "react-native": "0.85.2",
@@ -155,6 +155,7 @@
     "semantic-release": "^24.2.9",
     "size-limit": "^11.1.4",
     "ts-jest": "^29.4.11",
+    "tsconfig-paths": "^4.2.0",
     "tsx": "^4.20.3",
     "typechain": "^8.3.2",
     "typescript": "~5.8.3"

@@ -7,7 +7,8 @@
  */
 
 import { create } from 'zustand';
-import type { ApiErrorResponse } from '../../../backend/services/shared/apiResponse';
+import { ApiErrorResponse } from '../../../backend/services/shared/apiResponse';
+
 
 
 export interface ConflictState<T> {

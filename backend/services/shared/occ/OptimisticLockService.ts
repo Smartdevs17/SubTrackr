@@ -1,3 +1,4 @@
+
 /**
  * @file OptimisticLockService.ts
  * @description Issue #613 - Service for Optimistic Concurrency Control (OCC).
@@ -5,6 +6,7 @@
  * This service provides helpers to handle version-based optimistic locking.
  * It ensures that concurrent updates do not silently overwrite each other.
  */
+import { diff } from 'jest-diff';
 
 import { fail, fromError, ok, ApiResponse } from '../apiResponse';
 import { getLogger } from '../../../utils/logger';
@@ -28,6 +30,23 @@ export interface UpdateOptions<T extends VersionedEntity> {
   /** If true, bypasses the version check (for admin overrides). */
   force?: boolean;
 }
+
+/**
+ * Generates a field-level diff between two entity states for audit logging.
+ * @param clientEntity The version of the entity submitted by the client.
+ * @param dbEntity The current version of the entity in the database.
+ * @returns A string representing the diff, or null if no differences are found.
+ */
+function getConflictDiff<T extends VersionedEntity>(clientEntity: T, dbEntity: T): string | null {
+    // jest-diff provides a clean, readable diff format.
+    // We remove the version property from the comparison as it's expected to differ.
+    const client = { ...clientEntity, version: undefined };
+    const db = { ...dbEntity, version: undefined };
+  
+    // The 'b' object is considered the "new" state in the diff output.
+    // We show what the DB has (`db`) vs. what the client thought it had (`client`).
+    return diff(client, db);
+  }
 
 /**
  * Checks if an update operation can proceed by comparing client and database entity versions.
@@ -54,12 +73,15 @@ export function checkVersion<T extends VersionedEntity>(
   }
 
   if (clientEntity.version !== dbEntity.version) {
+    const conflictDiff = getConflictDiff(clientEntity, dbEntity);
     logger.warn(
       {
         actor,
         entityId: dbEntity.id,
         clientVersion: clientEntity.version,
         dbVersion: dbEntity.version,
+        // #613: Log conflicting writes with field-level diff for audit.
+        diff: conflictDiff,
         requestId,
       },
       'OCC conflict detected: version mismatch',
