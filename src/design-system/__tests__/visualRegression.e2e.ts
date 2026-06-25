@@ -49,6 +49,20 @@ describe('Button Component - Visual Regression', () => {
       .toBeVisible()
       .withTimeout(5000);
   });
+
+  it('should render toast with different variants', async () => {
+    await element(by.id('toast-success')).multiTap();
+    await waitFor(element(by.id('toast-success-instance')))
+      .toBeVisible()
+      .withTimeout(5000);
+  });
+
+  it('should render toast at different positions', async () => {
+    await element(by.id('toast-bottom')).multiTap();
+    await waitFor(element(by.id('toast-position-bottom')))
+      .toBeVisible()
+      .withTimeout(5000);
+  });
 });
 
 /**
@@ -100,33 +114,6 @@ describe('Modal Component - Visual Regression', () => {
   it('should render modal backdrop', async () => {
     await element(by.id('modal-trigger')).multiTap();
     await waitFor(element(by.id('modal-backdrop')))
-      .toBeVisible()
-      .withTimeout(5000);
-  });
-});
-
-/**
- * Toast Visual Regression Tests
- */
-describe('Toast Component - Visual Regression', () => {
-  beforeAll(async () => {
-    await device.launchApp();
-  });
-
-  beforeEach(async () => {
-    await device.reloadReactNative();
-  });
-
-  it('should render toast with different variants', async () => {
-    await element(by.id('toast-success')).multiTap();
-    await waitFor(element(by.id('toast-success-instance')))
-      .toBeVisible()
-      .withTimeout(5000);
-  });
-
-  it('should render toast at different positions', async () => {
-    await element(by.id('toast-bottom')).multiTap();
-    await waitFor(element(by.id('toast-position-bottom')))
       .toBeVisible()
       .withTimeout(5000);
   });
