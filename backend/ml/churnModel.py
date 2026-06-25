@@ -1,6 +1,5 @@
 import math
-import random
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 class ChurnPredictionModel:
     def __init__(self):
@@ -13,35 +12,10 @@ class ChurnPredictionModel:
             "price_sensitivity": 0.1
         }
 
-    def _extract_features(self, user_data: Dict) -> Dict:
-        """
-        Extract normalized features from raw user data.
-        """
-        features = {}
-        # Normalize payment failures (0 to 1)
-        features["payment_failures"] = min(user_data.get("recent_payment_failures", 0) / 3.0, 1.0)
-        
-        # Normalize login frequency drop (e.g., 50% drop -> 0.5)
-        baseline_logins = max(user_data.get("baseline_logins_per_month", 1), 1)
-        recent_logins = user_data.get("recent_logins", baseline_logins)
-        drop = max(0, (baseline_logins - recent_logins) / baseline_logins)
-        features["login_frequency_drop"] = drop
-        
-        # Normalize support tickets
-        features["support_tickets"] = min(user_data.get("open_support_tickets", 0) / 2.0, 1.0)
-        
-        # Add random noise for simulation
-        features["app_crashes"] = random.uniform(0, 0.2)
-        features["price_sensitivity"] = user_data.get("price_sensitivity_index", 0.5)
-        
-        return features
-
-    def predict_churn(self, subscriber_address: str, user_data: Dict) -> Dict:
+    def predict_churn(self, subscriber_address: str, features: Dict) -> Dict:
         """
         Predict churn probability and return risk scoring.
         """
-        features = self._extract_features(user_data)
-        
         # Calculate risk score (0.0 to 1.0)
         risk_score = 0.0
         for feature, value in features.items():
@@ -123,5 +97,11 @@ if __name__ == "__main__":
         "open_support_tickets": 1,
         "price_sensitivity_index": 0.8
     }
-    prediction = model.predict_churn("0xDEF456", test_data)
+    prediction = model.predict_churn("0xDEF456", {
+        "payment_failures": 0.67,
+        "login_frequency_drop": 0.75,
+        "support_tickets": 0.5,
+        "app_crashes": 0.0,
+        "price_sensitivity": test_data["price_sensitivity_index"],
+    })
     print(f"Churn Prediction: {prediction}")
