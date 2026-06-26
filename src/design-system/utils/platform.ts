@@ -35,7 +35,7 @@ export const isWeb = (): boolean => Platform.OS === 'web';
 /**
  * Get platform-specific value
  */
-export const getPlatformValue = <T,>(
+export const getPlatformValue = <T>(
   iosValue: T,
   androidValue: T,
   webValue?: T,

@@ -10,11 +10,9 @@ import { RootStackParamList, TabParamList } from './types';
 import { useTheme } from '../theme';
 import { darkNavigationTheme, lightNavigationTheme } from '../theme/navigationTheme';
 
-// Eagerly loaded primary entrypoints for instant rendering
 import HomeScreen from '../screens/HomeScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 
-// Lazy loaded auxiliary and heavy screens with suspense/retry support
 const AddSubscriptionScreen = lazyScreen(() => import('../screens/AddSubscriptionScreen'));
 const CancellationFlowScreen = lazyScreen(() => import('../screens/CancellationFlowScreen'));
 const CancellationFunnelDashboard = lazyScreen(

@@ -29,6 +29,14 @@ import { PredictionService } from './analytics/predictionService';
 import { RecommendationService } from './analytics/recommendationService';
 import { RetentionService } from './analytics/retentionService';
 import { oracleMonitorService } from './analytics/oracleMonitorService';
+import { advisoryLockService } from './shared/locking';
+import { billingLockIntegration } from './billing/lockIntegration';
+import { subscriptionLockIntegration } from './subscription/lockIntegration';
+import { kmsProvider, vaultProvider, ColumnEncryptionService } from './shared/encryption';
+import { apiKeyRotationService } from './auth';
+import { paymentRouter, StripeAdapter, CircleAdapter, StellarAdapter } from './payment';
+import { getPlanCacheService } from '../subscription/planCacheRegistry';
+import type { PlanCacheService } from '../subscription/domain/PlanCacheService';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -216,3 +224,33 @@ container.bind('IPredictionService', () => new PredictionService());
 container.bind('IRecommendationService', () => new RecommendationService());
 container.bind('IRetentionService', () => new RetentionService());
 container.register('IOracleMonitorService', oracleMonitorService);
+
+// ── Locking (Issue #610) ───────────────────────────────────────────────────────
+container.register('IAdvisoryLockService', advisoryLockService);
+container.register('IBillingLockIntegration', billingLockIntegration);
+container.register('ISubscriptionLockIntegration', subscriptionLockIntegration);
+
+// ── Encryption (Issue #604) ────────────────────────────────────────────────────
+container.register('IKmsProvider', kmsProvider);
+container.register('IVaultProvider', vaultProvider);
+container.bind('IColumnEncryptionService', () => new ColumnEncryptionService(kmsProvider));
+
+// ── Auth / API Key Rotation (Issue #603) ──────────────────────────────────────
+container.register('IApiKeyRotationService', apiKeyRotationService);
+
+// ── Payment Gateway (Issue #581) ──────────────────────────────────────────────
+paymentRouter.registerGateway('stripe', new StripeAdapter());
+paymentRouter.registerGateway('circle', new CircleAdapter());
+paymentRouter.registerGateway('stellar', new StellarAdapter());
+container.register('IPaymentRouter', paymentRouter);
+
+// ── Plan cache (requires bootstrapPlanCache() at startup) ─────────────────────
+container.bind('IPlanCacheService', () => {
+  const svc = getPlanCacheService();
+  if (!svc) {
+    throw new Error(
+      '[Container] IPlanCacheService not available. Call bootstrapPlanCache() during startup.',
+    );
+  }
+  return svc as PlanCacheService;
+});

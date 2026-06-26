@@ -7,8 +7,12 @@ const LOG_LEVEL_PRIORITY: Record<LogLevel, number> = {
   error: 3,
 };
 
-// Change this via env later
-const CURRENT_LEVEL: LogLevel = __DEV__ ? 'debug' : 'info';
+// Change this via env later (__DEV__ is an Expo/RN global; absent in plain Node)
+const CURRENT_LEVEL: LogLevel =
+  typeof (globalThis as { __DEV__?: boolean }).__DEV__ !== 'undefined' &&
+  (globalThis as { __DEV__?: boolean }).__DEV__
+    ? 'debug'
+    : 'info';
 
 // Correlation ID generator (simple version)
 const generateId = () => {

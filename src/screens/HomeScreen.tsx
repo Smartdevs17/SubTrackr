@@ -21,6 +21,7 @@ import { useGamificationStore } from '../store/gamificationStore';
 import { useTransactionQueueStore } from '../store/transactionQueueStore';
 import { usePerformanceProfiler } from '../hooks/usePerformanceProfiler';
 import useRefresh from '../hooks/useRefresh';
+import { useAccessibilityAnnouncement } from '../hooks/useAccessibilityAnnouncement';
 
 // Components
 import { FloatingActionButton } from '../components/common/FloatingActionButton';
@@ -46,6 +47,7 @@ const HomeScreen: React.FC = () => {
   } = useSubscriptionStore();
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const { announce } = useAccessibilityAnnouncement();
 
   const isOnline = useTransactionQueueStore((state) => state.isOnline);
   const pendingTransactions = useTransactionQueueStore((state) => state.queuedTransactions.length);
@@ -75,11 +77,16 @@ const HomeScreen: React.FC = () => {
   }, [subscriptions, calculateStats, preferredCurrency, exchangeRates]);
 
   const onRefresh = async () => {
+    announce('Refreshing subscriptions');
     await refresh({
       fetcher: fetchSubscriptions,
       minDurationMs: 400,
       onError: (err) => {
         console.error('Pull-to-refresh failed:', err);
+        announce('Failed to refresh subscriptions');
+      },
+      onSuccess: () => {
+        announce('Subscriptions refreshed successfully');
       },
     });
   };
@@ -126,27 +133,42 @@ const HomeScreen: React.FC = () => {
           <View style={styles.toolsRow}>
             <TouchableOpacity
               onPress={() => navigation.navigate('Community')}
-              style={[styles.toolButton, { backgroundColor: colors.primary }]}>
+              style={[styles.toolButton, { backgroundColor: colors.primary }]}
+              accessibilityRole="button"
+              accessibilityLabel="Navigate to Community"
+              accessibilityHint="View community features and discussions">
               <Text style={styles.toolButtonText}>Community</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => navigation.navigate('SegmentManagement')}
-              style={[styles.toolButton, { backgroundColor: colors.accent }]}>
+              style={[styles.toolButton, { backgroundColor: colors.accent }]}
+              accessibilityRole="button"
+              accessibilityLabel="Manage Segments"
+              accessibilityHint="Create and manage customer segments">
               <Text style={styles.toolButtonText}>Segments</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => navigation.navigate('InvoiceList')}
-              style={styles.toolButtonOutline}>
+              style={styles.toolButtonOutline}
+              accessibilityRole="button"
+              accessibilityLabel="View Invoices"
+              accessibilityHint="View and manage invoices">
               <Text style={styles.toolButtonTextOutline}>Invoices</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => navigation.navigate('GroupManagement')}
-              style={styles.toolButtonOutline}>
+              style={styles.toolButtonOutline}
+              accessibilityRole="button"
+              accessibilityLabel="Manage Groups"
+              accessibilityHint="Organize subscriptions into groups">
               <Text style={styles.toolButtonTextOutline}>Groups</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => navigation.navigate('SupportDashboard')}
-              style={styles.toolButtonOutline}>
+              style={styles.toolButtonOutline}
+              accessibilityRole="button"
+              accessibilityLabel="Support Dashboard"
+              accessibilityHint="Get help and support">
               <Text style={styles.toolButtonTextOutline}>Support</Text>
             </TouchableOpacity>
           </View>
