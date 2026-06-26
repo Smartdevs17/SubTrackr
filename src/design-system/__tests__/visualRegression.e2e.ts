@@ -4,7 +4,6 @@
  * Uses Detox for E2E visual regression testing on iOS and Android
  * Complements Jest unit tests with visual snapshots
  */
-
 import { element, by, waitFor } from 'detox';
 
 /**

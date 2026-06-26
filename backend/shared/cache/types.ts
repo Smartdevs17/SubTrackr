@@ -1,7 +1,23 @@
 /**
- * Minimal Redis client interface for cache services.
- * Compatible with ioredis, node-redis, and test doubles.
+ * Shared cache types — Redis application cache and CDN edge purge.
  */
+
+export type CdnProvider = 'fastly' | 'cloudflare';
+
+export interface CdnPurgeConfig {
+  provider: CdnProvider;
+  apiToken: string;
+  serviceId: string;
+  fetchImpl?: typeof fetch;
+}
+
+export interface CdnPurgeResult {
+  success: boolean;
+  provider: CdnProvider;
+  surrogateKeys: string[];
+  statusCode?: number;
+  error?: string;
+}
 
 export interface RedisClient {
   get(key: string): Promise<string | null>;
@@ -19,22 +35,13 @@ export interface RedisCacheMetrics {
   invalidations: number;
   errors: number;
   degradations: number;
-  /** hits / (hits + misses). NaN when no reads yet. */
   hitRatio: number;
-  latencyMs: {
-    p50: number;
-    p95: number;
-    p99: number;
-  };
-  /** Approximate serialized payload bytes currently tracked in metrics. */
+  latencyMs: { p50: number; p95: number; p99: number };
   memoryUsageBytes: number;
 }
 
 export interface RedisCacheConfig {
-  /** Key prefix for namespacing. */
   keyPrefix?: string;
-  /** Default TTL in seconds when not overridden per entry. */
   defaultTtlSeconds?: number;
-  /** Optional warning logger for Redis degradation events. */
   onDegradation?: (message: string, context?: Record<string, unknown>) => void;
 }

@@ -354,7 +354,7 @@ export const Button = React.forwardRef<View, ButtonProps>(
         disabled={isDisabledOrLoading}
         activeOpacity={0.7}
         accessibilityLabel={accessibilityLabel || label}
-        accessibilityHint={accessibilityHint}
+        accessibilityHint={accessibilityHint || (disabled ? 'Button is disabled' : undefined)}
         accessibilityRole={accessibilityRole}
         accessibilityState={{
           disabled: isDisabledOrLoading,
