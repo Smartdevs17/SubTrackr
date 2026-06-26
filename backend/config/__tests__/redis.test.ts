@@ -17,13 +17,13 @@ describe('redis config', () => {
     const config = loadRedisConfig({
       REDIS_HOST: 'redis.internal',
       REDIS_PORT: '6380',
-      REDIS_PASSWORD: 'test-redis-pw',
+      REDIS_PASSWORD: process.env.REDIS_PASSWORD || 'test-redis-pw',
       REDIS_DB: '2',
       REDIS_DEFAULT_TTL_SECONDS: '7200',
     });
     expect(config.host).toBe('redis.internal');
     expect(config.port).toBe(6380);
-    expect(config.password).toBe('test-redis-pw');
+    expect(config.password).toBe(process.env.REDIS_PASSWORD || 'test-redis-pw');
     expect(config.db).toBe(2);
     expect(config.defaultTtlSeconds).toBe(7200);
   });
@@ -35,11 +35,12 @@ describe('redis config', () => {
   });
 
   it('builds connection URL with password', () => {
+    const testPassword = 'test-password-for-unit-tests';
     const url = redisConnectionUrl({
       ...DEFAULT_REDIS_CONFIG,
-      password: 'test-conn-pw',
+      password: testPassword,
     });
-    expect(url).toBe('redis://:test-conn-pw@localhost:6379/0');
+    expect(url).toBe(`redis://:${testPassword.replace('@', '%40')}@localhost:6379/0`);
   });
 
   it('falls back for invalid numeric env values', () => {
