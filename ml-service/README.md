@@ -26,6 +26,12 @@ Restart the service after retraining to pick up the new version.
 | Variable | Default | Description |
 |---|---|---|
 | `ML_SERVICE_URL` | `http://localhost:8000` | Used by the TS backend to reach this service |
+| `FEATURE_STORE_URL` | `redis://localhost:6379/0` | Redis-compatible feature store used before online fallback |
+| `FEATURE_PIPELINE_PATH` | `../services/feature-pipeline` | Local path for versioned feature transformations |
+
+Churn inference reads versioned feature vectors from the feature store. On cache
+miss or store outage, it computes the same transformation online and attempts a
+best-effort store write.
 
 ## Key endpoints
 

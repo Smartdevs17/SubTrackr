@@ -1,45 +1,30 @@
-# Local development services for SubTrackr backend.
-#
-# Usage:
-#   docker compose up -d
-#   npm run server:start
-#
-# Environment (optional .env):
-#   DB_HOST=localhost DB_PORT=5432 DB_NAME=subtrackr DB_USER=postgres DB_PASSWORD=postgres
-#   REDIS_HOST=localhost REDIS_PORT=6379
-
 services:
-  redis:
+  feature-store:
     image: redis:7-alpine
-    container_name: subtrackr-redis
+    command: ["redis-server", "--appendonly", "yes"]
     ports:
-      - '${REDIS_PORT:-6379}:6379'
-    command: ['redis-server', '--save', '', '--appendonly', 'no']
-    healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
-      interval: 5s
-      timeout: 3s
-      retries: 5
-    volumes:
-      - redis-data:/data
+      - "6379:6379"
 
-  postgres:
-    image: postgres:16-alpine
-    container_name: subtrackr-postgres
-    ports:
-      - '${DB_PORT:-5432}:5432'
+  feature-pipeline:
+    build:
+      context: .
+      dockerfile: services/feature-pipeline/Dockerfile
     environment:
-      POSTGRES_DB: ${DB_NAME:-subtrackr}
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
-    healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-subtrackr}']
-      interval: 5s
-      timeout: 3s
-      retries: 5
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
+      FEATURE_STORE_URL: redis://feature-store:6379/0
+      FEATURE_TTL_SECONDS: "7200"
+    ports:
+      - "8010:8010"
+    depends_on:
+      - feature-store
 
-volumes:
-  redis-data:
-  postgres-data:
+  ml-service:
+    build:
+      context: .
+      dockerfile: ml-service/Dockerfile
+    environment:
+      FEATURE_STORE_URL: redis://feature-store:6379/0
+      FEATURE_PIPELINE_PATH: /app/services/feature-pipeline
+    ports:
+      - "8000:8000"
+    depends_on:
+      - feature-store
