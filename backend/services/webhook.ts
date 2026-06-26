@@ -9,6 +9,8 @@ import type {
   WebhookEventType,
   WebhookRetryPolicy,
 } from '../../src/types/webhook';
+import { getTracer, injectContext } from './shared/monitoring';
+import type { SpanContext } from './shared/tracing';
 
 export type { WebhookEventInput } from '../../src/types/webhook';
 
@@ -242,7 +244,10 @@ export class WebhookDeliveryService {
     }
   }
 
-  async deliverEvent(input: WebhookEventInput): Promise<WebhookDeliveryResult | null> {
+  async deliverEvent(
+    input: WebhookEventInput,
+    parent: SpanContext | null = null
+  ): Promise<WebhookDeliveryResult | null> {
     const webhook = this.webhooks.get(input.webhookId);
     if (!webhook || webhook.merchantId !== input.merchantId) return null;
     if (!isWebhookEventAllowed(webhook, input.eventType)) return null;
@@ -287,7 +292,22 @@ export class WebhookDeliveryService {
     };
 
     this.deliveries.set(delivery.id, delivery);
-    const result = await this.sendWithRetry(webhook, delivery);
+
+    // Emit a producer span and propagate W3C trace context to the receiver so a
+    // webhook delivery can be correlated with the request that triggered it.
+    const result = await getTracer().withSpan(
+      `webhook deliver ${payload.eventType}`,
+      (span) => {
+        span.setAttributes({
+          'messaging.system': 'webhook',
+          'webhook.id': webhook.id,
+          'webhook.event_type': payload.eventType,
+          'webhook.event_id': payload.id,
+        });
+        return this.sendWithRetry(webhook, delivery, injectContext(span.context));
+      },
+      { kind: 'producer', parent, endpoint: 'webhook.deliver' }
+    );
     this.deliveries.set(delivery.id, result.delivery);
 
     if (result.delivery.status === 'delivered') {
@@ -323,7 +343,8 @@ export class WebhookDeliveryService {
 
   private async sendWithRetry(
     webhook: WebhookConfig,
-    delivery: WebhookDelivery
+    delivery: WebhookDelivery,
+    traceHeaders: Record<string, string> = {}
   ): Promise<WebhookDeliveryResult> {
     const payloadBody = JSON.stringify(delivery.payload);
     if (Buffer.byteLength(payloadBody, 'utf8') > MAX_PAYLOAD_BYTES) {
@@ -339,6 +360,8 @@ export class WebhookDeliveryService {
       'X-SubTrackr-Event-Type': delivery.eventType,
       'X-SubTrackr-Event-Id': delivery.eventId,
       'X-SubTrackr-Idempotency-Key': delivery.idempotencyKey,
+      // W3C trace context for end-to-end correlation across the delivery boundary.
+      ...traceHeaders,
     };
 
     let attempt = delivery.attempts;
