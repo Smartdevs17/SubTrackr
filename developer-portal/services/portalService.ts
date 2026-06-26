@@ -31,9 +31,7 @@ export class DeveloperPortalService {
     company: string,
     role: PortalUser['role'] = 'developer'
   ): Promise<PortalUser> {
-    const existingUser = Array.from(this.users.values()).find(
-      u => u.email === email
-    );
+    const existingUser = Array.from(this.users.values()).find((u) => u.email === email);
 
     if (existingUser) {
       throw new Error('User already exists');
@@ -90,9 +88,7 @@ export class DeveloperPortalService {
     this.activities.set(userId, activities.slice(0, 100));
   }
 
-  private async getEnvironmentSummaries(
-    userId: string
-  ): Promise<EnvironmentSummary[]> {
+  private async getEnvironmentSummaries(_userId: string): Promise<EnvironmentSummary[]> {
     return [
       {
         id: '1',

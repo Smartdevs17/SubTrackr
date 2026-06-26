@@ -1,369 +1,347 @@
-/**
- * Incremental export pipeline with change data capture (CDC).
- *
- * Replaces full daily snapshots with watermark-based incremental exports:
- *
- *  1. CDC      — mutations are captured in an ordered, append-only log keyed by
- *                LSN (see subscription/subscriptionEventStore.ts).
- *  2. Watermark — each export channel remembers the last LSN it shipped; the next
- *                run fetches only events beyond it (checkpointed per batch).
- *  3. Formats  — pluggable adapters (CSV / JSON / Parquet) with schema evolution.
- *  4. Idempotency — exporting a fixed LSN window is pure and deterministic, so a
- *                re-run produces byte-identical output (same checksum).
- *  5. Conflicts — bidirectional sync resolves against the external system's state
- *                via a configurable strategy.
- *  6. Reliability — delivery retries with exponential backoff; on exhaustion the
- *                watermark stays at the last fully-delivered batch (no data loss,
- *                no duplication on resume thanks to idempotency keys).
- *
- * Edge cases handled: deleted records (tombstones), schema changes mid-stream
- * (schema version travels with the artifact), large logs (bounded batches), and
- * concurrent runs on the same channel (per-channel lock).
- */
+import { randomBytes } from 'crypto';
+import { encryptField, isPiiField } from './encryption';
+import { keyManager } from './keyManager';
+import { piiAuditService } from './piiAudit';
+import type { ExportFormat } from './auditTypes';
+import type { EncryptedField } from './encryption';
+import type { PiiAccessAction } from './piiAudit';
 
-import crypto from 'crypto';
-import { ApiResponse, fail, ok } from './shared/apiResponse';
-import {
-  ChangeEvent,
-  EventStore,
-  SubscriptionSnapshot,
-} from './subscription/subscriptionEventStore';
-import {
-  CURRENT_EXPORT_SCHEMA,
-  ExportFormat,
-  ExportRecord,
-  ExportSchema,
-  SerializedArtifact,
-} from './billing/accountingExport/types';
-import { getAdapter } from './billing/accountingExport';
+export type ExportSection = 'profile' | 'subscriptions' | 'billingHistory' | 'consentLogs';
+export type ProfileField = 'email' | 'name' | 'registeredAt';
 
-// ── Watermark store ────────────────────────────────────────────────────────────
-
-export interface WatermarkStore {
-  get(channelId: string): Promise<number>;
-  set(channelId: string, lsn: number): Promise<void>;
+export interface ExportRequestOptions {
+  actorId: string;
+  ownerId: string;
+  sections?: ExportSection[];
+  profileFields?: ProfileField[];
+  format?: ExportFormat;
+  expiresInMinutes?: number;
 }
 
-/** Reference in-memory store; swap for PostgreSQL/Redis in production. */
-export class InMemoryWatermarkStore implements WatermarkStore {
-  private readonly watermarks = new Map<string, number>();
-  async get(channelId: string): Promise<number> {
-    return this.watermarks.get(channelId) ?? 0;
-  }
-  async set(channelId: string, lsn: number): Promise<void> {
-    this.watermarks.set(channelId, lsn);
-  }
-}
-
-// ── Delivery sink ────────────────────────────────────────────────────────────
-
-export interface ExportBatch {
-  channelId: string;
-  fromLsn: number;
-  toLsn: number;
+export interface ExportRequestSummary {
+  exportId: string;
+  ownerId: string;
   format: ExportFormat;
-  artifact: SerializedArtifact;
-  /** Stable key so the receiver can dedupe a redelivered batch. */
-  idempotencyKey: string;
-  checksum: string;
-  recordCount: number;
+  status: ExportState;
+  downloadUrl: string | null;
+  expiresAt: number;
+  createdAt: number;
+  fieldsIncluded: string[];
+  encryptedPayload?: EncryptedField;
 }
 
-export interface ExportSink {
-  /** Deliver one batch. Throw to signal failure; `transient` errors are retried. */
-  deliver(batch: ExportBatch): Promise<void>;
-}
-
-// ── Conflict resolution (bidirectional sync) ───────────────────────────────────
-
-export type ConflictStrategy =
-  | 'source-wins' // always overwrite external
-  | 'external-wins' // never overwrite an existing external record
-  | 'version-wins' // apply only when our version is newer
-  | 'last-write-wins'; // apply only when our update is more recent
-
-export interface ExternalRecordState {
-  id: string;
-  version: number;
-  updatedAt: string; // ISO 8601
-}
-
-const resolveConflict = (
-  record: ExportRecord,
-  external: ExternalRecordState | undefined,
-  strategy: ConflictStrategy
-): boolean => {
-  if (!external) return true; // no conflict — external doesn't have it yet
-  switch (strategy) {
-    case 'source-wins':
-      return true;
-    case 'external-wins':
-      return false;
-    case 'version-wins':
-      return record.version > external.version;
-    case 'last-write-wins':
-      return (record.updatedAt ?? '') > external.updatedAt;
-    default:
-      return true;
-  }
-};
-
-// ── Metrics ──────────────────────────────────────────────────────────────────
-
-export interface ExportMetrics {
-  channelId: string;
-  fromLsn: number;
-  toLsn: number;
-  recordsExported: number;
-  conflictsSkipped: number;
-  batches: number;
-  retries: number;
-  errors: number;
-  bytesExported: number;
-  latencyMs: number;
-}
-
-export interface ExportRunResult {
-  metrics: ExportMetrics;
-  watermark: number;
-  /** Per-batch checksums — exposed for idempotency assertions / auditing. */
-  checksums: string[];
-}
-
-// ── Options ──────────────────────────────────────────────────────────────────
-
-export interface RetryPolicy {
-  maxRetries: number;
-  initialDelayMs: number;
-  backoffFactor: number;
-  maxDelayMs: number;
-}
-
-const DEFAULT_RETRY: RetryPolicy = {
-  maxRetries: 4,
-  initialDelayMs: 100,
-  backoffFactor: 2,
-  maxDelayMs: 5_000,
-};
-
-export interface ExportRunOptions {
-  channelId: string;
+export interface ExportDownloadResult {
+  exportId: string;
   format: ExportFormat;
-  /** Max records per batch (bounds memory for very large logs). */
-  batchSize?: number;
-  conflictStrategy?: ConflictStrategy;
-  /** Snapshot of the external system's records for conflict resolution. */
-  externalState?: Map<string, ExternalRecordState>;
-  schema?: ExportSchema;
-  retry?: Partial<RetryPolicy>;
+  expiresAt: number;
+  downloadedAt: number;
+  encryptedPayload: EncryptedField;
 }
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
+export type ExportState = 'pending' | 'processing' | 'completed' | 'cancelled' | 'failed';
 
-const sha256 = (content: string): string =>
-  crypto.createHash('sha256').update(content).digest('hex');
-
-const snapshotToRecord = (
-  lsn: number,
-  operation: ExportRecord['operation'],
-  version: number,
-  snapshot: SubscriptionSnapshot
-): ExportRecord => ({
-  lsn,
-  operation,
-  id: snapshot.id,
-  version,
-  merchantId: snapshot.merchantId,
-  name: snapshot.name,
-  price: snapshot.price,
-  currency: snapshot.currency,
-  billingCycle: snapshot.billingCycle,
-  status: snapshot.status,
-  nextBillingDate: snapshot.nextBillingDate,
-  createdAt: snapshot.createdAt,
-  updatedAt: snapshot.updatedAt,
-});
-
-/**
- * Collapse a window of change events to the latest state per entity. Multiple
- * mutations to one row in the same window export once (the final state); a row
- * whose last op is a delete becomes a tombstone. Deterministic ordering by LSN.
- */
-export const collapseEvents = (events: ChangeEvent[]): ExportRecord[] => {
-  const latestByEntity = new Map<string, ChangeEvent>();
-  for (const event of events) {
-    latestByEntity.set(event.entityId, event); // events are LSN-ordered, last wins
-  }
-  const records = Array.from(latestByEntity.values()).map((event) => {
-    if (event.operation === 'delete' || event.data === null) {
-      return { lsn: event.lsn, operation: 'delete' as const, id: event.entityId, version: event.version };
-    }
-    return snapshotToRecord(event.lsn, event.operation, event.version, event.data);
-  });
-  return records.sort((a, b) => a.lsn - b.lsn);
-};
-
-const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
-
-// ── Service ────────────────────────────────────────────────────────────────────
+const DEFAULT_SECTIONS: ExportSection[] = ['profile', 'subscriptions', 'billingHistory', 'consentLogs'];
+const DEFAULT_PROFILE_FIELDS: ProfileField[] = ['email', 'name', 'registeredAt'];
+const DEFAULT_FORMAT: ExportFormat = 'json';
+const DEFAULT_EXPIRES_MINUTES = 15;
+const DOWNLOAD_BASE_URL = process.env['GDPR_DOWNLOAD_BASE_URL'] ?? 'https://api.subtrackr.example.com/gdpr/download';
 
 export class ExportService {
-  private readonly retry: RetryPolicy;
-  private readonly activeChannels = new Set<string>();
+  private requests = new Map<string, ExportRequestSummary>();
+  private downloadTokenIndex = new Map<string, string>();
 
-  constructor(
-    private readonly eventStore: EventStore,
-    private readonly watermarkStore: WatermarkStore,
-    private readonly sink: ExportSink,
-    private readonly deps: {
-      sleepImpl?: (ms: number) => Promise<void>;
-      now?: () => number;
-      retry?: Partial<RetryPolicy>;
-    } = {}
-  ) {
-    this.retry = { ...DEFAULT_RETRY, ...deps.retry };
-  }
+  public async requestExport(options: ExportRequestOptions): Promise<ExportRequestSummary> {
+    await this.ensureEncryptionInitialized();
+    this.authorizeExport(options.actorId, options.ownerId);
 
-  /**
-   * Pure, side-effect-free serialization of a fixed LSN window. Same window +
-   * same format ⇒ byte-identical artifact (the idempotency guarantee). Does not
-   * touch watermarks or the sink.
-   */
-  exportWindow(
-    events: ChangeEvent[],
-    format: ExportFormat,
-    schema: ExportSchema = CURRENT_EXPORT_SCHEMA,
-    options: { conflictStrategy?: ConflictStrategy; externalState?: Map<string, ExternalRecordState> } = {}
-  ): { artifact: SerializedArtifact; records: ExportRecord[]; conflictsSkipped: number } {
-    const collapsed = collapseEvents(events);
-    const strategy = options.conflictStrategy ?? 'source-wins';
+    const now = Date.now();
+    const expiresInMs = (options.expiresInMinutes ?? DEFAULT_EXPIRES_MINUTES) * 60 * 1000;
+    const expiresAt = now + expiresInMs;
+    const exportId = this.generateExportId();
+    const sections = options.sections && options.sections.length > 0 ? options.sections : DEFAULT_SECTIONS;
+    const profileFields = options.profileFields && options.profileFields.length > 0 ? options.profileFields : DEFAULT_PROFILE_FIELDS;
+    const format = options.format ?? DEFAULT_FORMAT;
 
-    let conflictsSkipped = 0;
-    const records = collapsed.filter((record) => {
-      const apply = resolveConflict(record, options.externalState?.get(record.id), strategy);
-      if (!apply) conflictsSkipped += 1;
-      return apply;
-    });
-
-    const artifact = getAdapter(format).serialize(records, schema);
-    return { artifact, records, conflictsSkipped };
-  }
-
-  /** Run an incremental export, checkpointing the watermark per delivered batch. */
-  async runIncremental(options: ExportRunOptions): Promise<ApiResponse<ExportRunResult>> {
-    const { channelId, format } = options;
-    const now = this.deps.now ?? Date.now;
-    const sleepImpl = this.deps.sleepImpl ?? sleep;
-    const schema = options.schema ?? CURRENT_EXPORT_SCHEMA;
-    const batchSize = options.batchSize ?? 1000;
-
-    // Concurrent-run guard: two exports on the same channel would race the
-    // watermark and risk gaps/duplicates.
-    if (this.activeChannels.has(channelId)) {
-      return fail('export_in_progress', `Export already running for channel ${channelId}`, {
-        retryable: true,
-      });
-    }
-    this.activeChannels.add(channelId);
-
-    const startedAt = now();
-    const startWatermark = await this.watermarkStore.get(channelId);
-    const metrics: ExportMetrics = {
-      channelId,
-      fromLsn: startWatermark,
-      toLsn: startWatermark,
-      recordsExported: 0,
-      conflictsSkipped: 0,
-      batches: 0,
-      retries: 0,
-      errors: 0,
-      bytesExported: 0,
-      latencyMs: 0,
+    const request: ExportRequestSummary = {
+      exportId,
+      ownerId: options.ownerId,
+      format,
+      status: 'pending',
+      downloadUrl: null,
+      expiresAt,
+      createdAt: now,
+      fieldsIncluded: [],
     };
-    const checksums: string[] = [];
+
+    this.requests.set(exportId, request);
+
+    this.logAuditEvent(
+      'pii.exported',
+      options.actorId,
+      options.ownerId,
+      this.buildPiiFieldList(sections, profileFields),
+      {
+        exportId,
+        requestedAt: new Date(now).toISOString(),
+        expiresAt,
+        requestedSections: sections,
+        profileFields,
+        format,
+      }
+    );
 
     try {
-      let cursor = startWatermark;
-      // Loop bounded batches until the log is drained.
-      for (;;) {
-        const { events, nextLsn, hasMore } = this.eventStore.read({
-          sinceLsn: cursor,
-          limit: batchSize,
-        });
-        if (events.length === 0) break;
-
-        const { artifact, records, conflictsSkipped } = this.exportWindow(events, format, schema, {
-          conflictStrategy: options.conflictStrategy,
-          externalState: options.externalState,
-        });
-
-        const checksum = sha256(artifact.content);
-        const batch: ExportBatch = {
-          channelId,
-          fromLsn: cursor,
-          toLsn: nextLsn,
-          format,
-          artifact,
-          idempotencyKey: `${channelId}:${cursor}:${nextLsn}`,
-          checksum,
-          recordCount: records.length,
-        };
-
-        const delivered = await this.deliverWithRetry(batch, sleepImpl, metrics);
-        if (!delivered.ok) {
-          // Partial failure: keep watermark at last good batch and report.
-          metrics.errors += 1;
-          metrics.latencyMs = now() - startedAt;
-          return fail('export_delivery_failed', delivered.error.message, {
-            retryable: true,
-            details: { metrics, lastDeliveredLsn: cursor },
-          });
-        }
-
-        // Checkpoint only after successful delivery so a crash resumes cleanly.
-        await this.watermarkStore.set(channelId, nextLsn);
-        cursor = nextLsn;
-
-        metrics.batches += 1;
-        metrics.recordsExported += records.length;
-        metrics.conflictsSkipped += conflictsSkipped;
-        metrics.bytesExported += artifact.byteLength;
-        metrics.toLsn = nextLsn;
-        checksums.push(checksum);
-
-        if (!hasMore) break;
+      request.status = 'processing';
+      const payload = await this.buildExportPayload(options.ownerId, sections, profileFields, request);
+      const serializedPayload = this.serializePayload(payload, format);
+      const encryptedPayload = this.encryptExportPayload(serializedPayload);
+      request.encryptedPayload = encryptedPayload;
+      request.fieldsIncluded = this.extractPiiFieldNames(payload);
+      request.status = 'completed';
+      request.downloadUrl = this.buildDownloadUrl(this.generateDownloadToken(exportId));
+      return request;
+    } catch (error) {
+      if (request.status === 'cancelled') {
+        request.status = 'cancelled';
+      } else {
+        request.status = 'failed';
       }
-
-      metrics.latencyMs = now() - startedAt;
-      return ok({ metrics, watermark: cursor, checksums });
-    } finally {
-      this.activeChannels.delete(channelId);
+      throw error;
     }
   }
 
-  private async deliverWithRetry(
-    batch: ExportBatch,
-    sleepImpl: (ms: number) => Promise<void>,
-    metrics: ExportMetrics
-  ): Promise<ApiResponse<void>> {
-    let attempt = 0;
-    let lastError = 'unknown error';
-    while (attempt <= this.retry.maxRetries) {
-      try {
-        await this.sink.deliver(batch);
-        return ok(undefined);
-      } catch (error) {
-        lastError = error instanceof Error ? error.message : String(error);
-        if (attempt === this.retry.maxRetries) break;
-        const delay = Math.min(
-          this.retry.initialDelayMs * this.retry.backoffFactor ** attempt,
-          this.retry.maxDelayMs
-        );
-        metrics.retries += 1;
-        attempt += 1;
-        await sleepImpl(delay);
+  public cancelExport(exportId: string, actorId: string): boolean {
+    const request = this.requests.get(exportId);
+    if (!request) throw new Error('Export request not found');
+    if (!this.isAuthorized(actorId, request)) throw new Error('Unauthorized');
+    if (request.status !== 'pending' && request.status !== 'processing') {
+      return false;
+    }
+    request.status = 'cancelled';
+    return true;
+  }
+
+  public getExportStatus(exportId: string, actorId: string): ExportRequestSummary {
+    const request = this.requests.get(exportId);
+    if (!request) throw new Error('Export request not found');
+    if (!this.isAuthorized(actorId, request)) throw new Error('Unauthorized');
+    return { ...request };
+  }
+
+  public downloadExport(downloadToken: string, actorId?: string): ExportDownloadResult {
+    const exportId = this.downloadTokenIndex.get(downloadToken);
+    if (!exportId) throw new Error('Download token not found or expired');
+
+    const request = this.requests.get(exportId);
+    if (!request) throw new Error('Export request not found');
+    if (actorId && !this.isAuthorized(actorId, request)) throw new Error('Unauthorized');
+    if (request.status !== 'completed') throw new Error('Export is not available for download');
+    if (Date.now() > request.expiresAt) {
+      this.expireRequest(exportId, downloadToken);
+      throw new Error('Download link has expired');
+    }
+
+    this.logAuditEvent('pii.viewed', actorId ?? request.ownerId, request.exportId, request.fieldsIncluded, {
+      exportId: request.exportId,
+      downloadedAt: new Date().toISOString(),
+      downloadToken,
+    });
+
+    return {
+      exportId: request.exportId,
+      format: request.format,
+      expiresAt: request.expiresAt,
+      downloadedAt: Date.now(),
+      encryptedPayload: request.encryptedPayload as EncryptedField,
+    };
+  }
+
+  private async buildExportPayload(
+    ownerId: string,
+    sections: ExportSection[],
+    profileFields: ProfileField[],
+    request: ExportRequestSummary
+  ): Promise<Record<string, unknown>> {
+    const userData = this.fetchUserData(ownerId);
+    const payload: Record<string, unknown> = {};
+
+    if ((request.status as ExportState) === 'cancelled') throw new Error('Export request cancelled');
+
+    if (sections.includes('profile')) {
+      payload.profile = this.filterProfile(userData.profile, profileFields);
+      await this.pauseForCancellation(request);
+    }
+
+    if ((request.status as ExportState) === 'cancelled') throw new Error('Export request cancelled');
+
+    if (sections.includes('subscriptions')) {
+      payload.subscriptions = userData.subscriptions.map((subscription) => ({
+        id: subscription.id,
+        name: subscription.name,
+        amount: subscription.amount,
+        status: subscription.status,
+      }));
+      await this.pauseForCancellation(request);
+    }
+
+    if ((request.status as ExportState) === 'cancelled') throw new Error('Export request cancelled');
+
+    if (sections.includes('billingHistory')) {
+      payload.billingHistory = userData.billingHistory.map((record) => ({
+        id: record.id,
+        date: record.date,
+        amount: record.amount,
+        status: record.status,
+      }));
+      await this.pauseForCancellation(request);
+    }
+
+    if ((request.status as ExportState) === 'cancelled') throw new Error('Export request cancelled');
+
+    if (sections.includes('consentLogs')) {
+      payload.consentLogs = userData.consentLogs.map((entry) => ({
+        type: entry.type,
+        status: entry.status,
+        date: entry.date,
+      }));
+      await this.pauseForCancellation(request);
+    }
+
+    return payload;
+  }
+
+  private async pauseForCancellation(request: ExportRequestSummary): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    if (request.status === 'cancelled') {
+      throw new Error('Export request cancelled');
+    }
+  }
+
+  private buildPiiFieldList(sections: ExportSection[], profileFields: ProfileField[]): string[] {
+    const piiFields: string[] = [];
+    if (sections.includes('profile')) {
+      if (profileFields.includes('email')) piiFields.push('email');
+      if (profileFields.includes('name')) piiFields.push('name');
+    }
+    return piiFields;
+  }
+
+  private buildDownloadUrl(token: string): string {
+    return `${DOWNLOAD_BASE_URL}/${token}`;
+  }
+
+  private expireRequest(exportId: string, downloadToken: string): void {
+    this.requests.delete(exportId);
+    this.downloadTokenIndex.delete(downloadToken);
+  }
+
+  private generateDownloadToken(exportId: string): string {
+    const token = randomBytes(24).toString('hex');
+    this.downloadTokenIndex.set(token, exportId);
+    return token;
+  }
+
+  private generateExportId(): string {
+    return `export-${Date.now()}-${randomBytes(8).toString('hex')}`;
+  }
+
+  private extractPiiFieldNames(payload: Record<string, unknown>): string[] {
+    const piiFields: string[] = [];
+    if (payload.profile && typeof payload.profile === 'object') {
+      for (const key of Object.keys(payload.profile as Record<string, unknown>)) {
+        if (isPiiField(key)) {
+          piiFields.push(`profile.${key}`);
+        }
       }
     }
-    return fail('delivery_failed', lastError, { retryable: true });
+    return piiFields;
+  }
+
+  private filterProfile(profile: Record<string, unknown>, fields: ProfileField[]): Record<string, unknown> {
+    const filtered: Record<string, unknown> = {};
+    for (const field of fields) {
+      if (field in profile) {
+        filtered[field] = profile[field];
+      }
+    }
+    return filtered;
+  }
+
+  private fetchUserData(ownerId: string) {
+    return {
+      profile: { id: ownerId, email: 'user@example.com', name: 'John Doe', registeredAt: '2026-01-01' },
+      subscriptions: [{ id: 'sub_1', name: 'Netflix', amount: 15.99, status: 'active' }],
+      billingHistory: [{ id: 'tx_1', date: '2026-04-20', amount: 15.99, status: 'completed' }],
+      consentLogs: [{ type: 'analytics', status: 'granted', date: '2026-01-01' }],
+    };
+  }
+
+  private encryptExportPayload(serializedData: string): EncryptedField {
+    const key = keyManager.getActiveEncryptionKey();
+    if (!key) throw new Error('Encryption key not initialized');
+    return encryptField(serializedData, key);
+  }
+
+  private serializePayload(payload: Record<string, unknown>, format: ExportFormat): string {
+    if (format === 'json') {
+      return JSON.stringify(payload, null, 2);
+    }
+
+    const chunks: string[] = [];
+    const escapeCsv = (value: string) => `"${value.replace(/"/g, '""')}"`;
+
+    for (const section of Object.keys(payload)) {
+      const sectionValue = payload[section];
+      if (Array.isArray(sectionValue)) {
+        if (sectionValue.length === 0) {
+          chunks.push(`${section},`);
+          continue;
+        }
+        const headers = Object.keys(sectionValue[0] as Record<string, unknown>);
+        chunks.push(`${escapeCsv(section)},${headers.map(escapeCsv).join(',')}`);
+        for (const item of sectionValue as Record<string, unknown>[]) {
+          chunks.push(
+            [escapeCsv(section), ...headers.map((key) => escapeCsv(String((item as Record<string, unknown>)[key] ?? '')))].join(',')
+          );
+        }
+      } else if (sectionValue && typeof sectionValue === 'object') {
+        const record = sectionValue as Record<string, unknown>;
+        for (const key of Object.keys(record)) {
+          chunks.push([escapeCsv(section), escapeCsv(key), escapeCsv(String(record[key] ?? ''))].join(','));
+        }
+      } else {
+        chunks.push([escapeCsv(section), escapeCsv(String(sectionValue ?? ''))].join(','));
+      }
+    }
+
+    return chunks.join('\n');
+  }
+
+  private authorizeExport(actorId: string, ownerId: string): void {
+    if (actorId !== ownerId && actorId !== 'admin') {
+      throw new Error('Unauthorized to request export');
+    }
+  }
+
+  private isAuthorized(actorId: string, request: ExportRequestSummary): boolean {
+    return actorId === request.ownerId || actorId === 'admin';
+  }
+
+  private async ensureEncryptionInitialized(): Promise<void> {
+    if (!keyManager.getActiveEncryptionKey()) {
+      await keyManager.initialize();
+    }
+  }
+
+  private logAuditEvent(
+    action: PiiAccessAction,
+    actorId: string,
+    resourceId: string,
+    fieldsAccessed: string[],
+    metadata: Record<string, unknown> = {}
+  ) {
+    piiAuditService.logPiiAccess(action, actorId, resourceId, 'user', fieldsAccessed, metadata);
   }
 }
+
+export const exportService = new ExportService();

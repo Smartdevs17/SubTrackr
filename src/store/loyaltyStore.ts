@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { asyncStorageAdapter } from '../utils/storage';
 import {
   LoyaltyStatus,
   LoyaltyTier,
@@ -10,6 +10,21 @@ import {
   TierBenefits,
   LoyaltyProgram,
 } from '../types/loyalty';
+
+export interface StreakData {
+  current: number;
+  longest: number;
+  lastPaymentDate?: string | null;
+  frozenUntil?: string | null;
+}
+
+export interface Achievement {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  unlockedAt?: Date | null | string;
+}
 
 const STORAGE_KEY = 'subtrackr-loyalty';
 const STORE_VERSION = 1;
@@ -267,7 +282,7 @@ export const useLoyaltyStore = create<LoyaltyState>()(
     {
       name: STORAGE_KEY,
       version: STORE_VERSION,
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => asyncStorageAdapter),
       partialize: (state) => ({
         loyaltyStatus: state.loyaltyStatus,
         transactions: state.transactions,

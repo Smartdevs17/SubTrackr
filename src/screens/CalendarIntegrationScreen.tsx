@@ -1,9 +1,10 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import {
   Alert,
   Linking,
   SafeAreaView,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -17,6 +18,7 @@ import {
   CALENDAR_PROVIDERS,
   REMINDER_OFFSET_OPTIONS,
   REMINDER_PRESETS,
+  SUBSCRIPTION_TIMEZONES,
   type CalendarProvider,
 } from '../types/calendar';
 import { borderRadius, colors, spacing, typography } from '../utils/constants';
@@ -51,6 +53,9 @@ const CalendarIntegrationScreen: React.FC = () => {
     pendingAuthorizations,
     reminderOffsets,
     error,
+    oneTimePayments,
+    scheduleConflicts,
+    timezone,
     beginConnection,
     completeConnection,
     cancelConnection,
@@ -58,6 +63,11 @@ const CalendarIntegrationScreen: React.FC = () => {
     setReminderOffsets,
     toggleReminderOffset,
     clearError,
+    addOneTimePayment,
+    cancelOneTimePayment,
+    checkConflicts,
+    exportCalendar,
+    setTimezone,
   } = useCalendarStore();
   const subscriptions = useSubscriptionStore((state) => state.subscriptions);
 
@@ -113,6 +123,57 @@ const CalendarIntegrationScreen: React.FC = () => {
       .getState()
       .syncSubscriptions(useSubscriptionStore.getState().subscriptions);
   };
+
+  const handleExportICal = useCallback(async () => {
+    try {
+      const payload = exportCalendar(subscriptions, timezone);
+      await Share.share({
+        message: payload.ical,
+        title: payload.filename,
+      });
+      Alert.alert(
+        'Calendar exported',
+        `Exported ${payload.events.length} events to ${payload.filename}`
+      );
+    } catch (exportError) {
+      Alert.alert(
+        'Export failed',
+        exportError instanceof Error ? exportError.message : 'Could not export calendar.'
+      );
+    }
+  }, [subscriptions, timezone, exportCalendar]);
+
+  const handleCheckConflicts = useCallback(() => {
+    checkConflicts(subscriptions);
+  }, [subscriptions, checkConflicts]);
+
+  const handleScheduleOneTimePayment = useCallback(() => {
+    Alert.prompt
+      ? Alert.prompt(
+          'Schedule one-time payment',
+          'Enter subscription ID and amount (e.g., sub-1,29.99)',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Schedule',
+              onPress: (input?: string) => {
+                if (!input) return;
+                const [subId, amountStr] = input.split(',');
+                const amount = parseFloat(amountStr);
+                if (subId && !isNaN(amount)) {
+                  addOneTimePayment(subId, amount, 'USD', new Date(), 'One-time payment');
+                  Alert.alert('Scheduled', `One-time payment of ${amount} USD for ${subId}`);
+                }
+              },
+            },
+          ],
+          'plain-text'
+        )
+      : Alert.alert(
+          'Schedule one-time payment',
+          'Use the calendar app to schedule one-time payments from the billing screen.'
+        );
+  }, [addOneTimePayment]);
 
   const handleConnect = async (provider: CalendarProvider) => {
     try {
@@ -353,6 +414,101 @@ const CalendarIntegrationScreen: React.FC = () => {
           )}
         </Card>
 
+        <Card style={styles.section}>
+          <Text style={styles.sectionTitle}>Calendar export</Text>
+          <Text style={styles.sectionDescription}>
+            Export all subscription renewal events as an iCal file for use with any calendar app.
+          </Text>
+          <TouchableOpacity style={styles.actionButton} onPress={handleExportICal}>
+            <Text style={styles.actionButtonText}>Export iCal (.ics)</Text>
+          </TouchableOpacity>
+        </Card>
+
+        <Card style={styles.section}>
+          <Text style={styles.sectionTitle}>Timezone</Text>
+          <Text style={styles.sectionDescription}>
+            Set your preferred timezone for calendar events. Current: {timezone}.
+          </Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.timezoneScroll}>
+            {SUBSCRIPTION_TIMEZONES.map((tz) => (
+              <TouchableOpacity
+                key={tz}
+                style={[styles.timezoneChip, tz === timezone && styles.offsetChipActive]}
+                onPress={() => setTimezone(tz)}>
+                <Text
+                  style={[styles.offsetChipText, tz === timezone && styles.offsetChipTextActive]}>
+                  {tz}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </Card>
+
+        <Card style={styles.section}>
+          <Text style={styles.sectionTitle}>Schedule conflicts</Text>
+          <Text style={styles.sectionDescription}>
+            Detect overlapping subscription billing dates and total charges per day.
+          </Text>
+          <TouchableOpacity style={styles.actionButton} onPress={handleCheckConflicts}>
+            <Text style={styles.actionButtonText}>Check for conflicts</Text>
+          </TouchableOpacity>
+          {scheduleConflicts.length > 0
+            ? scheduleConflicts.slice(0, 5).map((conflict) => (
+                <View key={conflict.date} style={styles.conflictRow}>
+                  <Text style={styles.conflictDate}>{conflict.date}</Text>
+                  <Text style={styles.conflictDetail}>
+                    {conflict.conflictingSubscriptions.length} subscriptions —{' '}
+                    {conflict.totalAmount.toFixed(2)} USD total
+                  </Text>
+                  {conflict.conflictingSubscriptions.map((sub) => (
+                    <Text key={sub.id} style={styles.conflictSub}>
+                      {sub.name}: {sub.currency} {sub.amount.toFixed(2)}
+                    </Text>
+                  ))}
+                </View>
+              ))
+            : scheduleConflicts.length === 0 && (
+                <Text style={styles.emptyPreview}>
+                  No conflicts detected. Tap "Check for conflicts" to scan.
+                </Text>
+              )}
+        </Card>
+
+        <Card style={styles.section}>
+          <Text style={styles.sectionTitle}>One-time payments</Text>
+          <Text style={styles.sectionDescription}>
+            Schedule one-time payments beyond recurring subscriptions.
+          </Text>
+          <TouchableOpacity style={styles.actionButton} onPress={handleScheduleOneTimePayment}>
+            <Text style={styles.actionButtonText}>Schedule payment</Text>
+          </TouchableOpacity>
+          {oneTimePayments.length > 0 ? (
+            oneTimePayments.map((payment) => (
+              <View key={payment.id} style={styles.conflictRow}>
+                <Text style={styles.conflictDate}>{payment.description}</Text>
+                <Text style={styles.conflictDetail}>
+                  {payment.currency} {payment.amount.toFixed(2)} — {payment.status}
+                </Text>
+                <Text style={styles.conflictSub}>
+                  {new Date(payment.scheduledDate).toLocaleDateString()}
+                </Text>
+                {payment.status === 'pending' && (
+                  <TouchableOpacity
+                    style={[styles.actionButton, styles.disconnectButton]}
+                    onPress={() => cancelOneTimePayment(payment.id)}>
+                    <Text style={styles.actionButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ))
+          ) : (
+            <Text style={styles.emptyPreview}>No one-time payments scheduled.</Text>
+          )}
+        </Card>
+
         {error ? (
           <Card style={styles.errorCard}>
             <Text style={styles.errorText}>{error}</Text>
@@ -480,6 +636,25 @@ const styles = StyleSheet.create({
     borderColor: `${colors.error}66`,
   },
   errorButtonText: { ...typography.caption, color: colors.error, fontWeight: '600' },
+  timezoneScroll: { marginTop: spacing.sm },
+  timezoneChip: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    marginRight: spacing.sm,
+  },
+  conflictRow: {
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    gap: spacing.xs,
+  },
+  conflictDate: { ...typography.body, color: colors.text, fontWeight: '600' },
+  conflictDetail: { ...typography.caption, color: colors.textSecondary },
+  conflictSub: { ...typography.small, color: colors.textSecondary, paddingLeft: spacing.sm },
 });
 
 export default CalendarIntegrationScreen;

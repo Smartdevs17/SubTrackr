@@ -1,5 +1,58 @@
 export type CalendarProvider = 'google' | 'apple' | 'outlook';
 
+// ── Calendar Billing Types ─────────────────────────────────────────────────
+
+/**
+ * Policy for handling months that don't have the target day_of_month.
+ * - 'last_day': bill on the last day of the month (e.g. Jan 31 → Feb 28)
+ * - 'first_day_next': bill on the 1st of the following month
+ * - 'skip': skip billing for that month
+ */
+export type AdjustmentPolicy = 'last_day' | 'first_day_next' | 'skip';
+
+/**
+ * Calendar-based billing configuration for a merchant or subscription.
+ * Allows billing to be anchored to a specific calendar day rather than
+ * the subscription creation date.
+ */
+export interface CalendarBilling {
+  /** Day of month to bill on (1–31). Values > 28 are subject to adjustment_policy. */
+  day_of_month: number;
+  /** How many months between billing cycles (1 = monthly, 3 = quarterly, 12 = yearly). */
+  billing_months_interval: number;
+  /** How to handle months that don't have the target day. */
+  adjustment_policy: AdjustmentPolicy;
+  /** Optional timezone for interpreting the billing day. Defaults to 'UTC'. */
+  timezone?: string;
+}
+
+/** A generated invoice for a calendar-billing period. */
+export interface CalendarInvoice {
+  id: string;
+  subscriptionId: string;
+  merchantId: string;
+  periodStart: string; // ISO date string
+  periodEnd: string; // ISO date string
+  billingDate: string; // ISO date string — the actual calendar-adjusted date
+  amount: number;
+  currency: string;
+  /** Pro-rata amount if the subscription started mid-period. */
+  proratedAmount?: number;
+  isProratedPeriod: boolean;
+  status: 'draft' | 'issued' | 'paid' | 'void';
+  createdAt: string;
+}
+
+/** Per-merchant calendar billing schedule. */
+export interface MerchantBillingSchedule {
+  merchantId: string;
+  config: CalendarBilling;
+  /** ISO date string of the next scheduled billing date. */
+  nextBillingDate: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface PendingCalendarAuthorization {
   provider: CalendarProvider;
   state: string;
@@ -27,7 +80,7 @@ export interface CalendarIntegration {
   reminderOffsets: number[];
 }
 
-export type CalendarEventKind = 'billing_reminder';
+export type CalendarEventKind = 'billing_reminder' | 'one_time_payment';
 
 export interface CalendarEventTemplate {
   kind: CalendarEventKind;
@@ -37,6 +90,56 @@ export interface CalendarEventTemplate {
   endAt: string;
   reminderOffsets: number[];
 }
+
+export interface OneTimeScheduledPayment {
+  id: string;
+  subscriptionId: string;
+  amount: number;
+  currency: string;
+  scheduledDate: string;
+  description: string;
+  status: 'pending' | 'processed' | 'cancelled';
+  createdAt: string;
+}
+
+export interface ScheduleConflict {
+  date: string;
+  conflictingSubscriptions: { id: string; name: string; amount: number; currency: string }[];
+  totalAmount: number;
+}
+
+export interface ProratedAdjustment {
+  originalAmount: number;
+  proratedAmount: number;
+  daysRemaining: number;
+  daysInCycle: number;
+  effectiveDate: string;
+  reason: string;
+}
+
+export interface CalendarExportPayload {
+  ical: string;
+  filename: string;
+  events: CalendarEventTemplate[];
+}
+
+export const SUBSCRIPTION_TIMEZONES = [
+  'UTC',
+  'America/New_York',
+  'America/Chicago',
+  'America/Denver',
+  'America/Los_Angeles',
+  'Europe/London',
+  'Europe/Berlin',
+  'Europe/Paris',
+  'Asia/Tokyo',
+  'Asia/Shanghai',
+  'Asia/Kolkata',
+  'Australia/Sydney',
+  'Pacific/Auckland',
+] as const;
+
+export type SubscriptionTimezone = (typeof SUBSCRIPTION_TIMEZONES)[number];
 
 export interface CalendarSyncedEvent extends CalendarEventTemplate {
   id: string;

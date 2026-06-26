@@ -488,6 +488,62 @@
             "key": {
               "vec": [
                 {
+                  "symbol": "ProxyScheduledUpgrade"
+                }
+              ]
+            },
+            "durability": "temporary"
+          }
+        },
+        [
+          {
+            "last_modified_ledger_seq": 0,
+            "data": {
+              "contract_data": {
+                "ext": "v0",
+                "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM",
+                "key": {
+                  "vec": [
+                    {
+                      "symbol": "ProxyScheduledUpgrade"
+                    }
+                  ]
+                },
+                "durability": "temporary",
+                "val": {
+                  "map": [
+                    {
+                      "key": {
+                        "symbol": "execute_after"
+                      },
+                      "val": {
+                        "u64": 1700000201
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "implementation"
+                      },
+                      "val": {
+                        "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "ext": "v0"
+          },
+          120960
+        ]
+      ],
+      [
+        {
+          "contract_data": {
+            "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM",
+            "key": {
+              "vec": [
+                {
                   "symbol": "ProxyUpgradeHistoryEntry"
                 },
                 {
@@ -838,6 +894,18 @@
                         "key": {
                           "vec": [
                             {
+                              "symbol": "ProxyPrevImplCount"
+                            }
+                          ]
+                        },
+                        "val": {
+                          "u32": 1
+                        }
+                      },
+                      {
+                        "key": {
+                          "vec": [
+                            {
                               "symbol": "ProxyPreviousImplementation"
                             },
                             {
@@ -853,53 +921,12 @@
                         "key": {
                           "vec": [
                             {
-                              "symbol": "ProxyPreviousImplementationCount"
-                            }
-                          ]
-                        },
-                        "val": {
-                          "u32": 1
-                        }
-                      },
-                      {
-                        "key": {
-                          "vec": [
-                            {
                               "symbol": "ProxyRollbackDelaySecs"
                             }
                           ]
                         },
                         "val": {
                           "u64": 50
-                        }
-                      },
-                      {
-                        "key": {
-                          "vec": [
-                            {
-                              "symbol": "ProxyScheduledUpgrade"
-                            }
-                          ]
-                        },
-                        "val": {
-                          "map": [
-                            {
-                              "key": {
-                                "symbol": "execute_after"
-                              },
-                              "val": {
-                                "u64": 1700000201
-                              }
-                            },
-                            {
-                              "key": {
-                                "symbol": "implementation"
-                              },
-                              "val": {
-                                "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4"
-                              }
-                            }
-                          ]
                         }
                       },
                       {
@@ -2489,7 +2516,7 @@
             "data": {
               "vec": [
                 {
-                  "string": "caught panic 'incompatible state' from contract function 'Symbol(obj#1043)'"
+                  "string": "caught panic 'incompatible state' from contract function 'Symbol(obj#965)'"
                 },
                 {
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"

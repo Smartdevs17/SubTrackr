@@ -1,18 +1,23 @@
 import React from 'react';
-import { View } from 'react-native';
+import { View, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { useNotifications } from './src/hooks/useNotifications';
 import { useTransactionQueue } from './src/hooks/useTransactionQueue';
 import ErrorBoundary from './src/components/ErrorBoundary';
+import { HydrationGate } from './src/components/HydrationGate';
 import { initI18n } from './src/i18n/config';
 import i18n from './src/i18n/config';
 import { I18nextProvider } from 'react-i18next';
-import { applyE2EBootstrap } from './src/utils/e2e/e2eBootstrap';
+import { crashReporter, CrashRecord } from './src/services/crashReporter';
+import * as Sentry from '@sentry/react-native';
 
-// Import WalletConnect compatibility layer
+import './src/config/env';
+
 import '@walletconnect/react-native-compat';
+
+import { initHermesOptimizations } from './src/utils/startupTimeOptimizer';
 
 import { createAppKit, defaultConfig, AppKit } from '@reown/appkit-ethers-react-native';
 
@@ -23,7 +28,17 @@ import { sessionService } from './src/services/auth/session';
 // Get projectId from environment variable
 const projectId = process.env.WALLET_CONNECT_PROJECT_ID || 'YOUR_PROJECT_ID';
 
-// Create metadata
+try {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN || '',
+    enableAutoSessionTracking: true,
+    tracesSampleRate: Number(process.env.SENTRY_TRACES_SAMPLE_RATE || 0.05),
+    environment: process.env.NODE_ENV || 'production',
+  });
+} catch (e) {
+  console.warn('Sentry init failed', e);
+}
+
 const metadata = {
   name: 'SubTrackr',
   description: 'Subscription Management with Crypto Payments',
@@ -36,7 +51,6 @@ const metadata = {
 
 const config = defaultConfig({ metadata });
 
-// Define supported chains
 const mainnet = {
   chainId: 1,
   name: 'Ethereum',
@@ -63,7 +77,6 @@ const arbitrum = {
 
 const chains = [mainnet, polygon, arbitrum];
 
-// Create AppKit
 createAppKit({
   projectId,
   metadata,
@@ -80,9 +93,19 @@ function NotificationBootstrap() {
   const { initializeSettings } = useSettingsStore();
 
   React.useEffect(() => {
+    if (Platform.OS === 'android') {
+      initHermesOptimizations();
+    }
     initialize();
     void initializeSettings();
-    void sessionService.initializeCurrentSession();
+    void (async () => {
+      const session = await sessionService.initializeCurrentSession();
+      try {
+        Sentry.setContext('session', { id: session.id, deviceName: session.deviceName });
+      } catch (e) {
+        // ignore
+      }
+    })();
   }, [initialize, initializeSettings]);
 
   return null;
@@ -90,15 +113,28 @@ function NotificationBootstrap() {
 
 export default function App() {
   const [i18nReady, setI18nReady] = React.useState(false);
+  const [, setPendingCrash] = React.useState<CrashRecord | null>(null);
+  const [, setShowRecoveryModal] = React.useState(false);
 
   React.useEffect(() => {
     let cancelled = false;
     const run = async () => {
       try {
-        // Hermetic E2E setup (seed data, mocked network, fixed clock). No-op in
-        // production — see src/utils/e2e/e2eBootstrap.ts.
-        await applyE2EBootstrap();
         await initI18n();
+
+        const previousCrash = await crashReporter.initialize({
+          preservedStorageKeys: [
+            '@subtrackr/settings',
+            '@subtrackr/auth_token',
+            '@subtrackr/preferred_currency',
+          ],
+          installGlobalHandler: true,
+        });
+
+        if (previousCrash && !cancelled) {
+          setPendingCrash(previousCrash);
+          setShowRecoveryModal(true);
+        }
       } finally {
         if (!cancelled) setI18nReady(true);
       }
@@ -117,8 +153,10 @@ export default function App() {
         <StatusBar style="light" />
         <ErrorBoundary>
           <I18nextProvider i18n={i18n}>
-            <NotificationBootstrap />
-            <AppNavigator />
+            <HydrationGate>
+              <NotificationBootstrap />
+              <AppNavigator />
+            </HydrationGate>
           </I18nextProvider>
         </ErrorBoundary>
         <AppKit />

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { asyncStorageAdapter } from '../utils/storage';
 import { Segment } from '../types/segment';
 import { segmentService } from '../services/segmentService';
 import { useSubscriptionStore } from './subscriptionStore';
@@ -100,7 +100,7 @@ export const useSegmentStore = create<SegmentState>()(
     }),
     {
       name: STORAGE_KEY,
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => asyncStorageAdapter),
     }
   )
 );

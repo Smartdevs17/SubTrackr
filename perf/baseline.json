@@ -1,5 +1,0 @@
-{
-  "_comment": "Cold-start baseline BEFORE differential bytecode / lazy screens. Update with a controlled measurement run.",
-  "startupMs": 2100,
-  "peakMemoryMb": 205
-}

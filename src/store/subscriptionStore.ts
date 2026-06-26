@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import { debouncedAsyncStorageAdapter } from '../utils/storage';
 import {
   Subscription, // eslint-disable-line
   SubscriptionFormData,
@@ -16,6 +16,11 @@ import {
   syncRenewalReminders,
   presentChargeSuccessNotification,
   presentChargeFailedNotification,
+  presentDunningRetryNotification,
+  presentDunningWarningNotification,
+  presentDunningSuspendedNotification,
+  presentDunningCancelledNotification,
+  presentDunningRecoveryNotification,
 } from '../services/notificationService';
 import { useCalendarStore } from './calendarStore';
 import { useGamificationStore } from './gamificationStore';
@@ -24,7 +29,16 @@ import { AchievementTrigger } from '../types/gamification';
 import { errorHandler, AppError } from '../services/errorHandler';
 import { useSettingsStore } from './settingsStore';
 import { currencyService } from '../services/currencyService';
-
+import { useSupportStore } from './supportStore';
+import { buildSupportEventMessage } from '../services/ticketingService';
+import { SubscriptionSupportContext, TicketIssueType } from '../types/support';
+import {
+  previewProration,
+  generateCreditMemo,
+  applyCreditMemo,
+  ProrationPreview,
+  CreditMemo,
+} from '../utils/proration';
 
 const STORAGE_KEY = 'subtrackr-subscriptions';
 const STORE_VERSION = 1;
@@ -39,8 +53,6 @@ const generateUniqueId = (): string => {
   const randomComponent = Math.random().toString(36).substring(2, 8);
   return `${timestamp}-${randomComponent}`;
 };
-
-type PersistedSubscriptionSlice = Pick<SubscriptionState, 'subscriptions'>;
 
 const toValidDate = (value: unknown, fallback = new Date()): Date => {
   if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
@@ -73,12 +85,113 @@ const normalizeSubscription = (raw: Partial<Subscription>): Subscription => {
   };
 };
 
+const buildSupportContext = (
+  subscription: Subscription,
+  history: string[]
+): SubscriptionSupportContext => ({
+  subscriptionName: subscription.name,
+  planName: subscription.name,
+  planTier: subscription.category,
+  billingCycle: subscription.billingCycle,
+  status: subscription.isActive ? 'active' : 'paused',
+  amount: subscription.price,
+  currency: subscription.currency,
+  createdAt: subscription.createdAt.toISOString(),
+  nextBillingDate:
+    subscription.nextBillingDate?.toISOString?.() ??
+    new Date(subscription.nextBillingDate).toISOString(),
+  failedPayments: subscription.chargeCount ? Math.max(subscription.chargeCount - 1, 0) : 0,
+  chargeCount: subscription.chargeCount ?? 0,
+  history,
+});
+
+const createSupportEvent = (
+  subscription: Subscription,
+  issueType: TicketIssueType,
+  history: string[],
+  actorId = 'system'
+) => {
+  const context = buildSupportContext(subscription, history);
+  return {
+    subscriptionId: subscription.id,
+    issueType,
+    message: buildSupportEventMessage(context, issueType),
+    occurredAt: new Date(),
+    context,
+    dedupeKey: `${subscription.id}:${issueType}`,
+    actorId,
+  };
+};
+
+// Debounced writes are provided by the shared debouncedAsyncStorageAdapter
+// (see src/utils/storage.ts). This removes the copy-pasted boilerplate.
+
+export type ProrationEffectiveType = 'immediate' | 'end_of_period' | 'custom_date';
+
+export interface SubscriptionChange {
+  id: string;
+  subscriptionId: string;
+  fromPrice: number;
+  toPrice: number;
+  effectiveType: ProrationEffectiveType;
+  status: 'pending' | 'executed' | 'rejected';
+  proration: ProrationPreview;
+  createdAt: Date;
+  newPlanData: Partial<Subscription>;
+}
+
+interface SubscriptionState {
+  subscriptions: Subscription[];
+  stats: SubscriptionStats;
+  isLoading: boolean;
+  error: AppError | null;
+  prorationPreview: ProrationPreview | null;
+  creditMemos: Record<string, CreditMemo>;
+  planChanges: SubscriptionChange[];
+
+  // Actions
+  addSubscription: (data: SubscriptionFormData) => Promise<void>;
+  updateSubscription: (id: string, data: Partial<Subscription>) => Promise<void>;
+  deleteSubscription: (id: string) => Promise<void>;
+  toggleSubscriptionStatus: (id: string) => Promise<void>;
+  // new actions added
+  previewPlanChange: (
+    id: string,
+    newPrice: number,
+    effectiveDate: 'immediate' | 'end_of_period'
+  ) => ProrationPreview;
+  executePlanChange: (
+    id: string,
+    newPlanData: Partial<Subscription>,
+    effectiveDate: 'immediate' | 'end_of_period'
+  ) => Promise<void>;
+  applyCreditToSubscription: (id: string) => Promise<void>;
+  /** Simulate or record a billing result (fires local notifications when enabled for this sub). */
+  recordBillingOutcome: (id: string, outcome: 'success' | 'failed') => Promise<void>;
+  fetchSubscriptions: () => Promise<void>;
+  calculateStats: () => void;
+  queuePlanChange: (
+    id: string,
+    newPlanData: Partial<Subscription>,
+    effectiveDate: ProrationEffectiveType
+  ) => void;
+  approvePlanChange: (changeId: string) => Promise<void>;
+  rejectPlanChange: (changeId: string) => void;
+  getChangeHistory: (subscriptionId: string) => SubscriptionChange[];
+}
+
+type PersistedSubscriptionSlice = Pick<SubscriptionState, 'subscriptions' | 'planChanges'>;
+
 const serializeForStorage = (state: PersistedSubscriptionSlice): PersistedSubscriptionSlice => ({
-  subscriptions: state.subscriptions.map((sub) => ({
+  subscriptions: (state.subscriptions || []).map((sub) => ({
     ...sub,
     nextBillingDate: new Date(sub.nextBillingDate),
     createdAt: new Date(sub.createdAt),
     updatedAt: new Date(sub.updatedAt),
+  })),
+  planChanges: (state.planChanges || []).map((change) => ({
+    ...change,
+    createdAt: new Date(change.createdAt),
   })),
 });
 
@@ -87,7 +200,7 @@ const migratePersistedState = (
   _version: number
 ): PersistedSubscriptionSlice => {
   if (!persisted || typeof persisted !== 'object') {
-    return { subscriptions: [] };
+    return { subscriptions: [], planChanges: [] };
   }
 
   const maybeState = persisted as Partial<PersistedSubscriptionSlice>;
@@ -95,70 +208,15 @@ const migratePersistedState = (
     ? maybeState.subscriptions.map((entry) => normalizeSubscription(entry as Partial<Subscription>))
     : [];
 
-  return { subscriptions };
+  const planChanges = Array.isArray(maybeState.planChanges)
+    ? maybeState.planChanges.map((entry) => ({
+        ...entry,
+        createdAt: new Date(entry.createdAt),
+      }))
+    : [];
+
+  return { subscriptions, planChanges };
 };
-
-const pendingWrites = new Map<string, string>();
-let writeTimer: ReturnType<typeof setTimeout> | null = null;
-let writeQueue = Promise.resolve();
-
-const flushPendingWrites = async (): Promise<void> => {
-  if (pendingWrites.size === 0) return;
-
-  const writes = Array.from(pendingWrites.entries());
-  pendingWrites.clear();
-
-  writeQueue = writeQueue.then(async () => {
-    await Promise.all(writes.map(([key, value]) => AsyncStorage.setItem(key, value)));
-  });
-
-  try {
-    await writeQueue;
-  } catch (error) {
-    console.warn('Failed to persist subscriptions:', error);
-  }
-};
-
-const debouncedAsyncStorage: StateStorage = {
-  getItem: async (name) => {
-    if (pendingWrites.has(name)) return pendingWrites.get(name) ?? null;
-    await writeQueue;
-    return AsyncStorage.getItem(name);
-  },
-  setItem: async (name, value) => {
-    pendingWrites.set(name, value);
-    if (writeTimer) clearTimeout(writeTimer);
-    writeTimer = setTimeout(() => {
-      void flushPendingWrites();
-    }, WRITE_DEBOUNCE_MS);
-  },
-  removeItem: async (name) => {
-    pendingWrites.delete(name);
-    if (writeTimer && pendingWrites.size === 0) {
-      clearTimeout(writeTimer);
-      writeTimer = null;
-    }
-    await writeQueue;
-    await AsyncStorage.removeItem(name);
-  },
-};
-
-interface SubscriptionState {
-  subscriptions: Subscription[];
-  stats: SubscriptionStats;
-  isLoading: boolean;
-  error: AppError | null;
-
-  // Actions
-  addSubscription: (data: SubscriptionFormData) => Promise<void>;
-  updateSubscription: (id: string, data: Partial<Subscription>) => Promise<void>;
-  deleteSubscription: (id: string) => Promise<void>;
-  toggleSubscriptionStatus: (id: string) => Promise<void>;
-  /** Simulate or record a billing result (fires local notifications when enabled for this sub). */
-  recordBillingOutcome: (id: string, outcome: 'success' | 'failed') => Promise<void>;
-  fetchSubscriptions: () => Promise<void>;
-  calculateStats: () => void;
-}
 
 export const useSubscriptionStore = create<SubscriptionState>()(
   persist(
@@ -168,11 +226,155 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         totalActive: 0,
         totalMonthlySpend: 0,
         totalYearlySpend: 0,
-        categoryBreakdown: {} as Record<string, number>,
+        categoryBreakdown: {} as Record<SubscriptionCategory, number>,
       },
-      // Hydration state: keep loading true until persisted state is read.
       isLoading: true,
       error: null,
+      prorationPreview: null,
+      creditMemos: {},
+      planChanges: [],
+
+      previewPlanChange: (
+        id: string,
+        newPrice: number,
+        effectiveDate: 'immediate' | 'end_of_period'
+      ) => {
+        const sub = get().subscriptions.find((s) => s.id === id);
+        if (!sub) {
+          throw new Error('Subscription not found');
+        }
+
+        const preview = previewProration(sub, newPrice, effectiveDate);
+        set({ prorationPreview: preview });
+        return preview;
+      },
+
+      executePlanChange: async (
+        id: string,
+        newPlanData: Partial<Subscription>,
+        effectiveDate: 'immediate' | 'end_of_period'
+      ) => {
+        set({ isLoading: true, error: null });
+        try {
+          const sub = get().subscriptions.find((s) => s.id === id);
+          if (!sub) throw new Error('Subscription not found');
+
+          const preview = previewProration(sub, newPlanData.price ?? sub.price, effectiveDate);
+
+          // Generate credit memo if downgrade
+          const updatedCreditMemos = { ...get().creditMemos };
+          if (preview.isCredit && preview.amount > 0) {
+            const memo = generateCreditMemo(id, preview.amount, preview.description);
+            updatedCreditMemos[id] = memo;
+          }
+
+          // Update subscription
+          const updates: Partial<Subscription> = {
+            ...newPlanData,
+            updatedAt: new Date(),
+          };
+
+          if (effectiveDate === 'immediate') {
+            // Reset billing cycle
+            updates.nextBillingDate = advanceBillingDate(
+              new Date(),
+              newPlanData.billingCycle ?? sub.billingCycle
+            );
+          }
+
+          set((state) => ({
+            subscriptions: state.subscriptions.map((s) => (s.id === id ? { ...s, ...updates } : s)),
+            creditMemos: updatedCreditMemos,
+            prorationPreview: null,
+            isLoading: false,
+          }));
+
+          get().calculateStats();
+          await syncRenewalReminders(get().subscriptions);
+        } catch (error) {
+          const appError = errorHandler.handleError(error as Error, {
+            action: 'executePlanChange',
+            subscriptionId: id,
+          });
+          set({ error: appError, isLoading: false });
+        }
+      },
+
+      applyCreditToSubscription: async (id: string) => {
+        const sub = get().subscriptions.find((s) => s.id === id);
+        const memo = get().creditMemos[id];
+        if (!sub || !memo || memo.applied) return;
+
+        const { finalCharge, updatedMemo } = applyCreditMemo(sub.price, memo);
+
+        set((state) => ({
+          creditMemos: {
+            ...state.creditMemos,
+            [id]: updatedMemo,
+          },
+        }));
+
+        // Could trigger a reduced charge here
+        console.log(`Applied credit: final charge ${finalCharge}`);
+      },
+
+      queuePlanChange: (
+        id: string,
+        newPlanData: Partial<Subscription>,
+        effectiveDate: ProrationEffectiveType
+      ) => {
+        const sub = get().subscriptions.find((s) => s.id === id);
+        if (!sub) throw new Error('Subscription not found');
+        const preview = previewProration(
+          sub,
+          newPlanData.price ?? sub.price,
+          effectiveDate === 'end_of_period' ? 'end_of_period' : 'immediate'
+        );
+        const change: SubscriptionChange = {
+          id: generateUniqueId(),
+          subscriptionId: id,
+          fromPrice: sub.price,
+          toPrice: newPlanData.price ?? sub.price,
+          effectiveType: effectiveDate,
+          status: 'pending',
+          proration: preview,
+          createdAt: new Date(),
+          newPlanData,
+        };
+        set((state) => ({
+          planChanges: [...(state.planChanges || []), change],
+        }));
+      },
+
+      approvePlanChange: async (changeId: string) => {
+        const change = (get().planChanges || []).find((c) => c.id === changeId);
+        if (!change) throw new Error('Change request not found');
+        if (change.status !== 'pending') throw new Error('Change request is not pending');
+
+        await get().executePlanChange(
+          change.subscriptionId,
+          change.newPlanData,
+          change.effectiveType === 'end_of_period' ? 'end_of_period' : 'immediate'
+        );
+
+        set((state) => ({
+          planChanges: (state.planChanges || []).map((c) =>
+            c.id === changeId ? { ...c, status: 'executed' } : c
+          ),
+        }));
+      },
+
+      rejectPlanChange: (changeId: string) => {
+        set((state) => ({
+          planChanges: (state.planChanges || []).map((c) =>
+            c.id === changeId ? { ...c, status: 'rejected' } : c
+          ),
+        }));
+      },
+
+      getChangeHistory: (subscriptionId: string) => {
+        return (get().planChanges || []).filter((c) => c.subscriptionId === subscriptionId);
+      },
 
       addSubscription: async (data: SubscriptionFormData) => {
         set({ isLoading: true, error: null });
@@ -248,6 +450,18 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       deleteSubscription: async (id: string) => {
         set({ isLoading: true, error: null });
         try {
+          const current = get().subscriptions.find((sub) => sub.id === id);
+          if (current) {
+            useSupportStore
+              .getState()
+              .createTicket(
+                createSupportEvent(current, 'cancellation', [
+                  'Cancellation requested from subscription management',
+                  'Subscription marked for removal',
+                ])
+              );
+          }
+
           set((state) => ({
             subscriptions: state.subscriptions.filter((sub) => sub.id !== id),
             isLoading: false,
@@ -300,15 +514,47 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         const sub = get().subscriptions.find((s) => s.id === id);
         if (!sub) return;
 
-        if (sub.notificationsEnabled !== false) {
-          if (outcome === 'success') {
-            await presentChargeSuccessNotification(sub);
-          } else {
+        if (outcome === 'failed') {
+          const dunningEntries = JSON.parse(
+            (await AsyncStorage.getItem('subtrackr-dunning-entries')) || '{}'
+          );
+          const entry = dunningEntries[id];
+          const attempt = (entry?.failedAttempts ?? 0) + 1;
+
+          dunningEntries[id] = {
+            failedAttempts: attempt,
+            lastFailureAt: new Date().toISOString(),
+            currentStage:
+              attempt <= 3 ? 'retry' : attempt <= 5 ? 'warn' : attempt <= 7 ? 'suspend' : 'cancel',
+          };
+          await AsyncStorage.setItem('subtrackr-dunning-entries', JSON.stringify(dunningEntries));
+
+          if (sub.notificationsEnabled !== false) {
             await presentChargeFailedNotification(sub);
+            if (attempt <= 3) {
+              await presentDunningRetryNotification(sub, attempt, 3);
+            } else if (attempt <= 5) {
+              await presentDunningWarningNotification(sub, attempt);
+            } else if (attempt <= 7) {
+              await presentDunningSuspendedNotification(sub);
+            } else {
+              await presentDunningCancelledNotification(sub);
+            }
           }
+
+          set({ isLoading: false });
+          return;
         }
 
         if (outcome === 'success') {
+          const hasDunningEntry = await AsyncStorage.getItem('subtrackr-dunning-entries');
+          if (hasDunningEntry) {
+            await AsyncStorage.removeItem('subtrackr-dunning-entries');
+            if (sub.notificationsEnabled !== false) {
+              await presentDunningRecoveryNotification(sub);
+            }
+          }
+          await presentChargeSuccessNotification(sub);
           const billingPeriod = buildBillingPeriod(sub);
           const next = advanceBillingDate(new Date(sub.nextBillingDate), sub.billingCycle);
           const simulatedGas = 0.01 + Math.random() * 0.005; // Simulate 0.01 - 0.015 XLM gas
@@ -344,13 +590,22 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             },
             0
           );
+        } else {
+          useSupportStore
+            .getState()
+            .createTicket(
+              createSupportEvent(sub, 'failed_charge', [
+                'Payment failure recorded during billing run',
+                `Next billing date remains ${sub.nextBillingDate.toISOString()}`,
+                `Notifications ${sub.notificationsEnabled === false ? 'disabled' : 'enabled'}`,
+              ])
+            );
         }
       },
 
       fetchSubscriptions: async () => {
         set({ isLoading: true, error: null });
         try {
-          // TODO: Replace with remote sync; local storage remains source-of-truth offline.
           await new Promise((resolve) => setTimeout(resolve, 1000));
           set({ isLoading: false });
           get().calculateStats();
@@ -416,7 +671,6 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           return total + priceInPreferred * BILLING_CONVERSIONS.MONTHS_PER_YEAR;
         }, 0);
 
-
         const categoryBreakdown = activeSubs.reduce(
           (acc, sub) => {
             acc[sub.category] = (acc[sub.category] || 0) + 1;
@@ -444,42 +698,26 @@ export const useSubscriptionStore = create<SubscriptionState>()(
     {
       name: STORAGE_KEY,
       version: STORE_VERSION,
-      storage: createJSONStorage(() => debouncedAsyncStorage),
-      partialize: (state) => serializeForStorage({ subscriptions: state.subscriptions }),
+      storage: createJSONStorage(() => debouncedAsyncStorageAdapter),
+      partialize: (state) =>
+        serializeForStorage({ subscriptions: state.subscriptions, planChanges: state.planChanges }),
       migrate: (persistedState, version) => migratePersistedState(persistedState, version),
       merge: (persistedState, currentState) => ({
         ...currentState,
         ...migratePersistedState(persistedState, STORE_VERSION),
       }),
-      onRehydrateStorage: () => (state, error) => {
+      onRehydrateStorage: () => (_state, error) => {
         if (error) {
+          console.warn('[subscriptionStore] Hydration error — resetting to defaults:', error);
           useSubscriptionStore.setState({
-            error: errorHandler.createError(
-              new Error('Stored subscription data is corrupted. Loaded fallback data.'),
-              { action: 'rehydrateSubscriptions' },
-              true
-            ),
-            subscriptions: [...dummySubscriptions],
+            subscriptions: [],
+            planChanges: [],
             isLoading: false,
+            error: null,
+            prorationPreview: null,
+            creditMemos: {},
           });
-          useSubscriptionStore.getState().calculateStats();
-          void syncRenewalReminders(useSubscriptionStore.getState().subscriptions);
-          return;
         }
-
-        const subscriptions = Array.isArray(state?.subscriptions)
-          ? state.subscriptions
-          : [...dummySubscriptions];
-        useSubscriptionStore.setState({
-          subscriptions,
-          isLoading: false,
-          error: null,
-        });
-        useSubscriptionStore.getState().calculateStats();
-        void syncRenewalReminders(useSubscriptionStore.getState().subscriptions);
-        void useCalendarStore
-          .getState()
-          .syncSubscriptions(useSubscriptionStore.getState().subscriptions);
       },
     }
   )

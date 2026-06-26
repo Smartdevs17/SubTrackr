@@ -7,6 +7,7 @@ module.exports = {
     args: {
       $0: 'jest',
       config: 'e2e/jest.config.js',
+      maxWorkers: process.env.E2E_MAX_WORKERS || 1,
     },
     jest: {
       setupTimeout: 120000,
@@ -17,13 +18,13 @@ module.exports = {
       type: 'ios.app',
       binaryPath: 'ios/build/Build/Products/Debug-iphonesimulator/SubTrackr.app',
       build:
-        'xcodebuild -workspace ios/subtrackr.xcworkspace -scheme subtrackr -configuration Debug -sdk iphonesimulator -derivedDataPath ios/build',
+        'xcodebuild -workspace ios/SubTrackr.xcworkspace -scheme SubTrackr -configuration Debug -sdk iphonesimulator -derivedDataPath ios/build',
     },
     'ios.release': {
       type: 'ios.app',
       binaryPath: 'ios/build/Build/Products/Release-iphonesimulator/SubTrackr.app',
       build:
-        'xcodebuild -workspace ios/subtrackr.xcworkspace -scheme subtrackr -configuration Release -sdk iphonesimulator -derivedDataPath ios/build',
+        'xcodebuild -workspace ios/SubTrackr.xcworkspace -scheme SubTrackr -configuration Release -sdk iphonesimulator -derivedDataPath ios/build',
     },
     'android.debug': {
       type: 'android.apk',
@@ -84,14 +85,10 @@ module.exports = {
     },
   },
   behavior: {
-    // Determinism: always start from a freshly installed, freshly launched app so
-    // no state survives between specs. Detox's built-in synchronization waits for
-    // the app to be idle, which removes the need for hardcoded sleeps.
     init: {
+      exposeGlobals: true,
       reinstallApp: true,
-      exposeLaunchArguments: true,
     },
-    launchApp: 'auto',
     cleanup: {
       shutdownDevice: false,
     },

@@ -1,11 +1,20 @@
 [workspace]
 resolver = "2"
 members = [
+    "api",
     "proxy",
     "storage",
     "subscription",
     "fraud",
     "types",
+    "oracle",
+    "batch",
+    "credit",
+    "metering",
+    "access_control",
+    "security",
+    "audit",
+    "utils",
 ]
 
 [profile.release]

@@ -1,23 +1,49 @@
-import { by, device } from 'detox';
+import { by, device, element, waitFor } from 'detox';
 import { assertVisualSnapshot } from './helpers/visualRegression';
-import { launchSeededApp, openSubscriptionByName } from './helpers/subscriptionFlows';
-import { waitForVisible } from './helpers/waits';
-import { fixtures, NETFLIX_FIXTURE } from './helpers/testData';
+import {
+  createSubscription,
+  launchCleanApp,
+  openSubscriptionByName,
+} from './helpers/subscriptionFlows';
 
 describe('Subscription Visual Regression', () => {
   beforeEach(async () => {
-    // Seed identical, frozen data so screenshots are byte-stable across runs.
-    await launchSeededApp(fixtures.portfolio);
+    await launchCleanApp();
   });
 
-  it('captures home and detail visual baselines within tolerance', async () => {
-    await waitForVisible(by.id('home-screen'));
+  it('captures major app screen visual baselines', async () => {
+    await waitFor(element(by.id('home-screen')))
+      .toBeVisible()
+      .withTimeout(10000);
     const homeShot = (await device.takeScreenshot('home-screen')) as unknown as string;
-    // Slightly looser tolerance for the list screen (scroll position / shadows).
-    assertVisualSnapshot('home-screen', homeShot, { maxDiffRatio: 0.02 });
+    assertVisualSnapshot('home-screen', homeShot);
 
-    await openSubscriptionByName(NETFLIX_FIXTURE.name);
-    await waitForVisible(by.id('subscription-detail-screen'));
+    await element(by.text('Analytics')).tap();
+    await waitFor(element(by.text('No Data Yet')))
+      .toBeVisible()
+      .withTimeout(10000);
+    const analyticsShot = (await device.takeScreenshot('analytics-screen')) as unknown as string;
+    assertVisualSnapshot('analytics-screen', analyticsShot);
+
+    await element(by.text('Settings')).tap();
+    await waitFor(element(by.id('settings-screen')))
+      .toBeVisible()
+      .withTimeout(10000);
+    const settingsShot = (await device.takeScreenshot('settings-screen')) as unknown as string;
+    assertVisualSnapshot('settings-screen', settingsShot);
+
+    await element(by.text('Home')).tap();
+    await waitFor(element(by.id('home-screen')))
+      .toBeVisible()
+      .withTimeout(10000);
+
+    const subName = 'E2E Visual Baseline';
+    await createSubscription(subName, '8.49');
+    await openSubscriptionByName(subName);
+
+    await waitFor(element(by.id('subscription-detail-screen')))
+      .toBeVisible()
+      .withTimeout(10000);
     const detailShot = (await device.takeScreenshot(
       'subscription-detail-screen'
     )) as unknown as string;

@@ -1,96 +1,126 @@
 /**
- * Backend instrumentation helpers built on the tracing core.
- *
- * These wrap the three span shapes the acceptance criteria call for —
- * database queries, external calls, and business logic — plus the server-side
- * span that adopts the incoming W3C context. They keep instrumentation a
- * one-liner at call sites so coverage is easy to add and the overhead budget
- * (<2% p95) is respected (spans are cheap objects; export is async/best-effort).
+ * Monitoring service — ingests transaction events, computes metrics,
+ * detects anomalies, and exposes a dashboard snapshot.
  */
 
-import {
-  AttributeValue,
-  Span,
-  SpanContext,
-  Tracer,
-  createTracerFromEnv,
-  extractContext,
-  injectContext,
-} from './tracing';
+import type { TransactionEvent, Metric, AlertRule, Alert, DashboardSnapshot } from './types';
 
-let sharedTracer: Tracer | null = null;
+export class MonitoringService {
+  private events: TransactionEvent[] = [];
+  private metrics: Metric[] = [];
+  private rules: AlertRule[] = [];
+  private alerts: Alert[] = [];
 
-/** Process-wide tracer, created lazily from env. Override in tests via setTracer. */
-export const getTracer = (): Tracer => {
-  if (!sharedTracer) {
-    sharedTracer = createTracerFromEnv(process.env.OTEL_SERVICE_NAME ?? 'subtrackr-backend');
+  // ── Built-in anomaly detection rules ──────────────────────────────────────
+
+  /** Default rules: high failure rate and gas spike */
+  static defaultRules(): AlertRule[] {
+    return [
+      {
+        id: 'high-failure-rate',
+        name: 'High Transaction Failure Rate',
+        severity: 'critical',
+        message: 'Transaction failure rate exceeded 30 %',
+        evaluate(metrics) {
+          const rate = metrics.find((m) => m.name === 'failure_rate');
+          return rate !== undefined && rate.value > 0.3;
+        },
+      },
+      {
+        id: 'gas-spike',
+        name: 'Gas Usage Spike',
+        severity: 'warning',
+        message: 'Average gas usage exceeded 500 000 units',
+        evaluate(metrics) {
+          const gas = metrics.find((m) => m.name === 'avg_gas_used');
+          return gas !== undefined && gas.value > 500_000;
+        },
+      },
+    ];
   }
-  return sharedTracer;
-};
 
-export const setTracer = (tracer: Tracer): void => {
-  sharedTracer = tracer;
-};
+  constructor(rules: AlertRule[] = MonitoringService.defaultRules()) {
+    this.rules = rules;
+  }
 
-type HeaderBag = Record<string, string | string[] | undefined>;
+  // ── Transaction ingestion ─────────────────────────────────────────────────
 
-/**
- * Open a SERVER span for an inbound request, adopting any upstream trace context
- * so the request joins an existing distributed trace rather than starting a new
- * one. Returns the span and a `headers()` helper to propagate to downstream hops.
- */
-export const startServerSpan = (
-  name: string,
-  headers: HeaderBag,
-  attributes: Record<string, AttributeValue> = {}
-): { span: Span; downstreamHeaders: () => Record<string, string> } => {
-  const parent = extractContext(headers);
-  const span = getTracer().startSpan(name, {
-    kind: 'server',
-    parent,
-    endpoint: name,
-    attributes,
-  });
-  return {
-    span,
-    downstreamHeaders: () => injectContext(span.context),
-  };
-};
+  recordTransaction(event: TransactionEvent): void {
+    this.events.push(event);
+    this._recomputeMetrics();
+    this._evaluateRules();
+  }
 
-/** Trace a database query. Records the statement label (never raw PII values). */
-export const traceDbQuery = <T>(
-  operation: string,
-  parent: SpanContext | null,
-  fn: (span: Span) => Promise<T>,
-  attributes: Record<string, AttributeValue> = {}
-): Promise<T> =>
-  getTracer().withSpan(`db ${operation}`, fn, {
-    kind: 'client',
-    parent,
-    attributes: { 'db.system': 'postgresql', 'db.operation': operation, ...attributes },
-  });
+  // ── Custom alert rules ────────────────────────────────────────────────────
 
-/** Trace an outbound HTTP/RPC call and inject context into the call's headers. */
-export const traceExternalCall = <T>(
-  target: string,
-  parent: SpanContext | null,
-  fn: (span: Span, downstreamHeaders: Record<string, string>) => Promise<T>,
-  attributes: Record<string, AttributeValue> = {}
-): Promise<T> =>
-  getTracer().withSpan(
-    `external ${target}`,
-    (span) => fn(span, injectContext(span.context)),
-    { kind: 'client', parent, attributes: { 'peer.service': target, ...attributes } }
-  );
+  addRule(rule: AlertRule): void {
+    this.rules = [...this.rules.filter((r) => r.id !== rule.id), rule];
+  }
 
-/** Trace an internal business-logic step. */
-export const traceBusinessLogic = <T>(
-  name: string,
-  parent: SpanContext | null,
-  fn: (span: Span) => Promise<T>,
-  attributes: Record<string, AttributeValue> = {}
-): Promise<T> =>
-  getTracer().withSpan(name, fn, { kind: 'internal', parent, attributes });
+  removeRule(id: string): void {
+    this.rules = this.rules.filter((r) => r.id !== id);
+  }
 
-export { extractContext, injectContext } from './tracing';
-export type { Span, SpanContext } from './tracing';
+  // ── Alert management ──────────────────────────────────────────────────────
+
+  resolveAlert(alertId: string): void {
+    this.alerts = this.alerts.map((a) => (a.id === alertId ? { ...a, resolved: true } : a));
+  }
+
+  getActiveAlerts(): Alert[] {
+    return this.alerts.filter((a) => !a.resolved);
+  }
+
+  // ── Dashboard ─────────────────────────────────────────────────────────────
+
+  getDashboard(): DashboardSnapshot {
+    const total = this.events.length;
+    const failed = this.events.filter((e) => e.status === 'failed').length;
+    const gasValues = this.events.filter((e) => e.gasUsed !== undefined).map((e) => e.gasUsed!);
+    const avgGas = gasValues.length ? gasValues.reduce((a, b) => a + b, 0) / gasValues.length : 0;
+
+    return {
+      totalTransactions: total,
+      successRate: total === 0 ? 1 : (total - failed) / total,
+      failureCount: failed,
+      avgGasUsed: avgGas,
+      activeAlerts: this.getActiveAlerts(),
+      recentMetrics: this.metrics.slice(-20),
+    };
+  }
+
+  // ── Internal ──────────────────────────────────────────────────────────────
+
+  private _recomputeMetrics(): void {
+    const now = Date.now();
+    const total = this.events.length;
+    const failed = this.events.filter((e) => e.status === 'failed').length;
+    const gasValues = this.events.filter((e) => e.gasUsed !== undefined).map((e) => e.gasUsed!);
+    const avgGas = gasValues.length ? gasValues.reduce((a, b) => a + b, 0) / gasValues.length : 0;
+
+    this.metrics.push(
+      { name: 'failure_rate', value: total === 0 ? 0 : failed / total, timestamp: now },
+      { name: 'avg_gas_used', value: avgGas, timestamp: now },
+      { name: 'total_transactions', value: total, timestamp: now }
+    );
+  }
+
+  private _evaluateRules(): void {
+    for (const rule of this.rules) {
+      const triggered = rule.evaluate(this.metrics);
+      if (!triggered) continue;
+      // Avoid duplicate open alerts for the same rule
+      const alreadyOpen = this.alerts.some((a) => a.ruleId === rule.id && !a.resolved);
+      if (alreadyOpen) continue;
+      this.alerts.push({
+        id: `${rule.id}-${Date.now()}`,
+        severity: rule.severity,
+        title: rule.name,
+        message: rule.message,
+        timestamp: Date.now(),
+        resolved: false,
+        ruleId: rule.id,
+      });
+    }
+  }
+}

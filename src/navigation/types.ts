@@ -4,7 +4,9 @@ export type RootStackParamList = {
   Home: undefined;
   AddSubscription: undefined;
   SubscriptionDetail: { id: string };
+  EditSubscription: { id: string };
   CancellationFlow: { subscriptionId: string };
+  CancellationFunnelDashboard: undefined;
   WalletConnect: undefined;
   CryptoPayment: { subscriptionId?: string } | undefined;
   Community: undefined;
@@ -17,6 +19,7 @@ export type RootStackParamList = {
   Settings: undefined;
   CalendarIntegration: undefined;
   WebhookSettings: undefined;
+  WebhookLogs: { webhookId: string };
   AccountingExport: undefined;
   AdminDashboard: undefined;
   LanguageSettings: undefined;
@@ -24,16 +27,32 @@ export type RootStackParamList = {
   ErrorDashboard: undefined;
   Import: undefined;
   Export: undefined;
+  BatchOperations: undefined;
   SegmentManagement: undefined;
   SegmentDetail: { segmentId: string };
   Gamification: undefined;
   FraudDashboard: undefined;
+  GroupManagement: undefined;
+  TaxSettings: undefined;
+  SupportDashboard: undefined;
   UsageDashboard: undefined;
   DeveloperPortal: undefined;
   SandboxDashboard: undefined;
   ApiKeyManagement: undefined;
   DocumentationPortal: undefined;
   IntegrationGuides: undefined;
+  MerchantOnboarding: undefined;
+  AffiliateDashboard: undefined;
+  LoyaltyDashboard: undefined;
+  CampaignManagement: undefined;
+  PromotionManagement: undefined;
+  PerformanceDashboard: undefined;
+  BillingSettings: undefined;
+  BillingAlignment: undefined;
+  ChangePlan: { subscriptionId: string };
+  PaymentMethods: undefined;
+  AnalyticsDashboard: undefined;
+  NotFound: { reason?: string };
 };
 
 export type TabParamList = {
@@ -42,5 +61,5 @@ export type TabParamList = {
   WalletTab: undefined;
   AnalyticsTab: undefined;
   RevenueTab: undefined;
-  SettingsTab: undefined;
+  SettingsTab: NavigatorScreenParams<RootStackParamList> | undefined;
 };

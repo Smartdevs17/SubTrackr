@@ -89,6 +89,28 @@ export interface ImportHistoryEntry {
   status: 'success' | 'partial' | 'failed';
 }
 
+export type ImportPlatform = 'generic' | 'stripe' | 'chargebee' | 'recurly';
+
+export type ImportStep = 'idle' | 'parsing' | 'validating' | 'processing' | 'done' | 'error';
+
+export interface ImportProgress {
+  step: ImportStep;
+  totalRows: number;
+  processedRows: number;
+  percentage: number;
+}
+
+export interface ImportSnapshot {
+  subscriptions: Subscription[];
+  takenAt: string;
+}
+
+export interface PlatformColumnMapping {
+  platform: ImportPlatform;
+  label: string;
+  columns: ColumnMapping[];
+}
+
 // ============================================
 // Constants
 // ============================================
@@ -121,6 +143,82 @@ export const CSV_COLUMN_MAPPING: ColumnMapping[] = [
 export const VALID_CATEGORIES = Object.values(SubscriptionCategory);
 export const VALID_BILLING_CYCLES = Object.values(BillingCycle);
 export const VALID_CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'CHF', 'XLM'];
+
+export const PLATFORM_COLUMN_MAPPINGS: PlatformColumnMapping[] = [
+  {
+    platform: 'generic',
+    label: 'Generic (SubTrackr)',
+    columns: CSV_COLUMN_MAPPING,
+  },
+  {
+    platform: 'stripe',
+    label: 'Stripe',
+    columns: [
+      { csvColumn: 'description', fieldName: 'name', required: true },
+      {
+        csvColumn: 'amount',
+        fieldName: 'price',
+        required: true,
+        transform: (v: string) => parseFloat(v) / 100,
+      },
+      { csvColumn: 'currency', fieldName: 'currency', required: false },
+      { csvColumn: 'interval', fieldName: 'billingCycle', required: true },
+      { csvColumn: 'current_period_end', fieldName: 'nextBillingDate', required: true },
+      {
+        csvColumn: 'status',
+        fieldName: 'isActive',
+        required: false,
+        transform: (v: string) => String(v === 'active'),
+      },
+    ],
+  },
+  {
+    platform: 'chargebee',
+    label: 'Chargebee',
+    columns: [
+      { csvColumn: 'subscription_id', fieldName: 'id', required: false },
+      { csvColumn: 'plan_id', fieldName: 'name', required: true },
+      {
+        csvColumn: 'plan_amount',
+        fieldName: 'price',
+        required: true,
+        transform: (v: string) => parseFloat(v) / 100,
+      },
+      { csvColumn: 'currency_code', fieldName: 'currency', required: false },
+      { csvColumn: 'billing_period_unit', fieldName: 'billingCycle', required: true },
+      { csvColumn: 'next_billing_at', fieldName: 'nextBillingDate', required: true },
+      {
+        csvColumn: 'status',
+        fieldName: 'isActive',
+        required: false,
+        transform: (v: string) => String(v === 'active'),
+      },
+    ],
+  },
+  {
+    platform: 'recurly',
+    label: 'Recurly',
+    columns: [
+      { csvColumn: 'uuid', fieldName: 'id', required: false },
+      { csvColumn: 'plan_name', fieldName: 'name', required: true },
+      {
+        csvColumn: 'unit_amount_in_cents',
+        fieldName: 'price',
+        required: true,
+        transform: (v: string) => parseFloat(v) / 100,
+      },
+      { csvColumn: 'currency', fieldName: 'currency', required: false },
+      { csvColumn: 'plan_interval_unit', fieldName: 'billingCycle', required: true },
+      { csvColumn: 'current_period_ends_at', fieldName: 'nextBillingDate', required: true },
+      {
+        csvColumn: 'state',
+        fieldName: 'isActive',
+        required: false,
+        transform: (v: string) => String(v === 'active'),
+      },
+    ],
+  },
+];
 
 const EXPORT_VERSION = '1.0.0';
 const HISTORY_KEY = 'subtrackr-import-history';
@@ -304,6 +402,42 @@ export function generateCSV(subscriptions: Subscription[]): string {
   });
 
   return [headers.join(','), ...rows].join('\n');
+}
+
+/**
+ * Parse CSV using a platform-specific column mapping
+ */
+export function parseCSVWithMapping(
+  csvContent: string,
+  mapping: PlatformColumnMapping
+): SubscriptionInput[] {
+  const lines = csvContent.split(/\r?\n/).filter((line) => line.trim());
+  if (lines.length < 2) {
+    throw new Error('CSV must contain at least a header row and one data row');
+  }
+  const headers = parseCSVLine(lines[0]);
+  const headerMap = new Map<string, number>();
+  headers.forEach((header, index) => {
+    headerMap.set(header.toLowerCase().trim(), index);
+  });
+  const subscriptions: SubscriptionInput[] = [];
+  for (let i = 1; i < lines.length; i++) {
+    const values = parseCSVLine(lines[i]);
+    if (values.length === 0 || values.every((v) => !v.trim())) continue;
+    const subscription: Partial<SubscriptionInput> = {};
+    for (const col of mapping.columns) {
+      const columnIndex = headerMap.get(col.csvColumn.toLowerCase());
+      if (columnIndex !== undefined && values[columnIndex]) {
+        const rawValue = values[columnIndex];
+        const value = col.transform ? String(col.transform(rawValue)) : rawValue;
+        (subscription as Record<string, unknown>)[col.fieldName] = value;
+      }
+    }
+    if (subscription.name) {
+      subscriptions.push(subscription as SubscriptionInput);
+    }
+  }
+  return subscriptions;
 }
 
 // ============================================
@@ -773,4 +907,22 @@ export function getJSONTemplate(): string {
   };
 
   return JSON.stringify(template, null, 2);
+}
+
+// ============================================
+// Snapshot / Rollback Helpers
+// ============================================
+
+export function takeImportSnapshot(subscriptions: Subscription[]): ImportSnapshot {
+  return {
+    subscriptions: subscriptions.map((s) => ({ ...s })),
+    takenAt: new Date().toISOString(),
+  };
+}
+
+export function restoreFromSnapshot(
+  snapshot: ImportSnapshot,
+  onRestore: (subscriptions: Subscription[]) => void
+): void {
+  onRestore(snapshot.subscriptions);
 }

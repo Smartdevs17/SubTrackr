@@ -1,26 +1,43 @@
 # SubTrackr ML Service
 
-FastAPI inference service (churn / recommendations) instrumented with
-OpenTelemetry distributed tracing. It is a hop in the end-to-end trace — see
-[../docs/distributed-tracing.md](../docs/distributed-tracing.md).
+FastAPI microservice wrapping the churn, recommendation, and pricing models.
 
-## Run
+## Run locally
 
 ```bash
+cd ml-service
 pip install -r requirements.txt
-export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
-uvicorn main:app --port 8200
+uvicorn main:app --reload
 ```
 
-## Tracing
+Docs at http://localhost:8000/docs
 
-- Adopts the incoming W3C `traceparent` so requests join the caller's trace.
-- Emits child spans for the three phases: `ml.model.load`, `ml.feature.compute`,
-  `ml.inference`.
-- Uses `ParentBased(TraceIdRatioBased)` sampling so the upstream decision is
-  honored and root traces fall back to `OTEL_TRACES_SAMPLER_RATIO`.
+## Retrain models
 
-## Endpoints
+```bash
+python retrain.py --model all        # retrain everything
+python retrain.py --model churn      # retrain one model
+```
 
-- `POST /v1/predict/churn` — returns churn probability + the `trace_id`.
-- `GET /health` — liveness probe.
+Restart the service after retraining to pick up the new version.
+
+## Environment
+
+| Variable | Default | Description |
+|---|---|---|
+| `ML_SERVICE_URL` | `http://localhost:8000` | Used by the TS backend to reach this service |
+
+## Key endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/health` | Liveness check |
+| GET | `/v1/models` | Model versions + drift status |
+| POST | `/v1/churn/predict` | Single churn prediction |
+| POST | `/v1/churn/predict/batch` | Batch churn predictions |
+| POST | `/v1/churn/forecast` | Revenue forecast |
+| POST | `/v1/recommendations/predict` | Single recommendation |
+| POST | `/v1/recommendations/predict/batch` | Batch recommendations |
+| POST | `/v1/recommendations/feedback` | Record acceptance (A/B + drift) |
+| POST | `/v1/pricing/optimize` | Optimal price calculation |
+| POST | `/v1/pricing/ab-test` | A/B test price tiers |

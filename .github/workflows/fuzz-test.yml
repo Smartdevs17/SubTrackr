@@ -1,70 +1,102 @@
-name: Subscription Contract Fuzzing Tests
+name: Cargo-Fuzz Pipeline
 
 on:
   push:
     branches: [main, develop]
     paths:
       - 'contracts/subscription/**'
+      - 'contracts/fuzz/**'
       - '.github/workflows/fuzz-test.yml'
+      - '.github/corpus/**'
   pull_request:
     branches: [main, develop]
     paths:
       - 'contracts/subscription/**'
+      - 'contracts/fuzz/**'
+      - '.github/workflows/fuzz-test.yml'
+  schedule:
+    - cron: '0 6 * * 1'  # weekly: Monday 06:00 UTC
 
 jobs:
-  fuzz:
+  cargo-fuzz:
     runs-on: ubuntu-latest
-    name: Run Fuzzing Tests
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - subscription
+          - pricing
+          - rate_limit
+          - state_machine
+
+    name: fuzz / ${{ matrix.target }}
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
+      - name: Install nightly toolchain (cargo-fuzz)
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          toolchain: stable
+          toolchain: nightly
           override: true
-          profile: minimal
+          components: llvm-tools
 
-      - name: Cache cargo registry
-        uses: actions/cache@v3
+      - name: Install cargo-fuzz
+        run: cargo install --git https://github.com/rust-fuzz/cargo-fuzz cargo-fuzz
+
+      - name: Restore seed corpus from cache
+        uses: actions/cache@v4
         with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          path: contracts/fuzz/corpus/${{ matrix.target }}
+          key: corpus-${{ matrix.target }}-${{ hashFiles('.github/corpus/${{ matrix.target }}/**') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-registry-
+            corpus-${{ matrix.target }}-
 
-      - name: Cache cargo index
-        uses: actions/cache@v3
-        with:
-          path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-git-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-git-
-
-      - name: Cache cargo build
-        uses: actions/cache@v3
-        with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-build-target-
-
-      - name: Run contract fuzz smoke suite
+      - name: Copy seed corpus
         run: |
-          cd contracts
-          cargo test --lib
-          for target in fuzz pricing_fuzz rate_limit_fuzz; do
-            if cargo test --test "$target" --no-run >/dev/null 2>&1; then
-              cargo test --test "$target"
-            else
-              echo "::warning::Cargo test target '$target' is not registered; running workspace tests instead."
-            fi
-          done
-          cargo test --verbose
+          mkdir -p contracts/fuzz/corpus/${{ matrix.target }}
+          if [ -d ".github/corpus/${{ matrix.target }}" ]; then
+            cp .github/corpus/${{ matrix.target }}/* contracts/fuzz/corpus/${{ matrix.target }}/ 2>/dev/null || true
+          fi
 
-      - name: Print test results
-        if: always()
+      - name: Run cargo-fuzz (${{ matrix.target }})
+        id: fuzz
+        continue-on-error: true
+        working-directory: contracts/fuzz
         run: |
-          echo "Fuzzing tests completed!"
+          cargo fuzz run ${{ matrix.target }} \
+            --sanitizer=address \
+            -j 4 \
+            -- \
+            -max_total_time=1800 \
+            -print_final_stats=1 \
+            -artifact_prefix=artifacts/${{ matrix.target }}/
+
+      - name: Upload crash artifacts
+        if: steps.fuzz.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: crashes-${{ matrix.target }}-${{ github.run_id }}
+          path: contracts/fuzz/artifacts/${{ matrix.target }}/
+          retention-days: 14
+
+      - name: Upload coverage corpus
+        uses: actions/upload-artifact@v4
+        with:
+          name: corpus-${{ matrix.target }}-${{ github.run_id }}
+          path: contracts/fuzz/corpus/${{ matrix.target }}/
+          retention-days: 7
+
+      - name: Save updated corpus to cache
+        uses: actions/cache@v4
+        with:
+          path: contracts/fuzz/corpus/${{ matrix.target }}
+          key: corpus-${{ matrix.target }}-${{ hashFiles('contracts/fuzz/corpus/${{ matrix.target }}/**') }}
+
+      - name: Notify on crash
+        if: steps.fuzz.outcome == 'failure'
+        run: |
+          echo "::error::cargo-fuzz target '${{ matrix.target }}' found a crash!"
+          echo "Download artifacts from: crashes-${{ matrix.target }}-${{ github.run_id }}"
+          echo "To reproduce locally: cd contracts/fuzz && cargo fuzz run ${{ matrix.target }} <crash-file>"

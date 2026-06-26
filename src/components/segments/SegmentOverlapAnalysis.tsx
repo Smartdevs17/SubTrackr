@@ -18,7 +18,7 @@ export const SegmentOverlapAnalysis: React.FC<SegmentOverlapAnalysisProps> = ({
   if (segments.length < 2) {
     return (
       <Card style={styles.container}>
-        <Text style={[styles.message, { color: theme.colors.textSecondary }]}>
+        <Text style={[styles.message, { color: theme.colors.text.secondary }]}>
           Add at least two segments to see overlap analysis.
         </Text>
       </Card>
@@ -27,7 +27,7 @@ export const SegmentOverlapAnalysis: React.FC<SegmentOverlapAnalysisProps> = ({
 
   return (
     <View style={styles.container}>
-      <Text style={[styles.title, { color: theme.colors.text }]}>Overlap Analysis</Text>
+      <Text style={[styles.title, { color: theme.colors.text.primary }]}>Overlap Analysis</Text>
       {overlaps.map((overlap, index) => {
         const segNames = overlap.segmentIds.map(
           (id) => segments.find((s) => s.id === id)?.name || 'Unknown'
@@ -36,25 +36,29 @@ export const SegmentOverlapAnalysis: React.FC<SegmentOverlapAnalysisProps> = ({
         return (
           <Card key={index} style={styles.overlapCard}>
             <View style={styles.overlapHeader}>
-              <Text style={[styles.names, { color: theme.colors.text }]}>
+              <Text style={[styles.names, { color: theme.colors.text.primary }]}>
                 {segNames.join(' ∩ ')}
               </Text>
-              <Text style={[styles.count, { color: theme.colors.primary }]}>
+              <Text style={[styles.count, { color: theme.colors.brand.primary }]}>
                 {overlap.subscriberCount} Users
               </Text>
             </View>
-            <View style={[styles.progressBarContainer, { backgroundColor: theme.colors.border }]}>
+            <View
+              style={[
+                styles.progressBarContainer,
+                { backgroundColor: theme.colors.border.default },
+              ]}>
               <View
                 style={[
                   styles.progressBar,
                   {
                     width: `${overlap.percentage}%`,
-                    backgroundColor: theme.colors.primary,
+                    backgroundColor: theme.colors.brand.primary,
                   },
                 ]}
               />
             </View>
-            <Text style={[styles.percentage, { color: theme.colors.textSecondary }]}>
+            <Text style={[styles.percentage, { color: theme.colors.text.secondary }]}>
               {overlap.percentage.toFixed(1)}% of total subscribers
             </Text>
           </Card>
