@@ -89,3 +89,12 @@ contracts/migrations/history/*
 !contracts/migrations/history/.gitkeep
 contracts/migrations/snapshots/*
 !contracts/migrations/snapshots/.gitkeep
+
+# Test run artifacts (NOT the committed contract insta snapshots under
+# contracts/**/test_snapshots/, which are intentional fixtures)
+test-results/
+playwright-report/
+e2e/artifacts/
+e2e/screenshots/
+*.snap.orig
+.jest-cache/
