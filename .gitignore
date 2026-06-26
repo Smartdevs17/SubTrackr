@@ -70,6 +70,14 @@ logs/
 coverage/
 .nyc_output/
 
+# Test snapshots & generated test/lint artifacts
+**/__snapshots__/
+*.snap
+junit.xml
+jest-results.json
+*_output.txt
+*_output_*.txt
+
 # Load test reports (generated) — keep the dir so k6 can write into it
 load-tests/reports/*
 !load-tests/reports/.gitkeep
@@ -89,3 +97,12 @@ contracts/migrations/history/*
 !contracts/migrations/history/.gitkeep
 contracts/migrations/snapshots/*
 !contracts/migrations/snapshots/.gitkeep
+
+# Test run artifacts (NOT the committed contract insta snapshots under
+# contracts/**/test_snapshots/, which are intentional fixtures)
+test-results/
+playwright-report/
+e2e/artifacts/
+e2e/screenshots/
+*.snap.orig
+.jest-cache/

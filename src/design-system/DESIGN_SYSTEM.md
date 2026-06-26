@@ -1,9 +1,10 @@
-/**
- * SubTrackr Design System - Complete Documentation
- * 
- * This document provides comprehensive guidance on using the design system
- * for consistent, accessible, and maintainable UI development.
- */
+/\*\*
+
+- SubTrackr Design System - Complete Documentation
+-
+- This document provides comprehensive guidance on using the design system
+- for consistent, accessible, and maintainable UI development.
+  \*/
 
 # SubTrackr Design System Documentation
 
@@ -28,6 +29,7 @@ The SubTrackr Design System provides a comprehensive set of design tokens, compo
 The design system uses a semantic color system with three built-in themes:
 
 #### Dark Theme (Default)
+
 - **Primary**: #6366f1 (Indigo)
 - **Secondary**: #8b5cf6 (Purple)
 - **Accent**: #06b6d4 (Cyan)
@@ -37,9 +39,11 @@ The design system uses a semantic color system with three built-in themes:
 - **Info**: #0ea5e9 (Sky)
 
 #### Light Theme
+
 Optimized for daytime use with adjusted saturation and contrast.
 
 #### High Contrast Theme
+
 WCAG AAA compliant with 7:1 minimum contrast ratios for accessibility.
 
 ### Spacing
@@ -343,10 +347,10 @@ All components support standard accessibility props:
 
 ```typescript
 interface AccessibilityProps {
-  accessibilityLabel: string;        // Required - screen reader label
-  accessibilityHint?: string;        // Optional - additional context
-  accessibilityRole?: string;        // Optional - semantic role
-  testID?: string;                   // Optional - testing identifier
+  accessibilityLabel: string; // Required - screen reader label
+  accessibilityHint?: string; // Optional - additional context
+  accessibilityRole?: string; // Optional - semantic role
+  testID?: string; // Optional - testing identifier
 }
 ```
 
@@ -420,8 +424,8 @@ if (isIOS()) {
 
 // Conditional values
 const elevation = getPlatformValue(
-  4,    // iOS shadow
-  8,    // Android elevation
+  4, // iOS shadow
+  8, // Android elevation
   '0 2px 4px rgba(0,0,0,0.1)' // Web box-shadow
 );
 ```
@@ -493,6 +497,7 @@ npm test src/design-system
 ```
 
 Tests cover:
+
 - Component rendering
 - User interactions
 - Accessibility compliance
@@ -506,6 +511,7 @@ npm run e2e:test-android
 ```
 
 E2E tests verify:
+
 - Visual consistency across platforms
 - Theme application
 - RTL layout
@@ -531,15 +537,15 @@ const handleChange = (field: string, value: string) => {
 
 const handleSubmit = () => {
   const newErrors: Record<string, string> = {};
-  
+
   if (!isValidEmail(formData.email)) {
     newErrors.email = 'Invalid email address';
   }
-  
+
   if (!isValidAmount(formData.amount)) {
     newErrors.amount = 'Amount must be between $1-$1000';
   }
-  
+
   if (Object.keys(newErrors).length === 0) {
     // Submit form
   } else {
@@ -612,6 +618,7 @@ To migrate existing components to use the design system:
 ## Support
 
 For questions or issues with the design system:
+
 1. Check this documentation
 2. Review Storybook examples
 3. Check existing tests

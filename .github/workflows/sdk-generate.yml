@@ -1,0 +1,72 @@
+name: SDK Auto-Generation
+
+on:
+  push:
+    paths:
+      - 'spec/openapi.yaml'
+      - 'scripts/sdk-generate.sh'
+      - '.github/workflows/sdk-generate.yml'
+  pull_request:
+    paths:
+      - 'spec/openapi.yaml'
+
+jobs:
+  validate-spec:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate OpenAPI spec
+        uses: mbowman100/swagger-validator-action@v1
+        with:
+          files: spec/openapi.yaml
+      - name: Check breaking changes
+        uses: ponelat/oas-breaking-changes-action@v1
+        with:
+          spec-file: spec/openapi.yaml
+          old-spec-file: docs/openapi.yaml
+
+  generate-sdks:
+    needs: validate-spec
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        language: [javascript, python, go]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+        if: matrix.language == 'python'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+        if: matrix.language == 'go'
+      - name: Generate ${{ matrix.language }} SDK
+        run: bash scripts/sdk-generate.sh ${{ matrix.language }}
+      - name: Check for changes
+        id: diff
+        run: |
+          if [ -n "$(git status --porcelain sdks/${{ matrix.language }}/)" ]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+      - name: Create PR for SDK changes
+        if: steps.diff.outputs.changed == 'true' && github.event_name == 'push'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH="sdk-auto/${{ matrix.language }}-$(date +%s)"
+          git checkout -b "$BRANCH"
+          git add sdks/${{ matrix.language }}/
+          git commit -m "chore(sdk): auto-generate ${{ matrix.language }} SDK from OpenAPI spec"
+          git push origin "$BRANCH"
+          gh pr create \
+            --base main \
+            --title "chore(sdk): auto-generate ${{ matrix.language }} SDK" \
+            --body "Auto-generated ${{ matrix.language }} SDK from OpenAPI spec changes in \`spec/openapi.yaml\`." \
+            --label automated

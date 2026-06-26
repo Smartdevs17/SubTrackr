@@ -256,6 +256,21 @@ export type {
 export { BatchChargeService } from './batchChargeService';
 export type { BatchChargeCandidate, BatchChargeOptions, BatchChargeResult } from './batchChargeService';
 
+// ── Plan metadata cache ───────────────────────────────────────────────────────
+export { bootstrapPlanCache, shutdownPlanCache } from '../subscription/bootstrap';
+export type { PlanCacheBootstrap, BootstrapPlanCacheOptions } from '../subscription/bootstrap';
+export { PlanCacheService } from '../subscription/domain/PlanCacheService';
+export type { PlanCacheConfig } from '../subscription/domain/PlanCacheService';
+export { PostgresPlanRepository, planMetadataToRow } from '../subscription/domain/PostgresPlanRepository';
+export { getPlanCacheService, setPlanCacheService } from '../subscription/planCacheRegistry';
+export { runPlanCacheWarming, cacheWarmingJob } from '../subscription/jobs/cacheWarming';
+export type { PlanMetadata, CreatePlanInput, UpdatePlanInput } from '../subscription/domain/types';
+export { createPlanController } from '../subscription/controller/planController';
+export { loadRedisConfig, redisConnectionUrl } from '../config/redis';
+export { createRedisClient, RedisCacheService, createNullRedisClient } from '../shared/cache';
+export { startServer } from '../server';
+export type { RunningServer, StartServerOptions } from '../server';
+
 // ── Idempotency (Issue #425) ─────────────────────────────────────────────────
 export {
   IdempotencyService,
@@ -328,3 +343,28 @@ export type {
 
 // ── DI Container ──────────────────────────────────────────────────────────────
 export { container, Container } from './container';
+
+// ── Locking — Advisory Lock Service (Issue #610) ───────────────────────────────
+export { AdvisoryLockService, advisoryLockService, LockingError, LockingErrorCode } from './shared/locking';
+export type { LockMetrics, LockConfig } from './shared/locking';
+export { BillingLockIntegration, billingLockIntegration } from './billing/lockIntegration';
+export { SubscriptionLockIntegration, subscriptionLockIntegration } from './subscription/lockIntegration';
+
+// ── Encryption — Column-Level Encryption (Issue #604) ─────────────────────────
+export { ColumnEncryptionService, KmsProvider, kmsProvider, VaultProvider, vaultProvider } from './shared/encryption';
+export type { EncryptedColumnValue, ColumnEncryptionConfig, IKmsProvider, KmsKey, EncryptedDek } from './shared/encryption';
+
+// ── Auth / API Key Rotation (Issue #603) ──────────────────────────────────────
+export { ApiKeyRotationService, apiKeyRotationService, RotationConfigController, rotationConfigController, CmkConfigController, cmkConfigController, KeyRotationCron, keyRotationCron, AuthError, AuthErrorCode } from './auth';
+export type { ApiKeyRecord, ApiKeyRotationPolicy, IApiKeyRotationService, CmkConfig } from './auth';
+
+// ── Payment Gateway Adapter Pattern (Issue #581) ───────────────────────────────
+export { PaymentRouter, paymentRouter, StripeAdapter, CircleAdapter, StellarAdapter, BasePaymentGateway, GatewayConfigController, gatewayConfigController, PaymentError, PaymentErrorCode } from './payment';
+export type { IPaymentGateway, IPaymentRouter, PaymentRequest, PaymentResult, RefundRequest, RefundResult, CustomerResult, PaymentMethodResult, PayoutRequest, PayoutResult, GatewayConfig } from './payment';
+
+// ── Notification — Rotation Email Template (Issue #603) ──────────────────────
+export { buildRotationEmailHtml, buildRotationEmailText } from './notification/rotationEmailTemplate';
+export type { RotationEmailData } from './notification/rotationEmailTemplate';
+
+// ── Monitoring — Lock Metrics (Issue #610) ────────────────────────────────────
+export { collectLockMetrics, lockMetricsExporter } from '../monitoring/lockMetrics';

@@ -32,8 +32,7 @@ function getDelayFromNetInfo(state: NetInfoState): number {
       return DEBOUNCE_DELAY_BY_NETWORK.wifi;
 
     case 'cellular': {
-      const gen: NetInfoCellularGeneration | null | undefined =
-        state.details?.cellularGeneration;
+      const gen: NetInfoCellularGeneration | null | undefined = state.details?.cellularGeneration;
       if (gen === '5g' || gen === '4g') {
         return DEBOUNCE_DELAY_BY_NETWORK.cellular4g;
       }

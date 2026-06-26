@@ -103,7 +103,7 @@ export const dismissAnySystemAlert = async () => {
 
 /**
  * Navigate through the full cancellation flow:
- * REASON → OFFERS → CONFIRM → SUCCESS
+ * REASON → FEEDBACK → OFFERS → CONFIRM → SUCCESS
  */
 export const completeCancellationFlow = async (reason = 'Too Expensive') => {
   // Step 1: Select reason
@@ -113,19 +113,25 @@ export const completeCancellationFlow = async (reason = 'Too Expensive') => {
   const reasonTestId = `cancellation-reason-${reason.toLowerCase().replace(/\s+/g, '-')}`;
   await element(by.id(reasonTestId)).tap();
 
-  // Step 2: Decline retention offers
+  // Step 2: Skip free-text feedback
+  await waitFor(element(by.id('cancellation-feedback-step')))
+    .toBeVisible()
+    .withTimeout(10000);
+  await element(by.id('cancellation-feedback-continue')).tap();
+
+  // Step 3: Decline retention offers
   await waitFor(element(by.id('cancellation-offers-step')))
     .toBeVisible()
     .withTimeout(10000);
   await element(by.id('decline-offers-button')).tap();
 
-  // Step 3: Confirm cancellation
+  // Step 4: Confirm cancellation
   await waitFor(element(by.id('cancellation-confirm-step')))
     .toBeVisible()
     .withTimeout(10000);
   await element(by.id('confirm-cancellation-button')).tap();
 
-  // Step 4: Verify success
+  // Step 5: Verify success
   await waitFor(element(by.id('cancellation-success-step')))
     .toBeVisible()
     .withTimeout(10000);
