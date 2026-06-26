@@ -19,5 +19,8 @@ module.exports = {
     '^@react-native-community/netinfo$': '<rootDir>/src/__mocks__/@react-native-community/netinfo.js',
   },
   setupFilesAfterEnv: [],
+  // Ensure consistent React Native tree serialization for Jest snapshots.
+  snapshotSerializers: ['jest-expo/build/serializers/react-native'],
   testEnvironment: 'node',
 };
+
