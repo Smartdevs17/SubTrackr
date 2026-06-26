@@ -83,6 +83,19 @@ module.exports = {
       app: 'android.release',
     },
   },
+  behavior: {
+    // Determinism: always start from a freshly installed, freshly launched app so
+    // no state survives between specs. Detox's built-in synchronization waits for
+    // the app to be idle, which removes the need for hardcoded sleeps.
+    init: {
+      reinstallApp: true,
+      exposeLaunchArguments: true,
+    },
+    launchApp: 'auto',
+    cleanup: {
+      shutdownDevice: false,
+    },
+  },
   artifacts: {
     rootDir: 'artifacts',
     plugins: {

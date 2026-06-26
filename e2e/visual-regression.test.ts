@@ -1,30 +1,23 @@
-import { by, device, element, waitFor } from 'detox';
+import { by, device } from 'detox';
 import { assertVisualSnapshot } from './helpers/visualRegression';
-import {
-  createSubscription,
-  launchCleanApp,
-  openSubscriptionByName,
-} from './helpers/subscriptionFlows';
+import { launchSeededApp, openSubscriptionByName } from './helpers/subscriptionFlows';
+import { waitForVisible } from './helpers/waits';
+import { fixtures, NETFLIX_FIXTURE } from './helpers/testData';
 
 describe('Subscription Visual Regression', () => {
   beforeEach(async () => {
-    await launchCleanApp();
+    // Seed identical, frozen data so screenshots are byte-stable across runs.
+    await launchSeededApp(fixtures.portfolio);
   });
 
-  it('captures home and detail visual baselines', async () => {
-    await waitFor(element(by.id('home-screen')))
-      .toBeVisible()
-      .withTimeout(10000);
+  it('captures home and detail visual baselines within tolerance', async () => {
+    await waitForVisible(by.id('home-screen'));
     const homeShot = (await device.takeScreenshot('home-screen')) as unknown as string;
-    assertVisualSnapshot('home-screen', homeShot);
+    // Slightly looser tolerance for the list screen (scroll position / shadows).
+    assertVisualSnapshot('home-screen', homeShot, { maxDiffRatio: 0.02 });
 
-    const subName = 'E2E Visual Baseline';
-    await createSubscription(subName, '8.49');
-    await openSubscriptionByName(subName);
-
-    await waitFor(element(by.id('subscription-detail-screen')))
-      .toBeVisible()
-      .withTimeout(10000);
+    await openSubscriptionByName(NETFLIX_FIXTURE.name);
+    await waitForVisible(by.id('subscription-detail-screen'));
     const detailShot = (await device.takeScreenshot(
       'subscription-detail-screen'
     )) as unknown as string;

@@ -9,6 +9,7 @@ import ErrorBoundary from './src/components/ErrorBoundary';
 import { initI18n } from './src/i18n/config';
 import i18n from './src/i18n/config';
 import { I18nextProvider } from 'react-i18next';
+import { applyE2EBootstrap } from './src/utils/e2e/e2eBootstrap';
 
 // Import WalletConnect compatibility layer
 import '@walletconnect/react-native-compat';
@@ -18,7 +19,6 @@ import { createAppKit, defaultConfig, AppKit } from '@reown/appkit-ethers-react-
 import { EVM_RPC_URLS } from './src/config/evm';
 import { useNetworkStore, useSettingsStore } from './src/store';
 import { sessionService } from './src/services/auth/session';
-
 
 // Get projectId from environment variable
 const projectId = process.env.WALLET_CONNECT_PROJECT_ID || 'YOUR_PROJECT_ID';
@@ -85,7 +85,6 @@ function NotificationBootstrap() {
     void sessionService.initializeCurrentSession();
   }, [initialize, initializeSettings]);
 
-
   return null;
 }
 
@@ -96,6 +95,9 @@ export default function App() {
     let cancelled = false;
     const run = async () => {
       try {
+        // Hermetic E2E setup (seed data, mocked network, fixed clock). No-op in
+        // production — see src/utils/e2e/e2eBootstrap.ts.
+        await applyE2EBootstrap();
         await initI18n();
       } finally {
         if (!cancelled) setI18nReady(true);

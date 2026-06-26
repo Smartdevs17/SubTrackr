@@ -42,6 +42,8 @@
     "e2e:test-android": "detox test -c android.emu.release",
     "e2e:test-android:parallel": "detox test -c android.emu.release --workers 2",
     "e2e:visual:update-ios": "detox test -c ios.sim.release --testNamePattern \"Subscription Visual Regression\"",
+    "e2e:stability-ios": "E2E_FAIL_ON_FLAKY=true detox test -c ios.sim.release",
+    "e2e:stability-android": "E2E_FAIL_ON_FLAKY=true detox test -c android.emu.release",
     "bundle-size": "size-limit",
     "bundle-size:why": "size-limit --why"
   },
@@ -72,6 +74,7 @@
     "react-native": "0.85.2",
     "react-native-gesture-handler": "~2.31.1",
     "react-native-get-random-values": "~1.11.0",
+    "react-native-launch-arguments": "^4.0.2",
     "react-native-modal": "14.0.0-rc.1",
     "react-native-qrcode-svg": "^6.3.21",
     "react-native-safe-area-context": "5.7.0",
@@ -116,7 +119,10 @@
     "typechain": "^8.3.2",
     "typescript": "~5.8.3",
     "size-limit": "^11.1.4",
-    "@size-limit/file": "^11.1.4"
+    "@size-limit/file": "^11.1.4",
+    "pixelmatch": "^5.3.0",
+    "pngjs": "^7.0.0",
+    "@types/pngjs": "^6.0.5"
   },
   "private": false,
   "repository": {
