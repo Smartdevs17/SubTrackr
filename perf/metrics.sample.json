@@ -1,0 +1,6 @@
+{
+  "_comment": "Sample measured metrics AFTER lazy loading. Copy to perf/metrics.json from your measurement run (e.g. a startup-timing harness) before running the budget check in CI.",
+  "startupMs": 1300,
+  "peakMemoryMb": 158,
+  "maxFrameMs": 14.2
+}

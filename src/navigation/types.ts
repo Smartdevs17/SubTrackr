@@ -28,6 +28,12 @@ export type RootStackParamList = {
   SegmentDetail: { segmentId: string };
   Gamification: undefined;
   FraudDashboard: undefined;
+  UsageDashboard: undefined;
+  DeveloperPortal: undefined;
+  SandboxDashboard: undefined;
+  ApiKeyManagement: undefined;
+  DocumentationPortal: undefined;
+  IntegrationGuides: undefined;
 };
 
 export type TabParamList = {

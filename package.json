@@ -44,6 +44,8 @@
     "e2e:visual:update-ios": "detox test -c ios.sim.release --testNamePattern \"Subscription Visual Regression\"",
     "e2e:stability-ios": "E2E_FAIL_ON_FLAKY=true detox test -c ios.sim.release",
     "e2e:stability-android": "E2E_FAIL_ON_FLAKY=true detox test -c android.emu.release",
+    "perf:budget": "node scripts/check-performance-budget.js",
+    "perf:budget:sample": "node scripts/check-performance-budget.js --metrics perf/metrics.sample.json",
     "bundle-size": "size-limit",
     "bundle-size:why": "size-limit --why"
   },

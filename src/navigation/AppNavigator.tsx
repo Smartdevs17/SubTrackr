@@ -5,40 +5,61 @@ import { navigationRef } from './navigationRef';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
+
+// ── Critical-path screens (eager) ─────────────────────────────────────────────
+// Bundled and compiled to Hermes bytecode in the initial chunk so the first
+// screens a user sees have zero load latency. Tier membership is declared in
+// app.config.js → extra.screenTiers and enforced by check-performance-budget.js.
 import HomeScreen from '../screens/HomeScreen';
 import AddSubscriptionScreen from '../screens/AddSubscriptionScreen';
-import CancellationFlowScreen from '../screens/CancellationFlowScreen';
 import WalletConnectScreen from '../screens/WalletConnectV2Screen';
 import CryptoPaymentScreen from '../screens/CryptoPaymentScreen';
-import CommunityScreen from '../screens/CommunityScreen';
-import ProfileScreen from '../screens/ProfileScreen';
 import SubscriptionDetailScreen from '../screens/SubscriptionDetailScreen';
 import AnalyticsScreen from '../screens/AnalyticsScreen';
-import SlaDashboard from '../screens/SlaDashboard';
-import GDPRSettingsScreen from '../screens/GDPRSettingsScreen';
-import LanguageSettingsScreen from '../screens/LanguageSettingsScreen';
-import SessionManagementScreen from '../screens/SessionManagementScreen';
-import SettingsScreen from '../screens/SettingsScreen';
-import CalendarIntegrationScreen from '../screens/CalendarIntegrationScreen';
-import AccountingExportScreen from '../screens/AccountingExportScreen';
-import WebhookSettingsScreen from '../screens/WebhookSettingsScreen';
-import ErrorDashboardScreen from '../screens/ErrorDashboardScreen';
-import ImportScreen from '../screens/ImportScreen';
-import ExportScreen from '../screens/ExportScreen';
-import AdminDashboardScreen from '../screens/AdminDashboardScreen';
-import FraudDashboard from '../screens/FraudDashboard';
-import { SegmentManagementScreen } from '../screens/SegmentManagementScreen';
-import { SegmentDetailScreen } from '../screens/SegmentDetailScreen';
-import { GamificationScreen } from '../screens/GamificationScreen';
 import RevenueReportScreen from '../screens/RevenueReportScreen';
-import UsageDashboardScreen from '../screens/UsageDashboard';
-import MerchantOnboardingScreen from '../screens/MerchantOnboardingScreen';
-import AffiliateDashboardScreen from '../screens/AffiliateDashboardScreen';
-import LoyaltyDashboardScreen from '../screens/LoyaltyDashboardScreen';
-import CampaignManagementScreen from '../screens/CampaignManagementScreen';
-import { colors } from '../utils/constants';
+import SettingsScreen from '../screens/SettingsScreen';
 
+import { lazyScreen, namedLazyScreen } from './lazyScreen';
+import { colors } from '../utils/constants';
 import { RootStackParamList, TabParamList } from './types';
+
+// ── Non-critical screens (lazy) ───────────────────────────────────────────────
+// Loaded on demand via dynamic import(); Metro emits each as a separately
+// loadable chunk, so their parse/compile cost and memory are only paid when the
+// screen is actually visited.
+const CancellationFlowScreen = lazyScreen(() => import('../screens/CancellationFlowScreen'));
+const CommunityScreen = lazyScreen(() => import('../screens/CommunityScreen'));
+const ProfileScreen = lazyScreen(() => import('../screens/ProfileScreen'));
+const SlaDashboard = lazyScreen(() => import('../screens/SlaDashboard'));
+const GDPRSettingsScreen = lazyScreen(() => import('../screens/GDPRSettingsScreen'));
+const LanguageSettingsScreen = lazyScreen(() => import('../screens/LanguageSettingsScreen'));
+const SessionManagementScreen = lazyScreen(() => import('../screens/SessionManagementScreen'));
+const CalendarIntegrationScreen = lazyScreen(() => import('../screens/CalendarIntegrationScreen'));
+const AccountingExportScreen = lazyScreen(() => import('../screens/AccountingExportScreen'));
+const WebhookSettingsScreen = lazyScreen(() => import('../screens/WebhookSettingsScreen'));
+const ErrorDashboardScreen = lazyScreen(() => import('../screens/ErrorDashboardScreen'));
+const AdminDashboardScreen = lazyScreen(() => import('../screens/AdminDashboardScreen'));
+const FraudDashboard = lazyScreen(() => import('../screens/FraudDashboard'));
+const InvoiceListScreen = lazyScreen(() => import('../screens/InvoiceListScreen'));
+const InvoiceDetailScreen = lazyScreen(() => import('../screens/InvoiceDetailScreen'));
+const UsageDashboardScreen = lazyScreen(() => import('../screens/UsageDashboard'));
+const DeveloperPortalScreen = lazyScreen(() => import('../screens/DeveloperPortalScreen'));
+const SandboxDashboardScreen = lazyScreen(() => import('../screens/SandboxDashboardScreen'));
+const ApiKeyManagementScreen = lazyScreen(() => import('../screens/ApiKeyManagementScreen'));
+const DocumentationPortalScreen = lazyScreen(() => import('../screens/DocumentationPortalScreen'));
+const IntegrationGuidesScreen = lazyScreen(() => import('../screens/IntegrationGuidesScreen'));
+const SegmentManagementScreen = namedLazyScreen(
+  () => import('../screens/SegmentManagementScreen'),
+  (m) => m.SegmentManagementScreen
+);
+const SegmentDetailScreen = namedLazyScreen(
+  () => import('../screens/SegmentDetailScreen'),
+  (m) => m.SegmentDetailScreen
+);
+const GamificationScreen = namedLazyScreen(
+  () => import('../screens/GamificationScreen'),
+  (m) => m.GamificationScreen
+);
 
 const Tab = createBottomTabNavigator<TabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
