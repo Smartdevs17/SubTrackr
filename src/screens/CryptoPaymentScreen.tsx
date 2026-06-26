@@ -12,15 +12,12 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useAppNavigation, useAppRoute } from '../navigation/types';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
-import walletServiceManager, {
-  GasEstimate,
-  WalletConnection,
-  TokenBalance,
-} from '../services/walletService';
+import walletServiceManager, { WalletConnection, TokenBalance } from '../services/walletService';
+import { GasEstimate } from '../types/wallet';
 import { ADDRESS_CONSTANTS } from '../utils/constants/values';
 import { useTransactionQueueStore } from '../store/transactionQueueStore';
 
@@ -29,9 +26,9 @@ interface RouteParams {
 }
 
 const CryptoPaymentScreen: React.FC = () => {
-  const navigation = useNavigation();
-  const route = useRoute();
-  const { subscriptionId } = (route.params as RouteParams) || {};
+  const navigation = useAppNavigation<'CryptoPayment'>();
+  const route = useAppRoute<'CryptoPayment'>();
+  const { subscriptionId } = route.params ?? {};
 
   // Handle case when no subscriptionId is provided
   useEffect(() => {

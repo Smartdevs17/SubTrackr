@@ -118,9 +118,12 @@ export const SANDBOX_CONSTANTS = {
   DEFAULT_ENVIRONMENT_TTL_DAYS: 90,
 };
 
-export function getSandboxConfig(
-  tier: 'free' | 'pro' | 'enterprise' = 'free'
-): { resourceLimits: SandboxResourceLimits; rateLimits: RateLimit; features: SandboxFeatures; dataRetentionDays: number } {
+export function getSandboxConfig(tier: 'free' | 'pro' | 'enterprise' = 'free'): {
+  resourceLimits: SandboxResourceLimits;
+  rateLimits: RateLimit;
+  features: SandboxFeatures;
+  dataRetentionDays: number;
+} {
   return SANDBOX_TIERS[tier] || SANDBOX_TIERS.free;
 }
 

@@ -21,9 +21,7 @@ interface OnboardingPageProps {
   onComplete: () => void;
 }
 
-export const OnboardingPage: React.FC<OnboardingPageProps> = ({
-  onComplete,
-}) => {
+export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onComplete }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [steps, setSteps] = useState<OnboardingStep[]>([
     {
@@ -77,19 +75,13 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
   });
 
   const completedCount = steps.filter((s) => s.completed).length;
-  const requiredCount = steps.filter((s) => s.isRequired).length;
-  const allRequiredCompleted = steps
-    .filter((s) => s.isRequired)
-    .every((s) => s.completed);
+  const _requiredCount = steps.filter((s) => s.isRequired).length;
+  const allRequiredCompleted = steps.filter((s) => s.isRequired).every((s) => s.completed);
 
   const handleCompleteStep = (stepId: string) => {
-    setSteps((prev) =>
-      prev.map((s) => (s.id === stepId ? { ...s, completed: true } : s))
-    );
+    setSteps((prev) => prev.map((s) => (s.id === stepId ? { ...s, completed: true } : s)));
 
-    const nextStep = steps.findIndex(
-      (s) => !s.completed && s.id !== stepId
-    );
+    const nextStep = steps.findIndex((s) => !s.completed && s.id !== stepId);
     if (nextStep !== -1) {
       setCurrentStep(nextStep);
     }
@@ -105,11 +97,9 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
   };
 
   const handleCreateSandbox = () => {
-    Alert.alert(
-      'Sandbox Created',
-      'Your sandbox environment has been created successfully!',
-      [{ text: 'OK', onPress: () => handleCompleteStep('create-sandbox') }]
-    );
+    Alert.alert('Sandbox Created', 'Your sandbox environment has been created successfully!', [
+      { text: 'OK', onPress: () => handleCompleteStep('create-sandbox') },
+    ]);
   };
 
   const handleGenerateApiKey = () => {
@@ -138,9 +128,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
             <TextInput
               style={styles.input}
               value={formData.name}
-              onChangeText={(text) =>
-                setFormData((prev) => ({ ...prev, name: text }))
-              }
+              onChangeText={(text) => setFormData((prev) => ({ ...prev, name: text }))}
               placeholder="John Doe"
               placeholderTextColor="#9CA3AF"
             />
@@ -148,9 +136,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
             <TextInput
               style={styles.input}
               value={formData.email}
-              onChangeText={(text) =>
-                setFormData((prev) => ({ ...prev, email: text }))
-              }
+              onChangeText={(text) => setFormData((prev) => ({ ...prev, email: text }))}
               placeholder="john@example.com"
               placeholderTextColor="#9CA3AF"
               keyboardType="email-address"
@@ -159,16 +145,11 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
             <TextInput
               style={styles.input}
               value={formData.company}
-              onChangeText={(text) =>
-                setFormData((prev) => ({ ...prev, company: text }))
-              }
+              onChangeText={(text) => setFormData((prev) => ({ ...prev, company: text }))}
               placeholder="Acme Inc"
               placeholderTextColor="#9CA3AF"
             />
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={handleRegister}
-            >
+            <TouchableOpacity style={styles.actionButton} onPress={handleRegister}>
               <Text style={styles.actionButtonText}>Create Account</Text>
             </TouchableOpacity>
           </View>
@@ -177,17 +158,12 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
       case 'create-sandbox':
         return (
           <View style={styles.stepForm}>
-            <Text style={styles.stepInfo}>
-              Your sandbox environment will be created with default settings.
-              You can customize it later in the environment settings.
+            <Text style={styles.stepHelpText}>
+              Your sandbox environment will be created with default settings. You can customize it
+              later in the environment settings.
             </Text>
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={handleCreateSandbox}
-            >
-              <Text style={styles.actionButtonText}>
-                Create Sandbox Environment
-              </Text>
+            <TouchableOpacity style={styles.actionButton} onPress={handleCreateSandbox}>
+              <Text style={styles.actionButtonText}>Create Sandbox Environment</Text>
             </TouchableOpacity>
           </View>
         );
@@ -195,14 +171,11 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
       case 'generate-api-key':
         return (
           <View style={styles.stepForm}>
-            <Text style={styles.stepInfo}>
-              Generate an API key to authenticate your requests. Keep this key
-              secure and never share it publicly.
+            <Text style={styles.stepHelpText}>
+              Generate an API key to authenticate your requests. Keep this key secure and never
+              share it publicly.
             </Text>
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={handleGenerateApiKey}
-            >
+            <TouchableOpacity style={styles.actionButton} onPress={handleGenerateApiKey}>
               <Text style={styles.actionButtonText}>Generate API Key</Text>
             </TouchableOpacity>
           </View>
@@ -211,17 +184,14 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
       case 'explore-docs':
         return (
           <View style={styles.stepForm}>
-            <Text style={styles.stepInfo}>
-              Review the API documentation to understand available endpoints,
-              authentication, and best practices.
+            <Text style={styles.stepHelpText}>
+              Review the API documentation to understand available endpoints, authentication, and
+              best practices.
             </Text>
             <TouchableOpacity
               style={styles.actionButton}
-              onPress={() => handleCompleteStep('explore-docs')}
-            >
-              <Text style={styles.actionButtonText}>
-                Mark as Reviewed
-              </Text>
+              onPress={() => handleCompleteStep('explore-docs')}>
+              <Text style={styles.actionButtonText}>Mark as Reviewed</Text>
             </TouchableOpacity>
           </View>
         );
@@ -233,13 +203,8 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
               {`curl -X GET https://sandbox.api.subtrackr.io/v1/subscriptions \\
   -H "Authorization: Bearer sk_test_your_key"`}
             </Text>
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={handleMakeFirstCall}
-            >
-              <Text style={styles.actionButtonText}>
-                Test API Call
-              </Text>
+            <TouchableOpacity style={styles.actionButton} onPress={handleMakeFirstCall}>
+              <Text style={styles.actionButtonText}>Test API Call</Text>
             </TouchableOpacity>
           </View>
         );
@@ -261,10 +226,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
       <View style={styles.progressContainer}>
         <View style={styles.progressBar}>
           <View
-            style={[
-              styles.progressFill,
-              { width: `${(completedCount / steps.length) * 100}%` },
-            ]}
+            style={[styles.progressFill, { width: `${(completedCount / steps.length) * 100}%` }]}
           />
         </View>
         <Text style={styles.progressText}>
@@ -280,32 +242,20 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
               styles.stepCard,
               step.completed && styles.stepCardCompleted,
               index === currentStep && styles.stepCardActive,
-            ]}
-          >
+            ]}>
             <TouchableOpacity
               style={styles.stepHeader}
               onPress={() => !step.completed && setCurrentStep(index)}
-              disabled={step.completed}
-            >
-              <View
-                style={[
-                  styles.stepNumber,
-                  step.completed && styles.stepNumberCompleted,
-                ]}
-              >
+              disabled={step.completed}>
+              <View style={[styles.stepNumber, step.completed && styles.stepNumberCompleted]}>
                 {step.completed ? (
                   <Text style={styles.checkmark}>✓</Text>
                 ) : (
                   <Text style={styles.stepNumberText}>{index + 1}</Text>
                 )}
               </View>
-              <View style={styles.stepInfo}>
-                <Text
-                  style={[
-                    styles.stepTitle,
-                    step.completed && styles.stepTitleCompleted,
-                  ]}
-                >
+              <View style={styles.stepInfoContainer}>
+                <Text style={[styles.stepTitle, step.completed && styles.stepTitleCompleted]}>
                   {step.title}
                 </Text>
                 <Text style={styles.stepDescription}>{step.description}</Text>
@@ -316,9 +266,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
             </TouchableOpacity>
 
             {index === currentStep && !step.completed && (
-              <View style={styles.stepContent}>
-                {renderStepContent(step)}
-              </View>
+              <View style={styles.stepContent}>{renderStepContent(step)}</View>
             )}
           </View>
         ))}
@@ -429,7 +377,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: 'bold',
   },
-  stepInfo: {
+  stepInfoContainer: {
     flex: 1,
   },
   stepTitle: {
@@ -474,7 +422,7 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 16,
   },
-  stepInfo: {
+  stepHelpText: {
     fontSize: 14,
     color: '#6B7280',
     lineHeight: 20,

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { asyncStorageAdapter } from '../utils/storage';
 import {
   WebhookAnalytics,
   WebhookConfig,
@@ -8,8 +8,14 @@ import {
   WebhookDeliveryStatus,
   WebhookEventType,
   WebhookRetryPolicy,
+  WebhookSecret,
 } from '../types/webhook';
 import { BillingCycle } from '../types/subscription';
+import {
+  generateWebhookSecret,
+  serializeWebhookPayload,
+  signWebhookPayload,
+} from '../utils/webhookSignature';
 
 const STORAGE_KEY = 'subtrackr-webhooks';
 const DEFAULT_RETRY_POLICY: WebhookRetryPolicy = {
@@ -71,18 +77,25 @@ interface WebhookState {
   error: string | null;
 
   registerWebhook: (
-    input: Omit<WebhookConfig, 'id' | 'createdAt' | 'updatedAt' | 'successCount' | 'failureCount'>
+    input: Omit<
+      WebhookConfig,
+      'id' | 'createdAt' | 'updatedAt' | 'successCount' | 'failureCount' | 'secrets'
+    >
   ) => Promise<WebhookConfig>;
   updateWebhook: (id: string, patch: Partial<WebhookConfig>) => Promise<WebhookConfig>;
   deleteWebhook: (id: string) => Promise<void>;
   pauseWebhook: (id: string) => Promise<WebhookConfig>;
   resumeWebhook: (id: string) => Promise<WebhookConfig>;
+  /** Rotates the signing secret; the old secret stays valid for `overlapMs` (default 24h). */
+  rotateSecret: (id: string, newSecret?: string, overlapMs?: number) => Promise<WebhookConfig>;
   recordDelivery: (
     delivery: Omit<WebhookDelivery, 'id' | 'createdAt' | 'updatedAt'>
   ) => Promise<WebhookDelivery>;
   retryDelivery: (deliveryId: string) => Promise<WebhookDelivery>;
   sendTestEvent: (webhookId: string, eventType?: WebhookEventType) => Promise<WebhookDelivery>;
   getWebhookDeliveries: (webhookId: string, limit?: number) => WebhookDelivery[];
+  getDeadLetters: (webhookId?: string) => WebhookDelivery[];
+  replayDeadLetter: (deliveryId: string) => Promise<WebhookDelivery>;
   getAnalytics: (webhookId: string) => WebhookAnalytics;
   refreshAnalytics: (webhookId?: string) => void;
   setWebhookState: (webhooks: WebhookConfig[]) => void;
@@ -98,11 +111,17 @@ export const useWebhookStore = create<WebhookState>()(
       error: null,
 
       registerWebhook: async (input) => {
+        const createdAt = now();
+        // Ensure every webhook has a signing secret so deliveries are
+        // verifiable; generate one if the caller did not supply it.
+        const secretKey = input.secretKey?.trim() ? input.secretKey : generateWebhookSecret();
         const webhook: WebhookConfig = {
           ...input,
+          secretKey,
+          secrets: [{ key: secretKey, createdAt, validFrom: createdAt }],
           id: createId('whk'),
-          createdAt: now(),
-          updatedAt: now(),
+          createdAt,
+          updatedAt: createdAt,
           successCount: 0,
           failureCount: 0,
         };
@@ -149,7 +168,24 @@ export const useWebhookStore = create<WebhookState>()(
 
       pauseWebhook: async (id) => get().updateWebhook(id, { isPaused: true }),
 
-      resumeWebhook: async (id) => get().updateWebhook(id, { isPaused: false }),
+      resumeWebhook: async (id) =>
+        get().updateWebhook(id, { isPaused: false, disabledReason: undefined }),
+
+      rotateSecret: async (id, newSecret, overlapMs = 24 * 60 * 60 * 1_000) => {
+        const current = get().webhooks.find((webhook) => webhook.id === id);
+        if (!current) throw new Error(`Webhook ${id} not found`);
+
+        const rotatedAt = now();
+        const nextSecret = newSecret?.trim() ? newSecret : generateWebhookSecret();
+        const secrets: WebhookSecret[] = (current.secrets ?? []).map((secret) =>
+          secret.validUntil === undefined
+            ? { ...secret, validUntil: rotatedAt + overlapMs }
+            : secret
+        );
+        secrets.push({ key: nextSecret, createdAt: rotatedAt, validFrom: rotatedAt });
+
+        return get().updateWebhook(id, { secretKey: nextSecret, secrets });
+      },
 
       recordDelivery: async (delivery) => {
         const record: WebhookDelivery = {
@@ -203,53 +239,58 @@ export const useWebhookStore = create<WebhookState>()(
       sendTestEvent: async (webhookId, eventType = 'subscription.created') => {
         const webhook = get().webhooks.find((entry) => entry.id === webhookId);
         if (!webhook) throw new Error(`Webhook ${webhookId} not found`);
+        const eventId = createId('evt');
+        const payload = {
+          id: eventId,
+          webhookId,
+          eventType,
+          occurredAt: now(),
+          merchantId: webhook.merchantId,
+          previousStatus: 'none',
+          currentStatus: 'active',
+          payloadVersion: 1,
+          subscription: {
+            id: 'sample_subscription',
+            planId: 'sample_plan',
+            subscriberId: 'sample_customer',
+            status: 'active',
+            startedAt: now(),
+            lastChargedAt: now(),
+            nextChargeAt: now() + 2_592_000_000,
+            totalPaid: 49,
+            totalGasSpent: 0,
+            chargeCount: 1,
+            pausedAt: 0,
+            pauseDuration: 0,
+            refundRequestedAmount: 0,
+          },
+          plan: {
+            id: 'sample_plan',
+            merchantId: webhook.merchantId,
+            name: 'Sample plan',
+            price: 49,
+            token: 'USD',
+            interval: BillingCycle.MONTHLY,
+            active: true,
+            subscriberCount: 1,
+            createdAt: now(),
+          },
+        };
+        // Sign the exact serialized payload with the webhook secret so the
+        // receiver can verify authenticity/integrity (HMAC-SHA256).
+        const signature = signWebhookPayload(serializeWebhookPayload(payload), webhook.secretKey);
         return get().recordDelivery({
           webhookId,
-          eventId: createId('evt'),
+          eventId,
           eventType,
           url: webhook.url,
-          payload: {
-            id: createId('evt'),
-            webhookId,
-            eventType,
-            occurredAt: now(),
-            merchantId: webhook.merchantId,
-            previousStatus: 'none',
-            currentStatus: 'active',
-            payloadVersion: 1,
-            subscription: {
-              id: 'sample_subscription',
-              planId: 'sample_plan',
-              subscriberId: 'sample_customer',
-              status: 'active',
-              startedAt: now(),
-              lastChargedAt: now(),
-              nextChargeAt: now() + 2_592_000_000,
-              totalPaid: 49,
-              totalGasSpent: 0,
-              chargeCount: 1,
-              pausedAt: 0,
-              pauseDuration: 0,
-              refundRequestedAmount: 0,
-            },
-            plan: {
-              id: 'sample_plan',
-              merchantId: webhook.merchantId,
-              name: 'Sample plan',
-              price: 49,
-              token: 'USD',
-              interval: BillingCycle.MONTHLY,
-              active: true,
-              subscriberCount: 1,
-              createdAt: now(),
-            },
-          },
+          payload,
           status: 'delivered',
           attempts: 1,
           maxAttempts: webhook.retryPolicy.maxRetries,
           deliveredAt: now(),
           responseCode: 200,
-          signature: 'sample-signature',
+          signature,
           idempotencyKey: createId('idem'),
           latencyMs: 120,
         });
@@ -259,6 +300,46 @@ export const useWebhookStore = create<WebhookState>()(
         get()
           .deliveries.filter((delivery) => delivery.webhookId === webhookId)
           .slice(-Math.max(0, limit)),
+
+      getDeadLetters: (webhookId) =>
+        get()
+          .deliveries.filter(
+            (delivery) =>
+              delivery.isDeadLettered && (!webhookId || delivery.webhookId === webhookId)
+          )
+          .sort((a, b) => (a.deadLetteredAt ?? 0) - (b.deadLetteredAt ?? 0)),
+
+      replayDeadLetter: async (deliveryId) => {
+        const current = get().deliveries.find((delivery) => delivery.id === deliveryId);
+        if (!current) throw new Error(`Delivery ${deliveryId} not found`);
+
+        const next: WebhookDelivery = {
+          ...current,
+          status: 'delivered',
+          attempts: current.attempts + 1,
+          lastAttemptAt: now(),
+          deliveredAt: now(),
+          responseCode: 200,
+          errorMessage: undefined,
+          isDeadLettered: false,
+          deadLetteredAt: undefined,
+          updatedAt: now(),
+        };
+
+        set((state) => {
+          const nextDeliveries = state.deliveries.map((delivery) =>
+            delivery.id === deliveryId ? next : delivery
+          );
+          return {
+            deliveries: nextDeliveries,
+            analytics: {
+              ...state.analytics,
+              [next.webhookId]: calculateAnalytics(next.webhookId, nextDeliveries),
+            },
+          };
+        });
+        return next;
+      },
 
       getAnalytics: (webhookId) => {
         const analytics = calculateAnalytics(webhookId, get().deliveries);
@@ -290,7 +371,7 @@ export const useWebhookStore = create<WebhookState>()(
     }),
     {
       name: STORAGE_KEY,
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => asyncStorageAdapter),
       partialize: (state) => ({
         webhooks: state.webhooks,
         deliveries: state.deliveries,

@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import { useSegmentStore } from '../store/segmentStore';
 import { useSubscriptionStore } from '../store/subscriptionStore';
 import { useUserStore } from '../store/userStore';
@@ -8,11 +9,11 @@ import { useTheme } from '../theme/useTheme';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { SegmentOverlapAnalysis } from '../components/segments/SegmentOverlapAnalysis';
-import { useNavigation } from '@react-navigation/native';
+import { useAppNavigation } from '../navigation/types';
 
 export const SegmentManagementScreen: React.FC = () => {
   const theme = useTheme();
-  const navigation = useNavigation<any>();
+  const navigation = useAppNavigation<'SegmentManagement'>();
   const { segments, deleteSegment } = useSegmentStore();
   const { subscriptions } = useSubscriptionStore();
   const { user } = useUserStore();
@@ -31,18 +32,24 @@ export const SegmentManagementScreen: React.FC = () => {
       <TouchableOpacity
         onPress={() => navigation.navigate('SegmentDetail', { segmentId: item.id })}>
         <View style={styles.segmentHeader}>
-          <Text style={[styles.segmentName, { color: theme.colors.text }]}>{item.name}</Text>
+          <Text style={[styles.segmentName, { color: theme.colors.text.primary }]}>
+            {item.name}
+          </Text>
           <View style={[styles.logicBadge, { backgroundColor: theme.colors.accent }]}>
-            <Text style={styles.logicBadgeText}>{item.logic}</Text>
+            <Text style={[styles.logicBadgeText, { color: theme.colors.onPrimary }]}>
+              {item.logic}
+            </Text>
           </View>
         </View>
-        <Text style={[styles.segmentDesc, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+        <Text
+          style={[styles.segmentDesc, { color: theme.colors.text.secondary }]}
+          numberOfLines={1}>
           {item.description || 'No description'}
         </Text>
         <View style={styles.segmentFooter}>
-          <Text style={{ color: theme.colors.primary }}>{item.criteria.length} Rules</Text>
+          <Text style={{ color: theme.colors.brand.primary }}>{item.criteria.length} Rules</Text>
           <TouchableOpacity onPress={() => deleteSegment(item.id)}>
-            <Text style={{ color: theme.colors.error }}>Delete</Text>
+            <Text style={{ color: theme.colors.status.error }}>Delete</Text>
           </TouchableOpacity>
         </View>
       </TouchableOpacity>
@@ -50,15 +57,15 @@ export const SegmentManagementScreen: React.FC = () => {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <FlatList
+    <View style={[styles.container, { backgroundColor: theme.colors.background.primary }]}>
+      <FlashList
         data={segments}
         keyExtractor={(item) => item.id}
         renderItem={renderSegmentItem}
         ListHeaderComponent={
           <>
             <View style={styles.header}>
-              <Text style={[styles.title, { color: theme.colors.text }]}>Segments</Text>
+              <Text style={[styles.title, { color: theme.colors.text.primary }]}>Segments</Text>
               <Button
                 title="+ New Segment"
                 onPress={() => navigation.navigate('SegmentDetail', { segmentId: 'new' })}
@@ -70,7 +77,7 @@ export const SegmentManagementScreen: React.FC = () => {
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={{ color: theme.colors.textSecondary }}>No segments created yet.</Text>
+            <Text style={{ color: theme.colors.text.secondary }}>No segments created yet.</Text>
           </View>
         }
         contentContainerStyle={styles.listContent}
@@ -116,7 +123,6 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   logicBadgeText: {
-    color: '#fff',
     fontSize: 10,
     fontWeight: 'bold',
   },

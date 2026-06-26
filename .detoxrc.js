@@ -7,6 +7,7 @@ module.exports = {
     args: {
       $0: 'jest',
       config: 'e2e/jest.config.js',
+      maxWorkers: process.env.E2E_MAX_WORKERS || 1,
     },
     jest: {
       setupTimeout: 120000,
@@ -17,13 +18,13 @@ module.exports = {
       type: 'ios.app',
       binaryPath: 'ios/build/Build/Products/Debug-iphonesimulator/SubTrackr.app',
       build:
-        'xcodebuild -workspace ios/subtrackr.xcworkspace -scheme subtrackr -configuration Debug -sdk iphonesimulator -derivedDataPath ios/build',
+        'xcodebuild -workspace ios/SubTrackr.xcworkspace -scheme SubTrackr -configuration Debug -sdk iphonesimulator -derivedDataPath ios/build',
     },
     'ios.release': {
       type: 'ios.app',
       binaryPath: 'ios/build/Build/Products/Release-iphonesimulator/SubTrackr.app',
       build:
-        'xcodebuild -workspace ios/subtrackr.xcworkspace -scheme subtrackr -configuration Release -sdk iphonesimulator -derivedDataPath ios/build',
+        'xcodebuild -workspace ios/SubTrackr.xcworkspace -scheme SubTrackr -configuration Release -sdk iphonesimulator -derivedDataPath ios/build',
     },
     'android.debug': {
       type: 'android.apk',
@@ -81,6 +82,15 @@ module.exports = {
     'android.emu.release': {
       device: 'emulator',
       app: 'android.release',
+    },
+  },
+  behavior: {
+    init: {
+      exposeGlobals: true,
+      reinstallApp: true,
+    },
+    cleanup: {
+      shutdownDevice: false,
     },
   },
   artifacts: {
