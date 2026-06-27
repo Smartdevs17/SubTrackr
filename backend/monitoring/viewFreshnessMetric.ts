@@ -1,11 +1,3 @@
-/**
- * View Freshness Prometheus Metric
- *
- * A lightweight scrape endpoint that combines materialized view lag metrics
- * from MVRefreshJob with a generic HTTP handler signature so it can be
- * mounted under /metrics in any Node.js HTTP server.
- */
-
 import { MVRefreshJob } from '../analytics/jobs/mvRefreshJob';
 
 export function createViewFreshnessHandler(job: MVRefreshJob) {

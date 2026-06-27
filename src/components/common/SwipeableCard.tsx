@@ -132,7 +132,11 @@ export const SwipeableCard: React.FC<SwipeableCardProps> = ({
 
   return (
     <View style={styles.wrapper}>
-      <View pointerEvents="none" style={styles.actionBackground}>
+      <View
+        pointerEvents="none"
+        style={styles.actionBackground}
+        accessibilityElementsHidden={true}
+        importantForAccessibility="no">
         <Text style={styles.leftActionText}>Quick toggle</Text>
         <Text style={styles.rightActionText}>Open</Text>
       </View>
@@ -141,7 +145,12 @@ export const SwipeableCard: React.FC<SwipeableCardProps> = ({
         style={[styles.animatedCard, { transform: [{ translateX }] }]}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={accessibilityLabel}
+          accessibilityLabel={accessibilityLabel || 'Swipeable card'}
+          accessibilityHint={
+            onSwipeLeft && onSwipeRight
+              ? 'Swipe left for quick toggle, swipe right to open, or tap to select'
+              : undefined
+          }
           delayLongPress={320}
           onLongPress={() => {
             if (draggingRef.current) return;
