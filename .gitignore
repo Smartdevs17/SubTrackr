@@ -128,6 +128,12 @@ DESIGN_SYSTEM_INTEGRATION.md
 DESIGN_SYSTEM_IMPLEMENTATION.md
 DESIGN_SYSTEM_SETUP.md
 WCAG_COMPLIANCE.md
+
+# Backup / duplicate files
+*.backup
+*\ copy.*
+package.json.backup
+SubTrackr
 FORMATTING.md
 package.json.backup
 # Test run artifacts (NOT the committed contract insta snapshots under
