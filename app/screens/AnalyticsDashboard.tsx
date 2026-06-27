@@ -7,15 +7,20 @@ import {
   ScrollView,
   Share,
   Alert,
+  TouchableOpacity,
 } from 'react-native';
 import { useSubscriptionStore } from '../../src/store/subscriptionStore';
 import { useAnalyticsStore } from '../stores/analyticsStore';
 import { useSettingsStore } from '../../src/store/settingsStore';
 import { Card } from '../../src/components/common/Card';
 import { Button } from '../../src/components/common/Button';
+import { CohortChart } from '../../src/components/analytics/CohortChart';
+import { RetentionHeatmap } from '../../src/components/analytics/RetentionHeatmap';
+import { SankeyDiagram } from '../../src/components/analytics/SankeyDiagram';
 import { useThemeColors } from '../../src/hooks/useThemeColors';
 import { spacing, typography } from '../../src/utils/constants';
 import { formatCurrency } from '../../src/utils/formatting';
+import type { CohortGranularity } from '../../src/types/cohortAnalytics';
 
 const AnalyticsDashboard: React.FC = () => {
   const colors = useThemeColors();
@@ -23,11 +28,30 @@ const AnalyticsDashboard: React.FC = () => {
 
   const { subscriptions } = useSubscriptionStore();
   const { preferredCurrency } = useSettingsStore();
-  const { report, compute, exportCSV } = useAnalyticsStore();
+  const {
+    report,
+    granularity,
+    cohortBuckets,
+    retentionCurve,
+    churnBreakdown,
+    planMigrationFlows,
+    ltvBySource,
+    revenueTrendWithAnomalies,
+    setGranularity,
+    compute,
+    exportCSV,
+    exportCohortCsv,
+    exportCohortPdf,
+  } = useAnalyticsStore();
 
   useEffect(() => {
     compute(subscriptions);
   }, [subscriptions, compute]);
+
+  const handleSetGranularity = (next: CohortGranularity) => {
+    setGranularity(next);
+    compute(subscriptions);
+  };
 
   const handleExportCSV = async () => {
     try {
@@ -35,6 +59,22 @@ const AnalyticsDashboard: React.FC = () => {
       await Share.share({ message: csv, title: 'Subscriptions Export' });
     } catch {
       Alert.alert('Export Failed', 'Could not export analytics data');
+    }
+  };
+
+  const handleExportCohortCsv = async () => {
+    try {
+      await Share.share({ message: exportCohortCsv(), title: 'Cohort Report (CSV)' });
+    } catch {
+      Alert.alert('Export Failed', 'Could not export cohort report');
+    }
+  };
+
+  const handleExportCohortPdf = async () => {
+    try {
+      await Share.share({ message: exportCohortPdf(), title: 'Cohort Report (PDF)' });
+    } catch {
+      Alert.alert('Export Failed', 'Could not export cohort report');
     }
   };
 
@@ -107,36 +147,104 @@ const AnalyticsDashboard: React.FC = () => {
 
         <Card style={styles.card}>
           <Text style={styles.sectionTitle}>Revenue Trend (last 6 months)</Text>
-          {report.revenueTrend.length === 0 ? (
+          {revenueTrendWithAnomalies.length === 0 ? (
             <Text style={styles.emptyText}>No trend data yet</Text>
           ) : (
-            report.revenueTrend.map((point, index) => (
-              <View
-                key={point.label}
-                style={[
-                  styles.statRow,
-                  index === report.revenueTrend.length - 1 && styles.lastRow,
-                ]}>
-                <Text style={styles.statLabel}>{point.label}</Text>
-                <Text style={styles.statValue}>{formatCurrency(point.mrr, currency)}</Text>
+            revenueTrendWithAnomalies.map((point, index, arr) => (
+              <View key={point.label} style={[styles.statRow, index === arr.length - 1 && styles.lastRow]}>
+                <Text style={styles.statLabel}>
+                  {point.label}
+                  {point.isAnomaly ? ' ⚠️' : ''}
+                </Text>
+                <Text style={[styles.statValue, point.isAnomaly && styles.anomalyValue]}>
+                  {formatCurrency(point.value, currency)}
+                </Text>
               </View>
             ))
+          )}
+          {revenueTrendWithAnomalies.some((point) => point.isAnomaly) && (
+            <Text style={styles.anomalyNote}>⚠️ flagged points are statistical outliers vs. the rest of the trend</Text>
           )}
         </Card>
 
         <Card style={styles.card}>
-          <Text style={styles.sectionTitle}>Cohorts</Text>
-          {report.cohorts.length === 0 ? (
-            <Text style={styles.emptyText}>No cohort data yet</Text>
+          <View style={styles.rowBetween}>
+            <Text style={styles.sectionTitle}>Cohort Retention</Text>
+            <View style={styles.granularityToggle}>
+              {(['week', 'month'] as CohortGranularity[]).map((option) => (
+                <TouchableOpacity
+                  key={option}
+                  style={[styles.granularityButton, granularity === option && styles.granularityButtonActive]}
+                  onPress={() => handleSetGranularity(option)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: granularity === option }}>
+                  <Text
+                    style={[
+                      styles.granularityButtonText,
+                      granularity === option && styles.granularityButtonTextActive,
+                    ]}>
+                    {option === 'week' ? 'Week' : 'Month'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+          <CohortChart buckets={cohortBuckets} />
+          {cohortBuckets.slice(-4).map((bucket, index, arr) => (
+            <View key={bucket.cohortKey} style={[styles.statRow, index === arr.length - 1 && styles.lastRow]}>
+              <Text style={styles.statLabel}>{bucket.cohortKey}</Text>
+              <Text style={styles.statValue}>
+                {bucket.size} signups · {(bucket.retentionRate * 100).toFixed(0)}% retained ·{' '}
+                {formatCurrency(bucket.currentMrr, currency)}
+              </Text>
+            </View>
+          ))}
+        </Card>
+
+        <Card style={styles.card}>
+          <Text style={styles.sectionTitle}>Retention Curve (Day 1 / 7 / 30 / 60 / 90)</Text>
+          <RetentionHeatmap points={retentionCurve} />
+        </Card>
+
+        <Card style={styles.card}>
+          <Text style={styles.sectionTitle}>Revenue vs. Logo Churn (last 30 days)</Text>
+          {!churnBreakdown || churnBreakdown.isEmpty ? (
+            <Text style={styles.emptyText}>No subscribers active at the start of this period yet.</Text>
           ) : (
-            report.cohorts.slice(-4).map((cohort, index, arr) => (
-              <View
-                key={cohort.cohort}
-                style={[styles.statRow, index === arr.length - 1 && styles.lastRow]}>
-                <Text style={styles.statLabel}>{cohort.cohort}</Text>
+            <>
+              <View style={styles.statRow}>
+                <Text style={styles.statLabel}>Logo churn (subscribers)</Text>
                 <Text style={styles.statValue}>
-                  {(cohort.retentionRate * 100).toFixed(0)}% retained ·{' '}
-                  {formatCurrency(cohort.revenue, currency)}
+                  {(churnBreakdown.logoChurnRate * 100).toFixed(1)}% ({churnBreakdown.churnedSubscribers}/
+                  {churnBreakdown.startingSubscribers})
+                </Text>
+              </View>
+              <View style={[styles.statRow, styles.lastRow]}>
+                <Text style={styles.statLabel}>Revenue churn (MRR)</Text>
+                <Text style={styles.statValue}>
+                  {(churnBreakdown.revenueChurnRate * 100).toFixed(1)}% (
+                  {formatCurrency(churnBreakdown.churnedMrr, currency)})
+                </Text>
+              </View>
+            </>
+          )}
+        </Card>
+
+        <Card style={styles.card}>
+          <Text style={styles.sectionTitle}>Plan Migration</Text>
+          <SankeyDiagram flows={planMigrationFlows} />
+        </Card>
+
+        <Card style={styles.card}>
+          <Text style={styles.sectionTitle}>LTV by Acquisition Source</Text>
+          {ltvBySource.length === 0 ? (
+            <Text style={styles.emptyText}>No acquisition source data yet</Text>
+          ) : (
+            ltvBySource.map((row, index, arr) => (
+              <View key={row.acquisitionChannel} style={[styles.statRow, index === arr.length - 1 && styles.lastRow]}>
+                <Text style={styles.statLabel}>{row.acquisitionChannel}</Text>
+                <Text style={styles.statValue}>
+                  {formatCurrency(row.ltv, currency)} LTV · {row.subscriberCount} subs
                 </Text>
               </View>
             ))
@@ -159,6 +267,8 @@ const AnalyticsDashboard: React.FC = () => {
 
         <View style={styles.exportContainer}>
           <Button title="Export CSV" onPress={handleExportCSV} variant="secondary" />
+          <Button title="Export Cohort CSV" onPress={handleExportCohortCsv} variant="secondary" />
+          <Button title="Export Cohort PDF" onPress={handleExportCohortPdf} variant="secondary" />
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -194,8 +304,27 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     statLabel: { ...typography.body, color: colors.textSecondary },
     statValue: { ...typography.body, color: colors.text.primary, fontWeight: '600' },
     emptyText: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
-    exportContainer: { padding: spacing.lg, paddingTop: 0, marginBottom: spacing.xl },
+    exportContainer: { padding: spacing.lg, paddingTop: 0, marginBottom: spacing.xl, gap: spacing.sm },
     loadingText: { ...typography.body, color: colors.textSecondary, padding: spacing.lg },
+    rowBetween: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: spacing.md,
+    },
+    granularityToggle: { flexDirection: 'row', gap: spacing.xs },
+    granularityButton: {
+      paddingVertical: spacing.xs,
+      paddingHorizontal: spacing.sm,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: colors.border.default,
+    },
+    granularityButtonActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+    granularityButtonText: { ...typography.caption, color: colors.textSecondary },
+    granularityButtonTextActive: { color: colors.text.inverse, fontWeight: '600' },
+    anomalyValue: { color: colors.status.warning },
+    anomalyNote: { ...typography.caption, color: colors.status.warning, marginTop: spacing.xs },
   });
 }
 

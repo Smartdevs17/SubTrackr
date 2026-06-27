@@ -6,6 +6,7 @@ export type RootStackParamList = {
   SubscriptionDetail: { id: string };
   EditSubscription: { id: string };
   CancellationFlow: { subscriptionId: string };
+  CancellationFunnelDashboard: undefined;
   WalletConnect: undefined;
   CryptoPayment: { subscriptionId?: string } | undefined;
   Community: undefined;
@@ -18,6 +19,7 @@ export type RootStackParamList = {
   Settings: undefined;
   CalendarIntegration: undefined;
   WebhookSettings: undefined;
+  WebhookLogs: { webhookId: string };
   AccountingExport: undefined;
   AdminDashboard: undefined;
   LanguageSettings: undefined;
@@ -43,11 +45,14 @@ export type RootStackParamList = {
   AffiliateDashboard: undefined;
   LoyaltyDashboard: undefined;
   CampaignManagement: undefined;
+  PromotionManagement: undefined;
   PerformanceDashboard: undefined;
   BillingSettings: undefined;
+  BillingAlignment: undefined;
   ChangePlan: { subscriptionId: string };
   PaymentMethods: undefined;
   AnalyticsDashboard: undefined;
+  PartnerDashboard: undefined;
   NotFound: { reason?: string };
 };
 

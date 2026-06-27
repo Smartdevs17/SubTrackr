@@ -70,6 +70,14 @@ logs/
 coverage/
 .nyc_output/
 
+# Test snapshots & generated test/lint artifacts
+**/__snapshots__/
+*.snap
+junit.xml
+jest-results.json
+*_output.txt
+*_output_*.txt
+
 # Load test reports (generated) — keep the dir so k6 can write into it
 load-tests/reports/*
 !load-tests/reports/.gitkeep
@@ -81,6 +89,10 @@ load-tests/reports/*
 # React Native
 .expo-shared/
 
+
+# Test snapshots
+__snapshots__/
+*.snap
 
 # Build artifacts
 build_errors*.txt
@@ -118,3 +130,11 @@ DESIGN_SYSTEM_SETUP.md
 WCAG_COMPLIANCE.md
 FORMATTING.md
 package.json.backup
+# Test run artifacts (NOT the committed contract insta snapshots under
+# contracts/**/test_snapshots/, which are intentional fixtures)
+test-results/
+playwright-report/
+e2e/artifacts/
+e2e/screenshots/
+*.snap.orig
+.jest-cache/
