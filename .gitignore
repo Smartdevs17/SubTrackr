@@ -90,6 +90,10 @@ load-tests/reports/*
 .expo-shared/
 
 
+# Test snapshots
+__snapshots__/
+*.snap
+
 # Build artifacts
 build_errors*.txt
 *.log
