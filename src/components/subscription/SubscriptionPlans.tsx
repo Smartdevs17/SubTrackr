@@ -4,7 +4,7 @@ import { BillingCycle, SubscriptionTier, SubscriptionPlan } from '../../types/su
 import { FeatureId } from '../../types/feature';
 import { FEATURE_CONFIG } from '../../config/features';
 import { featureFlagsService } from '../../services/featureFlags';
-import { useUserStore } from '../../store/userStore';
+import { useUserStore } from '../../store';
 import { colors, spacing, typography, borderRadius, shadows } from '../../utils/constants';
 
 const { width } = Dimensions.get('window');

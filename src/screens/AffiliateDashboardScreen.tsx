@@ -12,8 +12,7 @@ import {
   FlatList,
 } from 'react-native';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
-import { useAffiliateStore } from '../store/affiliateStore';
-import { useWalletStore } from '../store/walletStore';
+import { useAffiliateStore, useWalletStore } from '../store';
 import { Card } from '../components/common/Card';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';

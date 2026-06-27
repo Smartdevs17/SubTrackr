@@ -12,8 +12,7 @@ import {
   FlatList,
 } from 'react-native';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
-import { useLoyaltyStore } from '../store/loyaltyStore';
-import { useWalletStore } from '../store/walletStore';
+import { useLoyaltyStore, useWalletStore } from '../store';
 import { Card } from '../components/common/Card';
 import { LoyaltyTier, RewardType, TierBenefits } from '../types/loyalty';
 

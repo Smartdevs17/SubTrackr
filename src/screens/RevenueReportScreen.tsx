@@ -13,13 +13,7 @@ import {
 import Svg, { Rect, Text as SvgText, Line, G } from 'react-native-svg';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { Card } from '../components/common/Card';
-import { useSubscriptionStore } from '../store/subscriptionStore';
-import {
-  useAccountingStore,
-  RecognitionMethod,
-  billingCycleToMs,
-  splitRecognisedDeferred,
-} from '../store/accountingStore';
+import { useSubscriptionStore, useAccountingStore, RecognitionMethod, billingCycleToMs, splitRecognisedDeferred } from '../store';
 
 const { width: screenWidth } = Dimensions.get('window');
 const CHART_WIDTH = screenWidth - spacing.xl * 2;

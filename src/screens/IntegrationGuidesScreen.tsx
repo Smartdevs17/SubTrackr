@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { Card } from '../components/common/Card';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
-import { useSandboxStore } from '../store/sandboxStore';
+import { useStore } from '../store';
 import { IntegrationGuideCategory } from '../types/sandbox';
 
 const CATEGORY_LABELS: Record<IntegrationGuideCategory, { label: string; icon: string }> = {
@@ -31,7 +31,7 @@ const DIFFICULTY_COLORS: Record<string, string> = {
 };
 
 const IntegrationGuidesScreen: React.FC = () => {
-  const { integrationGuides, markGuideCompleted } = useSandboxStore();
+  const { integrationGuides, markGuideCompleted } = useStore();
   const [selectedCategory, setSelectedCategory] = useState<IntegrationGuideCategory | null>(null);
   const [expandedGuide, setExpandedGuide] = useState<string | null>(null);
   const [expandedStep, setExpandedStep] = useState<number | null>(null);

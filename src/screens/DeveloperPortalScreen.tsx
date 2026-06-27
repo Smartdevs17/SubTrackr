@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { Card } from '../components/common/Card';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
-import { useSandboxStore } from '../store/sandboxStore';
+import { useStore } from '../store';
 import { SandboxEnvironment, DeveloperOnboardingStep } from '../types/sandbox';
 import {
   EnvironmentBadge,
@@ -35,7 +35,7 @@ const DeveloperPortalScreen: React.FC = () => {
     completeOnboardingStep,
     generateApiKey,
     resetTestData,
-  } = useSandboxStore();
+  } = useStore();
 
   const [showOnboarding, setShowOnboarding] = useState(!developerProfile);
   const [profileForm, setProfileForm] = useState({

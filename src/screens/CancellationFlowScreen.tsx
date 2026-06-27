@@ -12,7 +12,8 @@ import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { RootStackParamList } from '../navigation/types';
-import { useCancellationStore, CANCELLATION_REASONS } from '../store/cancellationStore';
+import { useStore } from '../store';
+import { CANCELLATION_REASONS } from '../store/cancellationStore';
 import { RetentionOffer } from '../../backend/services/retentionService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CancellationFlow'>;
@@ -40,7 +41,7 @@ const CancellationFlowScreen: React.FC<Props> = ({ route, navigation }) => {
     declineOffers,
     confirmCancellation,
     reset,
-  } = useCancellationStore();
+  } = useStore();
 
   useEffect(() => {
     initFlow(subscriptionId);
@@ -149,7 +150,7 @@ const CancellationFlowScreen: React.FC<Props> = ({ route, navigation }) => {
         title="Go Back"
         variant="outline"
         fullWidth
-        onPress={() => useCancellationStore.setState({ currentStep: 'OFFERS' })}
+        onPress={() => useStore.setState({ currentStep: 'OFFERS' })}
         accessibilityLabel="Go back to retention offers"
       />
     </View>

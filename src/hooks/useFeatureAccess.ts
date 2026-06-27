@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { FeatureId, FeatureAccessResult } from '../types/feature';
 import { featureFlagsService } from '../services/featureFlags';
-import { useUserStore } from '../store/userStore';
+import { useUserStore } from '../store';
 
 export interface UseFeatureAccessResult extends FeatureAccessResult {
   loading: boolean;

@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, TextInput, Button, FlatList, StyleSheet } from 'react-native';
 import { Subscription } from '../types/subscription';
 import { search_subscriptions, SavedSearch, SearchQuery } from '../services/searchService';
-import { useSubscriptionStore } from '../store/subscriptionStore';
+import { useSubscriptionStore } from '../../src/store';
 import { useSearchStore } from '../stores/searchStore';
 
 const styles = StyleSheet.create({

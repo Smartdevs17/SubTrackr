@@ -9,7 +9,7 @@ import {
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
-import { useSandboxStore } from '../store/sandboxStore';
+import { useStore } from '../store';
 import { colors } from '../utils/constants';
 import { IntegrationStep } from '../types/sandbox';
 
@@ -17,7 +17,7 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export default function IntegrationGuideDetailScreen() {
   const navigation = useNavigation<NavigationProp>();
-  const { selectedGuide } = useSandboxStore();
+  const { selectedGuide } = useStore();
 
   if (!selectedGuide) {
     return (

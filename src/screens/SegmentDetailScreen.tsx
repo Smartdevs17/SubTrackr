@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, Alert } from 'react-native';
-import { useSegmentStore } from '../store/segmentStore';
+import { useStore } from '../store';
 import { useTheme } from '../theme/useTheme';
 import { Button } from '../components/common/Button';
 import { SegmentRuleBuilder } from '../components/segments/SegmentRuleBuilder';
@@ -12,7 +12,7 @@ export const SegmentDetailScreen: React.FC = () => {
   const route = useRoute<any>();
   const navigation = useNavigation();
   const { segmentId } = route.params;
-  const { segments, addSegment, updateSegment } = useSegmentStore();
+  const { segments, addSegment, updateSegment } = useStore();
 
   const isNew = segmentId === 'new';
   const existingSegment = segments.find((s) => s.id === segmentId);

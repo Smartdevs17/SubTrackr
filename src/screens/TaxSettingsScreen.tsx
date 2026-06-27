@@ -3,11 +3,11 @@ import { StyleSheet, Text } from 'react-native';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
 import { FormScreen } from '../components/common/ScreenTemplates';
-import { useTaxStore } from '../store';
+import { useStore } from '../store';
 import { colors, spacing, typography } from '../utils/constants';
 
 const TaxSettingsScreen: React.FC = () => {
-  const { config, calculations, reports, remittances, calculateTax, createReport } = useTaxStore();
+  const { config, calculations, reports, remittances, calculateTax, createReport } = useStore();
 
   const latestRemittance = remittances[remittances.length - 1];
   const totalCollected = useMemo(

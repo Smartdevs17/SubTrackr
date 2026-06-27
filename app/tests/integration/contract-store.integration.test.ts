@@ -9,7 +9,7 @@ import { act } from 'react';
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as notificationService from '../../../src/services/notificationService';
-import { useSubscriptionStore } from '../../../src/store/subscriptionStore';
+import { useSubscriptionStore } from '../../../src/store';
 import { SubscriptionCategory, BillingCycle } from '../../../src/types/subscription';
 import { makeSubscription, makeSubscriptionFormData, resetIdCounter } from './factories';
 

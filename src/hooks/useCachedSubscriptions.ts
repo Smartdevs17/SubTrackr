@@ -9,7 +9,7 @@
 
 import { useCallback } from 'react';
 import NetInfo from '@react-native-community/netinfo';
-import { useSubscriptionStore } from '../store/subscriptionStore';
+import { useSubscriptionStore } from '../store';
 import { cacheService } from '../services/cache/cacheService';
 import type { Subscription, SubscriptionFormData } from '../types/subscription';
 

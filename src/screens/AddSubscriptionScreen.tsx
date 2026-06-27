@@ -14,7 +14,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
-import { useSubscriptionStore, useSettingsStore } from '../store';
+import { useStore } from '../store';
 import { Button } from '../components/common/Button';
 import { getCurrencySymbol } from '../utils/formatting';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
@@ -30,8 +30,7 @@ interface AddSubscriptionFormData extends SubscriptionFormData {
 
 const AddSubscriptionScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { addSubscription, isLoading, error } = useSubscriptionStore();
-  const { preferredCurrency } = useSettingsStore();
+  const { addSubscription, isLoading, error, preferredCurrency } = useStore();
 
   const [formData, setFormData] = useState<AddSubscriptionFormData>({
     name: '',

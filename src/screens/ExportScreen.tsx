@@ -15,12 +15,12 @@ import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
 import { generateCSV, exportToJSON } from '../utils/importExport';
-import { useSubscriptionStore } from '../store';
+import { useStore } from '../store';
 
 type ExportFormat = 'json' | 'csv';
 
 const ExportScreen: React.FC = () => {
-  const { subscriptions } = useSubscriptionStore();
+  const { subscriptions } = useStore();
 
   const [exportFormat, setExportFormat] = useState<ExportFormat>('json');
   const [isExporting, setIsExporting] = useState(false);

@@ -3,14 +3,14 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
 import { ListScreen } from '../components/common/ScreenTemplates';
-import { useGroupStore } from '../store';
+import { useStore } from '../store';
 import { SubscriptionGroup } from '../types/group';
 import { colors, spacing, typography } from '../utils/constants';
 
 const OWNER_ADDRESS = 'owner@example.com';
 
 const GroupManagementScreen: React.FC = () => {
-  const { groups, createGroup, inviteMember, chargeGroup, getAnalytics, error } = useGroupStore();
+  const { groups, createGroup, inviteMember, chargeGroup, getAnalytics, error } = useStore();
 
   const sortedGroups = useMemo(
     () => [...groups].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime()),

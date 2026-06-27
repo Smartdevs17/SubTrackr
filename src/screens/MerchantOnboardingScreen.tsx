@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
-import { useMerchantStore } from '../store/merchantStore';
+import { useStore } from '../store';
 import { Card } from '../components/common/Card';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -35,7 +35,7 @@ const MerchantOnboardingScreen: React.FC = () => {
     nextStep,
     previousStep,
     requestVerification,
-  } = useMerchantStore();
+  } = useStore();
 
   const [formData, setFormData] = useState<MerchantOnboardingFormData>({
     businessName: '',

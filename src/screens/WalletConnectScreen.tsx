@@ -17,7 +17,7 @@ import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
 import { useAppKit, useAppKitAccount, useAppKitProvider } from '@reown/appkit-ethers-react-native';
 import walletServiceManager, { WalletConnection, TokenBalance } from '../services/walletService';
-import { useWalletStore } from '../store';
+import { useStore } from '../store';
 import { RootStackParamList } from '../navigation/types';
 
 import * as Clipboard from 'expo-clipboard';
@@ -27,7 +27,7 @@ const WalletConnectScreen: React.FC = () => {
   const { open } = useAppKit();
   const { address, isConnected, chainId } = useAppKitAccount();
   const { walletProvider } = useAppKitProvider();
-  const { connectWallet, disconnect } = useWalletStore();
+  const { connectWallet, disconnect } = useStore();
 
   const [isConnecting, setIsConnecting] = useState(false);
   const [connection, setConnection] = useState<WalletConnection | null>(null);

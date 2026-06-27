@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useInvoiceStore } from '../store';
+import { useStore } from '../store';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { formatCurrency, formatDate } from '../utils/formatting';
 import { InvoiceStatus } from '../types/invoice';
@@ -30,7 +30,7 @@ const statusStyles: Record<InvoiceStatus, object> = {
 
 const InvoiceListScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
-  const invoices = useInvoiceStore((state) => state.invoices);
+  const invoices = useStore((state) => state.invoices);
 
   const sortedInvoices = useMemo(
     () => [...invoices].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()),

@@ -22,7 +22,7 @@ import walletServiceManager, {
   TokenBalance,
 } from '../services/walletService';
 import { ADDRESS_CONSTANTS } from '../utils/constants/values';
-import { useTransactionQueueStore } from '../store/transactionQueueStore';
+import { useStore } from '../store';
 
 interface RouteParams {
   subscriptionId?: string;
@@ -55,10 +55,10 @@ const CryptoPaymentScreen: React.FC = () => {
   const [availableTokens, setAvailableTokens] = useState<TokenBalance[]>([]);
   const [connection, setConnection] = useState<WalletConnection | null>(null);
 
-  const isOnline = useTransactionQueueStore((state) => state.isOnline);
-  const isQueueProcessing = useTransactionQueueStore((state) => state.isProcessing);
-  const queuedTransactions = useTransactionQueueStore((state) => state.queuedTransactions);
-  const executeOrQueueTransaction = useTransactionQueueStore(
+  const isOnline = useStore((state) => state.isOnline);
+  const isQueueProcessing = useStore((state) => state.isProcessing);
+  const queuedTransactions = useStore((state) => state.queuedTransactions);
+  const executeOrQueueTransaction = useStore(
     (state) => state.executeOrQueueTransaction
   );
 

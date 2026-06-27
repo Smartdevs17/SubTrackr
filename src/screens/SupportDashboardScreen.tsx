@@ -3,12 +3,12 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
 import { ListScreen } from '../components/common/ScreenTemplates';
-import { useSupportStore } from '../store';
+import { useStore } from '../store';
 import { SupportTicket } from '../types/support';
 import { colors, spacing, typography } from '../utils/constants';
 
 const SupportDashboardScreen: React.FC = () => {
-  const { tickets, createTicket, assignTicket, syncTicket, linkResolution } = useSupportStore();
+  const { tickets, createTicket, assignTicket, syncTicket, linkResolution } = useStore();
 
   const handleCreateTicket = () => {
     createTicket({

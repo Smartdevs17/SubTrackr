@@ -1,12 +1,12 @@
 import { useEffect } from 'react';
 
-import { useTransactionQueueStore } from '../store/transactionQueueStore';
+import { useStore } from '../store';
 
 export function useTransactionQueue(): void {
   useEffect(() => {
-    const unsubscribe = useTransactionQueueStore.getState().initializeConnectivityListener();
-    void useTransactionQueueStore.getState().refreshConnectivity();
-    void useTransactionQueueStore.getState().processQueue();
+    const unsubscribe = useStore.getState().initializeConnectivityListener();
+    void useStore.getState().refreshConnectivity();
+    void useStore.getState().processQueue();
 
     return unsubscribe;
   }, []);

@@ -10,10 +10,9 @@ import {
 } from 'react-native';
 import Svg, { Rect, Text as SvgText, Line, G } from 'react-native-svg';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
-import { useSubscriptionStore } from '../store';
+import { useStore } from '../store';
 import { SubscriptionCategory, BillingCycle } from '../types/subscription';
 import { Card } from '../components/common/Card';
-import { useSettingsStore } from '../store/settingsStore';
 import { currencyService } from '../services/currencyService';
 import { calculateSubscriptionAnalytics } from '../services/analyticsService';
 import { formatCurrency } from '../utils/formatting';
@@ -25,8 +24,7 @@ const CHART_HEIGHT = 200;
 type DateRange = 'week' | 'month' | 'year';
 
 const AnalyticsScreen: React.FC = () => {
-  const { subscriptions, stats, calculateStats } = useSubscriptionStore();
-  const { preferredCurrency, exchangeRates } = useSettingsStore();
+  const { subscriptions, stats, calculateStats, preferredCurrency, exchangeRates } = useStore();
   const rates = exchangeRates?.rates || {};
   const [dateRange, setDateRange] = useState<DateRange>('month');
 

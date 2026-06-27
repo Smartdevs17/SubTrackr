@@ -1,8 +1,6 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
-import { useSegmentStore } from '../store/segmentStore';
-import { useSubscriptionStore } from '../store/subscriptionStore';
-import { useUserStore } from '../store/userStore';
+import { useSegmentStore, useSubscriptionStore, useUserStore } from '../store';
 import { segmentService } from '../services/segmentService';
 import { useTheme } from '../theme/useTheme';
 import { Card } from '../components/common/Card';

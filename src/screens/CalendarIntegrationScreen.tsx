@@ -13,8 +13,7 @@ import {
 } from 'react-native';
 
 import { Card } from '../components/common/Card';
-import { useCalendarStore } from '../store/calendarStore';
-import { useSubscriptionStore } from '../store/subscriptionStore';
+import { useCalendarStore, useSubscriptionStore } from '../store';
 import {
   CALENDAR_PROVIDERS,
   REMINDER_OFFSET_OPTIONS,

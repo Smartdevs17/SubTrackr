@@ -17,9 +17,8 @@ import {
   CommunityPrivacy,
   ForumPost,
   ForumThread,
-  useCommunityStore,
 } from '../store/communityStore';
-import { useWalletStore } from '../store';
+import { useStore } from '../store';
 import { borderRadius, colors, spacing, typography } from '../utils/constants';
 
 type CommunityNavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -84,7 +83,7 @@ const PostItem: React.FC<{
 
 const CommunityScreen: React.FC = () => {
   const navigation = useNavigation<CommunityNavigationProp>();
-  const address = useWalletStore((state) => state.address);
+  const address = useStore((state) => state.address);
   const {
     currentSubscriber,
     setCurrentSubscriber,
@@ -95,7 +94,7 @@ const CommunityScreen: React.FC = () => {
     createThread,
     replyToThread,
     moderateContent,
-  } = useCommunityStore();
+  } = useStore();
 
   useEffect(() => {
     if (address) {

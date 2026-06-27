@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 
-import { useSubscriptionStore } from '../store';
+import { useStore } from '../store';
 import {
   attachNotificationResponseListeners,
   getPermissionStatus,
@@ -17,7 +17,7 @@ export function useNotifications(): {
   permissionStatus: Notifications.PermissionStatus | null;
   refreshPermission: () => Promise<void>;
 } {
-  const subscriptions = useSubscriptionStore((s) => s.subscriptions);
+  const subscriptions = useStore((s) => s.subscriptions);
   const [permissionStatus, setPermissionStatus] = useState<Notifications.PermissionStatus | null>(
     null
   );

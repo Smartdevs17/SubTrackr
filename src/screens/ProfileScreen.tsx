@@ -13,8 +13,8 @@ import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Card } from '../components/common/Card';
 import { RootStackParamList } from '../navigation/types';
-import { useCommunityStore, CommunityPrivacy } from '../store/communityStore';
-import { useWalletStore } from '../store';
+import { useStore } from '../store';
+import { CommunityPrivacy } from '../store/communityStore';
 import { borderRadius, colors, spacing, typography } from '../utils/constants';
 
 type ProfileRouteProp = RouteProp<RootStackParamList, 'Profile'>;
@@ -25,9 +25,9 @@ const privacyOptions: CommunityPrivacy[] = ['public', 'subscribers', 'private'];
 const ProfileScreen: React.FC = () => {
   const route = useRoute<ProfileRouteProp>();
   const navigation = useNavigation<ProfileNavigationProp>();
-  const walletAddress = useWalletStore((state) => state.address);
+  const walletAddress = useStore((state) => state.address);
   const { currentSubscriber, setCurrentSubscriber, updateProfile, getVisibleProfile } =
-    useCommunityStore();
+    useStore();
 
   useEffect(() => {
     if (walletAddress) {

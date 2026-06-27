@@ -1,7 +1,6 @@
 import { act } from 'react';
 import { expect, describe, it, beforeEach, jest } from '@jest/globals';
-import { useSubscriptionStore } from '../subscriptionStore';
-import { useInvoiceStore } from '../invoiceStore';
+import { useSubscriptionStore, useInvoiceStore } from '../store';
 import { SubscriptionCategory, BillingCycle } from '../../types/subscription';
 
 // 🔥 Mock AsyncStorage

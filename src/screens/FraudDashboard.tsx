@@ -11,7 +11,7 @@ import {
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
-import { useFraudStore } from '../store/fraudStore';
+import { useStore } from '../store';
 import { FraudAction } from '../types/fraud';
 
 const actionPalette: Record<FraudAction, string> = {
@@ -35,7 +35,7 @@ const FraudDashboard: React.FC = () => {
     blockSubscription,
     resolveCase,
     getFraudReport,
-  } = useFraudStore();
+  } = useStore();
 
   const highlightedReports = useMemo(
     () => merchants.map((merchant) => getFraudReport(merchant.id)),

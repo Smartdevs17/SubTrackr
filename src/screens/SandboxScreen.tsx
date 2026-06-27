@@ -15,7 +15,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
-import { useSandboxStore } from '../store/sandboxStore';
+import { useStore } from '../store';
 import { SandboxEnvironment, SandboxStatus } from '../types/sandbox';
 import { RootStackParamList } from '../navigation/types';
 
@@ -41,7 +41,7 @@ const SandboxScreen: React.FC = () => {
     resetSandbox,
     refreshMetrics,
     clearError,
-  } = useSandboxStore();
+  } = useStore();
 
   const [refreshing, setRefreshing] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);

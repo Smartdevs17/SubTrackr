@@ -11,9 +11,9 @@ import {
 } from 'react-native';
 import { Card } from '../components/common/Card';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
+import { useStore } from '../store';
 import {
   defaultRetryPolicy,
-  useWebhookStore,
   webhookEventTypes,
   webhookStatusLabels,
 } from '../store/webhookStore';
@@ -38,7 +38,7 @@ const WebhookSettingsScreen: React.FC = () => {
     retryDelivery,
     sendTestEvent,
     refreshAnalytics,
-  } = useWebhookStore();
+  } = useStore();
 
   const [form, setForm] = useState(emptyWebhookForm);
   const [selectedEvents, setSelectedEvents] = useState<WebhookEventType[]>([

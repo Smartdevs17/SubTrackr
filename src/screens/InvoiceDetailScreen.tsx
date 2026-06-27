@@ -12,7 +12,7 @@ import {
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
-import { useInvoiceStore } from '../store';
+import { useStore } from '../store';
 import { formatCurrency, formatDate } from '../utils/formatting';
 import { RootStackParamList } from '../navigation/types';
 import { Card } from '../components/common/Card';
@@ -25,12 +25,12 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 const InvoiceDetailScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RoutePropType>();
-  const invoice = useInvoiceStore((state) =>
+  const invoice = useStore((state) =>
     state.invoices.find((entry) => entry.id === route.params.id)
   );
-  const sendInvoice = useInvoiceStore((state) => state.sendInvoice);
-  const voidInvoice = useInvoiceStore((state) => state.voidInvoice);
-  const markInvoicePaid = useInvoiceStore((state) => state.markInvoicePaid);
+  const sendInvoice = useStore((state) => state.sendInvoice);
+  const voidInvoice = useStore((state) => state.voidInvoice);
+  const markInvoicePaid = useStore((state) => state.markInvoicePaid);
 
   const preview = useMemo(() => (invoice ? generateInvoicePdfPreview(invoice) : ''), [invoice]);
 

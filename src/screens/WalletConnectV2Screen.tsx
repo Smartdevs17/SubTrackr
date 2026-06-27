@@ -20,7 +20,7 @@ import { colors, spacing, typography, borderRadius, shadows } from '../utils/con
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
 import walletServiceManager, { WalletConnection, TokenBalance } from '../services/walletService';
-import { useWalletStore } from '../store';
+import { useStore } from '../store';
 import { RootStackParamList } from '../navigation/types';
 import { getWalletConnectChain, WALLETCONNECT_CHAINS } from '../services/walletconnect/chains';
 import {
@@ -34,7 +34,7 @@ const WalletConnectV2Screen: React.FC = () => {
   const { open } = useAppKit();
   const { address, isConnected, chainId } = useAppKitAccount();
   const { walletProvider } = useAppKitProvider();
-  const { syncWalletConnection, disconnect } = useWalletStore();
+  const { syncWalletConnection, disconnect } = useStore();
 
   const previousConnectionRef = useRef(false);
 

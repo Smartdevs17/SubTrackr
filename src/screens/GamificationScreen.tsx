@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
-import { useGamificationStore } from '../store/gamificationStore';
-import { useUserStore } from '../store/userStore';
+import { useGamificationStore, useUserStore } from '../store';
 import { gamificationService } from '../services/gamificationService';
 import { useTheme } from '../theme/useTheme';
 import {

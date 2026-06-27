@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { Card } from '../components/common/Card';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
-import { useSlaStore } from '../store/slaStore';
+import { useStore } from '../store';
 import { SlaAvailabilityState } from '../types/sla';
 import { SLA_DEFAULTS } from '../services/slaService';
 
@@ -32,7 +32,7 @@ const SlaDashboard: React.FC = () => {
     configureSla,
     trackServiceAvailability,
     refreshReport,
-  } = useSlaStore();
+  } = useStore();
   const [merchantId, setMerchantId] = useState('merchant-demo');
   const [uptimeTarget, setUptimeTarget] = useState(String(SLA_DEFAULTS.uptimeTarget));
   const [measurementInterval, setMeasurementInterval] = useState(

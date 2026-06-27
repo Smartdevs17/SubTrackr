@@ -11,7 +11,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
-import { useSandboxStore } from '../store/sandboxStore';
+import { useStore } from '../store';
 import { colors } from '../utils/constants';
 import { testDataGenerator } from '../services/sandbox/testDataGenerator';
 
@@ -29,7 +29,7 @@ export default function SandboxDetailScreen() {
     toggleSandboxStatus,
     deleteSandbox,
     fetchUsageForSandbox,
-  } = useSandboxStore();
+  } = useStore();
 
   const [activeTab, setActiveTab] = useState<'overview' | 'data' | 'usage' | 'keys'>('overview');
 

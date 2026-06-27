@@ -12,13 +12,13 @@ import {
 } from 'react-native';
 import { Card } from '../components/common/Card';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
-import { useSandboxStore } from '../store/sandboxStore';
+import { useStore } from '../store';
 import { ApiKeyStatus, SandboxEnvironment } from '../types/sandbox';
 import { apiKeyService } from '../services/sandbox/apiKeyService';
 
 const ApiKeyManagementScreen: React.FC = () => {
   const { apiKeys, developerProfile, generateApiKey, revokeApiKey, deleteApiKey } =
-    useSandboxStore();
+    useStore();
 
   const [newKeyName, setNewKeyName] = useState('');
   const [showNewKey, setShowNewKey] = useState<string | null>(null);

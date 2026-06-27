@@ -1,6 +1,5 @@
 import { create } from 'zustand';
-import { useSubscriptionStore } from './subscriptionStore';
-import { Subscription } from '../types/subscription';
+import { useStore } from '../../src/store';
 
 type Facets = {
   category?: string;
@@ -19,55 +18,46 @@ type SavedSearch = {
 type SearchState = {
   query: string;
   facets: Facets;
-  results: Subscription[];
+  results: any[];
   savedSearches: SavedSearch[];
   setQuery: (q: string) => void;
   setFacets: (f: Partial<Facets>) => void;
-  updateResults: (subs: Subscription[]) => void;
+  updateResults: (results: any[]) => void;
   saveSearch: (name: string) => void;
   loadSavedSearch: (id: string) => void;
   clear: () => void;
 };
 
 export const useSearchStore = create<SearchState>()((set, get) => {
-  const { subscriptions } = require('../store/subscriptionStore').useSubscriptionStore.getState();
+  // Get initial subscriptions from the combined store
+  const subs = useStore.getState()?.subscriptions;
+
   return {
     query: '',
     facets: {},
-    results: subscriptions?.length ? subscriptions : [],
+    results: subs?.length ? subs : [],
     savedSearches: [],
     setQuery: (q: string) => {
       set({ query: q });
-      // Basic debounce-like refresh by recalculating results on demand
-      const subState = require('../store/subscriptionStore').useSubscriptionStore.getState();
-      set({ results: subState.subscriptions });
+      const subState = useStore.getState();
+      set({ results: subState?.subscriptions ?? [] });
     },
     setFacets: (f: Partial<Facets>) => {
       set((state) => ({ facets: { ...state.facets, ...f } }));
-      // Refresh results when facets change
-      const subState = require('../store/subscriptionStore').useSubscriptionStore.getState();
-      set({ results: subState.subscriptions });
+      const subState = useStore.getState();
+      set({ results: subState?.subscriptions ?? [] });
     },
-    updateResults: (subs: Subscription[]) => set({ results: subs }),
+    updateResults: (results) => set({ results }),
     saveSearch: (name: string) => {
       const current = get();
       const id = `ss_${Date.now()}`;
-      const newSearch = {
-        id,
-        name,
-        query: current.query,
-        facets: current.facets,
-      } as SavedSearch;
+      const newSearch = { id, name, query: current.query, facets: current.facets } as SavedSearch;
       set((s) => ({ savedSearches: [...s.savedSearches, newSearch] }));
     },
     loadSavedSearch: (id: string) => {
       const s = get().savedSearches.find((ss) => ss.id === id);
-      if (s) {
-        set({ query: s.query, facets: s.facets || {} });
-      }
+      if (s) set({ query: s.query, facets: s.facets || {} });
     },
-    clear: () => {
-      set({ query: '', facets: {}, results: [] });
-    },
+    clear: () => set({ query: '', facets: {}, results: [] }),
   };
 });

@@ -9,7 +9,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { useUserStore } from '../store/userStore';
+import { useUserStore } from '../store';
 import { gdprService } from '../services/gdpr';
 
 const GDPRSettingsScreen = () => {

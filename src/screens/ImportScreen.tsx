@@ -31,10 +31,10 @@ import {
   ImportHistoryEntry,
   SubscriptionInput,
 } from '../utils/importExport';
-import { useSubscriptionStore } from '../store';
+import { useStore } from '../store';
 
 const ImportScreen: React.FC = () => {
-  const { subscriptions, addSubscription, updateSubscription } = useSubscriptionStore();
+  const { subscriptions, addSubscription, updateSubscription } = useStore();
   const navigation = useNavigation<any>();
 
   const [importMode, setImportMode] = useState<ImportMode>('upsert');

@@ -13,7 +13,7 @@ import {
 import * as Clipboard from 'expo-clipboard';
 import { Card } from '../components/common/Card';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
-import { useSubscriptionStore } from '../store/subscriptionStore';
+import { useSubscriptionStore } from '../store';
 import {
   AccountingFieldMapping,
   AccountingFormat,

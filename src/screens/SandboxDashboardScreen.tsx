@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { Card } from '../components/common/Card';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
-import { useSandboxStore } from '../store/sandboxStore';
+import { useStore } from '../store';
 import { SandboxEnvironment } from '../types/sandbox';
 import { StatCard, EnvironmentBadge } from '../components/developer/DeveloperComponents';
 
@@ -24,7 +24,7 @@ const SandboxDashboardScreen: React.FC = () => {
     resetTestData,
     addTestSubscription,
     removeTestSubscription,
-  } = useSandboxStore();
+  } = useStore();
 
   useEffect(() => {
     initializeSandbox();

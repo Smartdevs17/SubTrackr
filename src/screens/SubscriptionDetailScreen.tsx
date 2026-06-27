@@ -12,13 +12,12 @@ import {
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useSubscriptionStore, useSettingsStore } from '../store';
+import { useStore } from '../store';
 import { currencyService } from '../services/currencyService';
 import { formatCurrency } from '../utils/formatting';
 import { colors, spacing, typography } from '../utils/constants';
 import { getCategoryIcon } from '../utils/subscriptionHelpers';
 import { RootStackParamList } from '../navigation/types';
-import { useGroupStore } from '../store/groupStore';
 
 // Components
 import { Button } from '../components/common/Button';
@@ -33,10 +32,8 @@ const SubscriptionDetailScreen: React.FC = () => {
   const route = useRoute<SubscriptionDetailRouteProp>();
   const { id } = route.params;
 
-  const { subscriptions, toggleSubscriptionStatus, updateSubscription, recordBillingOutcome } =
-    useSubscriptionStore();
-  const { groups } = useGroupStore();
-  const { preferredCurrency, exchangeRates } = useSettingsStore();
+  const { subscriptions, toggleSubscriptionStatus, updateSubscription, recordBillingOutcome, groups, preferredCurrency, exchangeRates } =
+    useStore();
   const rates = exchangeRates?.rates || {};
 
   const subscription = useMemo(() => subscriptions?.find((s) => s.id === id), [id, subscriptions]);

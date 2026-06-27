@@ -1,7 +1,6 @@
 import { Subscription, SubscriptionCategory } from '../types/subscription';
-import { useSubscriptionStore } from '../store/subscriptionStore';
+import { useSubscriptionStore, useSettingsStore } from '../../src/store';
 import { currencyService } from './currencyService';
-import { useSettingsStore } from '../store/settingsStore';
 
 export type SearchQuery = {
   query: string;

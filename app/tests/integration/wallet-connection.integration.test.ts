@@ -8,7 +8,7 @@
 import { act } from 'react';
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useWalletStore } from '../../../src/store/walletStore';
+import { useWalletStore } from '../../../src/store';
 import { makeWallet, makeCryptoStream, resetIdCounter } from './factories';
 
 // ── In-memory AsyncStorage ────────────────────────────────────────────────────

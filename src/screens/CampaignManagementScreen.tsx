@@ -13,7 +13,7 @@ import {
   FlatList,
 } from 'react-native';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
-import { useCampaignStore } from '../store/campaignStore';
+import { useStore } from '../store';
 import { Card } from '../components/common/Card';
 import {
   Campaign,
@@ -34,7 +34,7 @@ const CampaignManagementScreen: React.FC = () => {
     launchCampaign,
     pauseCampaign,
     getCampaignAnalytics,
-  } = useCampaignStore();
+  } = useStore();
 
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [newCampaign, setNewCampaign] = useState({
