@@ -10,13 +10,14 @@ import { RootStackParamList, TabParamList } from './types';
 import { useTheme } from '../theme';
 import { darkNavigationTheme, lightNavigationTheme } from '../theme/navigationTheme';
 
-// Eagerly loaded primary entrypoints for instant rendering
 import HomeScreen from '../screens/HomeScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 
-// Lazy loaded auxiliary and heavy screens with suspense/retry support
 const AddSubscriptionScreen = lazyScreen(() => import('../screens/AddSubscriptionScreen'));
 const CancellationFlowScreen = lazyScreen(() => import('../screens/CancellationFlowScreen'));
+const CancellationFunnelDashboard = lazyScreen(
+  () => import('../screens/CancellationFunnelDashboard')
+);
 const WalletConnectScreen = lazyScreen(() => import('../screens/WalletConnectV2Screen'));
 const CryptoPaymentScreen = lazyScreen(() => import('../screens/CryptoPaymentScreen'));
 const CommunityScreen = lazyScreen(() => import('../screens/CommunityScreen'));
@@ -32,6 +33,7 @@ const SessionManagementScreen = lazyScreen(() => import('../screens/SessionManag
 const CalendarIntegrationScreen = lazyScreen(() => import('../screens/CalendarIntegrationScreen'));
 const AccountingExportScreen = lazyScreen(() => import('../screens/AccountingExportScreen'));
 const WebhookSettingsScreen = lazyScreen(() => import('../screens/WebhookSettingsScreen'));
+const WebhookLogsScreen = lazyScreen(() => import('../screens/WebhookLogsScreen'));
 const ErrorDashboardScreen = lazyScreen(() => import('../screens/ErrorDashboardScreen'));
 const ImportScreen = lazyScreen(() => import('../screens/ImportScreen'));
 const ExportScreen = lazyScreen(() => import('../screens/ExportScreen'));
@@ -60,17 +62,20 @@ const MerchantOnboardingScreen = lazyScreen(() => import('../screens/MerchantOnb
 const AffiliateDashboardScreen = lazyScreen(() => import('../screens/AffiliateDashboardScreen'));
 const LoyaltyDashboardScreen = lazyScreen(() => import('../screens/LoyaltyDashboardScreen'));
 const CampaignManagementScreen = lazyScreen(() => import('../screens/CampaignManagementScreen'));
+const PromotionManagementScreen = lazyScreen(() => import('../screens/PromotionManagementScreen'));
 const DeveloperPortalScreen = lazyScreen(() => import('../screens/DeveloperPortalScreen'));
 const SandboxDashboardScreen = lazyScreen(() => import('../screens/SandboxDashboardScreen'));
 const ApiKeyManagementScreen = lazyScreen(() => import('../screens/ApiKeyManagementScreen'));
 const DocumentationPortalScreen = lazyScreen(() => import('../screens/DocumentationPortalScreen'));
 const IntegrationGuidesScreen = lazyScreen(() => import('../screens/IntegrationGuidesScreen'));
+const PartnerDashboardScreen = lazyScreen(() => import('../screens/PartnerDashboardScreen'));
 const PerformanceDashboardScreen = lazyScreen(
   () => import('../screens/PerformanceDashboardScreen')
 );
 const EditSubscriptionScreen = lazyScreen(() => import('../screens/EditSubscriptionScreen'));
 const ChangePlanScreen = lazyScreen(() => import('../screens/ChangePlanScreen'));
 const BillingSettingsScreen = lazyScreen(() => import('../screens/BillingSettingsScreen'));
+const BillingAlignmentScreen = lazyScreen(() => import('../screens/BillingAlignmentScreen'));
 const PaymentMethodsScreen = lazyScreen(() =>
   import('../../app/screens/PaymentMethodsScreen').then((m) => ({
     default: m.PaymentMethodsScreen,
@@ -103,6 +108,11 @@ const HomeStack = () => (
       name="CancellationFlow"
       component={CancellationFlowScreen}
       options={{ title: 'Cancel Subscription', headerShown: true }}
+    />
+    <Stack.Screen
+      name="CancellationFunnelDashboard"
+      component={CancellationFunnelDashboard}
+      options={{ headerShown: false }}
     />
     <Stack.Screen
       name="SubscriptionDetail"
@@ -207,9 +217,14 @@ const HomeStack = () => (
     <Stack.Screen
       name="IntegrationGuides"
       component={IntegrationGuidesScreen}
-      options={{ headerShown: false }}
+      options={{ title: 'Integrations', headerShown: true }}
     />
-  </Stack.Navigator>
+    <Stack.Screen
+      name="PartnerDashboard"
+      component={PartnerDashboardScreen}
+      options={{ title: 'Partner Dashboard', headerShown: true }}
+    />
+</Stack.Navigator>
 );
 
 const SettingsStack = () => (
@@ -286,6 +301,11 @@ const SettingsStack = () => (
       options={{ title: 'Webhooks', headerShown: true }}
     />
     <Stack.Screen
+      name="WebhookLogs"
+      component={WebhookLogsScreen}
+      options={{ title: 'Delivery Logs', headerShown: true }}
+    />
+    <Stack.Screen
       name="SessionManagement"
       component={SessionManagementScreen}
       options={{ title: 'Sessions', headerShown: true }}
@@ -331,6 +351,11 @@ const SettingsStack = () => (
       options={{ title: 'Campaigns', headerShown: true }}
     />
     <Stack.Screen
+      name="PromotionManagement"
+      component={PromotionManagementScreen}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen
       name="DeveloperPortal"
       component={DeveloperPortalScreen}
       options={{ title: 'Developer Portal', headerShown: true }}
@@ -354,6 +379,11 @@ const SettingsStack = () => (
       name="BillingSettings"
       component={BillingSettingsScreen}
       options={{ title: 'Billing Settings', headerShown: true }}
+    />
+    <Stack.Screen
+      name="BillingAlignment"
+      component={BillingAlignmentScreen}
+      options={{ headerShown: false }}
     />
     <Stack.Screen
       name="PaymentMethods"

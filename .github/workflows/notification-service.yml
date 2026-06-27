@@ -1,0 +1,45 @@
+name: Notification Service CI
+
+on:
+  push:
+    branches: [main, feat/575-notification-microservice]
+    paths: ['services/notification/**', 'backend/messaging/**']
+  pull_request:
+    branches: [main]
+    paths: ['services/notification/**', 'backend/messaging/**']
+
+jobs:
+  typecheck-lint-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/notification
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: services/notification/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm run test -- --coverage
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: notification-coverage
+          path: services/notification/coverage/

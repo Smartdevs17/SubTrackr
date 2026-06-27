@@ -151,12 +151,9 @@ export const Card = React.forwardRef<View, CardProps>(
 
     // Variant-specific styles
     const variantStyle: ViewStyle = {
-      backgroundColor:
-        variant === 'filled' ? theme.colors.surfaceVariant : theme.colors.surface,
+      backgroundColor: variant === 'filled' ? theme.colors.surfaceVariant : theme.colors.surface,
       borderColor:
-        variant === 'outlined' || variant === 'default'
-          ? theme.colors.border
-          : undefined,
+        variant === 'outlined' || variant === 'default' ? theme.colors.border : undefined,
     };
 
     // Padding size
@@ -194,21 +191,13 @@ export const Card = React.forwardRef<View, CardProps>(
     return (
       <View
         ref={ref}
-        style={[
-          styles.card,
-          getVariantStyles(),
-          paddingStyle,
-          variantStyle,
-          platformStyles,
-          style,
-        ]}
+        style={[styles.card, getVariantStyles(), paddingStyle, variantStyle, platformStyles, style]}
         onTouchEnd={onPress}
         accessible={!!accessibilityLabel || !!onPress}
         accessibilityLabel={accessibilityLabel}
         accessibilityRole={accessibilityRole || 'none'}
         accessibilityHint={onPress ? 'Double tap to activate' : undefined}
-        testID={testID}
-      >
+        testID={testID}>
         {children}
       </View>
     );

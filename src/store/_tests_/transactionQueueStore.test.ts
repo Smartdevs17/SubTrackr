@@ -3,7 +3,10 @@ import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 import { ExecuteOrQueueResult, useTransactionQueueStore } from '../transactionQueueStore';
 
-const mockCreateSuperfluidStream = jest.fn();
+const mockCreateSuperfluidStream = jest.fn<
+  Promise<{ streamId: string; txHash: string }>,
+  unknown[]
+>();
 const mockCreateSablierStream = jest.fn();
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
@@ -85,7 +88,7 @@ describe('transactionQueueStore', () => {
     mockCreateSuperfluidStream.mockResolvedValue({
       streamId: 'stream:1',
       txHash: '0xhash',
-    } as never);
+    });
 
     await act(async () => {
       await useTransactionQueueStore.getState().queueTransaction(samplePayload);

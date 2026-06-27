@@ -13,6 +13,8 @@
 
 import { Pool } from '../shared/db/connectionPool';
 import { DataLoaderContext } from './dataloaders';
+import { getPlanCacheService } from '../subscription/planCacheRegistry';
+import { planMetadataToRow } from '../subscription/domain/PostgresPlanRepository';
 
 // ── Cursor helpers ────────────────────────────────────────────────────────────
 
@@ -271,6 +273,23 @@ export const resolvers = {
     ) => {
       const first = Math.min(args.first ?? 50, 100);
       const decoded = args.after ? decodeCursor(args.after) : null;
+      const planCache = getPlanCacheService();
+
+      if (planCache) {
+        let rows = (await planCache.getActivePlans()).map(planMetadataToRow);
+        if (decoded) {
+          const idx = rows.findIndex((r) => r.id > decoded.id);
+          rows = idx >= 0 ? rows.slice(idx) : [];
+        }
+        const hasNextPage = rows.length > first;
+        const page = hasNextPage ? rows.slice(0, first) : rows;
+        const edges = page.map((row) => ({
+          cursor: encodeCursor(String(row.id), String(row.id)),
+          node: row,
+        }));
+        return { edges, pageInfo: buildPageInfo(edges, hasNextPage, decoded !== null) };
+      }
+
       let whereSql = '';
       const params: unknown[] = [];
 

@@ -1,5 +1,5 @@
 /**
- * accountingStore – revenue recognition accounting state.
+ * accountingStore – revenue recognition accounting state (ASC 606 / IFRS 15).
  *
  * Implements:
  *  - RevenueRecognitionRule (method + recognition_period)
@@ -8,6 +8,10 @@
  *  - Revenue schedule generation
  *  - Multi-element arrangement accounting
  *  - Revenue analytics by period
+ *  - Contract modifications (upgrade/downgrade) → schedule re-creation
+ *  - Early termination with revenue acceleration
+ *  - Free-trial support (zero revenue until conversion)
+ *  - CSV / JSON export for ERP integration (QuickBooks, Xero)
  */
 
 import { create } from 'zustand';
@@ -58,6 +62,43 @@ export interface PeriodRevenue {
   subscriptionCount: number;
 }
 
+/** Represents an audit journal entry for ASC 606 compliance. */
+export interface RevenueJournalEntry {
+  id: string;
+  subscriptionId: string;
+  merchantId: string;
+  type:
+    | 'charge'
+    | 'recognition'
+    | 'modification'
+    | 'termination'
+    | 'acceleration'
+    | 'trial_conversion';
+  amount: number;
+  debitAccount: string;
+  creditAccount: string;
+  timestamp: number; // Unix ms
+  description: string;
+}
+
+/** Waterfall row for the Revenue Report: deferred / recognised / realised. */
+export interface RevenueWaterfallRow {
+  subscriptionId: string;
+  subscriptionName: string;
+  totalCharged: number;
+  recognised: number;
+  deferred: number;
+  realised: number; // recognised that has passed its period end
+}
+
+/** Contract modification descriptor. */
+export interface ContractModification {
+  type: 'upgrade' | 'downgrade';
+  newAmount: number;
+  newBillingCycle: BillingCycle;
+  effectiveDate: number; // Unix ms
+}
+
 // ── Store state & actions ─────────────────────────────────────────────────────
 
 interface AccountingState {
@@ -69,6 +110,10 @@ interface AccountingState {
   deferredRevenue: Record<string, number>;
   /** Cumulative recognised revenue per merchantId (or 'default'). */
   recognisedRevenue: Record<string, number>;
+  /** ASC 606 audit journal entries. */
+  journalEntries: RevenueJournalEntry[];
+  /** Subscriptions currently in a free-trial period (subscriptionId → trialEndDate ms). */
+  trialSubscriptions: Record<string, number>;
 
   // ── Actions ──
 
@@ -115,6 +160,65 @@ interface AccountingState {
 
   /** Flush all accounting data (useful for testing). */
   reset: () => void;
+
+  // ── ASC 606 extended features ──
+
+  /**
+   * Handle a contract modification (upgrade/downgrade).
+   * Re-schedules remaining deferred revenue prospectively from effectiveDate.
+   */
+  applyContractModification: (
+    subscriptionId: string,
+    modification: ContractModification,
+    merchantId?: string
+  ) => RevenueSchedule;
+
+  /**
+   * Accelerate deferred revenue on early termination.
+   * All remaining deferred entries become recognised immediately.
+   */
+  applyEarlyTermination: (
+    subscriptionId: string,
+    terminationDate: number,
+    merchantId?: string
+  ) => void;
+
+  /**
+   * Mark a subscription as being in a free-trial period.
+   * No revenue is generated; schedule is zero until conversion.
+   */
+  startFreeTrial: (subscriptionId: string, trialEndDate: number) => void;
+
+  /**
+   * Convert a trial subscription — generate the real revenue schedule from today.
+   */
+  convertTrialToActive: (
+    subscriptionId: string,
+    totalAmount: number,
+    billingCycle: BillingCycle,
+    merchantId?: string
+  ) => RevenueSchedule;
+
+  /** Returns all journal entries, optionally filtered by subscriptionId or merchantId. */
+  getJournalEntries: (filter?: {
+    subscriptionId?: string;
+    merchantId?: string;
+  }) => RevenueJournalEntry[];
+
+  /** Compute a revenue waterfall for the given subscriptionIds (or all if omitted). */
+  getRevenueWaterfall: (
+    subscriptionIds?: string[],
+    subscriptionNames?: Record<string, string>
+  ) => RevenueWaterfallRow[];
+
+  /**
+   * Export the revenue waterfall as CSV (string) or JSON (string).
+   */
+  exportWaterfall: (
+    format: 'csv' | 'json',
+    subscriptionIds?: string[],
+    subscriptionNames?: Record<string, string>
+  ) => string;
 }
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
@@ -221,11 +325,18 @@ export function splitRecognisedDeferred(
 const STORAGE_KEY = 'subtrackr-accounting';
 const DEFAULT_MERCHANT = 'default';
 
+let _journalSeq = 0;
+function nextJournalId(): string {
+  return `jrn-${Date.now().toString(36)}-${(++_journalSeq).toString(36)}`;
+}
+
 const initialState = {
   rules: {} as Record<string, RevenueRecognitionRule>,
   schedules: {} as Record<string, RevenueSchedule>,
   deferredRevenue: {} as Record<string, number>,
   recognisedRevenue: {} as Record<string, number>,
+  journalEntries: [] as RevenueJournalEntry[],
+  trialSubscriptions: {} as Record<string, number>, // subscriptionId → trialEndDate
 };
 
 export const useAccountingStore = create<AccountingState>()(
@@ -257,6 +368,16 @@ export const useAccountingStore = create<AccountingState>()(
         const rule = get().rules[subscriptionId];
         const intervalMs = billingCycleToMs(billingCycle);
 
+        // Skip revenue generation for active free-trial subscriptions.
+        const trialEnd = get().trialSubscriptions[subscriptionId];
+        if (trialEnd !== undefined && chargeDate < trialEnd) {
+          const schedule = buildStraightLineSchedule(subscriptionId, 0, chargeDate, intervalMs, 1);
+          set((state) => ({
+            schedules: { ...state.schedules, [subscriptionId]: schedule },
+          }));
+          return schedule;
+        }
+
         let schedule: RevenueSchedule;
 
         if (rule) {
@@ -283,6 +404,18 @@ export const useAccountingStore = create<AccountingState>()(
           );
         }
 
+        const journalEntry: RevenueJournalEntry = {
+          id: nextJournalId(),
+          subscriptionId,
+          merchantId,
+          type: 'charge',
+          amount: totalAmount,
+          debitAccount: 'Cash',
+          creditAccount: 'Deferred Revenue',
+          timestamp: chargeDate,
+          description: `Charge $${totalAmount.toFixed(2)} deferred on billing cycle start`,
+        };
+
         set((state) => ({
           schedules: { ...state.schedules, [subscriptionId]: schedule },
           // All newly charged revenue starts as deferred.
@@ -290,6 +423,7 @@ export const useAccountingStore = create<AccountingState>()(
             ...state.deferredRevenue,
             [merchantId]: (state.deferredRevenue[merchantId] ?? 0) + totalAmount,
           },
+          journalEntries: [...state.journalEntries, journalEntry],
         }));
 
         return schedule;
@@ -354,6 +488,212 @@ export const useAccountingStore = create<AccountingState>()(
       },
 
       reset: () => set(initialState),
+
+      // ── ASC 606 extended features ────────────────────────────────────────────
+
+      applyContractModification: (subscriptionId, modification, merchantId = DEFAULT_MERCHANT) => {
+        const now = modification.effectiveDate;
+        const newIntervalMs = billingCycleToMs(modification.newBillingCycle);
+        const rule = get().rules[subscriptionId];
+
+        // Build a fresh schedule from the modification effective date.
+        let newSchedule: RevenueSchedule;
+        if (rule?.method === 'usage-based') {
+          newSchedule = buildUsageBasedSchedule(
+            subscriptionId,
+            modification.newAmount,
+            now,
+            newIntervalMs
+          );
+        } else {
+          const periodMs = rule?.recognitionPeriodMs ?? newIntervalMs;
+          const numPeriods = Math.max(1, Math.ceil(newIntervalMs / periodMs));
+          newSchedule = buildStraightLineSchedule(
+            subscriptionId,
+            modification.newAmount,
+            now,
+            periodMs,
+            numPeriods
+          );
+        }
+
+        const journalEntry: RevenueJournalEntry = {
+          id: nextJournalId(),
+          subscriptionId,
+          merchantId,
+          type: 'modification',
+          amount: modification.newAmount,
+          debitAccount: 'Deferred Revenue',
+          creditAccount: 'Revenue',
+          timestamp: now,
+          description: `Contract ${modification.type} to $${modification.newAmount.toFixed(2)} — schedule re-created prospectively`,
+        };
+
+        set((state) => ({
+          schedules: { ...state.schedules, [subscriptionId]: newSchedule },
+          deferredRevenue: {
+            ...state.deferredRevenue,
+            [merchantId]: (state.deferredRevenue[merchantId] ?? 0) + modification.newAmount,
+          },
+          journalEntries: [...state.journalEntries, journalEntry],
+        }));
+
+        return newSchedule;
+      },
+
+      applyEarlyTermination: (subscriptionId, terminationDate, merchantId = DEFAULT_MERCHANT) => {
+        const schedule = get().schedules[subscriptionId];
+        if (!schedule) return;
+
+        // Accelerate: mark every future entry as recognised at terminationDate.
+        const { deferred } = splitRecognisedDeferred(schedule, terminationDate);
+        if (deferred <= 0) return;
+
+        const acceleratedEntries: RevenueScheduleEntry[] = schedule.entries.map((entry) => {
+          if (terminationDate >= entry.periodEnd) return entry;
+          if (terminationDate < entry.periodStart) {
+            // Fully future — recognise the whole entry immediately.
+            return { ...entry, periodEnd: terminationDate, isRecognised: true };
+          }
+          // Partially elapsed — recognise remaining.
+          return { ...entry, periodEnd: terminationDate, isRecognised: true };
+        });
+
+        const acceleratedSchedule: RevenueSchedule = {
+          ...schedule,
+          entries: acceleratedEntries,
+        };
+
+        const journalEntry: RevenueJournalEntry = {
+          id: nextJournalId(),
+          subscriptionId,
+          merchantId,
+          type: 'acceleration',
+          amount: deferred,
+          debitAccount: 'Deferred Revenue',
+          creditAccount: 'Revenue',
+          timestamp: terminationDate,
+          description: `Early termination — $${deferred.toFixed(2)} deferred revenue accelerated`,
+        };
+
+        set((state) => ({
+          schedules: { ...state.schedules, [subscriptionId]: acceleratedSchedule },
+          recognisedRevenue: {
+            ...state.recognisedRevenue,
+            [merchantId]: (state.recognisedRevenue[merchantId] ?? 0) + deferred,
+          },
+          deferredRevenue: {
+            ...state.deferredRevenue,
+            [merchantId]: Math.max(
+              0,
+              (state.deferredRevenue[merchantId] ?? 0) - deferred
+            ),
+          },
+          journalEntries: [...state.journalEntries, journalEntry],
+        }));
+      },
+
+      startFreeTrial: (subscriptionId, trialEndDate) => {
+        set((state) => ({
+          trialSubscriptions: {
+            ...state.trialSubscriptions,
+            [subscriptionId]: trialEndDate,
+          },
+        }));
+      },
+
+      convertTrialToActive: (
+        subscriptionId,
+        totalAmount,
+        billingCycle,
+        merchantId = DEFAULT_MERCHANT
+      ) => {
+        const conversionDate = Date.now();
+
+        // Remove from trial tracking.
+        set((state) => {
+          const trialSubscriptions = { ...state.trialSubscriptions };
+          delete trialSubscriptions[subscriptionId];
+          return { trialSubscriptions };
+        });
+
+        const journalEntry: RevenueJournalEntry = {
+          id: nextJournalId(),
+          subscriptionId,
+          merchantId,
+          type: 'trial_conversion',
+          amount: totalAmount,
+          debitAccount: 'Cash',
+          creditAccount: 'Deferred Revenue',
+          timestamp: conversionDate,
+          description: `Trial conversion — $${totalAmount.toFixed(2)} charged, recognition schedule created`,
+        };
+
+        set((state) => ({
+          journalEntries: [...state.journalEntries, journalEntry],
+        }));
+
+        return get().generateRevenueSchedule(
+          subscriptionId,
+          totalAmount,
+          conversionDate,
+          billingCycle,
+          merchantId
+        );
+      },
+
+      getJournalEntries: (filter) => {
+        const entries = get().journalEntries;
+        if (!filter) return entries;
+        return entries.filter(
+          (e) =>
+            (!filter.subscriptionId || e.subscriptionId === filter.subscriptionId) &&
+            (!filter.merchantId || e.merchantId === filter.merchantId)
+        );
+      },
+
+      getRevenueWaterfall: (subscriptionIds, subscriptionNames = {}) => {
+        const now = Date.now();
+        const ids = subscriptionIds ?? Object.keys(get().schedules);
+        return ids.map((subscriptionId) => {
+          const schedule = get().schedules[subscriptionId];
+          if (!schedule) {
+            return {
+              subscriptionId,
+              subscriptionName: subscriptionNames[subscriptionId] ?? subscriptionId,
+              totalCharged: 0,
+              recognised: 0,
+              deferred: 0,
+              realised: 0,
+            };
+          }
+          const { recognised, deferred } = splitRecognisedDeferred(schedule, now);
+          const realised = schedule.entries
+            .filter((e) => e.periodEnd <= now)
+            .reduce((sum, e) => sum + e.recognisedAmount, 0);
+          return {
+            subscriptionId,
+            subscriptionName: subscriptionNames[subscriptionId] ?? subscriptionId,
+            totalCharged: schedule.totalAmount,
+            recognised,
+            deferred,
+            realised,
+          };
+        });
+      },
+
+      exportWaterfall: (format, subscriptionIds, subscriptionNames) => {
+        const rows = get().getRevenueWaterfall(subscriptionIds, subscriptionNames);
+        if (format === 'json') return JSON.stringify(rows, null, 2);
+
+        // CSV export
+        const header = 'Subscription ID,Name,Total Charged,Recognised,Deferred,Realised';
+        const lines = rows.map(
+          (r) =>
+            `"${r.subscriptionId}","${r.subscriptionName}",${r.totalCharged.toFixed(2)},${r.recognised.toFixed(2)},${r.deferred.toFixed(2)},${r.realised.toFixed(2)}`
+        );
+        return [header, ...lines].join('\n');
+      },
     }),
     {
       name: STORAGE_KEY,

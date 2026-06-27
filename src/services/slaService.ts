@@ -30,6 +30,28 @@ function clampPercentage(value: number): number {
   return Math.min(100, Math.max(0, Number(value.toFixed(2))));
 }
 
+/**
+ * Returns true if the given UTC timestamp falls within any of the config's
+ * exclusion windows (scheduled maintenance). These seconds are excluded from
+ * the SLA measurement window entirely.
+ */
+export function isInExclusionWindow(
+  timestampMs: number,
+  exclusionWindows: SlaConfig['exclusionWindows'] = []
+): boolean {
+  if (!exclusionWindows || exclusionWindows.length === 0) return false;
+  const date = new Date(timestampMs);
+  const dayOfWeek = date.getUTCDay();
+  const secondOfDay = date.getUTCHours() * 3600 + date.getUTCMinutes() * 60 + date.getUTCSeconds();
+  for (const w of exclusionWindows) {
+    if (w.dayOfWeek !== -1 && w.dayOfWeek !== dayOfWeek) continue;
+    if (secondOfDay >= w.startSecond && secondOfDay < w.startSecond + w.durationSeconds) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function normalizeSlaConfig(merchantId: string, input: Partial<SlaConfig>): SlaConfig {
   return {
     merchantId,
@@ -41,6 +63,18 @@ export function normalizeSlaConfig(merchantId: string, input: Partial<SlaConfig>
       : SLA_DEFAULTS.measurementInterval,
     subscriberContacts: Array.isArray(input.subscriberContacts)
       ? [...input.subscriberContacts]
+      : [],
+    creditCap:
+      Number.isFinite(input.creditCap) && (input.creditCap ?? 0) > 0
+        ? Number(input.creditCap)
+        : 0,
+    exclusionWindows: Array.isArray(input.exclusionWindows)
+      ? input.exclusionWindows.map((w) => ({
+          label: String(w.label ?? ''),
+          dayOfWeek: typeof w.dayOfWeek === 'number' ? w.dayOfWeek : -1,
+          startSecond: Math.max(0, Math.floor(Number(w.startSecond ?? 0))),
+          durationSeconds: Math.max(1, Math.floor(Number(w.durationSeconds ?? 1))),
+        }))
       : [],
   };
 }
@@ -67,14 +101,16 @@ export function calculateUptimePercentage(
 }
 
 export function calculateCreditAmount(
-  breach: Pick<SlaBreach, 'uptimeTarget' | 'uptimePercentage' | 'measurementInterval'>
+  breach: Pick<SlaBreach, 'uptimeTarget' | 'uptimePercentage' | 'measurementInterval'>,
+  creditCap = 0
 ): number {
   if (breach.uptimePercentage >= breach.uptimeTarget) return 0;
 
   const deficit = breach.uptimeTarget - breach.uptimePercentage;
   const normalizedDeficit = deficit / Math.max(breach.uptimeTarget, 1);
   const rawCredit = normalizedDeficit * breach.measurementInterval * 100;
-  return Math.max(1, Math.round(rawCredit));
+  const credit = Math.max(1, Math.round(rawCredit));
+  return creditCap > 0 ? Math.min(credit, creditCap) : credit;
 }
 
 export function calculateMerchantStatus(
@@ -96,6 +132,9 @@ export function calculateMerchantStatus(
     const overlapStart = Math.max(eventStart, windowStart);
     const overlapEnd = Math.min(eventEnd, now);
     if (overlapEnd <= overlapStart) continue;
+
+    // Skip events that fall within a scheduled exclusion window.
+    if (isInExclusionWindow(overlapStart, config.exclusionWindows)) continue;
 
     const overlapSeconds = (overlapEnd - overlapStart) / 1000;
     const impact = calculateAvailabilityImpact({ ...event, durationSeconds: overlapSeconds });
@@ -169,7 +208,7 @@ export function evaluateMerchantSnapshot(
         uptimeTarget: status.uptimeTarget,
         uptimePercentage: status.uptimePercentage,
         measurementInterval: status.measurementInterval,
-      }),
+      }, input.config.creditCap ?? 0),
       resolvedAt: null,
       acknowledged: false,
     };
