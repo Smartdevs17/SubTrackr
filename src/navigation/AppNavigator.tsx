@@ -82,6 +82,9 @@ const PaymentMethodsScreen = lazyScreen(() =>
   }))
 );
 const AnalyticsDashboard = lazyScreen(() => import('../../app/screens/AnalyticsDashboard'));
+const RenewalWorkspaceScreen = lazyScreen(() =>
+  import('../../app/screens/RenewalWorkspaceScreen').then((m) => ({ default: m.default }))
+);
 
 // Issue #547: GDPR
 const PrivacyCenterScreen = lazyScreen(() => import('../screens/PrivacyCenterScreen'));
