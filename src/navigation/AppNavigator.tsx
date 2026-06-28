@@ -85,6 +85,8 @@ const AnalyticsDashboard = lazyScreen(() => import('../../app/screens/AnalyticsD
 const RenewalWorkspaceScreen = lazyScreen(() =>
   import('../../app/screens/RenewalWorkspaceScreen').then((m) => ({ default: m.default }))
 );
+const EntityManagementScreen = lazyScreen(() => import('../screens/EntityManagementScreen'));
+const PauseSubscriptionScreen = lazyScreen(() => import('../screens/PauseSubscriptionScreen'));
 
 // Issue #547: GDPR
 const PrivacyCenterScreen = lazyScreen(() => import('../screens/PrivacyCenterScreen'));
