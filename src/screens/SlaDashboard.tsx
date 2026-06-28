@@ -38,6 +38,7 @@ const SlaDashboard: React.FC = () => {
   const [measurementInterval, setMeasurementInterval] = useState(
     String(SLA_DEFAULTS.measurementInterval)
   );
+  const [creditCap, setCreditCap] = useState('0');
   const [durationSeconds, setDurationSeconds] = useState('3600');
   const [state, setState] = useState<SlaAvailabilityState>('healthy');
   const [note, setNote] = useState('');
@@ -53,6 +54,7 @@ const SlaDashboard: React.FC = () => {
     void configureSla(merchantId.trim(), {
       uptimeTarget: Number(uptimeTarget),
       measurementInterval: Number(measurementInterval),
+      creditCap: Number(creditCap),
     });
   };
 
@@ -127,10 +129,23 @@ const SlaDashboard: React.FC = () => {
           <TouchableOpacity style={styles.primaryButton} onPress={onConfigure}>
             <Text style={styles.primaryButtonText}>Save SLA</Text>
           </TouchableOpacity>
+          <TextInput
+            style={styles.input}
+            value={creditCap}
+            onChangeText={setCreditCap}
+            placeholder="Credit cap (0 = unlimited)"
+            placeholderTextColor={colors.textSecondary}
+            keyboardType="numeric"
+          />
           {merchantConfig && (
             <Text style={styles.helperText}>
-              Target {merchantConfig.uptimeTarget}% over {merchantConfig.measurementInterval}{' '}
-              seconds
+              Target {merchantConfig.uptimeTarget}% over {merchantConfig.measurementInterval}s
+              {(merchantConfig.creditCap ?? 0) > 0
+                ? ` · credit cap ${merchantConfig.creditCap}`
+                : ''}
+              {(merchantConfig.exclusionWindows?.length ?? 0) > 0
+                ? ` · ${merchantConfig.exclusionWindows!.length} exclusion window(s)`
+                : ''}
             </Text>
           )}
         </Card>

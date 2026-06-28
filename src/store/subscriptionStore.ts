@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { debouncedAsyncStorageAdapter } from '../utils/storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { SubscriptionMetadata, CRDTSubscriptionState, SubscriptionCRDT } from '../services/cache/crdt';
+import { networkMonitor } from '../services/network/networkMonitor';
 import {
   Subscription, // eslint-disable-line
   SubscriptionFormData,
@@ -148,6 +151,12 @@ interface SubscriptionState {
   creditMemos: Record<string, CreditMemo>;
   planChanges: SubscriptionChange[];
 
+  // Offline-first & CRDT Sync
+  syncStatus: 'idle' | 'pending' | 'syncing' | 'conflict' | 'error';
+  crdtMetadata: Record<string, SubscriptionMetadata>;
+  syncWithServer: () => Promise<void>;
+  setSyncStatus: (status: 'idle' | 'pending' | 'syncing' | 'conflict' | 'error') => void;
+
   // Actions
   addSubscription: (data: SubscriptionFormData) => Promise<void>;
   updateSubscription: (id: string, data: Partial<Subscription>) => Promise<void>;
@@ -179,7 +188,7 @@ interface SubscriptionState {
   getChangeHistory: (subscriptionId: string) => SubscriptionChange[];
 }
 
-type PersistedSubscriptionSlice = Pick<SubscriptionState, 'subscriptions' | 'planChanges'>;
+type PersistedSubscriptionSlice = Pick<SubscriptionState, 'subscriptions' | 'planChanges' | 'crdtMetadata' | 'syncStatus'>;
 
 const serializeForStorage = (state: PersistedSubscriptionSlice): PersistedSubscriptionSlice => ({
   subscriptions: (state.subscriptions || []).map((sub) => ({
@@ -192,6 +201,8 @@ const serializeForStorage = (state: PersistedSubscriptionSlice): PersistedSubscr
     ...change,
     createdAt: new Date(change.createdAt),
   })),
+  crdtMetadata: state.crdtMetadata || {},
+  syncStatus: state.syncStatus || 'idle',
 });
 
 const migratePersistedState = (
@@ -199,7 +210,7 @@ const migratePersistedState = (
   _version: number
 ): PersistedSubscriptionSlice => {
   if (!persisted || typeof persisted !== 'object') {
-    return { subscriptions: [], planChanges: [] };
+    return { subscriptions: [], planChanges: [], crdtMetadata: {}, syncStatus: 'idle' };
   }
 
   const maybeState = persisted as Partial<PersistedSubscriptionSlice>;
@@ -214,8 +225,26 @@ const migratePersistedState = (
       }))
     : [];
 
-  return { subscriptions, planChanges };
+  const crdtMetadata = maybeState.crdtMetadata || {};
+  const syncStatus = maybeState.syncStatus || 'idle';
+
+  return { subscriptions, planChanges, crdtMetadata, syncStatus };
 };
+
+// Simulated backend sync endpoint using AsyncStorage
+async function mockSyncApiCall(localState: CRDTSubscriptionState): Promise<CRDTSubscriptionState> {
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  
+  let serverStateRaw = await AsyncStorage.getItem('subtrackr-server-db');
+  let serverState: CRDTSubscriptionState = serverStateRaw 
+    ? JSON.parse(serverStateRaw) 
+    : { subscriptions: {}, metadata: {} };
+
+  const mergedServerState = SubscriptionCRDT.merge(serverState, localState);
+  await AsyncStorage.setItem('subtrackr-server-db', JSON.stringify(mergedServerState));
+
+  return mergedServerState;
+}
 
 export const useSubscriptionStore = create<SubscriptionState>()(
   persist(
@@ -232,6 +261,54 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       prorationPreview: null,
       creditMemos: {},
       planChanges: [],
+
+      // Offline-first & CRDT Sync State
+      syncStatus: 'idle',
+      crdtMetadata: {},
+
+      setSyncStatus: (status) => set({ syncStatus: status }),
+
+      syncWithServer: async () => {
+        if (!networkMonitor.isOnline()) {
+          set({ syncStatus: 'pending' });
+          return;
+        }
+        if (get().syncStatus === 'syncing') return;
+
+        set({ syncStatus: 'syncing', error: null });
+
+        try {
+          const localState: CRDTSubscriptionState = {
+            subscriptions: get().subscriptions.reduce((acc, sub) => {
+              acc[sub.id] = sub;
+              return acc;
+            }, {} as Record<string, Subscription>),
+            metadata: get().crdtMetadata || {},
+          };
+
+          const mergedState = await mockSyncApiCall(localState);
+          const subscriptionsArray = Object.values(mergedState.subscriptions);
+
+          set({
+            subscriptions: subscriptionsArray,
+            crdtMetadata: mergedState.metadata,
+            syncStatus: 'idle',
+            isLoading: false,
+          });
+
+          get().calculateStats();
+          await syncRenewalReminders(get().subscriptions);
+          await useCalendarStore.getState().syncSubscriptions(get().subscriptions);
+        } catch (err) {
+          const appError = errorHandler.handleError(err as Error, {
+            action: 'syncWithServer',
+          });
+          set({
+            syncStatus: 'error',
+            error: appError,
+          });
+        }
+      },
 
       previewPlanChange: (
         id: string,
@@ -281,8 +358,17 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             );
           }
 
+          const timestamp = Date.now();
+          const currentMeta = (get().crdtMetadata || {})[id] || SubscriptionCRDT.createMetadata(sub, timestamp - 1000);
+          const updatedMetadata = SubscriptionCRDT.updateMetadata(currentMeta, updates, timestamp);
+
           set((state) => ({
             subscriptions: state.subscriptions.map((s) => (s.id === id ? { ...s, ...updates } : s)),
+            crdtMetadata: {
+              ...(state.crdtMetadata || {}),
+              [id]: updatedMetadata,
+            },
+            syncStatus: 'pending',
             creditMemos: updatedCreditMemos,
             prorationPreview: null,
             isLoading: false,
@@ -290,6 +376,10 @@ export const useSubscriptionStore = create<SubscriptionState>()(
 
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
+
+          if (networkMonitor.isOnline()) {
+            await get().syncWithServer();
+          }
         } catch (error) {
           const appError = errorHandler.handleError(error as Error, {
             action: 'executePlanChange',
@@ -387,8 +477,16 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             updatedAt: new Date(),
           };
 
+          const timestamp = Date.now();
+          const newMetadata = SubscriptionCRDT.createMetadata(newSubscription, timestamp);
+
           set((state) => ({
             subscriptions: [...state.subscriptions, newSubscription],
+            crdtMetadata: {
+              ...(state.crdtMetadata || {}),
+              [newSubscription.id]: newMetadata,
+            },
+            syncStatus: 'pending',
             isLoading: false,
           }));
 
@@ -404,6 +502,10 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             price: data.price,
             category: data.category,
           });
+
+          if (networkMonitor.isOnline()) {
+            await get().syncWithServer();
+          }
         } catch (error) {
           const appError = errorHandler.handleError(error as Error, {
             action: 'addSubscription',
@@ -420,18 +522,40 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       updateSubscription: async (id: string, data: Partial<Subscription>) => {
         set({ isLoading: true, error: null });
         try {
+          const sub = get().subscriptions.find((s) => s.id === id);
+          if (!sub) throw new Error('Subscription not found');
+
+          const updatedSubscription = {
+            ...sub,
+            ...data,
+            updatedAt: new Date(),
+          };
+
+          const timestamp = Date.now();
+          const currentMeta = (get().crdtMetadata || {})[id] || SubscriptionCRDT.createMetadata(sub, timestamp - 1000);
+          const updatedMetadata = SubscriptionCRDT.updateMetadata(currentMeta, data, timestamp);
+
           set((state) => ({
-            subscriptions: state.subscriptions.map((sub) =>
-              sub.id === id ? { ...sub, ...data, updatedAt: new Date() } : sub
+            subscriptions: state.subscriptions.map((s) =>
+              s.id === id ? updatedSubscription : s
             ),
+            crdtMetadata: {
+              ...(state.crdtMetadata || {}),
+              [id]: updatedMetadata,
+            },
+            syncStatus: 'pending',
             isLoading: false,
           }));
 
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
-          const updatedSubscription = get().subscriptions.find((sub) => sub.id === id);
-          if (updatedSubscription) {
-            await useCalendarStore.getState().syncSubscriptionToCalendars(updatedSubscription);
+          const updated = get().subscriptions.find((s) => s.id === id);
+          if (updated) {
+            await useCalendarStore.getState().syncSubscriptionToCalendars(updated);
+          }
+
+          if (networkMonitor.isOnline()) {
+            await get().syncWithServer();
           }
         } catch (error) {
           const appError = errorHandler.handleError(error as Error, {
@@ -450,25 +574,41 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         set({ isLoading: true, error: null });
         try {
           const current = get().subscriptions.find((sub) => sub.id === id);
-          if (current) {
-            useSupportStore
-              .getState()
-              .createTicket(
-                createSupportEvent(current, 'cancellation', [
-                  'Cancellation requested from subscription management',
-                  'Subscription marked for removal',
-                ])
-              );
-          }
+          if (!current) throw new Error('Subscription not found');
+
+          const timestamp = Date.now();
+          const currentMeta = (get().crdtMetadata || {})[id] || SubscriptionCRDT.createMetadata(current, timestamp - 1000);
+          const updatedMetadata = {
+            ...currentMeta,
+            deletedAt: timestamp,
+          };
+
+          useSupportStore
+            .getState()
+            .createTicket(
+              createSupportEvent(current, 'cancellation', [
+                'Cancellation requested from subscription management',
+                'Subscription marked for removal',
+              ])
+            );
 
           set((state) => ({
             subscriptions: state.subscriptions.filter((sub) => sub.id !== id),
+            crdtMetadata: {
+              ...(state.crdtMetadata || {}),
+              [id]: updatedMetadata,
+            },
+            syncStatus: 'pending',
             isLoading: false,
           }));
 
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
           await useCalendarStore.getState().removeSubscriptionFromCalendars(id);
+
+          if (networkMonitor.isOnline()) {
+            await get().syncWithServer();
+          }
         } catch (error) {
           const appError = errorHandler.handleError(error as Error, {
             action: 'deleteSubscription',
@@ -484,18 +624,40 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       toggleSubscriptionStatus: async (id: string) => {
         set({ isLoading: true, error: null });
         try {
+          const sub = get().subscriptions.find((s) => s.id === id);
+          if (!sub) throw new Error('Subscription not found');
+
+          const updatedSubscription = {
+            ...sub,
+            isActive: !sub.isActive,
+            updatedAt: new Date(),
+          };
+
+          const timestamp = Date.now();
+          const currentMeta = (get().crdtMetadata || {})[id] || SubscriptionCRDT.createMetadata(sub, timestamp - 1000);
+          const updatedMetadata = SubscriptionCRDT.updateMetadata(currentMeta, { isActive: !sub.isActive }, timestamp);
+
           set((state) => ({
-            subscriptions: state.subscriptions.map((sub) =>
-              sub.id === id ? { ...sub, isActive: !sub.isActive, updatedAt: new Date() } : sub
+            subscriptions: state.subscriptions.map((s) =>
+              s.id === id ? updatedSubscription : s
             ),
+            crdtMetadata: {
+              ...(state.crdtMetadata || {}),
+              [id]: updatedMetadata,
+            },
+            syncStatus: 'pending',
             isLoading: false,
           }));
 
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
-          const updatedSubscription = get().subscriptions.find((sub) => sub.id === id);
-          if (updatedSubscription) {
-            await useCalendarStore.getState().syncSubscriptionToCalendars(updatedSubscription);
+          const updated = get().subscriptions.find((s) => s.id === id);
+          if (updated) {
+            await useCalendarStore.getState().syncSubscriptionToCalendars(updated);
+          }
+
+          if (networkMonitor.isOnline()) {
+            await get().syncWithServer();
           }
         } catch (error) {
           const appError = errorHandler.handleError(error as Error, {

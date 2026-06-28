@@ -8,6 +8,7 @@ import {
   InvoiceStatus,
   InvoiceTotals,
 } from '../types/invoice';
+import { MeterUsageBreakdown } from '../types/usage';
 import { formatCurrency, formatDate } from './formatting';
 import { ProrationPreview, buildProrationLineItem } from './proration';
 
@@ -132,6 +133,116 @@ export const buildInvoice = (
     updatedAt: createdAt,
     recipientEmail,
     notes,
+  };
+};
+
+/** Builds one invoice line item per metered usage breakdown (issue #554). */
+export const buildUsageLineItems = (
+  breakdowns: MeterUsageBreakdown[],
+  config: InvoiceConfig = DEFAULT_INVOICE_CONFIG,
+  exchangeRate = config.exchangeRateScale,
+  taxRateBps = config.defaultTaxRateBps
+): InvoiceLineItem[] =>
+  breakdowns
+    .filter((b) => b.billableUnits > 0)
+    .map((b) => {
+      const unitPrice = b.billableUnits > 0 ? Math.round(b.amount / b.billableUnits) : 0;
+      return {
+        description: `${b.metric} usage (${b.billableUnits.toLocaleString()} billable of ${b.unitsUsed.toLocaleString()} units, ${b.includedUnits.toLocaleString()} included)`,
+        quantity: b.billableUnits,
+        unitPrice,
+        currency: config.defaultCurrency,
+        exchangeRate,
+        taxRateBps,
+        lineTotal: b.amount,
+      };
+    });
+
+/** Builds a base subscription invoice plus per-meter usage line items (issue #554). */
+export const buildInvoiceWithUsage = (
+  subscription: Subscription,
+  sequence: number,
+  period: InvoicePeriod,
+  usageBreakdowns: MeterUsageBreakdown[],
+  config: InvoiceConfig = DEFAULT_INVOICE_CONFIG,
+  taxRateBps = config.defaultTaxRateBps,
+  exchangeRate = config.exchangeRateScale,
+  region = config.defaultRegion,
+  recipientEmail?: string,
+  notes?: string
+): Invoice => {
+  const baseLineItem = buildInvoiceLineItem(subscription, config, exchangeRate, taxRateBps);
+  const usageLineItems = buildUsageLineItems(usageBreakdowns, config, exchangeRate, taxRateBps);
+  const lineItems = [baseLineItem, ...usageLineItems];
+
+  const totals = calculateInvoiceTotals(lineItems, taxRateBps);
+  const createdAt = new Date();
+  const dueDate = new Date(period.end.getTime() + config.paymentTermsDays * DAY);
+
+  return {
+    id: `${subscription.id}-${sequence}`,
+    invoiceNumber: formatInvoiceNumber(sequence, config),
+    subscriptionId: subscription.id,
+    subscriptionName: subscription.name,
+    merchantName: subscription.description ?? subscription.name,
+    lineItems,
+    tax: totals.tax,
+    total: totals.total,
+    subtotal: totals.subtotal,
+    dueDate,
+    status: InvoiceStatus.DRAFT,
+    currency: config.defaultCurrency,
+    region,
+    exchangeRate,
+    period,
+    createdAt,
+    updatedAt: createdAt,
+    recipientEmail,
+    notes,
+  };
+};
+
+/**
+ * Builds a single consolidated invoice covering multiple subscriptions that
+ * share a billing date (issue #566). Free subscriptions are excluded.
+ */
+export const buildConsolidatedInvoice = (
+  subscriptions: Subscription[],
+  sequence: number,
+  period: InvoicePeriod,
+  config: InvoiceConfig = DEFAULT_INVOICE_CONFIG,
+  taxRateBps = config.defaultTaxRateBps,
+  exchangeRate = config.exchangeRateScale,
+  region = config.defaultRegion,
+  recipientEmail?: string
+): Invoice => {
+  const billable = subscriptions.filter((s) => s.price > 0);
+  const lineItems = billable.map((s) => buildInvoiceLineItem(s, config, exchangeRate, taxRateBps));
+  const totals = calculateInvoiceTotals(lineItems, taxRateBps);
+  const createdAt = new Date();
+  const dueDate = new Date(period.end.getTime() + config.paymentTermsDays * DAY);
+  const primary = billable[0];
+
+  return {
+    id: `consolidated-${sequence}`,
+    invoiceNumber: formatInvoiceNumber(sequence, config),
+    subscriptionId: billable.map((s) => s.id).join(','),
+    subscriptionName: `Consolidated (${billable.length} subscriptions)`,
+    merchantName: primary?.description ?? primary?.name ?? 'Consolidated invoice',
+    lineItems,
+    tax: totals.tax,
+    total: totals.total,
+    subtotal: totals.subtotal,
+    dueDate,
+    status: InvoiceStatus.DRAFT,
+    currency: config.defaultCurrency,
+    region,
+    exchangeRate,
+    period,
+    createdAt,
+    updatedAt: createdAt,
+    recipientEmail,
+    notes: `Consolidated billing for: ${billable.map((s) => s.name).join(', ')}`,
   };
 };
 

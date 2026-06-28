@@ -19,6 +19,11 @@ module.exports = {
     '^@react-native-community/netinfo$':
       '<rootDir>/src/__mocks__/@react-native-community/netinfo.js',
   },
-  setupFilesAfterEnv: [],
+  setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
+  // Snapshot serialization is handled by `jest-expo` preset.
+
+
   testEnvironment: 'node',
 };
+
+

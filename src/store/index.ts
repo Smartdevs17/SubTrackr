@@ -9,6 +9,8 @@ export { useCommunityStore } from './communityStore';
 export { useFraudStore } from './fraudStore';
 export { useGroupStore } from './groupStore';
 export { useTaxStore } from './taxStore';
+export { usePartnerStore } from './partnerStore';
 export { useSupportStore } from './supportStore';
 export { useAuthStore } from './authStore';
 export { useCancellationStore } from './cancellationStore';
+export { useThemeStore } from '../theme/themeStore';

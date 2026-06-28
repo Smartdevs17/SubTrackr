@@ -1,4 +1,5 @@
-import { UsageMetric } from './meteringService';
+import { UsageMetric, UsageIngestResult } from './meteringService';
+import { AggregationFunction, AggregationWindow, UsageThresholdAlert } from '../../../src/types/usage';
 import { PriceRecommendation, ABTestScenario, PricingContext } from './pricingService';
 import {
   TaxCalculationResult,
@@ -20,11 +21,19 @@ import {
   ReconciliationResult,
   TransactionType,
 } from './accountingExportService';
+import { SplitConfiguration, PartnerPayoutSchedule } from '../../../src/types/partner';
 
 export interface IMeteringService {
-  recordUsage(metric: UsageMetric): Promise<void>;
-  checkThresholds(userId: string): Promise<void>;
-  calculateOverage(userId: string): Promise<number>;
+  recordUsage(metric: UsageMetric): Promise<UsageIngestResult>;
+  recordUsageBatch(metrics: UsageMetric[]): Promise<UsageIngestResult[]>;
+  aggregate(
+    userId: string,
+    metricType: string,
+    window: AggregationWindow,
+    fn?: AggregationFunction
+  ): number;
+  checkThresholds(userId: string, metricType: string): Promise<UsageThresholdAlert | null>;
+  calculateOverage(userId: string, metricType?: string): Promise<number>;
 }
 
 export interface IPricingService {
@@ -61,4 +70,21 @@ export interface IAccountingExportService {
     exported: TransactionRecord[],
     expected: Array<{ id: string; amount: number; transactionType: TransactionType }>
   ): ReconciliationResult;
+}
+
+export interface IPartnerService {
+  executeSplitAtSettlement(input: {
+    splitConfiguration: SplitConfiguration;
+    transactionId: string;
+    grossAmount: number;
+  }): SplitExecution;
+  shouldSchedulePayout(config: SplitConfiguration, lastPayoutDate: Date | null): {
+    shouldProcess: boolean;
+    nextScheduledDate: Date;
+    reason: string;
+  };
+  aggregatePendingPayouts(
+    configurations: SplitConfiguration[],
+    grossAmount: number
+  ): Map<string, number>;
 }
