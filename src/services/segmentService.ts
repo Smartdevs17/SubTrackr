@@ -70,7 +70,7 @@ export class SegmentService {
         return fieldValue < targetValue;
       case CriteriaOperator.CONTAINS:
         if (Array.isArray(fieldValue)) {
-          return (fieldValue as unknown[]).includes(targetValue as never);
+          return (fieldValue as unknown[]).includes(targetValue);
         }
         if (typeof fieldValue === 'string') {
           return fieldValue.toLowerCase().includes(String(targetValue).toLowerCase());
@@ -78,7 +78,7 @@ export class SegmentService {
         return false;
       case CriteriaOperator.IN:
         if (Array.isArray(targetValue)) {
-          return (targetValue as unknown[]).includes(fieldValue as never);
+          return (targetValue as unknown[]).includes(fieldValue);
         }
         return false;
       case CriteriaOperator.STARTS_WITH:

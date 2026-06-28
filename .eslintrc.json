@@ -50,7 +50,8 @@
     "acbu-backend/",
     "src/animations/",
     "stellarlend/",
-    "stellarlend-pr282/"
+    "stellarlend-pr282/",
+    "vscode-extension/"
   ],
   "settings": {
     "import/resolver": {

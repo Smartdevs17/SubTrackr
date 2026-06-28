@@ -5,13 +5,7 @@
  */
 
 import React from 'react';
-import {
-  StyleSheet,
-  View,
-  TextInput as RNTextInput,
-  Text,
-  Platform,
-} from 'react-native';
+import { StyleSheet, View, TextInput as RNTextInput, Text, Platform } from 'react-native';
 import type { ViewStyle, TextStyle, TextInputProps as RNTextInputProps } from 'react-native';
 
 import { spacing, borderRadius, typography } from '../tokens';
@@ -24,8 +18,7 @@ import type { AccessibilityProps } from '../types/design-tokens';
 export type InputVariant = 'default' | 'outline' | 'filled';
 
 export interface InputProps
-  extends Omit<RNTextInputProps, 'onChangeText' | 'onFocus' | 'onBlur'>,
-    AccessibilityProps {
+  extends Omit<RNTextInputProps, 'onChangeText' | 'onFocus' | 'onBlur'>, AccessibilityProps {
   /**
    * Input label text
    */
@@ -278,10 +271,7 @@ export const Input = React.forwardRef<RNTextInput, InputProps>(
       <View style={[styles.container, containerStyle]}>
         {label && (
           <View style={styles.labelRow}>
-            <Text
-              style={[styles.label, labelStyle]}
-              nativeID={`${inputId}-label`}
-            >
+            <Text style={[styles.label, labelStyle]} nativeID={`${inputId}-label`}>
               {label}
             </Text>
             {required && <Text style={styles.required}>*</Text>}
@@ -295,8 +285,7 @@ export const Input = React.forwardRef<RNTextInput, InputProps>(
             variant === 'filled' && styles.inputContainerFilled,
             isFocused && styles.inputContainerFocused,
             inputContainerStyle,
-          ]}
-        >
+          ]}>
           {leftIcon && <View style={styles.iconContainer}>{leftIcon}</View>}
 
           <RNTextInput
@@ -311,10 +300,7 @@ export const Input = React.forwardRef<RNTextInput, InputProps>(
             editable={!disabled}
             selectTextOnFocus={!disabled}
             accessibilityLabel={accessibilityLabel || label}
-            accessibilityHint={
-              accessibilityHint ||
-              (error ? `Error: ${error}` : helperText)
-            }
+            accessibilityHint={accessibilityHint || (error ? `Error: ${error}` : helperText)}
             accessibilityRole={accessibilityRole}
             accessibilityState={{
               disabled,
@@ -333,8 +319,7 @@ export const Input = React.forwardRef<RNTextInput, InputProps>(
           <Text
             style={[styles.errorText, helperStyle]}
             accessibilityLiveRegion="polite"
-            accessibilityRole="alert"
-          >
+            accessibilityRole="alert">
             {error || helperText}
           </Text>
         )}
