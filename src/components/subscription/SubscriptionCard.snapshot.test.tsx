@@ -18,4 +18,3 @@ describe('SubscriptionCard (snapshot)', () => {
     expect(toJSON()).toMatchSnapshot({ platform: Platform.OS });
   });
 });
-

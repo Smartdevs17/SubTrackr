@@ -2,7 +2,11 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { debouncedAsyncStorageAdapter } from '../utils/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { SubscriptionMetadata, CRDTSubscriptionState, SubscriptionCRDT } from '../services/cache/crdt';
+import {
+  SubscriptionMetadata,
+  CRDTSubscriptionState,
+  SubscriptionCRDT,
+} from '../services/cache/crdt';
 import { networkMonitor } from '../services/network/networkMonitor';
 import {
   Subscription, // eslint-disable-line
@@ -188,7 +192,10 @@ interface SubscriptionState {
   getChangeHistory: (subscriptionId: string) => SubscriptionChange[];
 }
 
-type PersistedSubscriptionSlice = Pick<SubscriptionState, 'subscriptions' | 'planChanges' | 'crdtMetadata' | 'syncStatus'>;
+type PersistedSubscriptionSlice = Pick<
+  SubscriptionState,
+  'subscriptions' | 'planChanges' | 'crdtMetadata' | 'syncStatus'
+>;
 
 const serializeForStorage = (state: PersistedSubscriptionSlice): PersistedSubscriptionSlice => ({
   subscriptions: (state.subscriptions || []).map((sub) => ({
@@ -234,10 +241,10 @@ const migratePersistedState = (
 // Simulated backend sync endpoint using AsyncStorage
 async function mockSyncApiCall(localState: CRDTSubscriptionState): Promise<CRDTSubscriptionState> {
   await new Promise((resolve) => setTimeout(resolve, 300));
-  
-  let serverStateRaw = await AsyncStorage.getItem('subtrackr-server-db');
-  let serverState: CRDTSubscriptionState = serverStateRaw 
-    ? JSON.parse(serverStateRaw) 
+
+  const serverStateRaw = await AsyncStorage.getItem('subtrackr-server-db');
+  const serverState: CRDTSubscriptionState = serverStateRaw
+    ? JSON.parse(serverStateRaw)
     : { subscriptions: {}, metadata: {} };
 
   const mergedServerState = SubscriptionCRDT.merge(serverState, localState);
@@ -279,10 +286,13 @@ export const useSubscriptionStore = create<SubscriptionState>()(
 
         try {
           const localState: CRDTSubscriptionState = {
-            subscriptions: get().subscriptions.reduce((acc, sub) => {
-              acc[sub.id] = sub;
-              return acc;
-            }, {} as Record<string, Subscription>),
+            subscriptions: get().subscriptions.reduce(
+              (acc, sub) => {
+                acc[sub.id] = sub;
+                return acc;
+              },
+              {} as Record<string, Subscription>
+            ),
             metadata: get().crdtMetadata || {},
           };
 
@@ -359,7 +369,9 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           }
 
           const timestamp = Date.now();
-          const currentMeta = (get().crdtMetadata || {})[id] || SubscriptionCRDT.createMetadata(sub, timestamp - 1000);
+          const currentMeta =
+            (get().crdtMetadata || {})[id] ||
+            SubscriptionCRDT.createMetadata(sub, timestamp - 1000);
           const updatedMetadata = SubscriptionCRDT.updateMetadata(currentMeta, updates, timestamp);
 
           set((state) => ({
@@ -532,13 +544,13 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           };
 
           const timestamp = Date.now();
-          const currentMeta = (get().crdtMetadata || {})[id] || SubscriptionCRDT.createMetadata(sub, timestamp - 1000);
+          const currentMeta =
+            (get().crdtMetadata || {})[id] ||
+            SubscriptionCRDT.createMetadata(sub, timestamp - 1000);
           const updatedMetadata = SubscriptionCRDT.updateMetadata(currentMeta, data, timestamp);
 
           set((state) => ({
-            subscriptions: state.subscriptions.map((s) =>
-              s.id === id ? updatedSubscription : s
-            ),
+            subscriptions: state.subscriptions.map((s) => (s.id === id ? updatedSubscription : s)),
             crdtMetadata: {
               ...(state.crdtMetadata || {}),
               [id]: updatedMetadata,
@@ -577,7 +589,9 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           if (!current) throw new Error('Subscription not found');
 
           const timestamp = Date.now();
-          const currentMeta = (get().crdtMetadata || {})[id] || SubscriptionCRDT.createMetadata(current, timestamp - 1000);
+          const currentMeta =
+            (get().crdtMetadata || {})[id] ||
+            SubscriptionCRDT.createMetadata(current, timestamp - 1000);
           const updatedMetadata = {
             ...currentMeta,
             deletedAt: timestamp,
@@ -634,13 +648,17 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           };
 
           const timestamp = Date.now();
-          const currentMeta = (get().crdtMetadata || {})[id] || SubscriptionCRDT.createMetadata(sub, timestamp - 1000);
-          const updatedMetadata = SubscriptionCRDT.updateMetadata(currentMeta, { isActive: !sub.isActive }, timestamp);
+          const currentMeta =
+            (get().crdtMetadata || {})[id] ||
+            SubscriptionCRDT.createMetadata(sub, timestamp - 1000);
+          const updatedMetadata = SubscriptionCRDT.updateMetadata(
+            currentMeta,
+            { isActive: !sub.isActive },
+            timestamp
+          );
 
           set((state) => ({
-            subscriptions: state.subscriptions.map((s) =>
-              s.id === id ? updatedSubscription : s
-            ),
+            subscriptions: state.subscriptions.map((s) => (s.id === id ? updatedSubscription : s)),
             crdtMetadata: {
               ...(state.crdtMetadata || {}),
               [id]: updatedMetadata,

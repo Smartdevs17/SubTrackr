@@ -43,12 +43,17 @@ const WCAG_CHECKS: ContrastCheckPair[] = [
   { name: 'textSecondary on surface', foreground: 'textSecondary', background: 'surface' },
   { name: 'primary on background', foreground: 'primary', background: 'background' },
   { name: 'primary on surface', foreground: 'primary', background: 'surface' },
-  { name: 'button text on primary', foreground: 'onPrimary', background: 'primary', isLargeText: true },
+  {
+    name: 'button text on primary',
+    foreground: 'onPrimary',
+    background: 'primary',
+    isLargeText: true,
+  },
 ];
 
 export function checkContrast(
   colors: ThemeColors,
-  checks?: ContrastCheckPair[],
+  checks?: ContrastCheckPair[]
 ): { ratio: number; passesAA: boolean; passesAAA: boolean }[] {
   const pairs = checks ?? WCAG_CHECKS;
   return pairs.map((check) => {
@@ -111,7 +116,7 @@ export function getAccessibilityRating(theme: Theme): AccessibilityInfo {
 
 export function suggestContrastFix(
   foreground: string,
-  background: string,
+  background: string
 ): { suggestedForeground: string; suggestedBackground: string } {
   const ratio = contrastRatio(foreground, background);
   if (ratio >= 4.5) return { suggestedForeground: foreground, suggestedBackground: background };
@@ -123,14 +128,19 @@ export function suggestContrastFix(
   const bgLuminance = relativeLuminance(background);
   const targetLight = bgLuminance < 0.5 ? '#f8fafc' : '#0f172a';
 
-  const fgAdjust = bgLuminance < 0.5
-    ? lightenToRatio(foreground, background, 4.5)
-    : darkenToRatio(foreground, background, 4.5);
+  const fgAdjust =
+    bgLuminance < 0.5
+      ? lightenToRatio(foreground, background, 4.5)
+      : darkenToRatio(foreground, background, 4.5);
 
   return { suggestedForeground: fgAdjust, suggestedBackground: background };
 }
 
-export function lightenToRatio(foreground: string, background: string, targetRatio: number): string {
+export function lightenToRatio(
+  foreground: string,
+  background: string,
+  targetRatio: number
+): string {
   const bgLum = relativeLuminance(background);
   const targetLum = targetRatio * (bgLum + 0.05) - 0.05;
   const clampedLum = Math.min(1, Math.max(0, targetLum));
@@ -140,9 +150,7 @@ export function lightenToRatio(foreground: string, background: string, targetRat
   const toSRGB = (c: number): number => {
     const linear = c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
     const adjusted = Math.min(1, linear + (clampedLum - relativeLuminance(foreground)));
-    return adjusted <= 0.0031308
-      ? 12.92 * adjusted
-      : 1.055 * Math.pow(adjusted, 1 / 2.4) - 0.055;
+    return adjusted <= 0.0031308 ? 12.92 * adjusted : 1.055 * Math.pow(adjusted, 1 / 2.4) - 0.055;
   };
 
   const r = Math.round(toSRGB(rgb.r / 255) * 255);
@@ -163,9 +171,7 @@ export function darkenToRatio(foreground: string, background: string, targetRati
   const toSRGB = (c: number): number => {
     const linear = c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
     const adjusted = Math.max(0, linear - (relativeLuminance(foreground) - clampedLum));
-    return adjusted <= 0.0031308
-      ? 12.92 * adjusted
-      : 1.055 * Math.pow(adjusted, 1 / 2.4) - 0.055;
+    return adjusted <= 0.0031308 ? 12.92 * adjusted : 1.055 * Math.pow(adjusted, 1 / 2.4) - 0.055;
   };
 
   const r = Math.round(toSRGB(rgb.r / 255) * 255);
@@ -180,7 +186,7 @@ export function isColorReadable(
   foreground: string,
   background: string,
   level?: 'AA' | 'AAA',
-  isLargeText?: boolean,
+  isLargeText?: boolean
 ): boolean {
   const ratio = contrastRatio(foreground, background);
   if (level === 'AAA') return meetsWcagAAA(ratio, isLargeText);

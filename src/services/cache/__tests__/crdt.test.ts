@@ -2,7 +2,12 @@ import { expect, describe, it } from '@jest/globals';
 import { SubscriptionCRDT, CRDTSubscriptionState } from '../crdt';
 import { Subscription, SubscriptionCategory, BillingCycle } from '../../../types/subscription';
 
-const mockSubscription = (id: string, name: string, price: number, updatedAt: Date): Subscription => ({
+const mockSubscription = (
+  id: string,
+  name: string,
+  price: number,
+  updatedAt: Date
+): Subscription => ({
   id,
   name,
   price,

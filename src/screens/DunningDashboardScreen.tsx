@@ -8,14 +8,7 @@
  *  - Card updater status
  */
 import React, { useState, useMemo } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
@@ -74,9 +67,7 @@ const RecoveryFunnel: React.FC<{ entries: ReturnType<typeof useDunningStore>['en
           ]}
         />
       </View>
-      <Text style={styles.recoveryRateText}>
-        Recovery rate: {stats.recoveryRate}%
-      </Text>
+      <Text style={styles.recoveryRateText}>Recovery rate: {stats.recoveryRate}%</Text>
 
       {/* Channel breakdown */}
       <Text style={styles.subTitle}>Outreach channels</Text>
@@ -129,7 +120,10 @@ const StageBreakdown: React.FC<{ entries: ReturnType<typeof useDunningStore>['en
 const SmartRetryPanel: React.FC = () => {
   const [result, setResult] = useState<string | null>(null);
   const declineCodes: DeclineCode[] = [
-    'insufficient_funds', 'card_expired', 'authentication_required', 'generic_decline',
+    'insufficient_funds',
+    'card_expired',
+    'authentication_required',
+    'generic_decline',
   ];
 
   const simulateRetry = (code: DeclineCode) => {
@@ -258,15 +252,41 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  cardTitle: { ...typography.body, color: colors.text, fontWeight: '700', marginBottom: spacing.sm },
-  subTitle: { ...typography.caption, color: colors.textSecondary, fontWeight: '600', marginTop: spacing.md, marginBottom: spacing.xs },
-  desc: { ...typography.caption, color: colors.textSecondary, marginBottom: spacing.sm, lineHeight: 18 },
+  cardTitle: {
+    ...typography.body,
+    color: colors.text,
+    fontWeight: '700',
+    marginBottom: spacing.sm,
+  },
+  subTitle: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontWeight: '600',
+    marginTop: spacing.md,
+    marginBottom: spacing.xs,
+  },
+  desc: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
+    lineHeight: 18,
+  },
 
   // Funnel
-  funnelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', marginBottom: spacing.sm },
+  funnelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    marginBottom: spacing.sm,
+  },
   funnelStep: { alignItems: 'center', flex: 1 },
   funnelCount: { ...typography.h2, fontWeight: '700' },
-  funnelLabel: { ...typography.small, color: colors.textSecondary, textAlign: 'center', marginTop: 2 },
+  funnelLabel: {
+    ...typography.small,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 2,
+  },
   funnelArrow: { fontSize: 20, color: colors.border, position: 'absolute', right: -8 },
   recoveryRateBar: {
     height: 8,
@@ -301,7 +321,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   stageCount: { ...typography.h3, fontWeight: '700' },
-  stageLabel: { ...typography.small, color: colors.textSecondary, marginTop: 2, textTransform: 'capitalize' },
+  stageLabel: {
+    ...typography.small,
+    color: colors.textSecondary,
+    marginTop: 2,
+    textTransform: 'capitalize',
+  },
 
   // Smart retry
   codeChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginBottom: spacing.sm },

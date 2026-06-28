@@ -65,9 +65,7 @@ export function normalizeSlaConfig(merchantId: string, input: Partial<SlaConfig>
       ? [...input.subscriberContacts]
       : [],
     creditCap:
-      Number.isFinite(input.creditCap) && (input.creditCap ?? 0) > 0
-        ? Number(input.creditCap)
-        : 0,
+      Number.isFinite(input.creditCap) && (input.creditCap ?? 0) > 0 ? Number(input.creditCap) : 0,
     exclusionWindows: Array.isArray(input.exclusionWindows)
       ? input.exclusionWindows.map((w) => ({
           label: String(w.label ?? ''),
@@ -204,11 +202,14 @@ export function evaluateMerchantSnapshot(
       downtimeSeconds: status.downtimeSeconds,
       partialOutageSeconds: status.partialOutageSeconds,
       maintenanceSeconds: status.maintenanceSeconds,
-      creditAmount: calculateCreditAmount({
-        uptimeTarget: status.uptimeTarget,
-        uptimePercentage: status.uptimePercentage,
-        measurementInterval: status.measurementInterval,
-      }, input.config.creditCap ?? 0),
+      creditAmount: calculateCreditAmount(
+        {
+          uptimeTarget: status.uptimeTarget,
+          uptimePercentage: status.uptimePercentage,
+          measurementInterval: status.measurementInterval,
+        },
+        input.config.creditCap ?? 0
+      ),
       resolvedAt: null,
       acknowledged: false,
     };

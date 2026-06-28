@@ -43,7 +43,9 @@ const EmailTemplateEditorScreen = () => {
     refreshPreview,
   } = useEmailTemplateStore();
 
-  const [activeTab, setActiveTab] = useState<'blocks' | 'preview' | 'abtest' | 'versions'>('blocks');
+  const [activeTab, setActiveTab] = useState<'blocks' | 'preview' | 'abtest' | 'versions'>(
+    'blocks'
+  );
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
   const [customCss, setCustomCss] = useState('');
@@ -97,7 +99,7 @@ const EmailTemplateEditorScreen = () => {
         text: 'Publish',
         onPress: () => {
           publishTemplate(activeTemplate.id);
-          Alert.alert('Published', `v${(activeTemplate.version + 1)} is now live.`);
+          Alert.alert('Published', `v${activeTemplate.version + 1} is now live.`);
         },
       },
     ]);
@@ -117,7 +119,11 @@ const EmailTemplateEditorScreen = () => {
             accessibilityRole="button"
             accessibilityLabel={`Select template ${t.name}`}
             accessibilityState={{ selected: activeTemplate?.id === t.id }}>
-            <Text style={[styles.templateChipText, activeTemplate?.id === t.id && styles.templateChipTextActive]}>
+            <Text
+              style={[
+                styles.templateChipText,
+                activeTemplate?.id === t.id && styles.templateChipTextActive,
+              ]}>
               {t.name}
             </Text>
             <Text style={styles.templateStatus}>{t.status}</Text>
@@ -228,7 +234,10 @@ const EmailTemplateEditorScreen = () => {
                             accessibilityLabel="Block content editor"
                           />
                           <Text style={styles.variableHint}>
-                            Available variables: {Object.keys(TEMPLATE_VARIABLES).map((v) => `{{${v}}}`).join(', ')}
+                            Available variables:{' '}
+                            {Object.keys(TEMPLATE_VARIABLES)
+                              .map((v) => `{{${v}}}`)
+                              .join(', ')}
                           </Text>
                           <Text style={styles.previewText}>
                             Preview: {injectVariables(editContent)}
@@ -310,8 +319,14 @@ const EmailTemplateEditorScreen = () => {
                         // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         useEmailTemplateStore.getState().updateABTest(activeTemplate.id, {
                           enabled: val,
-                          variantA: activeTemplate.abTest?.variantA ?? { subject: activeTemplate.locales[0]?.subject ?? '', sendTimeHour: 9 },
-                          variantB: activeTemplate.abTest?.variantB ?? { subject: activeTemplate.locales[0]?.subject ?? ' ✨', sendTimeHour: 14 },
+                          variantA: activeTemplate.abTest?.variantA ?? {
+                            subject: activeTemplate.locales[0]?.subject ?? '',
+                            sendTimeHour: 9,
+                          },
+                          variantB: activeTemplate.abTest?.variantB ?? {
+                            subject: activeTemplate.locales[0]?.subject ?? ' ✨',
+                            sendTimeHour: 14,
+                          },
                           splitPercent: activeTemplate.abTest?.splitPercent ?? 50,
                         });
                       }}
@@ -329,7 +344,8 @@ const EmailTemplateEditorScreen = () => {
                         Variant B subject: {activeTemplate.abTest.variantB.subject}
                       </Text>
                       <Text style={styles.desc}>
-                        Split: {activeTemplate.abTest.splitPercent}% → A, {100 - activeTemplate.abTest.splitPercent}% → B
+                        Split: {activeTemplate.abTest.splitPercent}% → A,{' '}
+                        {100 - activeTemplate.abTest.splitPercent}% → B
                       </Text>
                       <Text style={styles.desc}>
                         Send time A: {activeTemplate.abTest.variantA.sendTimeHour}:00 UTC
@@ -434,7 +450,11 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       justifyContent: 'center',
     },
     createBtnText: { color: colors.onPrimary, fontWeight: '600' },
-    tabBar: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.border.default },
+    tabBar: {
+      flexDirection: 'row',
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border.default,
+    },
     tab: { flex: 1, paddingVertical: 10, alignItems: 'center' },
     tabActive: { borderBottomWidth: 2, borderBottomColor: colors.primary },
     tabText: { fontSize: 13, color: colors.textSecondary },
@@ -442,7 +462,13 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     content: { flex: 1 },
     contentPad: { padding: 16, paddingBottom: 40 },
     emptyText: { color: colors.textSecondary, textAlign: 'center', marginTop: 40 },
-    sectionTitle: { fontSize: 16, fontWeight: '700', color: colors.text.primary, marginBottom: 12, marginTop: 8 },
+    sectionTitle: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: colors.text.primary,
+      marginBottom: 12,
+      marginTop: 8,
+    },
     blockCard: {
       backgroundColor: colors.background.card,
       borderRadius: 10,
@@ -451,7 +477,12 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       borderWidth: 1,
       borderColor: colors.border.default,
     },
-    blockHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+    blockHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
     blockType: { fontSize: 13, fontWeight: '600', color: colors.text.primary },
     blockActions: { flexDirection: 'row', gap: 8 },
     iconBtn: { padding: 4 },
@@ -515,7 +546,12 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       borderWidth: 1,
       borderColor: colors.border.default,
     },
-    rowSpaceBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+    rowSpaceBetween: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 10,
+    },
     label: { fontSize: 15, fontWeight: '600', color: colors.text.primary },
     desc: { fontSize: 13, color: colors.textSecondary, marginTop: 6 },
     rowText: { flex: 1 },

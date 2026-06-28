@@ -85,10 +85,10 @@ const SSOSettingsScreen: React.FC = () => {
             style: 'destructive',
             onPress: () => removeProvider(provider.id),
           },
-        ],
+        ]
       );
     },
-    [removeProvider],
+    [removeProvider]
   );
 
   const handleUploadMetadata = useCallback(
@@ -101,7 +101,7 @@ const SSOSettingsScreen: React.FC = () => {
       uploadMetadata(provider.id, sampleXml);
       Alert.alert('Metadata Uploaded', `${provider.name} SAML metadata has been configured.`);
     },
-    [uploadMetadata],
+    [uploadMetadata]
   );
 
   const handleAddRoleMapping = useCallback(
@@ -117,7 +117,7 @@ const SSOSettingsScreen: React.FC = () => {
       setRoleMappings(provider.id, updated);
       setNewGroupName('');
     },
-    [newGroupName, newGroupRole, setRoleMappings],
+    [newGroupName, newGroupRole, setRoleMappings]
   );
 
   const handleRemoveRoleMapping = useCallback(
@@ -125,25 +125,23 @@ const SSOSettingsScreen: React.FC = () => {
       const updated = provider.roleMappings.filter((_, i) => i !== index);
       setRoleMappings(provider.id, updated);
     },
-    [setRoleMappings],
+    [setRoleMappings]
   );
 
   const renderProviderCard = (provider: IdentityProvider) => {
     const isExpanded = expandedProviderId === provider.id;
-    const providerUsers = scimUsers.filter(
-      (u) => u.status === 'active',
-    );
+    const providerUsers = scimUsers.filter((u) => u.status === 'active');
 
     return (
       <Card key={provider.id} style={styles.card}>
         <TouchableOpacity
           onPress={() => setExpandedProviderId(isExpanded ? null : provider.id)}
-          style={styles.cardHeader}
-        >
+          style={styles.cardHeader}>
           <View style={styles.providerInfo}>
             <Text style={styles.providerName}>{provider.name}</Text>
             <View style={styles.badges}>
-              <View style={[styles.badge, { backgroundColor: statusColors[provider.status] + '20' }]}>
+              <View
+                style={[styles.badge, { backgroundColor: statusColors[provider.status] + '20' }]}>
                 <Text style={[styles.badgeText, { color: statusColors[provider.status] }]}>
                   {provider.status.replace('_', ' ')}
                 </Text>
@@ -176,8 +174,7 @@ const SSOSettingsScreen: React.FC = () => {
                 ) : (
                   <TouchableOpacity
                     style={styles.actionButton}
-                    onPress={() => handleUploadMetadata(provider)}
-                  >
+                    onPress={() => handleUploadMetadata(provider)}>
                     <Text style={styles.actionButtonText}>Upload IdP Metadata (XML)</Text>
                   </TouchableOpacity>
                 )}
@@ -242,14 +239,12 @@ const SSOSettingsScreen: React.FC = () => {
                     <TouchableOpacity
                       key={role}
                       style={[styles.roleChip, newGroupRole === role && styles.roleChipActive]}
-                      onPress={() => setNewGroupRole(role)}
-                    >
+                      onPress={() => setNewGroupRole(role)}>
                       <Text
                         style={[
                           styles.roleChipText,
                           newGroupRole === role && styles.roleChipTextActive,
-                        ]}
-                      >
+                        ]}>
                         {roleLabels[role]}
                       </Text>
                     </TouchableOpacity>
@@ -257,8 +252,7 @@ const SSOSettingsScreen: React.FC = () => {
                 </View>
                 <TouchableOpacity
                   style={styles.addButton}
-                  onPress={() => handleAddRoleMapping(provider)}
-                >
+                  onPress={() => handleAddRoleMapping(provider)}>
                   <Text style={styles.addButtonText}>Add</Text>
                 </TouchableOpacity>
               </View>
@@ -266,9 +260,7 @@ const SSOSettingsScreen: React.FC = () => {
 
             {/* SCIM Users */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>
-                Provisioned Users ({providerUsers.length})
-              </Text>
+              <Text style={styles.sectionTitle}>Provisioned Users ({providerUsers.length})</Text>
               {providerUsers.slice(0, 5).map((user) => (
                 <View key={user.id} style={styles.userRow}>
                   <View>
@@ -292,22 +284,19 @@ const SSOSettingsScreen: React.FC = () => {
               {provider.status === 'active' ? (
                 <TouchableOpacity
                   style={[styles.actionButton, styles.dangerButton]}
-                  onPress={() => deactivateProvider(provider.id)}
-                >
+                  onPress={() => deactivateProvider(provider.id)}>
                   <Text style={styles.dangerButtonText}>Deactivate Provider</Text>
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity
                   style={styles.actionButton}
-                  onPress={() => activateProvider(provider.id)}
-                >
+                  onPress={() => activateProvider(provider.id)}>
                   <Text style={styles.actionButtonText}>Activate Provider</Text>
                 </TouchableOpacity>
               )}
               <TouchableOpacity
                 style={[styles.actionButton, styles.dangerButton]}
-                onPress={() => handleRemoveProvider(provider)}
-              >
+                onPress={() => handleRemoveProvider(provider)}>
                 <Text style={styles.dangerButtonText}>Remove Provider</Text>
               </TouchableOpacity>
             </View>
@@ -347,8 +336,7 @@ const SSOSettingsScreen: React.FC = () => {
                   onPress={() => {
                     addProvider('org_default', preset.name, preset.protocol);
                     Alert.alert('Provider Added', `${preset.name} has been added.`);
-                  }}
-                >
+                  }}>
                   <Text style={styles.presetName}>{preset.name}</Text>
                   <Text style={styles.presetProtocol}>{protocolLabels[preset.protocol]}</Text>
                 </TouchableOpacity>
@@ -379,14 +367,12 @@ const SSOSettingsScreen: React.FC = () => {
                     styles.protocolOption,
                     newProviderProtocol === p && styles.protocolOptionActive,
                   ]}
-                  onPress={() => setNewProviderProtocol(p)}
-                >
+                  onPress={() => setNewProviderProtocol(p)}>
                   <Text
                     style={[
                       styles.protocolOptionText,
                       newProviderProtocol === p && styles.protocolOptionTextActive,
-                    ]}
-                  >
+                    ]}>
                     {protocolLabels[p]}
                   </Text>
                 </TouchableOpacity>
@@ -398,8 +384,7 @@ const SSOSettingsScreen: React.FC = () => {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.actionButton, styles.cancelButton]}
-                onPress={() => setShowAddProvider(false)}
-              >
+                onPress={() => setShowAddProvider(false)}>
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
             </View>
@@ -407,8 +392,7 @@ const SSOSettingsScreen: React.FC = () => {
         ) : (
           <TouchableOpacity
             style={styles.addProviderButton}
-            onPress={() => setShowAddProvider(true)}
-          >
+            onPress={() => setShowAddProvider(true)}>
             <Text style={styles.addProviderButtonText}>+ Add Identity Provider</Text>
           </TouchableOpacity>
         )}
@@ -438,7 +422,12 @@ const styles = StyleSheet.create({
   roleBadge: { backgroundColor: '#fef3c7' },
   badgeText: { fontSize: 11, fontWeight: '600' },
   expandIcon: { fontSize: 12, color: '#999' },
-  section: { marginBottom: spacing.md, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: '#f0f0f0' },
+  section: {
+    marginBottom: spacing.md,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
   sectionTitle: { ...typography.h4, marginBottom: spacing.xs },
   helperText: { fontSize: 13, color: '#888', marginBottom: spacing.sm },
   configLabel: { fontSize: 12, color: '#666', marginTop: spacing.xs },

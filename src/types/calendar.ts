@@ -163,11 +163,7 @@ export interface ReminderOffsetOption {
 
 export type SyncDirection = 'to_calendar' | 'from_calendar' | 'bidirectional';
 export type CalendarEventType =
-  | 'payment_due'
-  | 'payment_received'
-  | 'trial_ending'
-  | 'renewal'
-  | 'contract_end';
+  'payment_due' | 'payment_received' | 'trial_ending' | 'renewal' | 'contract_end';
 export type SyncMethod = 'webhook' | 'poll';
 
 export interface CalendarSyncSettings {

@@ -1,10 +1,5 @@
 export type WalletConnectSessionStatus =
-  | 'idle'
-  | 'connecting'
-  | 'connected'
-  | 'disconnecting'
-  | 'disconnected'
-  | 'error';
+  'idle' | 'connecting' | 'connected' | 'disconnecting' | 'disconnected' | 'error';
 
 export interface WalletConnectSessionState {
   status: WalletConnectSessionStatus;

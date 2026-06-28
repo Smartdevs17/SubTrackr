@@ -18,13 +18,8 @@ jest.mock('../../hooks/useThemeColors', () => ({
   }),
 }));
 
-
-
 describe('Button (snapshot)', () => {
   it('renders default primary button', () => {
-
-
-
     const { toJSON } = render(
       <ThemeProvider>
         <ButtonComponent title="Save" onPress={jest.fn()} />
@@ -44,5 +39,3 @@ describe('Button (snapshot)', () => {
     expect(toJSON()).toMatchSnapshot({ platform: Platform.OS });
   });
 });
-
-

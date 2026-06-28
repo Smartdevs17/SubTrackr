@@ -1,8 +1,19 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { asyncStorageAdapter } from '../utils/storage';
-import { darkTheme, lightTheme, highContrastTheme, builtInThemes, createBrandTheme } from './themes';
-import { buildThemeFromConfig, createThemeVariantPair, generateUniqueThemeId, inheritTheme } from './customThemeBuilder';
+import {
+  darkTheme,
+  lightTheme,
+  highContrastTheme,
+  builtInThemes,
+  createBrandTheme,
+} from './themes';
+import {
+  buildThemeFromConfig,
+  createThemeVariantPair,
+  generateUniqueThemeId,
+  inheritTheme,
+} from './customThemeBuilder';
 import { getAccessibilityRating } from './accessibility';
 import { themeService } from '../services/themeService';
 import type {
@@ -116,7 +127,7 @@ export const useThemeStore = create<ThemeState>()(
             },
             current.mode,
             id,
-            current.name.replace(/\s*(Light|Dark)$/, ''),
+            current.name.replace(/\s*(Light|Dark)$/, '')
           );
 
           const accessible = getAccessibilityRating(updatedTheme);
@@ -145,7 +156,9 @@ export const useThemeStore = create<ThemeState>()(
 
       addThemeVariantPair(pair) {
         set((s) => {
-          const existing = s.themeVariantPairs.findIndex((p) => p.sharedConfig.id === pair.sharedConfig.id);
+          const existing = s.themeVariantPairs.findIndex(
+            (p) => p.sharedConfig.id === pair.sharedConfig.id
+          );
           const themeVariantPairs = [...s.themeVariantPairs];
           if (existing >= 0) {
             themeVariantPairs[existing] = pair;
@@ -161,7 +174,9 @@ export const useThemeStore = create<ThemeState>()(
           const pair = s.themeVariantPairs.find((p) => p.sharedConfig.id === pairId);
           const variantIds = pair ? [pair.light.id, pair.dark.id] : [];
           const themeVariantPairs = s.themeVariantPairs.filter((p) => p.sharedConfig.id !== pairId);
-          const activeThemeId = variantIds.includes(s.activeThemeId) ? darkTheme.id : s.activeThemeId;
+          const activeThemeId = variantIds.includes(s.activeThemeId)
+            ? darkTheme.id
+            : s.activeThemeId;
           const theme = resolveTheme(activeThemeId, s.customThemes, themeVariantPairs);
           return { themeVariantPairs, activeThemeId, theme };
         });
@@ -317,7 +332,11 @@ export const useThemeStore = create<ThemeState>()(
       }),
       onRehydrateStorage: () => (state) => {
         if (state) {
-          state.theme = resolveTheme(state.activeThemeId, state.customThemes, state.themeVariantPairs);
+          state.theme = resolveTheme(
+            state.activeThemeId,
+            state.customThemes,
+            state.themeVariantPairs
+          );
         }
       },
     }

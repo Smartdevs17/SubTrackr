@@ -307,7 +307,9 @@ export const useCalendarStore = create<CalendarState>()(
           integrations: state.integrations.map((integration) => {
             if (integration.id !== connectionId) return integration;
             const current = integration.syncSettings?.enabledEventTypes ?? [
-              'payment_due', 'renewal', 'trial_ending',
+              'payment_due',
+              'renewal',
+              'trial_ending',
             ];
             const updated = current.includes(eventType)
               ? current.filter((t) => t !== eventType)
@@ -348,7 +350,7 @@ export const useCalendarStore = create<CalendarState>()(
         if (activeIntegrations.length === 0) return;
 
         const untouchedEvents = syncedEvents.filter(
-          (event) => event.subscriptionId !== subscription.id,
+          (event) => event.subscriptionId !== subscription.id
         );
         const nextSyncedEvents: CalendarSyncedEvent[] = [...untouchedEvents];
         const syncTime = new Date().toISOString();
@@ -359,13 +361,13 @@ export const useCalendarStore = create<CalendarState>()(
 
           const template = buildSubscriptionCalendarEvent(
             subscription,
-            integration.reminderOffsets,
+            integration.reminderOffsets
           );
           const upserted = await syncToCalendar(
             subscription.id,
             [template],
             integration,
-            syncedEvents,
+            syncedEvents
           );
           nextSyncedEvents.push(...upserted);
         }

@@ -347,8 +347,7 @@ const CalendarIntegrationScreen: React.FC = () => {
                 <View style={styles.syncDirectionRow}>
                   {(['to_calendar', 'from_calendar', 'bidirectional'] as SyncDirection[]).map(
                     (dir) => {
-                      const currentDir =
-                        integration.syncSettings?.syncDirection ?? 'bidirectional';
+                      const currentDir = integration.syncSettings?.syncDirection ?? 'bidirectional';
                       const isSelected = currentDir === dir;
                       return (
                         <TouchableOpacity
@@ -364,7 +363,7 @@ const CalendarIntegrationScreen: React.FC = () => {
                           </Text>
                         </TouchableOpacity>
                       );
-                    },
+                    }
                   )}
                 </View>
 
@@ -380,10 +379,7 @@ const CalendarIntegrationScreen: React.FC = () => {
                         style={[styles.eventTypeChip, enabled && styles.offsetChipActive]}
                         onPress={() => toggleEventType(integration.id, eventType)}>
                         <Text
-                          style={[
-                            styles.offsetChipText,
-                            enabled && styles.offsetChipTextActive,
-                          ]}>
+                          style={[styles.offsetChipText, enabled && styles.offsetChipTextActive]}>
                           {CALENDAR_EVENT_TYPE_LABELS[eventType]}
                         </Text>
                       </TouchableOpacity>
@@ -399,7 +395,8 @@ const CalendarIntegrationScreen: React.FC = () => {
                 {integration.syncSettings?.lastSyncResult && (
                   <View style={styles.syncResultRow}>
                     <Text style={styles.syncResultText}>
-                      Last sync: {new Date(integration.syncSettings.lastSyncResult.syncedAt).toLocaleString()}
+                      Last sync:{' '}
+                      {new Date(integration.syncSettings.lastSyncResult.syncedAt).toLocaleString()}
                       {' — '}
                       {integration.syncSettings.lastSyncResult.pushed} pushed,{' '}
                       {integration.syncSettings.lastSyncResult.pulled} pulled

@@ -9,7 +9,7 @@ const PREFIX = '--st';
 
 export function flattenColorsToVariables(
   colors: Record<string, string>,
-  prefix: string = PREFIX,
+  prefix: string = PREFIX
 ): CSSVariables {
   const vars: CSSVariables = {};
   const sep = prefix.endsWith('-') ? '' : '-';
@@ -47,7 +47,13 @@ export function generateCSSVariablesFromTheme(theme: Theme): CSSVariables {
   Object.assign(vars, flattenColorsToVariables(theme.colors as unknown as Record<string, string>));
 
   if (theme.extendedColors) {
-    Object.assign(vars, flattenColorsToVariables(theme.extendedColors as unknown as Record<string, string>, `${PREFIX}-ext-`));
+    Object.assign(
+      vars,
+      flattenColorsToVariables(
+        theme.extendedColors as unknown as Record<string, string>,
+        `${PREFIX}-ext-`
+      )
+    );
   }
 
   if (theme.fonts) {

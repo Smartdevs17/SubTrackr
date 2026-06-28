@@ -30,7 +30,10 @@ export const themeService = {
       }
       return { success: true, data: [] };
     } catch (err) {
-      return { success: false, error: err instanceof Error ? err.message : 'Failed to fetch themes' };
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Failed to fetch themes',
+      };
     }
   },
 
@@ -114,7 +117,10 @@ export const themeService = {
       await AsyncStorage.setItem(THEME_API_KEY, JSON.stringify(themes));
       return { success: true, data: records };
     } catch (err) {
-      return { success: false, error: err instanceof Error ? err.message : 'Failed to save theme pair' };
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Failed to save theme pair',
+      };
     }
   },
 
@@ -128,7 +134,10 @@ export const themeService = {
       }
       return { success: true };
     } catch (err) {
-      return { success: false, error: err instanceof Error ? err.message : 'Failed to delete theme' };
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Failed to delete theme',
+      };
     }
   },
 
@@ -190,11 +199,14 @@ export const themeService = {
         modeConfig,
         exportData.theme.dark ? 'dark' : 'light',
         shared.id || `imported-${Date.now()}`,
-        shared.name || 'Imported Theme',
+        shared.name || 'Imported Theme'
       );
       return { success: true, data: theme };
     } catch (err) {
-      return { success: false, error: err instanceof Error ? err.message : 'Failed to import theme' };
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Failed to import theme',
+      };
     }
   },
 };
