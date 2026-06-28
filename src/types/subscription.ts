@@ -2,6 +2,8 @@ export interface Subscription {
   id: string;
   name: string;
   description?: string;
+  /** Optional remote URL for the subscription's icon image */
+  iconUrl?: string;
   category: SubscriptionCategory;
   price: number;
   currency: string;
@@ -18,6 +20,14 @@ export interface Subscription {
   totalGasSpent?: number;
   chargeCount?: number;
   lastGasCost?: number;
+  /** Oracle-sourced fiat equivalent price for display purposes */
+  fiatPrice?: number;
+  fiatCurrency?: string;
+  fiatPriceUpdatedAt?: Date;
+  oraclePriceDeviationBps?: number;
+  groupId?: string;
+  groupMemberAddress?: string;
+  timezone?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -40,6 +50,26 @@ export enum BillingCycle {
   CUSTOM = 'custom',
 }
 
+export enum SubscriptionTier {
+  FREE = 'free',
+  BASIC = 'basic',
+  PREMIUM = 'premium',
+  ENTERPRISE = 'enterprise',
+}
+
+export interface SubscriptionPlan {
+  id: string;
+  name: string;
+  tier: SubscriptionTier;
+  price: number;
+  currency: string;
+  billingCycle: BillingCycle;
+  features: import('./feature').FeatureId[]; // Feature IDs included in this plan
+  limits: Record<string, number>; // Feature limits (e.g., { 'max_subscriptions': 10 })
+  isPopular?: boolean;
+  description: string;
+}
+
 export interface SubscriptionFormData {
   name: string;
   description?: string;
@@ -59,4 +89,7 @@ export interface SubscriptionStats {
   totalMonthlySpend: number;
   totalYearlySpend: number;
   categoryBreakdown: Record<SubscriptionCategory, number>;
+  totalGasSpent?: number;
+  totalFiatMonthlySpend?: number;
+  fiatCurrency?: string;
 }

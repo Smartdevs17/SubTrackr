@@ -8,23 +8,24 @@ source "$(dirname "$0")/utils.sh"
 
 set -e
 
-# Usage: ./verify.sh <CONTRACT_ID> <NETWORK>
+# Usage: ./verify.sh <PROXY_ID> <NETWORK> [SOURCE]
 if [ -z "$1" ] || [ -z "$2" ]; then
-    print_error "Usage: ./scripts/verify.sh <CONTRACT_ID> <NETWORK>"
+    print_error "Usage: ./scripts/verify.sh <PROXY_ID> <NETWORK> [SOURCE]"
     exit 1
 fi
 
-CONTRACT_ID=$1
+PROXY_ID=$1
 NETWORK=$2
+SOURCE=${3:-alice}
 
-print_status "🔍 Verifying contract: $CONTRACT_ID on network: $NETWORK"
+print_status "🔍 Verifying proxy: $PROXY_ID on network: $NETWORK"
 
 # Check if contract is alive by querying the plan count
 print_status "Querying plan count..."
 PLAN_COUNT=$(soroban contract invoke \
-    --id "$CONTRACT_ID" \
+    --id "$PROXY_ID" \
     --network "$NETWORK" \
-    --source alice \
+    --source "$SOURCE" \
     -- get_plan_count)
 
 if [ $? -eq 0 ]; then

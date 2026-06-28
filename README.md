@@ -1,3 +1,6 @@
+[![Security](https://github.com/Smartdevs17/SubTrackr/actions/workflows/security-scan.yml/badge.svg)](https://github.com/Smartdevs17/SubTrackr/actions/workflows/security-scan.yml)
+[![Dependabot Status](https://img.shields.io/badge/Dependabot-active-brightgreen.svg)](https://github.com/Smartdevs17/SubTrackr/security/dependabot)
+
 # SubTrackr - On-Chain Subscription Management on Stellar
 
 SubTrackr is a mobile application for managing recurring payments and subscriptions powered by Soroban smart contracts on the Stellar network. Merchants create subscription plans, users authorize recurring XLM or token payments, and smart contracts handle automated billing cycles.
@@ -122,11 +125,11 @@ cp .env.example .env
 
 > **Note**: If `.env.example` doesn't exist, create a new `.env` file with the following variables:
 
-| Variable             | Description                               | Example Value                                                     |
-| -------------------- | ----------------------------------------- | ----------------------------------------------------------------- |
-| `STELLAR_NETWORK`    | `testnet` or `public` Stellar network     | `testnet`                                                         |
-| `CONTRACT_ID`        | Deployed Soroban subscription contract ID | `CB64...` (your deployed contract address)                        |
-| `WEB3AUTH_CLIENT_ID` | Web3Auth client ID for social login       | Get one from [Web3Auth Dashboard](https://dashboard.web3auth.io/) |
+| Variable             | Description                                   | Example Value                                                     |
+| -------------------- | --------------------------------------------- | ----------------------------------------------------------------- |
+| `STELLAR_NETWORK`    | `testnet` or `public` Stellar network         | `testnet`                                                         |
+| `CONTRACT_ID`        | Deployed SubTrackr proxy contract ID (stable) | `CB64...` (your deployed proxy contract address)                  |
+| `WEB3AUTH_CLIENT_ID` | Web3Auth client ID for social login           | Get one from [Web3Auth Dashboard](https://dashboard.web3auth.io/) |
 
 ### 4. Run the Mobile App
 
@@ -151,15 +154,16 @@ You can then run the app on:
 If you want to work on the smart contracts:
 
 ```bash
-# Navigate to contracts directory
-cd contracts
+# Local (requires local Soroban network + `alice` identity)
+./scripts/deploy-local.sh
 
-# Build the contract
-cargo build --target wasm32-unknown-unknown --release
-
-# Deploy to Stellar testnet
-soroban contract deploy --wasm target/wasm32-unknown-unknown/release/subtrackr.wasm --network testnet
+# Testnet
+export SOROBAN_ACCOUNT="your-testnet-identity"
+export ADMIN_ADDRESS="GB..."
+./scripts/deploy-testnet.sh
 ```
+
+SubTrackr uses an upgradeable architecture (proxy + storage + implementation). Use the deployed `PROXY_ID` (saved to `contracts/.env.<network>`) as the stable contract ID.
 
 ### 6. Run Tests
 
@@ -228,6 +232,20 @@ Run locally in dry mode:
 
 ```bash
 npm run release:dry-run
+```
+
+## Security
+
+SubTrackr prioritizes the security of your subscriptions and on-chain transactions.
+
+- **Dependency Scanning**: Powered by GitHub Dependabot and `npm audit`.
+- **Security Monitoring**: Automated workflows run high-level vulnerability scans on every push and pull request.
+- **Reporting**: Found a vulnerability? Please see our [Security Policy](docs/security.md) for reporting guidelines.
+
+To run a manual security audit:
+
+```bash
+npm run security:audit
 ```
 
 ## License

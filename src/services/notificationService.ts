@@ -9,6 +9,12 @@ export const NOTIFICATION_DATA_TYPE = {
   CHARGE_SUCCESS: 'charge_success',
   CHARGE_FAILED: 'charge_failed',
   TRANSACTION_QUEUE: 'transaction_queue',
+  SLA_BREACH: 'sla_breach',
+  DUNNING_RETRY: 'dunning_retry',
+  DUNNING_WARNING: 'dunning_warning',
+  DUNNING_SUSPENDED: 'dunning_suspended',
+  DUNNING_CANCELLED: 'dunning_cancelled',
+  DUNNING_RECOVERY: 'dunning_recovery',
 } as const;
 
 const ANDROID_CHANNEL_ID = 'billing';
@@ -186,6 +192,161 @@ export async function presentTransactionQueueNotification(
       body,
       data: {
         type: NOTIFICATION_DATA_TYPE.TRANSACTION_QUEUE,
+      },
+      sound: 'default',
+    },
+    trigger: null,
+  });
+}
+
+export async function presentSlaBreachNotification(input: {
+  merchantName: string;
+  uptimeTarget: number;
+  uptimePercentage: number;
+  creditAmount: number;
+}): Promise<void> {
+  if (!isNotificationsSupported()) return;
+  const status = await getPermissionStatus();
+  if (status !== Notifications.PermissionStatus.GRANTED) return;
+
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: `SLA breach: ${input.merchantName}`,
+      body: `Uptime dropped to ${input.uptimePercentage.toFixed(2)}% against a ${input.uptimeTarget}% target. Credit due: ${input.creditAmount}.`,
+      data: {
+        type: NOTIFICATION_DATA_TYPE.SLA_BREACH,
+        merchantName: input.merchantName,
+        uptimeTarget: input.uptimeTarget,
+        uptimePercentage: input.uptimePercentage,
+        creditAmount: input.creditAmount,
+      },
+      sound: 'default',
+    },
+    trigger: null,
+  });
+}
+
+export async function presentLocalNotification(input: {
+  title: string;
+  body: string;
+  data?: Record<string, unknown>;
+}): Promise<void> {
+  if (!isNotificationsSupported()) return;
+  const status = await getPermissionStatus();
+  if (status !== Notifications.PermissionStatus.GRANTED) return;
+
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: input.title,
+      body: input.body,
+      data: input.data ?? {},
+      sound: 'default',
+    },
+    trigger: null,
+  });
+}
+
+// ── Dunning Notifications ──────────────────────────────────────────────
+
+export async function presentDunningRetryNotification(
+  sub: Subscription,
+  attempt: number,
+  maxAttempts: number
+): Promise<void> {
+  if (!isNotificationsSupported()) return;
+  const status = await getPermissionStatus();
+  if (status !== Notifications.PermissionStatus.GRANTED) return;
+
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: `Payment retry: ${sub.name}`,
+      body: `Retrying payment (${attempt}/${maxAttempts}). No action needed.`,
+      data: {
+        type: NOTIFICATION_DATA_TYPE.DUNNING_RETRY,
+        subscriptionId: sub.id,
+        dunningStage: 'retry',
+      },
+      sound: 'default',
+    },
+    trigger: null,
+  });
+}
+
+export async function presentDunningWarningNotification(
+  sub: Subscription,
+  attempts: number
+): Promise<void> {
+  if (!isNotificationsSupported()) return;
+  const status = await getPermissionStatus();
+  if (status !== Notifications.PermissionStatus.GRANTED) return;
+
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: `Action needed: ${sub.name}`,
+      body: `${attempts} payment attempts failed. Update your payment method to avoid interruption.`,
+      data: {
+        type: NOTIFICATION_DATA_TYPE.DUNNING_WARNING,
+        subscriptionId: sub.id,
+        dunningStage: 'warn',
+      },
+      sound: 'default',
+    },
+    trigger: null,
+  });
+}
+
+export async function presentDunningSuspendedNotification(sub: Subscription): Promise<void> {
+  if (!isNotificationsSupported()) return;
+  const status = await getPermissionStatus();
+  if (status !== Notifications.PermissionStatus.GRANTED) return;
+
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: `${sub.name} suspended`,
+      body: 'Your subscription has been suspended due to payment issues. Update your payment method to restore service.',
+      data: {
+        type: NOTIFICATION_DATA_TYPE.DUNNING_SUSPENDED,
+        subscriptionId: sub.id,
+        dunningStage: 'suspend',
+      },
+      sound: 'default',
+    },
+    trigger: null,
+  });
+}
+
+export async function presentDunningCancelledNotification(sub: Subscription): Promise<void> {
+  if (!isNotificationsSupported()) return;
+  const status = await getPermissionStatus();
+  if (status !== Notifications.PermissionStatus.GRANTED) return;
+
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: `${sub.name} cancelled`,
+      body: 'Your subscription has been cancelled due to unresolved payment issues.',
+      data: {
+        type: NOTIFICATION_DATA_TYPE.DUNNING_CANCELLED,
+        subscriptionId: sub.id,
+        dunningStage: 'cancel',
+      },
+      sound: 'default',
+    },
+    trigger: null,
+  });
+}
+
+export async function presentDunningRecoveryNotification(sub: Subscription): Promise<void> {
+  if (!isNotificationsSupported()) return;
+  const status = await getPermissionStatus();
+  if (status !== Notifications.PermissionStatus.GRANTED) return;
+
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: `Payment recovered: ${sub.name}`,
+      body: 'Your payment was successfully processed. Your subscription is active.',
+      data: {
+        type: NOTIFICATION_DATA_TYPE.DUNNING_RECOVERY,
+        subscriptionId: sub.id,
       },
       sound: 'default',
     },

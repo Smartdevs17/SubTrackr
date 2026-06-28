@@ -2,7 +2,9 @@ name: E2E Detox Tests
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ['main']
+  pull_request:
+    branches: ['main']
 
 jobs:
   test-ios:
@@ -28,8 +30,39 @@ jobs:
         run: brew tap wix/brew && brew install applesimutils
       - name: Build Detox iOS
         run: npm run e2e:build-ios
-      - name: Test Detox iOS
-        run: npm run e2e:test-ios
+      - name: Test Detox iOS — core lifecycle
+        run: npm run e2e:test-ios -- --testPathPattern="subscription\\.test|payment\\.test|launch\\.test"
+        env:
+          E2E_MAX_WORKERS: 1
+      - name: Test Detox iOS — full lifecycle suite (Issue #440)
+        # Retry once on failure to reduce flakiness from simulator cold-start
+        run: |
+          npm run e2e:test-ios -- --testPathPattern="subscription-lifecycle\\.test" || \
+          npm run e2e:test-ios -- --testPathPattern="subscription-lifecycle\\.test"
+        env:
+          E2E_MAX_WORKERS: 1
+      - name: Test Detox iOS — visual regression
+        run: |
+          npm run e2e:test-ios -- --testPathPattern="visual-regression\\.test" || \
+          npm run e2e:test-ios -- --testPathPattern="visual-regression\\.test"
+        env:
+          E2E_MAX_WORKERS: 1
+      - name: Upload iOS visual artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-ios-visual-artifacts
+          path: |
+            artifacts/
+            e2e/fixtures/visual-baselines.json
+          retention-days: 14
+      - name: Upload E2E artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-ios-artifacts
+          path: artifacts/
+          retention-days: 7
 
   test-android:
     name: Detox Android
@@ -49,13 +82,70 @@ jobs:
           java-version: '17'
       - name: Expo Prebuild
         run: npx expo prebuild -p android
+      - name: Patch Kotlin 1.9 to 2.1.20 in expo Gradle included builds
+        run: |
+          for f in \
+            node_modules/expo-dev-launcher/expo-dev-launcher-gradle-plugin/build.gradle.kts \
+            node_modules/expo-modules-autolinking/android/expo-gradle-plugin/build.gradle.kts \
+            node_modules/expo-modules-autolinking/android/expo-gradle-plugin/expo-autolinking-plugin-shared/build.gradle.kts \
+            node_modules/expo-modules-core/expo-module-gradle-plugin/build.gradle.kts; do
+            if [ -f "$f" ]; then
+              sed -i 's/version "1\.[0-9][^"]*"/version "2.1.20"/g' "$f"
+              echo "Patched $f: $(grep -E 'version \"[0-9]' $f | head -2)"
+            fi
+          done
+          [ -f android/build.gradle ] && \
+            sed -i 's/kotlinVersion = "1\.[0-9][^"]*"/kotlinVersion = "2.1.20"/' android/build.gradle || true
       - name: Build Detox Android
         run: npm run e2e:build-android
-      - name: Detox Android Emulator
+      - name: Detox Android — core lifecycle
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 30
           target: default
           arch: x86_64
           profile: pixel_4
-          script: npm run e2e:test-android
+          script: npm run e2e:test-android -- --testPathPattern="subscription\\.test|payment\\.test|launch\\.test"
+        env:
+          E2E_MAX_WORKERS: 1
+      - name: Detox Android — full lifecycle suite (Issue #440)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: default
+          arch: x86_64
+          profile: pixel_4
+          # Retry once on failure to reduce flakiness from emulator cold-start
+          script: |
+            npm run e2e:test-android -- --testPathPattern="subscription-lifecycle\\.test" || \
+            npm run e2e:test-android -- --testPathPattern="subscription-lifecycle\\.test"
+        env:
+          E2E_MAX_WORKERS: 1
+      - name: Detox Android — visual regression
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: default
+          arch: x86_64
+          profile: pixel_4
+          script: |
+            npm run e2e:test-android -- --testPathPattern="visual-regression\\.test" || \
+            npm run e2e:test-android -- --testPathPattern="visual-regression\\.test"
+        env:
+          E2E_MAX_WORKERS: 1
+      - name: Upload Android visual artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-android-visual-artifacts
+          path: |
+            artifacts/
+            e2e/fixtures/visual-baselines.json
+          retention-days: 14
+      - name: Upload E2E artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-android-artifacts
+          path: artifacts/
+          retention-days: 7

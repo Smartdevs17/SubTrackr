@@ -1,0 +1,16 @@
+[package]
+name = "subtrackr-fraud"
+version = "0.2.0"
+edition = "2021"
+authors = ["SubTrackr Team"]
+description = "SubTrackr fraud detection contract (Soroban)"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+soroban-sdk = "21.0.0"
+subtrackr-types = { path = "../types" }
+
+[dev-dependencies]
+soroban-sdk = { version = "21.0.0", features = ["testutils"] }

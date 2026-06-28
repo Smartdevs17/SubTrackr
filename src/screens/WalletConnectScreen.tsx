@@ -5,6 +5,7 @@ import {
   StyleSheet,
   SafeAreaView,
   ScrollView,
+  RefreshControl,
   TouchableOpacity,
   Alert,
   ActivityIndicator,
@@ -12,18 +13,23 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { colors, spacing, typography, borderRadius, shadows } from '../utils/constants';
+import { spacing, typography, borderRadius, shadows } from '../utils/constants';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
 import { useAppKit, useAppKitAccount, useAppKitProvider } from '@reown/appkit-ethers-react-native';
 import walletServiceManager, { WalletConnection, TokenBalance } from '../services/walletService';
+import { TICKER_TO_COINGECKO_ID } from '../services/priceService';
+import { useTokenPrices } from '../hooks/useTokenPrices';
 import { useWalletStore } from '../store';
 import { RootStackParamList } from '../navigation/types';
+import { useThemeColors } from '../hooks/useThemeColors';
 
 import * as Clipboard from 'expo-clipboard';
 
 const WalletConnectScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const colors = useThemeColors();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const { open } = useAppKit();
   const { address, isConnected, chainId } = useAppKitAccount();
   const { walletProvider } = useAppKitProvider();
@@ -33,6 +39,18 @@ const WalletConnectScreen: React.FC = () => {
   const [connection, setConnection] = useState<WalletConnection | null>(null);
   const [tokenBalances, setTokenBalances] = useState<TokenBalance[]>([]);
   const [isLoadingBalances, setIsLoadingBalances] = useState(false);
+  const tokenPriceIds = tokenBalances.map((token) => token.symbol);
+  const {
+    prices,
+    isLoading: isPriceLoading,
+    isRefreshing,
+    error: priceError,
+    refresh,
+    lastUpdated,
+  } = useTokenPrices({
+    tokenIds: tokenPriceIds,
+    enabled: tokenPriceIds.length > 0,
+  });
 
   useEffect(() => {
     initializeWalletService();
@@ -114,8 +132,8 @@ const WalletConnectScreen: React.FC = () => {
     }
   };
 
-  const handleRefreshBalances = () => {
-    loadTokenBalances();
+  const handleRefreshBalances = async () => {
+    await Promise.all([loadTokenBalances(), refresh()]);
   };
 
   // Handle Copy Address
@@ -159,9 +177,9 @@ const WalletConnectScreen: React.FC = () => {
 
   const getChainColor = (chainId: number): string => {
     const chainColors: Record<number, string> = {
-      1: '#627EEA', // Ethereum blue
-      137: '#8247E5', // Polygon purple
-      42161: '#28A0F0', // Arbitrum blue
+      1: colors.brand.primary,
+      137: colors.brand.secondary,
+      42161: colors.status.info,
     };
     return chainColors[chainId] || colors.primary;
   };
@@ -185,19 +203,24 @@ const WalletConnectScreen: React.FC = () => {
     return icons[symbol] || '🪙';
   };
 
-  const getTokenPrice = (symbol: string): number => {
-    const prices: Record<string, number> = {
-      ETH: 3500,
-      MATIC: 0.8,
-      USDC: 1.0,
-      ARB: 1.2,
-    };
-    return prices[symbol] || 1.0;
+  const getTokenPriceId = (symbol: string): string => {
+    return TICKER_TO_COINGECKO_ID[symbol.toUpperCase()] ?? symbol.toLowerCase();
   };
+
+  const hasCachedPriceData = Object.values(prices).some((price) => price.available !== false);
+  const showPriceLoading = isPriceLoading && !hasCachedPriceData;
+  const showStalePriceWarning = Boolean(priceError) && hasCachedPriceData;
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scrollView}>
+      <ScrollView
+        style={styles.scrollView}
+        refreshControl={
+          <RefreshControl
+            refreshing={isLoadingBalances || isRefreshing}
+            onRefresh={handleRefreshBalances}
+          />
+        }>
         <View style={styles.header}>
           <Text style={styles.title}>Connect Wallet</Text>
           <Text style={styles.subtitle}>Connect your Web3 wallet to enable crypto payments</Text>
@@ -269,8 +292,15 @@ const WalletConnectScreen: React.FC = () => {
                   <Text style={styles.statusText}>Connected</Text>
                   <Text style={styles.connectionTime}>Just now</Text>
                 </View>
-                <TouchableOpacity style={styles.disconnectButton} onPress={handleDisconnectWallet}>
-                  <Text style={styles.disconnectIcon}>⏹️</Text>
+                <TouchableOpacity
+                  style={styles.disconnectButton}
+                  onPress={handleDisconnectWallet}
+                  accessibilityRole="button"
+                  accessibilityLabel="Disconnect wallet"
+                  accessibilityHint="Disconnects your currently connected wallet">
+                  <Text style={styles.disconnectIcon} accessibilityElementsHidden={true}>
+                    ⏹️
+                  </Text>
                   <Text style={styles.disconnectText}>Disconnect</Text>
                 </TouchableOpacity>
               </View>
@@ -278,8 +308,15 @@ const WalletConnectScreen: React.FC = () => {
               <View style={styles.walletInfo}>
                 <View style={styles.addressContainer}>
                   <Text style={styles.addressLabel}>Wallet Address</Text>
-                  <TouchableOpacity style={styles.addressCopyButton} onPress={handleCopyAddress}>
-                    <Text style={styles.copyIcon}>📋</Text>
+                  <TouchableOpacity
+                    style={styles.addressCopyButton}
+                    onPress={handleCopyAddress}
+                    accessibilityRole="button"
+                    accessibilityLabel="Copy wallet address"
+                    accessibilityHint="Copies your wallet address to the clipboard">
+                    <Text style={styles.copyIcon} accessibilityElementsHidden={true}>
+                      📋
+                    </Text>
                   </TouchableOpacity>
                 </View>
                 <Text style={styles.addressText}>{formatAddress(connection.address)}</Text>
@@ -307,16 +344,39 @@ const WalletConnectScreen: React.FC = () => {
                   <Text style={styles.balancesIcon}>💰</Text>
                   <Text style={styles.sectionTitle}>Token Balances</Text>
                 </View>
-                <TouchableOpacity style={styles.refreshButton} onPress={handleRefreshBalances}>
-                  <Text style={styles.refreshIcon}>🔄</Text>
+                <TouchableOpacity
+                  style={styles.refreshButton}
+                  onPress={handleRefreshBalances}
+                  accessibilityRole="button"
+                  accessibilityLabel="Refresh token balances"
+                  accessibilityHint="Reloads your current token balances from the blockchain">
+                  <Text style={styles.refreshIcon} accessibilityElementsHidden={true}>
+                    🔄
+                  </Text>
                   <Text style={styles.refreshText}>Refresh</Text>
                 </TouchableOpacity>
               </View>
+              {showStalePriceWarning ? (
+                <Text style={styles.priceWarning}>
+                  ⚠️ Prices may be stale. Showing the latest cached values while CoinGecko
+                  refreshes.
+                </Text>
+              ) : null}
+              {lastUpdated ? (
+                <Text style={styles.priceMetaText}>
+                  Last price update: {new Date(lastUpdated).toLocaleTimeString()}
+                </Text>
+              ) : null}
 
               {isLoadingBalances ? (
                 <View style={styles.loadingContainer}>
                   <ActivityIndicator size="large" color={colors.primary} />
                   <Text style={styles.loadingText}>Loading balances...</Text>
+                </View>
+              ) : showPriceLoading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color={colors.primary} />
+                  <Text style={styles.loadingText}>Loading token prices...</Text>
                 </View>
               ) : (
                 <View style={styles.balancesList}>
@@ -335,9 +395,28 @@ const WalletConnectScreen: React.FC = () => {
                         <Text style={styles.tokenBalance}>
                           {parseFloat(token.balance).toFixed(4)}
                         </Text>
-                        <Text style={styles.tokenValue}>
-                          ≈ ${(parseFloat(token.balance) * getTokenPrice(token.symbol)).toFixed(2)}
-                        </Text>
+                        {(() => {
+                          const priceId = getTokenPriceId(token.symbol);
+                          const price = prices[priceId];
+                          const balance = parseFloat(token.balance);
+                          const hasPrice = Boolean(price && price.available !== false);
+
+                          if (!hasPrice) {
+                            return <Text style={styles.tokenValue}>Price unavailable</Text>;
+                          }
+
+                          return (
+                            <>
+                              <Text style={styles.tokenValue}>
+                                ≈ ${(balance * price.usd).toFixed(2)}
+                              </Text>
+                              <Text style={styles.tokenPriceChange}>
+                                {price.usd24hChange >= 0 ? '+' : ''}
+                                {price.usd24hChange.toFixed(2)}% 24h
+                              </Text>
+                            </>
+                          );
+                        })()}
                       </View>
                     </View>
                   ))}
@@ -396,337 +475,354 @@ const WalletConnectScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  header: {
-    padding: spacing.lg,
-    paddingBottom: spacing.md,
-  },
-  title: {
-    ...typography.h1,
-    color: colors.text,
-    marginBottom: spacing.xs,
-  },
-  subtitle: {
-    ...typography.body,
-    color: colors.textSecondary,
-  },
-  connectSection: {
-    padding: spacing.lg,
-    paddingTop: 0,
-  },
-  connectedSection: {
-    padding: spacing.lg,
-    paddingTop: 0,
-  },
-  sectionTitle: {
-    ...typography.h3,
-    color: colors.text,
-    marginBottom: spacing.sm,
-  },
-  sectionDescription: {
-    ...typography.body,
-    color: colors.textSecondary,
-    marginBottom: spacing.lg,
-    lineHeight: 22,
-  },
-  connectHeader: {
-    alignItems: 'center',
-    marginBottom: spacing.lg,
-  },
-  connectIcon: {
-    fontSize: 48,
-    marginBottom: spacing.sm,
-  },
-  walletOptions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-around',
-    marginBottom: spacing.lg,
-    gap: spacing.md,
-  },
-  walletOption: {
-    alignItems: 'center',
-    minWidth: 80,
-  },
-  walletIconContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.sm,
-    ...shadows.sm,
-  },
-  walletIcon: {
-    fontSize: 28,
-  },
-  walletName: {
-    ...typography.caption,
-    color: colors.text,
-    textAlign: 'center',
-    fontWeight: '600',
-    marginBottom: spacing.xs,
-  },
-  walletDescription: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    fontSize: 10,
-  },
-  connectButtonContainer: {
-    marginTop: spacing.md,
-    alignItems: 'center',
-  },
-  connectNote: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginTop: spacing.sm,
-    fontStyle: 'italic',
-  },
-  connectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  connectionStatus: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  statusIndicator: {
-    width: 12,
-    height: 12,
-    borderRadius: borderRadius.full,
-    marginRight: spacing.sm,
-  },
-  statusText: {
-    ...typography.body,
-    color: colors.text,
-    fontWeight: '600',
-  },
-  connectionTime: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginLeft: spacing.sm,
-  },
-  disconnectButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.sm,
-    backgroundColor: colors.error,
-    borderRadius: borderRadius.md,
-  },
-  disconnectIcon: {
-    fontSize: 16,
-    marginRight: spacing.xs,
-  },
-  disconnectText: {
-    ...typography.caption,
-    color: colors.text,
-    fontWeight: '600',
-  },
-  walletInfo: {
-    marginBottom: spacing.md,
-  },
-  addressContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.xs,
-  },
-  addressLabel: {
-    ...typography.caption,
-    color: colors.textSecondary,
-  },
-  addressCopyButton: {
-    padding: spacing.xs,
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.sm,
-  },
-  copyIcon: {
-    fontSize: 16,
-    color: colors.textSecondary,
-  },
-  addressText: {
-    ...typography.h3,
-    color: colors.text,
-    fontFamily: 'monospace',
-    marginBottom: spacing.md,
-  },
-  chainInfo: {
-    alignItems: 'flex-start',
-  },
-  chainBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.full,
-    marginBottom: spacing.xs,
-  },
-  chainIcon: {
-    fontSize: 16,
-    marginRight: spacing.xs,
-  },
-  chainText: {
-    ...typography.caption,
-    color: colors.text,
-    fontWeight: '600',
-  },
-  chainDescription: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginLeft: spacing.md,
-  },
-  balancesHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  balancesTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  balancesIcon: {
-    fontSize: 24,
-    marginRight: spacing.sm,
-  },
-  refreshButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.sm,
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.md,
-  },
-  refreshIcon: {
-    fontSize: 16,
-    marginRight: spacing.xs,
-  },
-  refreshText: {
-    ...typography.caption,
-    color: colors.text,
-    fontWeight: '600',
-  },
-  loadingContainer: {
-    alignItems: 'center',
-    paddingVertical: spacing.lg,
-  },
-  loadingText: {
-    ...typography.body,
-    color: colors.textSecondary,
-    marginTop: spacing.md,
-  },
-  balancesList: {
-    gap: spacing.sm,
-  },
-  balanceItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    backgroundColor: colors.background,
-    borderRadius: borderRadius.md,
-    marginBottom: spacing.xs,
-  },
-  tokenInfo: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  tokenIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.sm,
-    ...shadows.sm,
-  },
-  tokenIcon: {
-    fontSize: 20,
-  },
-  tokenDetails: {
-    flex: 1,
-  },
-  tokenSymbol: {
-    ...typography.body,
-    color: colors.text,
-    fontWeight: '600',
-    marginBottom: spacing.xs,
-  },
-  tokenName: {
-    ...typography.caption,
-    color: colors.textSecondary,
-  },
-  balanceInfo: {
-    alignItems: 'flex-end',
-  },
-  tokenBalance: {
-    ...typography.body,
-    color: colors.text,
-    fontWeight: '600',
-    marginBottom: spacing.xs,
-  },
-  tokenValue: {
-    ...typography.caption,
-    color: colors.textSecondary,
-  },
-  setupButton: {
-    marginTop: spacing.md,
-  },
-  cryptoHeader: {
-    alignItems: 'center',
-    marginBottom: spacing.lg,
-  },
-  cryptoIcon: {
-    fontSize: 48,
-    marginBottom: spacing.sm,
-  },
-  protocolInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: spacing.lg,
-    gap: spacing.md,
-  },
-  protocolItem: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  protocolIcon: {
-    fontSize: 24,
-    marginBottom: spacing.xs,
-  },
-  protocolName: {
-    ...typography.caption,
-    color: colors.text,
-    fontWeight: '600',
-    marginBottom: spacing.xs,
-  },
-  protocolDesc: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    fontSize: 10,
-  },
-  readyHeader: {
-    alignItems: 'center',
-  },
-  readyIcon: {
-    fontSize: 48,
-    marginBottom: spacing.sm,
-  },
-});
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background.primary,
+    },
+    scrollView: {
+      flex: 1,
+    },
+    header: {
+      padding: spacing.lg,
+      paddingBottom: spacing.md,
+    },
+    title: {
+      ...typography.h1,
+      color: colors.text.primary,
+      marginBottom: spacing.xs,
+    },
+    subtitle: {
+      ...typography.body,
+      color: colors.textSecondary,
+    },
+    connectSection: {
+      padding: spacing.lg,
+      paddingTop: 0,
+    },
+    connectedSection: {
+      padding: spacing.lg,
+      paddingTop: 0,
+    },
+    sectionTitle: {
+      ...typography.h3,
+      color: colors.text.primary,
+      marginBottom: spacing.sm,
+    },
+    sectionDescription: {
+      ...typography.body,
+      color: colors.textSecondary,
+      marginBottom: spacing.lg,
+      lineHeight: 22,
+    },
+    connectHeader: {
+      alignItems: 'center',
+      marginBottom: spacing.lg,
+    },
+    connectIcon: {
+      fontSize: 48,
+      marginBottom: spacing.sm,
+    },
+    walletOptions: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'space-around',
+      marginBottom: spacing.lg,
+      gap: spacing.md,
+    },
+    walletOption: {
+      alignItems: 'center',
+      minWidth: 80,
+    },
+    walletIconContainer: {
+      width: 60,
+      height: 60,
+      borderRadius: borderRadius.full,
+      backgroundColor: colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: spacing.sm,
+      ...shadows.sm,
+    },
+    walletIcon: {
+      fontSize: 28,
+    },
+    walletName: {
+      ...typography.caption,
+      color: colors.text.primary,
+      textAlign: 'center',
+      fontWeight: '600',
+      marginBottom: spacing.xs,
+    },
+    walletDescription: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      fontSize: 10,
+    },
+    connectButtonContainer: {
+      marginTop: spacing.md,
+      alignItems: 'center',
+    },
+    connectNote: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      marginTop: spacing.sm,
+      fontStyle: 'italic',
+    },
+    connectionHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: spacing.md,
+    },
+    connectionStatus: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    statusIndicator: {
+      width: 12,
+      height: 12,
+      borderRadius: borderRadius.full,
+      marginRight: spacing.sm,
+    },
+    statusText: {
+      ...typography.body,
+      color: colors.text.primary,
+      fontWeight: '600',
+    },
+    connectionTime: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      marginLeft: spacing.sm,
+    },
+    disconnectButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: spacing.sm,
+      backgroundColor: colors.error,
+      borderRadius: borderRadius.md,
+    },
+    disconnectIcon: {
+      fontSize: 16,
+      marginRight: spacing.xs,
+    },
+    disconnectText: {
+      ...typography.caption,
+      color: colors.text.primary,
+      fontWeight: '600',
+    },
+    walletInfo: {
+      marginBottom: spacing.md,
+    },
+    addressContainer: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: spacing.xs,
+    },
+    addressLabel: {
+      ...typography.caption,
+      color: colors.textSecondary,
+    },
+    addressCopyButton: {
+      padding: spacing.xs,
+      backgroundColor: colors.surface,
+      borderRadius: borderRadius.sm,
+    },
+    copyIcon: {
+      fontSize: 16,
+      color: colors.textSecondary,
+    },
+    addressText: {
+      ...typography.h3,
+      color: colors.text.primary,
+      fontFamily: 'monospace',
+      marginBottom: spacing.md,
+    },
+    chainInfo: {
+      alignItems: 'flex-start',
+    },
+    chainBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderRadius: borderRadius.full,
+      marginBottom: spacing.xs,
+    },
+    chainIcon: {
+      fontSize: 16,
+      marginRight: spacing.xs,
+    },
+    chainText: {
+      ...typography.caption,
+      color: colors.text.primary,
+      fontWeight: '600',
+    },
+    chainDescription: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      marginLeft: spacing.md,
+    },
+    balancesHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: spacing.md,
+    },
+    balancesTitleContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    balancesIcon: {
+      fontSize: 24,
+      marginRight: spacing.sm,
+    },
+    refreshButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: spacing.sm,
+      backgroundColor: colors.primary,
+      borderRadius: borderRadius.md,
+    },
+    refreshIcon: {
+      fontSize: 16,
+      marginRight: spacing.xs,
+    },
+    refreshText: {
+      ...typography.caption,
+      color: colors.text.primary,
+      fontWeight: '600',
+    },
+    loadingContainer: {
+      alignItems: 'center',
+      paddingVertical: spacing.lg,
+    },
+    loadingText: {
+      ...typography.body,
+      color: colors.textSecondary,
+      marginTop: spacing.md,
+    },
+    balancesList: {
+      gap: spacing.sm,
+    },
+    balanceItem: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      backgroundColor: colors.background.primary,
+      borderRadius: borderRadius.md,
+      marginBottom: spacing.xs,
+    },
+    tokenInfo: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    tokenIconContainer: {
+      width: 40,
+      height: 40,
+      borderRadius: borderRadius.full,
+      backgroundColor: colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: spacing.sm,
+      ...shadows.sm,
+    },
+    tokenIcon: {
+      fontSize: 20,
+    },
+    tokenDetails: {
+      flex: 1,
+    },
+    tokenSymbol: {
+      ...typography.body,
+      color: colors.text.primary,
+      fontWeight: '600',
+      marginBottom: spacing.xs,
+    },
+    tokenName: {
+      ...typography.caption,
+      color: colors.textSecondary,
+    },
+    balanceInfo: {
+      alignItems: 'flex-end',
+    },
+    tokenBalance: {
+      ...typography.body,
+      color: colors.text.primary,
+      fontWeight: '600',
+      marginBottom: spacing.xs,
+    },
+    tokenValue: {
+      ...typography.caption,
+      color: colors.textSecondary,
+    },
+    tokenPriceChange: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      marginTop: spacing.xs / 2,
+    },
+    priceWarning: {
+      ...typography.caption,
+      color: colors.warning,
+      marginBottom: spacing.sm,
+    },
+    priceMetaText: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      marginBottom: spacing.sm,
+    },
+    setupButton: {
+      marginTop: spacing.md,
+    },
+    cryptoHeader: {
+      alignItems: 'center',
+      marginBottom: spacing.lg,
+    },
+    cryptoIcon: {
+      fontSize: 48,
+      marginBottom: spacing.sm,
+    },
+    protocolInfo: {
+      flexDirection: 'row',
+      justifyContent: 'space-around',
+      marginBottom: spacing.lg,
+      gap: spacing.md,
+    },
+    protocolItem: {
+      alignItems: 'center',
+      flex: 1,
+    },
+    protocolIcon: {
+      fontSize: 24,
+      marginBottom: spacing.xs,
+    },
+    protocolName: {
+      ...typography.caption,
+      color: colors.text.primary,
+      fontWeight: '600',
+      marginBottom: spacing.xs,
+    },
+    protocolDesc: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      fontSize: 10,
+    },
+    readyHeader: {
+      alignItems: 'center',
+    },
+    readyIcon: {
+      fontSize: 48,
+      marginBottom: spacing.sm,
+    },
+  });
+}
 
 export default WalletConnectScreen;
