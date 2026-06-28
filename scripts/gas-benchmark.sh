@@ -51,4 +51,4 @@ export COMMIT_TIME="$(git log -1 --format=%ct 2>/dev/null || date +%s)"
 
 # Run Cargo test in contracts workspace and pipe to Python analyzer
 cd "$WORKSPACE_DIR/contracts"
-cargo test --test integration_soroban test_gas_benchmarks -- --nocapture | python3 "$WORKSPACE_DIR/scripts/analyze-gas.py"
+cargo test --package subtrackr-proxy --test integration_soroban test_gas_benchmarks -- --nocapture | python3 "$WORKSPACE_DIR/scripts/analyze-gas.py"
