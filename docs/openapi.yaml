@@ -1,11 +1,11 @@
-openapi: 3.0.3
+openapi: 3.1.0
 info:
   title: SubTrackr Soroban Contract API
   description: |
-    OpenAPI representation of the SubTrackr Soroban smart contract interface.
+    OpenAPI 3.1 representation of the SubTrackr Soroban smart contract interface.
     These are not REST endpoints but Soroban contract invocations via RPC.
     Each path represents a contract function invoked through `soroban contract invoke`.
-  version: 1.0.0
+  version: 2.0.0
   contact:
     name: SubTrackr
     url: https://github.com/Smartdevs17/SubTrackr
@@ -32,8 +32,6 @@ paths:
               properties:
                 admin:
                   type: string
-                  description: Stellar address of the admin
-                  example: GABCDEFGHIJKLMNOPQRSTUVWXYZ234567
       responses:
         '200':
           description: Contract initialized
@@ -53,19 +51,13 @@ paths:
               properties:
                 merchant:
                   type: string
-                  description: Plan owner Stellar address
                 name:
                   type: string
-                  description: Plan display name
-                  example: Pro Monthly
                 price:
                   type: integer
                   format: int128
-                  description: Price per interval in stroops
-                  example: 10000000
                 token:
                   type: string
-                  description: Payment token contract address
                 interval:
                   type: string
                   enum: [Weekly, Monthly, Quarterly, Yearly]
@@ -77,18 +69,6 @@ paths:
               schema:
                 type: integer
                 format: uint64
-                description: New plan ID
-                example: 1
-        '400':
-          description: Validation error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ContractError'
-              examples:
-                price_zero:
-                  value:
-                    error: Price must be positive
 
   /deactivate_plan:
     post:
@@ -113,14 +93,6 @@ paths:
           description: Plan deactivated
         '403':
           description: Not authorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ContractError'
-              examples:
-                not_owner:
-                  value:
-                    error: Only plan owner can deactivate
 
   /subscribe:
     post:
@@ -137,7 +109,6 @@ paths:
               properties:
                 subscriber:
                   type: string
-                  description: Subscriber Stellar address
                 plan_id:
                   type: integer
                   format: uint64
@@ -149,23 +120,8 @@ paths:
               schema:
                 type: integer
                 format: uint64
-                description: New subscription ID
         '400':
           description: Validation error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ContractError'
-              examples:
-                inactive:
-                  value:
-                    error: Plan is not active
-                self_subscribe:
-                  value:
-                    error: Merchant cannot self-subscribe
-                duplicate:
-                  value:
-                    error: Already subscribed to this plan
 
   /cancel_subscription:
     post:
@@ -190,14 +146,6 @@ paths:
           description: Subscription cancelled
         '403':
           description: Not authorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ContractError'
-              examples:
-                not_subscriber:
-                  value:
-                    error: Only subscriber can cancel
 
   /pause_subscription:
     post:
@@ -222,14 +170,6 @@ paths:
           description: Subscription paused
         '400':
           description: Invalid state
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ContractError'
-              examples:
-                not_active:
-                  value:
-                    error: Only active subscriptions can be paused
 
   /resume_subscription:
     post:
@@ -252,8 +192,6 @@ paths:
       responses:
         '200':
           description: Subscription resumed
-        '400':
-          description: Invalid state
 
   /charge_subscription:
     post:
@@ -276,17 +214,6 @@ paths:
           description: Payment processed
         '400':
           description: Not due or inactive
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ContractError'
-              examples:
-                not_active:
-                  value:
-                    error: Subscription not active
-                not_due:
-                  value:
-                    error: Payment not yet due
 
   /request_refund:
     post:
@@ -307,23 +234,11 @@ paths:
                 amount:
                   type: integer
                   format: int128
-                  description: Refund amount in stroops
       responses:
         '200':
-          description: Refund requested. Emits refund_requested event.
+          description: Refund requested
         '400':
           description: Validation error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ContractError'
-              examples:
-                not_positive:
-                  value:
-                    error: Refund amount must be positive
-                exceeds_paid:
-                  value:
-                    error: Refund amount cannot exceed total paid
 
   /approve_refund:
     post:
@@ -343,17 +258,9 @@ paths:
                   format: uint64
       responses:
         '200':
-          description: Refund approved and processed. Emits refund_approved event.
+          description: Refund approved and processed
         '400':
           description: No pending refund
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ContractError'
-              examples:
-                no_request:
-                  value:
-                    error: No pending refund request
 
   /reject_refund:
     post:
@@ -373,7 +280,7 @@ paths:
                   format: uint64
       responses:
         '200':
-          description: Refund rejected. Emits refund_rejected event.
+          description: Refund rejected
         '400':
           description: No pending refund
 
@@ -511,37 +418,26 @@ components:
         id:
           type: integer
           format: uint64
-          example: 1
         merchant:
           type: string
-          example: GABCDEFGHIJKLMNOPQRSTUVWXYZ234567
         name:
           type: string
-          example: Pro Monthly
         price:
           type: integer
           format: int128
-          description: Price in stroops
-          example: 10000000
         token:
           type: string
-          description: Payment token contract address
         interval:
           type: string
           enum: [Weekly, Monthly, Quarterly, Yearly]
-          example: Monthly
         active:
           type: boolean
-          example: true
         subscriber_count:
           type: integer
           format: uint32
-          example: 5
         created_at:
           type: integer
           format: uint64
-          description: Unix timestamp
-          example: 1711324800
 
     Subscription:
       type: object
@@ -549,45 +445,56 @@ components:
         id:
           type: integer
           format: uint64
-          example: 1
         plan_id:
           type: integer
           format: uint64
-          example: 1
         subscriber:
           type: string
-          example: GUSER1234567890ABCDEFGHIJKLMNOP
         status:
           type: string
           enum: [Active, Paused, Cancelled, PastDue]
-          example: Active
         started_at:
           type: integer
           format: uint64
-          description: Unix timestamp
         last_charged_at:
           type: integer
           format: uint64
-          description: Unix timestamp
         next_charge_at:
           type: integer
           format: uint64
-          description: Unix timestamp
         total_paid:
           type: integer
           format: int128
-          description: Cumulative amount paid in stroops
         refund_requested_amount:
           type: integer
           format: int128
-          description: Pending refund amount (0 if none)
 
     ContractError:
       type: object
       properties:
         error:
           type: string
-          description: Error message from contract panic
+
+    AuditAnchorInput:
+      type: object
+      properties:
+        chain_head_hash:
+          type: string
+        chain_length:
+          type: integer
+      required: [chain_head_hash, chain_length]
+
+    AuditAnchorResponse:
+      type: object
+      properties:
+        chain_head_hash:
+          type: string
+        chain_length:
+          type: integer
+        timestamp:
+          type: integer
+        anchor_nonce:
+          type: integer
 
 tags:
   - name: Initialization
@@ -600,24 +507,3 @@ tags:
     description: Charge subscriptions, request and manage refunds
   - name: Queries
     description: Read-only data retrieval
-
-x-logging:
-  description: Structured logging system used across SubTrackr backend and client
-  format:
-    level: "debug | info | warn | error"
-    timestamp: ISO-8601 string
-    message: string
-    context:
-      correlationId: string
-      userId: string (optional)
-      subscriptionId: string (optional)
-      txHash: string (optional)
-
-  correlation:
-    description: Used to trace a full user flow across wallet → backend → Soroban
-    type: string
-
-  rules:
-    - Never log private keys or secrets
-    - Always include correlationId for subscription flows
-    - Errors are sent to remote logging service in production

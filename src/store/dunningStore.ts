@@ -210,9 +210,7 @@ export const useDunningStore = create<DunningState>()(
       pauseDunning: (subscriptionId) => {
         set((s) => ({
           entries: s.entries.map((e) =>
-            e.subscriptionId === subscriptionId
-              ? { ...e, isPaused: true, updatedAt: now() }
-              : e
+            e.subscriptionId === subscriptionId ? { ...e, isPaused: true, updatedAt: now() } : e
           ),
         }));
       },
@@ -265,8 +263,7 @@ export const useDunningStore = create<DunningState>()(
         }));
       },
 
-      getEntry: (subscriptionId) =>
-        get().entries.find((e) => e.subscriptionId === subscriptionId),
+      getEntry: (subscriptionId) => get().entries.find((e) => e.subscriptionId === subscriptionId),
 
       getActiveEntries: () => get().entries.filter((e) => !e.isPaused),
 
@@ -286,7 +283,8 @@ export const useDunningStore = create<DunningState>()(
         return {
           totalActiveDunning: totalActive,
           stageBreakdown: breakdown,
-          recoveryRate: totalActive > 0 ? Math.round(((totalActive - totalLost) / totalActive) * 100) : 0,
+          recoveryRate:
+            totalActive > 0 ? Math.round(((totalActive - totalLost) / totalActive) * 100) : 0,
           totalRecovered: 0,
           totalLost,
           averageDaysToRecovery: 0,

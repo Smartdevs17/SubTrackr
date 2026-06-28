@@ -15,11 +15,16 @@ import { Card } from '../components/common/Card';
 import { useCalendarStore } from '../store/calendarStore';
 import { useSubscriptionStore } from '../store/subscriptionStore';
 import {
+  ALL_CALENDAR_EVENT_TYPES,
+  CALENDAR_EVENT_TYPE_LABELS,
   CALENDAR_PROVIDERS,
   REMINDER_OFFSET_OPTIONS,
   REMINDER_PRESETS,
   SUBSCRIPTION_TIMEZONES,
+  SYNC_DIRECTION_LABELS,
+  type CalendarEventType,
   type CalendarProvider,
+  type SyncDirection,
 } from '../types/calendar';
 import { borderRadius, colors, spacing, typography } from '../utils/constants';
 
@@ -68,6 +73,8 @@ const CalendarIntegrationScreen: React.FC = () => {
     checkConflicts,
     exportCalendar,
     setTimezone,
+    setSyncDirection,
+    toggleEventType,
   } = useCalendarStore();
   const subscriptions = useSubscriptionStore((state) => state.subscriptions);
 
@@ -323,6 +330,88 @@ const CalendarIntegrationScreen: React.FC = () => {
             );
           })}
         </Card>
+
+        {integrations.length > 0 && (
+          <Card style={styles.section}>
+            <Text style={styles.sectionTitle}>Two-way sync settings</Text>
+            <Text style={styles.sectionDescription}>
+              Control how events flow between SubTrackr and your calendars. With two-way sync,
+              changes on your calendar (reschedule, snooze, delete) are reflected in SubTrackr.
+            </Text>
+
+            {integrations.map((integration) => (
+              <View key={`sync-${integration.id}`} style={styles.providerCard}>
+                <Text style={styles.providerLabel}>{providerLabels[integration.provider]}</Text>
+
+                <Text style={styles.syncSettingLabel}>Sync direction</Text>
+                <View style={styles.syncDirectionRow}>
+                  {(['to_calendar', 'from_calendar', 'bidirectional'] as SyncDirection[]).map(
+                    (dir) => {
+                      const currentDir =
+                        integration.syncSettings?.syncDirection ?? 'bidirectional';
+                      const isSelected = currentDir === dir;
+                      return (
+                        <TouchableOpacity
+                          key={dir}
+                          style={[styles.syncDirChip, isSelected && styles.offsetChipActive]}
+                          onPress={() => setSyncDirection(integration.id, dir)}>
+                          <Text
+                            style={[
+                              styles.offsetChipText,
+                              isSelected && styles.offsetChipTextActive,
+                            ]}>
+                            {SYNC_DIRECTION_LABELS[dir]}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    },
+                  )}
+                </View>
+
+                <Text style={styles.syncSettingLabel}>Event types to sync</Text>
+                <View style={styles.eventTypeGrid}>
+                  {ALL_CALENDAR_EVENT_TYPES.map((eventType: CalendarEventType) => {
+                    const enabled =
+                      integration.syncSettings?.enabledEventTypes?.includes(eventType) ??
+                      ['payment_due', 'renewal', 'trial_ending'].includes(eventType);
+                    return (
+                      <TouchableOpacity
+                        key={eventType}
+                        style={[styles.eventTypeChip, enabled && styles.offsetChipActive]}
+                        onPress={() => toggleEventType(integration.id, eventType)}>
+                        <Text
+                          style={[
+                            styles.offsetChipText,
+                            enabled && styles.offsetChipTextActive,
+                          ]}>
+                          {CALENDAR_EVENT_TYPE_LABELS[eventType]}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <Text style={styles.syncSettingLabel}>
+                  Sync method: {integration.syncSettings?.syncMethod ?? 'webhook'} (real-time via
+                  webhook, fallback to hourly poll)
+                </Text>
+
+                {integration.syncSettings?.lastSyncResult && (
+                  <View style={styles.syncResultRow}>
+                    <Text style={styles.syncResultText}>
+                      Last sync: {new Date(integration.syncSettings.lastSyncResult.syncedAt).toLocaleString()}
+                      {' — '}
+                      {integration.syncSettings.lastSyncResult.pushed} pushed,{' '}
+                      {integration.syncSettings.lastSyncResult.pulled} pulled
+                      {integration.syncSettings.lastSyncResult.conflicts > 0 &&
+                        `, ${integration.syncSettings.lastSyncResult.conflicts} conflicts`}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            ))}
+          </Card>
+        )}
 
         <Card style={styles.section}>
           <Text style={styles.sectionTitle}>Reminder customization</Text>
@@ -655,6 +744,49 @@ const styles = StyleSheet.create({
   conflictDate: { ...typography.body, color: colors.text, fontWeight: '600' },
   conflictDetail: { ...typography.caption, color: colors.textSecondary },
   conflictSub: { ...typography.small, color: colors.textSecondary, paddingLeft: spacing.sm },
+  syncSettingLabel: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontWeight: '600',
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  syncDirectionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  syncDirChip: {
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  eventTypeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  eventTypeChip: {
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  syncResultRow: {
+    marginTop: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: borderRadius.md,
+    backgroundColor: `${colors.primary}10`,
+  },
+  syncResultText: {
+    ...typography.small,
+    color: colors.textSecondary,
+  },
 });
 
 export default CalendarIntegrationScreen;

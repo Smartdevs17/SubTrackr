@@ -24,10 +24,7 @@ export const isRTL = (): boolean => I18nManager.isRTL;
  * @param ltrValue - Value for LTR
  * @param rtlValue - Value for RTL
  */
-export const getDirectionalValue = <T,>(
-  ltrValue: T,
-  rtlValue?: T
-): T => {
+export const getDirectionalValue = <T>(ltrValue: T, rtlValue?: T): T => {
   if (isRTL() && rtlValue !== undefined) {
     return rtlValue;
   }
