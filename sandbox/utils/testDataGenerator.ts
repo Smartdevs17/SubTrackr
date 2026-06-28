@@ -42,8 +42,28 @@ export class TestDataGenerator {
     const domains = ['gmail.com', 'yahoo.com', 'outlook.com', 'company.io'];
 
     for (let i = 0; i < count; i++) {
-      const firstName = this.randomFrom(['Alice', 'Bob', 'Charlie', 'Diana', 'Eve', 'Frank', 'Grace', 'Henry', 'Ivy', 'Jack']);
-      const lastName = this.randomFrom(['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis']);
+      const firstName = this.randomFrom([
+        'Alice',
+        'Bob',
+        'Charlie',
+        'Diana',
+        'Eve',
+        'Frank',
+        'Grace',
+        'Henry',
+        'Ivy',
+        'Jack',
+      ]);
+      const lastName = this.randomFrom([
+        'Smith',
+        'Johnson',
+        'Williams',
+        'Brown',
+        'Jones',
+        'Garcia',
+        'Miller',
+        'Davis',
+      ]);
       const domain = this.randomFrom(domains);
 
       users.push({
@@ -143,12 +163,15 @@ export class TestDataGenerator {
     return subscriptions;
   }
 
-  static generatePayments(
-    subscriptions: TestSubscription[],
-    count: number
-  ): TestPayment[] {
+  static generatePayments(subscriptions: TestSubscription[], count: number): TestPayment[] {
     const payments: TestPayment[] = [];
-    const statuses: TestPayment['status'][] = ['completed', 'completed', 'completed', 'pending', 'failed'];
+    const statuses: TestPayment['status'][] = [
+      'completed',
+      'completed',
+      'completed',
+      'pending',
+      'failed',
+    ];
 
     for (let i = 0; i < count; i++) {
       const subscription = this.randomFrom(subscriptions);

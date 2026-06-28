@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import { debouncedAsyncStorageAdapter } from '../utils/storage';
 import {
   DEFAULT_INVOICE_CONFIG,
   Invoice,
@@ -12,8 +12,8 @@ import {
   CustomerTaxStatus,
   TaxRemittanceReport,
   TaxRemittanceLineItem,
-  TaxType,
-  DigitalGoodsClass,
+  DigitalGoodsCategory,
+  RemittanceStatus,
   TaxRateEntry,
   MidCycleTaxChange,
   TaxInvoiceGenerationInput,
@@ -129,50 +129,8 @@ const migratePersistedState = (persisted: unknown): PersistedInvoiceSlice => {
   };
 };
 
-const pendingWrites = new Map<string, string>();
-let writeTimer: ReturnType<typeof setTimeout> | null = null;
-let writeQueue = Promise.resolve();
-
-const flushPendingWrites = async (): Promise<void> => {
-  if (pendingWrites.size === 0) return;
-
-  const writes = Array.from(pendingWrites.entries());
-  pendingWrites.clear();
-
-  writeQueue = writeQueue.then(async () => {
-    await Promise.all(writes.map(([key, value]) => AsyncStorage.setItem(key, value)));
-  });
-
-  try {
-    await writeQueue;
-  } catch (error) {
-    console.warn('Failed to persist invoices:', error);
-  }
-};
-
-const debouncedAsyncStorage: StateStorage = {
-  getItem: async (name) => {
-    if (pendingWrites.has(name)) return pendingWrites.get(name) ?? null;
-    await writeQueue;
-    return AsyncStorage.getItem(name);
-  },
-  setItem: async (name, value) => {
-    pendingWrites.set(name, value);
-    if (writeTimer) clearTimeout(writeTimer);
-    writeTimer = setTimeout(() => {
-      void flushPendingWrites();
-    }, WRITE_DEBOUNCE_MS);
-  },
-  removeItem: async (name) => {
-    pendingWrites.delete(name);
-    if (writeTimer && pendingWrites.size === 0) {
-      clearTimeout(writeTimer);
-      writeTimer = null;
-    }
-    await writeQueue;
-    await AsyncStorage.removeItem(name);
-  },
-};
+// Debounced writes are provided by the shared debouncedAsyncStorageAdapter
+// (see src/utils/storage.ts). This removes the copy-pasted boilerplate.
 
 const BPS_SCALE = 10_000;
 
@@ -187,7 +145,7 @@ interface InvoiceState {
   customerTaxStatuses: Record<string, CustomerTaxStatus>;
   taxRemittanceLines: TaxRemittanceLineItem[];
   taxRemittanceReports: TaxRemittanceReport[];
-  digitalGoodsClasses: Record<string, DigitalGoodsClass>;
+  digitalGoodsClasses: Record<string, DigitalGoodsCategory>;
 
   generateInvoiceFromSubscription: (
     data: InvoiceFormData,
@@ -212,11 +170,11 @@ interface InvoiceState {
 
   lookupTaxRate: (
     jurisdiction: TaxJurisdiction,
-    digitalGoodsClass?: DigitalGoodsClass
+    digitalGoodsClass?: DigitalGoodsCategory
   ) => TaxRateEntry | null;
   resolveEffectiveTaxRateBps: (
     jurisdiction: TaxJurisdiction,
-    digitalGoodsClass?: DigitalGoodsClass
+    digitalGoodsClass?: DigitalGoodsCategory
   ) => number;
 
   addTaxRemittanceLine: (line: TaxRemittanceLineItem) => void;
@@ -229,19 +187,19 @@ interface InvoiceState {
   getTaxRemittanceReports: () => TaxRemittanceReport[];
   getTaxRemittanceReport: (reportId: string) => TaxRemittanceReport | undefined;
 
-  setDigitalGoodsClass: (planId: string, goodsClass: DigitalGoodsClass) => void;
-  getDigitalGoodsClass: (planId: string) => DigitalGoodsClass;
+  setDigitalGoodsClass: (planId: string, goodsClass: DigitalGoodsCategory) => void;
+  getDigitalGoodsClass: (planId: string) => DigitalGoodsCategory;
 
   calculateMidCycleTax: (
     jurisdictionKey: string,
     subtotal: number,
     periodStart: Date,
     periodEnd: Date,
-    rateChanges: Array<{
+    rateChanges: {
       oldRateBps: number;
       newRateBps: number;
       effectiveFrom: Date;
-    }>
+    }[]
   ) => MidCycleTaxChange[];
 }
 
@@ -461,10 +419,7 @@ export const useInvoiceStore = create<InvoiceState>()(
       calculateTotals: (id) => {
         const invoice = get().invoices.find((entry) => entry.id === id);
         if (!invoice) return null;
-        return calculateInvoiceTotals(
-          invoice.lineItems,
-          invoice.lineItems[0]?.taxRateBps ?? 0
-        );
+        return calculateInvoiceTotals(invoice.lineItems, invoice.lineItems[0]?.taxRateBps ?? 0);
       },
 
       setCustomerTaxStatus: (subscriberId, status) => {
@@ -484,7 +439,7 @@ export const useInvoiceStore = create<InvoiceState>()(
         });
       },
 
-      isCustomerTaxExempt: (subscriberId, jurisdictionKey) => {
+      isCustomerTaxExempt: (subscriberId, _jurisdictionKey) => {
         const status = get().customerTaxStatuses[subscriberId];
         return checkIsTaxExempt(status ?? null);
       },
@@ -498,7 +453,7 @@ export const useInvoiceStore = create<InvoiceState>()(
         return true;
       },
 
-      lookupTaxRate: (jurisdiction, digitalGoodsClass) => {
+      lookupTaxRate: (jurisdiction, _digitalGoodsClass) => {
         const keys = jurisdictionFallbackKeys(jurisdiction);
         const rates = get().taxRates;
         for (const key of keys) {
@@ -537,25 +492,44 @@ export const useInvoiceStore = create<InvoiceState>()(
           if (existing) {
             existing.taxableAmount += line.taxableAmount;
             existing.taxCollected += line.taxCollected;
-            existing.transactionCount += line.transactionCount;
+            existing.transactionCount =
+              (existing.transactionCount ?? 0) + (line.transactionCount ?? 1);
           } else {
-            aggregated.set(groupKey, { ...line });
+            aggregated.set(groupKey, { ...line, transactionCount: line.transactionCount ?? 1 });
           }
         }
 
         const lineItems = Array.from(aggregated.values());
         const totalTaxCollected = lineItems.reduce((sum, l) => sum + l.taxCollected, 0);
         const totalTaxableAmount = lineItems.reduce((sum, l) => sum + l.taxableAmount, 0);
+        const transactionCount = lineItems.reduce((sum, l) => sum + (l.transactionCount ?? 0), 0);
+
+        const primaryLine = lineItems[0];
+        const jurisdictionParts = primaryLine?.jurisdictionKey?.split('::') ?? [];
+        const jurisdiction: TaxJurisdiction = {
+          country: jurisdictionParts[0] ?? 'Unknown',
+          state: jurisdictionParts[1],
+          city: jurisdictionParts[2],
+          taxType: primaryLine?.taxType ?? get().config.defaultTaxType,
+          rateBps: primaryLine?.rateBps ?? 0,
+          label: primaryLine?.jurisdictionKey ?? 'Unknown',
+          effectiveDate: periodStart,
+        };
 
         const report: TaxRemittanceReport = {
+          id: reportId,
           reportId,
           generatedAt: new Date(),
           periodStart,
           periodEnd,
           merchant: merchantId,
+          jurisdiction,
           lineItems,
           totalTaxCollected,
           totalTaxableAmount,
+          totalTaxRemitted: 0,
+          transactionCount,
+          status: RemittanceStatus.DRAFT,
         };
 
         set((state) => ({
@@ -580,7 +554,7 @@ export const useInvoiceStore = create<InvoiceState>()(
       },
 
       getDigitalGoodsClass: (planId) =>
-        get().digitalGoodsClasses[planId] ?? DigitalGoodsClass.ELECTRONIC_SERVICE,
+        get().digitalGoodsClasses[planId] ?? DigitalGoodsCategory.ONLINE_SERVICE,
 
       calculateMidCycleTax: (jurisdictionKey, subtotal, periodStart, periodEnd, rateChanges) => {
         const periodDuration = periodEnd.getTime() - periodStart.getTime();
@@ -648,7 +622,7 @@ export const useInvoiceStore = create<InvoiceState>()(
     {
       name: STORAGE_KEY,
       version: STORE_VERSION,
-      storage: createJSONStorage(() => debouncedAsyncStorage),
+      storage: createJSONStorage(() => debouncedAsyncStorageAdapter),
       partialize: (state) =>
         serializeForStorage({
           invoices: state.invoices,

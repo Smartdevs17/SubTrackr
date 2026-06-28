@@ -5,51 +5,98 @@ import { navigationRef } from './navigationRef';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
-import HomeScreen from '../screens/HomeScreen';
-import AddSubscriptionScreen from '../screens/AddSubscriptionScreen';
-import CancellationFlowScreen from '../screens/CancellationFlowScreen';
-import WalletConnectScreen from '../screens/WalletConnectV2Screen';
-import CryptoPaymentScreen from '../screens/CryptoPaymentScreen';
-import CommunityScreen from '../screens/CommunityScreen';
-import ProfileScreen from '../screens/ProfileScreen';
-import SubscriptionDetailScreen from '../screens/SubscriptionDetailScreen';
-import InvoiceListScreen from '../screens/InvoiceListScreen';
-import InvoiceDetailScreen from '../screens/InvoiceDetailScreen';
-import AnalyticsScreen from '../screens/AnalyticsScreen';
-import SlaDashboard from '../screens/SlaDashboard';
-import GDPRSettingsScreen from '../screens/GDPRSettingsScreen';
-import LanguageSettingsScreen from '../screens/LanguageSettingsScreen';
-import SessionManagementScreen from '../screens/SessionManagementScreen';
-import SettingsScreen from '../screens/SettingsScreen';
-import CalendarIntegrationScreen from '../screens/CalendarIntegrationScreen';
-import AccountingExportScreen from '../screens/AccountingExportScreen';
-import WebhookSettingsScreen from '../screens/WebhookSettingsScreen';
-import ErrorDashboardScreen from '../screens/ErrorDashboardScreen';
-import ImportScreen from '../screens/ImportScreen';
-import ExportScreen from '../screens/ExportScreen';
-import { BatchOperationsScreen } from '../../app/screens/BatchOperationsScreen';
-import AdminDashboardScreen from '../screens/AdminDashboardScreen';
-import FraudDashboard from '../screens/FraudDashboard';
-import GroupManagementScreen from '../screens/GroupManagementScreen';
-import TaxSettingsScreen from '../screens/TaxSettingsScreen';
-import SupportDashboardScreen from '../screens/SupportDashboardScreen';
-import { SegmentManagementScreen } from '../screens/SegmentManagementScreen';
-import { SegmentDetailScreen } from '../screens/SegmentDetailScreen';
-import { GamificationScreen } from '../screens/GamificationScreen';
-import RevenueReportScreen from '../screens/RevenueReportScreen';
-import UsageDashboardScreen from '../screens/UsageDashboard';
-import MerchantOnboardingScreen from '../screens/MerchantOnboardingScreen';
-import AffiliateDashboardScreen from '../screens/AffiliateDashboardScreen';
-import LoyaltyDashboardScreen from '../screens/LoyaltyDashboardScreen';
-import CampaignManagementScreen from '../screens/CampaignManagementScreen';
-import DeveloperPortalScreen from '../screens/DeveloperPortalScreen';
-import SandboxDashboardScreen from '../screens/SandboxDashboardScreen';
-import ApiKeyManagementScreen from '../screens/ApiKeyManagementScreen';
-import DocumentationPortalScreen from '../screens/DocumentationPortalScreen';
-import IntegrationGuidesScreen from '../screens/IntegrationGuidesScreen';
-import { colors } from '../utils/constants';
-
+import { lazyScreen, prefetchModule } from '../utils/lazyLoading';
 import { RootStackParamList, TabParamList } from './types';
+import { useTheme } from '../theme';
+import { darkNavigationTheme, lightNavigationTheme } from '../theme/navigationTheme';
+
+import HomeScreen from '../screens/HomeScreen';
+import { SettingsScreen } from '../screens/SettingsScreen';
+
+const AddSubscriptionScreen = lazyScreen(() => import('../screens/AddSubscriptionScreen'));
+const CancellationFlowScreen = lazyScreen(() => import('../screens/CancellationFlowScreen'));
+const CancellationFunnelDashboard = lazyScreen(
+  () => import('../screens/CancellationFunnelDashboard')
+);
+const WalletConnectScreen = lazyScreen(() => import('../screens/WalletConnectV2Screen'));
+const CryptoPaymentScreen = lazyScreen(() => import('../screens/CryptoPaymentScreen'));
+const CommunityScreen = lazyScreen(() => import('../screens/CommunityScreen'));
+const ProfileScreen = lazyScreen(() => import('../screens/ProfileScreen'));
+const SubscriptionDetailScreen = lazyScreen(() => import('../screens/SubscriptionDetailScreen'));
+const InvoiceListScreen = lazyScreen(() => import('../screens/InvoiceListScreen'));
+const InvoiceDetailScreen = lazyScreen(() => import('../screens/InvoiceDetailScreen'));
+const AnalyticsScreen = lazyScreen(() => import('../screens/AnalyticsScreen'));
+const SlaDashboard = lazyScreen(() => import('../screens/SlaDashboard'));
+const GDPRSettingsScreen = lazyScreen(() => import('../screens/GDPRSettingsScreen'));
+const LanguageSettingsScreen = lazyScreen(() => import('../screens/LanguageSettingsScreen'));
+const SessionManagementScreen = lazyScreen(() => import('../screens/SessionManagementScreen'));
+const CalendarIntegrationScreen = lazyScreen(() => import('../screens/CalendarIntegrationScreen'));
+const AccountingExportScreen = lazyScreen(() => import('../screens/AccountingExportScreen'));
+const WebhookSettingsScreen = lazyScreen(() => import('../screens/WebhookSettingsScreen'));
+const WebhookLogsScreen = lazyScreen(() => import('../screens/WebhookLogsScreen'));
+const ErrorDashboardScreen = lazyScreen(() => import('../screens/ErrorDashboardScreen'));
+const ImportScreen = lazyScreen(() => import('../screens/ImportScreen'));
+const ExportScreen = lazyScreen(() => import('../screens/ExportScreen'));
+const BatchOperationsScreen = lazyScreen(() =>
+  import('../../app/screens/BatchOperationsScreen').then((m) => ({
+    default: m.BatchOperationsScreen,
+  }))
+);
+const AdminDashboardScreen = lazyScreen(() => import('../screens/AdminDashboardScreen'));
+const FraudDashboard = lazyScreen(() => import('../screens/FraudDashboard'));
+const GroupManagementScreen = lazyScreen(() => import('../screens/GroupManagementScreen'));
+const TaxSettingsScreen = lazyScreen(() => import('../screens/TaxSettingsScreen'));
+const SupportDashboardScreen = lazyScreen(() => import('../screens/SupportDashboardScreen'));
+const SegmentManagementScreen = lazyScreen(() =>
+  import('../screens/SegmentManagementScreen').then((m) => ({ default: m.SegmentManagementScreen }))
+);
+const SegmentDetailScreen = lazyScreen(() =>
+  import('../screens/SegmentDetailScreen').then((m) => ({ default: m.SegmentDetailScreen }))
+);
+const GamificationScreen = lazyScreen(() =>
+  import('../screens/GamificationScreen').then((m) => ({ default: m.GamificationScreen }))
+);
+const RevenueReportScreen = lazyScreen(() => import('../screens/RevenueReportScreen'));
+const UsageDashboardScreen = lazyScreen(() => import('../screens/UsageDashboard'));
+const MerchantOnboardingScreen = lazyScreen(() => import('../screens/MerchantOnboardingScreen'));
+const AffiliateDashboardScreen = lazyScreen(() => import('../screens/AffiliateDashboardScreen'));
+const LoyaltyDashboardScreen = lazyScreen(() => import('../screens/LoyaltyDashboardScreen'));
+const CampaignManagementScreen = lazyScreen(() => import('../screens/CampaignManagementScreen'));
+const PromotionManagementScreen = lazyScreen(() => import('../screens/PromotionManagementScreen'));
+const DeveloperPortalScreen = lazyScreen(() => import('../screens/DeveloperPortalScreen'));
+const SandboxDashboardScreen = lazyScreen(() => import('../screens/SandboxDashboardScreen'));
+const ApiKeyManagementScreen = lazyScreen(() => import('../screens/ApiKeyManagementScreen'));
+const DocumentationPortalScreen = lazyScreen(() => import('../screens/DocumentationPortalScreen'));
+const IntegrationGuidesScreen = lazyScreen(() => import('../screens/IntegrationGuidesScreen'));
+const PartnerDashboardScreen = lazyScreen(() => import('../screens/PartnerDashboardScreen'));
+const PerformanceDashboardScreen = lazyScreen(
+  () => import('../screens/PerformanceDashboardScreen')
+);
+const EditSubscriptionScreen = lazyScreen(() => import('../screens/EditSubscriptionScreen'));
+const ChangePlanScreen = lazyScreen(() => import('../screens/ChangePlanScreen'));
+const BillingSettingsScreen = lazyScreen(() => import('../screens/BillingSettingsScreen'));
+const BillingAlignmentScreen = lazyScreen(() => import('../screens/BillingAlignmentScreen'));
+const PaymentMethodsScreen = lazyScreen(() =>
+  import('../../app/screens/PaymentMethodsScreen').then((m) => ({
+    default: m.PaymentMethodsScreen,
+  }))
+);
+const AnalyticsDashboard = lazyScreen(() => import('../../app/screens/AnalyticsDashboard'));
+const RenewalWorkspaceScreen = lazyScreen(() =>
+  import('../../app/screens/RenewalWorkspaceScreen').then((m) => ({ default: m.default }))
+);
+const EntityManagementScreen = lazyScreen(() => import('../screens/EntityManagementScreen'));
+const PauseSubscriptionScreen = lazyScreen(() => import('../screens/PauseSubscriptionScreen'));
+
+// Issue #547: GDPR
+const PrivacyCenterScreen = lazyScreen(() => import('../screens/PrivacyCenterScreen'));
+const DataExportScreen = lazyScreen(() => import('../screens/DataExportScreen'));
+// Issue #548: Push notifications
+const NotificationPreferencesScreen = lazyScreen(() => import('../screens/NotificationPreferencesScreen'));
+// Issue #549: Email templates
+const EmailTemplateEditorScreen = lazyScreen(() => import('../screens/EmailTemplateEditorScreen'));
+// Issue #550: Advanced dunning
+const DunningDashboardScreen = lazyScreen(() => import('../screens/DunningDashboardScreen'));
 
 const Tab = createBottomTabNavigator<TabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -68,9 +115,24 @@ const HomeStack = () => (
       options={{ title: 'Cancel Subscription', headerShown: true }}
     />
     <Stack.Screen
+      name="CancellationFunnelDashboard"
+      component={CancellationFunnelDashboard}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen
       name="SubscriptionDetail"
       component={SubscriptionDetailScreen}
       options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="EditSubscription"
+      component={EditSubscriptionScreen}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="ChangePlan"
+      component={ChangePlanScreen}
+      options={{ title: 'Change Plan', headerShown: true }}
     />
     <Stack.Screen
       name="WalletConnect"
@@ -160,9 +222,14 @@ const HomeStack = () => (
     <Stack.Screen
       name="IntegrationGuides"
       component={IntegrationGuidesScreen}
-      options={{ headerShown: false }}
+      options={{ title: 'Integrations', headerShown: true }}
     />
-  </Stack.Navigator>
+    <Stack.Screen
+      name="PartnerDashboard"
+      component={PartnerDashboardScreen}
+      options={{ title: 'Partner Dashboard', headerShown: true }}
+    />
+</Stack.Navigator>
 );
 
 const SettingsStack = () => (
@@ -234,6 +301,21 @@ const SettingsStack = () => (
       options={{ title: 'Error Dashboard', headerShown: true }}
     />
     <Stack.Screen
+      name="WebhookSettings"
+      component={WebhookSettingsScreen}
+      options={{ title: 'Webhooks', headerShown: true }}
+    />
+    <Stack.Screen
+      name="WebhookLogs"
+      component={WebhookLogsScreen}
+      options={{ title: 'Delivery Logs', headerShown: true }}
+    />
+    <Stack.Screen
+      name="SessionManagement"
+      component={SessionManagementScreen}
+      options={{ title: 'Sessions', headerShown: true }}
+    />
+    <Stack.Screen
       name="FraudDashboard"
       component={FraudDashboard}
       options={{ title: 'Fraud Dashboard', headerShown: true }}
@@ -274,6 +356,11 @@ const SettingsStack = () => (
       options={{ title: 'Campaigns', headerShown: true }}
     />
     <Stack.Screen
+      name="PromotionManagement"
+      component={PromotionManagementScreen}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen
       name="DeveloperPortal"
       component={DeveloperPortalScreen}
       options={{ title: 'Developer Portal', headerShown: true }}
@@ -288,22 +375,82 @@ const SettingsStack = () => (
       component={ApiKeyManagementScreen}
       options={{ title: 'API Keys', headerShown: true }}
     />
+    <Stack.Screen
+      name="PerformanceDashboard"
+      component={PerformanceDashboardScreen}
+      options={{ title: 'Performance', headerShown: true }}
+    />
+    <Stack.Screen
+      name="BillingSettings"
+      component={BillingSettingsScreen}
+      options={{ title: 'Billing Settings', headerShown: true }}
+    />
+    <Stack.Screen
+      name="BillingAlignment"
+      component={BillingAlignmentScreen}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="PaymentMethods"
+      component={PaymentMethodsScreen}
+      options={{ title: 'Payment Methods', headerShown: true }}
+    />
+    <Stack.Screen
+      name="AnalyticsDashboard"
+      component={AnalyticsDashboard}
+      options={{ title: 'Analytics Dashboard', headerShown: true }}
+    />
+    {/* Issue #547: GDPR */}
+    <Stack.Screen
+      name="PrivacyCenter"
+      component={PrivacyCenterScreen}
+      options={{ title: 'Privacy Center', headerShown: true }}
+    />
+    <Stack.Screen
+      name="DataExport"
+      component={DataExportScreen}
+      options={{ title: 'Export My Data', headerShown: true }}
+    />
+    <Stack.Screen
+      name="DPALog"
+      component={DataExportScreen}
+      options={{ title: 'Data Processing Log', headerShown: true }}
+    />
+    {/* Issue #548: Push notifications */}
+    <Stack.Screen
+      name="NotificationPreferences"
+      component={NotificationPreferencesScreen}
+      options={{ title: 'Notification Preferences', headerShown: true }}
+    />
+    {/* Issue #549: Email templates */}
+    <Stack.Screen
+      name="EmailTemplateEditor"
+      component={EmailTemplateEditorScreen}
+      options={{ title: 'Email Template Editor', headerShown: true }}
+    />
+    {/* Issue #550: Advanced dunning */}
+    <Stack.Screen
+      name="DunningDashboard"
+      component={DunningDashboardScreen}
+      options={{ title: 'Dunning Dashboard', headerShown: true }}
+    />
   </Stack.Navigator>
 );
 
 const TabNavigator = () => {
   const { t } = useTranslation();
+  const { colors } = useTheme();
 
   return (
     <Tab.Navigator
       screenOptions={{
         tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
+          backgroundColor: colors.navigation.tabBar,
+          borderTopColor: colors.navigation.tabBarBorder,
           borderTopWidth: 1,
         },
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textSecondary,
+        tabBarActiveTintColor: colors.navigation.activeTab,
+        tabBarInactiveTintColor: colors.navigation.inactiveTab,
         headerShown: false,
       }}>
       <Tab.Screen
@@ -371,8 +518,19 @@ const TabNavigator = () => {
 };
 
 export const AppNavigator = () => {
+  React.useEffect(() => {
+    prefetchModule('AddSubscription', () => import('../screens/AddSubscriptionScreen'));
+    prefetchModule('WalletConnect', () => import('../screens/WalletConnectV2Screen'));
+    prefetchModule('Analytics', () => import('../screens/AnalyticsScreen'));
+    prefetchModule('SubscriptionDetail', () => import('../screens/SubscriptionDetailScreen'));
+  }, []);
+
+  const { isDark } = useTheme();
+
   return (
-    <NavigationContainer ref={navigationRef}>
+    <NavigationContainer
+      ref={navigationRef}
+      theme={isDark ? darkNavigationTheme : lightNavigationTheme}>
       <TabNavigator />
     </NavigationContainer>
   );

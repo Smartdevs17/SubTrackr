@@ -1,6 +1,6 @@
 #![no_std]
 
-use soroban_sdk::{contracttype, Address, String, Vec};
+use soroban_sdk::{contracttype, Address, BytesN, String, Symbol, Vec};
 
 /// Billing interval in seconds.
 #[contracttype]
@@ -420,6 +420,7 @@ pub enum RiskSignalKind {
     Chargeback,
     PatternShift,
     DeviceMismatch,
+    GeolocationAnomaly,
 }
 
 #[contracttype]
@@ -433,6 +434,16 @@ pub struct RiskSignal {
 
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
+pub struct FraudEvidence {
+    pub label: String,
+    pub value: String,
+    pub source: String,
+    pub captured_at: Timestamp,
+    pub confidence: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
 pub struct RiskScore {
     pub subscriber: Address,
     pub subscription_id: SubscriptionId,
@@ -441,10 +452,14 @@ pub struct RiskScore {
     pub velocity_score: u32,
     pub anomaly_score: u32,
     pub chargeback_score: u32,
+    pub device_mismatch_score: u32,
+    pub geolocation_score: u32,
+    pub pattern_shift_score: u32,
     pub action: FraudAction,
     pub reason: String,
     pub assessed_at: Timestamp,
     pub signals: Vec<RiskSignal>,
+    pub evidence: Vec<FraudEvidence>,
 }
 
 #[contracttype]
@@ -460,6 +475,8 @@ pub struct FraudCase {
     pub reason: String,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
+    pub evidence: Vec<FraudEvidence>,
+    pub reviewed_at: Timestamp,
 }
 
 #[contracttype]
@@ -473,9 +490,76 @@ pub struct FraudReport {
     pub average_risk: u32,
     pub velocity_alerts: u32,
     pub anomaly_alerts: u32,
+    pub geolocation_alerts: u32,
     pub chargeback_predictions: u32,
     pub high_risk_subscribers: u32,
+    pub pending_evidence_count: u32,
+    pub false_positive_feedback_count: u32,
     pub recent_cases: Vec<FraudCase>,
+}
+
+// ── Access Control Types ──
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum Role {
+    Admin,
+    Merchant,
+    Subscriber,
+    Auditor,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum Permission {
+    GrantRole,
+    RevokeRole,
+    DelegatePermission,
+    CreatePlan,
+    DeactivatePlan,
+    SetPlanQuotas,
+    SetRevenueRule,
+    Subscribe,
+    CancelSubscription,
+    PauseSubscription,
+    ResumeSubscription,
+    ChargeSubscription,
+    RequestRefund,
+    ApproveRefund,
+    RejectRefund,
+    RequestTransfer,
+    AcceptTransfer,
+    SetRateLimit,
+    RemoveRateLimit,
+    SetInvoiceContract,
+    ClearInvoiceContract,
+    UpgradeContract,
+    MigrateContract,
+    ViewAnalytics,
+    ViewAuditLog,
+    ViewPlans,
+    ViewSubscriptions,
+    SetEmergencyAdmin,
+    PauseEmergency,
+    SetAccessControl,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum RoleChangeAction {
+    Granted,
+    Revoked,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct RoleChangeEntry {
+    pub id: u64,
+    pub user: Address,
+    pub role: Role,
+    pub action: RoleChangeAction,
+    pub changed_by: Address,
+    pub timestamp: u64,
 }
 
 // ── Tax System Types (extended) ──
@@ -489,6 +573,13 @@ pub enum DigitalGoodsClass {
     Exempt,
     ReducedRate,
     TelecomService,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum MaybeDigitalGoodsClass {
+    None,
+    Some(DigitalGoodsClass),
 }
 
 /// A tax rate entry for a specific jurisdiction and tax type.
@@ -515,7 +606,7 @@ pub struct CustomerTaxStatus {
     pub certificate_expiry: Timestamp,
     pub issuing_authority: String,
     pub exempt_jurisdictions: Vec<String>,
-    pub digital_goods_override: Option<DigitalGoodsClass>,
+    pub digital_goods_override: MaybeDigitalGoodsClass,
 }
 
 /// A single line in a tax remittance report recording collected tax by jurisdiction.
@@ -531,6 +622,7 @@ pub struct TaxRemittanceLineItem {
     pub currency: String,
 }
 
+// ── Storage Keys ──
 /// Storage keys for the proxy contract state.
 ///
 /// IMPORTANT: Never reorder existing variants. Append new variants only.
@@ -605,6 +697,9 @@ pub enum StorageKey {
     /// Usage record for a subscription and metric (sub_id, metric -> UsageRecord)
     SubscriptionUsage(u64, QuotaMetric),
 
+    // ── Added in storage version 5 (Access Control) ──
+    /// Address of the access_control contract for RBAC.
+    AccessControl,
     // ── Added in storage version 5 (Oracle Integration) ──
     /// Address of the oracle contract for price feeds.
     OracleContract,
@@ -612,6 +707,31 @@ pub enum StorageKey {
     PriceBounds(u64),
     /// Mapping from token address to symbol name (for oracle lookups).
     TokenSymbol(Address),
+
+    // ── Added in storage version 6 (Transient / Temporary storage) ──
+    //
+    // Keys in this block are stored with env.storage().temporary() so they
+    // auto-expire after a TTL and cost less than persistent storage.
+    //
+    // IMPORTANT: Never use these keys with instance or persistent storage.
+    // The naming prefix "Tmp" makes the intent explicit at the call site.
+    /// Temporary rate-limit timestamp: last time `caller` invoked `function`.
+    /// TTL is set to the configured min_interval_secs for that function.
+    /// Replaces the previous StorageKey::LastCall which used instance storage.
+    TmpLastCall(Address, String),
+
+    /// Temporary computation scratch-pad for a pending plan-change proration.
+    /// Keyed by subscription_id; expires after one billing interval.
+    TmpProrationScratch(u64),
+
+    /// Temporary nonce used to deduplicate rapid charge attempts within a
+    /// single ledger sequence window.  Expires after one ledger close (~5 s).
+    TmpChargeNonce(u64),
+
+    // ── Added in storage version 7 (Plan limits) ──
+    /// Global maximum number of plans a merchant can create.
+    /// Stored in instance storage; if unset, the implementation default applies.
+    MaxPlansPerMerchant,
 }
 
 /// Slippage protection bounds for oracle-based pricing.
@@ -623,5 +743,139 @@ pub struct PriceBounds {
     /// Minimum allowed price as basis points of the stored plan price (e.g. 9500 = -5%).
     pub min_price_bps: u32,
     /// Quote currency symbol used for price lookup (e.g. "USD").
-    pub quote: String,
+    pub quote: Symbol,
+}
+
+pub type ApiKeyId = u64;
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum ApiKeyStatus {
+    Active,
+    Revoked,
+    Expired,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum UsageTier {
+    Free,
+    Basic,
+    Pro,
+    Enterprise,
+}
+
+impl UsageTier {
+    pub fn default_rate_limit(&self) -> RateLimitConfig {
+        match self {
+            UsageTier::Free => RateLimitConfig {
+                requests_per_minute: 100,
+                requests_per_hour: 1_000,
+                requests_per_day: 10_000,
+                burst_limit: 10,
+            },
+            UsageTier::Basic => RateLimitConfig {
+                requests_per_minute: 1_000,
+                requests_per_hour: 10_000,
+                requests_per_day: 100_000,
+                burst_limit: 50,
+            },
+            UsageTier::Pro => RateLimitConfig {
+                requests_per_minute: 10_000,
+                requests_per_hour: 100_000,
+                requests_per_day: 1_000_000,
+                burst_limit: 200,
+            },
+            UsageTier::Enterprise => RateLimitConfig {
+                requests_per_minute: 100_000,
+                requests_per_hour: 1_000_000,
+                requests_per_day: 10_000_000,
+                burst_limit: 1000,
+            },
+        }
+    }
+
+    pub fn price_per_thousand(&self) -> i128 {
+        match self {
+            UsageTier::Free => 0,
+            UsageTier::Basic => 1,       // 0.001 per 1k requests (in stroops)
+            UsageTier::Pro => 5,         // 0.005 per 1k
+            UsageTier::Enterprise => 10, // 0.01 per 1k
+        }
+    }
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct RateLimitConfig {
+    pub requests_per_minute: u32,
+    pub requests_per_hour: u32,
+    pub requests_per_day: u32,
+    pub burst_limit: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ApiKeyConfig {
+    pub name: String,
+    pub rate_limit: RateLimitConfig,
+    pub usage_tier: UsageTier,
+    pub expires_at: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ApiKey {
+    pub id: ApiKeyId,
+    pub owner: Address,
+    pub key_hash: BytesN<32>,
+    pub name: String,
+    pub rate_limit: RateLimitConfig,
+    pub usage_tier: UsageTier,
+    pub status: ApiKeyStatus,
+    pub created_at: u64,
+    pub expires_at: u64,
+    pub last_used_at: u64,
+    pub revoked_at: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct RateLimitWindow {
+    pub window_start: u64,
+    pub count: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ApiUsageRecord {
+    pub window_start: u64,
+    pub count: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct RateLimitStatus {
+    pub is_allowed: bool,
+    pub remaining: u32,
+    pub reset_at: u64,
+    pub retry_after: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct UsageReport {
+    pub key_id: ApiKeyId,
+    pub period: TimeRange,
+    pub total_requests: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ApiKeyAuditEntry {
+    pub id: u64,
+    pub key_id: ApiKeyId,
+    pub action: String,
+    pub changed_by: Address,
+    pub timestamp: u64,
 }

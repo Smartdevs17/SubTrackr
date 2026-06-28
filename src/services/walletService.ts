@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { Framework, SFError } from '@superfluid-finance/sdk-core';
+import { Framework } from '@superfluid-finance/sdk-core';
 
 import { ERC20__factory, getContractAddress } from '../contracts';
 import { getEvmRpcUrl } from '../config/evm';
@@ -15,8 +15,12 @@ import {
   TokenType,
   PaymentMethodValidationResult,
   PaymentAttempt,
-  GasEstimate,
 } from '../types/wallet';
+import { GasEstimate } from '../types/wallet';
+
+import { NetworkError, NetworkErrorCode, ContractError, ContractErrorCode } from '../errors';
+export { GasEstimate };
+export { NetworkError, NetworkErrorCode, ContractError, ContractErrorCode };
 
 // ── Structured error handling ──────────────────────────────────────
 
@@ -37,12 +41,7 @@ export class WalletError extends Error {
   readonly userMessage: string;
   readonly recovery?: string;
 
-  constructor(
-    code: WalletErrorCode,
-    userMessage: string,
-    recovery?: string,
-    cause?: unknown
-  ) {
+  constructor(code: WalletErrorCode, userMessage: string, recovery?: string, cause?: unknown) {
     super(userMessage);
     this.name = 'WalletError';
     this.code = code;
@@ -111,12 +110,6 @@ export interface StreamSetup {
   startDate: Date;
   endDate?: Date;
   protocol: 'superfluid' | 'sablier';
-}
-
-export interface GasEstimate {
-  gasLimit: string;
-  gasPrice: string;
-  estimatedCost: string;
 }
 
 /** Result after an on-chain Superfluid CFA stream is created */
@@ -269,11 +262,11 @@ export class WalletServiceManager {
 
       return balances;
     } catch (error) {
-      throw toWalletError(
-        error,
-        WalletErrorCode.BALANCE_FETCH_FAILED,
+      throw new NetworkError(
+        NetworkErrorCode.RPC_ERROR,
         'Unable to fetch token balances.',
-        'Check your network connection and try again.'
+        'Check your network connection and try again.',
+        error
       );
     }
   }
@@ -664,11 +657,11 @@ export class WalletServiceManager {
           'Open your wallet and approve the request to continue.'
         );
       }
-      throw toWalletError(
-        error,
-        WalletErrorCode.APPROVAL_FAILED,
+      throw new ContractError(
+        ContractErrorCode.EXECUTION_FAILED,
         'Token approval failed.',
-        'Check your wallet connection and try again.'
+        'Check your wallet connection and try again.',
+        error
       );
     }
   }
@@ -756,7 +749,14 @@ const MAX_PAYMENT_METHODS_PER_USER = 10;
 const EXPIRY_WARNING_DAYS = 30;
 const TOKEN_TYPE_TO_NATIVE_SYMBOL: Record<number, Record<TokenType, string>> = {
   [CHAIN_IDS.ETHEREUM]: { XLM: '', USDC: 'USDC', ETH: 'ETH', NATIVE: 'ETH', MATIC: '', ARB: '' },
-  [CHAIN_IDS.POLYGON]: { XLM: '', USDC: 'USDC', ETH: 'ETH', NATIVE: 'MATIC', MATIC: 'MATIC', ARB: '' },
+  [CHAIN_IDS.POLYGON]: {
+    XLM: '',
+    USDC: 'USDC',
+    ETH: 'ETH',
+    NATIVE: 'MATIC',
+    MATIC: 'MATIC',
+    ARB: '',
+  },
   [CHAIN_IDS.ARBITRUM]: { XLM: '', USDC: 'USDC', ETH: 'ETH', NATIVE: 'ETH', MATIC: '', ARB: 'ARB' },
 };
 
@@ -820,7 +820,11 @@ export class PaymentMethodService {
       errors.push('Label is required');
     }
 
-    if (!data.maxSpendPerInterval || isNaN(Number(data.maxSpendPerInterval)) || Number(data.maxSpendPerInterval) <= 0) {
+    if (
+      !data.maxSpendPerInterval ||
+      isNaN(Number(data.maxSpendPerInterval)) ||
+      Number(data.maxSpendPerInterval) <= 0
+    ) {
       errors.push('Max spend per interval must be a positive number');
     }
 
@@ -858,7 +862,10 @@ export class PaymentMethodService {
 
     try {
       const provider = new ethers.providers.JsonRpcProvider(getEvmRpcUrl(method.chainId));
-      const erc20Abi = ['function decimals() view returns (uint8)', 'function symbol() view returns (string)'];
+      const erc20Abi = [
+        'function decimals() view returns (uint8)',
+        'function symbol() view returns (string)',
+      ];
       const contract = new ethers.Contract(method.tokenAddress, erc20Abi, provider);
 
       const decimals = await contract.decimals();
@@ -895,15 +902,21 @@ export class PaymentMethodService {
   }
 
   getPrimaryMethods(methods: PaymentMethod[]): PaymentMethod[] {
-    return methods.filter((m) => m.priority === PaymentPriority.PRIMARY && m.isActive && m.isVerified);
+    return methods.filter(
+      (m) => m.priority === PaymentPriority.PRIMARY && m.isActive && m.isVerified
+    );
   }
 
   getBackupMethods(methods: PaymentMethod[]): PaymentMethod[] {
-    return methods.filter((m) => m.priority === PaymentPriority.BACKUP && m.isActive && m.isVerified);
+    return methods.filter(
+      (m) => m.priority === PaymentPriority.BACKUP && m.isActive && m.isVerified
+    );
   }
 
   getFallbackMethods(methods: PaymentMethod[]): PaymentMethod[] {
-    return methods.filter((m) => m.priority === PaymentPriority.FALLBACK && m.isActive && m.isVerified);
+    return methods.filter(
+      (m) => m.priority === PaymentPriority.FALLBACK && m.isActive && m.isVerified
+    );
   }
 
   getActiveVerifiedMethods(methods: PaymentMethod[]): PaymentMethod[] {
@@ -976,7 +989,10 @@ export class PaymentMethodService {
         balance = await contract.balanceOf(conn.address);
       }
 
-      const required = ethers.utils.parseUnits(requiredAmount, method.tokenType === TokenType.USDC ? 6 : 18);
+      const required = ethers.utils.parseUnits(
+        requiredAmount,
+        method.tokenType === TokenType.USDC ? 6 : 18
+      );
       return {
         sufficient: balance.gte(required),
         balance: balance.toString(),
@@ -1091,7 +1107,10 @@ export class PaymentMethodService {
           continue;
         }
 
-        if (method.maxSpendPerInterval && ethers.BigNumber.from(amount).gt(method.maxSpendPerInterval)) {
+        if (
+          method.maxSpendPerInterval &&
+          ethers.BigNumber.from(amount).gt(method.maxSpendPerInterval)
+        ) {
           attempt.status = 'failed';
           attempt.failureReason = `Amount ${amount} exceeds max spend per interval ${method.maxSpendPerInterval}`;
           attempt.resolvedAt = new Date();

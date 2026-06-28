@@ -18,7 +18,7 @@ export const EnvironmentBadge: React.FC<EnvironmentBadgeProps> = ({
   const envColors: Record<SandboxEnvironment, string> = {
     [SandboxEnvironment.DEVELOPMENT]: colors.primary,
     [SandboxEnvironment.STAGING]: colors.warning,
-    [SandboxEnvironment.TESTING]: '#9b59b6',
+    [SandboxEnvironment.TESTING]: colors.accent,
     [SandboxEnvironment.PRODUCTION]: colors.success,
   };
 
@@ -46,8 +46,8 @@ export const StatCard: React.FC<StatCardProps> = ({ label, value, trend, trendDi
     trendDirection === 'up'
       ? colors.success
       : trendDirection === 'down'
-      ? colors.error
-      : colors.textSecondary;
+        ? colors.error
+        : colors.textSecondary;
 
   return (
     <Card style={styles.statCard}>

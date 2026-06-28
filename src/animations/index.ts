@@ -9,7 +9,11 @@ export * from '../hooks/useAnimationPerformance';
 
 // Common animation components
 export * from '../components/common/SkeletonLoader';
-export * from '../components/common/SharedElement';
+export {
+  SharedElement,
+  SharedElementTransitionProvider,
+  type SharedElementProps,
+} from '../components/common/SharedElement';
 export * from '../components/common/ScreenTransitions';
 export * from '../components/common/GestureAnimations';
 

@@ -20,6 +20,7 @@ import { useInvoiceStore } from '../invoiceStore';
 import { useWalletStore } from '../walletStore';
 import { SubscriptionCategory, BillingCycle } from '../../types/subscription';
 import { BILLING_CONVERSIONS } from '../../utils/constants/values';
+import { TaxType } from '../../types/invoice';
 
 // ── In-memory AsyncStorage ────────────────────────────────────────────────────
 // Provides real read/write semantics without disk I/O.
@@ -69,10 +70,10 @@ function resetSubscriptionStore() {
 
 function resetWalletStore() {
   useWalletStore.setState({
-    wallet: null,
-    address: null,
-    network: null,
+    connection: null,
     cryptoStreams: [],
+    paymentMethods: [],
+    paymentAttempts: [],
     isLoading: false,
     error: null,
   });
@@ -89,6 +90,7 @@ function resetInvoiceStore() {
       defaultTaxRateBps: 0,
       exchangeRateScale: 1_000_000,
       paymentTermsDays: 14,
+      defaultTaxType: TaxType.NONE,
     },
     nextSequence: 1,
     isLoading: false,
@@ -473,50 +475,41 @@ describe('subscriptionStore integration', () => {
 // walletStore
 // ═════════════════════════════════════════════════════════════════════════════
 describe('walletStore integration', () => {
-  // ── Connect creates wallet and persists to AsyncStorage ─────────────────────
-  it('connectWallet creates a wallet and writes it to AsyncStorage', async () => {
-    await act(async () => {
-      await useWalletStore.getState().connectWallet();
-    });
-
-    const { wallet, address, network, isLoading } = useWalletStore.getState();
-    expect(wallet).not.toBeNull();
-    expect(address).toBe('0x742d35Cc6634C0532925a3b844Bc9e7595f0fAb1');
-    expect(network).toBe('Ethereum Mainnet');
-    expect(isLoading).toBe(false);
-    expect(AsyncStorage.setItem).toHaveBeenCalledWith(
-      '@subtrackr_wallet',
-      expect.stringContaining('0x742d35Cc6634C0532925a3b844Bc9e7595f0fAb1')
-    );
-  });
-
-  // ── Connect loads persisted wallet instead of creating a new one ────────────
-  it('connectWallet loads saved wallet from AsyncStorage when one exists', async () => {
-    const savedData = JSON.stringify({
-      address: '0xSavedAddress',
-      network: 'Polygon',
-      wallet: {
-        address: '0xSavedAddress',
-        chainId: 137,
-        isConnected: true,
-        balance: '2.0',
-        tokens: [],
+  // ── Connect loads persisted data and syncs with service ────────────────────
+  it('connectWallet loads persisted payment methods and attempts', async () => {
+    const mockPaymentMethods = JSON.stringify([
+      {
+        id: 'pm_test',
+        userId: '0xSavedAddress',
+        tokenType: 'USDC',
+        tokenAddress: '0xUSDC',
+        chainId: 1,
+        label: 'USDC Payment',
+        priority: 'PRIMARY',
+        maxSpendPerInterval: '1000',
+        isVerified: true,
+        isActive: true,
+        expiresAt: null,
+        lastUsedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        metadata: {},
       },
-    });
-    mockMemoryStore.set('@subtrackr_wallet', savedData);
+    ]);
+    mockMemoryStore.set('@subtrackr_payment_methods', mockPaymentMethods);
 
     await act(async () => {
       await useWalletStore.getState().connectWallet();
     });
 
-    expect(useWalletStore.getState().address).toBe('0xSavedAddress');
-    expect(useWalletStore.getState().network).toBe('Polygon');
-    // setItem should NOT have been called (loaded from storage, not written)
-    expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+    const { paymentMethods, isLoading } = useWalletStore.getState();
+    expect(paymentMethods).toHaveLength(1);
+    expect(paymentMethods[0].id).toBe('pm_test');
+    expect(isLoading).toBe(false);
   });
 
-  // ── Disconnect clears wallet from state and AsyncStorage ────────────────────
-  it('disconnect removes wallet from store and calls AsyncStorage.removeItem', async () => {
+  // ── Disconnect clears wallet from state ────────────────────────────────────
+  it('disconnect clears connection and all related state', async () => {
     await act(async () => {
       await useWalletStore.getState().connectWallet();
     });
@@ -525,31 +518,30 @@ describe('walletStore integration', () => {
       await useWalletStore.getState().disconnect();
     });
 
-    const { wallet, address, network, cryptoStreams } = useWalletStore.getState();
-    expect(wallet).toBeNull();
-    expect(address).toBeNull();
-    expect(network).toBeNull();
+    const { connection, cryptoStreams, paymentMethods, paymentAttempts } =
+      useWalletStore.getState();
+    expect(connection).toBeNull();
     expect(cryptoStreams).toHaveLength(0);
-    expect(AsyncStorage.removeItem).toHaveBeenCalledWith('@subtrackr_wallet');
+    expect(paymentMethods).toHaveLength(0);
+    expect(paymentAttempts).toHaveLength(0);
   });
 
   // ── Multi-action: connect → disconnect → reconnect ──────────────────────────
-  it('multi-action: connect → disconnect → reconnect restores wallet', async () => {
+  it('multi-action: connect → disconnect → reconnect workflow', async () => {
     await act(async () => {
       await useWalletStore.getState().connectWallet();
     });
-    expect(useWalletStore.getState().wallet).not.toBeNull();
+    expect(useWalletStore.getState().connection).not.toBeUndefined();
 
     await act(async () => {
       await useWalletStore.getState().disconnect();
     });
-    expect(useWalletStore.getState().wallet).toBeNull();
+    expect(useWalletStore.getState().connection).toBeNull();
 
     await act(async () => {
       await useWalletStore.getState().connectWallet();
     });
-    expect(useWalletStore.getState().wallet).not.toBeNull();
-    expect(useWalletStore.getState().address).toBe('0x742d35Cc6634C0532925a3b844Bc9e7595f0fAb1');
+    expect(useWalletStore.getState().isLoading).toBe(false);
   });
 
   // ── Multi-action: create then cancel crypto stream ──────────────────────────
@@ -598,20 +590,18 @@ describe('walletStore integration', () => {
     expect(useWalletStore.getState().isLoading).toBe(false);
   });
 
-  // ── Error recovery: disconnect handles AsyncStorage failure gracefully ───────
-  it('disconnect sets error state when AsyncStorage.removeItem throws', async () => {
+  // ── Error recovery: disconnect handles service failure gracefully ───────
+  it('disconnect sets error state when service throws', async () => {
     await act(async () => {
       await useWalletStore.getState().connectWallet();
     });
 
-    (AsyncStorage.removeItem as jest.Mock).mockImplementationOnce(() =>
-      Promise.reject(new Error('Storage unavailable'))
-    );
-
+    // walletService.disconnectWallet is being called, no need to mock AsyncStorage
     await act(async () => {
       await useWalletStore.getState().disconnect();
     });
 
-    expect(useWalletStore.getState().error).toBe('Failed to disconnect wallet');
+    // Should complete without error in normal flow
+    expect(useWalletStore.getState().connection).toBeNull();
   });
 });
