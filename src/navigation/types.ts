@@ -34,6 +34,7 @@ export type RootStackParamList = {
   FraudDashboard: undefined;
   GroupManagement: undefined;
   TaxSettings: undefined;
+  CreditsAndPrepayments: undefined;
   TaxCompliance: undefined;
   SupportDashboard: undefined;
   UsageDashboard: undefined;
