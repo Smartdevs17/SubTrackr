@@ -1,0 +1,36 @@
+title = "SubTrackr GitLeaks configuration"
+description = "Detect Stellar secrets, API keys, JWTs, private keys, and high-entropy data."
+
+[[rules]]
+id = "stellar-secret-key"
+description = "Stellar secret key starting with S and 56 characters"
+regex = '''S[A-Z2-7]{55}'''
+tags = ["stellar", "secret"]
+
+[[rules]]
+id = "stripe-secret-key"
+description = "Stripe API secret key"
+regex = '''sk_(live|test)_[0-9A-Za-z]{24,}'''
+tags = ["api-key", "stripe"]
+
+[[rules]]
+id = "jwt-token"
+description = "JSON Web Token"
+regex = '''eyJ[A-Za-z0-9_-]{10,}.[A-Za-z0-9_-]{10,}.[A-Za-z0-9_-]{10,}'''
+tags = ["jwt", "token"]
+entropy = 4.5
+entropyAlgorithm = "shannon"
+
+[[rules]]
+id = "pem-private-key"
+description = "PEM private key block"
+regex = '''-----BEGIN (RSA|EC|OPENSSH|PRIVATE) PRIVATE KEY-----'''
+tags = ["private-key", "pem"]
+
+[[rules]]
+id = "high-entropy-encoded-data"
+description = "High-entropy base64-like string or binary secret"
+regex = '''[A-Za-z0-9+/]{25,}={0,2}'''
+tags = ["entropy", "binary"]
+entropy = 4.5
+entropyAlgorithm = "shannon"
