@@ -82,6 +82,7 @@ const PaymentMethodsScreen = lazyScreen(() =>
   }))
 );
 const AnalyticsDashboard = lazyScreen(() => import('../../app/screens/AnalyticsDashboard'));
+const TrialDetailsScreen = lazyScreen(() => import('../screens/TrialDetailsScreen'));
 const RenewalWorkspaceScreen = lazyScreen(() =>
   import('../../app/screens/RenewalWorkspaceScreen').then((m) => ({ default: m.default }))
 );
@@ -225,6 +226,11 @@ const HomeStack = () => (
       options={{ title: 'Integrations', headerShown: true }}
     />
     <Stack.Screen
+      name="TrialDetails"
+      component={TrialDetailsScreen}
+      options={{ title: 'Trial Details', headerShown: true }}
+    />
+  </Stack.Navigator>
       name="PartnerDashboard"
       component={PartnerDashboardScreen}
       options={{ title: 'Partner Dashboard', headerShown: true }}

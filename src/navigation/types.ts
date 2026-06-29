@@ -52,6 +52,7 @@ export type RootStackParamList = {
   ChangePlan: { subscriptionId: string };
   PaymentMethods: undefined;
   AnalyticsDashboard: undefined;
+  TrialDetails: undefined;
   PartnerDashboard: undefined;
   NotFound: { reason?: string };
   // Issue #547: GDPR

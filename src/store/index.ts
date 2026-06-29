@@ -1,3 +1,4 @@
+export { useTrialStore } from './trialStore';
 export { useSubscriptionStore } from './subscriptionStore';
 export { useInvoiceStore } from './invoiceStore';
 export { useTransactionQueueStore } from './transactionQueueStore';
