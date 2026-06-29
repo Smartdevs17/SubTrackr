@@ -46,6 +46,7 @@ const AdminDashboardScreen = lazyScreen(() => import('../screens/AdminDashboardS
 const FraudDashboard = lazyScreen(() => import('../screens/FraudDashboard'));
 const GroupManagementScreen = lazyScreen(() => import('../screens/GroupManagementScreen'));
 const TaxSettingsScreen = lazyScreen(() => import('../screens/TaxSettingsScreen'));
+const TaxComplianceScreen = lazyScreen(() => import('../screens/TaxComplianceScreen'));
 const SupportDashboardScreen = lazyScreen(() => import('../screens/SupportDashboardScreen'));
 const SegmentManagementScreen = lazyScreen(() =>
   import('../screens/SegmentManagementScreen').then((m) => ({ default: m.SegmentManagementScreen }))
@@ -330,6 +331,11 @@ const SettingsStack = () => (
       name="TaxSettings"
       component={TaxSettingsScreen}
       options={{ title: 'Tax Settings', headerShown: true }}
+    />
+    <Stack.Screen
+      name="TaxCompliance"
+      component={TaxComplianceScreen}
+      options={{ title: 'Tax Compliance', headerShown: true }}
     />
     <Stack.Screen
       name="SupportDashboard"
