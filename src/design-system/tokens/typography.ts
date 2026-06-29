@@ -142,10 +142,7 @@ export const letterSpacing = {
  * @param scale - The scaling factor
  * @returns The computed font size
  */
-export function computeResponsiveFontSize(
-  baseFontSize: number,
-  scale: number = 1
-): number {
+export function computeResponsiveFontSize(baseFontSize: number, scale: number = 1): number {
   return Math.round(baseFontSize * scale);
 }
 
