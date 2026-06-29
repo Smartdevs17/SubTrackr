@@ -2,90 +2,39 @@
   "source": "docs/openapi.yaml",
   "generatedBy": "scripts/generate-sdks.js",
   "endpoints": [
-    {
-      "path": "/initialize",
-      "method": "POST",
-      "operation": "initialize"
-    },
-    {
-      "path": "/create_plan",
-      "method": "POST",
-      "operation": "createPlan"
-    },
-    {
-      "path": "/deactivate_plan",
-      "method": "POST",
-      "operation": "deactivatePlan"
-    },
-    {
-      "path": "/subscribe",
-      "method": "POST",
-      "operation": "subscribe"
-    },
-    {
-      "path": "/cancel_subscription",
-      "method": "POST",
-      "operation": "cancelSubscription"
-    },
-    {
-      "path": "/pause_subscription",
-      "method": "POST",
-      "operation": "pauseSubscription"
-    },
-    {
-      "path": "/resume_subscription",
-      "method": "POST",
-      "operation": "resumeSubscription"
-    },
-    {
-      "path": "/charge_subscription",
-      "method": "POST",
-      "operation": "chargeSubscription"
-    },
-    {
-      "path": "/request_refund",
-      "method": "POST",
-      "operation": "requestRefund"
-    },
-    {
-      "path": "/approve_refund",
-      "method": "POST",
-      "operation": "approveRefund"
-    },
-    {
-      "path": "/reject_refund",
-      "method": "POST",
-      "operation": "rejectRefund"
-    },
-    {
-      "path": "/get_plan",
-      "method": "POST",
-      "operation": "getPlan"
-    },
-    {
-      "path": "/get_subscription",
-      "method": "POST",
-      "operation": "getSubscription"
-    },
-    {
-      "path": "/get_user_subscriptions",
-      "method": "POST",
-      "operation": "getUserSubscriptions"
-    },
-    {
-      "path": "/get_merchant_plans",
-      "method": "POST",
-      "operation": "getMerchantPlans"
-    },
-    {
-      "path": "/get_plan_count",
-      "method": "POST",
-      "operation": "getPlanCount"
-    },
-    {
-      "path": "/get_subscription_count",
-      "method": "POST",
-      "operation": "getSubscriptionCount"
-    }
+    { "path": "/initialize", "method": "POST", "operation": "initialize" },
+    { "path": "/create_plan", "method": "POST", "operation": "createPlan" },
+    { "path": "/deactivate_plan", "method": "POST", "operation": "deactivatePlan" },
+    { "path": "/subscribe", "method": "POST", "operation": "subscribe" },
+    { "path": "/cancel_subscription", "method": "POST", "operation": "cancelSubscription" },
+    { "path": "/pause_subscription", "method": "POST", "operation": "pauseSubscription" },
+    { "path": "/resume_subscription", "method": "POST", "operation": "resumeSubscription" },
+    { "path": "/charge_subscription", "method": "POST", "operation": "chargeSubscription" },
+    { "path": "/request_refund", "method": "POST", "operation": "requestRefund" },
+    { "path": "/approve_refund", "method": "POST", "operation": "approveRefund" },
+    { "path": "/reject_refund", "method": "POST", "operation": "rejectRefund" },
+    { "path": "/get_plan", "method": "POST", "operation": "getPlan" },
+    { "path": "/get_subscription", "method": "POST", "operation": "getSubscription" },
+    { "path": "/get_user_subscriptions", "method": "POST", "operation": "getUserSubscriptions" },
+    { "path": "/get_merchant_plans", "method": "POST", "operation": "getMerchantPlans" },
+    { "path": "/get_plan_count", "method": "POST", "operation": "getPlanCount" },
+    { "path": "/get_subscription_count", "method": "POST", "operation": "getSubscriptionCount" },
+    { "path": "/v1/subscriptions", "method": "GET", "operation": "listSubscriptions" },
+    { "path": "/v1/subscriptions", "method": "POST", "operation": "createSubscription" },
+    { "path": "/v1/subscriptions/{id}", "method": "PATCH", "operation": "updateSubscription" },
+    { "path": "/v1/dunning", "method": "GET", "operation": "listDunningEntries" },
+    { "path": "/v1/dunning", "method": "POST", "operation": "createDunningEntry" },
+    { "path": "/v1/dunning/{id}", "method": "GET", "operation": "getDunningEntry" },
+    { "path": "/v1/dunning/{id}/pause", "method": "POST", "operation": "pauseDunning" },
+    { "path": "/v1/dunning/{id}/resolve", "method": "POST", "operation": "resolveDunning" },
+    { "path": "/v1/billing/invoices", "method": "GET", "operation": "listInvoices" },
+    { "path": "/v1/billing/invoices/{id}", "method": "GET", "operation": "getInvoice" },
+    { "path": "/v1/billing/history", "method": "GET", "operation": "listBillingHistory" },
+    { "path": "/v1/usage", "method": "POST", "operation": "ingestUsage" },
+    { "path": "/v1/usage", "method": "GET", "operation": "listUsageRecords" },
+    { "path": "/v1/usage/summary", "method": "GET", "operation": "getUsageSummary" },
+    { "path": "/v1/webhooks", "method": "GET", "operation": "listWebhooks" },
+    { "path": "/v1/webhooks", "method": "POST", "operation": "createWebhook" },
+    { "path": "/v1/webhooks/{id}", "method": "DELETE", "operation": "deleteWebhook" }
   ]
 }
