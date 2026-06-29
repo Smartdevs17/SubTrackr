@@ -116,6 +116,9 @@
     "react-native-screens": "~4.24.0",
     "react-native-svg": "15.15.4",
     "zod": "^3.23.8",
+    "zustand": "^4.5.2"
+    ,
+    "redis": "^4.6.7"
     "zustand": "^5.0.0"
   },
   "devDependencies": {
