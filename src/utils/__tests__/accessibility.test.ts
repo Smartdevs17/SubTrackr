@@ -7,7 +7,6 @@
  */
 
 import { render, RenderAPI } from '@testing-library/react-native';
-import { AccessibilityInfo } from 'react-native';
 
 /**
  * Accessibility test result

@@ -8,7 +8,7 @@ import { Button } from '../Button';
 import {
   runAccessibilityChecks,
   expectNoAccessibilityViolations,
-} from '../../utils/__tests__/accessibility.test';
+} from '../../../utils/__tests__/accessibility.test';
 
 describe('Button Accessibility', () => {
   it('should have no accessibility violations with minimal props', () => {

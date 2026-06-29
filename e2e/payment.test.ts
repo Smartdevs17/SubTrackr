@@ -1,17 +1,17 @@
-import { by, element, expect, waitFor } from 'detox';
+import { by } from 'detox';
 import {
   createSubscription,
-  launchCleanApp,
+  launchSeededApp,
   openSubscriptionByName,
 } from './helpers/subscriptionFlows';
+import { expectVisible, tapWhenReady } from './helpers/waits';
+import { fixtures } from './helpers/testData';
 
 describe('Subscription Charging Flow E2E', () => {
-  beforeAll(async () => {
-    await launchCleanApp();
-  });
-
   beforeEach(async () => {
-    await launchCleanApp();
+    // Deterministic charge responses: success then a controlled failure, served
+    // by the mock network layer rather than a live billing backend.
+    await launchSeededApp(fixtures.empty, { scenario: 'charge-failure' });
   });
 
   it('simulates successful and failed billing events', async () => {
@@ -19,16 +19,11 @@ describe('Subscription Charging Flow E2E', () => {
     await createSubscription(subName, '11.99');
     await openSubscriptionByName(subName);
 
-    await expect(element(by.id('simulate-charge-success-button'))).toBeVisible();
-    await element(by.id('simulate-charge-success-button')).tap();
-
-    await waitFor(element(by.id('simulate-charge-failed-button')))
-      .toBeVisible()
-      .withTimeout(5000);
-    await element(by.id('simulate-charge-failed-button')).tap();
+    await tapWhenReady(by.id('simulate-charge-success-button'));
+    await tapWhenReady(by.id('simulate-charge-failed-button'));
 
     // Validate action controls still available after charging operations.
-    await expect(element(by.id('cancel-subscription-button'))).toBeVisible();
-    await expect(element(by.id('pause-resume-subscription-button'))).toBeVisible();
+    await expectVisible(by.id('cancel-subscription-button'));
+    await expectVisible(by.id('pause-resume-subscription-button'));
   });
 });

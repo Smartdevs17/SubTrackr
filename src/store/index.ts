@@ -13,3 +13,4 @@ export { usePartnerStore } from './partnerStore';
 export { useSupportStore } from './supportStore';
 export { useAuthStore } from './authStore';
 export { useCancellationStore } from './cancellationStore';
+export { useThemeStore } from '../theme/themeStore';
