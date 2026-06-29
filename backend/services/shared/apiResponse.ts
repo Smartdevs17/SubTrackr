@@ -20,6 +20,7 @@
  */
 
 import { randomUUID } from 'crypto';
+import { piiClassifier, type ClassificationLevel } from './piiClassifier';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Core types
@@ -327,3 +328,58 @@ export const API_VERSION_VALUE = '1';
  * so that the requestId in the response meta can be correlated with server logs.
  */
 export const REQUEST_ID_HEADER = 'X-Request-ID';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// #668 – PII Redaction middleware helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Redact PII from an ApiSuccessResponse before sending it over the wire.
+ *
+ * @example
+ * // In an Express handler:
+ * const response = ok(userData, requestId);
+ * res.json(redactResponse(response));               // standard level
+ * res.json(redactResponse(response, 'strict'));      // strict level
+ */
+export function redactResponse<T>(
+  response: ApiSuccessResponse<T>,
+  level: ClassificationLevel = 'standard',
+  allowList?: string[]
+): ApiSuccessResponse<unknown> {
+  return {
+    ...response,
+    data: piiClassifier.redact(response.data, { level, allowList }),
+  };
+}
+
+/**
+ * Express/Fastify-compatible middleware factory that automatically redacts PII
+ * from every outgoing JSON response body.
+ *
+ * Usage:
+ * ```ts
+ * app.use(createPiiRedactionMiddleware());              // standard
+ * app.use(createPiiRedactionMiddleware('strict'));       // strict
+ * ```
+ */
+export function createPiiRedactionMiddleware(
+  level: ClassificationLevel = 'standard',
+  allowList?: string[]
+) {
+  return function piiRedactionMiddleware(
+    _req: unknown,
+    res: {
+      json: (body: unknown) => void;
+      send: (body: unknown) => void;
+    },
+    next: () => void
+  ): void {
+    const originalJson = res.json.bind(res);
+    res.json = (body: unknown) => {
+      const redacted = piiClassifier.redact(body, { level, allowList });
+      return originalJson(redacted);
+    };
+    next();
+  };
+}
