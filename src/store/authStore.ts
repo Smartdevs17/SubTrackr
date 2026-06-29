@@ -93,7 +93,7 @@ function migrateAuthState(persisted: unknown, fromVersion: number): PersistedAut
       typeof raw.userId === 'string'
         ? raw.userId
         : typeof raw.user === 'object' && raw.user !== null
-          ? ((raw.user as Record<string, unknown>).id as string | null) ?? null
+          ? (((raw.user as Record<string, unknown>).id as string | null) ?? null)
           : null;
 
     return {
@@ -195,8 +195,8 @@ export const useAuthStore = create<AuthState>()(
           });
         }
       },
-    },
-  ),
+    }
+  )
 );
 
 // ─────────────────────────────────────────────────────────────────────────────

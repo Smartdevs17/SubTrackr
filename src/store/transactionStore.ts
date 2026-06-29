@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Transaction, TransactionStatus, TransactionType } from '../types/transaction';
+import { Transaction, TransactionStatus } from '../types/transaction';
 
 const STORAGE_KEY = 'subtrackr-transaction-history';
 const MAX_RECORDS = 500;
@@ -11,11 +11,7 @@ interface TransactionState {
 
   // Actions
   addTransaction: (tx: Omit<Transaction, 'id' | 'date'>) => Transaction;
-  updateTransactionStatus: (
-    id: string,
-    status: TransactionStatus,
-    failureReason?: string
-  ) => void;
+  updateTransactionStatus: (id: string, status: TransactionStatus, failureReason?: string) => void;
   getBySubscription: (subscriptionId: string) => Transaction[];
   getByStatus: (status: TransactionStatus) => Transaction[];
   clearHistory: () => void;
