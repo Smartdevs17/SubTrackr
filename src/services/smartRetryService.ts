@@ -38,7 +38,7 @@ export interface InvoiceRetryRecord {
   attempts: number;
   maxAttempts: number;
   lastDeclineCode?: DeclineCode;
-  successHistory: Array<{ hour: number; dayOfWeek: number; success: boolean }>;
+  successHistory: { hour: number; dayOfWeek: number; success: boolean }[];
   cardUpdaterTriggered: boolean;
   createdAt: string;
   updatedAt: string;
@@ -56,7 +56,10 @@ export interface RecoveryFunnelStats {
 
 // ─── Decline code → recovery action map ─────────────────────────────────────
 
-const DECLINE_RECOVERY_MAP: Record<DeclineCode, Omit<RetryDecision, 'shouldRetry' | 'splitAmount'>> = {
+const DECLINE_RECOVERY_MAP: Record<
+  DeclineCode,
+  Omit<RetryDecision, 'shouldRetry' | 'splitAmount'>
+> = {
   insufficient_funds: {
     delayHours: 48,
     outreachChannel: 'email',
@@ -140,7 +143,13 @@ export class SmartRetryService {
   decideRetry(invoiceId: string, declineCode: DeclineCode): RetryDecision {
     const record = this.invoiceRecords.get(invoiceId);
     if (!record) {
-      return { shouldRetry: false, delayHours: 0, outreachChannel: 'email', reason: 'Unknown invoice', escalatePriority: false };
+      return {
+        shouldRetry: false,
+        delayHours: 0,
+        outreachChannel: 'email',
+        reason: 'Unknown invoice',
+        escalatePriority: false,
+      };
     }
 
     // Edge case: max retry cap
@@ -226,10 +235,7 @@ export class SmartRetryService {
       acc[h.hour] = (acc[h.hour] ?? 0) + 1;
       return acc;
     }, {});
-    return parseInt(
-      Object.entries(hourCounts).sort((a, b) => b[1] - a[1])[0][0],
-      10
-    );
+    return parseInt(Object.entries(hourCounts).sort((a, b) => b[1] - a[1])[0][0], 10);
   }
 }
 
@@ -244,7 +250,9 @@ export class DunningEngine {
    */
   async processDueEntries(
     entries: DunningEntry[],
-    chargeHandler: (entry: DunningEntry) => Promise<{ success: boolean; declineCode?: DeclineCode }>,
+    chargeHandler: (
+      entry: DunningEntry
+    ) => Promise<{ success: boolean; declineCode?: DeclineCode }>,
     smartRetryService: SmartRetryService
   ): Promise<{ processed: number; recovered: number; failed: number }> {
     const now = Date.now();
@@ -276,7 +284,11 @@ export class DunningEngine {
 
     // Update stats per merchant
     for (const entry of due) {
-      const stats = this.recoveryStats.get(entry.merchantId) ?? { recovered: 0, failed: 0, total: 0 };
+      const stats = this.recoveryStats.get(entry.merchantId) ?? {
+        recovered: 0,
+        failed: 0,
+        total: 0,
+      };
       stats.total += 1;
       this.recoveryStats.set(entry.merchantId, stats);
     }
@@ -294,10 +306,15 @@ export class DunningEngine {
       sms: { sent: 0, conversions: 0 },
     };
 
-    const byDeclineCode: RecoveryFunnelStats['byDeclineCode'] = {} as RecoveryFunnelStats['byDeclineCode'];
+    const byDeclineCode: RecoveryFunnelStats['byDeclineCode'] =
+      {} as RecoveryFunnelStats['byDeclineCode'];
     const declineCodes: DeclineCode[] = [
-      'insufficient_funds', 'card_expired', 'do_not_honor',
-      'card_lost_stolen', 'authentication_required', 'generic_decline',
+      'insufficient_funds',
+      'card_expired',
+      'do_not_honor',
+      'card_lost_stolen',
+      'authentication_required',
+      'generic_decline',
     ];
     for (const code of declineCodes) {
       byDeclineCode[code] = { count: 0, recoveries: 0 };

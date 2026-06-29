@@ -1,3 +1,6 @@
+import { themeService } from '../services/themeService';
+import { darkTheme } from '../theme/themes';
+
 jest.mock('@react-native-async-storage/async-storage', () => {
   const store = new Map<string, string>();
   return {
@@ -12,9 +15,6 @@ jest.mock('@react-native-async-storage/async-storage', () => {
     }),
   };
 });
-
-import { themeService } from '../services/themeService';
-import { darkTheme } from '../theme/themes';
 
 describe('themeService', () => {
   it('fetchThemes returns empty array when no themes saved', async () => {

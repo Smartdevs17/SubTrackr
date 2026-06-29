@@ -225,11 +225,7 @@ export function mergeLWWMap<T>(local: LWWMap<T>, remote: LWWMap<T>): LWWMap<T> {
 // ── CRDT Operation envelope ───────────────────────────────────────────────────
 
 export type CRDTOpType =
-  | 'lww_set'
-  | 'orset_add'
-  | 'orset_remove'
-  | 'pncounter_increment'
-  | 'pncounter_decrement';
+  'lww_set' | 'orset_add' | 'orset_remove' | 'pncounter_increment' | 'pncounter_decrement';
 
 /**
  * A single CRDT operation ready to be queued offline and replayed on sync.

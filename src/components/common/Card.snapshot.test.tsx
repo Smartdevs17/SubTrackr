@@ -18,5 +18,3 @@ describe('Card (snapshot)', () => {
     expect(toJSON()).toMatchSnapshot({ platform: Platform.OS });
   });
 });
-
-

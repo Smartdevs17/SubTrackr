@@ -6,7 +6,7 @@ import type { OptInCategory, NotificationPriority } from '../services/pushSchedu
 export interface QuietHoursConfig {
   enabled: boolean;
   startHour: number; // 0-23
-  endHour: number;   // 0-23
+  endHour: number; // 0-23
   timezone: string;
 }
 

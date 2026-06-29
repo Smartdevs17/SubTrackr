@@ -68,12 +68,7 @@ export interface RevenueJournalEntry {
   subscriptionId: string;
   merchantId: string;
   type:
-    | 'charge'
-    | 'recognition'
-    | 'modification'
-    | 'termination'
-    | 'acceleration'
-    | 'trial_conversion';
+    'charge' | 'recognition' | 'modification' | 'termination' | 'acceleration' | 'trial_conversion';
   amount: number;
   debitAccount: string;
   creditAccount: string;
@@ -584,10 +579,7 @@ export const useAccountingStore = create<AccountingState>()(
           },
           deferredRevenue: {
             ...state.deferredRevenue,
-            [merchantId]: Math.max(
-              0,
-              (state.deferredRevenue[merchantId] ?? 0) - deferred
-            ),
+            [merchantId]: Math.max(0, (state.deferredRevenue[merchantId] ?? 0) - deferred),
           },
           journalEntries: [...state.journalEntries, journalEntry],
         }));

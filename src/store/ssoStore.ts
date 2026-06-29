@@ -76,7 +76,9 @@ export const useSSOStore = create<SSOState>()(
       activateProvider: (id) => {
         set((state) => ({
           providers: state.providers.map((p) =>
-            p.id === id ? { ...p, status: 'active' as const, updatedAt: new Date().toISOString() } : p,
+            p.id === id
+              ? { ...p, status: 'active' as const, updatedAt: new Date().toISOString() }
+              : p
           ),
         }));
       },
@@ -84,7 +86,9 @@ export const useSSOStore = create<SSOState>()(
       deactivateProvider: (id) => {
         set((state) => ({
           providers: state.providers.map((p) =>
-            p.id === id ? { ...p, status: 'inactive' as const, updatedAt: new Date().toISOString() } : p,
+            p.id === id
+              ? { ...p, status: 'inactive' as const, updatedAt: new Date().toISOString() }
+              : p
           ),
         }));
       },
@@ -92,7 +96,7 @@ export const useSSOStore = create<SSOState>()(
       setRoleMappings: (id, mappings) => {
         set((state) => ({
           providers: state.providers.map((p) =>
-            p.id === id ? { ...p, roleMappings: mappings, updatedAt: new Date().toISOString() } : p,
+            p.id === id ? { ...p, roleMappings: mappings, updatedAt: new Date().toISOString() } : p
           ),
         }));
       },
@@ -101,8 +105,12 @@ export const useSSOStore = create<SSOState>()(
         set((state) => ({
           providers: state.providers.map((p) =>
             p.id === id
-              ? { ...p, jitProvisioningEnabled: !p.jitProvisioningEnabled, updatedAt: new Date().toISOString() }
-              : p,
+              ? {
+                  ...p,
+                  jitProvisioningEnabled: !p.jitProvisioningEnabled,
+                  updatedAt: new Date().toISOString(),
+                }
+              : p
           ),
         }));
       },
@@ -125,12 +133,14 @@ export const useSSOStore = create<SSOState>()(
               samlConfig: {
                 entityId: entityIdMatch[1],
                 ssoUrl: ssoUrlMatch[1],
-                certificates: [{
-                  fingerprint: `cert_${Date.now().toString(36)}`,
-                  notBefore: new Date().toISOString(),
-                  notAfter: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-                  isPrimary: true,
-                }],
+                certificates: [
+                  {
+                    fingerprint: `cert_${Date.now().toString(36)}`,
+                    notBefore: new Date().toISOString(),
+                    notAfter: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+                    isPrimary: true,
+                  },
+                ],
                 nameIdFormat: 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress',
                 signAuthnRequests: true,
                 wantAssertionsSigned: true,
@@ -145,7 +155,7 @@ export const useSSOStore = create<SSOState>()(
       setIPAllowlist: (id, ips) => {
         set((state) => ({
           providers: state.providers.map((p) =>
-            p.id === id ? { ...p, ipAllowlist: ips, updatedAt: new Date().toISOString() } : p,
+            p.id === id ? { ...p, ipAllowlist: ips, updatedAt: new Date().toISOString() } : p
           ),
         }));
       },
@@ -166,7 +176,9 @@ export const useSSOStore = create<SSOState>()(
       deactivateSCIMUser: (userId) => {
         set((state) => ({
           scimUsers: state.scimUsers.map((u) =>
-            u.id === userId ? { ...u, status: 'deactivated' as const, lastSyncedAt: new Date().toISOString() } : u,
+            u.id === userId
+              ? { ...u, status: 'deactivated' as const, lastSyncedAt: new Date().toISOString() }
+              : u
           ),
         }));
       },
@@ -174,7 +186,7 @@ export const useSSOStore = create<SSOState>()(
       updateSCIMUserRole: (userId, role) => {
         set((state) => ({
           scimUsers: state.scimUsers.map((u) =>
-            u.id === userId ? { ...u, role, lastSyncedAt: new Date().toISOString() } : u,
+            u.id === userId ? { ...u, role, lastSyncedAt: new Date().toISOString() } : u
           ),
         }));
       },
@@ -194,6 +206,6 @@ export const useSSOStore = create<SSOState>()(
         providers: state.providers,
         scimUsers: state.scimUsers,
       }),
-    },
-  ),
+    }
+  )
 );

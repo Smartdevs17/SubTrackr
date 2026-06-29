@@ -344,7 +344,7 @@ const DetailSheet: React.FC<DetailProps> = ({ entry, onClose }) => {
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
-const STAGE_FILTERS: Array<DunningStage | 'all'> = ['all', 'retry', 'warn', 'suspend', 'cancel'];
+const STAGE_FILTERS: (DunningStage | 'all')[] = ['all', 'retry', 'warn', 'suspend', 'cancel'];
 
 const DunningDashboard: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();

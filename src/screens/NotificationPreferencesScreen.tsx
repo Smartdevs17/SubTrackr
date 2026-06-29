@@ -1,12 +1,5 @@
 import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Switch,
-  TouchableOpacity,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Switch, TouchableOpacity } from 'react-native';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { useNotificationPreferencesStore } from '../store/notificationPreferencesStore';
 import type { OptInCategory, NotificationPriority } from '../services/pushScheduleEngine';
@@ -24,14 +17,22 @@ const PRIORITY_LABELS: Record<NotificationPriority, { label: string; desc: strin
   marketing: { label: 'All notifications', desc: 'Including promotional messages' },
 };
 
-const DIGEST_OPTIONS: Array<{
+const DIGEST_OPTIONS: {
   value: 'immediate' | 'daily' | 'weekly';
   label: string;
   desc: string;
-}> = [
+}[] = [
   { value: 'immediate', label: 'Immediate', desc: 'Send each notification as it happens' },
-  { value: 'daily', label: 'Daily digest', desc: 'Bundle non-critical alerts into one daily summary' },
-  { value: 'weekly', label: 'Weekly digest', desc: 'Bundle non-critical alerts into one weekly summary' },
+  {
+    value: 'daily',
+    label: 'Daily digest',
+    desc: 'Bundle non-critical alerts into one daily summary',
+  },
+  {
+    value: 'weekly',
+    label: 'Weekly digest',
+    desc: 'Bundle non-critical alerts into one weekly summary',
+  },
 ];
 
 const NotificationPreferencesScreen = () => {
@@ -152,7 +153,9 @@ const NotificationPreferencesScreen = () => {
         {preferences.quietHours.enabled && (
           <View style={styles.quietHoursDetail}>
             <View style={styles.timeRow}>
-              <Text style={styles.rowDesc}>Start hour (UTC): {preferences.quietHours.startHour}:00</Text>
+              <Text style={styles.rowDesc}>
+                Start hour (UTC): {preferences.quietHours.startHour}:00
+              </Text>
               <View style={styles.timeButtons}>
                 {[20, 21, 22, 23].map((h) => (
                   <TouchableOpacity
@@ -170,7 +173,9 @@ const NotificationPreferencesScreen = () => {
               </View>
             </View>
             <View style={styles.timeRow}>
-              <Text style={styles.rowDesc}>End hour (UTC): {preferences.quietHours.endHour}:00</Text>
+              <Text style={styles.rowDesc}>
+                End hour (UTC): {preferences.quietHours.endHour}:00
+              </Text>
               <View style={styles.timeButtons}>
                 {[6, 7, 8, 9].map((h) => (
                   <TouchableOpacity
@@ -224,7 +229,11 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       borderBottomWidth: 1,
       borderBottomColor: colors.border.default,
     },
-    rowSpaceBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    rowSpaceBetween: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
     rowText: { flex: 1, paddingRight: 8 },
     rowLabel: { fontSize: 15, fontWeight: '600', color: colors.text.primary },
     rowDesc: { fontSize: 12, color: colors.textSecondary, marginTop: 2, lineHeight: 16 },

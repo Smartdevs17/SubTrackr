@@ -15,14 +15,23 @@ export function hexToRgb(hex: string): { r: number; g: number; b: number } | nul
   if (!hex || !hex.startsWith('#') || hex.length < 4) return null;
   const clean = hex.replace('#', '');
   if (clean.length !== 6 && clean.length !== 3) return null;
-  const full = clean.length === 3 ? clean.split('').map((c) => c + c).join('') : clean;
+  const full =
+    clean.length === 3
+      ? clean
+          .split('')
+          .map((c) => c + c)
+          .join('')
+      : clean;
   const num = parseInt(full, 16);
   if (isNaN(num)) return null;
   return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
 }
 
 export function rgbToHex(r: number, g: number, b: number): string {
-  const toHex = (n: number) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0');
+  const toHex = (n: number) =>
+    Math.max(0, Math.min(255, Math.round(n)))
+      .toString(16)
+      .padStart(2, '0');
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
@@ -49,7 +58,10 @@ export function getContrastTextColor(hex: string): string {
   return luminance > 0.5 ? '#0f172a' : '#f8fafc';
 }
 
-export function generateSemanticPalette(primary: string, mode: ThemeMode): {
+export function generateSemanticPalette(
+  primary: string,
+  mode: ThemeMode
+): {
   success: string;
   warning: string;
   error: string;
@@ -65,22 +77,22 @@ export function generateSemanticPalette(primary: string, mode: ThemeMode): {
     success: rgbToHex(
       Math.round(base.r * (1 - saturation) + (isDark ? 16 : 5) * saturation),
       Math.round(base.g * (1 - saturation) + (isDark ? 185 : 150) * saturation),
-      Math.round(base.b * (1 - saturation) + (isDark ? 129 : 105) * saturation),
+      Math.round(base.b * (1 - saturation) + (isDark ? 129 : 105) * saturation)
     ),
     warning: rgbToHex(
       Math.round(base.r * (1 - saturation) + (isDark ? 245 : 217) * saturation),
       Math.round(base.g * (1 - saturation) + (isDark ? 158 : 119) * saturation),
-      Math.round(base.b * (1 - saturation) + (isDark ? 11 : 6) * saturation),
+      Math.round(base.b * (1 - saturation) + (isDark ? 11 : 6) * saturation)
     ),
     error: rgbToHex(
       Math.round(base.r * (1 - saturation) + 239 * saturation),
       Math.round(base.g * (1 - saturation) + 68 * saturation),
-      Math.round(base.b * (1 - saturation) + 68 * saturation),
+      Math.round(base.b * (1 - saturation) + 68 * saturation)
     ),
     info: rgbToHex(
       Math.round(base.r * (1 - saturation) + 59 * saturation),
       Math.round(base.g * (1 - saturation) + 130 * saturation),
-      Math.round(base.b * (1 - saturation) + 246 * saturation),
+      Math.round(base.b * (1 - saturation) + 246 * saturation)
     ),
   };
 }
@@ -135,7 +147,10 @@ export function generateExtendedColors(colors: ThemeColors, mode: ThemeMode): Ex
   };
 }
 
-export function generateSurfaceColors(primary: string, mode: ThemeMode): {
+export function generateSurfaceColors(
+  primary: string,
+  mode: ThemeMode
+): {
   background: string;
   surface: string;
   text: string;
@@ -146,8 +161,20 @@ export function generateSurfaceColors(primary: string, mode: ThemeMode): {
   const rgb = hexToRgb(primary);
   if (!rgb) {
     return isDark
-      ? { background: '#0f172a', surface: '#1e293b', text: '#f8fafc', textSecondary: '#cbd5e1', border: '#334155' }
-      : { background: '#f8fafc', surface: '#ffffff', text: '#0f172a', textSecondary: '#475569', border: '#e2e8f0' };
+      ? {
+          background: '#0f172a',
+          surface: '#1e293b',
+          text: '#f8fafc',
+          textSecondary: '#cbd5e1',
+          border: '#334155',
+        }
+      : {
+          background: '#f8fafc',
+          surface: '#ffffff',
+          text: '#0f172a',
+          textSecondary: '#475569',
+          border: '#e2e8f0',
+        };
   }
   const avg = (rgb.r + rgb.g + rgb.b) / 3;
   if (isDark) {
@@ -176,7 +203,7 @@ export function buildThemeFromConfig(
   config: Partial<ThemeConfig>,
   mode: ThemeMode,
   baseId: string,
-  themeName: string,
+  themeName: string
 ): Theme {
   const colors: ColorDefaults = config.colors || {};
   const primary = colors.primary || '#6366f1';
@@ -224,7 +251,7 @@ export function createThemeVariantPair(
   config: ThemeConfig,
   id: string,
   name: string,
-  shared?: Partial<ThemeSharedConfig>,
+  shared?: Partial<ThemeSharedConfig>
 ): ThemeVariantPair {
   const sharedConfig: ThemeSharedConfig = {
     id,

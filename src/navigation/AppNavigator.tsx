@@ -96,7 +96,9 @@ const PauseSubscriptionScreen = lazyScreen(() => import('../screens/PauseSubscri
 const PrivacyCenterScreen = lazyScreen(() => import('../screens/PrivacyCenterScreen'));
 const DataExportScreen = lazyScreen(() => import('../screens/DataExportScreen'));
 // Issue #548: Push notifications
-const NotificationPreferencesScreen = lazyScreen(() => import('../screens/NotificationPreferencesScreen'));
+const NotificationPreferencesScreen = lazyScreen(
+  () => import('../screens/NotificationPreferencesScreen')
+);
 // Issue #549: Email templates
 const EmailTemplateEditorScreen = lazyScreen(() => import('../screens/EmailTemplateEditorScreen'));
 // Issue #550: Advanced dunning
@@ -238,7 +240,7 @@ const HomeStack = () => (
       component={PartnerDashboardScreen}
       options={{ title: 'Partner Dashboard', headerShown: true }}
     />
-</Stack.Navigator>
+  </Stack.Navigator>
 );
 
 const SettingsStack = () => (

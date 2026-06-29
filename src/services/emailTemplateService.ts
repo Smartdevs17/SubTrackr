@@ -37,12 +37,7 @@ export class EmailTemplateService {
 
   // ─── CRUD ────────────────────────────────────────────────────────────────────
 
-  create(
-    merchantId: string,
-    name: string,
-    trigger: string,
-    defaultLocale = 'en'
-  ): EmailTemplate {
+  create(merchantId: string, name: string, trigger: string, defaultLocale = 'en'): EmailTemplate {
     const id = createId('tmpl');
     const template: EmailTemplate = {
       id,
@@ -75,7 +70,10 @@ export class EmailTemplateService {
     return Array.from(this.templates.values()).filter((t) => t.merchantId === merchantId);
   }
 
-  update(id: string, patch: Partial<Pick<EmailTemplate, 'name' | 'customCss' | 'abTest' | 'locales'>>): EmailTemplate | null {
+  update(
+    id: string,
+    patch: Partial<Pick<EmailTemplate, 'name' | 'customCss' | 'abTest' | 'locales'>>
+  ): EmailTemplate | null {
     const template = this.templates.get(id);
     if (!template || template.status === 'archived') return null;
 

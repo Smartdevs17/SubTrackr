@@ -55,7 +55,9 @@ const DataExportScreen = () => {
         <Text style={styles.cardTitle}>What's included</Text>
         {categoryGroups.map(([category, fields]) => (
           <View key={category} style={styles.categoryRow}>
-            <Text style={styles.categoryLabel}>{category.charAt(0).toUpperCase() + category.slice(1)}</Text>
+            <Text style={styles.categoryLabel}>
+              {category.charAt(0).toUpperCase() + category.slice(1)}
+            </Text>
             <Text style={styles.categoryFields}>{fields.map((f) => f.field).join(', ')}</Text>
           </View>
         ))}
@@ -136,7 +138,12 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       borderBottomWidth: 1,
       borderBottomColor: colors.border.default,
     },
-    categoryLabel: { fontSize: 13, fontWeight: '600', color: colors.text.primary, textTransform: 'capitalize' },
+    categoryLabel: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.text.primary,
+      textTransform: 'capitalize',
+    },
     categoryFields: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
     infoRow: {
       flexDirection: 'row',
