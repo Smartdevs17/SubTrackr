@@ -77,6 +77,7 @@ const PerformanceDashboardScreen = lazyScreen(
 const EditSubscriptionScreen = lazyScreen(() => import('../screens/EditSubscriptionScreen'));
 const ChangePlanScreen = lazyScreen(() => import('../screens/ChangePlanScreen'));
 const BillingSettingsScreen = lazyScreen(() => import('../screens/BillingSettingsScreen'));
+const CustomerHealthScreen = lazyScreen(() => import('../screens/CustomerHealthScreen'));
 const BillingAlignmentScreen = lazyScreen(() => import('../screens/BillingAlignmentScreen'));
 const PaymentMethodsScreen = lazyScreen(() =>
   import('../../app/screens/PaymentMethodsScreen').then((m) => ({
@@ -395,6 +396,11 @@ const SettingsStack = () => (
       name="PerformanceDashboard"
       component={PerformanceDashboardScreen}
       options={{ title: 'Performance', headerShown: true }}
+    />
+    <Stack.Screen
+      name="CustomerHealth"
+      component={CustomerHealthScreen}
+      options={{ title: 'Customer Health', headerShown: true }}
     />
     <Stack.Screen
       name="BillingSettings"

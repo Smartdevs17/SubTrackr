@@ -49,6 +49,7 @@ export type RootStackParamList = {
   CampaignManagement: undefined;
   PromotionManagement: undefined;
   PerformanceDashboard: undefined;
+  CustomerHealth: undefined;
   BillingSettings: undefined;
   BillingAlignment: undefined;
   ChangePlan: { subscriptionId: string };
