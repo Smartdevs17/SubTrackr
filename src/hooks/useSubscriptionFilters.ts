@@ -13,7 +13,10 @@ export const useSubscriptionFilters = (subscriptions: Subscription[]) => {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
   const debouncedSearchQuery = useDebounce(searchQuery);
-  const normalizedSearch = useMemo(() => debouncedSearchQuery.trim().toLowerCase(), [debouncedSearchQuery]);
+  const normalizedSearch = useMemo(
+    () => debouncedSearchQuery.trim().toLowerCase(),
+    [debouncedSearchQuery]
+  );
 
   const matchesSearch = useCallback(
     (sub: Subscription): boolean => {

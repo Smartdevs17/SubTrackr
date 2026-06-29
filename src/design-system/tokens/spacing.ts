@@ -12,7 +12,7 @@ import type { SpacingTokens } from '../types/design-tokens';
 export const spacing: SpacingTokens = {
   // Base unit: 4px (half-step)
   xs: 4, // 0.25rem - Extra small spacing (micro-interactions)
-  
+
   // Primary scale: 8px increments
   sm: 8, // 0.5rem - Small spacing
   md: 16, // 1rem - Medium spacing (default)
@@ -64,9 +64,6 @@ export function getSpacing(scale: SpacingValue): number {
  * @param vertical - Vertical spacing
  * @returns Array of spacing values
  */
-export function getSpacingPair(
-  horizontal: SpacingValue,
-  vertical: SpacingValue
-): [number, number] {
+export function getSpacingPair(horizontal: SpacingValue, vertical: SpacingValue): [number, number] {
   return [spacing[horizontal], spacing[vertical]];
 }

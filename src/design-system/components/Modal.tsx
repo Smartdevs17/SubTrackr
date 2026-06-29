@@ -12,11 +12,10 @@ import {
   TouchableWithoutFeedback,
   Animated,
   Platform,
-  AccessibilityInfo,
 } from 'react-native';
 import type { ViewStyle } from 'react-native';
 
-import { spacing, borderRadius, shadows, animation } from '../tokens';
+import { borderRadius, shadows, animation } from '../tokens';
 import type { BaseComponentProps } from '../types/design-tokens';
 
 // ============================================================================
@@ -206,14 +205,12 @@ export const Modal = React.forwardRef<View, ModalProps>(
         accessible
         accessibilityLabel={accessibilityLabel || 'Modal dialog'}
         accessibilityRole={accessibilityRole}
-        testID={modalId}
-      >
+        testID={modalId}>
         <View style={[styles.container, containerStyle]}>
           {showBackdrop && (
             <TouchableWithoutFeedback
               onPress={closeOnBackdropTap ? onClose : undefined}
-              accessible={false}
-            >
+              accessible={false}>
               <View style={styles.backdrop} />
             </TouchableWithoutFeedback>
           )}
@@ -236,8 +233,7 @@ export const Modal = React.forwardRef<View, ModalProps>(
             ]}
             accessible
             accessibilityLabel={accessibilityLabel}
-            accessibilityRole="dialog"
-          >
+            accessibilityRole="dialog">
             {children}
           </Animated.View>
         </View>

@@ -3,8 +3,6 @@
  * Handles responsive font scaling and WCAG compliance
  */
 
-import { useWindowDimensions, AccessibilityInfo } from 'react-native';
-
 /**
  * Calculate responsive font size based on screen width
  * Uses a modular scale for better typography

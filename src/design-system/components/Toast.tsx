@@ -5,13 +5,7 @@
  */
 
 import React from 'react';
-import {
-  StyleSheet,
-  View,
-  Text,
-  Animated,
-  AccessibilityInfo,
-} from 'react-native';
+import { StyleSheet, View, Text, Animated, AccessibilityInfo } from 'react-native';
 import type { ViewStyle, TextStyle } from 'react-native';
 
 import { spacing, borderRadius, shadows, typography, animation } from '../tokens';
@@ -130,9 +124,7 @@ interface ToastThemeColors {
   actionText: string;
 }
 
-const getToastThemeColors = (
-  variant: ToastVariant
-): ToastThemeColors => {
+const getToastThemeColors = (variant: ToastVariant): ToastThemeColors => {
   // Mock theme colors
   const colors: Record<ToastVariant, ToastThemeColors> = {
     success: {
@@ -269,14 +261,12 @@ export const Toast = React.forwardRef<View, ToastProps>(
         accessibilityLabel={accessibilityLabel || message}
         accessibilityRole="alert"
         accessibilityLiveRegion="polite"
-        testID={toastId}
-      >
+        testID={toastId}>
         <Text
           style={[styles.messageText, messageStyle]}
           numberOfLines={3}
           allowFontScaling
-          maxFontSizeMultiplier={1.2}
-        >
+          maxFontSizeMultiplier={1.2}>
           {message}
         </Text>
 
@@ -287,8 +277,7 @@ export const Toast = React.forwardRef<View, ToastProps>(
               style={[styles.actionText, actionTextStyle]}
               onPress={handleAction}
               allowFontScaling
-              maxFontSizeMultiplier={1.2}
-            >
+              maxFontSizeMultiplier={1.2}>
               {actionLabel}
             </Text>
           </View>
