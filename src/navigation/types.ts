@@ -1,4 +1,15 @@
-import { NavigatorScreenParams } from '@react-navigation/native';
+import { NavigatorScreenParams, RouteProp, useNavigation, useRoute } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { BillingCycle } from '../types/subscription';
+
+/**
+ * Navigation types are intentionally explicit to avoid runtime route mismatches.
+ *
+ * Migration guide:
+ * 1. Replace untyped `useNavigation()` with `useAppNavigation<'RouteName'>()`.
+ * 2. Replace untyped `useRoute()` with `useAppRoute<'RouteName'>()`.
+ * 3. For external navigation, use the typed `navigationRef` helpers in `navigationRef.ts`.
+ */
 
 export type RootStackParamList = {
   Home: undefined;
@@ -37,7 +48,7 @@ export type RootStackParamList = {
   CreditsAndPrepayments: undefined;
   TaxCompliance: undefined;
   SupportDashboard: undefined;
-  UsageDashboard: undefined;
+  UsageDashboard: { subscriptionId?: string; planId?: string; name?: string } | undefined;
   DeveloperPortal: undefined;
   SandboxDashboard: undefined;
   ApiKeyManagement: undefined;
@@ -78,3 +89,21 @@ export type TabParamList = {
   RevenueTab: undefined;
   SettingsTab: NavigatorScreenParams<RootStackParamList> | undefined;
 };
+
+export type RootStackScreenRouteProp<RouteName extends keyof RootStackParamList> =
+  RouteProp<RootStackParamList, RouteName>;
+
+export type RootStackScreenNavigationProp<RouteName extends keyof RootStackParamList> =
+  NativeStackNavigationProp<RootStackParamList, RouteName>;
+
+export type AppTabNavigationProp<RouteName extends keyof TabParamList> =
+  NativeStackNavigationProp<TabParamList, RouteName>;
+
+export const useAppNavigation = <RouteName extends keyof RootStackParamList>() =>
+  useNavigation<RootStackScreenNavigationProp<RouteName>>();
+
+export const useAppRoute = <RouteName extends keyof RootStackParamList>() =>
+  useRoute<RootStackScreenRouteProp<RouteName>>();
+
+export const useAppTabNavigation = <RouteName extends keyof TabParamList>() =>
+  useNavigation<AppTabNavigationProp<RouteName>>();

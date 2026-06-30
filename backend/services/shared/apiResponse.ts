@@ -138,6 +138,10 @@ export type ErrorCode =
   // ── Idempotency ──────────────────────────────────────────────────────────
   | 'IDEMPOTENCY_KEY_COLLISION'
   | 'IDEMPOTENCY_REQUEST_IN_FLIGHT'
+  // ── Usage metering ───────────────────────────────────────────────────────
+  | 'USAGE_BATCH_TOO_LARGE'
+  | 'USAGE_INVALID_EVENT'
+  | 'USAGE_HARD_LIMIT_EXCEEDED'
   // ── Locking (Issue #610) ─────────────────────────────────────────────────
   | 'LOCK_ACQUISITION_TIMEOUT'
   | 'LOCK_DEADLOCK_DETECTED'
@@ -213,6 +217,10 @@ export const ERROR_HTTP_STATUS_MAP: Record<ErrorCode, number> = {
   // Idempotency
   IDEMPOTENCY_KEY_COLLISION: 422,
   IDEMPOTENCY_REQUEST_IN_FLIGHT: 409,
+  // Usage metering
+  USAGE_BATCH_TOO_LARGE: 413,
+  USAGE_INVALID_EVENT: 422,
+  USAGE_HARD_LIMIT_EXCEEDED: 402,
   // Locking (Issue #610)
   LOCK_ACQUISITION_TIMEOUT: 409,
   LOCK_DEADLOCK_DETECTED: 409,
