@@ -1,0 +1,162 @@
+version: '3.8'
+
+# Common limits: 8 services * 0.5 CPU = 4 CPUs | 8 services * 1G = 8GB RAM
+x-resources: &default-resources
+  deploy:
+    resources:
+      limits:
+        cpus: '0.5'
+        memory: 1G
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASS:-postgres}
+      POSTGRES_DB: ${DB_NAME:-subtrackr}
+    ports:
+      - "${COMPOSE_PORT_POSTGRES:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-subtrackr}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    <<: *default-resources
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${COMPOSE_PORT_REDIS:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    <<: *default-resources
+
+  soroban-standalone:
+    image: stellar/quickstart:testing
+    command: --standalone --enable-soroban-rpc
+    ports:
+      - "${COMPOSE_PORT_SOROBAN:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    <<: *default-resources
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    ports:
+      - "${COMPOSE_PORT_BACKEND:-3000}:3000"
+    environment:
+      - NODE_ENV=development
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASS=${DB_PASS:-postgres}
+      - DB_NAME=${DB_NAME:-subtrackr}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - SOROBAN_RPC_URL=${SOROBAN_RPC_URL:-http://soroban-standalone:8000/rpc}
+    command: ["npx", "--yes", "ts-node-dev", "--respawn", "--transpile-only", "backend/server/start.ts"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    <<: *default-resources
+
+  workers:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    environment:
+      - NODE_ENV=development
+      - DB_HOST=postgres
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASS=${DB_PASS:-postgres}
+      - DB_NAME=${DB_NAME:-subtrackr}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+    command: ["npx", "--yes", "ts-node-dev", "--respawn", "--transpile-only", "backend/billing/jobs/billingJobQueue.ts"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    <<: *default-resources
+
+  webhook-dispatcher:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    environment:
+      - NODE_ENV=development
+      - DB_HOST=postgres
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASS=${DB_PASS:-postgres}
+      - DB_NAME=${DB_NAME:-subtrackr}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+    command: ["npx", "--yes", "ts-node-dev", "--respawn", "--transpile-only", "backend/webhook/jobs/webhookDeliveryJob.ts"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    <<: *default-resources
+
+  ml-service:
+    build:
+      context: .
+      dockerfile: docker/ml.Dockerfile
+    ports:
+      - "${COMPOSE_PORT_ML:-8001}:8000"
+    environment:
+      - DB_HOST=postgres
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    <<: *default-resources
+
+  mobile:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    ports:
+      - "${COMPOSE_PORT_EXPO:-8081}:8081"
+    environment:
+      - NODE_ENV=development
+      - EXPO_DEVTOOLS_LISTEN_ADDRESS=0.0.0.0
+      - REACT_NATIVE_PACKAGER_HOSTNAME=${HOST_IP:-127.0.0.1}
+    command: ["npx", "expo", "start"]
+    profiles:
+      - mobile
+    <<: *default-resources
+
+  seed:
+    image: postgres:15-alpine
+    environment:
+      - PGHOST=postgres
+      - PGUSER=${DB_USER:-postgres}
+      - PGPASSWORD=${DB_PASS:-postgres}
+      - PGDATABASE=${DB_NAME:-subtrackr}
+    volumes:
+      - ./docker/seed:/seed
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["psql", "-f", "/seed/seed.sql"]
+    profiles:
+      - tools
+
+volumes:
+  postgres_data:
+  redis_data:

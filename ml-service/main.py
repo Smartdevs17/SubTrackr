@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 import time
 import logging
 
-from routers import churn, recommendations, pricing, health
+from routers import churn, recommendations, pricing, health, anomaly
 from model_registry import ModelRegistry
 
 logging.basicConfig(level=logging.INFO)
@@ -45,3 +45,4 @@ app.include_router(health.router)
 app.include_router(churn.router, prefix="/v1/churn")
 app.include_router(recommendations.router, prefix="/v1/recommendations")
 app.include_router(pricing.router, prefix="/v1/pricing")
+app.include_router(anomaly.router, prefix="/v1/anomaly")

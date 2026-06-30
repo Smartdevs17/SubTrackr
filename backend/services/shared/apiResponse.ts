@@ -20,6 +20,7 @@
  */
 
 import { randomUUID } from 'crypto';
+import { piiClassifier, type ClassificationLevel } from './piiClassifier';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Core types
@@ -55,6 +56,8 @@ export interface ApiError {
   message: string;
   /** Optional field-level validation details. */
   details?: Record<string, string>;
+  /** For OCC conflicts, the current version of the resource on the server. */
+  version?: number;
 }
 
 /** Successful response envelope. */
@@ -94,6 +97,8 @@ export type ErrorCode =
   | 'UNAUTHORIZED'
   | 'FORBIDDEN'
   | 'CONFLICT'
+  /** Optimistic Concurrency Control failure. */
+  | 'CONFLICT_VERSION_MISMATCH'
   | 'BAD_REQUEST'
   | 'SERVICE_UNAVAILABLE'
   // ── Rate limiting ─────────────────────────────────────────────────────────
@@ -132,7 +137,28 @@ export type ErrorCode =
   | 'TAX_JURISDICTION_NOT_FOUND'
   // ── Idempotency ──────────────────────────────────────────────────────────
   | 'IDEMPOTENCY_KEY_COLLISION'
-  | 'IDEMPOTENCY_REQUEST_IN_FLIGHT';
+  | 'IDEMPOTENCY_REQUEST_IN_FLIGHT'
+  // ── Locking (Issue #610) ─────────────────────────────────────────────────
+  | 'LOCK_ACQUISITION_TIMEOUT'
+  | 'LOCK_DEADLOCK_DETECTED'
+  | 'LOCK_RELEASE_FAILED'
+  // ── Encryption (Issue #604) ──────────────────────────────────────────────
+  | 'ENCRYPTION_KEY_NOT_FOUND'
+  | 'ENCRYPTION_KMS_UNAVAILABLE'
+  | 'ENCRYPTION_KEK_NOT_FOUND'
+  | 'ENCRYPTION_DECRYPT_FAILED'
+  | 'ENCRYPTION_KEY_ROTATION_FAILED'
+  // ── Auth / API Keys (Issue #603) ─────────────────────────────────────────
+  | 'AUTH_API_KEY_NOT_FOUND'
+  | 'AUTH_API_KEY_EXPIRED'
+  | 'AUTH_API_KEY_ROTATION_FAILED'
+  | 'AUTH_API_KEY_REVOKED'
+  // ── Payment Gateway (Issue #581) ─────────────────────────────────────────
+  | 'PAYMENT_GATEWAY_NOT_FOUND'
+  | 'PAYMENT_GATEWAY_ERROR'
+  | 'PAYMENT_GATEWAY_FALLBACK_FAILED'
+  | 'PAYMENT_GATEWAY_CONFIG_INVALID'
+  | 'PAYMENT_REFUND_PARTIAL_FAILED';
 
 /**
  * Maps each error code to the HTTP status code that should be sent to the
@@ -147,6 +173,7 @@ export const ERROR_HTTP_STATUS_MAP: Record<ErrorCode, number> = {
   UNAUTHORIZED: 401,
   FORBIDDEN: 403,
   CONFLICT: 409,
+  CONFLICT_VERSION_MISMATCH: 409,
   BAD_REQUEST: 400,
   SERVICE_UNAVAILABLE: 503,
   // Rate limiting
@@ -186,6 +213,27 @@ export const ERROR_HTTP_STATUS_MAP: Record<ErrorCode, number> = {
   // Idempotency
   IDEMPOTENCY_KEY_COLLISION: 422,
   IDEMPOTENCY_REQUEST_IN_FLIGHT: 409,
+  // Locking (Issue #610)
+  LOCK_ACQUISITION_TIMEOUT: 409,
+  LOCK_DEADLOCK_DETECTED: 409,
+  LOCK_RELEASE_FAILED: 500,
+  // Encryption (Issue #604)
+  ENCRYPTION_KEY_NOT_FOUND: 404,
+  ENCRYPTION_KMS_UNAVAILABLE: 503,
+  ENCRYPTION_KEK_NOT_FOUND: 404,
+  ENCRYPTION_DECRYPT_FAILED: 500,
+  ENCRYPTION_KEY_ROTATION_FAILED: 500,
+  // Auth / API Keys (Issue #603)
+  AUTH_API_KEY_NOT_FOUND: 404,
+  AUTH_API_KEY_EXPIRED: 401,
+  AUTH_API_KEY_ROTATION_FAILED: 500,
+  AUTH_API_KEY_REVOKED: 401,
+  // Payment Gateway (Issue #581)
+  PAYMENT_GATEWAY_NOT_FOUND: 404,
+  PAYMENT_GATEWAY_ERROR: 502,
+  PAYMENT_GATEWAY_FALLBACK_FAILED: 502,
+  PAYMENT_GATEWAY_CONFIG_INVALID: 422,
+  PAYMENT_REFUND_PARTIAL_FAILED: 422,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -237,11 +285,12 @@ export function fail(
   code: ErrorCode,
   message: string,
   requestId?: string,
-  details?: Record<string, string>,
+  details?: Record<string, string> | { version?: number },
 ): ApiErrorResponse {
+  const errorPayload: ApiError = { code, message, ...details };
   return {
     success: false,
-    error: { code, message, ...(details ? { details } : {}) },
+    error: errorPayload,
     meta: buildMeta(requestId),
   };
 }
@@ -279,3 +328,58 @@ export const API_VERSION_VALUE = '1';
  * so that the requestId in the response meta can be correlated with server logs.
  */
 export const REQUEST_ID_HEADER = 'X-Request-ID';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// #668 – PII Redaction middleware helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Redact PII from an ApiSuccessResponse before sending it over the wire.
+ *
+ * @example
+ * // In an Express handler:
+ * const response = ok(userData, requestId);
+ * res.json(redactResponse(response));               // standard level
+ * res.json(redactResponse(response, 'strict'));      // strict level
+ */
+export function redactResponse<T>(
+  response: ApiSuccessResponse<T>,
+  level: ClassificationLevel = 'standard',
+  allowList?: string[]
+): ApiSuccessResponse<unknown> {
+  return {
+    ...response,
+    data: piiClassifier.redact(response.data, { level, allowList }),
+  };
+}
+
+/**
+ * Express/Fastify-compatible middleware factory that automatically redacts PII
+ * from every outgoing JSON response body.
+ *
+ * Usage:
+ * ```ts
+ * app.use(createPiiRedactionMiddleware());              // standard
+ * app.use(createPiiRedactionMiddleware('strict'));       // strict
+ * ```
+ */
+export function createPiiRedactionMiddleware(
+  level: ClassificationLevel = 'standard',
+  allowList?: string[]
+) {
+  return function piiRedactionMiddleware(
+    _req: unknown,
+    res: {
+      json: (body: unknown) => void;
+      send: (body: unknown) => void;
+    },
+    next: () => void
+  ): void {
+    const originalJson = res.json.bind(res);
+    res.json = (body: unknown) => {
+      const redacted = piiClassifier.redact(body, { level, allowList });
+      return originalJson(redacted);
+    };
+    next();
+  };
+}

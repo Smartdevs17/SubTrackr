@@ -23,7 +23,10 @@ export type { AuditAction, AuditEvent, AuditReport, ExportFormat, RetentionPolic
 export { exportUserData, deleteUserData, anonymizeUserData, updateConsent } from './gdpr';
 export type { UserConsent, ExportResult, DeletionResult, AnonymizationResult } from './gdpr';
 export { piiAuditService, PiiAuditService } from './piiAudit';
-export type { PiiAccessAction, PiiAccessRecord } from './piiAudit';
+export type { PiiAccessAction, PiiAccessRecord, LineageNode, PiiLineageTrail, PiiAuditReport } from './piiAudit';
+export { PiiClassifier, piiClassifier, redact, isPiiField, DEFAULT_PATTERNS } from './piiClassifier';
+export type { ClassificationLevel, PiiPattern, ClassifyResult, RedactOptions } from './piiClassifier';
+export { redactResponse, createPiiRedactionMiddleware } from './apiResponse';
 export { RateLimitingService, rateLimitingService } from './rateLimitingService';
 export { apiClient } from './apiClient';
 export {

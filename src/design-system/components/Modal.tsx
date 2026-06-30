@@ -12,11 +12,10 @@ import {
   TouchableWithoutFeedback,
   Animated,
   Platform,
-  AccessibilityInfo,
 } from 'react-native';
 import type { ViewStyle } from 'react-native';
 
-import { spacing, borderRadius, shadows, animation } from '../tokens';
+import { borderRadius, shadows, animation } from '../tokens';
 import type { BaseComponentProps } from '../types/design-tokens';
 
 // ============================================================================

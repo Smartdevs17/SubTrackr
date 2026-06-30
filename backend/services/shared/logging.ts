@@ -1,3 +1,5 @@
+import { piiClassifier, type ClassificationLevel } from './piiClassifier';
+
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 const LOG_LEVEL_PRIORITY: Record<LogLevel, number> = {
@@ -7,8 +9,12 @@ const LOG_LEVEL_PRIORITY: Record<LogLevel, number> = {
   error: 3,
 };
 
-// Change this via env later
-const CURRENT_LEVEL: LogLevel = __DEV__ ? 'debug' : 'info';
+// Change this via env later (__DEV__ is an Expo/RN global; absent in plain Node)
+const CURRENT_LEVEL: LogLevel =
+  typeof (globalThis as { __DEV__?: boolean }).__DEV__ !== 'undefined' &&
+  (globalThis as { __DEV__?: boolean }).__DEV__
+    ? 'debug'
+    : 'info';
 
 // Correlation ID generator (simple version)
 const generateId = () => {
@@ -18,6 +24,20 @@ const generateId = () => {
 export interface LogContext {
   [key: string]: any;
   correlationId?: string;
+}
+
+// ─── PII redaction for structured log context ─────────────────────────────────
+
+let _logRedactionLevel: ClassificationLevel = 'standard';
+
+/** Set the classification level used for log PII redaction (default: standard). */
+export function setLogRedactionLevel(level: ClassificationLevel): void {
+  _logRedactionLevel = level;
+}
+
+function sanitizeContext(ctx: LogContext | undefined): LogContext | undefined {
+  if (!ctx) return ctx;
+  return piiClassifier.redact(ctx, { level: _logRedactionLevel }) as LogContext;
 }
 
 function shouldLog(level: LogLevel) {
@@ -46,7 +66,7 @@ async function sendToRemote(_logEntry: any) {
 function log(level: LogLevel, message: string, context?: LogContext) {
   if (!shouldLog(level)) return;
 
-  const logEntry = formatLog(level, message, context);
+  const logEntry = formatLog(level, message, sanitizeContext(context));
 
   sendToConsole(logEntry);
 
@@ -62,4 +82,5 @@ export const logger = {
   error: (msg: string, ctx?: LogContext) => log('error', msg, ctx),
 
   createCorrelationId: generateId,
+  setRedactionLevel: setLogRedactionLevel,
 };

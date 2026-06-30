@@ -4,6 +4,9 @@ const config = getDefaultConfig(__dirname);
 
 config.transformer = {
   ...config.transformer,
+  experimentalImportBundleSupport: true,
+  hermesEnabled: true,
+  unstable_transformImportMeta: true,
   getTransformOptions: async () => ({
     transform: {
       experimentalImportSupport: true,
@@ -11,9 +14,6 @@ config.transformer = {
     },
   }),
 };
-
-config.transformer.hermesEnabled = true;
-config.transformer.unstable_transformImportMeta = true;
 
 if (process.env.NODE_ENV === 'production') {
   config.transformer.minifierConfig = {
@@ -31,6 +31,7 @@ if (process.env.NODE_ENV === 'production') {
   }
 }
 
+config.resolver.sourceExts = [...config.resolver.sourceExts, 'mjs'];
 config.resolver.unstable_enablePackageExports = true;
 
 // Exclude non-bundle directories from Metro bundling

@@ -14,12 +14,18 @@ module.exports = {
     '<rootDir>/src/animations/',
   ],
   moduleNameMapper: {
+    '^bullmq$': '<rootDir>/backend/shared/queue/__mocks__/bullmq.ts',
     '^@/(.*)$': '<rootDir>/src/$1',
     '^@react-native-community/netinfo$':
       '<rootDir>/src/__mocks__/@react-native-community/netinfo.js',
     '^@react-native-async-storage/async-storage$':
       '<rootDir>/src/__mocks__/@react-native-async-storage/async-storage.js',
   },
-  setupFilesAfterEnv: [],
+  setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
+  // Snapshot serialization is handled by `jest-expo` preset.
+
+
   testEnvironment: 'node',
 };
+
+
