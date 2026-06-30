@@ -57,6 +57,8 @@ const AdminDashboardScreen = lazyScreen(() => import('../screens/AdminDashboardS
 const FraudDashboard = lazyScreen(() => import('../screens/FraudDashboard'));
 const GroupManagementScreen = lazyScreen(() => import('../screens/GroupManagementScreen'));
 const TaxSettingsScreen = lazyScreen(() => import('../screens/TaxSettingsScreen'));
+const CreditsAndPrepaymentsScreen = lazyScreen(() => import('../screens/CreditsAndPrepaymentsScreen'));
+const TaxComplianceScreen = lazyScreen(() => import('../screens/TaxComplianceScreen'));
 const SupportDashboardScreen = lazyScreen(() => import('../screens/SupportDashboardScreen'));
 const SegmentManagementScreen = lazyScreen(() =>
   import('../screens/SegmentManagementScreen').then((m) => ({ default: m.SegmentManagementScreen }))
@@ -79,12 +81,14 @@ const SandboxDashboardScreen = lazyScreen(() => import('../screens/SandboxDashbo
 const ApiKeyManagementScreen = lazyScreen(() => import('../screens/ApiKeyManagementScreen'));
 const DocumentationPortalScreen = lazyScreen(() => import('../screens/DocumentationPortalScreen'));
 const IntegrationGuidesScreen = lazyScreen(() => import('../screens/IntegrationGuidesScreen'));
+const PartnerDashboardScreen = lazyScreen(() => import('../screens/PartnerDashboardScreen'));
 const PerformanceDashboardScreen = lazyScreen(
   () => import('../screens/PerformanceDashboardScreen')
 );
 const EditSubscriptionScreen = lazyScreen(() => import('../screens/EditSubscriptionScreen'));
 const ChangePlanScreen = lazyScreen(() => import('../screens/ChangePlanScreen'));
 const BillingSettingsScreen = lazyScreen(() => import('../screens/BillingSettingsScreen'));
+const CustomerHealthScreen = lazyScreen(() => import('../screens/CustomerHealthScreen'));
 const BillingAlignmentScreen = lazyScreen(() => import('../screens/BillingAlignmentScreen'));
 const PaymentMethodsScreen = lazyScreen(() =>
   import('../../app/screens/PaymentMethodsScreen').then((m) => ({
@@ -92,6 +96,24 @@ const PaymentMethodsScreen = lazyScreen(() =>
   }))
 );
 const AnalyticsDashboard = lazyScreen(() => import('../../app/screens/AnalyticsDashboard'));
+const TrialDetailsScreen = lazyScreen(() => import('../screens/TrialDetailsScreen'));
+const RenewalWorkspaceScreen = lazyScreen(() =>
+  import('../../app/screens/RenewalWorkspaceScreen').then((m) => ({ default: m.default }))
+);
+const EntityManagementScreen = lazyScreen(() => import('../screens/EntityManagementScreen'));
+const PauseSubscriptionScreen = lazyScreen(() => import('../screens/PauseSubscriptionScreen'));
+
+// Issue #547: GDPR
+const PrivacyCenterScreen = lazyScreen(() => import('../screens/PrivacyCenterScreen'));
+const DataExportScreen = lazyScreen(() => import('../screens/DataExportScreen'));
+// Issue #548: Push notifications
+const NotificationPreferencesScreen = lazyScreen(
+  () => import('../screens/NotificationPreferencesScreen')
+);
+// Issue #549: Email templates
+const EmailTemplateEditorScreen = lazyScreen(() => import('../screens/EmailTemplateEditorScreen'));
+// Issue #550: Advanced dunning
+const DunningDashboardScreen = lazyScreen(() => import('../screens/DunningDashboardScreen'));
 
 const Tab = createBottomTabNavigator<TabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -368,7 +390,17 @@ const HomeStack = () => (
     <Stack.Screen
       name="IntegrationGuides"
       component={IntegrationGuidesScreen}
-      options={{ headerShown: false }}
+      options={{ title: 'Integrations', headerShown: true }}
+    />
+    <Stack.Screen
+      name="TrialDetails"
+      component={TrialDetailsScreen}
+      options={{ title: 'Trial Details', headerShown: true }}
+    />
+  </Stack.Navigator>
+      name="PartnerDashboard"
+      component={PartnerDashboardScreen}
+      options={{ title: 'Partner Dashboard', headerShown: true }}
     />
   </Stack.Navigator>
 );
@@ -462,6 +494,14 @@ const SettingsStack = () => (
       options={{ title: 'Tax Settings', headerShown: true }}
     />
     <Stack.Screen
+      name="CreditsAndPrepayments"
+      component={CreditsAndPrepaymentsScreen}
+      options={{ title: 'Credits & Prepayments', headerShown: true }}
+      name="TaxCompliance"
+      component={TaxComplianceScreen}
+      options={{ title: 'Tax Compliance', headerShown: true }}
+    />
+    <Stack.Screen
       name="SupportDashboard"
       component={SupportDashboardScreen}
       options={{ title: 'Support', headerShown: true }}
@@ -517,6 +557,11 @@ const SettingsStack = () => (
       options={{ title: 'Performance', headerShown: true }}
     />
     <Stack.Screen
+      name="CustomerHealth"
+      component={CustomerHealthScreen}
+      options={{ title: 'Customer Health', headerShown: true }}
+    />
+    <Stack.Screen
       name="BillingSettings"
       component={BillingSettingsScreen}
       options={{ title: 'Billing Settings', headerShown: true }}
@@ -535,6 +580,40 @@ const SettingsStack = () => (
       name="AnalyticsDashboard"
       component={AnalyticsDashboard}
       options={{ title: 'Analytics Dashboard', headerShown: true }}
+    />
+    {/* Issue #547: GDPR */}
+    <Stack.Screen
+      name="PrivacyCenter"
+      component={PrivacyCenterScreen}
+      options={{ title: 'Privacy Center', headerShown: true }}
+    />
+    <Stack.Screen
+      name="DataExport"
+      component={DataExportScreen}
+      options={{ title: 'Export My Data', headerShown: true }}
+    />
+    <Stack.Screen
+      name="DPALog"
+      component={DataExportScreen}
+      options={{ title: 'Data Processing Log', headerShown: true }}
+    />
+    {/* Issue #548: Push notifications */}
+    <Stack.Screen
+      name="NotificationPreferences"
+      component={NotificationPreferencesScreen}
+      options={{ title: 'Notification Preferences', headerShown: true }}
+    />
+    {/* Issue #549: Email templates */}
+    <Stack.Screen
+      name="EmailTemplateEditor"
+      component={EmailTemplateEditorScreen}
+      options={{ title: 'Email Template Editor', headerShown: true }}
+    />
+    {/* Issue #550: Advanced dunning */}
+    <Stack.Screen
+      name="DunningDashboard"
+      component={DunningDashboardScreen}
+      options={{ title: 'Dunning Dashboard', headerShown: true }}
     />
   </Stack.Navigator>
 );

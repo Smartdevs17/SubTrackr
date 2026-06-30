@@ -144,12 +144,14 @@ const SubscriptionDetailScreen: React.FC = () => {
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              onRefresh={() =>
-                void refresh({
-                  clearBefore: () => useSubscriptionStore.setState({ subscriptions: [] }),
+              onRefresh={() => {
+                refresh({
+                  clearBefore: () => {
+                    useSubscriptionStore.setState({ subscriptions: [] });
+                  },
                   fetcher: () => useSubscriptionStore.getState().fetchSubscriptions(),
-                })
-              }
+                });
+              }}
             />
           }>
           {/* Header */}

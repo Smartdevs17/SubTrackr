@@ -7,11 +7,13 @@ interface SettingsState {
   preferredCurrency: string;
   notificationsEnabled: boolean;
   exchangeRates: ExchangeRates | null;
+  healthScoreWeights: Record<string, number> | null;
   isLoading: boolean;
 
   // Actions
   setPreferredCurrency: (currency: string) => void;
   setNotificationsEnabled: (enabled: boolean) => void;
+  setHealthScoreWeights: (weights: Record<string, number>) => void;
   updateExchangeRates: () => Promise<void>;
   initializeSettings: () => Promise<void>;
 }
@@ -22,16 +24,17 @@ export const useSettingsStore = create<SettingsState>()(
       preferredCurrency: 'USD',
       notificationsEnabled: true,
       exchangeRates: null,
+      healthScoreWeights: null,
       isLoading: false,
 
       setPreferredCurrency: (currency) => {
         set({ preferredCurrency: currency });
-        // Optionally update rates immediately if base changed,
-        // but here we keep USD as base for rates to simplify conversion
         void get().updateExchangeRates();
       },
 
       setNotificationsEnabled: (enabled) => set({ notificationsEnabled: enabled }),
+
+      setHealthScoreWeights: (weights) => set({ healthScoreWeights: weights }),
 
       updateExchangeRates: async () => {
         set({ isLoading: true });

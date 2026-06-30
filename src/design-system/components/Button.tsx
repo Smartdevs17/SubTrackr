@@ -24,13 +24,7 @@ import type { AccessibilityProps, ComponentSize } from '../types/design-tokens';
 // ============================================================================
 
 export type ButtonVariant =
-  | 'primary'
-  | 'secondary'
-  | 'outline'
-  | 'ghost'
-  | 'danger'
-  | 'success'
-  | 'crypto';
+  'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'success' | 'crypto';
 
 export type ButtonSize = 'small' | 'medium' | 'large';
 

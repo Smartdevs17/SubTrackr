@@ -5,7 +5,7 @@
  * Complements Jest unit tests with visual snapshots
  */
 
-import { element, by, expect as detoxExpect, waitFor } from 'detox';
+import { element, by, waitFor } from 'detox';
 
 /**
  * Button Visual Regression Tests

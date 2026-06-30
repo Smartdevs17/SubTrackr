@@ -37,5 +37,16 @@ export type {
   StreamExportOptions,
   ReconciliationResult,
 } from './accountingExportService';
-export type { IMeteringService, IPricingService, ITaxService, IDunningService, IAccountingExportService } from './interfaces';
+export {
+  BackendPartnerService,
+} from './partnerService';
+export type { SplitConfiguration, PartnerPayoutSchedule } from '../../../src/types/partner';
+export type {
+  IMeteringService,
+  IPricingService,
+  ITaxService,
+  IDunningService,
+  IAccountingExportService,
+  IPartnerService,
+} from './interfaces';
 export { BillingError, BillingErrorCode } from './errors';

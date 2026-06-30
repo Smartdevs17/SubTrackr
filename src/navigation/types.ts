@@ -45,6 +45,8 @@ export type RootStackParamList = {
   FraudDashboard: undefined;
   GroupManagement: undefined;
   TaxSettings: undefined;
+  CreditsAndPrepayments: undefined;
+  TaxCompliance: undefined;
   SupportDashboard: undefined;
   UsageDashboard: { subscriptionId?: string; planId?: string; name?: string } | undefined;
   DeveloperPortal: undefined;
@@ -58,12 +60,25 @@ export type RootStackParamList = {
   CampaignManagement: undefined;
   PromotionManagement: undefined;
   PerformanceDashboard: undefined;
+  CustomerHealth: undefined;
   BillingSettings: undefined;
   BillingAlignment: undefined;
   ChangePlan: { subscriptionId: string };
   PaymentMethods: undefined;
   AnalyticsDashboard: undefined;
+  TrialDetails: undefined;
+  PartnerDashboard: undefined;
   NotFound: { reason?: string };
+  // Issue #547: GDPR
+  PrivacyCenter: undefined;
+  DataExport: undefined;
+  DPALog: undefined;
+  // Issue #548: Push notifications
+  NotificationPreferences: undefined;
+  // Issue #549: Email templates
+  EmailTemplateEditor: undefined;
+  // Issue #550: Advanced dunning
+  DunningDashboard: undefined;
 };
 
 export type TabParamList = {

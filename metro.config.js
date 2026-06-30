@@ -34,4 +34,16 @@ if (process.env.NODE_ENV === 'production') {
 config.resolver.sourceExts = [...config.resolver.sourceExts, 'mjs'];
 config.resolver.unstable_enablePackageExports = true;
 
+// Exclude non-bundle directories from Metro bundling
+config.resolver.blockList = [
+  /backend\/.*/,
+  /app\/.*/,
+  /developer-portal\/.*/,
+  /contracts\/.*/,
+  /chaos\/.*/,
+  /sandbox\/.*/,
+  /ml-service\/.*/,
+  /src\/design-system\/.*/,
+];
+
 module.exports = config;

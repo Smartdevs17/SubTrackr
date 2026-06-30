@@ -344,7 +344,7 @@ const DetailSheet: React.FC<DetailProps> = ({ entry, onClose }) => {
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
-const STAGE_FILTERS: Array<DunningStage | 'all'> = ['all', 'retry', 'warn', 'suspend', 'cancel'];
+const STAGE_FILTERS: (DunningStage | 'all')[] = ['all', 'retry', 'warn', 'suspend', 'cancel'];
 
 const DunningDashboard: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -543,7 +543,7 @@ const styles = StyleSheet.create({
 
   // Detail sheet
   sheetOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'flex-end',
   },
