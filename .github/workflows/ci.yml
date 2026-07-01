@@ -406,6 +406,43 @@ jobs:
         working-directory: ./contracts
         run: cargo build --release
 
+  rust-gas-benchmark:
+    name: Soroban Gas Profiling & Regression Gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './contracts -> target'
+
+      - name: Run Gas Benchmarks & Profiling
+        run: |
+          if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "Main branch update: updating baseline gas snapshot..."
+            ./scripts/gas-benchmark.sh --generate-baseline
+            
+            # Commit and push updated baseline & trends back to main branch
+            git config --global user.name "rindicomfort"
+            git config --global user.email "kwarpojonathanrindi@gmail.com"
+            git add gas-benchmarks/
+            if git commit -m "chore: update baseline gas snapshot and trends [skip ci]"; then
+              git push
+            fi
+          else
+            echo "PR / Dev branch: running gas regression check..."
+            ./scripts/gas-benchmark.sh
+          fi
+
   # ─────────────────────────────────────────────────────────
   # Load Testing
   # ─────────────────────────────────────────────────────────
@@ -559,6 +596,7 @@ jobs:
         rust-clippy,
         rust-tests,
         rust-build,
+        rust-gas-benchmark,
         load-test,
         bundle-size,
         performance,
@@ -587,6 +625,7 @@ jobs:
         rust-clippy,
         rust-tests,
         rust-build,
+        rust-gas-benchmark,
         load-test,
         bundle-size,
         performance,
@@ -608,6 +647,7 @@ jobs:
              [ "${{ needs.rust-clippy.result }}" != "success" ] || \
              [ "${{ needs.rust-tests.result }}" != "success" ] || \
              [ "${{ needs.rust-build.result }}" != "success" ] || \
+             [ "${{ needs.rust-gas-benchmark.result }}" != "success" ] || \
              [ "${{ needs.load-test.result }}" != "success" ] || \
              [ "${{ needs.bundle-size.result }}" != "success" ] || \
              [ "${{ needs.performance.result }}" != "success" ]; then
