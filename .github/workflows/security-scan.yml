@@ -1,17 +1,87 @@
-name: Security Scan
+name: Security Automation
 
 on:
-  push:
-    branches: [main, dev, develop]
   pull_request:
     branches: [main, dev, develop]
+  push:
+    branches: [main, dev, develop]
   schedule:
-    - cron: '0 0 * * 1' # Run weekly on Mondays
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+env:
+  NODE_VERSION: '20'
+  SECURITY_REPORT_DIR: security-reports
+  DAST_LOCAL_URL: http://127.0.0.1:3000
 
 jobs:
-  npm-audit:
-    name: NPM Audit Check
+  sast-semgrep:
+    name: SAST - Semgrep OWASP Top 10
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python for Semgrep
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Semgrep
+        run: python -m pip install --upgrade pip semgrep
+
+      - name: Prepare report directory
+        run: mkdir -p "$SECURITY_REPORT_DIR"
+
+      - name: Run Semgrep rules
+        run: |
+          semgrep scan \
+            --config p/owasp-top-ten \
+            --config .semgrep/subtrackr.yml \
+            --json \
+            --output "$SECURITY_REPORT_DIR/semgrep.json" || true
+          semgrep scan \
+            --config p/owasp-top-ten \
+            --config .semgrep/subtrackr.yml \
+            --sarif \
+            --output "$SECURITY_REPORT_DIR/semgrep.sarif" || true
+
+      - name: Enforce Semgrep suppression justifications
+        run: |
+          if grep -RIn "nosemgrep" --include='*.ts' --include='*.tsx' --include='*.js' --include='*.jsx' . \
+            | grep -Ev "reason:|justification:"; then
+            echo "Every nosemgrep suppression must include reason: or justification: text."
+            exit 1
+          fi
+
+      - name: Block critical SAST findings
+        run: python scripts/security-dashboard.py "$SECURITY_REPORT_DIR" --tool semgrep --fail-on-critical
+
+      - name: Upload Semgrep SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: security-reports/semgrep.sarif
+          category: semgrep
+
+      - name: Upload SAST reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-sast-semgrep
+          path: security-reports/
+          if-no-files-found: ignore
+
+  dependency-scan:
+    name: Dependency Scanning
+    runs-on: ubuntu-latest
+    env:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -19,11 +89,174 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
 
-      - name: Install dependencies
-        run: npm ci --legacy-peer-deps
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
-      - name: Run NPM audit baseline
-        run: npx audit-ci --config audit-ci.json
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Rust audit tooling
+        run: cargo install cargo-audit --locked
+
+      - name: Prepare report directory
+        run: mkdir -p "$SECURITY_REPORT_DIR"
+
+      - name: Run npm dependency audit
+        run: npm audit --json > "$SECURITY_REPORT_DIR/npm-audit.json" || true
+
+      - name: Run Cargo dependency audit
+        run: |
+          cd contracts
+          cargo audit --json > "../$SECURITY_REPORT_DIR/cargo-audit.json" || true
+
+      - name: Run Python dependency audit
+        run: |
+          python -m pip install --upgrade pip pip-audit
+          pip-audit -r ml-service/requirements.txt -f json -o "$SECURITY_REPORT_DIR/pip-audit-ml-service.json" || true
+          pip-audit -r ml-service/onnx-serving/requirements.txt -f json -o "$SECURITY_REPORT_DIR/pip-audit-onnx.json" || true
+
+      - name: Run Snyk when token is configured
+        if: env.SNYK_TOKEN != ''
+        run: |
+          npm install --global snyk
+          snyk test --all-projects --json-file-output="$SECURITY_REPORT_DIR/snyk.json" || true
+
+      - name: Block critical dependency findings
+        run: python scripts/security-dashboard.py "$SECURITY_REPORT_DIR" --tool dependencies --fail-on-critical
+
+      - name: Upload dependency reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-dependency-scan
+          path: security-reports/
+          if-no-files-found: ignore
+
+  container-scan:
+    name: Container Scanning - Trivy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build API security image
+        run: docker build -f Dockerfile -t subtrackr-api:${{ github.sha }} .
+
+      - name: Prepare report directory
+        run: mkdir -p "$SECURITY_REPORT_DIR"
+
+      - name: Scan container image for vulnerable OS packages
+        uses: aquasecurity/trivy-action@0.30.0
+        with:
+          image-ref: subtrackr-api:${{ github.sha }}
+          format: json
+          output: security-reports/trivy-image.json
+          severity: HIGH,CRITICAL
+          exit-code: '0'
+
+      - name: Scan Dockerfile and IaC configuration
+        uses: aquasecurity/trivy-action@0.30.0
+        with:
+          scan-type: config
+          scan-ref: .
+          format: json
+          output: security-reports/trivy-config.json
+          severity: HIGH,CRITICAL
+          exit-code: '0'
+
+      - name: Block critical container findings
+        run: python scripts/security-dashboard.py "$SECURITY_REPORT_DIR" --tool trivy --fail-on-critical
+
+      - name: Upload container reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-container-trivy
+          path: security-reports/
+          if-no-files-found: ignore
+
+  dast-zap:
+    name: DAST - OWASP ZAP Baseline
+    runs-on: ubuntu-latest
+    env:
+      ZAP_TARGET_URL: ${{ vars.DAST_TARGET_URL }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js for local sandbox fallback
+        if: env.ZAP_TARGET_URL == ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Start local sandbox API fallback
+        if: env.ZAP_TARGET_URL == ''
+        run: |
+          npm ci --legacy-peer-deps
+          PORT=3000 npm run api:start > zap-local-api.log 2>&1 &
+          for attempt in {1..30}; do
+            status="$(curl -s -o /dev/null -w '%{http_code}' "$DAST_LOCAL_URL" || true)"
+            if [ "$status" != "000" ]; then
+              echo "Local API is reachable with HTTP $status"
+              break
+            fi
+            sleep 2
+          done
+          echo "ZAP_TARGET_URL=$DAST_LOCAL_URL" >> "$GITHUB_ENV"
+
+      - name: Prepare report directory
+        run: mkdir -p "$SECURITY_REPORT_DIR"
+
+      - name: Run OWASP ZAP baseline with backoff
+        env:
+          ZAP_REPORT_DIR: ${{ env.SECURITY_REPORT_DIR }}
+          ZAP_BACKOFF_SECONDS: '300'
+          ZAP_MAX_ATTEMPTS: '3'
+          ZAP_FAIL_LEVEL: Critical
+        run: scripts/zap-baseline-scan.sh
+
+      - name: Block critical DAST findings
+        run: python scripts/security-dashboard.py "$SECURITY_REPORT_DIR" --tool zap --fail-on-critical
+
+      - name: Upload DAST reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-dast-zap
+          path: security-reports/
+          if-no-files-found: ignore
+
+  security-dashboard:
+    name: Security Dashboard
+    runs-on: ubuntu-latest
+    needs: [sast-semgrep, dependency-scan, container-scan, dast-zap]
+    if: always()
+    environment: security-review
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download security artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: security-*
+          path: security-reports
+          merge-multiple: true
+
+      - name: Build dashboard summary
+        run: |
+          python scripts/security-dashboard.py security-reports --output security-dashboard.md
+          cat security-dashboard.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload dashboard
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-dashboard
+          path: security-dashboard.md

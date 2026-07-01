@@ -151,7 +151,7 @@ For P1/P2 incidents, complete a post-mortem within 48 hours covering:
 2. Query all recent `approve_refund` calls via Soroban event stream
 3. Assess financial impact
 4. If contract admin key is compromised, redeploy contract with new admin
-5. File security advisory (see [security.md](../security.md))
+5. File security advisory (see [SECURITY.md](../SECURITY.md))
 
 ---
 
