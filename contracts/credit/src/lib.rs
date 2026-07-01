@@ -23,7 +23,7 @@
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, symbol_short, Address, Env, String, Vec,
 };
-use subtrackr_types::SubscriptionId;
+use subtrackr_types::{SubscriptionId, CoreError};
 
 /// Maximum retained transaction-history and lot entries per account.
 const MAX_HISTORY: u32 = 128;
@@ -39,6 +39,33 @@ pub enum CreditError {
     InsufficientCredit = 5,
     SelfTransfer = 6,
     WalletNotFound = 7,
+}
+
+impl From<CreditError> for CoreError {
+    fn from(err: CreditError) -> Self {
+        match err {
+            CreditError::AlreadyInitialized => CoreError::AlreadyInitialized,
+            CreditError::NotInitialized => CoreError::NotInitialized,
+            CreditError::Unauthorized => CoreError::Unauthorized,
+            CreditError::InvalidAmount => CoreError::InvalidAmount,
+            CreditError::InsufficientCredit => CoreError::InsufficientCredit,
+            CreditError::SelfTransfer => CoreError::SelfTransfer,
+        }
+    }
+}
+
+impl From<CoreError> for CreditError {
+    fn from(err: CoreError) -> Self {
+        match err {
+            CoreError::AlreadyInitialized => CreditError::AlreadyInitialized,
+            CoreError::NotInitialized => CreditError::NotInitialized,
+            CoreError::Unauthorized => CreditError::Unauthorized,
+            CoreError::InvalidAmount => CreditError::InvalidAmount,
+            CoreError::InsufficientCredit => CreditError::InsufficientCredit,
+            CoreError::SelfTransfer => CreditError::SelfTransfer,
+            _ => CreditError::InvalidAmount,
+        }
+    }
 }
 
 #[contracttype]

@@ -36,6 +36,8 @@ const DEFAULT_PERIOD_SECS: u64 = 86_400;
 /// Maximum number of retained period buckets per meter (~one quarter of days).
 const MAX_BUCKETS: u32 = 90;
 
+use subtrackr_types::CoreError;
+
 #[contracterror]
 #[derive(Clone, Debug, Copy, PartialEq, Eq)]
 #[repr(u32)]
@@ -43,6 +45,27 @@ pub enum MeteringError {
     InvalidValue = 1,
     InvalidPeriod = 2,
     MeterNotFound = 3,
+}
+
+impl From<MeteringError> for CoreError {
+    fn from(err: MeteringError) -> Self {
+        match err {
+            MeteringError::InvalidValue => CoreError::InvalidAmount,
+            MeteringError::InvalidPeriod => CoreError::InvalidInterval,
+            MeteringError::MeterNotFound => CoreError::NotFound,
+        }
+    }
+}
+
+impl From<CoreError> for MeteringError {
+    fn from(err: CoreError) -> Self {
+        match err {
+            CoreError::InvalidAmount => MeteringError::InvalidValue,
+            CoreError::InvalidInterval => MeteringError::InvalidPeriod,
+            CoreError::NotFound => MeteringError::MeterNotFound,
+            _ => MeteringError::InvalidValue,
+        }
+    }
 }
 
 #[contracttype]

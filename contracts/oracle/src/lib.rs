@@ -23,8 +23,9 @@ pub use price::{
 };
 
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, symbol_short, Address, Env, Symbol,
+    contract, contractimpl, contracttype, symbol_short, Address, Env, Symbol,
 };
+use subtrackr_types::CoreError;
 
 /// Number of consecutive faults that trips a feed's circuit breaker.
 const CIRCUIT_FAULT_LIMIT: u32 = 3;
@@ -49,6 +50,45 @@ pub enum OracleError {
     CircuitOpen = 10,
     NoHistory = 11,
     InvalidConfig = 12,
+}
+
+impl From<OracleError> for CoreError {
+    fn from(err: OracleError) -> Self {
+        match err {
+            OracleError::AlreadyInitialized => CoreError::AlreadyInitialized,
+            OracleError::NotInitialized => CoreError::NotInitialized,
+            OracleError::Unauthorized => CoreError::Unauthorized,
+            OracleError::FeedNotFound => CoreError::FeedNotFound,
+            OracleError::FeedExists => CoreError::FeedExists,
+            OracleError::InvalidPrice => CoreError::InvalidPrice,
+            OracleError::InvalidTimestamp => CoreError::InvalidTimestamp,
+            OracleError::NoPriceAvailable => CoreError::NoPriceAvailable,
+            OracleError::StalePrice => CoreError::StalePrice,
+            OracleError::CircuitOpen => CoreError::CircuitOpen,
+            OracleError::NoHistory => CoreError::NoHistory,
+            OracleError::InvalidConfig => CoreError::InvalidConfig,
+        }
+    }
+}
+
+impl From<CoreError> for OracleError {
+    fn from(err: CoreError) -> Self {
+        match err {
+            CoreError::AlreadyInitialized => OracleError::AlreadyInitialized,
+            CoreError::NotInitialized => OracleError::NotInitialized,
+            CoreError::Unauthorized => OracleError::Unauthorized,
+            CoreError::FeedNotFound => OracleError::FeedNotFound,
+            CoreError::FeedExists => OracleError::FeedExists,
+            CoreError::InvalidPrice => OracleError::InvalidPrice,
+            CoreError::InvalidTimestamp => OracleError::InvalidTimestamp,
+            CoreError::NoPriceAvailable => OracleError::NoPriceAvailable,
+            CoreError::StalePrice => OracleError::StalePrice,
+            CoreError::CircuitOpen => OracleError::CircuitOpen,
+            CoreError::NoHistory => OracleError::NoHistory,
+            CoreError::InvalidConfig => OracleError::InvalidConfig,
+            _ => OracleError::InvalidConfig,
+        }
+    }
 }
 
 #[contracttype]

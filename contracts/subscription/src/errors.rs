@@ -43,6 +43,7 @@
 //! | 30   | ChainReorgDetected             | Chain reorganisation detected during timeout window.   |
 
 use soroban_sdk::contracterror;
+use subtrackr_types::CoreError;
 
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
@@ -153,6 +154,81 @@ impl ContractError {
     /// Returns the stable `u32` error code used in API responses.
     pub fn error_code(self) -> u32 {
         self as u32
+    }
+}
+
+impl From<ContractError> for CoreError {
+    fn from(err: ContractError) -> Self {
+        match err {
+            ContractError::Unauthorized => CoreError::Unauthorized,
+            ContractError::PlanNotFound => CoreError::PlanNotFound,
+            ContractError::PlanInactive => CoreError::PlanInactive,
+            ContractError::SubscriptionNotFound => CoreError::SubscriptionNotFound,
+            ContractError::AlreadySubscribed => CoreError::AlreadySubscribed,
+            ContractError::SubscriptionNotActive => CoreError::SubscriptionNotActive,
+            ContractError::SubscriptionAlreadyCancelled => CoreError::SubscriptionAlreadyCancelled,
+            ContractError::SubscriptionAlreadyPaused => CoreError::SubscriptionAlreadyPaused,
+            ContractError::SubscriptionNotPaused => CoreError::SubscriptionNotPaused,
+            ContractError::PaymentNotYetDue => CoreError::PaymentNotYetDue,
+            ContractError::InsufficientAllowance => CoreError::InsufficientFunds,
+            ContractError::InvalidAmount => CoreError::InvalidAmount,
+            ContractError::InvalidInterval => CoreError::InvalidInterval,
+            ContractError::InvalidPriceBounds => CoreError::InvalidPriceBounds,
+            ContractError::MaxPauseDurationExceeded => CoreError::MaxPauseDurationExceeded,
+            ContractError::RateLimited => CoreError::RateLimited,
+            ContractError::OracleUnavailable => CoreError::OracleUnavailable,
+            ContractError::StorageVersionMismatch => CoreError::StorageVersionMismatch,
+            ContractError::InvalidMigrationPath => CoreError::InvalidMigrationPath,
+            ContractError::RefundExceedsTotalPaid => CoreError::RefundExceedsTotalPaid,
+            ContractError::PlanOwnerMismatch => CoreError::OwnerMismatch,
+            ContractError::EventNotFound => CoreError::EventNotFound,
+            ContractError::EventStoreFull => CoreError::EventStoreFull,
+            ContractError::InvalidEventSequence => CoreError::InvalidEventSequence,
+            ContractError::ExportWindowExceeded => CoreError::ExportWindowExceeded,
+            ContractError::PaymentTimedOut => CoreError::PaymentTimedOut,
+            ContractError::RecoveryAttemptsExhausted => CoreError::RecoveryAttemptsExhausted,
+            ContractError::TransactionNotRecoverable => CoreError::TransactionNotRecoverable,
+            ContractError::InvalidTimeoutConfig => CoreError::InvalidTimeoutConfig,
+            ContractError::ChainReorgDetected => CoreError::ChainReorgDetected,
+        }
+    }
+}
+
+impl From<CoreError> for ContractError {
+    fn from(err: CoreError) -> Self {
+        match err {
+            CoreError::Unauthorized => ContractError::Unauthorized,
+            CoreError::PlanNotFound => ContractError::PlanNotFound,
+            CoreError::PlanInactive => ContractError::PlanInactive,
+            CoreError::SubscriptionNotFound => ContractError::SubscriptionNotFound,
+            CoreError::AlreadySubscribed => ContractError::AlreadySubscribed,
+            CoreError::SubscriptionNotActive => ContractError::SubscriptionNotActive,
+            CoreError::SubscriptionAlreadyCancelled => ContractError::SubscriptionAlreadyCancelled,
+            CoreError::SubscriptionAlreadyPaused => ContractError::SubscriptionAlreadyPaused,
+            CoreError::SubscriptionNotPaused => ContractError::SubscriptionNotPaused,
+            CoreError::PaymentNotYetDue => ContractError::PaymentNotYetDue,
+            CoreError::InsufficientFunds => ContractError::InsufficientAllowance,
+            CoreError::InvalidAmount => ContractError::InvalidAmount,
+            CoreError::InvalidInterval => ContractError::InvalidInterval,
+            CoreError::InvalidPriceBounds => ContractError::InvalidPriceBounds,
+            CoreError::MaxPauseDurationExceeded => ContractError::MaxPauseDurationExceeded,
+            CoreError::RateLimited => ContractError::RateLimited,
+            CoreError::OracleUnavailable => ContractError::OracleUnavailable,
+            CoreError::StorageVersionMismatch => ContractError::StorageVersionMismatch,
+            CoreError::InvalidMigrationPath => ContractError::InvalidMigrationPath,
+            CoreError::RefundExceedsTotalPaid => ContractError::RefundExceedsTotalPaid,
+            CoreError::OwnerMismatch => ContractError::PlanOwnerMismatch,
+            CoreError::EventNotFound => ContractError::EventNotFound,
+            CoreError::EventStoreFull => ContractError::EventStoreFull,
+            CoreError::InvalidEventSequence => ContractError::InvalidEventSequence,
+            CoreError::ExportWindowExceeded => ContractError::ExportWindowExceeded,
+            CoreError::PaymentTimedOut => ContractError::PaymentTimedOut,
+            CoreError::RecoveryAttemptsExhausted => ContractError::RecoveryAttemptsExhausted,
+            CoreError::TransactionNotRecoverable => ContractError::TransactionNotRecoverable,
+            CoreError::InvalidTimeoutConfig => ContractError::InvalidTimeoutConfig,
+            CoreError::ChainReorgDetected => ContractError::ChainReorgDetected,
+            _ => ContractError::InvalidAmount,
+        }
     }
 }
 

@@ -206,7 +206,31 @@ The API returns standard HTTP status codes:
 | 429 | Rate Limit Exceeded |
 | 500 | Internal Server Error |
 
-**Error Response Format:**
+### CoreError Enum
+
+All contract errors use a standardized `CoreError` enum (defined in `subtrackr-types`), ensuring consistent error handling across contracts:
+
+```rust
+#[contracterror]
+#[contracttype]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum CoreError {
+    Unauthorized = 100,
+    AlreadyInitialized = 200,
+    NotInitialized = 201,
+    InvalidAmount = 300,
+    InvalidInterval = 301,
+    InsufficientCredit = 400,
+    PaymentFailed = 401,
+    NotFound = 500,
+    DuplicateEntry = 501,
+    StorageError = 600,
+    ExternalError = 700,
+}
+```
+
+**Error Response Format:
 ```json
 {
   "success": false,
@@ -216,6 +240,11 @@ The API returns standard HTTP status codes:
     "details": {
       "field": "price",
       "issue": "must be a positive number"
+    },
+    "coreError": {
+      "code": 300,
+      "variant": "InvalidAmount",
+      "userMessage": "The amount is invalid"
     }
   }
 }

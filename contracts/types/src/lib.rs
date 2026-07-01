@@ -2,6 +2,9 @@
 
 use soroban_sdk::{contracttype, Address, BytesN, String, Symbol, Vec};
 
+pub mod errors;
+pub use errors::CoreError;
+
 /// Billing interval in seconds.
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
