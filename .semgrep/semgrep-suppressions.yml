@@ -1,0 +1,9 @@
+# False-positive register for Semgrep suppressions.
+#
+# Inline suppressions must use:
+#   # nosemgrep: <rule-id> -- reason: <why safe> -- expires: YYYY-MM-DD
+#
+# The security workflow fails when a nosemgrep comment omits a reason or
+# justification. Add accepted suppressions here during security review so future
+# reviewers can audit the exception history.
+accepted_suppressions: []
