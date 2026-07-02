@@ -5,3 +5,4 @@ export { UsagePage } from './UsagePage';
 export { OnboardingPage } from './OnboardingPage';
 export { MigrationPage } from './MigrationPage';
 export { SandboxSettingsPage } from './SandboxSettingsPage';
+export { SandboxManagementPage } from './SandboxManagementPage';

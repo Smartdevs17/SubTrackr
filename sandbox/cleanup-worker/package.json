@@ -1,0 +1,10 @@
+{
+  "name": "@subtrackr/sandbox-cleanup-worker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "TTL checker and cleanup cron for sandbox instances",
+  "main": "index.ts",
+  "dependencies": {
+    "@subtrackr/sandbox-orchestrator": "1.0.0"
+  }
+}
