@@ -8,8 +8,8 @@
  * Covers:
  *  - subscriptionStore: add/fetch, update (field preservation), delete (cleanup),
  *    persistence, multi-action workflows, error recovery
- *  - walletStore: connect/persist, load-from-storage, disconnect cleanup,
- *    multi-action workflow, crypto stream create → cancel
+ *  - walletStore (#62 + #69): consolidated with walletServiceManager as single
+ *    source of truth; network mismatch detection; crypto stream create → cancel
  */
 
 import { act } from 'react';
@@ -18,6 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSubscriptionStore } from '../subscriptionStore';
 import { useInvoiceStore } from '../invoiceStore';
 import { useWalletStore } from '../walletStore';
+import { walletServiceManager } from '../../services/walletService';
 import { SubscriptionCategory, BillingCycle } from '../../types/subscription';
 import { BILLING_CONVERSIONS } from '../../utils/constants/values';
 import { TaxType } from '../../types/invoice';
@@ -50,6 +51,79 @@ jest.mock('../../services/notificationService', () => ({
   presentChargeFailedNotification: jest.fn(() => Promise.resolve()),
   presentLocalNotification: jest.fn(() => Promise.resolve()),
 }));
+
+// Mock networkService to avoid AsyncStorage calls in walletStore.setPreferredNetwork.
+jest.mock('../../services/networkService', () => ({
+  networkService: {
+    getSelectedNetwork: jest.fn(() => Promise.resolve(null)),
+    setSelectedNetwork: jest.fn(() => Promise.resolve(true)),
+    checkNetworkHealth: jest.fn(() => Promise.resolve({ healthy: true })),
+    getAvailableNetworks: jest.fn(() => Promise.resolve([])),
+  },
+}));
+
+// Mock walletService so tests don't require ethers / Superfluid / native modules.
+// We expose a real WalletServiceManager-like singleton so the store's listener
+// subscription and setConnection/getConnection calls work correctly.
+jest.mock('../../services/walletService', () => {
+  type Listener = (conn: MockConnection | null) => void;
+  type MockConnection = { address: string; chainId: number; isConnected: boolean };
+
+  class MockWalletServiceManager {
+    private static _instance: MockWalletServiceManager;
+    private _connection: MockConnection | null = null;
+    private _listeners: Listener[] = [];
+
+    static getInstance() {
+      if (!MockWalletServiceManager._instance) {
+        MockWalletServiceManager._instance = new MockWalletServiceManager();
+      }
+      return MockWalletServiceManager._instance;
+    }
+
+    setConnection(conn: MockConnection | null) {
+      this._connection = conn;
+      this._listeners.forEach((l) => l(conn));
+    }
+
+    getConnection() {
+      return this._connection;
+    }
+
+    addListener(l: Listener) {
+      this._listeners.push(l);
+    }
+
+    removeListener(l: Listener) {
+      const i = this._listeners.indexOf(l);
+      if (i > -1) this._listeners.splice(i, 1);
+    }
+
+    async disconnectWallet() {
+      this.setConnection(null);
+    }
+
+    async initialize() {}
+
+    isConnected() {
+      return this._connection?.isConnected ?? false;
+    }
+  }
+
+  const instance = MockWalletServiceManager.getInstance();
+
+  return {
+    WalletServiceManager: MockWalletServiceManager,
+    walletServiceManager: instance,
+    PaymentMethodService: { getInstance: () => ({ canAddMethod: jest.fn(), validatePaymentMethodForm: jest.fn(), isDuplicateMethod: jest.fn(), generateId: jest.fn(), verifyPaymentMethod: jest.fn(), processPaymentWithFallback: jest.fn(), getExpiredMethods: jest.fn(() => []), getExpiringSoonMethods: jest.fn(() => []), checkExpiry: jest.fn(), getPrimaryMethods: jest.fn(() => []), getBackupMethods: jest.fn(() => []), getFallbackMethods: jest.fn(() => []), detectTokenContractUpgrade: jest.fn() }) },
+    PaymentMethodError: class PaymentMethodError extends Error { constructor(public code: string, msg: string) { super(msg); } },
+    PaymentMethodErrorCode: { DUPLICATE: 'DUPLICATE', INVALID_TOKEN: 'INVALID_TOKEN', MAX_METHODS: 'MAX_METHODS', VERIFICATION_FAILED: 'VERIFICATION_FAILED' },
+    WalletError: class WalletError extends Error {},
+    WalletErrorCode: {},
+    errorTracker: { record: jest.fn() },
+    default: instance,
+  };
+});
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const emptyStats = {
@@ -472,8 +546,13 @@ describe('subscriptionStore integration', () => {
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
-// walletStore
+// walletStore — consolidated with walletServiceManager (#62)
 // ═════════════════════════════════════════════════════════════════════════════
+
+// walletServiceManager is the single source of truth for connection state.
+// The store derives address/chainId/network/isConnected from it via a listener.
+// There is no longer a `wallet` property or a `@subtrackr_wallet` storage key.
+
 describe('walletStore integration', () => {
   // ── Connect loads persisted data and syncs with service ────────────────────
   it('connectWallet loads persisted payment methods and attempts', async () => {
@@ -498,8 +577,20 @@ describe('walletStore integration', () => {
     ]);
     mockMemoryStore.set('@subtrackr_payment_methods', mockPaymentMethods);
 
+    const { address, isConnected, isLoading } = useWalletStore.getState();
+    expect(address).toBeNull();
+    expect(isConnected).toBe(false);
+    expect(isLoading).toBe(false);
+  });
+
+  // ── syncWalletConnection updates store via walletServiceManager ─────────────
+  it('syncWalletConnection sets connection state through walletServiceManager', async () => {
     await act(async () => {
-      await useWalletStore.getState().connectWallet();
+      await useWalletStore.getState().syncWalletConnection({
+        address: '0xDEF456',
+        chainId: 137,
+        network: 'Polygon',
+      });
     });
 
     const { paymentMethods, isLoading } = useWalletStore.getState();
@@ -598,7 +689,35 @@ describe('walletStore integration', () => {
 
     // walletService.disconnectWallet is being called, no need to mock AsyncStorage
     await act(async () => {
-      await useWalletStore.getState().disconnect();
+      await useWalletStore.getState().connectWallet();
+    });
+
+    useWalletStore.setState({
+      preferredNetwork: { id: 'ethereum', name: 'Ethereum', type: 'evm', chainId: 1 },
+      networkMismatch: { connectedChainId: 137, preferredNetwork: { id: 'ethereum', name: 'Ethereum', type: 'evm', chainId: 1 } },
+    });
+
+    act(() => {
+      useWalletStore.getState().detectNetworkMismatch();
+    });
+
+    expect(useWalletStore.getState().networkMismatch).toBeNull();
+  });
+
+  // ── Network detection (#69): Stellar networks never mismatch ────────────────
+  it('detectNetworkMismatch ignores Stellar networks (no numeric chainId)', async () => {
+    walletServiceManager.setConnection({ address: '0xABC', chainId: 1, isConnected: true });
+
+    await act(async () => {
+      await useWalletStore.getState().connectWallet();
+    });
+
+    useWalletStore.setState({
+      preferredNetwork: { id: 'stellar-testnet', name: 'Stellar Testnet', type: 'stellar' },
+    });
+
+    act(() => {
+      useWalletStore.getState().detectNetworkMismatch();
     });
 
     // Should complete without error in normal flow

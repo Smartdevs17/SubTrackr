@@ -17,6 +17,15 @@ import {
   PaymentMethodExpiryCheck,
   WalletConnection,
 } from '../services/walletService';
+import { networkService } from '../services/networkService';
+import { ALL_NETWORKS, Network } from '../config/networks';
+
+// ── Types ──────────────────────────────────────────────────────────
+
+export interface NetworkMismatch {
+  connectedChainId: number;
+  preferredNetwork: Network;
+}
 
 interface WalletState {
   // Connection state from service
