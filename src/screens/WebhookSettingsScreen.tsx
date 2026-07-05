@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { Card } from '../components/common/Card';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import {
@@ -26,6 +27,7 @@ const emptyWebhookForm = {
 };
 
 const WebhookSettingsScreen: React.FC = () => {
+  const navigation = useNavigation<any>();
   const {
     webhooks,
     deliveries,
@@ -229,6 +231,11 @@ const WebhookSettingsScreen: React.FC = () => {
                   style={styles.actionButton}
                   onPress={() => sendTestEvent(webhook.id, webhook.events[0])}>
                   <Text style={styles.actionButtonText}>Send test</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={() => navigation.navigate('WebhookLogs', { webhookId: webhook.id })}>
+                  <Text style={styles.actionButtonText}>Logs & DLQ</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.actionButtonDanger}

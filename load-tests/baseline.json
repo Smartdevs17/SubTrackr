@@ -1,0 +1,35 @@
+{
+  "_comment": "Performance baseline for SubTrackr load tests. Update deliberately after a verified, intentional performance change (see load-tests/README.md). The baseline checker (utils/baseline.js) flags a regression when a measured metric exceeds baseline by more than `tolerancePct`.",
+  "tolerancePct": 15,
+  "metrics": {
+    "http_req_duration": {
+      "p95": 500,
+      "p99": 900,
+      "avg": 200,
+      "unit": "ms",
+      "description": "Overall HTTP request latency"
+    },
+    "http_req_failed": {
+      "rate": 0.01,
+      "unit": "ratio",
+      "description": "Overall HTTP error rate"
+    },
+    "endpoint_latency": {
+      "p95": 500,
+      "unit": "ms",
+      "description": "Per-endpoint latency (aggregate)"
+    },
+    "iteration_duration": {
+      "p95": 4000,
+      "unit": "ms",
+      "description": "Full scenario iteration time"
+    }
+  },
+  "endpoints": {
+    "create_subscription": { "p95": 600, "unit": "ms" },
+    "list_subscriptions": { "p95": 400, "unit": "ms" },
+    "cancel_subscription": { "p95": 400, "unit": "ms" },
+    "contract_execute_payment": { "p95": 1500, "unit": "ms" },
+    "contract_charge_subscription": { "p95": 1500, "unit": "ms" }
+  }
+}

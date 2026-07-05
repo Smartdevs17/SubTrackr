@@ -18,11 +18,7 @@ export class SandboxApi {
     config?: Partial<SandboxConfig>
   ): Promise<ApiResponse> {
     try {
-      const environment = await this.sandboxService.createEnvironment(
-        developerId,
-        name,
-        config
-      );
+      const environment = await this.sandboxService.createEnvironment(developerId, name, config);
 
       return {
         success: true,
@@ -76,10 +72,7 @@ export class SandboxApi {
     updates: Partial<SandboxConfig>
   ): Promise<ApiResponse> {
     try {
-      const environment = await this.sandboxService.updateConfig(
-        environmentId,
-        updates
-      );
+      const environment = await this.sandboxService.updateConfig(environmentId, updates);
 
       if (!environment) {
         return { success: false, error: 'Environment not found' };

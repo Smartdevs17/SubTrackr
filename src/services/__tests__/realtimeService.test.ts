@@ -1,5 +1,5 @@
 import { RealtimeService } from '../realtimeService';
-import { SubscriptionEvent } from '../../../backend/services/websocket';
+import { SubscriptionEvent } from '../../../backend/services/notification/websocket';
 
 const makeEvent = (overrides: Partial<SubscriptionEvent> = {}): SubscriptionEvent => ({
   type: 'subscription.created',

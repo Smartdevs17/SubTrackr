@@ -21,11 +21,15 @@ describe('fraudStore', () => {
         flagged: 0,
         blocked: 0,
         manualReviews: 0,
+        manualReviewsClosed: 0,
         avgRisk: 0,
         velocityAlerts: 0,
         anomalyAlerts: 0,
+        geoAnomalyAlerts: 0,
         chargebackPredictions: 0,
         falsePositiveEstimate: 0,
+        falsePositiveRate: 0,
+        modelConfidence: 0,
       },
       loading: false,
       error: null,
@@ -137,5 +141,65 @@ describe('fraudStore', () => {
 
     expect(useFraudStore.getState().subscriptions[0].action).toBe('approve');
     expect(useFraudStore.getState().reviewQueue[0].status).toBe('reviewed');
+  });
+
+  it('records false positive feedback and lowers future risk', () => {
+    useFraudStore.setState({
+      subscriptions: [
+        {
+          id: 's3',
+          merchantId: 'm3',
+          merchantName: 'SignalCo',
+          subscriberId: 'sub-3',
+          subscriptionName: 'Plan C',
+          currency: 'USD',
+          amount: 55,
+          createdAt: '2026-04-24T09:00:00.000Z',
+          expectedUsage: 3,
+          observedUsage: 15,
+          chargebacks: 1,
+          homeCountry: 'US',
+          currentCountry: 'CA',
+          deviceFingerprint: 'device-old',
+          trustedDeviceFingerprint: 'device-new',
+          riskScore: 88,
+          action: 'block',
+          reason: 'high risk',
+          usagePattern: 'burst',
+          signals: [],
+          isBlocked: true,
+          isFlagged: true,
+          falsePositiveCount: 0,
+        },
+      ],
+      reviewQueue: [
+        {
+          caseId: 's3',
+          subscriptionId: 's3',
+          subscriberId: 'sub-3',
+          merchantId: 'm3',
+          merchantName: 'SignalCo',
+          subscriptionName: 'Plan C',
+          riskScore: 88,
+          action: 'block',
+          status: 'pending',
+          reason: 'high risk',
+          createdAt: '2026-04-24T09:00:00.000Z',
+          updatedAt: '2026-04-24T09:00:00.000Z',
+          evidence: [],
+        },
+      ],
+    });
+
+    act(() => {
+      useFraudStore.getState().submitFalsePositiveFeedback('s3', 'Legit travel');
+      useFraudStore.getState().refreshFraudSignals();
+    });
+
+    const store = useFraudStore.getState();
+    expect(store.subscriptions[0].falsePositiveCount).toBe(1);
+    expect(store.subscriptions[0].riskScore).toBeLessThan(100);
+    expect(store.reviewQueue[0].status).toBe('dismissed');
+    expect(store.analytics.falsePositiveRate).toBeGreaterThanOrEqual(0);
   });
 });

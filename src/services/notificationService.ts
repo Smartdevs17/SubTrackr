@@ -295,9 +295,7 @@ export async function presentDunningWarningNotification(
   });
 }
 
-export async function presentDunningSuspendedNotification(
-  sub: Subscription
-): Promise<void> {
+export async function presentDunningSuspendedNotification(sub: Subscription): Promise<void> {
   if (!isNotificationsSupported()) return;
   const status = await getPermissionStatus();
   if (status !== Notifications.PermissionStatus.GRANTED) return;
@@ -317,9 +315,7 @@ export async function presentDunningSuspendedNotification(
   });
 }
 
-export async function presentDunningCancelledNotification(
-  sub: Subscription
-): Promise<void> {
+export async function presentDunningCancelledNotification(sub: Subscription): Promise<void> {
   if (!isNotificationsSupported()) return;
   const status = await getPermissionStatus();
   if (status !== Notifications.PermissionStatus.GRANTED) return;
@@ -339,9 +335,7 @@ export async function presentDunningCancelledNotification(
   });
 }
 
-export async function presentDunningRecoveryNotification(
-  sub: Subscription
-): Promise<void> {
+export async function presentDunningRecoveryNotification(sub: Subscription): Promise<void> {
   if (!isNotificationsSupported()) return;
   const status = await getPermissionStatus();
   if (status !== Notifications.PermissionStatus.GRANTED) return;
@@ -373,8 +367,7 @@ export function attachNotificationResponseListeners(): () => void {
 
   const sub = Notifications.addNotificationResponseReceivedListener((response) => {
     const data = response.notification.request.content.data as
-      | { subscriptionId?: string }
-      | undefined;
+      { subscriptionId?: string } | undefined;
     if (data?.subscriptionId) {
       navigateToSubscriptionFromNotification(data.subscriptionId);
     }

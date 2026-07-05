@@ -43,7 +43,7 @@ jobs:
           components: llvm-tools
 
       - name: Install cargo-fuzz
-        run: cargo install cargo-fuzz --locked
+        run: cargo install --git https://github.com/rust-fuzz/cargo-fuzz cargo-fuzz
 
       - name: Restore seed corpus from cache
         uses: actions/cache@v4

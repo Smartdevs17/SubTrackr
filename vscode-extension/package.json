@@ -1,0 +1,87 @@
+{
+  "name": "subtrackr-template-preview",
+  "displayName": "SubTrackr Template Preview",
+  "description": "Live preview panel for SubTrackr email/notification templates (MJML, Handlebars, custom AST)",
+  "version": "0.1.0",
+  "publisher": "subtrackr",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onLanguage:mjml",
+    "onLanguage:handlebars",
+    "onLanguage:html",
+    "onCommand:subtrackr-template-preview.openPreview"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "subtrackr-template-preview.openPreview",
+        "title": "SubTrackr: Open Template Preview",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "subtrackr-template-preview.editMockVariable",
+        "title": "SubTrackr: Edit Mock Variable"
+      },
+      {
+        "command": "subtrackr-template-preview.showAstTree",
+        "title": "SubTrackr: Show AST Tree"
+      },
+      {
+        "command": "subtrackr-template-preview.renderPartial",
+        "title": "SubTrackr: Render Partial Standalone"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "subtrackr-template-preview.editMockVariable",
+          "when": "resourceExtname =~ /\\.(mjml|hbs|html)$/",
+          "group": "subtrackr"
+        }
+      ]
+    },
+    "views": {
+      "explorer": [
+        {
+          "id": "subtrackrAstTree",
+          "name": "Template AST",
+          "when": "subtrackr.templateOpen"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "SubTrackr Template Preview",
+      "properties": {
+        "subtrackr-template-preview.mockDataFile": {
+          "type": "string",
+          "default": ".mock.json",
+          "description": "Path to mock data file relative to workspace root"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "test": "node ./out/test/runTest.js",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/test-electron": "^2.3.0",
+    "@vscode/vsce": "^2.22.0",
+    "typescript": "~5.8.3"
+  },
+  "dependencies": {
+    "handlebars": "^4.7.8",
+    "mjml": "^4.15.3"
+  }
+}

@@ -1,0 +1,137 @@
+name: DB Migration Validation
+
+on:
+  push:
+    paths:
+      - 'backend/migrations/**'
+      - 'scripts/db-migrate-dryrun.js'
+      - 'scripts/db-schema-drift.js'
+      - 'scripts/db-migration-lint.js'
+  pull_request:
+    paths:
+      - 'backend/migrations/**'
+      - 'scripts/db-migrate-dryrun.js'
+      - 'scripts/db-schema-drift.js'
+      - 'scripts/db-migration-lint.js'
+
+env:
+  NODE_VERSION: '20'
+  # Configurable timeout; default 30 s per acceptance criteria
+  MIGRATION_TIMEOUT_MS: '30000'
+
+jobs:
+  migration-lint:
+    name: Migration Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci --legacy-peer-deps
+
+      - name: Lint migrations
+        run: node scripts/db-migration-lint.js --migrations-dir backend/migrations
+
+  migration-dry-run:
+    name: Migration Dry-Run
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci --legacy-peer-deps
+
+      - name: Dry-run migrations (no DB changes)
+        run: |
+          node scripts/db-migrate-dryrun.js \
+            --migrations-dir backend/migrations \
+            --timeout ${{ env.MIGRATION_TIMEOUT_MS }}
+
+  migration-rollback-test:
+    name: Rollback Test (down → up)
+    runs-on: ubuntu-latest
+    # Uses PostgreSQL service for actual rollback validation
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: subtrackr
+          POSTGRES_PASSWORD: testpassword
+          POSTGRES_DB: subtrackr_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://subtrackr:testpassword@localhost:5432/subtrackr_test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci --legacy-peer-deps
+
+      - name: Apply migrations (up)
+        run: npm run db:migrate:up
+        continue-on-error: false
+
+      - name: Run rollback (down)
+        run: npm run db:migrate:down
+        # If down migration fails, the job fails — CI enforces rollback parity
+
+      - name: Re-apply migrations (up again)
+        run: npm run db:migrate:up
+        # Both must succeed for every migration (acceptance criteria)
+
+  schema-drift:
+    name: Schema Drift Detection
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci --legacy-peer-deps
+
+      - name: Detect schema drift
+        run: node scripts/db-schema-drift.js
+
+  migration-emc-validate:
+    name: Expand-Migrate-Contract Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci --legacy-peer-deps
+
+      - name: Validate EMC state file exists (if migrations present)
+        run: |
+          MIGS=$(find backend/migrations -name '*.expand.sql' 2>/dev/null | wc -l)
+          if [ "$MIGS" -gt "0" ]; then
+            echo "Found $MIGS expand-migrate-contract migration(s). Printing status:"
+            node scripts/db-expand-migrate-contract.js --status
+          else
+            echo "No expand-migrate-contract migrations found. Skipping."
+          fi

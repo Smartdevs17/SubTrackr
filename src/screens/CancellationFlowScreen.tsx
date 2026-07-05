@@ -1,10 +1,11 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   ActivityIndicator,
+  TextInput,
   TouchableOpacity,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -13,7 +14,7 @@ import { Card } from '../components/common/Card';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { RootStackParamList } from '../navigation/types';
 import { useCancellationStore, CANCELLATION_REASONS } from '../store/cancellationStore';
-import { RetentionOffer } from '../../backend/services/retentionService';
+import { RetentionOffer } from '../../backend/services/analytics/retentionService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CancellationFlow'>;
 
@@ -36,11 +37,14 @@ const CancellationFlowScreen: React.FC<Props> = ({ route, navigation }) => {
     error,
     initFlow,
     selectReason,
+    submitFeedback,
     acceptOffer,
     declineOffers,
     confirmCancellation,
     reset,
   } = useCancellationStore();
+
+  const [feedbackInput, setFeedbackInput] = useState('');
 
   useEffect(() => {
     initFlow(subscriptionId);
@@ -55,9 +59,13 @@ const CancellationFlowScreen: React.FC<Props> = ({ route, navigation }) => {
     await confirmCancellation();
   };
 
+  const handleSubmitFeedback = async () => {
+    await submitFeedback(feedbackInput);
+  };
+
   const renderReasonStep = () => (
     <View testID="cancellation-reason-step">
-      <Text style={styles.stepLabel}>Step 1 of 3</Text>
+      <Text style={styles.stepLabel}>Step 1 of 4</Text>
       <Text style={styles.heading}>Why are you cancelling?</Text>
       <Text style={styles.subheading}>Your feedback helps us improve.</Text>
       {CANCELLATION_REASONS.map((r) => (
@@ -75,13 +83,45 @@ const CancellationFlowScreen: React.FC<Props> = ({ route, navigation }) => {
     </View>
   );
 
+  const renderFeedbackStep = () => (
+    <View testID="cancellation-feedback-step">
+      <Text style={styles.stepLabel}>Step 2 of 4</Text>
+      <Text style={styles.heading}>Anything else you'd like to share?</Text>
+      <Text style={styles.subheading}>
+        Optional — your feedback is analyzed to help us prioritize improvements.
+      </Text>
+      <TextInput
+        testID="cancellation-feedback-input"
+        style={styles.feedbackInput}
+        placeholder="Tell us more about your experience..."
+        placeholderTextColor={colors.textSecondary}
+        value={feedbackInput}
+        onChangeText={setFeedbackInput}
+        multiline
+        numberOfLines={4}
+        accessibilityLabel="Free-text cancellation feedback"
+      />
+      <Button
+        title="Continue"
+        variant="primary"
+        fullWidth
+        onPress={handleSubmitFeedback}
+        style={styles.feedbackContinueBtn}
+        testID="cancellation-feedback-continue"
+        accessibilityLabel="Submit feedback and continue"
+      />
+    </View>
+  );
+
   const renderOfferCard = (offer: RetentionOffer) => (
     <Card key={offer.id} variant="elevated" style={styles.offerCard}>
       <View style={styles.offerHeader}>
         <Text style={styles.offerIcon}>{OFFER_TYPE_ICONS[offer.type] ?? '🎁'}</Text>
         <View style={styles.offerHeaderText}>
           <Text style={styles.offerTitle}>{offer.title}</Text>
-          <Text style={styles.offerBadge}>{offer.abVariant === 'A' ? 'Popular' : 'Best Value'}</Text>
+          <Text style={styles.offerBadge}>
+            {offer.abVariant === 'A' ? 'Popular' : 'Best Value'}
+          </Text>
         </View>
       </View>
       <Text style={styles.offerDescription}>{offer.description}</Text>
@@ -101,7 +141,7 @@ const CancellationFlowScreen: React.FC<Props> = ({ route, navigation }) => {
 
   const renderOffersStep = () => (
     <View testID="cancellation-offers-step">
-      <Text style={styles.stepLabel}>Step 2 of 3</Text>
+      <Text style={styles.stepLabel}>Step 3 of 4</Text>
       <Text style={styles.heading}>Wait — we have something for you</Text>
       <Text style={styles.subheading}>
         Before you go, here are some options we put together for you.
@@ -127,7 +167,7 @@ const CancellationFlowScreen: React.FC<Props> = ({ route, navigation }) => {
 
   const renderConfirmStep = () => (
     <View testID="cancellation-confirm-step">
-      <Text style={styles.stepLabel}>Step 3 of 3</Text>
+      <Text style={styles.stepLabel}>Step 4 of 4</Text>
       <Text style={styles.heading}>Confirm Cancellation</Text>
       <Card variant="outlined" style={styles.confirmCard}>
         <Text style={styles.confirmLabel}>Reason</Text>
@@ -198,6 +238,8 @@ const CancellationFlowScreen: React.FC<Props> = ({ route, navigation }) => {
     switch (currentStep) {
       case 'REASON':
         return renderReasonStep();
+      case 'FEEDBACK':
+        return renderFeedbackStep();
       case 'OFFERS':
         return renderOffersStep();
       case 'CONFIRM':
@@ -274,6 +316,21 @@ const styles = StyleSheet.create({
   reasonTextSelected: {
     color: colors.text,
     fontWeight: '600',
+  },
+  // Feedback step
+  feedbackInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    backgroundColor: colors.surface,
+    color: colors.text,
+    minHeight: 100,
+    textAlignVertical: 'top',
+    marginBottom: spacing.md,
+  },
+  feedbackContinueBtn: {
+    marginTop: spacing.xs,
   },
   // Offers step
   offerCard: {

@@ -304,9 +304,7 @@ function filterSubscriptions(
   subscriptions: Subscription[],
   options: Pick<ExportOptions, 'includeInactive' | 'dateFrom' | 'dateTo' | 'transactionTypes'>
 ): Subscription[] {
-  let result = options.includeInactive
-    ? subscriptions
-    : subscriptions.filter((s) => s.isActive);
+  let result = options.includeInactive ? subscriptions : subscriptions.filter((s) => s.isActive);
 
   if (options.dateFrom !== undefined) {
     result = result.filter(
@@ -354,9 +352,7 @@ export function buildAccountingExportCsv(
   if (options.includeDeferredRevenue) {
     headers.push('DeferredRevenue');
     selected.forEach((s, i) => {
-      rows[i].push(
-        Number(options.deferredRevenueMap?.[s.id] ?? 0).toFixed(2)
-      );
+      rows[i].push(Number(options.deferredRevenueMap?.[s.id] ?? 0).toFixed(2));
     });
   }
 

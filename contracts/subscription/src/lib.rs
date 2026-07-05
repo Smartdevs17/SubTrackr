@@ -1,16 +1,25 @@
 #![no_std]
+#![allow(clippy::too_many_arguments)]
 mod gas_optimization;
 mod gas_profiler;
 mod gas_storage;
-use soroban_sdk::{token, Address, Env, IntoVal, String, Symbol, TryFromVal, Val, Vec};
+mod revenue;
+#[cfg(test)]
+mod test;
+
+use soroban_sdk::{token, Address, BytesN, Env, IntoVal, String, Symbol, TryFromVal, Val, Vec};
 use subtrackr_oracle::{OracleError, SubTrackrOracleClient};
 use subtrackr_types::{
-    Interval, Invoice, Permission, Plan, PriceBounds, StorageKey, Subscription, SubscriptionStatus,
+    ChargeCommitment, Interval, Invoice, Permission, Plan, PriceBounds, StorageKey, Subscription, SubscriptionStatus,
     TimeRange,
 };
 
 /// Billing interval in seconds.
 const MAX_PAUSE_DURATION: u64 = 2_592_000; // 30 days
+
+/// Default maximum number of plans a merchant can create.
+/// This can be overridden on-chain by the admin via `set_max_plans_per_merchant`.
+const MAX_PLANS_PER_MERCHANT: u32 = 100;
 
 const STORAGE_VERSION: u32 = 2;
 
@@ -187,6 +196,7 @@ fn storage_temporary_set<V: IntoVal<Env, Val>>(
     );
 }
 
+#[allow(dead_code)]
 fn storage_temporary_remove(env: &Env, storage: &Address, key: StorageKey) {
     let args: Vec<Val> = soroban_sdk::vec![env, key.into_val(env)];
     env.invoke_contract::<()>(
@@ -352,11 +362,11 @@ fn resolve_charge_price(env: &Env, storage: &Address, plan: &Plan) -> i128 {
     }
 
     let token_sym = token_sym_opt.unwrap();
-    let quote_sym = Symbol::new(env, &string_to_symbol_str(env, &bounds.quote));
+    let quote_sym = bounds.quote;
 
     let client = SubTrackrOracleClient::new(env, &oracle);
 
-    if let Ok(price) = client.try_get_price_with_cache(&token_sym, &quote_sym, &600) {
+    if let Ok(Ok(price)) = client.try_get_price_with_cache(&token_sym, &quote_sym, &600) {
         let oracle_value = price.value;
         if oracle_value <= 0 {
             return plan.price;
@@ -375,15 +385,6 @@ fn resolve_charge_price(env: &Env, storage: &Address, plan: &Plan) -> i128 {
     } else {
         plan.price
     }
-}
-
-fn string_to_symbol_str(env: &Env, s: &String) -> soroban_sdk::Vec<u8> {
-    let bytes = s.as_bytes();
-    let mut result: soroban_sdk::Vec<u8> = soroban_sdk::Vec::new(env);
-    for i in 0..bytes.len() {
-        result.push_back(bytes.get(i).unwrap());
-    }
-    result
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -644,6 +645,38 @@ impl SubTrackrSubscription {
         storage_instance_remove(&env, &storage, StorageKey::RateLimit(function));
     }
 
+    // ── Plan Limit Admin ──
+
+    pub fn set_max_plans_per_merchant(env: Env, proxy: Address, storage: Address, new_limit: u32) {
+        proxy.require_auth();
+        let admin = get_admin(&env, &storage);
+        require_permission(&env, &storage, &admin, Permission::SetPlanQuotas);
+        admin.require_auth();
+        assert!(new_limit > 0, "Max plans per merchant must be > 0");
+        storage_instance_set(&env, &storage, StorageKey::MaxPlansPerMerchant, new_limit);
+    }
+
+    pub fn get_max_plans_per_merchant(env: Env, proxy: Address, storage: Address) -> u32 {
+        proxy.require_auth();
+        storage_instance_get(&env, &storage, StorageKey::MaxPlansPerMerchant)
+            .unwrap_or(MAX_PLANS_PER_MERCHANT)
+    }
+
+    // ── MEV Protection Admin ──
+
+    pub fn set_large_charge_threshold(env: Env, proxy: Address, storage: Address, threshold: i128) {
+        proxy.require_auth();
+        let admin = get_admin(&env, &storage);
+        admin.require_auth();
+        assert!(threshold > 0, "Threshold must be positive");
+        storage_instance_set(&env, &storage, StorageKey::LargeChargeThreshold, threshold);
+    }
+
+    pub fn get_large_charge_threshold(env: Env, proxy: Address, storage: Address) -> i128 {
+        proxy.require_auth();
+        storage_instance_get(&env, &storage, StorageKey::LargeChargeThreshold).unwrap_or(10_000_000_000) // Default 1000 units
+    }
+
     // ── Plan Management ──
 
     pub fn create_plan(
@@ -663,8 +696,19 @@ impl SubTrackrSubscription {
         merchant.require_auth();
         assert!(price > 0, "Price must be positive");
 
+        let max_plans: u32 = storage_instance_get(&env, &storage, StorageKey::MaxPlansPerMerchant)
+            .unwrap_or(MAX_PLANS_PER_MERCHANT);
+        assert!(max_plans > 0, "Max plans per merchant must be > 0");
+
         let mut count: u64 =
             storage_instance_get(&env, &storage, StorageKey::PlanCount).unwrap_or(0);
+
+        let mut merchant_plans: Vec<u64> =
+            storage_persistent_get(&env, &storage, StorageKey::MerchantPlans(merchant.clone()))
+                .unwrap_or(Vec::new(&env));
+        if merchant_plans.len() >= max_plans {
+            panic!("Max plans per merchant reached");
+        }
         count += 1;
 
         let plan = Plan {
@@ -682,9 +726,6 @@ impl SubTrackrSubscription {
         storage_persistent_set(&env, &storage, StorageKey::Plan(count), plan.clone());
         storage_instance_set(&env, &storage, StorageKey::PlanCount, count);
 
-        let mut merchant_plans: Vec<u64> =
-            storage_persistent_get(&env, &storage, StorageKey::MerchantPlans(merchant.clone()))
-                .unwrap_or(Vec::new(&env));
         merchant_plans.push_back(count);
         storage_persistent_set(
             &env,
@@ -958,7 +999,40 @@ impl SubTrackrSubscription {
 
     // ── Payment Processing ──
 
+    pub fn commit_charge(env: Env, proxy: Address, storage: Address, subscription_id: u64, hash: BytesN<32>) {
+        proxy.require_auth();
+        let sub: Subscription =
+            storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
+                .expect("Subscription not found");
+
+        if sub.subscriber != get_admin(&env, &storage) {
+            enforce_rate_limit(&env, &storage, &sub.subscriber, "commit_charge");
+        }
+        sub.subscriber.require_auth();
+
+        let now = env.ledger().timestamp();
+        let commitment = ChargeCommitment {
+            hash,
+            committed_at: now,
+        };
+
+        // Store commitment temporarily for a generous timeframe, e.g., 100 ledgers (~8 mins)
+        let ttl_ledgers = 100;
+        storage_temporary_set(&env, &storage, StorageKey::TmpChargeCommitment(subscription_id), commitment, ttl_ledgers);
+    }
+
     pub fn charge_subscription(env: Env, proxy: Address, storage: Address, subscription_id: u64) {
+        Self::reveal_charge(env, proxy, storage, subscription_id, 0, false);
+    }
+
+    pub fn reveal_charge(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscription_id: u64,
+        expected_gas_bid: i128,
+        is_private_mempool: bool,
+    ) {
         proxy.require_auth();
         let mut sub: Subscription =
             storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
@@ -990,7 +1064,37 @@ impl SubTrackrSubscription {
         let plan: Plan = storage_persistent_get(&env, &storage, StorageKey::Plan(sub.plan_id))
             .expect("Plan not found");
 
-        let charge_price = Self::resolve_charge_price(&env, &storage, &plan);
+        let charge_price = resolve_charge_price(&env, &storage, &plan);
+
+        // ── MEV Protection: Commit-Reveal & Gas Analysis ──
+        let threshold = storage_instance_get(&env, &storage, StorageKey::LargeChargeThreshold)
+            .unwrap_or(10_000_000_000);
+
+        if charge_price >= threshold {
+            let commitment_opt: Option<ChargeCommitment> =
+                storage_temporary_get(&env, &storage, StorageKey::TmpChargeCommitment(subscription_id));
+            let commitment = commitment_opt.expect("Large charge requires prior commit_charge");
+
+            let mut payload = soroban_sdk::Bytes::new(&env);
+            payload.append(&soroban_sdk::Bytes::from_array(&env, &subscription_id.to_be_bytes()));
+            payload.append(&soroban_sdk::Bytes::from_array(&env, &expected_gas_bid.to_be_bytes()));
+            let is_priv = if is_private_mempool { 1u8 } else { 0u8 };
+            payload.append(&soroban_sdk::Bytes::from_array(&env, &[is_priv]));
+
+            let expected_hash = env.crypto().sha256(&payload);
+            assert!(commitment.hash == expected_hash.into(), "Commitment hash mismatch");
+
+            // Prevent commitment reuse
+            storage_temporary_remove(&env, &storage, StorageKey::TmpChargeCommitment(subscription_id));
+        }
+
+        // Gas price analysis for attack detection
+        if expected_gas_bid > 0 {
+            env.events().publish(
+                (String::from_str(&env, "mev_monitoring"), subscription_id),
+                (expected_gas_bid, is_private_mempool, now),
+            );
+        }
 
         token::Client::new(&env, &plan.token).transfer(
             &sub.subscriber,
@@ -1323,7 +1427,14 @@ impl SubTrackrSubscription {
         proxy.require_auth();
         storage_instance_get(&env, &storage, StorageKey::SubscriptionCount).unwrap_or(0)
     }
+}
 
+// ── Extended APIs (disabled by default) ──
+//
+// These APIs depend on additional modules/types that are still evolving.
+// Enable with `--features extended` in the `subtrackr-subscription` crate.
+#[cfg(feature = "extended")]
+impl SubTrackrSubscription {
     // ── Revenue Recognition API ──
 
     /// Set a revenue recognition rule for a plan (merchant only).
@@ -1626,6 +1737,7 @@ impl SubTrackrSubscription {
 //  Proration & Plan Changes
 
 /// Preview proration before confirming a plan change
+#[cfg(feature = "extended")]
 pub fn preview_proration(
     env: Env,
     proxy: Address,
@@ -1655,6 +1767,7 @@ pub fn preview_proration(
 }
 
 /// Execute a plan change with proration
+#[cfg(feature = "extended")]
 pub fn change_plan(
     env: Env,
     proxy: Address,
@@ -1775,6 +1888,7 @@ pub fn change_plan(
 }
 
 /// Get stored credit memo for a subscription
+#[cfg(feature = "extended")]
 pub fn get_credit_memo(
     env: Env,
     proxy: Address,
@@ -1786,6 +1900,7 @@ pub fn get_credit_memo(
 }
 
 /// Apply credit memo to next charge
+#[cfg(feature = "extended")]
 pub fn apply_credit_memo_to_charge(
     env: Env,
     proxy: Address,

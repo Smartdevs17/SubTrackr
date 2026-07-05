@@ -2,9 +2,7 @@ import {
   SandboxEnvironment,
   SandboxConfig,
   Developer,
-  SandboxFeatures,
   RateLimit,
-  ApiKey,
   SandboxTestData,
 } from '../types/sandbox';
 import { createSandboxConfig, SANDBOX_CONSTANTS } from '../config/sandboxConfig';
@@ -65,9 +63,7 @@ export class SandboxIsolationService {
   }
 
   async getEnvironmentsByDeveloper(developerId: string): Promise<SandboxEnvironment[]> {
-    return Array.from(this.environments.values()).filter(
-      (env) => env.developerId === developerId
-    );
+    return Array.from(this.environments.values()).filter((env) => env.developerId === developerId);
   }
 
   async updateEnvironment(
@@ -164,11 +160,7 @@ export class SandboxIsolationService {
     }
   }
 
-  private validateRateLimits(
-    rateLimits: RateLimit,
-    errors: string[],
-    _warnings: string[]
-  ): void {
+  private validateRateLimits(rateLimits: RateLimit, errors: string[], _warnings: string[]): void {
     if (rateLimits.requestsPerMinute <= 0) {
       errors.push('Invalid requestsPerMinute rate limit');
     }
@@ -180,14 +172,8 @@ export class SandboxIsolationService {
     }
   }
 
-  async registerDeveloper(
-    email: string,
-    name: string,
-    company: string
-  ): Promise<Developer> {
-    const existingDeveloper = Array.from(this.developers.values()).find(
-      (d) => d.email === email
-    );
+  async registerDeveloper(email: string, name: string, company: string): Promise<Developer> {
+    const existingDeveloper = Array.from(this.developers.values()).find((d) => d.email === email);
 
     if (existingDeveloper) {
       throw new Error('Developer already registered');
@@ -268,8 +254,9 @@ export class SandboxIsolationService {
     developer.onboardingStatus.step = developer.onboardingStatus.steps.filter(
       (s) => s.completed
     ).length;
-    developer.onboardingStatus.completed =
-      developer.onboardingStatus.steps.every((s) => s.completed);
+    developer.onboardingStatus.completed = developer.onboardingStatus.steps.every(
+      (s) => s.completed
+    );
 
     this.developers.set(developerId, developer);
     return developer;
@@ -300,7 +287,16 @@ export class SandboxIsolationService {
 
   private generateTestSubscriptions(): SandboxTestData['subscriptions'] {
     const categories = ['streaming', 'software', 'gaming', 'productivity', 'fitness'];
-    const names = ['Netflix', 'Spotify', 'Adobe CC', 'Slack', 'Gym Membership', 'GitHub Pro', 'Figma', 'Notion'];
+    const names = [
+      'Netflix',
+      'Spotify',
+      'Adobe CC',
+      'Slack',
+      'Gym Membership',
+      'GitHub Pro',
+      'Figma',
+      'Notion',
+    ];
 
     return names.map((name, index) => ({
       id: `sub_test_${index + 1}`,
@@ -315,9 +311,11 @@ export class SandboxIsolationService {
     }));
   }
 
-  private generateTestPayments(subscriptions: SandboxTestData['subscriptions']): SandboxTestData['payments'] {
+  private generateTestPayments(
+    subscriptions: SandboxTestData['subscriptions']
+  ): SandboxTestData['payments'] {
     const payments: SandboxTestData['payments'] = [];
-    const methods: Array<'card' | 'crypto' | 'bank'> = ['card', 'crypto', 'bank'];
+    const methods: ('card' | 'crypto' | 'bank')[] = ['card', 'crypto', 'bank'];
 
     subscriptions.forEach((sub) => {
       for (let i = 0; i < 3; i++) {

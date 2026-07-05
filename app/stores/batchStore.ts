@@ -8,7 +8,8 @@
 // audit history of past batches.
 
 import { create } from 'zustand';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import { asyncStorageAdapter } from '../../src/utils/storage';
 import {
   BatchTransactionService,
   BatchOperationType,
@@ -135,14 +136,16 @@ const defaultExecutor: ItemExecutor = async (_op, subscriptionId) => ({
   success: true,
 });
 
-export const useBatchStore = create<BatchStoreState>()((set, get) => ({
-  draft: emptyDraft(),
-  currentResult: null,
-  history: [],
-  service: null,
-  executor: defaultExecutor,
-  isRunning: false,
-  progress: null,
+export const useBatchStore = create<BatchStoreState>()(
+  persist(
+    (set, get) => ({
+      draft: emptyDraft(),
+      currentResult: null,
+      history: [],
+      service: null,
+      executor: defaultExecutor,
+      isRunning: false,
+      progress: null,
 
   setExecutor: (executor) => set({ executor }),
 
@@ -365,20 +368,12 @@ export const useBatchStore = create<BatchStoreState>()((set, get) => ({
   // ── History ──────────────────────────────────────────────────
 
   loadHistory: async () => {
-    try {
-      const json = await AsyncStorage.getItem(HISTORY_STORE_KEY);
-      if (json) {
-        set({ history: JSON.parse(json) });
-      }
-    } catch {
-      // ignore
-    }
+    // Automatically handled by persist middleware
   },
 
   addHistoryEntry: async (entry) => {
     set((s) => {
       const next = [entry, ...s.history].slice(0, MAX_STORE_HISTORY);
-      AsyncStorage.setItem(HISTORY_STORE_KEY, JSON.stringify(next)).catch(() => {});
       return { history: next };
     });
   },
@@ -408,4 +403,28 @@ export const useBatchStore = create<BatchStoreState>()((set, get) => ({
       currentResult: null,
       progress: null,
     }),
-}));
+    }),
+    {
+      name: HISTORY_STORE_KEY,
+      storage: createJSONStorage(() => asyncStorageAdapter),
+      partialize: (state) => ({
+        history: state.history,
+      }),
+      merge: (persistedState: any, currentState) => {
+        if (Array.isArray(persistedState)) {
+          return {
+            ...currentState,
+            history: persistedState.slice(0, MAX_STORE_HISTORY),
+          };
+        }
+        if (persistedState && typeof persistedState === 'object') {
+          return {
+            ...currentState,
+            ...persistedState,
+          };
+        }
+        return currentState;
+      },
+    }
+  )
+);

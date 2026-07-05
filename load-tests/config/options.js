@@ -7,6 +7,13 @@ export const options = {
   thresholds: {
     http_req_duration: ['p(95)<500'], // 95% of requests must be below 500ms
     http_req_failed: ['rate<0.01'], // Error rate should be less than 1%
+    endpoint_errors: ['rate<0.01'], // Per-endpoint error rate
+    // Per-endpoint latency budgets (drive bottleneck detection in CI).
+    'endpoint_latency{endpoint:create_subscription}': ['p(95)<600'],
+    'endpoint_latency{endpoint:list_subscriptions}': ['p(95)<400'],
+    'endpoint_latency{endpoint:cancel_subscription}': ['p(95)<400'],
+    'endpoint_latency{endpoint:contract_execute_payment}': ['p(95)<1500'],
+    'endpoint_latency{endpoint:contract_charge_subscription}': ['p(95)<1500'],
   },
 };
 

@@ -26,9 +26,9 @@ export const ThemeBuilder: React.FC = () => {
 
   const [brandName, setBrandName] = useState('');
   const [brandColors, setBrandColors] = useState({
-    primary: '#6366f1',
-    secondary: '#8b5cf6',
-    accent: '#06b6d4',
+    primary: theme.colors.brand.primary,
+    secondary: theme.colors.brand.secondary,
+    accent: theme.colors.accent,
   });
 
   const handleCreate = () => {
@@ -40,22 +40,27 @@ export const ThemeBuilder: React.FC = () => {
   };
 
   return (
-    <ScrollView style={{ backgroundColor: c.background }} contentContainerStyle={styles.container}>
-      <Text style={[styles.heading, { color: c.text }]}>Theme</Text>
+    <ScrollView
+      style={{ backgroundColor: c.background.primary }}
+      contentContainerStyle={styles.container}>
+      <Text style={[styles.heading, { color: c.text.primary }]}>Theme</Text>
 
       {/* Mode toggle */}
       <TouchableOpacity
-        style={[styles.toggleBtn, { backgroundColor: c.surface, borderColor: c.border }]}
+        style={[
+          styles.toggleBtn,
+          { backgroundColor: c.background.card, borderColor: c.border.default },
+        ]}
         onPress={toggleMode}
         accessibilityRole="button"
         accessibilityLabel={`Switch to ${theme.mode === 'dark' ? 'light' : 'dark'} mode`}>
-        <Text style={[styles.toggleText, { color: c.text }]}>
+        <Text style={[styles.toggleText, { color: c.text.primary }]}>
           {theme.mode === 'dark' ? '☀️  Switch to Light' : '🌙  Switch to Dark'}
         </Text>
       </TouchableOpacity>
 
       {/* Theme picker */}
-      <Text style={[styles.label, { color: c.textSecondary }]}>Choose Theme</Text>
+      <Text style={[styles.label, { color: c.text.secondary }]}>Choose Theme</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.row}>
         {allThemes().map((t) => (
           <ThemePreview key={t.id} theme={t} />
@@ -63,15 +68,23 @@ export const ThemeBuilder: React.FC = () => {
       </ScrollView>
 
       {/* Brand theme builder */}
-      <Text style={[styles.label, { color: c.textSecondary }]}>Create Brand Theme</Text>
-      <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
+      <Text style={[styles.label, { color: c.text.secondary }]}>Create Brand Theme</Text>
+      <View
+        style={[
+          styles.card,
+          { backgroundColor: c.background.card, borderColor: c.border.default },
+        ]}>
         <TextInput
           style={[
             styles.input,
-            { color: c.text, borderColor: c.border, backgroundColor: c.background },
+            {
+              color: c.text.primary,
+              borderColor: c.border.default,
+              backgroundColor: c.background.secondary,
+            },
           ]}
           placeholder="Brand name"
-          placeholderTextColor={c.textSecondary}
+          placeholderTextColor={c.text.secondary}
           value={brandName}
           onChangeText={setBrandName}
           accessibilityLabel="Brand theme name"
@@ -79,11 +92,15 @@ export const ThemeBuilder: React.FC = () => {
         {COLOR_FIELDS.map(({ key, label }) => (
           <View key={key} style={styles.colorRow}>
             <View style={[styles.colorDot, { backgroundColor: brandColors[key] }]} />
-            <Text style={[styles.colorLabel, { color: c.text }]}>{label}</Text>
+            <Text style={[styles.colorLabel, { color: c.text.primary }]}>{label}</Text>
             <TextInput
               style={[
                 styles.colorInput,
-                { color: c.text, borderColor: c.border, backgroundColor: c.background },
+                {
+                  color: c.text.primary,
+                  borderColor: c.border.default,
+                  backgroundColor: c.background.secondary,
+                },
               ]}
               value={brandColors[key]}
               onChangeText={(v) => setBrandColors((prev) => ({ ...prev, [key]: v }))}
@@ -93,28 +110,31 @@ export const ThemeBuilder: React.FC = () => {
           </View>
         ))}
         <TouchableOpacity
-          style={[styles.createBtn, { backgroundColor: c.primary }]}
+          style={[styles.createBtn, { backgroundColor: c.brand.primary }]}
           onPress={handleCreate}
           accessibilityRole="button"
           accessibilityLabel="Create brand theme">
-          <Text style={styles.createBtnText}>Create Theme</Text>
+          <Text style={[styles.createBtnText, { color: c.onPrimary }]}>Create Theme</Text>
         </TouchableOpacity>
       </View>
 
       {/* Remove custom themes */}
       {customThemes.length > 0 && (
         <>
-          <Text style={[styles.label, { color: c.textSecondary }]}>Custom Themes</Text>
+          <Text style={[styles.label, { color: c.text.secondary }]}>Custom Themes</Text>
           {customThemes.map((t) => (
             <View
               key={t.id}
-              style={[styles.customRow, { backgroundColor: c.surface, borderColor: c.border }]}>
-              <Text style={[styles.customName, { color: c.text }]}>{t.name}</Text>
+              style={[
+                styles.customRow,
+                { backgroundColor: c.background.card, borderColor: c.border.default },
+              ]}>
+              <Text style={[styles.customName, { color: c.text.primary }]}>{t.name}</Text>
               <TouchableOpacity
                 onPress={() => removeCustomTheme(t.id)}
                 accessibilityRole="button"
                 accessibilityLabel={`Remove ${t.name} theme`}>
-                <Text style={{ color: c.error, fontWeight: '600' }}>Remove</Text>
+                <Text style={{ color: c.status.error, fontWeight: '600' }}>Remove</Text>
               </TouchableOpacity>
             </View>
           ))}
@@ -151,7 +171,7 @@ const styles = StyleSheet.create({
   colorLabel: { width: 80, fontSize: 14 },
   colorInput: { flex: 1, borderWidth: 1, borderRadius: 8, padding: 8, fontSize: 13 },
   createBtn: { borderRadius: 8, padding: 12, alignItems: 'center', marginTop: 8 },
-  createBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  createBtnText: { fontWeight: '700', fontSize: 15 },
   customRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

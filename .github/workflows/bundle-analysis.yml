@@ -1,0 +1,21 @@
+name: Bundle Size Analysis
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: npx expo export --platform web --output-dir dist
+      - name: Analyze bundle
+        run: |
+          npx size-limit
+          echo "Bundle size analysis complete"

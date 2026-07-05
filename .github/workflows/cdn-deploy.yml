@@ -1,0 +1,103 @@
+name: CDN Configuration Deploy
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'infra/fastly/**'
+      - '.github/workflows/cdn-deploy.yml'
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: 'CDN provider'
+        required: true
+        default: 'fastly'
+        type: choice
+        options:
+          - fastly
+          - cloudflare
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  validate-vcl:
+    name: Validate Fastly VCL
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check VCL syntax (basic)
+        run: |
+          test -f infra/fastly/snippets/recv.vcl
+          test -f infra/fastly/snippets/fetch.vcl
+          grep -q "s-maxage" infra/fastly/snippets/fetch.vcl
+          grep -q "/plans" infra/fastly/snippets/recv.vcl
+          echo "VCL snippet validation passed"
+
+  deploy-fastly:
+    name: Deploy Fastly VCL Snippet
+    needs: validate-vcl
+    if: >
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.provider == 'fastly')
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy VCL snippet to Fastly
+        env:
+          FASTLY_API_TOKEN: ${{ secrets.FASTLY_API_TOKEN }}
+          FASTLY_SERVICE_ID: ${{ secrets.FASTLY_SERVICE_ID }}
+        run: |
+          if [ -z "$FASTLY_API_TOKEN" ] || [ -z "$FASTLY_SERVICE_ID" ]; then
+            echo "Fastly credentials not configured — skipping deploy (CI validation only)"
+            exit 0
+          fi
+          chmod +x scripts/deploy-fastly-vcl.sh
+          ./scripts/deploy-fastly-vcl.sh infra/fastly/snippets
+
+  deploy-cloudflare:
+    name: Deploy Cloudflare Cache Rules
+    needs: validate-vcl
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.provider == 'cloudflare'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Verify Cloudflare cache tag support
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ZONE_ID" ]; then
+            echo "Cloudflare credentials not configured — skipping deploy"
+            exit 0
+          fi
+          echo "Cloudflare purge-by-tag configured via CDN_PROVIDER=cloudflare"
+          echo "Origin sets Cache-Tag header alongside Surrogate-Key"
+
+  run-cache-tests:
+    name: CDN Cache Unit Tests
+    needs: validate-vcl
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Run CDN cache tests
+        run: npm run test:cdn

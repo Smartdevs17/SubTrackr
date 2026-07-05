@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import { asyncStorageAdapter } from '../utils/storage';
 import {
   MerchantOnboarding,
   MerchantOnboardingFormData,
@@ -10,11 +10,9 @@ import {
   MerchantDocument,
   DocumentType,
 } from '../types/merchant';
-import { CACHE_CONSTANTS } from '../utils/constants/values';
 
 const STORAGE_KEY = 'subtrackr-merchant-onboarding';
 const STORE_VERSION = 1;
-const WRITE_DEBOUNCE_MS = CACHE_CONSTANTS.WRITE_DEBOUNCE_MS;
 
 interface MerchantState {
   onboarding: MerchantOnboarding | null;
@@ -209,7 +207,7 @@ export const useMerchantStore = create<MerchantState>()(
     {
       name: STORAGE_KEY,
       version: STORE_VERSION,
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => asyncStorageAdapter),
       partialize: (state) => ({ onboarding: state.onboarding }),
     }
   )

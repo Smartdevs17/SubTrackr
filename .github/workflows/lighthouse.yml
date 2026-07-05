@@ -1,0 +1,148 @@
+name: Lighthouse CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main, dev, develop]
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  lighthouse:
+    name: Lighthouse Audit (developer portal)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      # Install Lighthouse CI CLI
+      - name: Install @lhci/cli
+        run: npm install -g @lhci/cli@0.14.0
+
+      # Build the developer portal (Next.js static export)
+      - name: Build developer portal
+        run: |
+          cd developer-portal
+          npm ci --legacy-peer-deps || true
+          npx next build || echo "Build skipped (no next.config present yet)"
+
+      # Serve the portal locally for auditing
+      - name: Serve portal
+        run: |
+          npx serve developer-portal/out -l 3000 &
+          # Wait for server to be ready
+          timeout 30 bash -c 'until curl -s http://localhost:3000 > /dev/null; do sleep 1; done'
+        continue-on-error: true
+
+      # Run Lighthouse CI (3 throttled runs, median score used)
+      - name: Run Lighthouse CI
+        run: lhci autorun
+        env:
+          LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
+          # Token for persistent baseline storage (optional; uses temporary-public-storage as fallback)
+          LHCI_TOKEN: ${{ secrets.LHCI_TOKEN }}
+
+      # Upload HTML report as PR check artifact
+      - name: Upload Lighthouse report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-report-${{ github.sha }}
+          path: .lighthouseci/
+          if-no-files-found: ignore
+
+      # Post report link to PR as a check annotation
+      - name: Comment Lighthouse results on PR
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const glob = require('glob').sync('.lighthouseci/*.json');
+            if (!glob.length) return;
+            const report = JSON.parse(fs.readFileSync(glob[0], 'utf8'));
+            const perf = Math.round((report?.categories?.performance?.score ?? 0) * 100);
+            const fcp  = Math.round((report?.audits?.['first-contentful-paint']?.numericValue ?? 0));
+            const lcp  = Math.round((report?.audits?.['largest-contentful-paint']?.numericValue ?? 0));
+            const tti  = Math.round((report?.audits?.interactive?.numericValue ?? 0));
+            const cls  = (report?.audits?.['cumulative-layout-shift']?.numericValue ?? 0).toFixed(3);
+            const body = `### 🔦 Lighthouse Report\n| Metric | Value | Budget |\n|--------|-------|--------|\n| Performance score | ${perf} | ≥ 90 |\n| FCP | ${fcp}ms | < 1500ms |\n| LCP | ${lcp}ms | < 2500ms |\n| TTI | ${tti}ms | < 3500ms |\n| CLS | ${cls} | < 0.10 |`;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body
+            });
+
+  lighthouse-mobile:
+    name: Lighthouse Audit (mobile WebView)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Install @lhci/cli
+        run: npm install -g @lhci/cli@0.14.0
+
+      - name: Build developer portal
+        run: |
+          cd developer-portal
+          npm ci --legacy-peer-deps || true
+          npx next build || echo "Build skipped"
+
+      - name: Serve portal
+        run: |
+          npx serve developer-portal/out -l 3000 &
+          timeout 30 bash -c 'until curl -s http://localhost:3000 > /dev/null; do sleep 1; done'
+        continue-on-error: true
+
+      # Run Lighthouse with mobile preset (Moto G4 throttling, mobile emulation)
+      - name: Run Lighthouse CI (mobile WebView)
+        run: |
+          lhci autorun \
+            --collect.url="http://localhost:3000/webview/subscription-list" \
+            --collect.url="http://localhost:3000/" \
+            --collect.settings.preset=perf \
+            --collect.settings.formFactor=mobile \
+            --collect.settings.screenEmulation.mobile=true \
+            --collect.settings.screenEmulation.width=412 \
+            --collect.settings.screenEmulation.height=823 \
+            --collect.settings.throttlingMethod=simulate \
+            --collect.settings.throttling.rttMs=150 \
+            --collect.settings.throttling.throughputKbps=1638.4 \
+            --collect.settings.throttling.cpuSlowdownMultiplier=4 \
+            --collect.numberOfRuns=3 \
+            --assert.preset=no-pwa \
+            --assert.assertions.first-contentful-paint="error;maxNumericValue=1500;aggregationMethod=median" \
+            --assert.assertions.largest-contentful-paint="error;maxNumericValue=2500;aggregationMethod=median" \
+            --assert.assertions.interactive="error;maxNumericValue=3500;aggregationMethod=median" \
+            --assert.assertions.cumulative-layout-shift="error;maxNumericValue=0.1;aggregationMethod=median" \
+            --assert.assertions.categories:performance="error;minScore=0.9;aggregationMethod=median" \
+            --upload.target=temporary-public-storage
+        env:
+          LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
+          LHCI_TOKEN: ${{ secrets.LHCI_TOKEN }}
+
+      - name: Upload mobile Lighthouse report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-mobile-report-${{ github.sha }}
+          path: .lighthouseci/
+          if-no-files-found: ignore

@@ -2,7 +2,8 @@ use soroban_sdk::{Address, Env, String};
 use subtrackr_types::{Interval, Subscription};
 
 /// Proration calculation result
-#[derive(Clone, Debug)]
+#[soroban_sdk::contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProrationResult {
     /// Amount to charge (positive) or credit (negative)
     pub amount: i128,
@@ -32,15 +33,15 @@ pub enum EffectiveDate {
 /// Calculate the number of days in a billing interval
 fn interval_days(interval: &Interval) -> u64 {
     match interval {
-        Interval::Daily => 1,
-        Interval::Weekly => 7,
-        Interval::BiWeekly => 14,
-        Interval::Monthly => 30,
-        Interval::BiMonthly => 60,
-        Interval::Quarterly => 90,
+        Interval::Daily        => 1,
+        Interval::Weekly       => 7,
+        Interval::BiWeekly     => 14,
+        Interval::Monthly      => 30,
+        Interval::BiMonthly    => 60,
+        Interval::Quarterly    => 90,
         Interval::SemiAnnually => 182,
-        Interval::Annually => 365,
-        Interval::Custom(seconds) => *seconds / 86400,
+        Interval::Yearly       => 365,
+        Interval::Custom(secs) => *secs / 86400,
     }
 }
 
@@ -138,7 +139,8 @@ pub fn generate_credit_memo(
 }
 
 /// Credit memo structure for on-chain storage
-#[derive(Clone, Debug)]
+#[soroban_sdk::contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CreditMemo {
     pub subscription_id: u64,
     pub amount: i128,

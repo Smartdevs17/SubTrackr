@@ -8,6 +8,7 @@
 // result export (CSV/JSON), and large batch memory management via chunking.
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { Subscription } from '../../src/types/subscription';
 
 const HISTORY_KEY = 'subtrackr-batch-history';
 const MAX_HISTORY_ENTRIES = 50;
@@ -164,6 +165,46 @@ function parseCsvLine(line: string): string[] {
   }
   result.push(current.trim());
   return result;
+}
+
+export function selectSubscriptionsDueToday(subscriptions: Subscription[]): Subscription[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return subscriptions.filter((subscription) => {
+    const billingDate = new Date(subscription.nextBillingDate);
+    billingDate.setHours(0, 0, 0, 0);
+    return billingDate.getTime() === today.getTime() && subscription.isActive;
+  });
+}
+
+export function selectOverdueSubscriptions(subscriptions: Subscription[]): Subscription[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return subscriptions.filter((subscription) => {
+    const billingDate = new Date(subscription.nextBillingDate);
+    billingDate.setHours(0, 0, 0, 0);
+    return billingDate.getTime() < today.getTime() && subscription.isActive;
+  });
+}
+
+export function buildBatchChargeItems(subscriptions: Subscription[]): Array<{ subscriptionId: string; amount: number }> {
+  return subscriptions.map((subscription) => ({
+    subscriptionId: subscription.id,
+    amount: subscription.price,
+  }));
+}
+
+export function calculateBatchGasSavings(itemCount: number, singleTransactionGas = 150_000): {
+  singleTxGas: number;
+  batchGas: number;
+  saved: number;
+  percentSavings: number;
+} {
+  const batchGas = 50_000 + itemCount * 100_000;
+  const singleTxGas = itemCount * singleTransactionGas;
+  const saved = Math.max(0, singleTxGas - batchGas);
+  const percentSavings = singleTxGas === 0 ? 0 : Math.round((saved / singleTxGas) * 100);
+  return { singleTxGas, batchGas, saved, percentSavings };
 }
 
 export function parseBatchCreateCsv(csvContent: string): BatchCreateInput[] {

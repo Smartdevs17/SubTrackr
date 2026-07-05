@@ -1,4 +1,5 @@
-import type { Theme, BrandConfig } from './types';
+import type { Theme, BrandConfig, ExtendedThemeColors } from './types';
+import { generateExtendedColors } from './customThemeBuilder';
 
 export const darkTheme: Theme = {
   id: 'dark',
@@ -40,10 +41,6 @@ export const lightTheme: Theme = {
   },
 };
 
-/**
- * High contrast theme for users who need stronger visual differentiation.
- * Uses pure black/white backgrounds with high-saturation accent colors.
- */
 export const highContrastTheme: Theme = {
   id: 'high-contrast',
   name: 'High Contrast',
@@ -66,9 +63,8 @@ export const highContrastTheme: Theme = {
 
 export const builtInThemes: Theme[] = [darkTheme, lightTheme, highContrastTheme];
 
-/** Create a brand theme by overriding brand colors on top of a base theme */
 export function createBrandTheme(base: Theme, brand: BrandConfig, id: string, name: string): Theme {
-  return {
+  const theme: Theme = {
     ...base,
     id,
     name,
@@ -78,5 +74,13 @@ export function createBrandTheme(base: Theme, brand: BrandConfig, id: string, na
       secondary: brand.secondary,
       accent: brand.accent,
     },
+    fonts: brand.fonts,
+    logo: brand.logo,
+    isCustom: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   };
+
+  theme.extendedColors = generateExtendedColors(theme.colors, theme.mode);
+  return theme;
 }

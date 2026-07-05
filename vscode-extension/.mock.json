@@ -1,0 +1,12 @@
+{
+  "userName": "Jane Doe",
+  "userEmail": "jane@example.com",
+  "subscriptionPlan": "Pro",
+  "billingAmount": "29.99",
+  "billingCurrency": "USD",
+  "nextBillingDate": "2026-08-01",
+  "companyName": "SubTrackr",
+  "unsubscribeUrl": "https://app.subtrackr.io/unsubscribe",
+  "walletAddress": "GB2...",
+  "stellarNetwork": "testnet"
+}

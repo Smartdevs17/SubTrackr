@@ -2,6 +2,8 @@ export interface Subscription {
   id: string;
   name: string;
   description?: string;
+  /** Optional remote URL for the subscription's icon image */
+  iconUrl?: string;
   category: SubscriptionCategory;
   price: number;
   currency: string;

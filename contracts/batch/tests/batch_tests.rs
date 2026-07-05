@@ -153,8 +153,10 @@ fn rejects_invalid_batch_creation() {
 fn records_audit_history() {
     let (env, client, _admin) = setup();
     let owner = Address::generate(&env);
-    let a = client.create_batch_operation(&owner, &op(&env, OperationType::Create, &[1], &[]), &false);
-    let b = client.create_batch_operation(&owner, &op(&env, OperationType::Create, &[2], &[]), &false);
+    let a =
+        client.create_batch_operation(&owner, &op(&env, OperationType::Create, &[1], &[]), &false);
+    let b =
+        client.create_batch_operation(&owner, &op(&env, OperationType::Create, &[2], &[]), &false);
     let history = client.get_batch_history();
     assert_eq!(history, vec![&env, a, b]);
 }
