@@ -128,11 +128,7 @@ const CreditsAndPrepaymentsScreen: React.FC = () => {
       subtitle="Manage credit notes and prepayment wallets"
       analyticsName="CreditsAndPrepayments"
       rightAction={
-        <Button
-          title="Issue Credit"
-          size="small"
-          onPress={() => setIssueModalVisible(true)}
-        />
+        <Button title="Issue Credit" size="small" onPress={() => setIssueModalVisible(true)} />
       }
       testID="credits-prepayments-screen">
       <ScrollView style={styles.scrollView}>
@@ -157,7 +153,8 @@ const CreditsAndPrepaymentsScreen: React.FC = () => {
                 <View style={styles.walletInfo}>
                   <Text style={styles.walletName}>Subscription: {wallet.subscriptionId}</Text>
                   <Text style={styles.walletDetail}>
-                    Balance: ${wallet.balance.toFixed(2)} | Deposited: ${wallet.totalDeposited.toFixed(2)}
+                    Balance: ${wallet.balance.toFixed(2)} | Deposited: $
+                    {wallet.totalDeposited.toFixed(2)}
                   </Text>
                 </View>
                 <View style={styles.walletActions}>
@@ -199,11 +196,7 @@ const CreditsAndPrepaymentsScreen: React.FC = () => {
                       Remaining: ${note.remainingAmount.toFixed(2)} | Expires:{' '}
                       {note.expiresAt.toLocaleDateString()}
                     </Text>
-                    <Text
-                      style={[
-                        styles.creditStatus,
-                        { color: getStatusColor(note.status) },
-                      ]}>
+                    <Text style={[styles.creditStatus, { color: getStatusColor(note.status) }]}>
                       {note.status.replace('_', ' ').toUpperCase()}
                     </Text>
                   </View>
@@ -251,16 +244,10 @@ const CreditsAndPrepaymentsScreen: React.FC = () => {
             {Object.values(CreditNoteReason).map((r) => (
               <TouchableOpacity
                 key={r}
-                style={[
-                  styles.reasonChip,
-                  reason === r && styles.reasonChipSelected,
-                ]}
+                style={[styles.reasonChip, reason === r && styles.reasonChipSelected]}
                 onPress={() => setReason(r)}>
                 <Text
-                  style={[
-                    styles.reasonChipText,
-                    reason === r && styles.reasonChipTextSelected,
-                  ]}>
+                  style={[styles.reasonChipText, reason === r && styles.reasonChipTextSelected]}>
                   {r}
                 </Text>
               </TouchableOpacity>
@@ -291,11 +278,7 @@ const CreditsAndPrepaymentsScreen: React.FC = () => {
             multiline
           />
           <View style={styles.modalActions}>
-            <Button
-              title="Cancel"
-              variant="outline"
-              onPress={() => setIssueModalVisible(false)}
-            />
+            <Button title="Cancel" variant="outline" onPress={() => setIssueModalVisible(false)} />
             <Button title="Issue" onPress={handleIssueCredit} />
           </View>
         </View>
@@ -373,7 +356,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border.default,
+    borderBottomColor: colors.border,
   },
   walletInfo: {
     flex: 1,
@@ -397,7 +380,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border.default,
+    borderBottomColor: colors.border,
   },
   creditInfo: {
     flex: 1,
@@ -422,7 +405,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border.default,
+    borderBottomColor: colors.border,
   },
   txType: {
     ...typography.body2,
@@ -444,7 +427,7 @@ const styles = StyleSheet.create({
   modalContainer: {
     flex: 1,
     padding: spacing.lg,
-    backgroundColor: colors.background.primary,
+    backgroundColor: colors.background,
   },
   modalTitle: {
     ...typography.h3,
@@ -459,13 +442,13 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: colors.border.default,
+    borderColor: colors.border,
     borderRadius: borderRadius.md,
     padding: spacing.sm,
     ...typography.body,
     color: colors.text,
     marginBottom: spacing.md,
-    backgroundColor: colors.background.secondary,
+    backgroundColor: colors.surface,
   },
   textArea: {
     height: 80,
@@ -482,8 +465,8 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.sm,
     borderWidth: 1,
-    borderColor: colors.border.default,
-    backgroundColor: colors.background.secondary,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
   },
   reasonChipSelected: {
     borderColor: colors.primary,

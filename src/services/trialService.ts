@@ -147,7 +147,12 @@ class ABTestService {
     }
   }
 
-  assignCohort(abTestId: string, userId: string, variantName: string, cohort?: string): ABTestAssignment {
+  assignCohort(
+    abTestId: string,
+    userId: string,
+    variantName: string,
+    cohort?: string
+  ): ABTestAssignment {
     const now = new Date();
     const assignment: ABTestAssignment = {
       id: `${abTestId}-${userId}-${Date.now()}`,

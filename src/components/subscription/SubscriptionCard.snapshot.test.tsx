@@ -1,5 +1,4 @@
 import React from 'react';
-import { Platform } from 'react-native';
 import { render } from '@testing-library/react-native';
 import { SubscriptionCard } from './SubscriptionCard';
 import { mockSubscription } from '../../__fixtures__/subscriptions';
@@ -15,6 +14,6 @@ describe('SubscriptionCard (snapshot)', () => {
       <SubscriptionCard subscription={mockSubscription} onPress={jest.fn()} />
     );
 
-    expect(toJSON()).toMatchSnapshot({ platform: Platform.OS });
+    expect(toJSON()).toMatchSnapshot();
   });
 });

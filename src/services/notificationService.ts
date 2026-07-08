@@ -367,7 +367,8 @@ export function attachNotificationResponseListeners(): () => void {
 
   const sub = Notifications.addNotificationResponseReceivedListener((response) => {
     const data = response.notification.request.content.data as
-      { subscriptionId?: string } | undefined;
+      | { subscriptionId?: string }
+      | undefined;
     if (data?.subscriptionId) {
       navigateToSubscriptionFromNotification(data.subscriptionId);
     }

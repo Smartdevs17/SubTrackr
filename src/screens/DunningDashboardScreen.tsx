@@ -14,7 +14,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { useDunningStore } from '../store/dunningStore';
 import { dunningEngine, smartRetryService, type DeclineCode } from '../services/smartRetryService';
-import type { DunningStage } from '../types/dunning';
+import type { DunningEntry, DunningStage } from '../types/dunning';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 
 const DECLINE_CODE_LABELS: Record<DeclineCode, string> = {
@@ -35,9 +35,7 @@ const STAGE_COLORS: Record<DunningStage, string> = {
 
 // ─── Recovery Funnel ──────────────────────────────────────────────────────────
 
-const RecoveryFunnel: React.FC<{ entries: ReturnType<typeof useDunningStore>['entries'] }> = ({
-  entries,
-}) => {
+const RecoveryFunnel: React.FC<{ entries: DunningEntry[] }> = ({ entries }) => {
   const stats = useMemo(() => dunningEngine.buildFunnelStats(entries), [entries]);
 
   const funnelSteps = [
@@ -90,9 +88,7 @@ const RecoveryFunnel: React.FC<{ entries: ReturnType<typeof useDunningStore>['en
 
 // ─── Stage Breakdown ──────────────────────────────────────────────────────────
 
-const StageBreakdown: React.FC<{ entries: ReturnType<typeof useDunningStore>['entries'] }> = ({
-  entries,
-}) => {
+const StageBreakdown: React.FC<{ entries: DunningEntry[] }> = ({ entries }) => {
   const breakdown: Record<DunningStage, number> = { retry: 0, warn: 0, suspend: 0, cancel: 0 };
   for (const e of entries) {
     breakdown[e.currentStage] = (breakdown[e.currentStage] ?? 0) + 1;

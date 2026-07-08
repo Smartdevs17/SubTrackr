@@ -1,12 +1,14 @@
 import { useHealthStore } from '../store/healthStore';
-import { HealthScoreBreakdown, HealthScoreStatus, InterventionType } from '../types/health';
+import { HealthScoreBreakdown, InterventionType } from '../types/health';
+
+type HealthStore = ReturnType<typeof useHealthStore.getState>;
 
 export class HealthScoreService {
   static calculate(
     subscriptionId: string,
     userId: string,
     factors: Partial<HealthScoreBreakdown>,
-    weights?: Parameters<typeof useHealthStore.getState().calculateScore>[3]
+    weights?: Parameters<HealthStore['calculateScore']>[3]
   ) {
     return useHealthStore.getState().calculateScore(subscriptionId, userId, factors, weights);
   }
@@ -40,7 +42,7 @@ export class HealthScoreService {
     return useHealthStore.getState().getInterventions(healthScoreId);
   }
 
-  static updateWeights(weights: Parameters<typeof useHealthStore.getState().updateWeights>[0]) {
+  static updateWeights(weights: Parameters<HealthStore['updateWeights']>[0]) {
     useHealthStore.getState().updateWeights(weights);
   }
 

@@ -12,6 +12,15 @@ module.exports = {
     '<rootDir>/e2e/',
     '<rootDir>/load-tests/',
     '<rootDir>/src/animations/',
+    '<rootDir>/app/',
+    '<rootDir>/backend/',
+    '<rootDir>/mobile/',
+    '<rootDir>/developer-portal/',
+    '<rootDir>/contracts/',
+    '<rootDir>/chaos/',
+    '<rootDir>/sandbox/',
+    '<rootDir>/src/design-system/',
+    '<rootDir>/babel.config.test.js',
   ],
   moduleNameMapper: {
     '^bullmq$': '<rootDir>/backend/shared/queue/__mocks__/bullmq.ts',
@@ -20,12 +29,8 @@ module.exports = {
       '<rootDir>/src/__mocks__/@react-native-community/netinfo.js',
     '^@react-native-async-storage/async-storage$':
       '<rootDir>/src/__mocks__/@react-native-async-storage/async-storage.js',
+    ViewConfigIgnore$: '<rootDir>/src/__mocks__/ViewConfigIgnore.js',
   },
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
-  // Snapshot serialization is handled by `jest-expo` preset.
-
-
   testEnvironment: 'node',
 };
-
-

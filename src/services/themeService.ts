@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Theme, ThemeExportData, ThemeConfig, ThemeVariantPair } from '../theme/types';
+import { buildThemeFromConfig } from '../theme/customThemeBuilder';
 
-const API_BASE = '/api/v1/merchant/themes';
 const THEME_API_KEY = 'subtrackr-theme-api-sync';
 
 export interface ThemeApiResponse<T> {
@@ -18,8 +18,6 @@ interface ThemeApiRecord {
   createdAt: string;
   updatedAt: string;
 }
-
-const defaultHeaders = { 'Content-Type': 'application/json' };
 
 export const themeService = {
   async fetchThemes(): Promise<ThemeApiResponse<ThemeApiRecord[]>> {
@@ -194,7 +192,6 @@ export const themeService = {
       if (!modeConfig) {
         return { success: false, error: 'No theme config found in export data' };
       }
-      const { buildThemeFromConfig } = await import('../theme/customThemeBuilder');
       const theme = buildThemeFromConfig(
         modeConfig,
         exportData.theme.dark ? 'dark' : 'light',

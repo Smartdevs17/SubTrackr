@@ -7,14 +7,12 @@ jest.mock('@react-native-async-storage/async-storage', () => {
   return require('@react-native-async-storage/async-storage/jest/async-storage-mock');
 });
 
-// Mock RN Text to avoid importing RN native Text internals that can trigger
-// Hermes parser issues in Node/Jest.
-jest.mock('react-native/Libraries/Text/Text', () => {
-  const React = require('react');
-  return function MockText(props) {
-    return React.createElement('Text', props, props.children);
-  };
-});
-
-
-
+// Mock ViewConfigIgnore to prevent Hermes parser from choking on Flow syntax
+// in react-native/Libraries/NativeComponent/ViewConfigIgnore.js.
+// This module uses `const T: {+[name: string]: true}` Flow syntax that the
+// version of hermes-parser used by @react-native/babel-preset cannot handle.
+jest.mock('react-native/Libraries/NativeComponent/ViewConfigIgnore', () => ({
+  DynamicallyInjectedByGestureHandler: (object) => object,
+  ConditionallyIgnoredEventHandlers: (value) => value,
+  isIgnored: () => false,
+}));

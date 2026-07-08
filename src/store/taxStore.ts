@@ -78,6 +78,5 @@ export const useTaxStore = create<TaxState>((set, get) => ({
   setReverseChargeRegions: (regions) =>
     set((state) => ({ config: { ...state.config, reverseChargeRegions: regions } })),
 
-  setTaxProvider: (provider) =>
-    set((state) => ({ config: { ...state.config, provider } })),
+  setTaxProvider: (provider) => set((state) => ({ config: { ...state.config, provider } })),
 }));

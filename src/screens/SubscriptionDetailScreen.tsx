@@ -40,13 +40,31 @@ const SubscriptionDetailScreen: React.FC = () => {
 
   const { subscriptions, toggleSubscriptionStatus, updateSubscription, recordBillingOutcome } =
     useSubscriptionStore();
-  const { groups } = useGroupStore();
+  const groupStore = useGroupStore();
+  const groups = useMemo(
+    () =>
+      groupStore.groupId
+        ? [
+            {
+              groupId: groupStore.groupId,
+              members: groupStore.members,
+              maxSeats: groupStore.maxSeats,
+              name: 'Group',
+              planSharingRules: {
+                seatLimit: groupStore.maxSeats,
+                ownerPaysForMembers: true,
+              },
+            },
+          ]
+        : [],
+    [groupStore]
+  );
   const { preferredCurrency, exchangeRates } = useSettingsStore();
   const rates = exchangeRates?.rates || {};
 
   const subscription = useMemo(() => subscriptions?.find((s) => s.id === id), [id, subscriptions]);
   const subscriptionGroup = useMemo(
-    () => groups.find((group) => group.groupId === subscription?.groupId),
+    () => groups.find((g) => g.groupId === subscription?.groupId),
     [groups, subscription?.groupId]
   );
 

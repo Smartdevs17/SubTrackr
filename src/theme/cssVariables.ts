@@ -1,4 +1,4 @@
-import type { Theme, ExtendedThemeColors, FontConfig } from './types';
+import type { Theme, FontConfig } from './types';
 import { hexToRgb } from './customThemeBuilder';
 
 export interface CSSVariables {

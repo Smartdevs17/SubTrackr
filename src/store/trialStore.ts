@@ -6,9 +6,7 @@ import {
   ABTestAssignment,
   ConversionFunnelEvent,
   TrialReminderSchedule,
-  TrialReminder,
   TrialStatus,
-  TrialDuration,
 } from '../types/trial';
 
 const STORAGE_KEY = 'subtrackr-trials';
@@ -22,11 +20,19 @@ interface TrialState {
   isLoading: boolean;
   error: string | null;
 
-  createTrialConfig: (config: Omit<TrialConfig, 'id' | 'createdAt' | 'updatedAt'>) => Promise<TrialConfig>;
+  createTrialConfig: (
+    config: Omit<TrialConfig, 'id' | 'createdAt' | 'updatedAt'>
+  ) => Promise<TrialConfig>;
   updateTrialConfig: (id: string, updates: Partial<TrialConfig>) => Promise<void>;
-  assignABTest: (assignment: Omit<ABTestAssignment, 'id' | 'assignedAt'>) => Promise<ABTestAssignment>;
-  recordFunnelEvent: (event: Omit<ConversionFunnelEvent, 'id' | 'timestamp'>) => Promise<ConversionFunnelEvent>;
-  scheduleReminder: (schedule: Omit<TrialReminderSchedule, 'id' | 'createdAt'>) => Promise<TrialReminderSchedule>;
+  assignABTest: (
+    assignment: Omit<ABTestAssignment, 'id' | 'assignedAt'>
+  ) => Promise<ABTestAssignment>;
+  recordFunnelEvent: (
+    event: Omit<ConversionFunnelEvent, 'id' | 'timestamp'>
+  ) => Promise<ConversionFunnelEvent>;
+  scheduleReminder: (
+    schedule: Omit<TrialReminderSchedule, 'id' | 'createdAt'>
+  ) => Promise<TrialReminderSchedule>;
   convertTrial: (trialId: string) => Promise<void>;
   expireTrial: (trialId: string) => Promise<void>;
   getConversionStats: (abTestId?: string) => {
@@ -151,7 +157,12 @@ export const useTrialStore = create<TrialState>()(
           set((state) => ({
             trialConfigs: state.trialConfigs.map((tc) =>
               tc.id === trialId
-                ? { ...tc, status: TrialStatus.CONVERTED, convertedAt: new Date(), updatedAt: new Date() }
+                ? {
+                    ...tc,
+                    status: TrialStatus.CONVERTED,
+                    convertedAt: new Date(),
+                    updatedAt: new Date(),
+                  }
                 : tc
             ),
             isLoading: false,
@@ -167,9 +178,7 @@ export const useTrialStore = create<TrialState>()(
         try {
           set((state) => ({
             trialConfigs: state.trialConfigs.map((tc) =>
-              tc.id === trialId
-                ? { ...tc, status: TrialStatus.EXPIRED, updatedAt: new Date() }
-                : tc
+              tc.id === trialId ? { ...tc, status: TrialStatus.EXPIRED, updatedAt: new Date() } : tc
             ),
             isLoading: false,
           }));
@@ -181,9 +190,7 @@ export const useTrialStore = create<TrialState>()(
 
       getConversionStats: (abTestId?: string) => {
         const configs = get().trialConfigs;
-        const filtered = abTestId
-          ? configs.filter((tc) => tc.abTestId === abTestId)
-          : configs;
+        const filtered = abTestId ? configs.filter((tc) => tc.abTestId === abTestId) : configs;
         const totalTrials = filtered.length;
         const convertedTrials = filtered.filter((tc) => tc.status === TrialStatus.CONVERTED).length;
         const conversionRate = totalTrials > 0 ? convertedTrials / totalTrials : 0;

@@ -6,7 +6,9 @@
  * with custom accessibility checks.
  */
 
+import React from 'react';
 import { render, RenderAPI } from '@testing-library/react-native';
+import { ThemeProvider } from '../../context/ThemeContext';
 
 /**
  * Accessibility test result
@@ -135,7 +137,7 @@ export function testComponentAccessibility(
   component: React.ReactElement,
   testName: string
 ): AccessibilityTestResult {
-  const rendered = render(component);
+  const rendered = render(React.createElement(ThemeProvider, null, component));
   const result = runAccessibilityChecks(rendered);
 
   if (!result.passed) {

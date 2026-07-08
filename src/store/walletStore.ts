@@ -14,11 +14,10 @@ import {
   PaymentMethodService,
   PaymentMethodError,
   PaymentMethodErrorCode,
-  PaymentMethodExpiryCheck,
   WalletConnection,
 } from '../services/walletService';
-import { networkService } from '../services/networkService';
-import { ALL_NETWORKS, Network } from '../config/networks';
+import type { PaymentMethodExpiryCheck } from '../services/paymentMethodService';
+import { Network } from '../config/networks';
 
 // ── Types ──────────────────────────────────────────────────────────
 

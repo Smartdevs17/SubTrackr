@@ -1,5 +1,5 @@
 import React from 'react';
-import { Platform, Text } from 'react-native';
+import { Text } from 'react-native';
 import { render } from '@testing-library/react-native';
 
 import { Card } from './Card';
@@ -15,6 +15,6 @@ describe('Card (snapshot)', () => {
       </ThemeProvider>
     );
 
-    expect(toJSON()).toMatchSnapshot({ platform: Platform.OS });
+    expect(toJSON()).toMatchSnapshot();
   });
 });

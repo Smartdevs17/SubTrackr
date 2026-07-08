@@ -1,6 +1,10 @@
-import { NavigatorScreenParams, RouteProp, useNavigation, useRoute } from '@react-navigation/native';
+import {
+  NavigatorScreenParams,
+  RouteProp,
+  useNavigation,
+  useRoute,
+} from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { BillingCycle } from '../types/subscription';
 
 /**
  * Navigation types are intentionally explicit to avoid runtime route mismatches.
@@ -66,7 +70,7 @@ export type RootStackParamList = {
   ChangePlan: { subscriptionId: string };
   PaymentMethods: undefined;
   AnalyticsDashboard: undefined;
-  TrialDetails: undefined;
+  TrialDetails: { trialId: string } | undefined;
   PartnerDashboard: undefined;
   NotFound: { reason?: string };
   // Issue #547: GDPR
@@ -79,6 +83,7 @@ export type RootStackParamList = {
   EmailTemplateEditor: undefined;
   // Issue #550: Advanced dunning
   DunningDashboard: undefined;
+  PauseSubscription: { subscriptionId: string };
 };
 
 export type TabParamList = {
@@ -90,14 +95,18 @@ export type TabParamList = {
   SettingsTab: NavigatorScreenParams<RootStackParamList> | undefined;
 };
 
-export type RootStackScreenRouteProp<RouteName extends keyof RootStackParamList> =
-  RouteProp<RootStackParamList, RouteName>;
+export type RootStackScreenRouteProp<RouteName extends keyof RootStackParamList> = RouteProp<
+  RootStackParamList,
+  RouteName
+>;
 
 export type RootStackScreenNavigationProp<RouteName extends keyof RootStackParamList> =
   NativeStackNavigationProp<RootStackParamList, RouteName>;
 
-export type AppTabNavigationProp<RouteName extends keyof TabParamList> =
-  NativeStackNavigationProp<TabParamList, RouteName>;
+export type AppTabNavigationProp<RouteName extends keyof TabParamList> = NativeStackNavigationProp<
+  TabParamList,
+  RouteName
+>;
 
 export const useAppNavigation = <RouteName extends keyof RootStackParamList>() =>
   useNavigation<RootStackScreenNavigationProp<RouteName>>();

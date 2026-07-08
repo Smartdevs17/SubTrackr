@@ -58,7 +58,16 @@ export interface ABTestAssignment {
 export interface ConversionFunnelEvent {
   id: string;
   trialConfigId: string;
-  eventType: 'trial_started' | 'feature_accessed' | 'reminder_sent' | 'dashboard_visited' | 'payment_clicked' | 'payment_completed' | 'trial_expired' | 'trial_cancelled' | 'trial_converted';
+  eventType:
+    | 'trial_started'
+    | 'feature_accessed'
+    | 'reminder_sent'
+    | 'dashboard_visited'
+    | 'payment_clicked'
+    | 'payment_completed'
+    | 'trial_expired'
+    | 'trial_cancelled'
+    | 'trial_converted';
   userId: string;
   variantName?: string;
   timestamp: Date;
@@ -90,9 +99,12 @@ export interface TrialStats {
   cancelledTrials: number;
   conversionRate: number;
   avgTimeToConvert: number;
-  variantStats: Record<string, {
-    trials: number;
-    conversions: number;
-    conversionRate: number;
-  }>;
+  variantStats: Record<
+    string,
+    {
+      trials: number;
+      conversions: number;
+      conversionRate: number;
+    }
+  >;
 }

@@ -8,11 +8,9 @@ import type {
   SplitExecution,
   PartnerEarnings,
   PartnerStatus,
-  SplitType,
-  PartnerPayoutSchedule,
 } from '../types/partner';
 import { errorHandler, AppError } from '../services/errorHandler';
-import { partnerService } from '../services/partnerService';
+import { SplitEngine } from '../services/partnerService';
 
 const STORAGE_KEY = 'subtrackr-partners';
 
@@ -100,7 +98,7 @@ export const usePartnerStore = create<PartnerState>()(
         } catch (error) {
           const appError = errorHandler.handleError(error as Error, {
             action: 'updatePartner',
-            partnerId: id,
+            metadata: { partnerId: id },
           });
           set({ error: appError, isLoading: false });
           throw appError;
@@ -140,7 +138,7 @@ export const usePartnerStore = create<PartnerState>()(
       configureSplit: async (data) => {
         set({ isLoading: true, error: null });
         try {
-          const validation = partnerService.validateSplitConfig(data);
+          const validation = SplitEngine.validateSplitConfig(data);
           if (!validation.isValid) {
             throw new Error(`Invalid split configuration: ${validation.errors.join(', ')}`);
           }
@@ -177,7 +175,7 @@ export const usePartnerStore = create<PartnerState>()(
         } catch (error) {
           const appError = errorHandler.handleError(error as Error, {
             action: 'updateSplitConfiguration',
-            splitConfigurationId: id,
+            metadata: { splitConfigurationId: id },
           });
           set({ error: appError, isLoading: false });
           throw appError;
@@ -192,7 +190,7 @@ export const usePartnerStore = create<PartnerState>()(
             throw new Error('Split configuration not found');
           }
 
-          const result = partnerService.calculateSplit(config, grossAmount);
+          const result = SplitEngine.calculateSplit(config, grossAmount);
           const execution: SplitExecution = {
             id: generateUniqueId(),
             splitConfigurationId,
@@ -214,7 +212,7 @@ export const usePartnerStore = create<PartnerState>()(
         } catch (error) {
           const appError = errorHandler.handleError(error as Error, {
             action: 'executeSplit',
-            splitConfigurationId,
+            metadata: { splitConfigurationId },
           });
           set({ error: appError, isLoading: false });
           throw appError;
@@ -296,7 +294,7 @@ export const usePartnerStore = create<PartnerState>()(
         } catch (error) {
           const appError = errorHandler.handleError(error as Error, {
             action: 'deleteSplitConfiguration',
-            splitConfigurationId: id,
+            metadata: { splitConfigurationId: id },
           });
           set({ error: appError, isLoading: false });
           throw appError;

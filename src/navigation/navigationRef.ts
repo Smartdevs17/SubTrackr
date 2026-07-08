@@ -1,4 +1,4 @@
-import { createNavigationContainerRef } from '@react-navigation/native';
+import { createNavigationContainerRef, NavigatorScreenParams } from '@react-navigation/native';
 
 import type { RootStackParamList, TabParamList } from './types';
 
@@ -9,7 +9,7 @@ export const navigateTab = <RouteName extends keyof TabParamList>(
   params?: TabParamList[RouteName]
 ) => {
   if (navigationRef.isReady()) {
-    navigationRef.navigate(name, params);
+    (navigationRef as any).navigate(name, params);
   }
 };
 
@@ -18,7 +18,10 @@ export const navigateHomeScreen = <RouteName extends keyof RootStackParamList>(
   params?: RootStackParamList[RouteName]
 ) => {
   if (navigationRef.isReady()) {
-    navigationRef.navigate('HomeTab', { screen, params });
+    navigationRef.navigate('HomeTab', {
+      screen,
+      params,
+    } as NavigatorScreenParams<RootStackParamList>);
   }
 };
 
@@ -27,6 +30,9 @@ export const navigateSettingsScreen = <RouteName extends keyof RootStackParamLis
   params?: RootStackParamList[RouteName]
 ) => {
   if (navigationRef.isReady()) {
-    navigationRef.navigate('SettingsTab', { screen, params });
+    navigationRef.navigate('SettingsTab', {
+      screen,
+      params,
+    } as NavigatorScreenParams<RootStackParamList>);
   }
 };

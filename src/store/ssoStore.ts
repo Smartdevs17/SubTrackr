@@ -40,7 +40,7 @@ interface SSOState {
 
 export const useSSOStore = create<SSOState>()(
   persist(
-    (set, get) => ({
+    (set, _get) => ({
       providers: [],
       scimUsers: [],
       isLoading: false,

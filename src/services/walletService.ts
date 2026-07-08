@@ -3,6 +3,7 @@ import { ethers } from 'ethers';
 import { GasEstimate } from '../types/wallet';
 
 import { NetworkError, NetworkErrorCode, ContractError, ContractErrorCode } from '../errors';
+import { getEvmRpcUrl } from '../config/evm';
 import { TokenService } from './tokenService';
 import { GasService } from './gasService';
 import { StreamService } from './streamService';
@@ -14,6 +15,7 @@ import {
   errorTracker,
   TokenBalance,
   SuperfluidStreamResult,
+  SuperfluidCreateFlowContext,
   WalletServiceContext,
   isUserRejectedError,
 } from './walletServiceShared';
@@ -125,7 +127,7 @@ export class WalletServiceManager implements WalletServiceContext {
     recipient: string,
     chainId: number,
     signer: ethers.Signer
-  ) {
+  ): Promise<SuperfluidCreateFlowContext> {
     const streamService = this.streamService as unknown as {
       buildSuperfluidCreateFlowContext: (
         tokenSymbol: string,
@@ -133,7 +135,7 @@ export class WalletServiceManager implements WalletServiceContext {
         recipient: string,
         chainId: number,
         signer: ethers.Signer
-      ) => Promise<unknown>;
+      ) => Promise<SuperfluidCreateFlowContext>;
     };
 
     return streamService.buildSuperfluidCreateFlowContext(

@@ -126,7 +126,6 @@ export function suggestContrastFix(
   if (!fgRgb || !bgRgb) return { suggestedForeground: foreground, suggestedBackground: background };
 
   const bgLuminance = relativeLuminance(background);
-  const targetLight = bgLuminance < 0.5 ? '#f8fafc' : '#0f172a';
 
   const fgAdjust =
     bgLuminance < 0.5

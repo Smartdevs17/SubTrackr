@@ -96,6 +96,22 @@ export interface SuperfluidStreamResult {
   streamId: string;
 }
 
+export interface SuperfluidCreateFlowOp {
+  getPopulatedTransactionRequest(
+    signer: ethers.Signer,
+    buffer?: number
+  ): Promise<{ gasLimit: ethers.BigNumber }>;
+  exec(signer: ethers.Signer): Promise<ethers.providers.TransactionResponse>;
+}
+
+export interface SuperfluidCreateFlowContext {
+  createOp: SuperfluidCreateFlowOp;
+  superTokenAddress: string;
+  sender: string;
+  receiver: string;
+  flowRate: ethers.BigNumber;
+}
+
 export const SECONDS_PER_MONTH = TIME_CONSTANTS.SECONDS_PER_MONTH;
 
 export interface WalletServiceContext {

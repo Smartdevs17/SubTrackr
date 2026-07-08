@@ -215,7 +215,11 @@ export function evaluateMerchantSnapshot(
     };
 
     return {
-      status: { ...status, activeBreachId: breach.id },
+      status: {
+        ...status,
+        activeBreachId: breach.id,
+        creditBalance: status.creditBalance + breach.creditAmount,
+      },
       breaches: [...input.breaches, breach],
       createdBreach: breach,
       resolvedBreachId: null,

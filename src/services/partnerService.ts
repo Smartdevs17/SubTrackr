@@ -1,13 +1,10 @@
 import type {
   SplitConfiguration,
-  SplitExecution,
   SplitTier,
-  Partner,
   PartnerEarnings,
   PayoutRecord,
-  SplitType,
 } from '../types/partner';
-import { PartnerStatus, PartnerPayoutSchedule } from '../types/partner';
+import { PartnerPayoutSchedule } from '../types/partner';
 
 export interface SplitResult {
   splits: { partnerId: string; amount: number; percentage: number }[];
@@ -266,7 +263,6 @@ export class PartnerService {
         return diff >= 7 * 24 * 60 * 60 * 1000;
       }
       case 'threshold': {
-        const threshold = config.minPayoutThreshold ?? 0;
         // Threshold check should be done at call site with actual pending balance
         return true;
       }

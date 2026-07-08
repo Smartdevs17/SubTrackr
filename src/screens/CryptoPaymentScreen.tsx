@@ -21,10 +21,6 @@ import { GasEstimate } from '../types/wallet';
 import { ADDRESS_CONSTANTS } from '../utils/constants/values';
 import { useTransactionQueueStore } from '../store/transactionQueueStore';
 
-interface RouteParams {
-  subscriptionId?: string;
-}
-
 const CryptoPaymentScreen: React.FC = () => {
   const navigation = useAppNavigation<'CryptoPayment'>();
   const route = useAppRoute<'CryptoPayment'>();

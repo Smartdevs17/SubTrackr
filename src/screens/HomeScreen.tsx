@@ -85,9 +85,6 @@ const HomeScreen: React.FC = () => {
         console.error('Pull-to-refresh failed:', err);
         announce('Failed to refresh subscriptions');
       },
-      onSuccess: () => {
-        announce('Subscriptions refreshed successfully');
-      },
     });
   };
 

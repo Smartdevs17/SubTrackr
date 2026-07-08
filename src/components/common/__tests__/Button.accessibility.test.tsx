@@ -5,15 +5,16 @@
 import React from 'react';
 import { render } from '@testing-library/react-native';
 import { Button } from '../Button';
+import { ThemeProvider } from '../../../context/ThemeContext';
 import {
   runAccessibilityChecks,
   expectNoAccessibilityViolations,
-} from '../../../utils/__tests__/accessibility.test';
+} from '../../../utils/__tests__/accessibility';
 
 describe('Button Accessibility', () => {
   it('should have no accessibility violations with minimal props', () => {
     const component = <Button title="Test Button" onPress={() => {}} />;
-    const rendered = render(component);
+    const rendered = render(<ThemeProvider>{component}</ThemeProvider>);
     const result = runAccessibilityChecks(rendered);
 
     expectNoAccessibilityViolations(result);
@@ -23,7 +24,7 @@ describe('Button Accessibility', () => {
     const component = (
       <Button title="Test Button" onPress={() => {}} accessibilityLabel="Custom button label" />
     );
-    const rendered = render(component);
+    const rendered = render(<ThemeProvider>{component}</ThemeProvider>);
     const button = rendered.getByRole('button');
 
     expect(button.props.accessibilityLabel).toBe('Custom button label');
@@ -33,7 +34,7 @@ describe('Button Accessibility', () => {
     const component = (
       <Button title="Test Button" onPress={() => {}} accessibilityHint="This is a hint" />
     );
-    const rendered = render(component);
+    const rendered = render(<ThemeProvider>{component}</ThemeProvider>);
     const button = rendered.getByRole('button');
 
     expect(button.props.accessibilityHint).toBe('This is a hint');
@@ -41,7 +42,7 @@ describe('Button Accessibility', () => {
 
   it('should have accessibilityRole set to button', () => {
     const component = <Button title="Test Button" onPress={() => {}} />;
-    const rendered = render(component);
+    const rendered = render(<ThemeProvider>{component}</ThemeProvider>);
     const button = rendered.getByRole('button');
 
     expect(button.props.accessibilityRole).toBe('button');
@@ -49,7 +50,7 @@ describe('Button Accessibility', () => {
 
   it('should announce disabled state', () => {
     const component = <Button title="Test Button" onPress={() => {}} disabled />;
-    const rendered = render(component);
+    const rendered = render(<ThemeProvider>{component}</ThemeProvider>);
     const button = rendered.getByRole('button');
 
     expect(button.props.accessibilityState?.disabled).toBe(true);
@@ -57,7 +58,7 @@ describe('Button Accessibility', () => {
 
   it('should announce loading state', () => {
     const component = <Button title="Test Button" onPress={() => {}} loading />;
-    const rendered = render(component);
+    const rendered = render(<ThemeProvider>{component}</ThemeProvider>);
     const button = rendered.getByRole('button');
 
     expect(button.props.accessibilityState?.busy).toBe(true);
@@ -65,7 +66,7 @@ describe('Button Accessibility', () => {
 
   it('should support dynamic font scaling', () => {
     const component = <Button title="Test Button" onPress={() => {}} />;
-    const rendered = render(component);
+    const rendered = render(<ThemeProvider>{component}</ThemeProvider>);
     const text = rendered.getByText('Test Button');
 
     expect(text.props.allowFontScaling).toBe(true);

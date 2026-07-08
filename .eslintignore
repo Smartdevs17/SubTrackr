@@ -6,3 +6,5 @@ developer-portal/
 sdks/
 contracts/
 chaos/
+services/
+node_modules/

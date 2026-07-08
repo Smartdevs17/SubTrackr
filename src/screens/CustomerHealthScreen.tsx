@@ -1,13 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Dimensions,
-  TouchableOpacity,
-} from 'react-native';
-import Svg, { Rect, Text as SvgText, Line, G, Circle } from 'react-native-svg';
+import { View, Text, StyleSheet, ScrollView, Dimensions, TouchableOpacity } from 'react-native';
+import Svg, { Text as SvgText, Line, G, Circle } from 'react-native-svg';
 import { spacing, typography, borderRadius } from '../utils/constants';
 import { useHealthStore } from '../store';
 import { HealthScoreService } from '../services/healthService';
@@ -28,13 +21,13 @@ const CustomerHealthScreen: React.FC = () => {
   const { healthScores, history, interventions } = useHealthStore();
   const { healthScoreWeights, setHealthScoreWeights } = useSettingsStore();
   const [dateRange, setDateRange] = useState<DateRange>('30d');
-  const [selectedSubscriptionId, setSelectedSubscriptionId] = useState<string | null>(null);
+  const [selectedSubscriptionId, _setSelectedSubscriptionId] = useState<string | null>(null);
 
-  const weights = (healthScoreWeights as typeof DEFAULT_WEIGHTS) ?? DEFAULT_WEIGHTS;
+  const weights = (healthScoreWeights ?? DEFAULT_WEIGHTS) as typeof DEFAULT_WEIGHTS;
 
   const selectedScore = selectedSubscriptionId
     ? healthScores.find((h) => h.subscriptionId === selectedSubscriptionId)
-    : healthScores[0] ?? undefined;
+    : (healthScores[0] ?? undefined);
 
   useEffect(() => {
     if (healthScores.length === 0) {
@@ -88,11 +81,9 @@ const CustomerHealthScreen: React.FC = () => {
     }));
   }, [recentHistory]);
 
-  const pathD = useMemo(() => {
+  const _pathD = useMemo(() => {
     if (chartPoints.length < 2) return '';
-    return chartPoints
-      .map((p, i) => (i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`))
-      .join(' ');
+    return chartPoints.map((p, i) => (i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`)).join(' ');
   }, [chartPoints]);
 
   function handleWeightChange(factor: keyof typeof DEFAULT_WEIGHTS, value: number) {
@@ -113,8 +104,7 @@ const CustomerHealthScreen: React.FC = () => {
               style={[
                 styles.statusBadge,
                 { backgroundColor: getStatusColor(selectedScore.status) + '20' },
-              ]}
-            >
+              ]}>
               <Text style={[styles.statusText, { color: getStatusColor(selectedScore.status) }]}>
                 {selectedScore.status.toUpperCase()}
               </Text>
@@ -136,19 +126,27 @@ const CustomerHealthScreen: React.FC = () => {
         <View style={styles.breakdownRow}>
           <View style={styles.breakdownItem}>
             <Text style={styles.breakdownLabel}>Login</Text>
-            <Text style={styles.breakdownValue}>{selectedScore?.breakdown.loginFrequency ?? '-'}</Text>
+            <Text style={styles.breakdownValue}>
+              {selectedScore?.breakdown.loginFrequency ?? '-'}
+            </Text>
           </View>
           <View style={styles.breakdownItem}>
             <Text style={styles.breakdownLabel}>Usage</Text>
-            <Text style={styles.breakdownValue}>{selectedScore?.breakdown.featureUsage ?? '-'}</Text>
+            <Text style={styles.breakdownValue}>
+              {selectedScore?.breakdown.featureUsage ?? '-'}
+            </Text>
           </View>
           <View style={styles.breakdownItem}>
             <Text style={styles.breakdownLabel}>Payment</Text>
-            <Text style={styles.breakdownValue}>{selectedScore?.breakdown.paymentSuccessRate ?? '-'}</Text>
+            <Text style={styles.breakdownValue}>
+              {selectedScore?.breakdown.paymentSuccessRate ?? '-'}
+            </Text>
           </View>
           <View style={styles.breakdownItem}>
             <Text style={styles.breakdownLabel}>Support</Text>
-            <Text style={styles.breakdownValue}>{selectedScore?.breakdown.supportTickets ?? '-'}</Text>
+            <Text style={styles.breakdownValue}>
+              {selectedScore?.breakdown.supportTickets ?? '-'}
+            </Text>
           </View>
           <View style={styles.breakdownItem}>
             <Text style={styles.breakdownLabel}>NPS</Text>
@@ -164,17 +162,9 @@ const CustomerHealthScreen: React.FC = () => {
             <TouchableOpacity
               key={range}
               onPress={() => setDateRange(range)}
-              style={[
-                styles.rangeChip,
-                dateRange === range && styles.rangeChipActive,
-              ]}
-            >
+              style={[styles.rangeChip, dateRange === range && styles.rangeChipActive]}>
               <Text
-                style={[
-                  styles.rangeChipText,
-                  dateRange === range && styles.rangeChipTextActive,
-                ]}
-              >
+                style={[styles.rangeChipText, dateRange === range && styles.rangeChipTextActive]}>
                 {range}
               </Text>
             </TouchableOpacity>
@@ -203,8 +193,7 @@ const CustomerHealthScreen: React.FC = () => {
                   y={p.y - 10}
                   fontSize="10"
                   fill={colors.textSecondary}
-                  textAnchor="middle"
-                >
+                  textAnchor="middle">
                   {p.score}
                 </SvgText>
               ))}
@@ -217,21 +206,19 @@ const CustomerHealthScreen: React.FC = () => {
 
       <Card style={styles.card}>
         <Text style={styles.sectionTitle}>Weights</Text>
-        {(Object.keys(DEFAULT_WEIGHTS) as Array<keyof typeof DEFAULT_WEIGHTS>).map((factor) => (
+        {(Object.keys(DEFAULT_WEIGHTS) as (keyof typeof DEFAULT_WEIGHTS)[]).map((factor) => (
           <View key={factor} style={styles.weightRow}>
             <Text style={styles.weightLabel}>{factor.replace(/([A-Z])/g, ' $1').trim()}</Text>
             <View style={styles.weightControls}>
               <TouchableOpacity
                 onPress={() => handleWeightChange(factor, Math.max(0, weights[factor] - 0.05))}
-                style={styles.weightButton}
-              >
+                style={styles.weightButton}>
                 <Text style={styles.weightButtonText}>-</Text>
               </TouchableOpacity>
               <Text style={styles.weightValue}>{weights[factor].toFixed(2)}</Text>
               <TouchableOpacity
                 onPress={() => handleWeightChange(factor, Math.min(1, weights[factor] + 0.05))}
-                style={styles.weightButton}
-              >
+                style={styles.weightButton}>
                 <Text style={styles.weightButtonText}>+</Text>
               </TouchableOpacity>
             </View>
@@ -267,7 +254,7 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) =>
     },
     title: {
       ...typography.h2,
-      color: colors.text,
+      color: colors.text.primary,
       marginBottom: spacing.xs,
     },
     subtitle: {
@@ -291,7 +278,7 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) =>
     },
     scoreValue: {
       ...typography.h1,
-      color: colors.text,
+      color: colors.text.primary,
     },
     statusBadge: {
       paddingHorizontal: spacing.sm,
@@ -316,7 +303,7 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) =>
     },
     sectionTitle: {
       ...typography.h3,
-      color: colors.text,
+      color: colors.text.primary,
       marginBottom: spacing.sm,
     },
     breakdownRow: {
@@ -334,7 +321,7 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) =>
     },
     breakdownValue: {
       ...typography.body,
-      color: colors.text,
+      color: colors.text.primary,
       fontWeight: '600',
     },
     chartRow: {
@@ -381,7 +368,7 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) =>
     },
     weightLabel: {
       ...typography.body,
-      color: colors.text,
+      color: colors.text.primary,
       flex: 1,
     },
     weightControls: {
@@ -401,11 +388,11 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) =>
     },
     weightButtonText: {
       ...typography.body,
-      color: colors.text,
+      color: colors.text.primary,
     },
     weightValue: {
       ...typography.body,
-      color: colors.text,
+      color: colors.text.primary,
       width: 40,
       textAlign: 'center',
     },
@@ -419,7 +406,7 @@ const createStyles = (colors: ReturnType<typeof useThemeColors>) =>
     },
     interventionType: {
       ...typography.body,
-      color: colors.text,
+      color: colors.text.primary,
       textTransform: 'capitalize',
     },
     interventionDate: {

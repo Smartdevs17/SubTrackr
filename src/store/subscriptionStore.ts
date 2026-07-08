@@ -2,7 +2,6 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { debouncedAsyncStorageAdapter } from '../utils/storage';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   SubscriptionMetadata,
   CRDTSubscriptionState,
@@ -880,7 +879,12 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       version: STORE_VERSION,
       storage: createJSONStorage(() => debouncedAsyncStorageAdapter),
       partialize: (state) =>
-        serializeForStorage({ subscriptions: state.subscriptions, planChanges: state.planChanges }),
+        serializeForStorage({
+          subscriptions: state.subscriptions,
+          planChanges: state.planChanges,
+          crdtMetadata: state.crdtMetadata,
+          syncStatus: state.syncStatus,
+        }),
       migrate: (persistedState, version) => migratePersistedState(persistedState, version),
       merge: (persistedState, currentState) => ({
         ...currentState,

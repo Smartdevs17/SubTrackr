@@ -1,11 +1,10 @@
 import React, { useCallback } from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { Text } from 'react-native';
 import {
   NavigationContainer,
   LinkingOptions,
   getStateFromPath,
   NavigationState,
-  PartialState,
   Route,
 } from '@react-navigation/native';
 import { navigationRef } from './navigationRef';
@@ -57,7 +56,9 @@ const AdminDashboardScreen = lazyScreen(() => import('../screens/AdminDashboardS
 const FraudDashboard = lazyScreen(() => import('../screens/FraudDashboard'));
 const GroupManagementScreen = lazyScreen(() => import('../screens/GroupManagementScreen'));
 const TaxSettingsScreen = lazyScreen(() => import('../screens/TaxSettingsScreen'));
-const CreditsAndPrepaymentsScreen = lazyScreen(() => import('../screens/CreditsAndPrepaymentsScreen'));
+const CreditsAndPrepaymentsScreen = lazyScreen(
+  () => import('../screens/CreditsAndPrepaymentsScreen')
+);
 const TaxComplianceScreen = lazyScreen(() => import('../screens/TaxComplianceScreen'));
 const SupportDashboardScreen = lazyScreen(() => import('../screens/SupportDashboardScreen'));
 const SegmentManagementScreen = lazyScreen(() =>
@@ -81,7 +82,6 @@ const SandboxDashboardScreen = lazyScreen(() => import('../screens/SandboxDashbo
 const ApiKeyManagementScreen = lazyScreen(() => import('../screens/ApiKeyManagementScreen'));
 const DocumentationPortalScreen = lazyScreen(() => import('../screens/DocumentationPortalScreen'));
 const IntegrationGuidesScreen = lazyScreen(() => import('../screens/IntegrationGuidesScreen'));
-const PartnerDashboardScreen = lazyScreen(() => import('../screens/PartnerDashboardScreen'));
 const PerformanceDashboardScreen = lazyScreen(
   () => import('../screens/PerformanceDashboardScreen')
 );
@@ -97,11 +97,6 @@ const PaymentMethodsScreen = lazyScreen(() =>
 );
 const AnalyticsDashboard = lazyScreen(() => import('../../app/screens/AnalyticsDashboard'));
 const TrialDetailsScreen = lazyScreen(() => import('../screens/TrialDetailsScreen'));
-const RenewalWorkspaceScreen = lazyScreen(() =>
-  import('../../app/screens/RenewalWorkspaceScreen').then((m) => ({ default: m.default }))
-);
-const EntityManagementScreen = lazyScreen(() => import('../screens/EntityManagementScreen'));
-const PauseSubscriptionScreen = lazyScreen(() => import('../screens/PauseSubscriptionScreen'));
 
 // Issue #547: GDPR
 const PrivacyCenterScreen = lazyScreen(() => import('../screens/PrivacyCenterScreen'));
@@ -149,11 +144,14 @@ const requiredParamsByRoute: Partial<Record<keyof RootStackParamList, string[]>>
 const getActiveRoute = (
   route: Route<string, object | undefined> | undefined
 ): Route<string, object | undefined> | undefined => {
-  if (!route || !('state' in route) || !route.state || !Array.isArray(route.state.routes)) {
+  const r = route as Route<string, object | undefined> & {
+    state?: { routes: Route<string, object | undefined>[]; index: number };
+  };
+  if (!r || !r.state || !Array.isArray(r.state.routes)) {
     return route;
   }
 
-  const nested = route.state.routes[route.state.index ?? 0] as Route<string, object | undefined>;
+  const nested = r.state.routes[r.state.index ?? 0] as Route<string, object | undefined>;
   return getActiveRoute(nested);
 };
 
@@ -170,7 +168,9 @@ const getStateFromPathSafe = (path: string, options?: any) => {
   const state = getStateFromPath(path, options);
   if (!state || !state.routes?.length) return undefined;
 
-  const activeRoute = getActiveRoute(state.routes[state.index ?? 0] as Route<string, object | undefined>);
+  const activeRoute = getActiveRoute(
+    state.routes[state.index ?? 0] as Route<string, object | undefined>
+  );
   if (!hasValidRequiredParams(activeRoute)) return undefined;
 
   return state;
@@ -398,11 +398,6 @@ const HomeStack = () => (
       options={{ title: 'Trial Details', headerShown: true }}
     />
   </Stack.Navigator>
-      name="PartnerDashboard"
-      component={PartnerDashboardScreen}
-      options={{ title: 'Partner Dashboard', headerShown: true }}
-    />
-  </Stack.Navigator>
 );
 
 const SettingsStack = () => (
@@ -497,6 +492,8 @@ const SettingsStack = () => (
       name="CreditsAndPrepayments"
       component={CreditsAndPrepaymentsScreen}
       options={{ title: 'Credits & Prepayments', headerShown: true }}
+    />
+    <Stack.Screen
       name="TaxCompliance"
       component={TaxComplianceScreen}
       options={{ title: 'Tax Compliance', headerShown: true }}
@@ -711,9 +708,11 @@ export const AppNavigator = () => {
   const { isDark } = useTheme();
 
   const handleStateChange = useCallback(
-    (state?: PartialState<NavigationState> | undefined) => {
+    (state?: NavigationState) => {
       if (!state) return;
-      const activeRoute = getActiveRoute(state.routes[state.index ?? 0] as Route<string, object | undefined>);
+      const activeRoute = getActiveRoute(
+        state.routes[state.index ?? 0] as Route<string, object | undefined>
+      );
       const isAuthenticated = Boolean(user);
       if (!isRouteAllowed(activeRoute, isAuthenticated, subscriptionTier)) {
         console.warn(

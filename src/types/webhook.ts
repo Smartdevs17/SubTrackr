@@ -160,7 +160,12 @@ export interface WebhookEventPayload {
 }
 
 export type WebhookDeliveryStatus =
-  'pending' | 'retrying' | 'delivered' | 'failed' | 'paused' | 'skipped';
+  | 'pending'
+  | 'retrying'
+  | 'delivered'
+  | 'failed'
+  | 'paused'
+  | 'skipped';
 
 export interface WebhookDelivery {
   id: string;

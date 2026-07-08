@@ -30,7 +30,11 @@ export class CreditNoteService {
     useCreditStore.getState().voidCreditNote(id);
   }
 
-  static applyToInvoice(creditNoteId: string, invoiceId: string, amount?: number): CreditNote | null {
+  static applyToInvoice(
+    creditNoteId: string,
+    invoiceId: string,
+    amount?: number
+  ): CreditNote | null {
     return useCreditStore.getState().applyCreditToInvoice(creditNoteId, invoiceId, amount);
   }
 
@@ -83,26 +87,21 @@ export class PrepaymentWalletService {
   }
 
   static getTransactions(walletId: string): PrepaymentTransaction[] {
-    return useCreditStore
-      .getState()
-      .prepaymentTransactions.filter((t) => t.walletId === walletId);
+    return useCreditStore.getState().prepaymentTransactions.filter((t) => t.walletId === walletId);
   }
 
   static getTransactionsBySubscription(subscriptionId: string): PrepaymentTransaction[] {
     const wallet = useCreditStore.getState().getWalletBySubscription(subscriptionId);
     if (!wallet) return [];
-    return useCreditStore
-      .getState()
-      .prepaymentTransactions.filter((t) => t.walletId === wallet.id);
+    return useCreditStore.getState().prepaymentTransactions.filter((t) => t.walletId === wallet.id);
   }
 }
 
 export const creditExpiryChecker = (): { expiredCount: number; totalExpiredAmount: number } => {
-  const before = useCreditStore.getState().creditNotes.length;
   useCreditStore.getState().expireCreditNotes();
-  const after = useCreditStore.getState().creditNotes.filter(
-    (c) => c.status === CreditNoteStatus.EXPIRED
-  ).length;
+  const after = useCreditStore
+    .getState()
+    .creditNotes.filter((c) => c.status === CreditNoteStatus.EXPIRED).length;
   const totalExpiredAmount = useCreditStore
     .getState()
     .creditNotes.filter((c) => c.status === CreditNoteStatus.EXPIRED)

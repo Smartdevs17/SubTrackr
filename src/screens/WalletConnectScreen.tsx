@@ -37,13 +37,14 @@ const WalletConnectScreen: React.FC = () => {
   const { open } = useAppKit();
   const { address, isConnected, chainId } = useAppKitAccount();
   const { walletProvider } = useAppKitProvider();
-  const { disconnect, networkMismatch, setPreferredNetwork } = useWalletStore();
+  const { disconnect } = useWalletStore();
   const { currentNetwork, setNetwork: setNetworkStore } = useNetworkStore();
 
   const [isConnecting, setIsConnecting] = useState(false);
   const [connection, setConnection] = useState<WalletConnection | null>(null);
   const [tokenBalances, setTokenBalances] = useState<TokenBalance[]>([]);
   const [isLoadingBalances, setIsLoadingBalances] = useState(false);
+  const [showNetworkPicker, setShowNetworkPicker] = useState(false);
   const tokenPriceIds = tokenBalances.map((token) => token.symbol);
   const {
     prices,
@@ -56,6 +57,18 @@ const WalletConnectScreen: React.FC = () => {
     tokenIds: tokenPriceIds,
     enabled: tokenPriceIds.length > 0,
   });
+
+  const networkMismatch = React.useMemo(() => {
+    if (!connection || !currentNetwork) return null;
+    const connectedNetwork = ALL_NETWORKS.find((n) => n.chainId === connection.chainId);
+    if (connectedNetwork && connectedNetwork.id !== currentNetwork.id) {
+      return {
+        connectedChainId: connection.chainId,
+        preferredNetwork: currentNetwork,
+      };
+    }
+    return null;
+  }, [connection, currentNetwork]);
 
   useEffect(() => {
     initializeWalletService();
@@ -168,7 +181,6 @@ const WalletConnectScreen: React.FC = () => {
 
   const handleSelectNetwork = async (network: Network) => {
     setShowNetworkPicker(false);
-    await setPreferredNetwork(network.id);
     await setNetworkStore(network.id);
   };
 
@@ -557,12 +569,11 @@ const WalletConnectScreen: React.FC = () => {
                   <View style={styles.networkItemInfo}>
                     <Text style={styles.networkItemName}>{item.name}</Text>
                     <Text style={styles.networkItemType}>
-                      {item.type.toUpperCase()}{item.isTestnet ? ' · Testnet' : ''}
+                      {item.type.toUpperCase()}
+                      {item.isTestnet ? ' · Testnet' : ''}
                     </Text>
                   </View>
-                  {currentNetwork?.id === item.id && (
-                    <Text style={styles.networkItemCheck}>✓</Text>
-                  )}
+                  {currentNetwork?.id === item.id && <Text style={styles.networkItemCheck}>✓</Text>}
                 </TouchableOpacity>
               )}
             />
@@ -669,6 +680,69 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       textAlign: 'center',
       marginTop: spacing.sm,
       fontStyle: 'italic',
+    },
+    mismatchBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.warningBackground,
+      borderRadius: borderRadius.md,
+      padding: spacing.md,
+      marginBottom: spacing.md,
+    },
+    mismatchIcon: {
+      fontSize: 24,
+      marginRight: spacing.sm,
+    },
+    mismatchTextContainer: {
+      flex: 1,
+    },
+    mismatchTitle: {
+      ...typography.caption,
+      color: colors.text.primary,
+      fontWeight: '600',
+      marginBottom: spacing.xs,
+    },
+    mismatchBody: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      fontSize: 12,
+    },
+    switchNetworkButton: {
+      backgroundColor: colors.primary,
+      borderRadius: borderRadius.md,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+    },
+    switchNetworkText: {
+      ...typography.caption,
+      color: colors.onPrimary,
+      fontWeight: '600',
+    },
+    networkSelectorRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    networkSelectorLabel: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      marginBottom: spacing.xs,
+    },
+    networkSelectorValue: {
+      ...typography.body,
+      color: colors.text.primary,
+      fontWeight: '600',
+    },
+    changeNetworkButton: {
+      backgroundColor: colors.surfaceVariant,
+      borderRadius: borderRadius.md,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+    },
+    changeNetworkText: {
+      ...typography.caption,
+      color: colors.primary,
+      fontWeight: '600',
     },
     connectionHeader: {
       flexDirection: 'row',
@@ -919,6 +993,68 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     readyIcon: {
       fontSize: 48,
       marginBottom: spacing.sm,
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: colors.overlay,
+      justifyContent: 'flex-end',
+    },
+    modalContainer: {
+      backgroundColor: colors.background.primary,
+      borderTopLeftRadius: borderRadius.xl,
+      borderTopRightRadius: borderRadius.xl,
+      maxHeight: '60%',
+      paddingBottom: spacing.xl,
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: spacing.lg,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border.default,
+    },
+    modalTitle: {
+      ...typography.h3,
+      color: colors.text.primary,
+    },
+    modalClose: {
+      fontSize: 20,
+      color: colors.textSecondary,
+      padding: spacing.sm,
+    },
+    networkItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.lg,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border.default,
+    },
+    networkItemSelected: {
+      backgroundColor: colors.surfaceVariant,
+    },
+    networkItemIcon: {
+      fontSize: 24,
+      marginRight: spacing.md,
+    },
+    networkItemInfo: {
+      flex: 1,
+    },
+    networkItemName: {
+      ...typography.body,
+      color: colors.text.primary,
+      fontWeight: '600',
+      marginBottom: spacing.xs,
+    },
+    networkItemType: {
+      ...typography.caption,
+      color: colors.textSecondary,
+    },
+    networkItemCheck: {
+      fontSize: 18,
+      color: colors.primary,
+      fontWeight: '600',
     },
   });
 }

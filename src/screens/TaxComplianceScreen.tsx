@@ -1,29 +1,23 @@
 import React, { useCallback, useState } from 'react';
-import {
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { FormScreen } from '../components/common/ScreenTemplates';
 import { useTaxStore } from '../store/taxStore';
 import {
-  calculateTaxAmount,
   ExemptionCertificateService,
   NexusDetectionService,
-  TaxRateSyncJob,
   TaxRateSyncService,
 } from '../services/taxService';
+import type { TaxRateSyncJob } from '../types/tax';
 import { colors, spacing, typography } from '../utils/constants';
 
 const TaxComplianceScreen: React.FC = () => {
   const { config, calculations, reports, calculateTax } = useTaxStore();
   const [syncJob, setSyncJob] = useState<TaxRateSyncJob | null>(null);
-  const [nexusResults, setNexusResults] = useState<{ region: string; hasNexus: boolean; percent: number }[]>([]);
+  const [nexusResults, setNexusResults] = useState<
+    { region: string; hasNexus: boolean; percent: number }[]
+  >([]);
 
   const nexusService = new NexusDetectionService();
   const syncService = new TaxRateSyncService();
@@ -38,8 +32,11 @@ const TaxComplianceScreen: React.FC = () => {
 
   const handleNexusCheck = useCallback(() => {
     const results = config.ratesByRegion.map((rate) => {
-      const threshold = nexusService.getNexusThreshold(rate.region);
-      const status = nexusService.detectNexus(rate.region, calculations.reduce((s, c) => (c.region === rate.region ? s + c.subtotal : s), 0));
+      const _threshold = nexusService.getNexusThreshold(rate.region);
+      const status = nexusService.detectNexus(
+        rate.region,
+        calculations.reduce((s, c) => (c.region === rate.region ? s + c.subtotal : s), 0)
+      );
       return {
         region: rate.region,
         hasNexus: status.hasNexus,
@@ -57,7 +54,9 @@ const TaxComplianceScreen: React.FC = () => {
     }
     Alert.alert(
       'Expiring Certificates',
-      expiring.map((e) => `${e.certificateId}: expires ${e.validUntil.toLocaleDateString()}`).join('\n')
+      expiring
+        .map((e) => `${e.certificateId}: expires ${e.validUntil.toLocaleDateString()}`)
+        .join('\n')
     );
   }, []);
 
@@ -95,8 +94,8 @@ const TaxComplianceScreen: React.FC = () => {
             {nexusResults.map((item) => (
               <View key={item.region} style={styles.nexusRow}>
                 <Text style={styles.row}>
-                  {item.region}: {item.hasNexus ? 'Established' : 'None'}{' '}
-                  ({item.percent}% of threshold)
+                  {item.region}: {item.hasNexus ? 'Established' : 'None'} ({item.percent}% of
+                  threshold)
                 </Text>
                 <View
                   style={[
@@ -123,19 +122,11 @@ const TaxComplianceScreen: React.FC = () => {
         <Text style={styles.sectionTitle}>Rate sync status</Text>
         {syncJob ? (
           <View>
-            <Text style={styles.row}>
-              Job: {syncJob.jobId}
-            </Text>
-            <Text style={styles.row}>
-              Status: {syncJob.status}
-            </Text>
-            <Text style={styles.row}>
-              Updated: {syncJob.totalRatesUpdated} regions
-            </Text>
-            <Text style={styles.row}>
-              Synced: {syncJob.syncedRegions.join(', ') || 'none'}
-            </Text>
-            {syncJob.failedRegions.map((failure, i) => (
+            <Text style={styles.row}>Job: {syncJob.jobId}</Text>
+            <Text style={styles.row}>Status: {syncJob.status}</Text>
+            <Text style={styles.row}>Updated: {syncJob.totalRatesUpdated} regions</Text>
+            <Text style={styles.row}>Synced: {syncJob.syncedRegions.join(', ') || 'none'}</Text>
+            {syncJob.failedRegions.map((failure: { region: string; error: string }, i: number) => (
               <Text key={i} style={styles.row}>
                 Failed {failure.region}: {failure.error}
               </Text>

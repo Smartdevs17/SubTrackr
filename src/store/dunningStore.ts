@@ -20,7 +20,7 @@ const now = (): number => Date.now();
 const createId = (prefix: string): string =>
   `${prefix}_${now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 
-interface DunningState {
+export interface DunningState {
   entries: DunningEntry[];
   configurations: Record<string, DunningConfiguration>;
   isLoading: boolean;

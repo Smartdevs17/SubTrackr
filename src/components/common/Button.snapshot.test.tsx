@@ -1,5 +1,4 @@
 import React from 'react';
-import { Platform } from 'react-native';
 import { render } from '@testing-library/react-native';
 
 import { ThemeProvider } from '../../context/ThemeContext';
@@ -26,7 +25,7 @@ describe('Button (snapshot)', () => {
       </ThemeProvider>
     );
 
-    expect(toJSON()).toMatchSnapshot({ platform: Platform.OS });
+    expect(toJSON()).toMatchSnapshot();
   });
 
   it('renders disabled state', () => {
@@ -36,6 +35,6 @@ describe('Button (snapshot)', () => {
       </ThemeProvider>
     );
 
-    expect(toJSON()).toMatchSnapshot({ platform: Platform.OS });
+    expect(toJSON()).toMatchSnapshot();
   });
 });

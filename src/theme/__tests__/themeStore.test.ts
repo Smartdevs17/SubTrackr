@@ -1,6 +1,6 @@
 import { useThemeStore } from '../../theme/themeStore';
 import { darkTheme } from '../../theme/themes';
-import type { ThemeConfig, ThemeExportData, ThemeVariantPair } from '../types';
+import type { ThemeExportData, ThemeVariantPair } from '../types';
 
 const mockStore = new Map<string, string>();
 
