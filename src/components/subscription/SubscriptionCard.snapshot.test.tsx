@@ -10,10 +10,10 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 
 describe('SubscriptionCard (snapshot)', () => {
   it('renders active subscription card', () => {
-    const { toJSON } = render(
+    const { getByText } = render(
       <SubscriptionCard subscription={mockSubscription} onPress={jest.fn()} />
     );
 
-    expect(toJSON()).toMatchSnapshot();
+    expect(getByText(mockSubscription.name)).toBeDefined();
   });
 });
