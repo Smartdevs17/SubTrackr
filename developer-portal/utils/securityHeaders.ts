@@ -34,7 +34,9 @@ export function adminDashboardHeaders(apiOrigin?: string): Record<string, string
 }
 
 /** Entries for a Next.js `headers()` config covering admin dashboard routes. */
-export function adminDashboardNextHeaders(apiOrigin?: string): Array<{ key: string; value: string }> {
+export function adminDashboardNextHeaders(
+  apiOrigin?: string
+): Array<{ key: string; value: string }> {
   return nextSecurityHeaders(portalCspOptions(apiOrigin));
 }
 

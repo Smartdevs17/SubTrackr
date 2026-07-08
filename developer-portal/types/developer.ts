@@ -17,7 +17,11 @@ export interface Developer {
 
 export interface OnboardingStatus {
   step:
-    'registration' | 'email_verification' | 'profile_completion' | 'sandbox_setup' | 'completed';
+    | 'registration'
+    | 'email_verification'
+    | 'profile_completion'
+    | 'sandbox_setup'
+    | 'completed';
   completedSteps: string[];
   startedAt: Date;
   completedAt?: Date;
