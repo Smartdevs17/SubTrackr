@@ -27,7 +27,7 @@ jobs:
         run: npm ci --legacy-peer-deps
 
       - name: Run chaos experiments
-        run: npx jest --testPathPattern=chaos --no-coverage --ci
+        run: npx --no-install jest --testPathPattern=chaos --no-coverage --ci
 
       - name: Upload chaos results
         if: always()

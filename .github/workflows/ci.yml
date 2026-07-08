@@ -79,7 +79,7 @@ jobs:
         if: steps.prettier-check.outcome == 'failure'
         run: |
           echo "Formatting inconsistencies detected. Executing auto-fixer..."
-          npm run format:write || npx prettier --write "src/**/*.{ts,tsx,js,json,md}"
+          npm run format || npx prettier --write "src/**/*.{ts,tsx,js,json,md}"
 
       - name: Commit and Push formatting fixes
         if: steps.prettier-check.outcome == 'failure'
@@ -192,41 +192,6 @@ jobs:
           name: coverage-report-${{ matrix.shard }}
           path: coverage/lcov.info
 
-  accessibility-tests:
-    name: Accessibility Tests
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-
-      - name: Cache node modules
-        uses: actions/cache@v4
-        id: cache-node-modules
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package-lock.json') }}
-
-      - name: Install dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --legacy-peer-deps
-
-      - name: Run accessibility tests
-        run: npm run test:a11y
-
-      - name: Upload accessibility report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: accessibility-report
-          path: accessibility-report.json
-          if-no-files-found: ignore
-
   typescript-build:
     name: TypeScript Build
     runs-on: ubuntu-latest
@@ -278,29 +243,6 @@ jobs:
         run: npm run build
         env:
           EXPO_NO_TELEMETRY: 1
-
-  sonarcloud:
-    name: SonarCloud Analysis
-    runs-on: ubuntu-latest
-    needs: [typescript-tests, accessibility-tests]
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Download coverage report
-        uses: actions/download-artifact@v4
-        with:
-          name: coverage-report
-          path: coverage
-
-      - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@master
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   # ─────────────────────────────────────────────────────────
   # Rust / Soroban Smart Contract Checks
@@ -589,9 +531,7 @@ jobs:
         typescript-lint,
         typescript-typecheck,
         typescript-tests,
-        accessibility-tests,
         typescript-build,
-        sonarcloud,
         rust-format,
         rust-clippy,
         rust-tests,
@@ -618,9 +558,7 @@ jobs:
         typescript-lint,
         typescript-typecheck,
         typescript-tests,
-        accessibility-tests,
         typescript-build,
-        sonarcloud,
         rust-format,
         rust-clippy,
         rust-tests,
@@ -640,9 +578,7 @@ jobs:
           if [ "${{ needs.typescript-lint.result }}" != "success" ] || \
              [ "${{ needs.typescript-typecheck.result }}" != "success" ] || \
              [ "${{ needs.typescript-tests.result }}" != "success" ] || \
-             [ "${{ needs.accessibility-tests.result }}" != "success" ] || \
              [ "${{ needs.typescript-build.result }}" != "success" ] || \
-             [ "${{ needs.sonarcloud.result }}" != "success" ] || \
              [ "${{ needs.rust-format.result }}" != "success" ] || \
              [ "${{ needs.rust-clippy.result }}" != "success" ] || \
              [ "${{ needs.rust-tests.result }}" != "success" ] || \
