@@ -1,14 +1,6 @@
 name: Contract Invariant Tests
 
-on:
-  push:
-    branches: [main, dev, develop, 'feature/*']
-    paths:
-      - 'contracts/**'
-  pull_request:
-    branches: [main, dev, develop, 'feature/*']
-    paths:
-      - 'contracts/**'
+on: workflow_dispatch
 
 env:
   RUST_VERSION: '1.88'

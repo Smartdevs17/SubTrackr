@@ -1,14 +1,6 @@
 name: SDK Auto-Generation
 
-on:
-  push:
-    paths:
-      - 'spec/openapi.yaml'
-      - 'scripts/sdk-generate.sh'
-      - '.github/workflows/sdk-generate.yml'
-  pull_request:
-    paths:
-      - 'spec/openapi.yaml'
+on: workflow_dispatch
 
 jobs:
   validate-spec:

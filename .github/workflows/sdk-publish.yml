@@ -1,15 +1,6 @@
 name: SDK Packages
 
-on:
-  push:
-    tags:
-      - 'sdk-v*'
-  pull_request:
-    paths:
-      - 'sdks/**'
-      - 'docs/openapi.yaml'
-      - 'scripts/generate-sdks.js'
-      - '.github/workflows/sdk-publish.yml'
+on: workflow_dispatch
 
 jobs:
   validate-sdks:

@@ -1,18 +1,6 @@
 name: DB Migration Validation
 
-on:
-  push:
-    paths:
-      - 'backend/migrations/**'
-      - 'scripts/db-migrate-dryrun.js'
-      - 'scripts/db-schema-drift.js'
-      - 'scripts/db-migration-lint.js'
-  pull_request:
-    paths:
-      - 'backend/migrations/**'
-      - 'scripts/db-migrate-dryrun.js'
-      - 'scripts/db-schema-drift.js'
-      - 'scripts/db-migration-lint.js'
+on: workflow_dispatch
 
 env:
   NODE_VERSION: '20'

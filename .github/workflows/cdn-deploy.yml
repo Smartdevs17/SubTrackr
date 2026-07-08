@@ -1,21 +1,6 @@
 name: CDN Configuration Deploy
 
-on:
-  push:
-    branches: [main, develop]
-    paths:
-      - 'infra/fastly/**'
-      - '.github/workflows/cdn-deploy.yml'
-  workflow_dispatch:
-    inputs:
-      provider:
-        description: 'CDN provider'
-        required: true
-        default: 'fastly'
-        type: choice
-        options:
-          - fastly
-          - cloudflare
+on: workflow_dispatch
 
 env:
   NODE_VERSION: '20'
