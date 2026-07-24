@@ -1,0 +1,19 @@
+name: 'Build Contracts'
+description: 'Rust toolchain setup, Soroban CLI, WASM build, artifact upload'
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Rust Target
+      run: rustup target add wasm32-unknown-unknown
+      shell: bash
+    - name: Install Soroban CLI
+      run: cargo install --locked soroban-cli || true
+      shell: bash
+    - name: Build WASM
+      run: cd contracts && cargo build --target wasm32-unknown-unknown --release
+      shell: bash
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: contracts-wasm
+        path: contracts/target/wasm32-unknown-unknown/release/*.wasm
