@@ -3,7 +3,8 @@ import { ethers } from 'ethers';
 import { GasEstimate } from '../types/wallet';
 
 import { NetworkError, NetworkErrorCode, ContractError, ContractErrorCode } from '../errors';
-import { getEvmRpcUrl } from '../config/evm';
+import { getEvmRpcUrls } from '../config/evm';
+import { MonitoringJsonRpcProvider } from '../../backend/services/shared/MonitoringJsonRpcProvider';
 import { TokenService } from './tokenService';
 import { GasService } from './gasService';
 import { StreamService } from './streamService';
@@ -285,7 +286,7 @@ export class WalletServiceManager implements WalletServiceContext {
   }
 
   getProvider(chainId: number): ethers.providers.JsonRpcProvider {
-    return new ethers.providers.JsonRpcProvider(getEvmRpcUrl(chainId));
+    return new MonitoringJsonRpcProvider(getEvmRpcUrls(chainId), chainId);
   }
 
   isConnected(): boolean {
