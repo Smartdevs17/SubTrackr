@@ -7,6 +7,7 @@ jobs:
     name: Detox iOS
     runs-on: macos-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-node
       - name: Expo Prebuild
         run: npx expo prebuild -p ios
@@ -58,6 +59,7 @@ jobs:
     name: Detox Android
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-node
       - name: Setup Java
         uses: actions/setup-java@v3

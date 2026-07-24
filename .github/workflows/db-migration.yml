@@ -12,6 +12,7 @@ jobs:
     name: Migration Lint
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-node
 
       - name: Lint migrations
@@ -21,6 +22,7 @@ jobs:
     name: Migration Dry-Run
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-node
 
       - name: Dry-run migrations (no DB changes)
@@ -50,6 +52,7 @@ jobs:
     env:
       DATABASE_URL: postgresql://subtrackr:testpassword@localhost:5432/subtrackr_test
     steps:
+      - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-node
 
       - name: Apply migrations (up)
@@ -68,6 +71,7 @@ jobs:
     name: Schema Drift Detection
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-node
 
       - name: Detect schema drift
@@ -77,6 +81,7 @@ jobs:
     name: Expand-Migrate-Contract Validation
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-node
 
       - name: Validate EMC state file exists (if migrations present)
