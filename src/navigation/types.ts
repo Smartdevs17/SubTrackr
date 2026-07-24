@@ -71,6 +71,7 @@ export type RootStackParamList = {
   PaymentMethods: undefined;
   AnalyticsDashboard: undefined;
   TrialDetails: { trialId: string } | undefined;
+  ChurnPrediction: undefined;
   PartnerDashboard: undefined;
   NotFound: { reason?: string };
   // Issue #547: GDPR
