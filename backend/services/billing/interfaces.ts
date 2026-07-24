@@ -14,6 +14,9 @@ import {
   DunningStage,
   DunningCommunication,
   DunningAnalytics,
+  FailureReason,
+  DunningCommunicationTemplate,
+  RetryStrategy
 } from '../../../src/types/dunning';
 import {
   TransactionRecord,
@@ -50,9 +53,10 @@ export interface ITaxService {
 
 export interface IDunningService {
   configurePlan(planId: string, config: Partial<DunningConfiguration>): DunningConfiguration;
+  configureABTest(planId: string, enabled: boolean, variants: Array<{ id: string; weight: number; strategy: RetryStrategy }>): void;
   getConfiguration(planId: string): DunningConfiguration | undefined;
-  startDunning(subscriptionId: string, subscriberId: string, merchantId: string, planId: string): DunningEntry;
-  recordFailedCharge(subscriptionId: string): DunningEntry | null;
+  startDunning(subscriptionId: string, subscriberId: string, merchantId: string, planId: string, failureReason?: FailureReason): DunningEntry;
+  recordFailedCharge(subscriptionId: string, failureReason?: FailureReason): DunningEntry | null;
   recordSuccessfulCharge(subscriptionId: string): void;
   getDunningEntry(subscriptionId: string): DunningEntry | undefined;
   listActiveDunning(merchantId?: string): DunningEntry[];
@@ -62,6 +66,10 @@ export interface IDunningService {
   getCommunications(subscriptionId: string): DunningCommunication[];
   getAnalytics(merchantId?: string): DunningAnalytics;
   getProcessableEntries(): DunningEntry[];
+  addTemplate(template: DunningCommunicationTemplate): void;
+  updateTemplate(id: string, template: Partial<DunningCommunicationTemplate>): void;
+  removeTemplate(id: string): void;
+  getTemplates(): DunningCommunicationTemplate[];
 }
 
 export interface IAccountingExportService {

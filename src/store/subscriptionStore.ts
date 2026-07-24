@@ -46,6 +46,7 @@ import {
   ProrationPreview,
   CreditMemo,
 } from '../utils/proration';
+import { FailureReason } from '../types/dunning';
 
 const STORAGE_KEY = 'subtrackr-subscriptions';
 const STORE_VERSION = 1;
@@ -179,7 +180,11 @@ interface SubscriptionState {
   ) => Promise<void>;
   applyCreditToSubscription: (id: string) => Promise<void>;
   /** Simulate or record a billing result (fires local notifications when enabled for this sub). */
-  recordBillingOutcome: (id: string, outcome: 'success' | 'failed') => Promise<void>;
+  recordBillingOutcome: (
+    id: string,
+    outcome: 'success' | 'failed',
+    failureReason?: FailureReason
+  ) => Promise<void>;
   fetchSubscriptions: () => Promise<void>;
   calculateStats: () => void;
   queuePlanChange: (
@@ -689,7 +694,11 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         }
       },
 
-      recordBillingOutcome: async (id: string, outcome: 'success' | 'failed') => {
+      recordBillingOutcome: async (
+        id: string,
+        outcome: 'success' | 'failed',
+        failureReason?: FailureReason
+      ) => {
         const sub = get().subscriptions.find((s) => s.id === id);
         if (!sub) return;
 
@@ -702,6 +711,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
 
           dunningEntries[id] = {
             failedAttempts: attempt,
+            failureReason: failureReason || 'default',
             lastFailureAt: new Date().toISOString(),
             currentStage:
               attempt <= 3 ? 'retry' : attempt <= 5 ? 'warn' : attempt <= 7 ? 'suspend' : 'cancel',
