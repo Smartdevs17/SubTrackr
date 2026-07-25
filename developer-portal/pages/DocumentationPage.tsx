@@ -9,7 +9,7 @@ import {
   FlatList,
 } from 'react-native';
 import { useDebounce } from '../../src/hooks/useDebounce';
-
+import { ApiPlayground } from '../components/ApiPlayground';
 interface DocSection {
   id: string;
   title: string;
@@ -111,6 +111,23 @@ Events:
 - payment.failed
 
 Verify webhook signatures using HMAC-SHA256.`,
+  },
+  {
+    id: 'versioning',
+    title: 'API Versioning',
+    icon: '🔄',
+    content: `SubTrackr APIs are versioned. The current version is v1.
+Always include the version in your request URL:
+https://api.subtrackr.io/v1/
+
+Backwards-incompatible changes will result in a new API version.`,
+  },
+  {
+    id: 'changelog',
+    title: 'Changelog',
+    icon: '📝',
+    content: `Stay up-to-date with our latest API and SDK releases.
+Check the Changelog documentation for detailed release notes.`,
   },
 ];
 
@@ -216,6 +233,11 @@ export const DocumentationPage: React.FC = () => {
           placeholder="Search documentation..."
           placeholderTextColor="#9CA3AF"
         />
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionGroupTitle}>Try the API</Text>
+        <ApiPlayground />
       </View>
 
       <View style={styles.section}>
