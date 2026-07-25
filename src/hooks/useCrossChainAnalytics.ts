@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { useSubscriptionStore } from '../store/subscriptionStore';
 import { ChainType } from '../types/wallet';
-import { SubscriptionCategory } from '../types/subscription';
 
 interface ChainAnalytics {
   stellar: {

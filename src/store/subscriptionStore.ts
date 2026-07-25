@@ -361,7 +361,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             amount: sub.price.toString(),
           });
 
-          const txHash = await crossChainRoutingService.executePayment(route);
+          const _txHash = await crossChainRoutingService.executePayment(route);
 
           set((state) => ({
             subscriptions: state.subscriptions.map((s) =>
@@ -564,7 +564,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         const memo = get().creditMemos[id];
         if (!sub || !memo || memo.applied) return;
 
-        const { finalCharge, updatedMemo } = applyCreditMemo(sub.price, memo);
+        const { updatedMemo } = applyCreditMemo(sub.price, memo);
 
         set((state) => ({
           creditMemos: {
