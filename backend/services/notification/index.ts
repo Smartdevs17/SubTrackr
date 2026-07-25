@@ -8,3 +8,14 @@ export { WebSocketServer, webSocketServer } from './websocket';
 export type { SubscriptionEventType, SubscriptionEvent, EventFilter, ClientInfo } from './websocket';
 export type { INotificationPreferenceService, IAlertingService, IWebhookDeliveryService, IWebsocketService } from './interfaces';
 export { NotificationError, NotificationErrorCode } from './errors';
+export { DunningEmailSequenceService, dunningEmailSequenceService } from './dunningEmailSequences';
+export type {
+  DunningEmailVariant,
+  DunningABTest,
+  DunningABTestAssignment,
+  DunningABTestResult,
+  DunningEmailSequence,
+  DunningSequenceStage,
+  DunningEmailDeliveryLog,
+  DunningDeliverabilityMetrics,
+} from '../../../src/types/dunningABTest';

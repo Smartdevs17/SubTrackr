@@ -12,4 +12,6 @@ export { useTaxStore } from './taxStore';
 export { useSupportStore } from './supportStore';
 export { useAuthStore } from './authStore';
 export { useCancellationStore } from './cancellationStore';
-
+export { useLoyaltyStore } from './loyaltyStore';
+export { useSlaStore } from './slaStore';
+export { useGamificationStore } from './gamificationStore';
