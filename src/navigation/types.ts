@@ -72,6 +72,9 @@ export type RootStackParamList = {
   AnalyticsDashboard: undefined;
   TrialDetails: { trialId: string } | undefined;
   ChurnPrediction: undefined;
+  InvoiceCustomization: undefined;
+  InvoiceMarketplace: undefined;
+  InvoiceAnalytics: undefined;
   PartnerDashboard: undefined;
   NotFound: { reason?: string };
   // Issue #547: GDPR

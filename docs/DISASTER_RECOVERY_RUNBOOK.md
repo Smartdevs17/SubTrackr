@@ -50,6 +50,19 @@ Up to **5 backups** are retained; older ones are pruned automatically.
 
 ---
 
+## DR Monitoring & Alerts
+
+We employ an automated monitoring service to continuously check the integrity and age of our backups. This ensures we never quietly drift past our RPO targets.
+
+```ts
+import { drMonitor } from '../backend/dr/drMonitoring';
+drMonitor.start(); // Runs every 5 minutes by default
+```
+
+The monitor logs alerts such as `CRITICAL_RPO_BREACH` and `BACKUP_CORRUPTION` directly into our structured logging system.
+
+---
+
 ## Backup Verification
 
 Run after every backup to confirm integrity:
@@ -71,6 +84,15 @@ Verification checks:
 ---
 
 ## Failover Procedure
+
+### Automated CLI Failover (Emergency)
+
+In emergency scenarios where you need to trigger a failover instantly from your local environment or CI:
+
+```bash
+node scripts/dr-failover.js
+```
+This script will automatically iterate through the backups, find the most recent valid one, restore it, and report on the RTO metrics.
 
 ### Automatic failover (data corruption / app crash)
 
@@ -158,7 +180,13 @@ const result = await disasterRecoveryService.restoreBackup(backups[0].id);
 
 ## Regular DR Testing
 
-Run the built-in drill on every CI pipeline and before each release:
+You can run the full automated DR testing framework (which creates a backup, verifies it, restores it, and checks RTO/RPO compliance) using the provided script:
+
+```bash
+node scripts/dr-test.js
+```
+
+Alternatively, run the built-in drill on every CI pipeline and before each release:
 
 ```ts
 const drill = await disasterRecoveryService.runDrDrill();
@@ -188,3 +216,9 @@ The drill:
 | All backups corrupted | Re-sync from Soroban contract; prompt user                           |
 | RTO exceeded in drill | Investigate AsyncStorage performance; consider reducing backup scope |
 | RPO warning on verify | Increase backup frequency (trigger on every state mutation)          |
+
+---
+
+## Post-Mortem Process
+
+After any failover event or significant RTO/RPO breach, a post-mortem must be conducted. See [06-post-mortem.md](./runbooks/06-post-mortem.md) for the required template and process workflow. This blameless analysis helps us identify root causes and improve our systemic resilience.

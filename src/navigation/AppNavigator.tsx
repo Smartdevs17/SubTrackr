@@ -101,6 +101,23 @@ const ChurnPredictionScreen = lazyScreen(() => import('../screens/ChurnPredictio
 
 // Issue #547: GDPR
 const PrivacyCenterScreen = lazyScreen(() => import('../screens/PrivacyCenterScreen'));
+const ChurnPredictionScreen = lazyScreen(() => import('../../app/screens/ChurnPredictionScreen'));
+
+const InvoiceCustomizationScreen = lazyScreen(() =>
+  import('../../app/screens/InvoiceCustomizationScreen').then((m) => ({
+    default: m.InvoiceCustomizationScreen,
+  }))
+);
+const InvoiceMarketplaceScreen = lazyScreen(() =>
+  import('../../app/screens/InvoiceMarketplaceScreen').then((m) => ({
+    default: m.InvoiceMarketplaceScreen,
+  }))
+);
+const InvoiceAnalyticsScreen = lazyScreen(() =>
+  import('../../app/screens/InvoiceAnalyticsScreen').then((m) => ({
+    default: m.InvoiceAnalyticsScreen,
+  }))
+);
 const DataExportScreen = lazyScreen(() => import('../screens/DataExportScreen'));
 // Issue #548: Push notifications
 const NotificationPreferencesScreen = lazyScreen(
@@ -238,6 +255,9 @@ const linking: LinkingOptions<TabParamList> = {
           DocumentationPortal: 'docs',
           IntegrationGuides: 'integration-guides',
           ChurnPrediction: 'churn-analytics',
+          InvoiceCustomization: 'invoice/customization',
+          InvoiceMarketplace: 'invoice/marketplace',
+          InvoiceAnalytics: 'invoice/analytics',
         },
       },
       AddTab: 'add',
@@ -393,6 +413,26 @@ const HomeStack = () => (
       name="IntegrationGuides"
       component={IntegrationGuidesScreen}
       options={{ title: 'Integrations', headerShown: true }}
+    />
+    <Stack.Screen
+      name="ChurnPrediction"
+      component={ChurnPredictionScreen}
+      options={{ title: 'Churn Analytics', headerShown: true }}
+    />
+    <Stack.Screen
+      name="InvoiceCustomization"
+      component={InvoiceCustomizationScreen}
+      options={{ title: 'Invoice Customization', headerShown: true }}
+    />
+    <Stack.Screen
+      name="InvoiceMarketplace"
+      component={InvoiceMarketplaceScreen}
+      options={{ title: 'Template Marketplace', headerShown: true }}
+    />
+    <Stack.Screen
+      name="InvoiceAnalytics"
+      component={InvoiceAnalyticsScreen}
+      options={{ title: 'Invoice Analytics', headerShown: true }}
     />
     <Stack.Screen
       name="TrialDetails"

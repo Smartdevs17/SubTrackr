@@ -1,8 +1,13 @@
 import { ethers } from 'ethers';
 
 import { NetworkError, NetworkErrorCode, ContractError, ContractErrorCode } from '../errors';
-import { TIME_CONSTANTS, CRYPTO_CONSTANTS, CHAIN_IDS } from '../utils/constants/values';
-import { GasEstimate } from '../types/wallet';
+import {
+  TIME_CONSTANTS,
+  CRYPTO_CONSTANTS,
+  CHAIN_IDS,
+  STELLAR_CHAINS,
+} from '../utils/constants/values';
+import { GasEstimate, ChainType } from '../types/wallet';
 
 export { GasEstimate };
 export { NetworkError, NetworkErrorCode, ContractError, ContractErrorCode };
@@ -68,9 +73,12 @@ export const errorTracker = new ErrorRateTracker();
 export interface WalletConnection {
   address: string;
   chainId: number;
+  chainType?: ChainType;
   isConnected: boolean;
   provider?: ethers.providers.Web3Provider;
   eip1193Provider?: ethers.providers.ExternalProvider;
+  /** Stellar-specific: Freighter/Soroban public key */
+  stellarPublicKey?: string;
 }
 
 export interface TokenBalance {
@@ -118,6 +126,9 @@ export interface WalletServiceContext {
   getConnection?(): WalletConnection | null;
   getWalletSigner?(): ethers.Signer;
   getProvider?(chainId: number): ethers.providers.JsonRpcProvider;
+  getStellarProvider?(): any;
+  switchChain?(chainType: ChainType, chainId: number): Promise<void>;
+  getSupportedChains?(): { chainType: ChainType; chainId: number; name: string }[];
 }
 
 export function isUserRejectedError(error: unknown): boolean {
