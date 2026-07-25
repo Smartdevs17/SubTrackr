@@ -1,6 +1,9 @@
 name: Bundle Size Analysis
 
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
 
 jobs:
   analyze:

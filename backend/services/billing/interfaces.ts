@@ -88,3 +88,37 @@ export interface IPartnerService {
     grossAmount: number
   ): Map<string, number>;
 }
+
+export interface IGroupBillingService {
+  generateBillingSummary(group: any): any;
+  aggregateCharges(group: any, periodDays?: number): any[];
+  generateInvoice(group: any, periodStart: number, periodEnd: number, currency?: string): any;
+  issueInvoice(invoiceId: string, groupId: string): any | null;
+  markInvoicePaid(invoiceId: string, groupId: string): any | null;
+  getGroupInvoices(groupId: string): any[];
+  calculateGroupAnalytics(group: any): any;
+  recordAdminAction(groupId: string, action: string, actorAddress: string, targetAddress?: string, metadata?: Record<string, unknown>): any;
+  getAdminActions(groupId: string, limit?: number): any[];
+  canPerformAction(group: any, actorAddress: string, action: string): { allowed: boolean; reason?: string };
+  customizeGroupPlan(groupId: string, customization: any): any;
+  getGroupPlanCustomization(groupId: string): any | undefined;
+  overrideMemberBalance(group: any, memberAddress: string, newBalance: number, actorAddress: string): any | null;
+}
+
+export interface ILoyaltyService {
+  addPointsRule(rule: any): any;
+  updatePointsRule(id: string, updates: any): any | null;
+  removePointsRule(id: string): void;
+  getPointsRules(trigger?: string): any[];
+  calculatePoints(trigger: string, context?: any): { points: number; ruleId: string } | null;
+  recordPointsEvent(subscriberId: string, points: number, type: 'earn' | 'redeem' | 'expire', trigger: string): void;
+  getPointsHistory(subscriberId: string, limit?: number): any[];
+  getLoyaltyAnalytics(allSubscribers: any[]): any;
+  createNotification(type: string, subscriberId: string, title: string, body: string, data?: Record<string, unknown>): any;
+  getNotifications(subscriberId: string, unreadOnly?: boolean): any[];
+  markNotificationRead(notificationId: string): void;
+  markAllNotificationsRead(subscriberId: string): void;
+  getUnreadCount(subscriberId: string): number;
+  createApiResponse<T>(data: T): any;
+  createErrorResponse(error: string): any;
+}
