@@ -1,9 +1,9 @@
 import { ethers } from 'ethers';
 
-import { GasEstimate } from '../types/wallet';
+import { GasEstimate, ChainType } from '../types/wallet';
 
 import { NetworkError, NetworkErrorCode, ContractError, ContractErrorCode } from '../errors';
-import { getEvmRpcUrl } from '../config/evm';
+import { getEvmRpcUrl, getDefaultStellarNetwork, getChainType } from '../config/evm';
 import { TokenService } from './tokenService';
 import { GasService } from './gasService';
 import { StreamService } from './streamService';
@@ -38,6 +38,13 @@ export {
 
 export type { StreamSetup } from './walletServiceShared';
 
+export interface SupportedChainInfo {
+  chainType: ChainType;
+  chainId: number;
+  name: string;
+  rpcUrl?: string;
+}
+
 export class WalletServiceManager implements WalletServiceContext {
   private static instance: WalletServiceManager;
   private connection: WalletConnection | null = null;
@@ -45,6 +52,15 @@ export class WalletServiceManager implements WalletServiceContext {
   private readonly tokenService: TokenService;
   private readonly gasService: GasService;
   private readonly streamService: StreamService;
+
+  private readonly supportedChains: SupportedChainInfo[] = [
+    { chainType: ChainType.EVM, chainId: 1, name: 'Ethereum', rpcUrl: 'https://cloudflare-eth.com' },
+    { chainType: ChainType.EVM, chainId: 137, name: 'Polygon', rpcUrl: 'https://polygon-rpc.com' },
+    { chainType: ChainType.EVM, chainId: 42161, name: 'Arbitrum', rpcUrl: 'https://arb1.arbitrum.io/rpc' },
+    { chainType: ChainType.EVM, chainId: 10, name: 'Optimism', rpcUrl: 'https://mainnet.optimism.io' },
+    { chainType: ChainType.EVM, chainId: 8453, name: 'Base', rpcUrl: 'https://mainnet.base.org' },
+    { chainType: ChainType.STELLAR, chainId: 0x8000, name: 'Stellar (Soroban)' },
+  ];
 
   constructor() {
     this.tokenService = new TokenService(this);
@@ -92,8 +108,185 @@ export class WalletServiceManager implements WalletServiceContext {
     this.notifyListeners();
   }
 
+  getSupportedChains(): SupportedChainInfo[] {
+    return [...this.supportedChains];
+  }
+
+  getStellarProvider(): any {
+    if (typeof window !== 'undefined' && (window as any).stellarProvider) {
+      return (window as any).stellarProvider;
+    }
+    if (typeof window !== 'undefined' && (window as any).freighter) {
+      return (window as any).freighter;
+    }
+    return null;
+  }
+
+  async connectStellarWallet(): Promise<WalletConnection> {
+    try {
+      const freighterApi = this.getStellarProvider();
+      if (!freighterApi || !freighterApi.isConnected) {
+        throw new WalletError(
+          WalletErrorCode.NOT_CONNECTED,
+          'Freighter wallet is not available.',
+          'Please install Freighter wallet extension and try again.'
+        );
+      }
+
+      const publicKey = await freighterApi.getPublicKey();
+      const network = getDefaultStellarNetwork();
+
+      const connection: WalletConnection = {
+        address: publicKey,
+        chainId: 0x8000,
+        chainType: ChainType.STELLAR,
+        isConnected: true,
+        stellarPublicKey: publicKey,
+      };
+
+      this.setConnection(connection);
+      return connection;
+    } catch (error) {
+      if (error instanceof WalletError) throw error;
+      throw new WalletError(
+        WalletErrorCode.NOT_CONNECTED,
+        'Failed to connect to Stellar wallet.',
+        'Check Freighter extension and try again.',
+        error
+      );
+    }
+  }
+
+  async connectEvmWallet(eip1193Provider: ethers.providers.ExternalProvider): Promise<WalletConnection> {
+    try {
+      const web3Provider = new ethers.providers.Web3Provider(eip1193Provider);
+      const accounts = await web3Provider.send('eth_requestAccounts', []);
+      const network = await web3Provider.getNetwork();
+
+      const connection: WalletConnection = {
+        address: accounts[0],
+        chainId: network.chainId,
+        chainType: ChainType.EVM,
+        isConnected: true,
+        provider: web3Provider,
+        eip1193Provider,
+      };
+
+      this.setConnection(connection);
+      return connection;
+    } catch (error) {
+      if (isUserRejectedError(error)) {
+        throw new WalletError(
+          WalletErrorCode.USER_REJECTED,
+          'Connection was rejected.',
+          'Approve connection in your wallet to continue.'
+        );
+      }
+      throw new WalletError(
+        WalletErrorCode.NOT_CONNECTED,
+        'Failed to connect EVM wallet.',
+        'Check your wallet extension and try again.',
+        error
+      );
+    }
+  }
+
+  async switchChain(chainType: ChainType, chainId: number): Promise<void> {
+    const conn = this.connection;
+    if (!conn) {
+      throw new WalletError(
+        WalletErrorCode.NOT_CONNECTED,
+        'No wallet connected.',
+        'Connect a wallet first.'
+      );
+    }
+
+    if (chainType === ChainType.EVM) {
+      if (!conn.eip1193Provider) {
+        throw new WalletError(
+          WalletErrorCode.NOT_CONNECTED,
+          'No EVM wallet connected.',
+          'Connect an EVM wallet first.'
+        );
+      }
+
+      try {
+        await conn.eip1193Provider.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: `0x${chainId.toString(16)}` }],
+        });
+      } catch (switchError: any) {
+        if (switchError.code === 4902) {
+          throw new WalletError(
+            WalletErrorCode.NETWORK_MISMATCH,
+            `Chain ${chainId} is not available in your wallet.`,
+            'Add the chain to your wallet first.'
+          );
+        }
+        throw new WalletError(
+          WalletErrorCode.NETWORK_MISMATCH,
+          'Failed to switch chain.',
+          'Try switching manually in your wallet.',
+          switchError
+        );
+      }
+
+      const web3Provider = new ethers.providers.Web3Provider(conn.eip1193Provider);
+      const network = await web3Provider.getNetwork();
+
+      this.setConnection({
+        ...conn,
+        chainId: network.chainId,
+        chainType: ChainType.EVM,
+        provider: web3Provider,
+      });
+    } else if (chainType === ChainType.STELLAR) {
+      if (!conn.stellarPublicKey) {
+        await this.connectStellarWallet();
+      }
+      this.setConnection({
+        ...conn,
+        chainId: 0x8000,
+        chainType: ChainType.STELLAR,
+      });
+    }
+  }
+
   async getTokenBalances(address: string, chainId: number): Promise<TokenBalance[]> {
+    const chainType = getChainType(chainId);
+    if (chainType === ChainType.STELLAR) {
+      return this.getStellarTokenBalances(address);
+    }
     return this.tokenService.getTokenBalances(address, chainId);
+  }
+
+  private async getStellarTokenBalances(address: string): Promise<TokenBalance[]> {
+    try {
+      const network = getDefaultStellarNetwork();
+      const response = await fetch(`${network.horizonUrl}/accounts/${address}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch Stellar account');
+      }
+      const accountData = await response.json();
+
+      const balances: TokenBalance[] = accountData.balances.map((bal: any) => ({
+        symbol: bal.asset_type === 'native' ? 'XLM' : bal.asset_code,
+        name: bal.asset_type === 'native' ? 'Stellar Lumens' : bal.asset_code,
+        address: bal.asset_type === 'native' ? 'native' : `${bal.asset_code}:${bal.asset_issuer}`,
+        balance: bal.balance,
+        decimals: bal.asset_type === 'native' ? 7 : 7,
+      }));
+
+      return balances;
+    } catch (error) {
+      errorTracker.record(WalletErrorCode.BALANCE_FETCH_FAILED);
+      throw new WalletError(
+        WalletErrorCode.BALANCE_FETCH_FAILED,
+        'Failed to fetch Stellar token balances.',
+        'Check the address and try again.',
+        error
+      );
+    }
   }
 
   async estimateGas(
@@ -103,7 +296,19 @@ export class WalletServiceManager implements WalletServiceContext {
     chainId: number,
     userGasLimitOverride?: string
   ): Promise<GasEstimate> {
+    const chainType = getChainType(chainId);
+    if (chainType === ChainType.STELLAR) {
+      return this.estimateStellarGas();
+    }
     return this.gasService.estimateGas(from, to, value, chainId, userGasLimitOverride);
+  }
+
+  private async estimateStellarGas(): Promise<GasEstimate> {
+    return {
+      gasLimit: '1000000',
+      gasPrice: '0.00001',
+      estimatedCost: '0.01',
+    };
   }
 
   getWalletSigner(): ethers.Signer {
@@ -111,8 +316,8 @@ export class WalletServiceManager implements WalletServiceContext {
     if (!conn?.eip1193Provider) {
       const err = new WalletError(
         WalletErrorCode.NOT_CONNECTED,
-        'Wallet is not connected.',
-        'Connect your wallet and try again.'
+        'EVM wallet is not connected.',
+        'Connect an EVM wallet and try again.'
       );
       errorTracker.record(WalletErrorCode.NOT_CONNECTED);
       throw err;
@@ -285,11 +490,23 @@ export class WalletServiceManager implements WalletServiceContext {
   }
 
   getProvider(chainId: number): ethers.providers.JsonRpcProvider {
+    const chainType = getChainType(chainId);
+    if (chainType === ChainType.STELLAR) {
+      throw new Error('Stellar provider is not an ethers provider. Use getStellarProvider() instead.');
+    }
     return new ethers.providers.JsonRpcProvider(getEvmRpcUrl(chainId));
   }
 
   isConnected(): boolean {
     return this.connection?.isConnected || false;
+  }
+
+  isStellarConnected(): boolean {
+    return this.connection?.chainType === ChainType.STELLAR && this.connection.isConnected;
+  }
+
+  isEvmConnected(): boolean {
+    return this.connection?.chainType === ChainType.EVM && this.connection.isConnected;
   }
 }
 

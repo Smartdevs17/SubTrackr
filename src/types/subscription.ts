@@ -28,8 +28,33 @@ export interface Subscription {
   groupId?: string;
   groupMemberAddress?: string;
   timezone?: string;
+  /** Chain information for multi-chain support */
+  chainType: ChainType;
+  chainId: number;
+  /** Cross-chain subscription transfer state */
+  crossChainTransfer?: CrossChainTransfer;
+  /** Unified billing aggregation */
+  billingAggregationId?: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface CrossChainTransfer {
+  sourceChainType: ChainType;
+  sourceChainId: number;
+  targetChainType: ChainType;
+  targetChainId: number;
+  status: 'pending' | 'approved' | 'completed' | 'failed';
+  initiatedAt: Date;
+  completedAt?: Date;
+  transferFee?: number;
+}
+
+export interface UnifiedSubscriptionFilter {
+  chainType?: ChainType;
+  chainId?: number;
+  status?: 'active' | 'paused' | 'cancelled';
+  searchQuery?: string;
 }
 
 export enum SubscriptionCategory {
@@ -82,6 +107,14 @@ export interface SubscriptionFormData {
   isCryptoEnabled: boolean;
   cryptoToken?: string;
   cryptoAmount?: number;
+  /** Chain selection for multi-chain support */
+  chainType: ChainType;
+  chainId: number;
+}
+
+export interface ChainSpendBreakdown {
+  stellar: number;
+  evm: Record<number, number>;
 }
 
 export interface SubscriptionStats {
@@ -92,4 +125,9 @@ export interface SubscriptionStats {
   totalGasSpent?: number;
   totalFiatMonthlySpend?: number;
   fiatCurrency?: string;
+  /** Cross-chain spend breakdown */
+  chainBreakdown?: ChainSpendBreakdown;
+  /** Total spend across all chains */
+  crossChainTotalMonthlySpend?: number;
+  crossChainTotalYearlySpend?: number;
 }
