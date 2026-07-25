@@ -18,6 +18,7 @@ import {
   PaymentRequirement,
   TrialReminder,
   TrialConfig,
+  TrialExtensionRule,
 } from '../types/trial';
 import { FormScreen } from '../components/common/ScreenTemplates';
 import { Card } from '../components/common/Card';
@@ -41,6 +42,7 @@ export const TrialDetailsScreen: React.FC = () => {
     trialConfigs,
     abTestAssignments: _abTestAssignments,
     conversionFunnel: _conversionFunnel,
+    extensionRules,
     isLoading,
     error,
   } = useTrialStore();
@@ -54,6 +56,9 @@ export const TrialDetailsScreen: React.FC = () => {
     paymentRequirement: PaymentRequirement.REQUIRED,
     abTestId: '',
   });
+  const [newRuleName, setNewRuleName] = useState('');
+  const [newRuleMaxExtensions, setNewRuleMaxExtensions] = useState('3');
+  const [newRuleDurationDays, setNewRuleDurationDays] = useState('3');
 
   useEffect(() => {
     if (route.params?.trialId) {
@@ -81,13 +86,9 @@ export const TrialDetailsScreen: React.FC = () => {
 
   const handleCreateTrial = async () => {
     try {
-      await trialConfigService.create(
-        newTrialConfig.subscriptionId,
-        newTrialConfig.duration,
-        newTrialConfig.featureAccess,
-        newTrialConfig.paymentRequirement,
-        newTrialConfig.abTestId || undefined
-      );
+      await useTrialStore
+        .getState()
+        .startTrial(newTrialConfig.subscriptionId, newTrialConfig.duration);
       setShowCreateForm(false);
       setNewTrialConfig({
         subscriptionId: '',
@@ -97,8 +98,33 @@ export const TrialDetailsScreen: React.FC = () => {
         abTestId: '',
       });
     } catch {
-      // Error handled by service
+      // Error handled by store
     }
+  };
+
+  const handleStartTrial = async (subscriptionId: string, duration: TrialDuration) => {
+    await useTrialStore.getState().startTrial(subscriptionId, duration);
+  };
+
+  const handleExtendTrial = async (trialId: string, ruleId: string) => {
+    try {
+      await useTrialStore.getState().extendTrial(trialId, ruleId);
+    } catch {
+      // Error handled by store
+    }
+  };
+
+  const handleAddExtensionRule = () => {
+    if (!newRuleName.trim()) return;
+    useTrialStore.getState().addExtensionRule({
+      name: newRuleName,
+      maxExtensions: parseInt(newRuleMaxExtensions, 10) || 3,
+      extensionDurationDays: parseInt(newRuleDurationDays, 10) || 3,
+      conditions: {},
+    });
+    setNewRuleName('');
+    setNewRuleMaxExtensions('3');
+    setNewRuleDurationDays('3');
   };
 
   const handleConvertTrial = async (trialId: string) => {
@@ -286,6 +312,115 @@ export const TrialDetailsScreen: React.FC = () => {
       testID="trial-details-screen">
       <ScrollView style={styles.scrollContent}>
         {error && <Text style={styles.errorText}>{error}</Text>}
+
+        {/* Analytics Summary */}
+        <Card padding="medium" style={styles.section}>
+          <Text style={styles.sectionTitle}>Trial Analytics</Text>
+          <View style={styles.analyticsGrid}>
+            <View style={styles.analyticsItem}>
+              <Text style={styles.analyticsValue}>
+                {(useTrialStore.getState().getConversionStats().conversionRate * 100).toFixed(1)}%
+              </Text>
+              <Text style={styles.analyticsLabel}>Conversion Rate</Text>
+            </View>
+            <View style={styles.analyticsItem}>
+              <Text style={styles.analyticsValue}>{trialConfigs.length}</Text>
+              <Text style={styles.analyticsLabel}>Total Trials</Text>
+            </View>
+            <View style={styles.analyticsItem}>
+              <Text style={styles.analyticsValue}>
+                {trialConfigs.filter((tc) => tc.status === TrialStatus.ACTIVE).length}
+              </Text>
+              <Text style={styles.analyticsLabel}>Active Trials</Text>
+            </View>
+          </View>
+        </Card>
+
+        {/* Extension Rules */}
+        <Card padding="medium" style={styles.section}>
+          <Text style={styles.sectionTitle}>Extension Rules</Text>
+          {extensionRules.length === 0 ? (
+            <Text style={styles.emptyText}>No extension rules configured</Text>
+          ) : (
+            extensionRules.map((rule: TrialExtensionRule) => (
+              <View key={rule.id} style={styles.ruleRow}>
+                <View style={styles.ruleInfo}>
+                  <Text style={styles.ruleName}>{rule.name}</Text>
+                  <Text style={styles.ruleDetail}>
+                    Max: {rule.maxExtensions} extensions, {rule.extensionDurationDays} days each
+                  </Text>
+                </View>
+              </View>
+            ))
+          )}
+          <View style={styles.addRuleForm}>
+            <TextInput
+              style={[styles.input, styles.ruleInput]}
+              value={newRuleName}
+              onChangeText={setNewRuleName}
+              placeholder="Rule name"
+              placeholderTextColor={colors.textSecondary}
+            />
+            <TextInput
+              style={[styles.input, styles.ruleInputSmall]}
+              value={newRuleMaxExtensions}
+              onChangeText={setNewRuleMaxExtensions}
+              placeholder="Max"
+              placeholderTextColor={colors.textSecondary}
+              keyboardType="numeric"
+            />
+            <TextInput
+              style={[styles.input, styles.ruleInputSmall]}
+              value={newRuleDurationDays}
+              onChangeText={setNewRuleDurationDays}
+              placeholder="Days"
+              placeholderTextColor={colors.textSecondary}
+              keyboardType="numeric"
+            />
+            <Button title="Add" onPress={handleAddExtensionRule} variant="secondary" size="small" />
+          </View>
+        </Card>
+
+        {/* Trial Lifecycle Actions */}
+        {selectedTrialConfig && selectedTrialConfig.status === TrialStatus.ACTIVE && (
+          <Card padding="medium" style={styles.section}>
+            <Text style={styles.sectionTitle}>Trial Lifecycle</Text>
+            <View style={styles.lifecycleButtons}>
+              <Button
+                title="Start New"
+                onPress={() =>
+                  handleStartTrial(selectedTrialConfig.subscriptionId, selectedTrialConfig.duration)
+                }
+                variant="secondary"
+                size="medium"
+                style={styles.actionButton}
+              />
+              {extensionRules.length > 0 && (
+                <Button
+                  title="Extend"
+                  onPress={() => handleExtendTrial(selectedTrialConfig.id, extensionRules[0].id)}
+                  variant="secondary"
+                  size="medium"
+                  style={styles.actionButton}
+                />
+              )}
+              <Button
+                title="Convert"
+                onPress={() => handleConvertTrial(selectedTrialConfig.id)}
+                variant="primary"
+                size="medium"
+                style={styles.actionButton}
+              />
+              <Button
+                title="Expire"
+                onPress={() => handleExpireTrial(selectedTrialConfig.id)}
+                variant="danger"
+                size="medium"
+                style={styles.actionButton}
+              />
+            </View>
+          </Card>
+        )}
 
         {/* Trial Configs List */}
         <Card padding="medium" style={styles.section}>
@@ -755,6 +890,63 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       ...typography.caption,
       color: colors.textSecondary || '#cbd5e1',
       marginTop: spacing.xs,
+    },
+    analyticsGrid: {
+      flexDirection: 'row',
+      justifyContent: 'space-around',
+    },
+    analyticsItem: {
+      alignItems: 'center',
+      flex: 1,
+    },
+    analyticsValue: {
+      ...typography.h2,
+      color: colors.text.primary,
+      fontWeight: '700',
+    },
+    analyticsLabel: {
+      ...typography.caption,
+      color: colors.textSecondary || '#cbd5e1',
+      textAlign: 'center',
+      marginTop: spacing.xs,
+    },
+    ruleRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: spacing.sm,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border?.default || '#334155',
+    },
+    ruleInfo: {
+      flex: 1,
+    },
+    ruleName: {
+      ...typography.body,
+      color: colors.text.primary,
+      fontWeight: '600',
+    },
+    ruleDetail: {
+      ...typography.caption,
+      color: colors.textSecondary || '#cbd5e1',
+      marginTop: spacing.xs,
+    },
+    addRuleForm: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      marginTop: spacing.md,
+    },
+    ruleInput: {
+      flex: 1,
+    },
+    ruleInputSmall: {
+      width: 60,
+    },
+    lifecycleButtons: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.sm,
     },
   });
 }
