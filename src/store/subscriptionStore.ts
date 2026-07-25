@@ -9,13 +9,17 @@ import {
 } from '../services/cache/crdt';
 import { networkMonitor } from '../services/network/networkMonitor';
 import {
-  Subscription, // eslint-disable-line
+  Subscription,
   SubscriptionFormData,
   SubscriptionStats,
-  SubscriptionCategory, // eslint-disable-line
-  BillingCycle, // eslint-disable-line
+  SubscriptionCategory,
+  BillingCycle,
+  ChainSpendBreakdown,
+  CrossChainTransfer,
+  UnifiedSubscriptionFilter,
 } from '../types/subscription';
-import { dummySubscriptions } from '../utils/dummyData'; // eslint-disable-line
+import { ChainType } from '../types/wallet';
+import { dummySubscriptions } from '../utils/dummyData';
 import { advanceBillingDate } from '../utils/billingDate';
 import { buildBillingPeriod } from '../utils/invoice';
 import { BILLING_CONVERSIONS } from '../utils/constants/values';
@@ -46,14 +50,12 @@ import {
   ProrationPreview,
   CreditMemo,
 } from '../utils/proration';
+import { crossChainRoutingService } from '../services/crossChainRoutingService';
+import { crossChainNotificationService } from '../services/crossChainNotificationService';
 
 const STORAGE_KEY = 'subtrackr-subscriptions';
-const STORE_VERSION = 1;
+const STORE_VERSION = 2;
 
-/**
- * Generate a unique ID for subscriptions
- * Uses timestamp + random component to prevent collisions
- */
 const generateUniqueId = (): string => {
   const timestamp = Date.now().toString(36);
   const randomComponent = Math.random().toString(36).substring(2, 8);
@@ -86,6 +88,10 @@ const normalizeSubscription = (raw: Partial<Subscription>): Subscription => {
     cryptoStreamId: raw.cryptoStreamId,
     cryptoToken: raw.cryptoToken,
     cryptoAmount: raw.cryptoAmount,
+    chainType: raw.chainType ?? ChainType.EVM,
+    chainId: raw.chainId ?? 1,
+    crossChainTransfer: raw.crossChainTransfer,
+    billingAggregationId: raw.billingAggregationId,
     createdAt: toValidDate(raw.createdAt, now),
     updatedAt: toValidDate(raw.updatedAt, now),
   };
@@ -129,9 +135,6 @@ const createSupportEvent = (
   };
 };
 
-// Debounced writes are provided by the shared debouncedAsyncStorageAdapter
-// (see src/utils/storage.ts). This removes the copy-pasted boilerplate.
-
 export type ProrationEffectiveType = 'immediate' | 'end_of_period' | 'custom_date';
 
 export interface SubscriptionChange {
@@ -155,6 +158,9 @@ interface SubscriptionState {
   creditMemos: Record<string, CreditMemo>;
   planChanges: SubscriptionChange[];
 
+  // Multi-chain filter
+  chainFilter: UnifiedSubscriptionFilter;
+
   // Offline-first & CRDT Sync
   syncStatus: 'idle' | 'pending' | 'syncing' | 'conflict' | 'error';
   crdtMetadata: Record<string, SubscriptionMetadata>;
@@ -166,7 +172,6 @@ interface SubscriptionState {
   updateSubscription: (id: string, data: Partial<Subscription>) => Promise<void>;
   deleteSubscription: (id: string) => Promise<void>;
   toggleSubscriptionStatus: (id: string) => Promise<void>;
-  // new actions added
   previewPlanChange: (
     id: string,
     newPrice: number,
@@ -178,7 +183,6 @@ interface SubscriptionState {
     effectiveDate: 'immediate' | 'end_of_period'
   ) => Promise<void>;
   applyCreditToSubscription: (id: string) => Promise<void>;
-  /** Simulate or record a billing result (fires local notifications when enabled for this sub). */
   recordBillingOutcome: (id: string, outcome: 'success' | 'failed') => Promise<void>;
   fetchSubscriptions: () => Promise<void>;
   calculateStats: () => void;
@@ -190,6 +194,22 @@ interface SubscriptionState {
   approvePlanChange: (changeId: string) => Promise<void>;
   rejectPlanChange: (changeId: string) => void;
   getChangeHistory: (subscriptionId: string) => SubscriptionChange[];
+
+  // Multi-chain actions
+  setChainFilter: (filter: UnifiedSubscriptionFilter) => void;
+  getFilteredSubscriptions: () => Subscription[];
+  initiateCrossChainTransfer: (
+    id: string,
+    targetChainType: ChainType,
+    targetChainId: number
+  ) => Promise<void>;
+  approveCrossChainTransfer: (id: string) => Promise<void>;
+  getSubscriptionsByChain: (chainType: ChainType) => Subscription[];
+  aggregateCrossChainBilling: () => Promise<{
+    totalInPreferredCurrency: number;
+    chainBreakdown: Record<string, number>;
+    conversionRates: Record<string, number>;
+  }>;
 }
 
 type PersistedSubscriptionSlice = Pick<
@@ -238,7 +258,6 @@ const migratePersistedState = (
   return { subscriptions, planChanges, crdtMetadata, syncStatus };
 };
 
-// Simulated backend sync endpoint using AsyncStorage
 async function mockSyncApiCall(localState: CRDTSubscriptionState): Promise<CRDTSubscriptionState> {
   await new Promise((resolve) => setTimeout(resolve, 300));
 
@@ -256,24 +275,166 @@ async function mockSyncApiCall(localState: CRDTSubscriptionState): Promise<CRDTS
 export const useSubscriptionStore = create<SubscriptionState>()(
   persist(
     (set, get) => ({
-      subscriptions: dummySubscriptions,
+      subscriptions: dummySubscriptions.map((s) => ({
+        ...s,
+        chainType: (s as any).chainType ?? ChainType.EVM,
+        chainId: (s as any).chainId ?? 1,
+      })),
       stats: {
         totalActive: 0,
         totalMonthlySpend: 0,
         totalYearlySpend: 0,
         categoryBreakdown: {} as Record<SubscriptionCategory, number>,
-      },
+        chainBreakdown: { stellar: 0, evm: {} },
+        crossChainTotalMonthlySpend: 0,
+        crossChainTotalYearlySpend: 0,
+      } as SubscriptionStats,
       isLoading: true,
       error: null,
       prorationPreview: null,
       creditMemos: {},
       planChanges: [],
+      chainFilter: {},
 
-      // Offline-first & CRDT Sync State
       syncStatus: 'idle',
       crdtMetadata: {},
 
       setSyncStatus: (status) => set({ syncStatus: status }),
+
+      setChainFilter: (filter: UnifiedSubscriptionFilter) => set({ chainFilter: filter }),
+
+      getFilteredSubscriptions: () => {
+        const { subscriptions, chainFilter } = get();
+        if (!chainFilter || Object.keys(chainFilter).length === 0) return subscriptions;
+
+        return subscriptions.filter((sub) => {
+          if (chainFilter.chainType !== undefined && sub.chainType !== chainFilter.chainType)
+            return false;
+          if (chainFilter.chainId !== undefined && sub.chainId !== chainFilter.chainId)
+            return false;
+          if (chainFilter.status === 'active' && !sub.isActive) return false;
+          if (chainFilter.status === 'paused' && sub.isActive) return false;
+          if (chainFilter.searchQuery) {
+            const query = chainFilter.searchQuery.toLowerCase();
+            if (
+              !sub.name.toLowerCase().includes(query) &&
+              !sub.category.toLowerCase().includes(query)
+            )
+              return false;
+          }
+          return true;
+        });
+      },
+
+      getSubscriptionsByChain: (chainType: ChainType) => {
+        return get().subscriptions.filter((s) => s.chainType === chainType);
+      },
+
+      initiateCrossChainTransfer: async (
+        id: string,
+        targetChainType: ChainType,
+        targetChainId: number
+      ) => {
+        set({ isLoading: true, error: null });
+        try {
+          const sub = get().subscriptions.find((s) => s.id === id);
+          if (!sub) throw new Error('Subscription not found');
+
+          const subChainType = sub.chainType ?? ChainType.EVM;
+          const subChainId = sub.chainId ?? 1;
+
+          const transfer: CrossChainTransfer = {
+            sourceChainType: subChainType,
+            sourceChainId: subChainId,
+            targetChainType,
+            targetChainId,
+            status: 'pending',
+            initiatedAt: new Date(),
+          };
+
+          const route = await crossChainRoutingService.findPaymentRoute({
+            sourceChainType: subChainType,
+            sourceChainId: subChainId,
+            targetChainType,
+            targetChainId,
+            tokenSymbol: sub.cryptoToken || sub.currency,
+            amount: sub.price.toString(),
+          });
+
+          const _txHash = await crossChainRoutingService.executePayment(route);
+
+          set((state) => ({
+            subscriptions: state.subscriptions.map((s) =>
+              s.id === id
+                ? {
+                    ...s,
+                    crossChainTransfer: { ...transfer, status: 'pending' },
+                    updatedAt: new Date(),
+                  }
+                : s
+            ),
+            isLoading: false,
+          }));
+
+          crossChainNotificationService.notifyCrossChainTransfer(id, subChainType, targetChainType);
+          get().calculateStats();
+        } catch (error) {
+          const appError = errorHandler.handleError(error as Error, {
+            action: 'initiateCrossChainTransfer',
+            subscriptionId: id,
+          });
+          set({ error: appError, isLoading: false });
+        }
+      },
+
+      approveCrossChainTransfer: async (id: string) => {
+        set({ isLoading: true, error: null });
+        try {
+          const sub = get().subscriptions.find((s) => s.id === id);
+          if (!sub || !sub.crossChainTransfer) throw new Error('No pending transfer');
+
+          set((state) => ({
+            subscriptions: state.subscriptions.map((s) =>
+              s.id === id
+                ? {
+                    ...s,
+                    chainType: s.crossChainTransfer!.targetChainType,
+                    chainId: s.crossChainTransfer!.targetChainId,
+                    crossChainTransfer: {
+                      ...s.crossChainTransfer!,
+                      status: 'completed',
+                      completedAt: new Date(),
+                    },
+                    updatedAt: new Date(),
+                  }
+                : s
+            ),
+            isLoading: false,
+          }));
+
+          get().calculateStats();
+        } catch (error) {
+          const appError = errorHandler.handleError(error as Error, {
+            action: 'approveCrossChainTransfer',
+            subscriptionId: id,
+          });
+          set({ error: appError, isLoading: false });
+        }
+      },
+
+      aggregateCrossChainBilling: async () => {
+        const { subscriptions } = get();
+        const activeSubs = subscriptions.filter((s) => s.isActive);
+
+        const billingItems = activeSubs.map((sub) => ({
+          chainType: sub.chainType ?? ChainType.EVM,
+          amount: sub.price,
+          currency: sub.currency,
+        }));
+
+        const result = await crossChainRoutingService.aggregateBilling(billingItems);
+        return result;
+      },
 
       syncWithServer: async () => {
         if (!networkMonitor.isOnline()) {
@@ -347,21 +508,18 @@ export const useSubscriptionStore = create<SubscriptionState>()(
 
           const preview = previewProration(sub, newPlanData.price ?? sub.price, effectiveDate);
 
-          // Generate credit memo if downgrade
           const updatedCreditMemos = { ...get().creditMemos };
           if (preview.isCredit && preview.amount > 0) {
             const memo = generateCreditMemo(id, preview.amount, preview.description);
             updatedCreditMemos[id] = memo;
           }
 
-          // Update subscription
           const updates: Partial<Subscription> = {
             ...newPlanData,
             updatedAt: new Date(),
           };
 
           if (effectiveDate === 'immediate') {
-            // Reset billing cycle
             updates.nextBillingDate = advanceBillingDate(
               new Date(),
               newPlanData.billingCycle ?? sub.billingCycle
@@ -406,7 +564,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         const memo = get().creditMemos[id];
         if (!sub || !memo || memo.applied) return;
 
-        const { finalCharge, updatedMemo } = applyCreditMemo(sub.price, memo);
+        const { updatedMemo } = applyCreditMemo(sub.price, memo);
 
         set((state) => ({
           creditMemos: {
@@ -414,9 +572,6 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             [id]: updatedMemo,
           },
         }));
-
-        // Could trigger a reduced charge here
-        console.log(`Applied credit: final charge ${finalCharge}`);
       },
 
       queuePlanChange: (
@@ -485,6 +640,8 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             ...data,
             isActive: true,
             notificationsEnabled: data.notificationsEnabled !== false,
+            chainType: data.chainType,
+            chainId: data.chainId,
             createdAt: new Date(),
             updatedAt: new Date(),
           };
@@ -506,9 +663,8 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           await syncRenewalReminders(get().subscriptions);
           await useCalendarStore.getState().syncSubscriptionToCalendars(newSubscription);
 
-          // Gamification Triggers
           const gamificationStore = useGamificationStore.getState();
-          gamificationStore.addPoints(10); // 10 points for adding a subscription
+          gamificationStore.addPoints(10);
           gamificationStore.checkAchievements(AchievementTrigger.SUBSCRIPTION_ADDED, {
             totalSubscriptions: get().subscriptions.length,
             price: data.price,
@@ -708,6 +864,13 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           };
           await AsyncStorage.setItem('subtrackr-dunning-entries', JSON.stringify(dunningEntries));
 
+          crossChainNotificationService.notifyPaymentFailed(
+            id,
+            sub.chainType ?? ChainType.EVM,
+            sub.chainId ?? 1,
+            `Attempt ${attempt}`
+          );
+
           if (sub.notificationsEnabled !== false) {
             await presentChargeFailedNotification(sub);
             if (attempt <= 3) {
@@ -726,6 +889,13 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         }
 
         if (outcome === 'success') {
+          crossChainNotificationService.notifyPaymentSuccess(
+            id,
+            sub.chainType ?? ChainType.EVM,
+            sub.chainId ?? 1,
+            sub.price.toString()
+          );
+
           const hasDunningEntry = await AsyncStorage.getItem('subtrackr-dunning-entries');
           if (hasDunningEntry) {
             await AsyncStorage.removeItem('subtrackr-dunning-entries');
@@ -736,7 +906,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           await presentChargeSuccessNotification(sub);
           const billingPeriod = buildBillingPeriod(sub);
           const next = advanceBillingDate(new Date(sub.nextBillingDate), sub.billingCycle);
-          const simulatedGas = 0.01 + Math.random() * 0.005; // Simulate 0.01 - 0.015 XLM gas
+          const simulatedGas = 0.01 + Math.random() * 0.005;
           set((state) => ({
             subscriptions: state.subscriptions.map((s) =>
               s.id === id
@@ -803,7 +973,6 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       calculateStats: () => {
         const { subscriptions } = get();
 
-        // Safety check: ensure subscriptions is an array
         if (!subscriptions || !Array.isArray(subscriptions)) {
           set({
             stats: {
@@ -811,7 +980,10 @@ export const useSubscriptionStore = create<SubscriptionState>()(
               totalMonthlySpend: 0,
               totalYearlySpend: 0,
               categoryBreakdown: {} as Record<SubscriptionCategory, number>,
-            },
+              chainBreakdown: { stellar: 0, evm: {} },
+              crossChainTotalMonthlySpend: 0,
+              crossChainTotalYearlySpend: 0,
+            } as SubscriptionStats,
           });
           return;
         }
@@ -821,34 +993,49 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         const { preferredCurrency, exchangeRates } = useSettingsStore.getState();
         const rates = exchangeRates?.rates || {};
 
-        const totalMonthlySpend = activeSubs.reduce((total, sub) => {
-          const priceInPreferred = currencyService.convert(
-            sub.price,
-            sub.currency,
-            preferredCurrency,
-            rates
-          );
-          if (sub.billingCycle === 'monthly') return total + priceInPreferred;
-          if (sub.billingCycle === 'yearly') return total + priceInPreferred / 12;
-          if (sub.billingCycle === 'weekly')
-            return total + priceInPreferred * BILLING_CONVERSIONS.WEEKS_PER_MONTH;
-          return total + priceInPreferred;
-        }, 0);
+        let totalMonthlySpend = 0;
+        let totalYearlySpend = 0;
+        const chainBreakdown: ChainSpendBreakdown = { stellar: 0, evm: {} };
 
-        const totalYearlySpend = activeSubs.reduce((total, sub) => {
+        for (const sub of activeSubs) {
           const priceInPreferred = currencyService.convert(
             sub.price,
             sub.currency,
             preferredCurrency,
             rates
           );
-          if (sub.billingCycle === 'yearly') return total + priceInPreferred;
-          if (sub.billingCycle === 'monthly')
-            return total + priceInPreferred * BILLING_CONVERSIONS.MONTHS_PER_YEAR;
-          if (sub.billingCycle === 'weekly')
-            return total + priceInPreferred * BILLING_CONVERSIONS.WEEKS_PER_YEAR;
-          return total + priceInPreferred * BILLING_CONVERSIONS.MONTHS_PER_YEAR;
-        }, 0);
+
+          let monthlyAmount = 0;
+          let yearlyAmount = 0;
+
+          if (sub.billingCycle === 'monthly') {
+            monthlyAmount = priceInPreferred;
+            yearlyAmount = priceInPreferred * BILLING_CONVERSIONS.MONTHS_PER_YEAR;
+          } else if (sub.billingCycle === 'yearly') {
+            monthlyAmount = priceInPreferred / 12;
+            yearlyAmount = priceInPreferred;
+          } else if (sub.billingCycle === 'weekly') {
+            monthlyAmount = priceInPreferred * BILLING_CONVERSIONS.WEEKS_PER_MONTH;
+            yearlyAmount = priceInPreferred * BILLING_CONVERSIONS.WEEKS_PER_YEAR;
+          } else {
+            monthlyAmount = priceInPreferred;
+            yearlyAmount = priceInPreferred * BILLING_CONVERSIONS.MONTHS_PER_YEAR;
+          }
+
+          totalMonthlySpend += monthlyAmount;
+          totalYearlySpend += yearlyAmount;
+
+          const chainType = sub.chainType ?? ChainType.EVM;
+          const chainId = sub.chainId ?? 1;
+          if (chainType === ChainType.STELLAR) {
+            chainBreakdown.stellar += monthlyAmount;
+          } else {
+            if (!chainBreakdown.evm[chainId]) {
+              chainBreakdown.evm[chainId] = 0;
+            }
+            chainBreakdown.evm[chainId] += monthlyAmount;
+          }
+        }
 
         const categoryBreakdown = activeSubs.reduce(
           (acc, sub) => {
@@ -870,7 +1057,10 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             totalYearlySpend,
             categoryBreakdown,
             totalGasSpent,
-          },
+            chainBreakdown,
+            crossChainTotalMonthlySpend: totalMonthlySpend,
+            crossChainTotalYearlySpend: totalYearlySpend,
+          } as SubscriptionStats,
         });
       },
     }),

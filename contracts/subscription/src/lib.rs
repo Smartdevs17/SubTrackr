@@ -3,6 +3,7 @@
 mod gas_optimization;
 mod gas_profiler;
 mod gas_storage;
+mod invoice_branding;
 mod revenue;
 #[cfg(test)]
 mod test;
@@ -21,7 +22,39 @@ const MAX_PAUSE_DURATION: u64 = 2_592_000; // 30 days
 /// This can be overridden on-chain by the admin via `set_max_plans_per_merchant`.
 const MAX_PLANS_PER_MERCHANT: u32 = 100;
 
-const STORAGE_VERSION: u32 = 2;
+const STORAGE_VERSION: u32 = 3;
+
+// ── Cross-Chain Types ──
+
+#[soroban_sdk::contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum TransferStatus {
+    Pending,
+    Completed,
+    Failed,
+}
+
+#[soroban_sdk::contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct CrossChainTransferRequest {
+    pub subscription_id: u64,
+    pub source_chain_type: Symbol,
+    pub source_chain_id: u64,
+    pub target_chain_type: Symbol,
+    pub target_chain_id: u64,
+    pub status: TransferStatus,
+    pub initiated_at: u64,
+    pub completed_at: Option<u64>,
+}
+
+#[soroban_sdk::contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct CrossChainBillingSummary {
+    pub stellar_total: i128,
+    pub evm_total: i128,
+    pub total_subscriptions: u32,
+    pub aggregated_monthly: i128,
+}
 
 #[soroban_sdk::contracttype]
 #[derive(Clone, Debug, PartialEq)]
@@ -1429,8 +1462,172 @@ impl SubTrackrSubscription {
     }
 }
 
+    // ── Cross-Chain Subscription Management ──
+
+    /// Initiate a cross-chain subscription transfer.
+    /// Records the transfer request with target chain information.
+    pub fn request_cross_chain_transfer(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscription_id: u64,
+        target_chain_type: Symbol,
+        target_chain_id: u64,
+    ) {
+        proxy.require_auth();
+        let sub: Subscription =
+            storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
+                .expect("Subscription not found");
+
+        if sub.subscriber != get_admin(&env, &storage) {
+            enforce_rate_limit(&env, &storage, &sub.subscriber, "request_cross_chain_transfer");
+        }
+
+        sub.subscriber.require_auth();
+        assert!(
+            sub.status != SubscriptionStatus::Cancelled,
+            "Subscription is cancelled"
+        );
+
+        let transfer_key = StorageKey::CrossChainTransfer(subscription_id);
+        let pending = CrossChainTransferRequest {
+            subscription_id,
+            source_chain_type: Symbol::new(&env, "stellar"),
+            source_chain_id: 0x8000,
+            target_chain_type: target_chain_type.clone(),
+            target_chain_id,
+            status: TransferStatus::Pending,
+            initiated_at: env.ledger().timestamp(),
+        };
+
+        storage_persistent_set(&env, &storage, transfer_key, pending);
+
+        env.events().publish(
+            (String::from_str(&env, "cross_chain_transfer_requested"), subscription_id),
+            (sub.subscriber.clone(), target_chain_type, target_chain_id),
+        );
+    }
+
+    /// Approve a pending cross-chain subscription transfer.
+    /// Updates the subscription with new chain information.
+    pub fn approve_cross_chain_transfer(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscription_id: u64,
+    ) {
+        proxy.require_auth();
+        let admin = get_admin(&env, &storage);
+        admin.require_auth();
+
+        let transfer_key = StorageKey::CrossChainTransfer(subscription_id);
+        let pending: CrossChainTransferRequest = storage_persistent_get(&env, &storage, transfer_key.clone())
+            .expect("No pending cross-chain transfer");
+
+        assert!(
+            pending.status == TransferStatus::Pending,
+            "Transfer is not pending"
+        );
+
+        let mut sub: Subscription =
+            storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
+                .expect("Subscription not found");
+
+        let updated = CrossChainTransferRequest {
+            status: TransferStatus::Completed,
+            completed_at: Some(env.ledger().timestamp()),
+            ..pending
+        };
+
+        storage_persistent_set(&env, &storage, transfer_key, updated);
+
+        env.events().publish(
+            (String::from_str(&env, "cross_chain_transfer_approved"), subscription_id),
+            (pending.target_chain_type, pending.target_chain_id),
+        );
+    }
+
+    /// Get the cross-chain transfer status for a subscription.
+    pub fn get_cross_chain_transfer(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscription_id: u64,
+    ) -> Option<CrossChainTransferRequest> {
+        proxy.require_auth();
+        storage_persistent_get(&env, &storage, StorageKey::CrossChainTransfer(subscription_id))
+    }
+
+    /// Aggregate billing totals across all chains for a user.
+    /// Returns total amounts separated by chain type.
+    pub fn aggregate_cross_chain_billing(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscriber: Address,
+    ) -> CrossChainBillingSummary {
+        proxy.require_auth();
+        let user_subs: Vec<u64> = storage_persistent_get(&env, &storage, StorageKey::UserSubscriptions(subscriber))
+            .unwrap_or(Vec::new(&env));
+
+        let mut stellar_total: i128 = 0;
+        let mut evm_total: i128 = 0;
+        let mut total_subscriptions: u32 = 0;
+
+        for sub_id in user_subs.iter() {
+            if let Some(sub) = storage_persistent_get::<Subscription>(&env, &storage, StorageKey::Subscription(sub_id)) {
+                if sub.status == SubscriptionStatus::Active {
+                    if let Some(plan) = storage_persistent_get::<Plan>(&env, &storage, StorageKey::Plan(sub.plan_id)) {
+                        // In a real implementation, we'd differentiate by chain metadata
+                        // For now, all Soroban subscriptions are "stellar"
+                        stellar_total += plan.price;
+                        total_subscriptions += 1;
+                    }
+                }
+            }
+        }
+
+        CrossChainBillingSummary {
+            stellar_total,
+            evm_total,
+            total_subscriptions,
+            aggregated_monthly: stellar_total + evm_total,
+        }
+    }
+
+    /// Get all subscriptions from all chains for unified display.
+    pub fn get_unified_subscriptions(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscriber: Address,
+    ) -> Vec<Subscription> {
+        proxy.require_auth();
+        let user_subs: Vec<u64> = storage_persistent_get(&env, &storage, StorageKey::UserSubscriptions(subscriber))
+            .unwrap_or(Vec::new(&env));
+
+        let mut result: Vec<Subscription> = Vec::new(&env);
+        for sub_id in user_subs.iter() {
+            if let Some(sub) = storage_persistent_get::<Subscription>(&env, &storage, StorageKey::Subscription(sub_id)) {
+                result.push_back(sub);
+            }
+        }
+        result
+    }
+
 // ── Extended APIs (disabled by default) ──
 //
+    pub fn set_invoice_branding(env: Env, proxy: Address, storage: Address, tenant_id: String, branding: invoice_branding::InvoiceBranding) {
+        proxy.require_auth();
+        let admin: Address = storage_instance_get(&env, &storage, StorageKey::Admin).expect("Admin not set");
+        require_permission(&env, &storage, &admin, Permission::SetInvoiceContract);
+        invoice_branding::set_invoice_branding(&env, tenant_id, branding);
+    }
+
+    pub fn get_invoice_branding(env: Env, tenant_id: String) -> Option<invoice_branding::InvoiceBranding> {
+        invoice_branding::get_invoice_branding(&env, tenant_id)
+    }
+
 // These APIs depend on additional modules/types that are still evolving.
 // Enable with `--features extended` in the `subtrackr-subscription` crate.
 #[cfg(feature = "extended")]

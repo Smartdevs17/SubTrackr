@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
-import { RpcHealthDashboard } from '../components/RpcHealthDashboard';
+import { LogDashboard } from '../components/LogDashboard';
 
 interface DashboardStats {
   totalRequests: number;
@@ -226,8 +226,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
           </View>
         ))}
       </View>
-
-      <RpcHealthDashboard />
+      
+      <LogDashboard />
     </ScrollView>
   );
 };

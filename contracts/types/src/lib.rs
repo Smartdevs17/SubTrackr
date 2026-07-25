@@ -741,6 +741,10 @@ pub enum StorageKey {
     TmpChargeCommitment(u64),
     /// Admin-configurable threshold for when a commit-reveal is required.
     LargeChargeThreshold,
+
+    // ── Added in storage version 9 (Cross-Chain) ──
+    /// Pending cross-chain transfer request (subscription_id -> CrossChainTransferRequest)
+    CrossChainTransfer(u64),
 }
 
 #[contracttype]
