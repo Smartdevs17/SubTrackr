@@ -340,9 +340,12 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           const sub = get().subscriptions.find((s) => s.id === id);
           if (!sub) throw new Error('Subscription not found');
 
+          const subChainType = sub.chainType ?? ChainType.EVM;
+          const subChainId = sub.chainId ?? 1;
+
           const transfer: CrossChainTransfer = {
-            sourceChainType: sub.chainType,
-            sourceChainId: sub.chainId,
+            sourceChainType: subChainType,
+            sourceChainId: subChainId,
             targetChainType,
             targetChainId,
             status: 'pending',
@@ -350,8 +353,8 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           };
 
           const route = await crossChainRoutingService.findPaymentRoute({
-            sourceChainType: sub.chainType,
-            sourceChainId: sub.chainId,
+            sourceChainType: subChainType,
+            sourceChainId: subChainId,
             targetChainType,
             targetChainId,
             tokenSymbol: sub.cryptoToken || sub.currency,
@@ -375,7 +378,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
 
           crossChainNotificationService.notifyCrossChainTransfer(
             id,
-            sub.chainType,
+            subChainType,
             targetChainType
           );
           get().calculateStats();
@@ -428,7 +431,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         const activeSubs = subscriptions.filter((s) => s.isActive);
 
         const billingItems = activeSubs.map((sub) => ({
-          chainType: sub.chainType,
+          chainType: sub.chainType ?? ChainType.EVM,
           amount: sub.price,
           currency: sub.currency,
         }));
@@ -867,8 +870,8 @@ export const useSubscriptionStore = create<SubscriptionState>()(
 
           crossChainNotificationService.notifyPaymentFailed(
             id,
-            sub.chainType,
-            sub.chainId,
+            sub.chainType ?? ChainType.EVM,
+            sub.chainId ?? 1,
             `Attempt ${attempt}`
           );
 
@@ -892,8 +895,8 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         if (outcome === 'success') {
           crossChainNotificationService.notifyPaymentSuccess(
             id,
-            sub.chainType,
-            sub.chainId,
+            sub.chainType ?? ChainType.EVM,
+            sub.chainId ?? 1,
             sub.price.toString()
           );
 
@@ -1026,14 +1029,15 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           totalMonthlySpend += monthlyAmount;
           totalYearlySpend += yearlyAmount;
 
-          if (sub.chainType === ChainType.STELLAR) {
+          const chainType = sub.chainType ?? ChainType.EVM;
+          const chainId = sub.chainId ?? 1;
+          if (chainType === ChainType.STELLAR) {
             chainBreakdown.stellar += monthlyAmount;
           } else {
-            const evmChainKey = `evm:${sub.chainId}`;
-            if (!chainBreakdown.evm[sub.chainId]) {
-              chainBreakdown.evm[sub.chainId] = 0;
+            if (!chainBreakdown.evm[chainId]) {
+              chainBreakdown.evm[chainId] = 0;
             }
-            chainBreakdown.evm[sub.chainId] += monthlyAmount;
+            chainBreakdown.evm[chainId] += monthlyAmount;
           }
         }
 

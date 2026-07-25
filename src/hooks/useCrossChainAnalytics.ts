@@ -96,20 +96,21 @@ export function useCrossChainAnalytics(): ChainAnalytics {
       { name: string; totalMonthlySpend: number; activeCount: number }
     > = {};
     for (const sub of evmSubs) {
-      if (!evmByChainId[sub.chainId]) {
-        evmByChainId[sub.chainId] = {
-          name: CHAIN_NAMES[sub.chainId] || `Chain ${sub.chainId}`,
+      const cid = sub.chainId ?? 1;
+      if (!evmByChainId[cid]) {
+        evmByChainId[cid] = {
+          name: CHAIN_NAMES[cid] || `Chain ${cid}`,
           totalMonthlySpend: 0,
           activeCount: 0,
         };
       }
-      evmByChainId[sub.chainId].activeCount += 1;
+      evmByChainId[cid].activeCount += 1;
       if (sub.billingCycle === 'monthly') {
-        evmByChainId[sub.chainId].totalMonthlySpend += sub.price;
+        evmByChainId[cid].totalMonthlySpend += sub.price;
       } else if (sub.billingCycle === 'yearly') {
-        evmByChainId[sub.chainId].totalMonthlySpend += sub.price / 12;
+        evmByChainId[cid].totalMonthlySpend += sub.price / 12;
       } else if (sub.billingCycle === 'weekly') {
-        evmByChainId[sub.chainId].totalMonthlySpend += sub.price * 4.33;
+        evmByChainId[cid].totalMonthlySpend += sub.price * 4.33;
       }
     }
 
