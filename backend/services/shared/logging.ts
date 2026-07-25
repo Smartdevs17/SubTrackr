@@ -1,6 +1,14 @@
 import { piiClassifier, type ClassificationLevel } from './piiClassifier';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { logStorage } from '../../elasticsearch/logStorage';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+
+export const correlationIdStorage = new AsyncLocalStorage<string>();
+
+export function withCorrelationId<T>(correlationId: string, fn: () => T): T {
+  return correlationIdStorage.run(correlationId, fn);
+}
 
 const LOG_LEVEL_PRIORITY: Record<LogLevel, number> = {
   debug: 0,
@@ -54,25 +62,30 @@ function formatLog(level: LogLevel, message: string, context?: LogContext) {
 }
 
 function sendToConsole(logEntry: any) {
-  console.log(JSON.stringify(logEntry, null, 2));
+  console.log(JSON.stringify(logEntry));
 }
 
-//  future: plug Sentry / API here
-async function sendToRemote(_logEntry: any) {
-  // Example:
-  // await fetch("https://your-api/logs", { method: "POST", body: JSON.stringify(logEntry) });
+async function sendToRemote(logEntry: any) {
+  try {
+    await logStorage.insertLog(logEntry);
+  } catch (e) {
+    console.error('Failed to forward log to logStorage', e);
+  }
 }
 
 function log(level: LogLevel, message: string, context?: LogContext) {
   if (!shouldLog(level)) return;
 
-  const logEntry = formatLog(level, message, sanitizeContext(context));
+  const currentCorrelationId = correlationIdStorage.getStore();
+  const mergedContext = {
+    correlationId: currentCorrelationId,
+    ...context
+  };
+
+  const logEntry = formatLog(level, message, sanitizeContext(mergedContext));
 
   sendToConsole(logEntry);
-
-  if (level === 'error') {
-    sendToRemote(logEntry);
-  }
+  void sendToRemote(logEntry);
 }
 
 export const logger = {

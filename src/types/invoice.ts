@@ -247,6 +247,18 @@ export interface InvoicePeriod {
   end: Date;
 }
 
+export interface InvoiceBranding {
+  logoUrl?: string;
+  primaryColor?: string;
+  fontFamily?: string;
+}
+
+export interface InvoiceTemplate {
+  id: string;
+  name: string;
+  layout: 'standard' | 'modern' | 'minimalist';
+}
+
 export interface Invoice {
   id: string;
   invoiceNumber: string;
@@ -272,6 +284,8 @@ export interface Invoice {
   isTaxExempt?: boolean;
   taxExemptionId?: string;
   reverseCharge?: boolean;
+  branding?: InvoiceBranding;
+  templateId?: string;
 }
 
 export interface InvoiceConfig {
@@ -283,6 +297,8 @@ export interface InvoiceConfig {
   exchangeRateScale: number;
   paymentTermsDays: number;
   defaultTaxType: TaxType;
+  defaultBranding?: InvoiceBranding;
+  defaultTemplateId?: string;
 }
 
 export interface InvoiceTotals {
