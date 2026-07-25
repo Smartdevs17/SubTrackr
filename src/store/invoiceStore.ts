@@ -13,6 +13,8 @@ import {
   TaxRemittanceReport,
   TaxRemittanceLineItem,
   DigitalGoodsCategory,
+  InvoiceBranding,
+  InvoiceTemplate,
   RemittanceStatus,
   TaxRateEntry,
   MidCycleTaxChange,
@@ -73,6 +75,8 @@ const normalizeInvoice = (raw: Partial<Invoice>): Invoice => {
     updatedAt: toValidDate(raw.updatedAt, createdAt),
     recipientEmail: raw.recipientEmail,
     notes: raw.notes,
+    branding: raw.branding,
+    templateId: raw.templateId,
   };
 };
 
@@ -144,6 +148,12 @@ interface InvoiceState {
   taxRemittanceLines: TaxRemittanceLineItem[];
   taxRemittanceReports: TaxRemittanceReport[];
   digitalGoodsClasses: Record<string, DigitalGoodsCategory>;
+
+  templates: InvoiceTemplate[];
+
+  setInvoiceBranding: (branding: InvoiceBranding) => void;
+  setDefaultTemplate: (templateId: string) => void;
+  addTemplate: (template: InvoiceTemplate) => void;
 
   generateInvoiceFromSubscription: (
     data: InvoiceFormData,
@@ -232,6 +242,29 @@ export const useInvoiceStore = create<InvoiceState>()(
       taxRemittanceReports: [],
       digitalGoodsClasses: {},
 
+      templates: [
+        { id: 'tpl-1', name: 'Standard', layout: 'standard' },
+        { id: 'tpl-2', name: 'Modern', layout: 'modern' },
+      ],
+
+      setInvoiceBranding: (branding) => {
+        set((state) => ({
+          config: { ...state.config, defaultBranding: branding },
+        }));
+      },
+
+      setDefaultTemplate: (templateId) => {
+        set((state) => ({
+          config: { ...state.config, defaultTemplateId: templateId },
+        }));
+      },
+
+      addTemplate: (template) => {
+        set((state) => ({
+          templates: [...state.templates, template],
+        }));
+      },
+
       generateInvoiceFromSubscription: async (data, taxRateBps, exchangeRate) => {
         set({ isLoading: true, error: null });
         try {
@@ -253,6 +286,9 @@ export const useInvoiceStore = create<InvoiceState>()(
           if (data.taxJurisdiction) {
             invoice.taxJurisdiction = data.taxJurisdiction;
           }
+
+          invoice.branding = state.config.defaultBranding;
+          invoice.templateId = state.config.defaultTemplateId || state.templates[0]?.id;
 
           set((current) => ({
             invoices: [...current.invoices, invoice],

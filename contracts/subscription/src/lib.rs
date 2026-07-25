@@ -3,6 +3,7 @@
 mod gas_optimization;
 mod gas_profiler;
 mod gas_storage;
+mod invoice_branding;
 mod revenue;
 #[cfg(test)]
 mod test;
@@ -1616,6 +1617,17 @@ impl SubTrackrSubscription {
 
 // ── Extended APIs (disabled by default) ──
 //
+    pub fn set_invoice_branding(env: Env, proxy: Address, storage: Address, tenant_id: String, branding: invoice_branding::InvoiceBranding) {
+        proxy.require_auth();
+        let admin: Address = storage_instance_get(&env, &storage, StorageKey::Admin).expect("Admin not set");
+        require_permission(&env, &storage, &admin, Permission::SetInvoiceContract);
+        invoice_branding::set_invoice_branding(&env, tenant_id, branding);
+    }
+
+    pub fn get_invoice_branding(env: Env, tenant_id: String) -> Option<invoice_branding::InvoiceBranding> {
+        invoice_branding::get_invoice_branding(&env, tenant_id)
+    }
+
 // These APIs depend on additional modules/types that are still evolving.
 // Enable with `--features extended` in the `subtrackr-subscription` crate.
 #[cfg(feature = "extended")]
