@@ -41,6 +41,30 @@ export {
   BackendPartnerService,
 } from './partnerService';
 export type { SplitConfiguration, PartnerPayoutSchedule } from '../../../src/types/partner';
+
+// Credit system — see creditService.ts for architectural notes.
+export { CreditService, creditService, creditReportToCsv } from './creditService';
+export type {
+  AccountCreditSummary,
+  ApplyCreditInput,
+  ApplyCreditResult,
+  CreditAccount,
+  CreditAuditPage,
+  CreditAuditQuery,
+  CreditBucketBreakdown,
+  CreditEntry,
+  CreditEntryKind,
+  CreditExpiryForecast,
+  CreditLot,
+  CreditReport,
+  CreditUsageTrendPoint,
+  ExpirationPolicy,
+  IssueCreditInput,
+  PrepaymentTransaction,
+  PrepaymentWallet,
+  TopAccount,
+  TransferCreditInput,
+} from './creditTypes';
 export type {
   IMeteringService,
   IPricingService,
@@ -48,5 +72,6 @@ export type {
   IDunningService,
   IAccountingExportService,
   IPartnerService,
+  ICreditService,
 } from './interfaces';
 export { BillingError, BillingErrorCode } from './errors';

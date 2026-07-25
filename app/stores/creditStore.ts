@@ -50,7 +50,10 @@ const isExpired = (lot: CreditLot, now: number): boolean =>
   lot.expiresAt !== undefined && lot.expiresAt <= now;
 
 const availableOf = (account: AccountCredit, now: number): number =>
-  account.lots.reduce((sum, lot) => (lot.remaining > 0 && !isExpired(lot, now) ? sum + lot.remaining : sum), 0);
+  account.lots.reduce(
+    (sum, lot) => (lot.remaining > 0 && !isExpired(lot, now) ? sum + lot.remaining : sum),
+    0
+  );
 
 interface CreditStoreState {
   accounts: Record<string, AccountCredit>;
@@ -80,8 +83,9 @@ export const useCreditStore = create<CreditStoreState>()(
       const account = (subscriber: string): AccountCredit =>
         get().accounts[subscriber] ?? blankAccount(subscriber);
 
-      const commit = (acc: AccountCredit) =>
+      const commit = (acc: AccountCredit): void => {
         set((s) => ({ accounts: { ...s.accounts, [acc.subscriber]: acc } }));
+      };
 
       const nextId = (): number => {
         const id = get().nextId;
@@ -94,15 +98,15 @@ export const useCreditStore = create<CreditStoreState>()(
         kind: CreditTxKind,
         amount: number,
         reason: string,
-        counterparty?: string,
-      ) => {
+        counterparty?: string
+      ): void => {
         acc.transactions = [
           ...acc.transactions,
           { id: nextId(), kind, amount, timestamp: get().now(), reason, counterparty },
         ];
       };
 
-      const realizeExpiry = (acc: AccountCredit, now: number) => {
+      const realizeExpiry = (acc: AccountCredit, now: number): number => {
         let expired = 0;
         acc.lots = acc.lots.map((lot) => {
           if (lot.remaining > 0 && isExpired(lot, now)) {
@@ -129,6 +133,12 @@ export const useCreditStore = create<CreditStoreState>()(
         return amount - remaining;
       };
 
+      const cloneAccount = (acc: AccountCredit): AccountCredit => ({
+        ...acc,
+        lots: [...acc.lots],
+        transactions: [...acc.transactions],
+      });
+
       return {
         accounts: {},
         nextId: 0,
@@ -137,13 +147,13 @@ export const useCreditStore = create<CreditStoreState>()(
         issueCredit: (subscriber, amount, reason, expiresAt) => {
           if (amount <= 0) return;
           const now = get().now();
-          const acc = { ...account(subscriber) };
-          acc.lots = [...acc.lots];
-          acc.transactions = [...acc.transactions];
+          const acc = cloneAccount(account(subscriber));
           realizeExpiry(acc, now);
           const expiry =
             expiresAt ??
-            (acc.expirationPolicy.kind === 'after_secs' ? now + acc.expirationPolicy.seconds : undefined);
+            (acc.expirationPolicy.kind === 'after_secs'
+              ? now + acc.expirationPolicy.seconds
+              : undefined);
           acc.lots.push({ id: nextId(), remaining: amount, issuedAt: now, expiresAt: expiry });
           acc.balance += amount;
           record(acc, 'issue', amount, reason);
@@ -157,7 +167,7 @@ export const useCreditStore = create<CreditStoreState>()(
 
         applyCredit: (subscriber, subscriptionId, amountDue) => {
           const now = get().now();
-          const acc = { ...account(subscriber), lots: [...account(subscriber).lots], transactions: [...account(subscriber).transactions] };
+          const acc = cloneAccount(account(subscriber));
           realizeExpiry(acc, now);
           const applied = consume(acc, now, Math.max(0, amountDue));
           if (applied > 0) {
@@ -165,13 +175,18 @@ export const useCreditStore = create<CreditStoreState>()(
             record(acc, 'apply', -applied, 'charge_application');
           }
           commit(acc);
-          return { subscriptionId, applied, remainingDue: amountDue - applied, balanceAfter: acc.balance };
+          return {
+            subscriptionId,
+            applied,
+            remainingDue: amountDue - applied,
+            balanceAfter: acc.balance,
+          };
         },
 
         transferCredit: (from, to, amount, reason) => {
           if (amount <= 0 || from === to) return false;
           const now = get().now();
-          const sender = { ...account(from), lots: [...account(from).lots], transactions: [...account(from).transactions] };
+          const sender = cloneAccount(account(from));
           realizeExpiry(sender, now);
           if (availableOf(sender, now) < amount) return false;
           const moved = consume(sender, now, amount);
@@ -179,10 +194,12 @@ export const useCreditStore = create<CreditStoreState>()(
           record(sender, 'transfer_out', -moved, reason, to);
           commit(sender);
 
-          const recipient = { ...account(to), lots: [...account(to).lots], transactions: [...account(to).transactions] };
+          const recipient = cloneAccount(account(to));
           realizeExpiry(recipient, now);
           const expiry =
-            recipient.expirationPolicy.kind === 'after_secs' ? now + recipient.expirationPolicy.seconds : undefined;
+            recipient.expirationPolicy.kind === 'after_secs'
+              ? now + recipient.expirationPolicy.seconds
+              : undefined;
           recipient.lots.push({ id: nextId(), remaining: moved, issuedAt: now, expiresAt: expiry });
           recipient.balance += moved;
           record(recipient, 'transfer_in', moved, reason, from);
@@ -192,7 +209,7 @@ export const useCreditStore = create<CreditStoreState>()(
 
         expireCredits: (subscriber) => {
           const now = get().now();
-          const acc = { ...account(subscriber), lots: [...account(subscriber).lots], transactions: [...account(subscriber).transactions] };
+          const acc = cloneAccount(account(subscriber));
           const expired = realizeExpiry(acc, now);
           commit(acc);
           return expired;
@@ -210,6 +227,5 @@ export const useCreditStore = create<CreditStoreState>()(
         nextId: state.nextId,
       }),
     }
-    getAccount: (subscriber) => account(subscriber),
-  };
-});
+  )
+);

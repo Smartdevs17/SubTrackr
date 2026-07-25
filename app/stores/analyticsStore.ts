@@ -18,8 +18,56 @@ import type {
   SubscriberRecord,
   AnomalyFlaggedPoint,
 } from '../../src/types/cohortAnalytics';
+import { useCreditStore } from './creditStore';
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
+
+const computeCreditSnapshot = (): CreditMetricSnapshot => {
+  const state = useCreditStore.getState();
+  const accounts = Object.values(state.accounts);
+  let issued = 0;
+  let applied = 0;
+  let expired = 0;
+  let transferredIn = 0;
+  let transferredOut = 0;
+  let outstandingLots = 0;
+  let outstandingBalance = 0;
+  let expiring7d = 0;
+  let expiring30d = 0;
+  const nowSec = Math.floor(Date.now() / 1000);
+  for (const acc of accounts) {
+    outstandingBalance += acc.balance;
+    for (const lot of acc.lots) {
+      if (lot.remaining <= 0) continue;
+      outstandingLots += 1;
+      if (lot.expiresAt) {
+        const daysLeft = Math.ceil((lot.expiresAt - nowSec) / 86_400);
+        if (daysLeft <= 7) expiring7d += lot.remaining;
+        else if (daysLeft <= 30) expiring30d += lot.remaining;
+      }
+    }
+    for (const tx of acc.transactions) {
+      if (tx.kind === 'issue') issued += tx.amount;
+      else if (tx.kind === 'apply') applied += Math.abs(tx.amount);
+      else if (tx.kind === 'expire') expired += Math.abs(tx.amount);
+      else if (tx.kind === 'transfer_in') transferredIn += tx.amount;
+      else if (tx.kind === 'transfer_out') transferredOut += Math.abs(tx.amount);
+    }
+  }
+  const consumptionRate = issued > 0 ? Math.round((applied / issued) * 100) : 0;
+  return {
+    outstandingBalance,
+    outstandingLots,
+    lifetimeIssued: issued,
+    lifetimeApplied: applied,
+    lifetimeExpired: expired,
+    lifetimeTransferredIn: transferredIn,
+    lifetimeTransferredOut: transferredOut,
+    consumptionRate,
+    expiringWithin7d: expiring7d,
+    expiringWithin30d: expiring30d,
+  };
+};
 
 /**
  * Adapts the app's personal Subscription model into merchant-style
@@ -46,6 +94,21 @@ const toSubscriberRecords = (subscriptions: Subscription[]): SubscriberRecord[] 
           : subscription.price,
   }));
 
+interface CreditMetricSnapshot {
+  outstandingBalance: number;
+  outstandingLots: number;
+  lifetimeIssued: number;
+  lifetimeApplied: number;
+  lifetimeExpired: number;
+  lifetimeTransferredIn: number;
+  lifetimeTransferredOut: number;
+  /** 0-100 integer; issuance-to-application conversion. */
+  consumptionRate: number;
+  /** Lots expiring within 7 / 30 days. */
+  expiringWithin7d: number;
+  expiringWithin30d: number;
+}
+
 interface AnalyticsStoreState {
   report: SubscriptionAnalyticsReport | null;
   granularity: CohortGranularity;
@@ -55,6 +118,7 @@ interface AnalyticsStoreState {
   planMigrationFlows: PlanMigrationFlow[];
   ltvBySource: LtvSourceBreakdown[];
   revenueTrendWithAnomalies: AnomalyFlaggedPoint[];
+  creditSnapshot: CreditMetricSnapshot | null;
   setGranularity: (granularity: CohortGranularity) => void;
   compute: (subscriptions: Subscription[]) => void;
   exportCSV: (subscriptions: Subscription[]) => string;
@@ -71,6 +135,7 @@ export const useAnalyticsStore = create<AnalyticsStoreState>()((set, get) => ({
   planMigrationFlows: [],
   ltvBySource: [],
   revenueTrendWithAnomalies: [],
+  creditSnapshot: null,
 
   setGranularity: (granularity) => {
     set({ granularity });
@@ -95,6 +160,7 @@ export const useAnalyticsStore = create<AnalyticsStoreState>()((set, get) => ({
       revenueTrendWithAnomalies: CohortService.filterAnomalousSpikes(
         report.revenueTrend.map((point) => ({ label: point.label, value: point.mrr }))
       ),
+      creditSnapshot: computeCreditSnapshot(),
     });
   },
 
@@ -106,3 +172,5 @@ export const useAnalyticsStore = create<AnalyticsStoreState>()((set, get) => ({
 
   exportCohortPdf: () => cohortTableToPdfText(get().cohortBuckets, 'Cohort Retention Report'),
 }));
+
+export type { CreditMetricSnapshot };

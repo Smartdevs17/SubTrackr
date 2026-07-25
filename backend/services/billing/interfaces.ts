@@ -21,7 +21,25 @@ import {
   ReconciliationResult,
   TransactionType,
 } from './accountingExportService';
-import { SplitConfiguration, PartnerPayoutSchedule } from '../../../src/types/partner';
+import { SplitConfiguration } from '../../../src/types/partner';
+import type {
+  AccountCreditSummary,
+  ApplyCreditInput,
+  ApplyCreditResult,
+  CreditAccount,
+  CreditAuditPage,
+  CreditAuditQuery,
+  CreditBucketBreakdown,
+  CreditExpiryForecast,
+  CreditReport,
+  CreditUsageTrendPoint,
+  ExpirationPolicy,
+  IssueCreditInput,
+  PrepaymentTransaction,
+  PrepaymentWallet,
+  TopAccount,
+  TransferCreditInput,
+} from './creditTypes';
 
 export interface IMeteringService {
   recordUsage(metric: UsageMetric): Promise<UsageIngestResult>;
@@ -88,3 +106,50 @@ export interface IPartnerService {
     grossAmount: number
   ): Map<string, number>;
 }
+
+/**
+ * Credit service — the server-side counterpart to the `subtrackr-credit`
+ * Soroban contract and the mobile `AccountCredit` store. Operates on a
+ * ledger model (lots + signed entries + running balance) so callers downstream
+ * of `applyCreditToCharge` only see the net amount due.
+ */
+export interface ICreditService {
+  // Account-level configuration
+  setExpirationPolicy(accountId: string, policy: ExpirationPolicy): void;
+  getAccount(accountId: string): CreditAccount;
+  getBalance(accountId: string): number;
+
+  // Credit lifecycle
+  issueCredit(input: IssueCreditInput): CreditAccount;
+  applyCreditToCharge(input: ApplyCreditInput): ApplyCreditResult;
+  transferCredit(input: TransferCreditInput): { from: CreditAccount; to: CreditAccount };
+  expireAccount(accountId: string): { expiredAmount: number; account: CreditAccount };
+  expireAll(accounts?: string[]): Array<{ accountId: string; expiredAmount: number }>;
+
+  // Prepayment wallets
+  createWallet(input: { accountId: string; subscriptionId: string; currency: string }): PrepaymentWallet;
+  deposit(input: { walletId: number; accountId: string; amount: number }): PrepaymentWallet;
+  withdraw(input: { walletId: number; accountId: string; amount: number }): PrepaymentWallet;
+  drawdown(input: { walletId: number; accountId: string; invoiceId: string; amount: number }): PrepaymentWallet;
+  getWallet(walletId: number): PrepaymentWallet | undefined;
+  getWalletTransactions(walletId: number): PrepaymentTransaction[];
+  listWalletsForAccount(accountId: string): PrepaymentWallet[];
+
+  // Analytics (credit dashboard)
+  getAccountSummary(accountId: string): AccountCreditSummary;
+  getGlobalBreakdown(): CreditBucketBreakdown;
+  getUsageTrend(days?: number, bucketSecs?: number): CreditUsageTrendPoint[];
+  getExpiryForecast(accountId: string, horizonSecs?: number): CreditExpiryForecast[];
+  topAccountsByBalance(limit?: number): TopAccount[];
+  listAccounts(): CreditAccount[];
+
+  // Reporting
+  printReport(accountId: string): CreditReport;
+  exportReport(accountId: string, format: 'csv' | 'json'): string;
+
+  // Audit trail
+  getAuditTrail(query: CreditAuditQuery): CreditAuditPage;
+}
+
+// Re-exported from partner types — keeping original code untouched below.
+export type { SplitExecution } from '../../../src/types/partner';
