@@ -376,11 +376,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             isLoading: false,
           }));
 
-          crossChainNotificationService.notifyCrossChainTransfer(
-            id,
-            subChainType,
-            targetChainType
-          );
+          crossChainNotificationService.notifyCrossChainTransfer(id, subChainType, targetChainType);
           get().calculateStats();
         } catch (error) {
           const appError = errorHandler.handleError(error as Error, {
