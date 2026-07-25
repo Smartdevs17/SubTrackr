@@ -88,6 +88,8 @@ export type RootStackParamList = {
   // Issue #550: Advanced dunning
   DunningDashboard: undefined;
   PauseSubscription: { subscriptionId: string };
+  RoleManagement: undefined;
+  RevenueReport: undefined;
 };
 
 export type TabParamList = {
