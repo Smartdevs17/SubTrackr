@@ -236,4 +236,3 @@ export const getTotalMonthlySpending = (subscriptions: Subscription[]): number =
     .filter((sub) => sub.isActive)
     .reduce((total, sub) => total + toMonthlyPrice(sub.price, sub.billingCycle), 0);
 };
-

@@ -1,7 +1,12 @@
 import { ethers } from 'ethers';
 
 import { NetworkError, NetworkErrorCode, ContractError, ContractErrorCode } from '../errors';
-import { TIME_CONSTANTS, CRYPTO_CONSTANTS, CHAIN_IDS, STELLAR_CHAINS } from '../utils/constants/values';
+import {
+  TIME_CONSTANTS,
+  CRYPTO_CONSTANTS,
+  CHAIN_IDS,
+  STELLAR_CHAINS,
+} from '../utils/constants/values';
 import { GasEstimate, ChainType } from '../types/wallet';
 
 export { GasEstimate };
@@ -68,7 +73,7 @@ export const errorTracker = new ErrorRateTracker();
 export interface WalletConnection {
   address: string;
   chainId: number;
-  chainType: ChainType;
+  chainType?: ChainType;
   isConnected: boolean;
   provider?: ethers.providers.Web3Provider;
   eip1193Provider?: ethers.providers.ExternalProvider;

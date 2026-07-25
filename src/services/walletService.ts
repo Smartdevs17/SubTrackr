@@ -54,10 +54,25 @@ export class WalletServiceManager implements WalletServiceContext {
   private readonly streamService: StreamService;
 
   private readonly supportedChains: SupportedChainInfo[] = [
-    { chainType: ChainType.EVM, chainId: 1, name: 'Ethereum', rpcUrl: 'https://cloudflare-eth.com' },
+    {
+      chainType: ChainType.EVM,
+      chainId: 1,
+      name: 'Ethereum',
+      rpcUrl: 'https://cloudflare-eth.com',
+    },
     { chainType: ChainType.EVM, chainId: 137, name: 'Polygon', rpcUrl: 'https://polygon-rpc.com' },
-    { chainType: ChainType.EVM, chainId: 42161, name: 'Arbitrum', rpcUrl: 'https://arb1.arbitrum.io/rpc' },
-    { chainType: ChainType.EVM, chainId: 10, name: 'Optimism', rpcUrl: 'https://mainnet.optimism.io' },
+    {
+      chainType: ChainType.EVM,
+      chainId: 42161,
+      name: 'Arbitrum',
+      rpcUrl: 'https://arb1.arbitrum.io/rpc',
+    },
+    {
+      chainType: ChainType.EVM,
+      chainId: 10,
+      name: 'Optimism',
+      rpcUrl: 'https://mainnet.optimism.io',
+    },
     { chainType: ChainType.EVM, chainId: 8453, name: 'Base', rpcUrl: 'https://mainnet.base.org' },
     { chainType: ChainType.STELLAR, chainId: 0x8000, name: 'Stellar (Soroban)' },
   ];
@@ -157,7 +172,9 @@ export class WalletServiceManager implements WalletServiceContext {
     }
   }
 
-  async connectEvmWallet(eip1193Provider: ethers.providers.ExternalProvider): Promise<WalletConnection> {
+  async connectEvmWallet(
+    eip1193Provider: ethers.providers.ExternalProvider
+  ): Promise<WalletConnection> {
     try {
       const web3Provider = new ethers.providers.Web3Provider(eip1193Provider);
       const accounts = await web3Provider.send('eth_requestAccounts', []);
@@ -211,7 +228,8 @@ export class WalletServiceManager implements WalletServiceContext {
       }
 
       try {
-        await conn.eip1193Provider.request({
+        const provider = conn.eip1193Provider as any;
+        await provider.request({
           method: 'wallet_switchEthereumChain',
           params: [{ chainId: `0x${chainId.toString(16)}` }],
         });
@@ -492,7 +510,9 @@ export class WalletServiceManager implements WalletServiceContext {
   getProvider(chainId: number): ethers.providers.JsonRpcProvider {
     const chainType = getChainType(chainId);
     if (chainType === ChainType.STELLAR) {
-      throw new Error('Stellar provider is not an ethers provider. Use getStellarProvider() instead.');
+      throw new Error(
+        'Stellar provider is not an ethers provider. Use getStellarProvider() instead.'
+      );
     }
     return new ethers.providers.JsonRpcProvider(getEvmRpcUrl(chainId));
   }

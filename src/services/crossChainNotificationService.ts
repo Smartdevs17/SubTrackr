@@ -2,8 +2,15 @@ import { ChainType } from '../types/wallet';
 
 export interface UnifiedNotification {
   id: string;
-  type: 'payment_success' | 'payment_failed' | 'subscription_created' | 'subscription_cancelled' |
-        'chain_switched' | 'cross_chain_transfer' | 'billing_due' | 'price_alert';
+  type:
+    | 'payment_success'
+    | 'payment_failed'
+    | 'subscription_created'
+    | 'subscription_cancelled'
+    | 'chain_switched'
+    | 'cross_chain_transfer'
+    | 'billing_due'
+    | 'price_alert';
   title: string;
   message: string;
   chainType: ChainType;
@@ -40,7 +47,12 @@ class CrossChainNotificationService {
     this.listeners.forEach((listener) => listener(notification));
   }
 
-  notifyPaymentSuccess(subscriptionId: string, chainType: ChainType, chainId: number, amount: string): void {
+  notifyPaymentSuccess(
+    subscriptionId: string,
+    chainType: ChainType,
+    chainId: number,
+    amount: string
+  ): void {
     this.notify({
       id: `payment-${Date.now()}`,
       type: 'payment_success',
@@ -55,7 +67,12 @@ class CrossChainNotificationService {
     });
   }
 
-  notifyPaymentFailed(subscriptionId: string, chainType: ChainType, chainId: number, reason: string): void {
+  notifyPaymentFailed(
+    subscriptionId: string,
+    chainType: ChainType,
+    chainId: number,
+    reason: string
+  ): void {
     this.notify({
       id: `payment-fail-${Date.now()}`,
       type: 'payment_failed',
@@ -84,7 +101,11 @@ class CrossChainNotificationService {
     });
   }
 
-  notifyCrossChainTransfer(subscriptionId: string, sourceChain: ChainType, targetChain: ChainType): void {
+  notifyCrossChainTransfer(
+    subscriptionId: string,
+    sourceChain: ChainType,
+    targetChain: ChainType
+  ): void {
     this.notify({
       id: `cross-chain-${Date.now()}`,
       type: 'cross_chain_transfer',

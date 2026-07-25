@@ -41,48 +41,51 @@ export function useChainSwitching() {
     await switchToChain(ChainType.STELLAR, 0x8000);
   }, []);
 
-  const switchToChain = useCallback(async (chainType: ChainType, chainId: number) => {
-    setState((prev) => ({ ...prev, isSwitching: true, error: null }));
+  const switchToChain = useCallback(
+    async (chainType: ChainType, chainId: number) => {
+      setState((prev) => ({ ...prev, isSwitching: true, error: null }));
 
-    try {
-      const conn = walletServiceManager.getConnection();
-      if (!conn) {
-        if (chainType === ChainType.STELLAR) {
-          await walletServiceManager.connectStellarWallet();
-        } else {
-          throw new WalletError(
-            WalletErrorCode.NOT_CONNECTED,
-            'Connect an EVM wallet first.',
-            'Use the connect button to connect your wallet.'
-          );
+      try {
+        const conn = walletServiceManager.getConnection();
+        if (!conn) {
+          if (chainType === ChainType.STELLAR) {
+            await walletServiceManager.connectStellarWallet();
+          } else {
+            throw new WalletError(
+              WalletErrorCode.NOT_CONNECTED,
+              'Connect an EVM wallet first.',
+              'Use the connect button to connect your wallet.'
+            );
+          }
         }
+
+        await walletServiceManager.switchChain(chainType, chainId);
+
+        setChainFilter({ chainType, chainId });
+
+        crossChainNotificationService.notifyChainSwitched(
+          state.currentChainType || chainType,
+          chainType
+        );
+
+        setState({
+          isSwitching: false,
+          currentChainType: chainType,
+          currentChainId: chainId,
+          error: null,
+        });
+      } catch (error) {
+        const message = error instanceof WalletError ? error.userMessage : 'Failed to switch chain';
+        setState({
+          isSwitching: false,
+          currentChainType: state.currentChainType,
+          currentChainId: state.currentChainId,
+          error: message,
+        });
       }
-
-      await walletServiceManager.switchChain(chainType, chainId);
-
-      setChainFilter({ chainType, chainId });
-
-      crossChainNotificationService.notifyChainSwitched(
-        state.currentChainType || chainType,
-        chainType
-      );
-
-      setState({
-        isSwitching: false,
-        currentChainType: chainType,
-        currentChainId: chainId,
-        error: null,
-      });
-    } catch (error) {
-      const message = error instanceof WalletError ? error.userMessage : 'Failed to switch chain';
-      setState({
-        isSwitching: false,
-        currentChainType: state.currentChainType,
-        currentChainId: state.currentChainId,
-        error: message,
-      });
-    }
-  }, [state.currentChainType, state.currentChainId, setChainFilter]);
+    },
+    [state.currentChainType, state.currentChainId, setChainFilter]
+  );
 
   const disconnect = useCallback(async () => {
     await walletServiceManager.disconnectWallet();

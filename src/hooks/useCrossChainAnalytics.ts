@@ -15,11 +15,14 @@ interface ChainAnalytics {
     totalYearlySpend: number;
     activeCount: number;
     categoryBreakdown: Record<string, number>;
-    byChainId: Record<number, {
-      name: string;
-      totalMonthlySpend: number;
-      activeCount: number;
-    }>;
+    byChainId: Record<
+      number,
+      {
+        name: string;
+        totalMonthlySpend: number;
+        activeCount: number;
+      }
+    >;
   };
   unified: {
     totalMonthlySpend: number;
@@ -43,7 +46,9 @@ export function useCrossChainAnalytics(): ChainAnalytics {
   const stats = useSubscriptionStore((state) => state.stats);
 
   return useMemo(() => {
-    const stellarSubs = subscriptions.filter((s) => s.chainType === ChainType.STELLAR && s.isActive);
+    const stellarSubs = subscriptions.filter(
+      (s) => s.chainType === ChainType.STELLAR && s.isActive
+    );
     const evmSubs = subscriptions.filter((s) => s.chainType === ChainType.EVM && s.isActive);
 
     const calculateSpend = (subs: typeof subscriptions) => {
@@ -70,17 +75,26 @@ export function useCrossChainAnalytics(): ChainAnalytics {
     const stellarSpend = calculateSpend(stellarSubs);
     const evmSpend = calculateSpend(evmSubs);
 
-    const stellarCategoryBreakdown = stellarSubs.reduce((acc, sub) => {
-      acc[sub.category] = (acc[sub.category] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
+    const stellarCategoryBreakdown = stellarSubs.reduce(
+      (acc, sub) => {
+        acc[sub.category] = (acc[sub.category] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>
+    );
 
-    const evmCategoryBreakdown = evmSubs.reduce((acc, sub) => {
-      acc[sub.category] = (acc[sub.category] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
+    const evmCategoryBreakdown = evmSubs.reduce(
+      (acc, sub) => {
+        acc[sub.category] = (acc[sub.category] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>
+    );
 
-    const evmByChainId: Record<number, { name: string; totalMonthlySpend: number; activeCount: number }> = {};
+    const evmByChainId: Record<
+      number,
+      { name: string; totalMonthlySpend: number; activeCount: number }
+    > = {};
     for (const sub of evmSubs) {
       if (!evmByChainId[sub.chainId]) {
         evmByChainId[sub.chainId] = {

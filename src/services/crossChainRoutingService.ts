@@ -198,11 +198,16 @@ export class CrossChainRoutingService {
     return (parsedAmount * feePercent).toFixed(6);
   }
 
-  private async buildStellarTransferTx(publicKey: string, route: CrossChainPaymentRoute): Promise<string> {
+  private async buildStellarTransferTx(
+    publicKey: string,
+    route: CrossChainPaymentRoute
+  ): Promise<string> {
     return `AAAAAgAAAAD${publicKey}...mock_xdr_for_demo`;
   }
 
-  async aggregateBilling(subscriptions: { chainType: ChainType; amount: number; currency: string }[]): Promise<{
+  async aggregateBilling(
+    subscriptions: { chainType: ChainType; amount: number; currency: string }[]
+  ): Promise<{
     totalInPreferredCurrency: number;
     chainBreakdown: Record<string, number>;
     conversionRates: Record<string, number>;

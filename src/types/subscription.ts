@@ -1,3 +1,5 @@
+import { ChainType } from './wallet';
+
 export interface Subscription {
   id: string;
   name: string;
@@ -28,9 +30,9 @@ export interface Subscription {
   groupId?: string;
   groupMemberAddress?: string;
   timezone?: string;
-  /** Chain information for multi-chain support */
-  chainType: ChainType;
-  chainId: number;
+  /** Chain information for multi-chain support (default: EVM/Ethereum) */
+  chainType?: ChainType;
+  chainId?: number;
   /** Cross-chain subscription transfer state */
   crossChainTransfer?: CrossChainTransfer;
   /** Unified billing aggregation */
@@ -107,9 +109,9 @@ export interface SubscriptionFormData {
   isCryptoEnabled: boolean;
   cryptoToken?: string;
   cryptoAmount?: number;
-  /** Chain selection for multi-chain support */
-  chainType: ChainType;
-  chainId: number;
+  /** Chain selection for multi-chain support (default: EVM/Ethereum) */
+  chainType?: ChainType;
+  chainId?: number;
 }
 
 export interface ChainSpendBreakdown {

@@ -198,7 +198,11 @@ interface SubscriptionState {
   // Multi-chain actions
   setChainFilter: (filter: UnifiedSubscriptionFilter) => void;
   getFilteredSubscriptions: () => Subscription[];
-  initiateCrossChainTransfer: (id: string, targetChainType: ChainType, targetChainId: number) => Promise<void>;
+  initiateCrossChainTransfer: (
+    id: string,
+    targetChainType: ChainType,
+    targetChainId: number
+  ) => Promise<void>;
   approveCrossChainTransfer: (id: string) => Promise<void>;
   getSubscriptionsByChain: (chainType: ChainType) => Subscription[];
   aggregateCrossChainBilling: () => Promise<{
@@ -304,13 +308,19 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         if (!chainFilter || Object.keys(chainFilter).length === 0) return subscriptions;
 
         return subscriptions.filter((sub) => {
-          if (chainFilter.chainType !== undefined && sub.chainType !== chainFilter.chainType) return false;
-          if (chainFilter.chainId !== undefined && sub.chainId !== chainFilter.chainId) return false;
+          if (chainFilter.chainType !== undefined && sub.chainType !== chainFilter.chainType)
+            return false;
+          if (chainFilter.chainId !== undefined && sub.chainId !== chainFilter.chainId)
+            return false;
           if (chainFilter.status === 'active' && !sub.isActive) return false;
           if (chainFilter.status === 'paused' && sub.isActive) return false;
           if (chainFilter.searchQuery) {
             const query = chainFilter.searchQuery.toLowerCase();
-            if (!sub.name.toLowerCase().includes(query) && !sub.category.toLowerCase().includes(query)) return false;
+            if (
+              !sub.name.toLowerCase().includes(query) &&
+              !sub.category.toLowerCase().includes(query)
+            )
+              return false;
           }
           return true;
         });
@@ -320,7 +330,11 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         return get().subscriptions.filter((s) => s.chainType === chainType);
       },
 
-      initiateCrossChainTransfer: async (id: string, targetChainType: ChainType, targetChainId: number) => {
+      initiateCrossChainTransfer: async (
+        id: string,
+        targetChainType: ChainType,
+        targetChainId: number
+      ) => {
         set({ isLoading: true, error: null });
         try {
           const sub = get().subscriptions.find((s) => s.id === id);
@@ -349,13 +363,21 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           set((state) => ({
             subscriptions: state.subscriptions.map((s) =>
               s.id === id
-                ? { ...s, crossChainTransfer: { ...transfer, status: 'pending' }, updatedAt: new Date() }
+                ? {
+                    ...s,
+                    crossChainTransfer: { ...transfer, status: 'pending' },
+                    updatedAt: new Date(),
+                  }
                 : s
             ),
             isLoading: false,
           }));
 
-          crossChainNotificationService.notifyCrossChainTransfer(id, sub.chainType, targetChainType);
+          crossChainNotificationService.notifyCrossChainTransfer(
+            id,
+            sub.chainType,
+            targetChainType
+          );
           get().calculateStats();
         } catch (error) {
           const appError = errorHandler.handleError(error as Error, {
@@ -843,7 +865,12 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           };
           await AsyncStorage.setItem('subtrackr-dunning-entries', JSON.stringify(dunningEntries));
 
-          crossChainNotificationService.notifyPaymentFailed(id, sub.chainType, sub.chainId, `Attempt ${attempt}`);
+          crossChainNotificationService.notifyPaymentFailed(
+            id,
+            sub.chainType,
+            sub.chainId,
+            `Attempt ${attempt}`
+          );
 
           if (sub.notificationsEnabled !== false) {
             await presentChargeFailedNotification(sub);
@@ -863,7 +890,12 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         }
 
         if (outcome === 'success') {
-          crossChainNotificationService.notifyPaymentSuccess(id, sub.chainType, sub.chainId, sub.price.toString());
+          crossChainNotificationService.notifyPaymentSuccess(
+            id,
+            sub.chainType,
+            sub.chainId,
+            sub.price.toString()
+          );
 
           const hasDunningEntry = await AsyncStorage.getItem('subtrackr-dunning-entries');
           if (hasDunningEntry) {
