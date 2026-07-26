@@ -379,6 +379,29 @@ Returns all subscription IDs for a given subscriber.
 | ------------ | --------- | ---------- |
 | `subscriber` | `Address` | `Vec<u64>` |
 
+#### `generateComplianceReport(format)`
+Exports full compliance status and audit logs in `json` or `csv`.
+
+---
+
+## Payment Reconciliation API
+
+The `ReconciliationService` automates payment matching against bank and chain statements, manages exception resolution workflows, handles automated scheduling, and exports financial reconciliation reports.
+
+### Methods
+
+#### `runAutomatedReconciliation(subscriptions, bankStatements)`
+Executes automated payment matching against statement records and categorizes items into matched, fee variance, or exceptions.
+
+#### `resolveException(matchId, reason, notes)`
+Manually resolves payment variance or exception entries with resolution notes.
+
+#### `updateSchedule(config)` & `getSchedule()`
+Manages automated reconciliation frequency (realtime, hourly, daily, weekly) and auto-resolution thresholds.
+
+#### `generateReport(format)`
+Generates downloadable financial reconciliation reports in `json` or `csv` format.
+
 #### `get_merchant_plans`
 
 Returns all plan IDs for a given merchant.

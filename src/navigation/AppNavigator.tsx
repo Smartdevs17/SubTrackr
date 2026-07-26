@@ -96,6 +96,7 @@ const PaymentMethodsScreen = lazyScreen(() =>
   }))
 );
 const AnalyticsDashboard = lazyScreen(() => import('../../app/screens/AnalyticsDashboard'));
+const PaymentReconciliationDashboard = lazyScreen(() => import('../screens/PaymentReconciliationDashboard'));
 const TrialDetailsScreen = lazyScreen(() => import('../screens/TrialDetailsScreen'));
 
 // Issue #547: GDPR
@@ -535,9 +536,14 @@ const SettingsStack = () => (
       options={{ title: 'Credits & Prepayments', headerShown: true }}
     />
     <Stack.Screen
-      name="TaxCompliance"
-      component={TaxComplianceScreen}
-      options={{ title: 'Tax Compliance', headerShown: true }}
+      name="AutomatedCompliance"
+      component={AutomatedComplianceDashboard}
+      options={{ title: 'Automated Compliance', headerShown: true }}
+    />
+    <Stack.Screen
+      name="PaymentReconciliation"
+      component={PaymentReconciliationDashboard}
+      options={{ title: 'Payment Reconciliation', headerShown: true }}
     />
     <Stack.Screen
       name="SupportDashboard"

@@ -499,6 +499,10 @@ components:
 tags:
   - name: Initialization
     description: One-time contract setup
+  - name: Automated Compliance
+    description: Automated compliance checks, alerts, regulatory monitoring, and audit trail
+  - name: Payment Reconciliation
+    description: Automated payment matching, exception resolution, scheduling, and reporting
   - name: Plan Management
     description: Create and manage subscription plans
   - name: Subscription Management
