@@ -34,6 +34,15 @@ SubTrackr is a mobile application for managing recurring payments and subscripti
 - Price change alerts and spending insights
 - AI-powered savings suggestions
 
+**Invoice Management with Branding**
+
+- Custom invoice branding with company logo and colors
+- Multiple invoice templates (Modern, Classic, Minimal, Professional)
+- PDF generation with full branding customization
+- Comprehensive invoice analytics and revenue tracking
+- Invoice preview before generation
+- Detailed payment history and status tracking
+
 **Wallet Integration**
 
 - Native Freighter wallet connection for Stellar transactions
