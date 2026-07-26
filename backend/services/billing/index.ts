@@ -85,4 +85,27 @@ export type {
   IAccountingExportService,
   IPartnerService,
 } from './interfaces';
+export {
+  PaymentMethodRegistry,
+  MAX_CHAIN_LENGTH,
+  EXPIRY_CRITICAL_DAYS,
+  EXPIRY_WARNING_DAYS,
+} from './paymentMethodRegistry';
+export type {
+  RegisteredPaymentMethod,
+  PaymentMethodDraft,
+  PaymentMethodKind,
+  FallbackChain,
+  ChainValidation,
+  ChargeAttempt,
+  ChargeResult,
+  ChargeProcessor,
+  PaymentFailureReason,
+  ExpiryAlert,
+  ExpiryAlertSeverity,
+  PaymentMethodShare,
+  ShareRole,
+  PaymentMethodStats,
+  PaymentMethodAnalytics,
+} from './paymentMethodRegistry';
 export { BillingError, BillingErrorCode } from './errors';
