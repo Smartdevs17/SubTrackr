@@ -1,5 +1,5 @@
 export { useTrialStore } from './trialStore';
-export { useSubscriptionStore } from './subscriptionStore';
+export { useSubscriptionStore } from './slices/subscription';
 export { useInvoiceStore } from './invoiceStore';
 export { useCreditStore } from './creditStore';
 export { useTransactionQueueStore } from './transactionQueueStore';
