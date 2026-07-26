@@ -3,6 +3,7 @@
     "name": "SubTrackr",
     "slug": "subtrackr",
     "version": "1.0.0",
+    "scheme": "subtrackr",
     "orientation": "portrait",
     "icon": "./assets/subtrackr-icon.png",
     "userInterfaceStyle": "automatic",
@@ -15,7 +16,8 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.subtrackr.app",
-      "icon": "./assets/subtrackr-icon.png"
+      "icon": "./assets/subtrackr-icon.png",
+      "associatedDomains": ["applinks:subtrackr.app"]
     },
     "android": {
       "package": "com.subtrackr.app",
@@ -24,7 +26,23 @@
         "backgroundColor": "#1a1a1a"
       },
       "edgeToEdgeEnabled": true,
-      "icon": "./assets/subtrackr-icon.png"
+      "icon": "./assets/subtrackr-icon.png",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "subtrackr.app",
+              "pathPrefix": "/"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ],
+      "jsEngine": "hermes",
+      "hermesFlags": ["-g", "--minify", "--inline-store-on-put", "--allocation-profile"]
     },
     "web": {
       "favicon": "./assets/subtrackr-icon.png",

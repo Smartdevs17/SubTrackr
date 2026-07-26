@@ -353,6 +353,14 @@
                   "map": [
                     {
                       "key": {
+                        "symbol": "charge_count"
+                      },
+                      "val": {
+                        "u32": 0
+                      }
+                    },
+                    {
+                      "key": {
                         "symbol": "id"
                       },
                       "val": {
@@ -436,6 +444,14 @@
                       },
                       "val": {
                         "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "total_gas_spent"
+                      },
+                      "val": {
+                        "u64": 0
                       }
                     },
                     {
@@ -1287,6 +1303,14 @@
               "map": [
                 {
                   "key": {
+                    "symbol": "charge_count"
+                  },
+                  "val": {
+                    "u32": 0
+                  }
+                },
+                {
+                  "key": {
                     "symbol": "id"
                   },
                   "val": {
@@ -1370,6 +1394,14 @@
                   },
                   "val": {
                     "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "total_gas_spent"
+                  },
+                  "val": {
+                    "u64": 0
                   }
                 },
                 {

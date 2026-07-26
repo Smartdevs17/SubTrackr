@@ -7,9 +7,25 @@ module.exports = {
   collectCoverageFrom: ['src/**/*.{ts,tsx}', '!src/**/*.d.ts', '!src/**/index.ts'],
   testMatch: ['**/__tests__/**/*.(test|spec).[jt]s?(x)', '**/?(*.)+(spec|test).[jt]s?(x)'],
   modulePathIgnorePatterns: ['<rootDir>/e2e'],
+  testPathIgnorePatterns: [
+    '/node_modules/',
+    '<rootDir>/e2e/',
+    '<rootDir>/src/animations/',
+    '<rootDir>/app/',
+    '<rootDir>/backend/',
+    '<rootDir>/developer-portal/',
+    '<rootDir>/contracts/',
+    '<rootDir>/babel.config.test.js',
+  ],
   moduleNameMapper: {
+    '^bullmq$': '<rootDir>/backend/shared/queue/__mocks__/bullmq.ts',
     '^@/(.*)$': '<rootDir>/src/$1',
+    '^@react-native-community/netinfo$':
+      '<rootDir>/src/__mocks__/@react-native-community/netinfo.js',
+    '^@react-native-async-storage/async-storage$':
+      '<rootDir>/src/__mocks__/@react-native-async-storage/async-storage.js',
+    ViewConfigIgnore$: '<rootDir>/src/__mocks__/ViewConfigIgnore.js',
   },
-  setupFilesAfterEnv: [],
+  setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   testEnvironment: 'node',
 };
