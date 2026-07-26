@@ -398,3 +398,6 @@ export type { RotationEmailData } from './notification/rotationEmailTemplate';
 
 // ── Monitoring — Lock Metrics (Issue #610) ────────────────────────────────────
 export { collectLockMetrics, lockMetricsExporter } from '../monitoring/lockMetrics';
+
+// ── Proration Calculator API (Issue #784) ──────────────────────────────────────
+export { ProrationApiService } from './prorationApiService';
