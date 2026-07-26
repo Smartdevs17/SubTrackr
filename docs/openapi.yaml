@@ -499,6 +499,9 @@ components:
 tags:
   - name: Initialization
     description: One-time contract setup
+  - name: Trial Optimization
+    description: Trial conversion tracking, trial-to-paid automation, extension rules, and notifications
+
   - name: Plan Management
     description: Create and manage subscription plans
   - name: Subscription Management

@@ -96,6 +96,8 @@ const PaymentMethodsScreen = lazyScreen(() =>
   }))
 );
 const AnalyticsDashboard = lazyScreen(() => import('../../app/screens/AnalyticsDashboard'));
+const PaymentReconciliationDashboard = lazyScreen(() => import('../screens/PaymentReconciliationDashboard'));
+const TrialOptimizationDashboard = lazyScreen(() => import('../screens/TrialOptimizationDashboard'));
 const TrialDetailsScreen = lazyScreen(() => import('../screens/TrialDetailsScreen'));
 
 // Issue #547: GDPR
@@ -608,6 +610,16 @@ const SettingsStack = () => (
       name="BillingAlignment"
       component={BillingAlignmentScreen}
       options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="PaymentReconciliation"
+      component={PaymentReconciliationDashboard}
+      options={{ title: 'Payment Reconciliation', headerShown: true }}
+    />
+    <Stack.Screen
+      name="TrialOptimization"
+      component={TrialOptimizationDashboard}
+      options={{ title: 'Trial Optimization', headerShown: true }}
     />
     <Stack.Screen
       name="PaymentMethods"
