@@ -34,6 +34,7 @@ export interface IWebhookDeliveryService {
   deleteWebhook(id: string): void;
   pauseWebhook(id: string): WebhookConfig;
   resumeWebhook(id: string): WebhookConfig;
+  rotateSecret(id: string, newSecret: string, overlapMs?: number): WebhookConfig;
   listWebhooks(merchantId: string): WebhookConfig[];
   getWebhook(id: string): WebhookConfig | undefined;
   getWebhookDeliveries(webhookId: string, limit: number): WebhookDelivery[];
@@ -42,6 +43,11 @@ export interface IWebhookDeliveryService {
   checkWebhookHealth(id: string): Promise<WebhookConfig>;
   deliverEvent(input: WebhookEventInput): Promise<WebhookDeliveryResult | null>;
   retryWebhookDelivery(deliveryId: string): Promise<WebhookDeliveryResult>;
+  listDeadLetters(webhookId?: string): WebhookDelivery[];
+  replayDeadLetter(deliveryId: string): Promise<WebhookDeliveryResult>;
+  cleanupDeadLetters(maxAgeMs?: number): number;
+  cleanupExpiredIdempotencyKeys(windowMs?: number): number;
+  testWebhook(webhookId: string, eventType?: string, customPayload?: Record<string, unknown>): Promise<WebhookDeliveryResult>;
 }
 
 export interface IWebsocketService {

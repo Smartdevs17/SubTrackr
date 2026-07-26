@@ -172,6 +172,17 @@ export type {
   WebhookDeliveryResult,
   WebhookEventInput,
 } from './notification/webhook';
+// Unified webhook barrel (Issue #727 Technical Scope)
+export { WebhookManagementApi, webhookManagementApi } from './notification/webhookManagementApi';
+// Event catalog — wildcard filtering & schema validation
+export {
+  EventCatalogRegistry,
+  eventCatalog,
+  EVENT_CATALOG,
+} from './webhook/eventCatalog';
+export type { EventDefinition, EventCategory, SchemaField } from './webhook/eventCatalog';
+export { EventSchemaValidator, eventSchemaValidator } from './webhook/eventSchemaValidator';
+export type { ValidationResult } from './webhook/eventSchemaValidator';
 export { WebSocketServer, webSocketServer } from './notification/websocket';
 export type {
   SubscriptionEventType as WSSubscriptionEventType,
