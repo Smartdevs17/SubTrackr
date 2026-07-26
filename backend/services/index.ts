@@ -353,6 +353,19 @@ export type {
   SlaMonitoringEvent,
 } from './shared/slaMonitoring';
 
+// ── Subscription SLA Monitoring (Issue #779) ──────────────────────────────
+export { SubscriptionSlaMonitoringService } from './subscriptionSlaMonitoring';
+export type {
+  SlaMetricKind as SubSlaMetricKind,
+  SlaBreachSeverity as SubSlaBreachSeverity,
+  SubscriptionTier as SubSlaTier,
+  SubscriptionSlaTarget as SubSlaTarget,
+  SlaMetricSample as SubSlaMetricSample,
+  SlaBreachRecord as SubSlaBreachRecord,
+  SlaSubscriptionConfig as SubSlaSubscriptionConfig,
+  SlaHealthSummary as SubSlaHealthSummary,
+} from './subscriptionSlaMonitoring';
+
 // ── Group Billing (Issue #732) ────────────────────────────────────────────
 export { GroupBillingService, groupBillingService } from './billing/groupBilling';
 export type {
