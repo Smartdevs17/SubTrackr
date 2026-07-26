@@ -1,5 +1,4 @@
-import { Subscription } from '../../../types/subscription';
-import { SubscriptionStats } from '../../../types/subscription';
+import { Subscription, SubscriptionStats, ChainSpendBreakdown } from '../../../types/subscription';
 import { useSettingsStore } from '../../settingsStore';
 import { currencyService } from '../../../services/currencyService';
 import { BILLING_CONVERSIONS } from '../../../utils/constants/values';
@@ -11,7 +10,7 @@ export const initialSubscriptionStatsState = {
     totalMonthlySpend: 0,
     totalYearlySpend: 0,
     categoryBreakdown: {} as Record<string, number>,
-    chainBreakdown: {} as Record<string, number>,
+    chainBreakdown: { stellar: 0, evm: {} } as ChainSpendBreakdown,
     crossChainTotalMonthlySpend: 0,
     crossChainTotalYearlySpend: 0,
     totalGasSpent: 0,
@@ -47,7 +46,7 @@ export function createSubscriptionStatsSlice(set: any, get: any) {
 
       let totalMonthlySpend = 0;
       let totalYearlySpend = 0;
-      const chainBreakdown: Record<string, number> = { stellar: 0, evm: {} };
+      const chainBreakdown: ChainSpendBreakdown = { stellar: 0, evm: {} };
 
       for (const sub of activeSubs) {
         const priceInPreferred = currencyService.convert(
@@ -107,12 +106,12 @@ export function createSubscriptionStatsSlice(set: any, get: any) {
           totalActive: activeSubs.length,
           totalMonthlySpend,
           totalYearlySpend,
-          categoryBreakdown,
+          categoryBreakdown: categoryBreakdown as Record<string, number>,
           totalGasSpent,
           chainBreakdown,
           crossChainTotalMonthlySpend: totalMonthlySpend,
           crossChainTotalYearlySpend: totalYearlySpend,
-        },
+        } as SubscriptionStats,
       });
     },
   };

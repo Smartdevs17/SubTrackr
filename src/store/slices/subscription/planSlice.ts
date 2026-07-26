@@ -1,5 +1,5 @@
 import { Subscription } from '../../../types/subscription';
-import { SubscriptionChange } from '../../../types/subscription';
+import type { SubscriptionChange } from './types';
 import { SubscriptionCRDT } from '../../../services/cache/crdt';
 import { networkMonitor } from '../../../services/network/networkMonitor';
 import { syncRenewalReminders } from '../../../services/notificationService';

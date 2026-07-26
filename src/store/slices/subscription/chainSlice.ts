@@ -36,13 +36,13 @@ export function createSubscriptionChainSlice(set: any, get: any) {
       });
     },
 
-    getSubscriptionsByChain: (chainType: string) => {
+    getSubscriptionsByChain: (chainType: ChainType) => {
       return get().subscriptions.filter((s: Subscription) => s.chainType === chainType);
     },
 
     initiateCrossChainTransfer: async (
       id: string,
-      targetChainType: string,
+      targetChainType: ChainType,
       targetChainId: number
     ) => {
       set({ isLoading: true, error: null });
@@ -101,16 +101,17 @@ export function createSubscriptionChainSlice(set: any, get: any) {
       set({ isLoading: true, error: null });
       try {
         const sub = get().subscriptions.find((s: Subscription) => s.id === id);
-        if (!sub || !sub.crossChainTransfer) throw new Error('No pending transfer');
+        if (!sub?.crossChainTransfer) throw new Error('No pending transfer');
 
+        const transfer = sub.crossChainTransfer;
         set((state: any) => ({
           subscriptions: state.subscriptions.map((s: Subscription) =>
             s.id === id
               ? {
                   ...s,
-                  chainType: s.crossChainTransfer.targetChainType,
-                  chainId: s.crossChainTransfer.targetChainId,
-                  crossChainTransfer: { ...s.crossChainTransfer, status: 'completed' },
+                  chainType: transfer.targetChainType,
+                  chainId: transfer.targetChainId,
+                  crossChainTransfer: { ...transfer, status: 'completed' },
                   updatedAt: new Date(),
                 }
               : s

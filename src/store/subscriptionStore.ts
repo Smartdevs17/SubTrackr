@@ -1,7 +1,6 @@
-import { useSubscriptionStore } from './slices/subscription';
-
+export { useSubscriptionStore } from './slices/subscription';
+export type { SubscriptionState } from './slices/subscription';
 export type {
-  SubscriptionState,
   SubscriptionStats,
   SubscriptionCategory,
   BillingCycle,
@@ -10,5 +9,3 @@ export type {
   UnifiedSubscriptionFilter,
   ProrationEffectiveType,
 } from './slices/subscription/types';
-
-export { useSubscriptionStore };

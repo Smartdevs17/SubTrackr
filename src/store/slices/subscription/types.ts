@@ -1,8 +1,36 @@
-import type { Subscription } from '../../../types/subscription';
-import type { SubscriptionStats } from '../../../types/subscription';
-import type { SubscriptionFormData } from '../../../types/subscription';
-import type { SubscriptionChange } from '../../../types/subscription';
+import type {
+  Subscription,
+  SubscriptionStats,
+  SubscriptionFormData,
+  SubscriptionCategory,
+  BillingCycle,
+  UnifiedSubscriptionFilter,
+  ChainSpendBreakdown,
+} from '../../../types/subscription';
 import type { SubscriptionMetadata } from '../../../services/cache/crdt';
+
+export interface SubscriptionChange {
+  id: string;
+  subscriptionId: string;
+  fromPrice: number;
+  toPrice: number;
+  effectiveType: 'immediate' | 'end_of_period' | 'custom_date';
+  status: 'pending' | 'executed' | 'rejected';
+  proration: unknown;
+  createdAt: Date;
+  newPlanData: Partial<Subscription>;
+}
+
+export type ProrationEffectiveType = 'immediate' | 'end_of_period' | 'custom_date';
+export {
+  SubscriptionCategory,
+  BillingCycle,
+  UnifiedSubscriptionFilter,
+  ChainSpendBreakdown,
+  SubscriptionStats,
+  SubscriptionFormData,
+  Subscription,
+};
 
 export interface SubscriptionDataSlice {
   subscriptions: Subscription[];
@@ -41,6 +69,7 @@ export interface SubscriptionPlanSlice {
 
 export interface SubscriptionChainSlice {
   chainFilter: unknown;
+  crossChainTransfer?: unknown;
   setChainFilter: (filter: unknown) => void;
   getFilteredSubscriptions: () => Subscription[];
   initiateCrossChainTransfer: (

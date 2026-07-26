@@ -48,25 +48,28 @@ export function createSubscriptionDataSlice(set: any, get: any) {
 
     updateSubscription: async (id: string, data: Partial<Subscription>) => {
       set({ isLoading: true, error: null });
-      const subs = get().subscriptions;
-      const sub = subs.find((s: Subscription) => s.id === id);
-      if (!sub) {
-        set({ isLoading: false });
-        return;
-      }
-      const updatedSubscription = { ...sub, ...data, updatedAt: new Date() };
-      set((state: any) => ({
-        subscriptions: state.subscriptions.map((s: Subscription) =>
-          s.id === id ? updatedSubscription : s
-        ),
-        isLoading: false,
-      }));
       try {
+        const sub = get().subscriptions.find((s: Subscription) => s.id === id);
+        if (!sub) throw new Error('Subscription not found');
+
+        const updatedSubscription = { ...sub, ...data, updatedAt: new Date() };
+        set((state: any) => ({
+          subscriptions: state.subscriptions.map((s: Subscription) =>
+            s.id === id ? updatedSubscription : s
+          ),
+          isLoading: false,
+        }));
+
         get().calculateStats();
-      } catch {}
-      try {
         await syncRenewalReminders(get().subscriptions);
-      } catch {}
+      } catch (error) {
+        const appError = errorHandler.handleError(error as Error, {
+          action: 'updateSubscription',
+          subscriptionId: id,
+          metadata: { updateData: data },
+        });
+        set({ error: appError, isLoading: false });
+      }
     },
 
     deleteSubscription: async (id: string) => {

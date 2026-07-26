@@ -7,9 +7,8 @@ import { initialSubscriptionPlanState, createSubscriptionPlanSlice } from './pla
 import { initialSubscriptionChainState, createSubscriptionChainSlice } from './chainSlice';
 import { initialSubscriptionSyncState, createSubscriptionSyncSlice } from './syncSlice';
 import { createSubscriptionBillingSlice } from './billingSlice';
-import type { Subscription } from '../../../types/subscription';
-import type { SubscriptionStats } from '../../../types/subscription';
-import type { SubscriptionChange } from '../../../types/subscription';
+import type { Subscription, SubscriptionStats } from '../../../types/subscription';
+import type { SubscriptionChange } from './types';
 
 export interface SubscriptionState {
   subscriptions: Subscription[];

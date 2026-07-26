@@ -4,6 +4,7 @@ import { syncRenewalReminders } from '../../../services/notificationService';
 import { useCalendarStore } from '../../calendarStore';
 import { SubscriptionCRDT, CRDTSubscriptionState } from '../../../services/cache/crdt';
 import { errorHandler } from '../../../services/errorHandler';
+import type { Subscription } from '../../../types/subscription';
 
 export const initialSubscriptionSyncState = {
   syncStatus: 'idle' as const,
