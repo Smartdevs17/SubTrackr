@@ -379,6 +379,29 @@ Returns all subscription IDs for a given subscriber.
 | ------------ | --------- | ---------- |
 | `subscriber` | `Address` | `Vec<u64>` |
 
+#### `generateMerchantReport(dashboardData, format)`
+Generates exportable standardized merchant reports in `json` or `csv` format.
+
+---
+
+## Automated Compliance API
+
+The `ComplianceService` handles continuous regulatory monitoring, automated checks, alerts management, audit trail logging, and reporting exports.
+
+### Methods
+
+#### `runAutomatedChecks(subscriptions)`
+Executes compliance rule evaluation across all subscriptions and generates warning/failure alerts.
+
+#### `getAlerts()` & `acknowledgeAlert(alertId, performer)`
+Retrieves active compliance alerts and acknowledges specific regulatory issues.
+
+#### `getAuditTrail()` & `logAuditEntry(action, performer, targetId, details)`
+Manages immutable audit trail logs for compliance operations.
+
+#### `generateComplianceReport(format)`
+Exports full compliance status and audit logs in `json` or `csv`.
+
 #### `get_merchant_plans`
 
 Returns all plan IDs for a given merchant.

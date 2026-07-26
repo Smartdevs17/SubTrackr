@@ -499,6 +499,10 @@ components:
 tags:
   - name: Initialization
     description: One-time contract setup
+  - name: Merchant Analytics
+    description: Merchant revenue, subscriber analytics, and reporting
+  - name: Automated Compliance
+    description: Automated compliance checks, alerts, regulatory monitoring, and audit trail
   - name: Plan Management
     description: Create and manage subscription plans
   - name: Subscription Management
