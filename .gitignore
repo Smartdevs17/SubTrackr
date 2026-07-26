@@ -145,3 +145,6 @@ e2e/artifacts/
 e2e/screenshots/
 *.snap.orig
 .jest-cache/
+branch_structure.json
+temp_auto_push.bat
+temp_interactive_push.bat
