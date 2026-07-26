@@ -20,6 +20,10 @@ import {
   StreamExportOptions,
   ReconciliationResult,
   TransactionType,
+  ExportSchedule,
+  ExportScheduleInput,
+  ExportHistoryEntry,
+  ExportAnalytics,
 } from './accountingExportService';
 import { SplitConfiguration, PartnerPayoutSchedule } from '../../../src/types/partner';
 
@@ -70,6 +74,18 @@ export interface IAccountingExportService {
     exported: TransactionRecord[],
     expected: Array<{ id: string; amount: number; transactionType: TransactionType }>
   ): ReconciliationResult;
+  createExportSchedule(input: ExportScheduleInput): ExportSchedule;
+  getExportSchedules(merchantId?: string): ExportSchedule[];
+  updateExportSchedule(id: string, patch: Partial<Omit<ExportSchedule, 'id' | 'createdAt'>>): ExportSchedule | null;
+  deleteExportSchedule(id: string): boolean;
+  toggleExportSchedule(id: string, enabled: boolean): ExportSchedule | null;
+  runDueExports(
+    records: TransactionRecord[],
+    now?: number
+  ): Array<{ schedule: ExportSchedule; result: { totalRecords: number; checksum: string } }>;
+  recordExportDownload(exportId: string): ExportHistoryEntry | null;
+  getExportHistory(merchantId?: string): ExportHistoryEntry[];
+  getExportAnalytics(merchantId?: string): ExportAnalytics;
 }
 
 export interface IPartnerService {

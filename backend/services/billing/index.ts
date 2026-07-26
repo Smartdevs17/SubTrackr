@@ -28,7 +28,7 @@ export type {
   TaxRemittanceReportRequest,
 } from './taxTypes';
 export { DunningService, dunningService } from './dunningService';
-export { streamExport, reconcile } from './accountingExportService';
+export { streamExport, reconcile, createExportSchedule, getExportSchedules, updateExportSchedule, deleteExportSchedule, toggleExportSchedule, runDueExports, recordExportDownload, getExportHistory, getExportAnalytics } from './accountingExportService';
 export type {
   AccountingFormat,
   TransactionType,
@@ -36,7 +36,28 @@ export type {
   ExportFilter,
   StreamExportOptions,
   ReconciliationResult,
+  CustomFieldMapping,
+  ExportSchedule,
+  ExportScheduleInput,
+  ExportHistoryEntry,
+  ExportAnalytics,
+  ExportFrequency,
+  ExportStatus,
 } from './accountingExportService';
+export {
+  handleCreateExport,
+  handleGetExportStatus,
+  handleDownloadExport,
+  handleRecordDownload,
+  handleCreateSchedule,
+  handleGetSchedules,
+  handleUpdateSchedule,
+  handleDeleteSchedule,
+  handleGetAnalytics,
+  handleGetHistory,
+} from './exportApi';
+export type { ApiResponse } from './exportApi';
+
 export {
   BackendPartnerService,
 } from './partnerService';
