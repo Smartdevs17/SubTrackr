@@ -68,6 +68,7 @@ export type RootStackParamList = {
   BillingSettings: undefined;
   BillingAlignment: undefined;
   ChangePlan: { subscriptionId: string };
+  PauseResume: { id: string };
   PaymentMethods: undefined;
   AnalyticsDashboard: undefined;
   TrialDetails: { trialId: string } | undefined;
