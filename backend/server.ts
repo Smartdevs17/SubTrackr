@@ -34,6 +34,7 @@ import { setPlanCacheService } from './subscription/planCacheRegistry';
 import { createPlanController } from './subscription/controller/planController';
 import { rateLimitingService } from './services/shared/rateLimitingService';
 import { createRateLimitMiddleware, RATE_LIMIT_HEADERS } from './services/shared/rateLimitMiddleware';
+import { applyETagToRawHandler } from './shared/middleware/etagMiddleware';
 import { SubscriptionTier } from '../src/types/subscription';
 
 export interface StartServerOptions {
@@ -170,6 +171,9 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
     const { pathname } = url;
     const method = req.method ?? 'GET';
 
+    // Apply ETag caching to all GET requests (auth bypass is built-in)
+    applyETagToRawHandler(req, res);
+
     try {
       // -----------------------------------------------------------------
       // Health (bypass rate limiting)
@@ -189,6 +193,22 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
       if (pathname === '/metrics/plan-cache' && method === 'GET') {
         res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4; charset=utf-8' });
         res.end(planBootstrap.planCache.prometheusMetrics());
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // DB performance dashboard  GET /metrics/db-performance
+      // -----------------------------------------------------------------
+      if (pathname === '/metrics/db-performance' && method === 'GET') {
+        const fmt = url.searchParams.get('format');
+        if (fmt === 'prometheus') {
+          res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4; charset=utf-8' });
+          // If the pool has a QueryPerformanceMonitor attached, use it
+          const monitor = (pool as Pool & { queryMonitor?: { prometheusMetrics(): string } }).queryMonitor;
+          res.end(monitor ? monitor.prometheusMetrics() : '# No query monitor attached\n');
+        } else {
+          sendJson(res, 200, { message: 'Use ?format=prometheus for Prometheus metrics or attach a QueryPerformanceMonitor to pool.queryMonitor' });
+        }
         return;
       }
 
