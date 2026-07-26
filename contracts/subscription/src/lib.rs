@@ -5,6 +5,7 @@ mod gas_profiler;
 mod gas_storage;
 mod invoice_branding;
 mod revenue;
+pub mod achievements;
 #[cfg(test)]
 mod test;
 
