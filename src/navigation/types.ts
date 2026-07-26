@@ -7,6 +7,7 @@ export type RootStackParamList = {
   WalletConnect: undefined;
   CryptoPayment: { subscriptionId?: string } | undefined;
   Analytics: undefined;
+  MerchantAnalytics: undefined;
   Settings: undefined;
 };
 
@@ -15,5 +16,7 @@ export type TabParamList = {
   AddTab: undefined;
   WalletTab: undefined;
   AnalyticsTab: undefined;
+  MerchantAnalyticsTab: undefined;
   SettingsTab: undefined;
 };
+

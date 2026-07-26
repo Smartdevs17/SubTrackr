@@ -1012,3 +1012,18 @@ soroban contract deploy \
 ## Versioning
 
 This API documentation corresponds to the current `main` branch. The Soroban contract does not use semantic versioning on-chain; breaking changes require redeployment to a new contract ID. Client-side services follow the app version in `package.json`.
+
+---
+
+## Merchant Analytics API
+
+The `MerchantAnalyticsService` computes merchant dashboard metrics, subscriber retention, revenue growth, actionable merchant insights, and financial report exports.
+
+### Methods
+
+#### `computeAnalytics(merchantId, merchantName, subscriptions, filter)`
+Computes metrics including MRR, ARR, ARPU, total lifetime revenue, subscriber churn rate, growth rate, plan performance, and actionable insights.
+
+#### `generateMerchantReport(dashboardData, format)`
+Generates exportable standardized merchant reports in `json` or `csv` format.
+

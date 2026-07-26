@@ -10,6 +10,7 @@ import WalletConnectScreen from '../screens/WalletConnectScreen';
 import CryptoPaymentScreen from '../screens/CryptoPaymentScreen';
 import SubscriptionDetailScreen from '../screens/SubscriptionDetailScreen';
 import AnalyticsScreen from '../screens/AnalyticsScreen';
+import MerchantAnalyticsDashboard from '../screens/MerchantAnalyticsDashboard';
 import SettingsScreen from '../screens/SettingsScreen';
 import { colors } from '../utils/constants';
 import { RootStackParamList, TabParamList } from './types';
@@ -95,6 +96,17 @@ const TabNavigator = () => (
         ),
       }}
     />
+    <Tab.Screen
+      name="MerchantAnalyticsTab"
+      component={MerchantAnalyticsDashboard}
+      options={{
+        tabBarLabel: 'Merchant',
+        tabBarIcon: ({ color, size }) => (
+          <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>💼</Text>
+        ),
+      }}
+    />
+
     <Tab.Screen
       name="SettingsTab"
       component={SettingsScreen}

@@ -600,3 +600,6 @@ tags:
     description: Charge subscriptions, request and manage refunds
   - name: Queries
     description: Read-only data retrieval
+  - name: Merchant Analytics
+    description: Merchant revenue, subscriber analytics, and reporting
+
