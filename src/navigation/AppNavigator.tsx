@@ -16,12 +16,13 @@ import { RootStackParamList, TabParamList } from './types';
 import { useTheme } from '../theme';
 import { darkNavigationTheme, lightNavigationTheme } from '../theme/navigationTheme';
 
-import HomeScreen from '../screens/HomeScreen';
-import { SettingsScreen } from '../screens/SettingsScreen';
 import { useUserStore } from '../store/userStore';
 import { FeatureId } from '../types/feature';
 import { featureFlagsService } from '../services/featureFlags';
 import type { SubscriptionTier } from '../types/subscription';
+
+const HomeScreen = lazyScreen(() => import('../screens/HomeScreen'));
+const SettingsScreen = lazyScreen(() => import('../screens/SettingsScreen').then(m => ({ default: m.SettingsScreen })));
 
 const AddSubscriptionScreen = lazyScreen(() => import('../screens/AddSubscriptionScreen'));
 const CancellationFlowScreen = lazyScreen(() => import('../screens/CancellationFlowScreen'));

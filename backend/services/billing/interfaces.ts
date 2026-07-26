@@ -37,6 +37,49 @@ export interface IMeteringService {
   ): number;
   checkThresholds(userId: string, metricType: string): Promise<UsageThresholdAlert | null>;
   calculateOverage(userId: string, metricType?: string): Promise<number>;
+  getUsageByMetric(subscriptionId: string): Record<string, number>;
+  getUsageHistory(subscriptionId?: string, metric?: string): Array<{
+    subscriptionId: string;
+    metric: string;
+    value: number;
+    timestamp: Date;
+  }>;
+  getUsageTrends(subscriptionId: string): Array<{
+    metric: string;
+    currentPeriod: number;
+    previousPeriod: number;
+    changePercent: number;
+    trend: 'increasing' | 'decreasing' | 'stable';
+  }>;
+  getAnalytics(subscriptionId?: string): {
+    totalUsage: number;
+    usageByMetric: Record<string, number>;
+    usageBySubscription: Record<string, number>;
+    usageHistory: Array<{
+      subscriptionId: string;
+      metric: string;
+      value: number;
+      timestamp: Date;
+    }>;
+    trends: Array<{
+      metric: string;
+      currentPeriod: number;
+      previousPeriod: number;
+      changePercent: number;
+      trend: 'increasing' | 'decreasing' | 'stable';
+    }>;
+    alertsCount: number;
+    alerts: Array<{
+      id: string;
+      subscriptionId: string;
+      metric: string;
+      threshold: number;
+      currentUsage: number;
+      message: string;
+      createdAt: Date;
+      acknowledged: boolean;
+    }>;
+  };
 }
 
 export interface IPricingService {
@@ -55,8 +98,8 @@ export interface IDunningService {
   configurePlan(planId: string, config: Partial<DunningConfiguration>): DunningConfiguration;
   configureABTest(planId: string, enabled: boolean, variants: Array<{ id: string; weight: number; strategy: RetryStrategy }>): void;
   getConfiguration(planId: string): DunningConfiguration | undefined;
-  startDunning(subscriptionId: string, subscriberId: string, merchantId: string, planId: string, failureReason?: FailureReason): DunningEntry;
-  recordFailedCharge(subscriptionId: string, failureReason?: FailureReason): DunningEntry | null;
+  startDunning(subscriptionId: string, subscriberId: string, merchantId: string, planId: string): DunningEntry;
+  recordFailedCharge(subscriptionId: string, failureType?: string): DunningEntry | null;
   recordSuccessfulCharge(subscriptionId: string): void;
   getDunningEntry(subscriptionId: string): DunningEntry | undefined;
   listActiveDunning(merchantId?: string): DunningEntry[];
@@ -66,10 +109,32 @@ export interface IDunningService {
   getCommunications(subscriptionId: string): DunningCommunication[];
   getAnalytics(merchantId?: string): DunningAnalytics;
   getProcessableEntries(): DunningEntry[];
-  addTemplate(template: DunningCommunicationTemplate): void;
-  updateTemplate(id: string, template: Partial<DunningCommunicationTemplate>): void;
-  removeTemplate(id: string): void;
-  getTemplates(): DunningCommunicationTemplate[];
+  configureRetrySchedule(schedule: {
+    failureType: string;
+    baseDelayHours?: number;
+    maxRetries?: number;
+    backoffMultiplier?: number;
+    maxDelayHours?: number;
+  }): void;
+  getRetrySchedule(failureType: string): {
+    failureType: string;
+    baseDelayHours: number;
+    maxRetries: number;
+    backoffMultiplier: number;
+    maxDelayHours: number;
+  };
+  calculateRetryDelay(failureType: string, attempt: number): number;
+  getRetryAnalytics(merchantId?: string): {
+    totalRetries: number;
+    successfulRetries: number;
+    failedRetries: number;
+    retryRate: number;
+    successRate: number;
+    averageRetriesBeforeSuccess: number;
+    retriesByFailureType: Record<string, number>;
+    retriesByStage: Record<string, number>;
+    averageTimeToRecovery: number;
+  };
 }
 
 export interface IAccountingExportService {
@@ -95,4 +160,38 @@ export interface IPartnerService {
     configurations: SplitConfiguration[],
     grossAmount: number
   ): Map<string, number>;
+}
+
+export interface IGroupBillingService {
+  generateBillingSummary(group: any): any;
+  aggregateCharges(group: any, periodDays?: number): any[];
+  generateInvoice(group: any, periodStart: number, periodEnd: number, currency?: string): any;
+  issueInvoice(invoiceId: string, groupId: string): any | null;
+  markInvoicePaid(invoiceId: string, groupId: string): any | null;
+  getGroupInvoices(groupId: string): any[];
+  calculateGroupAnalytics(group: any): any;
+  recordAdminAction(groupId: string, action: string, actorAddress: string, targetAddress?: string, metadata?: Record<string, unknown>): any;
+  getAdminActions(groupId: string, limit?: number): any[];
+  canPerformAction(group: any, actorAddress: string, action: string): { allowed: boolean; reason?: string };
+  customizeGroupPlan(groupId: string, customization: any): any;
+  getGroupPlanCustomization(groupId: string): any | undefined;
+  overrideMemberBalance(group: any, memberAddress: string, newBalance: number, actorAddress: string): any | null;
+}
+
+export interface ILoyaltyService {
+  addPointsRule(rule: any): any;
+  updatePointsRule(id: string, updates: any): any | null;
+  removePointsRule(id: string): void;
+  getPointsRules(trigger?: string): any[];
+  calculatePoints(trigger: string, context?: any): { points: number; ruleId: string } | null;
+  recordPointsEvent(subscriberId: string, points: number, type: 'earn' | 'redeem' | 'expire', trigger: string): void;
+  getPointsHistory(subscriberId: string, limit?: number): any[];
+  getLoyaltyAnalytics(allSubscribers: any[]): any;
+  createNotification(type: string, subscriberId: string, title: string, body: string, data?: Record<string, unknown>): any;
+  getNotifications(subscriberId: string, unreadOnly?: boolean): any[];
+  markNotificationRead(notificationId: string): void;
+  markAllNotificationsRead(subscriberId: string): void;
+  getUnreadCount(subscriberId: string): number;
+  createApiResponse<T>(data: T): any;
+  createErrorResponse(error: string): any;
 }

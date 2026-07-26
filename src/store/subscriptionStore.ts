@@ -149,6 +149,27 @@ export interface SubscriptionChange {
   newPlanData: Partial<Subscription>;
 }
 
+export interface PauseRecord {
+  id: string;
+  subscriptionId: string;
+  pausedAt: Date;
+  resumeAt?: Date;
+  plannedResumeDate?: Date;
+  reason?: string;
+  billingAdjustment: number;
+  status: 'active' | 'resumed' | 'expired';
+}
+
+export interface PauseAnalytics {
+  totalPauses: number;
+  totalResumes: number;
+  pauseRate: number;
+  resumeRate: number;
+  averagePauseDurationDays: number;
+  activePauses: number;
+  totalBillingAdjusted: number;
+}
+
 interface SubscriptionState {
   subscriptions: Subscription[];
   stats: SubscriptionStats;
@@ -157,6 +178,8 @@ interface SubscriptionState {
   prorationPreview: ProrationPreview | null;
   creditMemos: Record<string, CreditMemo>;
   planChanges: SubscriptionChange[];
+  pauseRecords: PauseRecord[];
+  pauseAnalytics: PauseAnalytics;
 
   // Multi-chain filter
   chainFilter: UnifiedSubscriptionFilter;
@@ -210,6 +233,10 @@ interface SubscriptionState {
     chainBreakdown: Record<string, number>;
     conversionRates: Record<string, number>;
   }>;
+  pauseSubscription: (id: string, durationDays: number, reason?: string) => void;
+  resumeSubscription: (id: string) => void;
+  getPauseHistory: (subscriptionId: string) => PauseRecord[];
+  calculatePauseAnalytics: (subscriptionId?: string) => PauseAnalytics;
 }
 
 type PersistedSubscriptionSlice = Pick<
@@ -298,6 +325,17 @@ export const useSubscriptionStore = create<SubscriptionState>()(
 
       syncStatus: 'idle',
       crdtMetadata: {},
+
+      pauseRecords: [],
+      pauseAnalytics: {
+        totalPauses: 0,
+        totalResumes: 0,
+        pauseRate: 0,
+        resumeRate: 0,
+        averagePauseDurationDays: 0,
+        activePauses: 0,
+        totalBillingAdjusted: 0,
+      },
 
       setSyncStatus: (status) => set({ syncStatus: status }),
 
@@ -630,6 +668,120 @@ export const useSubscriptionStore = create<SubscriptionState>()(
 
       getChangeHistory: (subscriptionId: string) => {
         return (get().planChanges || []).filter((c) => c.subscriptionId === subscriptionId);
+      },
+
+      pauseSubscription: (id: string, durationDays: number, reason?: string) => {
+        const sub = get().subscriptions.find((s) => s.id === id);
+        if (!sub) throw new Error('Subscription not found');
+
+        const billingAdjustment = (sub.price / 30) * durationDays;
+        const plannedResumeDate = new Date();
+        plannedResumeDate.setDate(plannedResumeDate.getDate() + durationDays);
+
+        const record: PauseRecord = {
+          id: `pause_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+          subscriptionId: id,
+          pausedAt: new Date(),
+          plannedResumeDate,
+          reason,
+          billingAdjustment: Math.round(billingAdjustment * 100) / 100,
+          status: 'active',
+        };
+
+        set((state) => ({
+          subscriptions: state.subscriptions.map((s) =>
+            s.id === id ? { ...s, isActive: false, updatedAt: new Date() } : s
+          ),
+          pauseRecords: [...state.pauseRecords, record],
+        }));
+
+        get().calculateStats();
+        get().calculatePauseAnalytics();
+      },
+
+      resumeSubscription: (id: string) => {
+        const sub = get().subscriptions.find((s) => s.id === id);
+        if (!sub) throw new Error('Subscription not found');
+
+        const activePause = get().pauseRecords.find(
+          (p) => p.subscriptionId === id && p.status === 'active'
+        );
+
+        if (activePause) {
+          const resumeAt = new Date();
+          const pauseDays = Math.ceil(
+            (resumeAt.getTime() - new Date(activePause.pausedAt).getTime()) / (1000 * 60 * 60 * 24)
+          );
+          const actualAdjustment = (sub.price / 30) * pauseDays;
+
+          set((state) => ({
+            pauseRecords: state.pauseRecords.map((p) =>
+              p.id === activePause.id
+                ? {
+                    ...p,
+                    resumeAt,
+                    status: 'resumed' as const,
+                    billingAdjustment: Math.round(actualAdjustment * 100) / 100,
+                  }
+                : p
+            ),
+          }));
+        }
+
+        set((state) => ({
+          subscriptions: state.subscriptions.map((s) =>
+            s.id === id ? { ...s, isActive: true, updatedAt: new Date() } : s
+          ),
+        }));
+
+        get().calculateStats();
+        get().calculatePauseAnalytics();
+      },
+
+      getPauseHistory: (subscriptionId: string) => {
+        return (get().pauseRecords || []).filter((p) => p.subscriptionId === subscriptionId);
+      },
+
+      calculatePauseAnalytics: (subscriptionId?: string) => {
+        const records = subscriptionId
+          ? (get().pauseRecords || []).filter((p) => p.subscriptionId === subscriptionId)
+          : get().pauseRecords || [];
+
+        const totalPauses = records.length;
+        const totalResumes = records.filter((p) => p.status === 'resumed').length;
+        const activePauses = records.filter((p) => p.status === 'active').length;
+
+        const pauseRate =
+          totalPauses > 0
+            ? Math.round((totalPauses / Math.max(totalPauses + totalResumes, 1)) * 100)
+            : 0;
+        const resumeRate = totalPauses > 0 ? Math.round((totalResumes / totalPauses) * 100) : 0;
+
+        const resumedRecords = records.filter((p) => p.resumeAt && p.pausedAt);
+        const avgDuration =
+          resumedRecords.length > 0
+            ? resumedRecords.reduce((sum, p) => {
+                const days = Math.ceil(
+                  (new Date(p.resumeAt!).getTime() - new Date(p.pausedAt).getTime()) /
+                    (1000 * 60 * 60 * 24)
+                );
+                return sum + days;
+              }, 0) / resumedRecords.length
+            : 0;
+
+        const totalBillingAdjusted = records.reduce((sum, p) => sum + p.billingAdjustment, 0);
+
+        const analytics: PauseAnalytics = {
+          totalPauses,
+          totalResumes,
+          pauseRate,
+          resumeRate,
+          averagePauseDurationDays: Math.round(avgDuration * 10) / 10,
+          activePauses,
+          totalBillingAdjusted: Math.round(totalBillingAdjusted * 100) / 100,
+        };
+
+        set({ pauseAnalytics: analytics });
       },
 
       addSubscription: async (data: SubscriptionFormData) => {

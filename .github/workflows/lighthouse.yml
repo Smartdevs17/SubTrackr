@@ -11,14 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci --legacy-peer-deps
+      - uses: ./.github/actions/setup-node
 
       # Install Lighthouse CI CLI
       - name: Install @lhci/cli
@@ -84,14 +77,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci --legacy-peer-deps
+      - uses: ./.github/actions/setup-node
 
       - name: Install @lhci/cli
         run: npm install -g @lhci/cli@0.14.0

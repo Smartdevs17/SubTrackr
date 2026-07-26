@@ -28,6 +28,17 @@ export { PiiClassifier, piiClassifier, redact, isPiiField, DEFAULT_PATTERNS } fr
 export type { ClassificationLevel, PiiPattern, ClassifyResult, RedactOptions } from './piiClassifier';
 export { redactResponse, createPiiRedactionMiddleware } from './apiResponse';
 export { RateLimitingService, rateLimitingService } from './rateLimitingService';
+export type { BypassConfig, CustomLimits } from './rateLimitingService';
+export {
+  createRateLimitMiddleware,
+  createRateLimitStatusMiddleware,
+  RATE_LIMIT_HEADERS,
+} from './rateLimitMiddleware';
+export type {
+  RateLimitRequest,
+  RateLimitResponse,
+  RateLimitMiddlewareOptions,
+} from './rateLimitMiddleware';
 export { apiClient } from './apiClient';
 export {
   ok,

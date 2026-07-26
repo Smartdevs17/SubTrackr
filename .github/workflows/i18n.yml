@@ -22,14 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci --legacy-peer-deps
+      - uses: ./.github/actions/setup-node
 
       - name: Extract translation keys and check coverage
         run: node scripts/i18n-extract.js
@@ -40,14 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci --legacy-peer-deps
+      - uses: ./.github/actions/setup-node
 
       - name: Lint locale files
         run: node scripts/i18n-lint.js
