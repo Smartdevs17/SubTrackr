@@ -49,7 +49,35 @@ export {
   BackendPartnerService,
 } from './partnerService';
 export type { SplitConfiguration, PartnerPayoutSchedule } from '../../../src/types/partner';
+export {
+  PlanTemplateService,
+  InMemoryPlanTemplateRepository,
+  validateTemplateDraft,
+  validateTiers,
+  resolvePlan,
+  quoteTemplate,
+  canInstantiate,
+  emptyTemplateAnalytics,
+  MAX_TIERS,
+  MAX_FEATURES,
+} from './planTemplateService';
+export type { PlanTemplateRepository } from './planTemplateService';
 export type {
+  PlanTemplate,
+  PlanTemplateDraft,
+  TemplateFeature,
+  TemplateOverrides,
+  TemplateFilter,
+  TemplateQuote,
+  TemplateQuoteLine,
+  TemplateAnalytics,
+  TemplateLibraryAnalytics,
+  TemplateValidationResult,
+  TemplatePricingModel,
+  ResolvedPlan,
+} from '../../../src/types/planTemplate';
+export type {
+  IPlanTemplateService,
   IMeteringService,
   IPricingService,
   ITaxService,

@@ -1,6 +1,16 @@
 import { UsageMetric, UsageIngestResult } from './meteringService';
 import { AggregationFunction, AggregationWindow, UsageThresholdAlert } from '../../../src/types/usage';
 import { PriceRecommendation, ABTestScenario, PricingContext } from './pricingService';
+import type {
+  PlanTemplate,
+  PlanTemplateDraft,
+  ResolvedPlan,
+  TemplateAnalytics,
+  TemplateFilter,
+  TemplateLibraryAnalytics,
+  TemplateOverrides,
+  TemplateQuote,
+} from '../../../src/types/planTemplate';
 import {
   TaxCalculationResult,
   TaxInvoiceContext,
@@ -190,4 +200,30 @@ export interface ILoyaltyService {
   getUnreadCount(subscriberId: string): number;
   createApiResponse<T>(data: T): any;
   createErrorResponse(error: string): any;
+}
+
+export interface IPlanTemplateService {
+  createTemplate(ownerId: string, draft: PlanTemplateDraft): Promise<PlanTemplate>;
+  getTemplate(id: string): Promise<PlanTemplate | null>;
+  listTemplates(filter?: TemplateFilter): Promise<PlanTemplate[]>;
+  listAvailableTemplates(callerId: string): Promise<PlanTemplate[]>;
+  publishVersion(
+    ownerId: string,
+    templateId: string,
+    draft: PlanTemplateDraft
+  ): Promise<PlanTemplate>;
+  listVersions(rootId: string): Promise<PlanTemplate[]>;
+  getLatestVersion(rootId: string): Promise<PlanTemplate | null>;
+  setShared(ownerId: string, templateId: string, shared: boolean): Promise<PlanTemplate>;
+  instantiate(
+    callerId: string,
+    templateId: string,
+    overrides?: TemplateOverrides
+  ): Promise<ResolvedPlan>;
+  quote(templateId: string, units: number): Promise<TemplateQuote>;
+  getAnalytics(templateId: string): Promise<TemplateAnalytics>;
+  recordView(templateId: string): Promise<TemplateAnalytics>;
+  recordPlanCreated(templateId: string): Promise<TemplateAnalytics>;
+  recordSubscription(templateId: string, revenue?: number): Promise<TemplateAnalytics>;
+  getLibraryAnalytics(filter?: TemplateFilter): Promise<TemplateLibraryAnalytics>;
 }

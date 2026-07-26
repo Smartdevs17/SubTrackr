@@ -90,6 +90,7 @@ const ChangePlanScreen = lazyScreen(() => import('../screens/ChangePlanScreen'))
 const BillingSettingsScreen = lazyScreen(() => import('../screens/BillingSettingsScreen'));
 const CustomerHealthScreen = lazyScreen(() => import('../screens/CustomerHealthScreen'));
 const BillingAlignmentScreen = lazyScreen(() => import('../screens/BillingAlignmentScreen'));
+const PlanTemplatesScreen = lazyScreen(() => import('../screens/PlanTemplatesScreen'));
 const PaymentMethodsScreen = lazyScreen(() =>
   import('../../app/screens/PaymentMethodsScreen').then((m) => ({
     default: m.PaymentMethodsScreen,
@@ -607,6 +608,11 @@ const SettingsStack = () => (
     <Stack.Screen
       name="BillingAlignment"
       component={BillingAlignmentScreen}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="PlanTemplates"
+      component={PlanTemplatesScreen}
       options={{ headerShown: false }}
     />
     <Stack.Screen

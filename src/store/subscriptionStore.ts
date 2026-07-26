@@ -52,6 +52,8 @@ import {
 } from '../utils/proration';
 import { crossChainRoutingService } from '../services/crossChainRoutingService';
 import { crossChainNotificationService } from '../services/crossChainNotificationService';
+import { usePlanTemplateStore } from './planTemplateStore';
+import type { ResolvedPlan, TemplateOverrides } from '../types/planTemplate';
 
 const STORAGE_KEY = 'subtrackr-subscriptions';
 const STORE_VERSION = 2;
@@ -192,6 +194,12 @@ interface SubscriptionState {
 
   // Actions
   addSubscription: (data: SubscriptionFormData) => Promise<void>;
+  addFromTemplate: (
+    callerId: string,
+    templateId: string,
+    overrides?: TemplateOverrides,
+    extras?: Partial<Pick<SubscriptionFormData, 'nextBillingDate' | 'isCryptoEnabled'>>
+  ) => Promise<ResolvedPlan>;
   updateSubscription: (id: string, data: Partial<Subscription>) => Promise<void>;
   deleteSubscription: (id: string) => Promise<void>;
   toggleSubscriptionStatus: (id: string) => Promise<void>;
@@ -837,6 +845,38 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             isLoading: false,
           });
         }
+      },
+
+      /**
+       * Create a subscription from a plan template.
+       *
+       * The template resolves to concrete plan parameters — with any
+       * per-instantiation overrides applied — which are then added like any
+       * other subscription. The template itself is never mutated; only its
+       * usage and conversion counters move.
+       */
+      addFromTemplate: async (callerId, templateId, overrides = {}, extras = {}) => {
+        const templateStore = usePlanTemplateStore.getState();
+        const resolved = templateStore.instantiate(callerId, templateId, overrides);
+
+        await get().addSubscription({
+          name: resolved.name,
+          description: resolved.description,
+          category: resolved.category,
+          price: resolved.price,
+          currency: resolved.currency,
+          billingCycle: resolved.billingCycle,
+          nextBillingDate: extras.nextBillingDate ?? new Date(),
+          isCryptoEnabled: extras.isCryptoEnabled ?? false,
+          notificationsEnabled: true,
+        });
+
+        // Only a subscription that actually landed counts as a conversion.
+        if (!get().error) {
+          templateStore.recordSubscription(templateId, resolved.price);
+        }
+
+        return resolved;
       },
 
       updateSubscription: async (id: string, data: Partial<Subscription>) => {
