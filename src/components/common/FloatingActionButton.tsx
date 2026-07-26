@@ -1,6 +1,7 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, ViewStyle } from 'react-native';
-import { colors, spacing, typography, borderRadius, shadows } from '../../utils/constants';
+import { spacing, typography, borderRadius, shadows } from '../../utils/constants';
+import { useThemeColors } from '../../hooks/useThemeColors';
 
 export interface FloatingActionButtonProps {
   onPress: () => void;
@@ -10,6 +11,7 @@ export interface FloatingActionButtonProps {
   size?: 'small' | 'medium' | 'large';
   accessibilityLabel?: string;
   accessibilityHint?: string;
+  testID?: string;
 }
 
 export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
@@ -20,7 +22,10 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
   size = 'medium',
   accessibilityLabel,
   accessibilityHint,
+  testID,
 }) => {
+  const colors = useThemeColors();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const buttonStyle = [styles.button, styles[size], style];
 
   return (
@@ -28,6 +33,7 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
       style={buttonStyle}
       onPress={onPress}
       activeOpacity={0.8}
+      testID={testID}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? title ?? 'Add item'}
       accessibilityHint={accessibilityHint ?? 'Activates the primary action'}>
@@ -37,64 +43,60 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  button: {
-    position: 'absolute',
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...shadows.lg,
-  },
-
-  // Sizes
-  small: {
-    width: 48,
-    height: 48,
-    bottom: spacing.lg,
-    right: spacing.lg,
-  },
-  medium: {
-    width: 56,
-    height: 56,
-    bottom: spacing.lg,
-    right: spacing.lg,
-  },
-  large: {
-    width: 64,
-    height: 64,
-    bottom: spacing.lg,
-    right: spacing.lg,
-  },
-
-  // Icon styles
-  icon: {
-    color: colors.text,
-    fontWeight: 'bold',
-  },
-  smallIcon: {
-    fontSize: 20,
-  },
-  mediumIcon: {
-    fontSize: 24,
-  },
-  largeIcon: {
-    fontSize: 28,
-  },
-
-  // Title styles
-  title: {
-    color: colors.text,
-    fontWeight: '600',
-    marginTop: spacing.xs,
-  },
-  smallTitle: {
-    ...typography.small,
-  },
-  mediumTitle: {
-    ...typography.caption,
-  },
-  largeTitle: {
-    ...typography.body,
-  },
-});
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+    button: {
+      position: 'absolute',
+      backgroundColor: colors.brand.primary,
+      borderRadius: borderRadius.full,
+      alignItems: 'center',
+      justifyContent: 'center',
+      ...shadows.lg,
+    },
+    small: {
+      width: 48,
+      height: 48,
+      bottom: spacing.lg,
+      right: spacing.lg,
+    },
+    medium: {
+      width: 56,
+      height: 56,
+      bottom: spacing.lg,
+      right: spacing.lg,
+    },
+    large: {
+      width: 64,
+      height: 64,
+      bottom: spacing.lg,
+      right: spacing.lg,
+    },
+    icon: {
+      color: colors.onPrimary,
+      fontWeight: 'bold',
+    },
+    smallIcon: {
+      fontSize: 20,
+    },
+    mediumIcon: {
+      fontSize: 24,
+    },
+    largeIcon: {
+      fontSize: 28,
+    },
+    title: {
+      color: colors.onPrimary,
+      fontWeight: '600',
+      marginTop: spacing.xs,
+    },
+    smallTitle: {
+      ...typography.small,
+    },
+    mediumTitle: {
+      ...typography.caption,
+    },
+    largeTitle: {
+      ...typography.body,
+    },
+  });
+}

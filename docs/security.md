@@ -13,12 +13,12 @@ If you've found a security vulnerability, please do NOT create a public issue. I
 
 We follow the CVSS standard to categorize vulnerabilities:
 
-| Severity | Description | Target Response |
-| :--- | :--- | :--- |
-| **Critical** | Remote code execution, full database access, etc. | Within 24 hours |
-| **High** | Significant data exposure, bypass of security controls. | Within 72 hours |
-| **Moderate** | Potential for misuse, limited data exposure. | Next scheduled release |
-| **Low** | Minimal impact, hard to exploit. | Best effort |
+| Severity     | Description                                             | Target Response        |
+| :----------- | :------------------------------------------------------ | :--------------------- |
+| **Critical** | Remote code execution, full database access, etc.       | Within 24 hours        |
+| **High**     | Significant data exposure, bypass of security controls. | Within 72 hours        |
+| **Moderate** | Potential for misuse, limited data exposure.            | Next scheduled release |
+| **Low**      | Minimal impact, hard to exploit.                        | Best effort            |
 
 ## Security Monitoring
 

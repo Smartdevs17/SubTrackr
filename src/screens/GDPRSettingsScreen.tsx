@@ -11,9 +11,12 @@ import {
 } from 'react-native';
 import { useUserStore } from '../store/userStore';
 import { gdprService } from '../services/gdpr';
+import { useThemeColors } from '../hooks/useThemeColors';
 
 const GDPRSettingsScreen = () => {
   const { consent, setConsent } = useUserStore();
+  const colors = useThemeColors();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const [loading, setLoading] = useState(false);
 
   const handleExport = async () => {
@@ -34,8 +37,8 @@ const GDPRSettingsScreen = () => {
       'Are you sure you want to delete your account? This action will anonymize your data and revoke access to all subscriptions. It cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete Everything', 
+        {
+          text: 'Delete Everything',
           style: 'destructive',
           onPress: async () => {
             setLoading(true);
@@ -47,7 +50,7 @@ const GDPRSettingsScreen = () => {
             } finally {
               setLoading(false);
             }
-          }
+          },
         },
       ]
     );
@@ -69,6 +72,9 @@ const GDPRSettingsScreen = () => {
           <Switch
             value={consent.analytics}
             onValueChange={(val) => setConsent({ analytics: val })}
+            accessibilityLabel="Analytics data sharing"
+            accessibilityRole="switch"
+            accessibilityState={{ checked: consent.analytics }}
           />
         </View>
 
@@ -80,29 +86,42 @@ const GDPRSettingsScreen = () => {
           <Switch
             value={consent.marketing}
             onValueChange={(val) => setConsent({ marketing: val })}
+            accessibilityLabel="Marketing notifications"
+            accessibilityRole="switch"
+            accessibilityState={{ checked: consent.marketing }}
           />
         </View>
       </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Your Data Rights</Text>
-        
-        <TouchableOpacity 
-          style={styles.button} 
+
+        <TouchableOpacity
+          style={styles.button}
           onPress={handleExport}
           disabled={loading}
-        >
-          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Export My Data (JSON)</Text>}
+          accessibilityRole="button"
+          accessibilityLabel="Export my data as JSON"
+          accessibilityHint="Downloads a copy of your profile, subscriptions, and billing history"
+          accessibilityState={{ disabled: loading, busy: loading }}>
+          {loading ? (
+            <ActivityIndicator color={colors.onPrimary} />
+          ) : (
+            <Text style={styles.buttonText}>Export My Data (JSON)</Text>
+          )}
         </TouchableOpacity>
         <Text style={styles.infoText}>
           Download a structured copy of your profile, subscriptions, and billing history.
         </Text>
 
-        <TouchableOpacity 
-          style={[styles.button, styles.deleteButton]} 
+        <TouchableOpacity
+          style={[styles.button, styles.deleteButton]}
           onPress={handleDeleteAccount}
           disabled={loading}
-        >
+          accessibilityRole="button"
+          accessibilityLabel="Delete my account"
+          accessibilityHint="Permanently anonymizes your personal data. This cannot be undone."
+          accessibilityState={{ disabled: loading }}>
           <Text style={styles.buttonText}>Delete My Account</Text>
         </TouchableOpacity>
         <Text style={styles.infoText}>
@@ -112,90 +131,92 @@ const GDPRSettingsScreen = () => {
 
       <View style={styles.footer}>
         <Text style={styles.footerText}>
-          SubTrackr stores your data on-chain via Stellar and encrypted in our secure databases. 
-          For more information, see our Privacy Policy.
+          SubTrackr stores your data on-chain via Stellar and encrypted in our secure databases. For
+          more information, see our Privacy Policy.
         </Text>
       </View>
     </ScrollView>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8F9FA',
-  },
-  section: {
-    padding: 20,
-    backgroundColor: '#FFF',
-    marginBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#EEE',
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1A1A1A',
-    marginBottom: 8,
-  },
-  description: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 20,
-    lineHeight: 20,
-  },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  labelContainer: {
-    flex: 1,
-    paddingRight: 10,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-  },
-  subLabel: {
-    fontSize: 12,
-    color: '#888',
-    marginTop: 2,
-  },
-  button: {
-    backgroundColor: '#007AFF',
-    padding: 15,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  deleteButton: {
-    backgroundColor: '#FF3B30',
-    marginTop: 30,
-  },
-  buttonText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  infoText: {
-    fontSize: 12,
-    color: '#999',
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  footer: {
-    padding: 30,
-    alignItems: 'center',
-  },
-  footerText: {
-    fontSize: 12,
-    color: '#BBB',
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-});
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background.primary,
+    },
+    section: {
+      padding: 20,
+      backgroundColor: colors.background.card,
+      marginBottom: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border.default,
+    },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: '700',
+      color: colors.text.primary,
+      marginBottom: 8,
+    },
+    description: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      marginBottom: 20,
+      lineHeight: 20,
+    },
+    row: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 20,
+    },
+    labelContainer: {
+      flex: 1,
+      paddingRight: 10,
+    },
+    label: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.text.primary,
+    },
+    subLabel: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    button: {
+      backgroundColor: colors.primary,
+      padding: 15,
+      borderRadius: 8,
+      alignItems: 'center',
+      marginTop: 10,
+    },
+    deleteButton: {
+      backgroundColor: colors.error,
+      marginTop: 30,
+    },
+    buttonText: {
+      color: colors.onPrimary,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    infoText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginTop: 8,
+      textAlign: 'center',
+    },
+    footer: {
+      padding: 30,
+      alignItems: 'center',
+    },
+    footerText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      lineHeight: 18,
+    },
+  });
+}
 
 export default GDPRSettingsScreen;

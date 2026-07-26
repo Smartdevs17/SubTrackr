@@ -1,10 +1,6 @@
 name: Chaos Engineering
 
-on:
-  push:
-    branches: [main, dev, develop, 'feature/*']
-  pull_request:
-    branches: [main, dev, develop, 'feature/*']
+on: workflow_dispatch
 
 env:
   NODE_VERSION: '20'
@@ -27,7 +23,7 @@ jobs:
         run: npm ci --legacy-peer-deps
 
       - name: Run chaos experiments
-        run: npx jest --testPathPattern=chaos --no-coverage --ci
+        run: npx --no-install jest --testPathPattern=chaos --no-coverage --ci
 
       - name: Upload chaos results
         if: always()

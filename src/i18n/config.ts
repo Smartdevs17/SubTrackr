@@ -16,21 +16,19 @@ const LANGUAGE_KEY = '@subtrackr_language';
 
 export const initI18n = async () => {
   let savedLanguage = await AsyncStorage.getItem(LANGUAGE_KEY);
-  
+
   if (!savedLanguage) {
     savedLanguage = 'en';
   }
 
-  await i18n
-    .use(initReactI18next)
-    .init({
-      resources: RESOURCES,
-      lng: savedLanguage,
-      fallbackLng: 'en',
-      interpolation: {
-        escapeValue: false,
-      },
-    });
+  await i18n.use(initReactI18next).init({
+    resources: RESOURCES,
+    lng: savedLanguage,
+    fallbackLng: 'en',
+    interpolation: {
+      escapeValue: false,
+    },
+  });
 
   // Handle RTL for Arabic
   const isRTL = savedLanguage === 'ar';

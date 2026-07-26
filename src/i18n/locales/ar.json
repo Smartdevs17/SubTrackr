@@ -1,5 +1,6 @@
 {
   "common": {
+    "ok": "حسنًا",
     "save": "حفظ",
     "cancel": "إلغاء",
     "delete": "حذف",
@@ -14,6 +15,7 @@
     "add": "إضافة",
     "wallet": "المحفظة",
     "analytics": "التحليلات",
+    "revenue": "الإيرادات",
     "settings": "الإعدادات"
   },
   "home": {
@@ -22,9 +24,58 @@
     "no_subscriptions": "لم يتم العثور على اشتراكات. أضف اشتراكك الأول!"
   },
   "settings": {
+    "title": "الإعدادات",
+    "subtitle": "قم بتكوين تفضيلاتك",
     "language": "اللغة",
     "notifications": "الإشعارات",
     "privacy": "الخصوصية وقانون حماية البيانات العام",
-    "about": "حول التطبيق"
+    "about": "حول التطبيق",
+    "language_subtitle": "اختر لغتك المفضلة لواجهة التطبيق.",
+    "language_restart_notice": "تم تغيير اللغة. قد تتطلب بعض تغييرات التخطيط إعادة تشغيل التطبيق.",
+    "language_failed": "فشل تغيير اللغة.",
+    "language_footer": "يدعم SubTrackr تخطيطات RTL للغة العربية وتنسيقًا محليًا للتواريخ والعملات.",
+    "sections": {
+      "account": "الحساب",
+      "notifications": "الإشعارات",
+      "preferences": "التفضيلات",
+      "about": "حول التطبيق"
+    },
+    "wallet_address": "عنوان المحفظة",
+    "network": "الشبكة",
+    "select_network": "اختر الشبكة",
+    "select_network_hint": "يفتح نافذة اختيار الشبكة",
+    "select_network_item": "اختر {{name}}",
+    "close_network_selection": "إغلاق اختيار الشبكة",
+    "testnet": "(شبكة اختبار)",
+    "mainnet": "(الشبكة الرئيسية)",
+    "disconnect_wallet": "قطع اتصال المحفظة",
+    "disconnect_wallet_confirm": "هل أنت متأكد أنك تريد قطع اتصال محفظتك؟",
+    "disconnect_wallet_hint": "يقطع اتصال محفظتك المشفرة المتصلة",
+    "disconnect": "قطع الاتصال",
+    "wallet_disconnected": "تم قطع اتصال المحفظة",
+    "wallet_disconnect_failed": "فشل قطع اتصال المحفظة",
+    "billing_reminders": "تذكيرات الفوترة",
+    "billing_reminders_desc": "تلقي إشعارًا قبل تجديد الاشتراكات",
+    "default_currency": "العملة الافتراضية",
+    "default_currency_desc": "عملة الاشتراكات الجديدة",
+    "version": "الإصدار",
+    "contact_support": "اتصل بالدعم",
+    "contact_support_hint": "يفتح تطبيق البريد للتواصل مع الدعم",
+    "community": "المجتمع",
+    "community_hint": "يفتح ملفات المشتركين ومناقشات المنتدى",
+    "webhooks": "الويب هوكس",
+    "webhooks_hint": "يفتح إدارة Webhooks للاشتراكات",
+    "admin_dashboard": "لوحة تحكم المسؤول",
+    "admin_dashboard_hint": "يفتح عرض لوحة تحكم المسؤول",
+    "sla_dashboard": "لوحة SLA",
+    "sla_dashboard_hint": "يفتح لوحة إدارة SLA",
+    "language_hint": "يفتح شاشة اختيار اللغة",
+    "session_management": "إدارة الجلسات",
+    "session_management_hint": "يفتح عناصر التحكم بأمان الجلسات النشطة",
+    "error_dashboard": "لوحة الأخطاء",
+    "privacy_policy": "سياسة الخصوصية",
+    "privacy_policy_hint": "يفتح سياسة الخصوصية في المتصفح",
+    "terms_of_service": "شروط الخدمة",
+    "terms_of_service_hint": "يفتح شروط الخدمة في المتصفح"
   }
 }

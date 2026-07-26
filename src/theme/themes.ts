@@ -1,4 +1,5 @@
 import type { Theme, BrandConfig } from './types';
+import { generateExtendedColors } from './customThemeBuilder';
 
 export const darkTheme: Theme = {
   id: 'dark',
@@ -40,11 +41,30 @@ export const lightTheme: Theme = {
   },
 };
 
-export const builtInThemes: Theme[] = [darkTheme, lightTheme];
+export const highContrastTheme: Theme = {
+  id: 'high-contrast',
+  name: 'High Contrast',
+  mode: 'dark',
+  colors: {
+    primary: '#ffffff',
+    secondary: '#ffff00',
+    accent: '#00ffff',
+    success: '#00ff00',
+    warning: '#ffaa00',
+    error: '#ff4444',
+    background: '#000000',
+    surface: '#1a1a1a',
+    text: '#ffffff',
+    textSecondary: '#dddddd',
+    border: '#ffffff',
+    overlay: 'rgba(0, 0, 0, 0.9)',
+  },
+};
 
-/** Create a brand theme by overriding brand colors on top of a base theme */
+export const builtInThemes: Theme[] = [darkTheme, lightTheme, highContrastTheme];
+
 export function createBrandTheme(base: Theme, brand: BrandConfig, id: string, name: string): Theme {
-  return {
+  const theme: Theme = {
     ...base,
     id,
     name,
@@ -54,5 +74,13 @@ export function createBrandTheme(base: Theme, brand: BrandConfig, id: string, na
       secondary: brand.secondary,
       accent: brand.accent,
     },
+    fonts: brand.fonts,
+    logo: brand.logo,
+    isCustom: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   };
+
+  theme.extendedColors = generateExtendedColors(theme.colors, theme.mode);
+  return theme;
 }

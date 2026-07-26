@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { SubscriptionTier } from './subscription';
 
 export const ApiResponseSchema = <T extends z.ZodTypeAny>(dataSchema: T) =>
   z.object({
@@ -31,6 +32,7 @@ export const UserProfileSchema = z.object({
   email: z.string().email(),
   name: z.string(),
   avatar: z.string().optional(),
+  subscriptionTier: z.nativeEnum(SubscriptionTier).optional(),
   preferences: NotificationPreferencesSchema,
   createdAt: z.union([z.string(), z.date()]),
   updatedAt: z.union([z.string(), z.date()]),
@@ -211,8 +213,10 @@ export const ExecuteOrQueueResultSchema = z.object({
   txHash: z.string().optional(),
 });
 
-export type ApiResponse<T> = z.infer<ReturnType<typeof ApiResponseSchema>>;
-export type PaginatedResponse<T> = z.infer<ReturnType<typeof PaginatedResponseSchema>>;
+export type ApiResponse<T = unknown> = z.infer<ReturnType<typeof ApiResponseSchema<z.ZodType<T>>>>;
+export type PaginatedResponse<T = unknown> = z.infer<
+  ReturnType<typeof PaginatedResponseSchema<z.ZodType<T>>>
+>;
 export type NotificationPreferences = z.infer<typeof NotificationPreferencesSchema>;
 export type UserProfile = z.infer<typeof UserProfileSchema>;
 export type AppSettings = z.infer<typeof AppSettingsSchema>;

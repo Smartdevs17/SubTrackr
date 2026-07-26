@@ -1,5 +1,7 @@
 import { Subscription, SubscriptionCategory, BillingCycle } from '../types/subscription';
-import { TIME_CONSTANTS, BILLING_CONVERSIONS, CACHE_CONSTANTS } from './constants/values';
+import { ChainType } from '../types/wallet';
+import { TIME_CONSTANTS, CACHE_CONSTANTS } from './constants/values';
+import { toMonthlyPrice } from './stats';
 
 export const dummySubscriptions: Subscription[] = [
   {
@@ -13,6 +15,8 @@ export const dummySubscriptions: Subscription[] = [
     nextBillingDate: new Date(Date.now() + 3 * TIME_CONSTANTS.MS_PER_DAY), // 3 days from now
     isActive: true,
     isCryptoEnabled: false,
+    chainType: ChainType.EVM,
+    chainId: 1,
     createdAt: new Date('2024-01-15'),
     updatedAt: new Date('2024-01-15'),
   },
@@ -31,6 +35,8 @@ export const dummySubscriptions: Subscription[] = [
     cryptoAmount: 10,
     createdAt: new Date('2024-01-10'),
     updatedAt: new Date('2024-01-10'),
+    chainType: ChainType.EVM,
+    chainId: 1,
   },
   {
     id: '3',
@@ -45,6 +51,8 @@ export const dummySubscriptions: Subscription[] = [
     isCryptoEnabled: false,
     createdAt: new Date('2023-12-01'),
     updatedAt: new Date('2023-12-01'),
+    chainType: ChainType.EVM,
+    chainId: 1,
   },
   {
     id: '4',
@@ -61,6 +69,8 @@ export const dummySubscriptions: Subscription[] = [
     cryptoAmount: 0.005,
     createdAt: new Date('2024-01-20'),
     updatedAt: new Date('2024-01-20'),
+    chainType: ChainType.EVM,
+    chainId: 1,
   },
   {
     id: '5',
@@ -75,6 +85,8 @@ export const dummySubscriptions: Subscription[] = [
     isCryptoEnabled: false,
     createdAt: new Date('2023-11-15'),
     updatedAt: new Date('2023-11-15'),
+    chainType: ChainType.EVM,
+    chainId: 1,
   },
   {
     id: '6',
@@ -91,6 +103,8 @@ export const dummySubscriptions: Subscription[] = [
     cryptoAmount: 13,
     createdAt: new Date('2024-01-05'),
     updatedAt: new Date('2024-01-05'),
+    chainType: ChainType.EVM,
+    chainId: 1,
   },
   {
     id: '7',
@@ -105,6 +119,8 @@ export const dummySubscriptions: Subscription[] = [
     isCryptoEnabled: false,
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-01'),
+    chainType: ChainType.EVM,
+    chainId: 1,
   },
   {
     id: '8',
@@ -119,6 +135,8 @@ export const dummySubscriptions: Subscription[] = [
     isCryptoEnabled: false,
     createdAt: new Date('2023-10-01'),
     updatedAt: new Date('2024-01-15'),
+    chainType: ChainType.EVM,
+    chainId: 1,
   },
   {
     id: '9',
@@ -135,6 +153,8 @@ export const dummySubscriptions: Subscription[] = [
     cryptoAmount: 0.001,
     createdAt: new Date('2024-01-18'),
     updatedAt: new Date('2024-01-18'),
+    chainType: ChainType.EVM,
+    chainId: 1,
   },
   {
     id: '10',
@@ -149,6 +169,8 @@ export const dummySubscriptions: Subscription[] = [
     isCryptoEnabled: false,
     createdAt: new Date('2023-12-20'),
     updatedAt: new Date('2023-12-20'),
+    chainType: ChainType.EVM,
+    chainId: 1,
   },
 ];
 
@@ -212,24 +234,5 @@ export const getTotalMonthlySpending = (subscriptions: Subscription[]): number =
 
   return subscriptions
     .filter((sub) => sub.isActive)
-    .reduce((total, sub) => {
-      let monthlyAmount = sub.price;
-
-      switch (sub.billingCycle) {
-        case BillingCycle.YEARLY:
-          monthlyAmount = sub.price / 12;
-          break;
-        case BillingCycle.WEEKLY:
-          monthlyAmount = sub.price * BILLING_CONVERSIONS.WEEKS_PER_MONTH; // Average weeks per month
-          break;
-        case BillingCycle.CUSTOM:
-          // For custom cycles, assume monthly for now
-          monthlyAmount = sub.price;
-          break;
-        default:
-          monthlyAmount = sub.price;
-      }
-
-      return total + monthlyAmount;
-    }, 0);
+    .reduce((total, sub) => total + toMonthlyPrice(sub.price, sub.billingCycle), 0);
 };

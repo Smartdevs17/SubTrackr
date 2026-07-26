@@ -1,0 +1,19 @@
+[package]
+name = "subtrackr-invoice"
+version = "0.1.0"
+edition = "2021"
+authors = ["SubTrackr Team"]
+description = "SubTrackr subscription invoicing contract (Soroban)"
+
+[lib]
+name = "subtrackr_invoice"
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+soroban-sdk = "21.0.0"
+subtrackr-types = { path = "../types" }
+
+[dev-dependencies]
+soroban-sdk = { version = "21.0.0", features = ["testutils"] }
+subtrackr-storage = { path = "../storage" }
