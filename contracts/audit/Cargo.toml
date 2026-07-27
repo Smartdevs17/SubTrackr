@@ -2,15 +2,22 @@
 name = "subtrackr-audit"
 version = "0.1.0"
 edition = "2021"
+authors = ["SubTrackr Team"]
+description = "SubTrackr on-chain audit log contract (Soroban)"
 
 [lib]
-crate-type = ["cdylib"]
+# Both cdylib (WASM binary) and rlib (linkable for tests/integration)
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-soroban-sdk = "21.0.0"
+soroban-sdk = { workspace = true }
 
 [features]
+default = []
 testutils = ["soroban-sdk/testutils"]
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
 
 [profile.release]
 opt-level = "z"

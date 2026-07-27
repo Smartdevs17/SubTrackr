@@ -14,6 +14,7 @@ import {
   SubscriptionEvent as WSEvent,
   EventFilter as WSEventFilter,
   ClientInfo as WSClientInfo,
+  WebSocketMetrics,
 } from './websocket';
 
 export interface INotificationPreferenceService {
@@ -52,9 +53,15 @@ export interface IWebsocketService {
     filter?: WSEventFilter
   ): WSClientInfo;
   disconnect(clientId: string): void;
+  /** Acknowledge a pong frame received from a client */
+  clientPong(clientId: string): void;
   getPresence(): WSClientInfo[];
   isConnected(clientId: string): boolean;
   broadcast(event: WSEvent): number;
   setFilter(clientId: string, filter: WSEventFilter): void;
+  /** Returns aggregated throughput and health metrics */
+  getMetrics(): WebSocketMetrics;
+  /** Flush pending batches and close all connections */
+  shutdown(): void;
   readonly clientCount: number;
 }
