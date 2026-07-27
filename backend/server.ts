@@ -32,6 +32,9 @@ import { PlanCacheService } from './subscription/domain/PlanCacheService';
 import { PostgresPlanRepository } from './subscription/domain/PostgresPlanRepository';
 import { setPlanCacheService } from './subscription/planCacheRegistry';
 import { createPlanController } from './subscription/controller/planController';
+import { rateLimitingService } from './services/shared/rateLimitingService';
+import { createRateLimitMiddleware, RATE_LIMIT_HEADERS } from './services/shared/rateLimitMiddleware';
+import { SubscriptionTier } from '../src/types/subscription';
 
 export interface StartServerOptions {
   port?: number;
@@ -63,6 +66,63 @@ async function ensurePlanCache(pool: Pool): Promise<PlanCacheBootstrap> {
   const planCache = new PlanCacheService(nullRedis, repository);
   setPlanCacheService(planCache);
   return { planCache, redis: nullRedis, repository };
+}
+
+// ---------------------------------------------------------------------------
+// Rate-limit middleware factory
+// ---------------------------------------------------------------------------
+
+function buildRateLimitMiddleware() {
+  return createRateLimitMiddleware({
+    service: rateLimitingService,
+    // Bypass paths (health/metrics never throttled)
+    bypassPaths: ['/health', '/metrics', '/metrics/plan-cache'],
+    // Tier resolver: reads x-subscription-tier header; defaults to FREE
+    tierFn: (apiKey, _userId) => {
+      // In production this would look up the tier from a DB / cache.
+      // For now we use the header injected by an upstream auth layer.
+      void apiKey;
+      return SubscriptionTier.FREE;
+    },
+  });
+}
+
+/**
+ * Apply rate limit middleware inline (no Express).
+ * Returns true if the request should continue, false if a 429 was sent.
+ */
+function applyRateLimit(
+  rl: ReturnType<typeof buildRateLimitMiddleware>,
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  path: string,
+): boolean {
+  let blocked = false;
+
+  const pseudoReq = {
+    method: req.method,
+    path,
+    url: req.url,
+    headers: req.headers as Record<string, string | string[] | undefined>,
+    ip: (req.socket as { remoteAddress?: string } | null)?.remoteAddress,
+  };
+
+  const pseudoRes = {
+    setHeader: (name: string, value: string | number) => res.setHeader(name, value),
+    writeHead: (status: number, headers?: Record<string, string>) => {
+      res.writeHead(status, headers);
+    },
+    end: (body?: string) => {
+      res.end(body);
+      blocked = true;
+    },
+  };
+
+  rl(pseudoReq, pseudoRes, () => {
+    /* proceed */
+  });
+
+  return !blocked;
 }
 
 async function readJsonBody(req: http.IncomingMessage): Promise<unknown> {
@@ -103,12 +163,17 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
     }),
   });
 
+  const rateLimitMw = buildRateLimitMiddleware();
+
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
     const { pathname } = url;
     const method = req.method ?? 'GET';
 
     try {
+      // -----------------------------------------------------------------
+      // Health (bypass rate limiting)
+      // -----------------------------------------------------------------
       if (pathname === '/health' && method === 'GET') {
         const cacheHealthy = await planBootstrap.planCache.isHealthy();
         sendJson(res, 200, {
@@ -118,12 +183,104 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
         return;
       }
 
+      // -----------------------------------------------------------------
+      // Prometheus metrics (bypass rate limiting)
+      // -----------------------------------------------------------------
       if (pathname === '/metrics/plan-cache' && method === 'GET') {
         res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4; charset=utf-8' });
         res.end(planBootstrap.planCache.prometheusMetrics());
         return;
       }
 
+      // -----------------------------------------------------------------
+      // Rate-limit analytics  GET /rate-limits/analytics
+      // -----------------------------------------------------------------
+      if (pathname === '/rate-limits/analytics' && method === 'GET') {
+        const tier = url.searchParams.get('tier') as SubscriptionTier | null;
+        const analytics = rateLimitingService.getRateLimitAnalytics();
+        const general = tier
+          ? rateLimitingService.getAnalytics(tier)
+          : rateLimitingService.getAnalytics();
+        sendJson(res, 200, { rateLimits: analytics, usage: general });
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // Rate-limit status  GET /rate-limits/status?apiKey=...&tier=...
+      // -----------------------------------------------------------------
+      if (pathname === '/rate-limits/status' && method === 'GET') {
+        const apiKey = url.searchParams.get('apiKey');
+        const tier = (url.searchParams.get('tier') as SubscriptionTier) ?? SubscriptionTier.FREE;
+        if (!apiKey) {
+          sendJson(res, 400, { error: 'apiKey query param is required' });
+          return;
+        }
+        const status = rateLimitingService.getRateLimitStatus(apiKey, tier);
+        sendJson(res, 200, status);
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // Bypass management  POST /rate-limits/bypass
+      // -----------------------------------------------------------------
+      if (pathname === '/rate-limits/bypass' && method === 'POST') {
+        const body = (await readJsonBody(req)) as {
+          type: 'key' | 'user';
+          value: string;
+          action: 'add' | 'remove';
+        };
+        if (!body.type || !body.value || !body.action) {
+          sendJson(res, 400, { error: 'type, value, and action are required' });
+          return;
+        }
+        if (body.type === 'key') {
+          body.action === 'add'
+            ? rateLimitingService.addBypassKey(body.value)
+            : rateLimitingService.removeBypassKey(body.value);
+        } else {
+          body.action === 'add'
+            ? rateLimitingService.addBypassUser(body.value)
+            : rateLimitingService.removeBypassUser(body.value);
+        }
+        sendJson(res, 200, {
+          bypassKeys: rateLimitingService.listBypassKeys(),
+          bypassUsers: rateLimitingService.listBypassUsers(),
+        });
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // Custom limits  POST /rate-limits/config
+      // -----------------------------------------------------------------
+      if (pathname === '/rate-limits/config' && method === 'POST') {
+        const body = (await readJsonBody(req)) as {
+          apiKey: string;
+          limits: {
+            hourlyLimit?: number;
+            dailyLimit?: number;
+            monthlyLimit?: number;
+            burstLimit?: number;
+            concurrentLimit?: number;
+          };
+        };
+        if (!body.apiKey) {
+          sendJson(res, 400, { error: 'apiKey is required' });
+          return;
+        }
+        rateLimitingService.setCustomLimits(body.apiKey, body.limits ?? {});
+        sendJson(res, 200, { success: true, apiKey: body.apiKey, limits: body.limits });
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // Apply rate limiting to all other routes
+      // -----------------------------------------------------------------
+      const proceed = applyRateLimit(rateLimitMw, req, res, pathname);
+      if (!proceed) return; // 429 already sent
+
+      // -----------------------------------------------------------------
+      // GraphQL
+      // -----------------------------------------------------------------
       if (pathname === '/graphql' && (method === 'POST' || method === 'GET')) {
         const [handled] = await graphqlHandler(req, res);
         if (!handled) {
@@ -187,6 +344,10 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
         console.info(`[Server] GraphQL  → POST /graphql`);
         console.info(`[Server] Plans    → /plans`);
         console.info(`[Server] Metrics  → GET /metrics/plan-cache`);
+        console.info(`[Server] RateLimit → GET /rate-limits/analytics`);
+        console.info(`[Server] RateLimit → GET /rate-limits/status?apiKey=...`);
+        console.info(`[Server] RateLimit → POST /rate-limits/bypass`);
+        console.info(`[Server] RateLimit → POST /rate-limits/config`);
         resolve();
       });
     });

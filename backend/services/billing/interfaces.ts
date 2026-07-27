@@ -52,6 +52,49 @@ export interface IMeteringService {
   ): number;
   checkThresholds(userId: string, metricType: string): Promise<UsageThresholdAlert | null>;
   calculateOverage(userId: string, metricType?: string): Promise<number>;
+  getUsageByMetric(subscriptionId: string): Record<string, number>;
+  getUsageHistory(subscriptionId?: string, metric?: string): Array<{
+    subscriptionId: string;
+    metric: string;
+    value: number;
+    timestamp: Date;
+  }>;
+  getUsageTrends(subscriptionId: string): Array<{
+    metric: string;
+    currentPeriod: number;
+    previousPeriod: number;
+    changePercent: number;
+    trend: 'increasing' | 'decreasing' | 'stable';
+  }>;
+  getAnalytics(subscriptionId?: string): {
+    totalUsage: number;
+    usageByMetric: Record<string, number>;
+    usageBySubscription: Record<string, number>;
+    usageHistory: Array<{
+      subscriptionId: string;
+      metric: string;
+      value: number;
+      timestamp: Date;
+    }>;
+    trends: Array<{
+      metric: string;
+      currentPeriod: number;
+      previousPeriod: number;
+      changePercent: number;
+      trend: 'increasing' | 'decreasing' | 'stable';
+    }>;
+    alertsCount: number;
+    alerts: Array<{
+      id: string;
+      subscriptionId: string;
+      metric: string;
+      threshold: number;
+      currentUsage: number;
+      message: string;
+      createdAt: Date;
+      acknowledged: boolean;
+    }>;
+  };
 }
 
 export interface IPricingService {
@@ -70,7 +113,7 @@ export interface IDunningService {
   configurePlan(planId: string, config: Partial<DunningConfiguration>): DunningConfiguration;
   getConfiguration(planId: string): DunningConfiguration | undefined;
   startDunning(subscriptionId: string, subscriberId: string, merchantId: string, planId: string): DunningEntry;
-  recordFailedCharge(subscriptionId: string): DunningEntry | null;
+  recordFailedCharge(subscriptionId: string, failureType?: string): DunningEntry | null;
   recordSuccessfulCharge(subscriptionId: string): void;
   getDunningEntry(subscriptionId: string): DunningEntry | undefined;
   listActiveDunning(merchantId?: string): DunningEntry[];
@@ -80,6 +123,32 @@ export interface IDunningService {
   getCommunications(subscriptionId: string): DunningCommunication[];
   getAnalytics(merchantId?: string): DunningAnalytics;
   getProcessableEntries(): DunningEntry[];
+  configureRetrySchedule(schedule: {
+    failureType: string;
+    baseDelayHours?: number;
+    maxRetries?: number;
+    backoffMultiplier?: number;
+    maxDelayHours?: number;
+  }): void;
+  getRetrySchedule(failureType: string): {
+    failureType: string;
+    baseDelayHours: number;
+    maxRetries: number;
+    backoffMultiplier: number;
+    maxDelayHours: number;
+  };
+  calculateRetryDelay(failureType: string, attempt: number): number;
+  getRetryAnalytics(merchantId?: string): {
+    totalRetries: number;
+    successfulRetries: number;
+    failedRetries: number;
+    retryRate: number;
+    successRate: number;
+    averageRetriesBeforeSuccess: number;
+    retriesByFailureType: Record<string, number>;
+    retriesByStage: Record<string, number>;
+    averageTimeToRecovery: number;
+  };
 }
 
 export interface IAccountingExportService {
@@ -107,49 +176,36 @@ export interface IPartnerService {
   ): Map<string, number>;
 }
 
-/**
- * Credit service — the server-side counterpart to the `subtrackr-credit`
- * Soroban contract and the mobile `AccountCredit` store. Operates on a
- * ledger model (lots + signed entries + running balance) so callers downstream
- * of `applyCreditToCharge` only see the net amount due.
- */
-export interface ICreditService {
-  // Account-level configuration
-  setExpirationPolicy(accountId: string, policy: ExpirationPolicy): void;
-  getAccount(accountId: string): CreditAccount;
-  getBalance(accountId: string): number;
-
-  // Credit lifecycle
-  issueCredit(input: IssueCreditInput): CreditAccount;
-  applyCreditToCharge(input: ApplyCreditInput): ApplyCreditResult;
-  transferCredit(input: TransferCreditInput): { from: CreditAccount; to: CreditAccount };
-  expireAccount(accountId: string): { expiredAmount: number; account: CreditAccount };
-  expireAll(accounts?: string[]): Array<{ accountId: string; expiredAmount: number }>;
-
-  // Prepayment wallets
-  createWallet(input: { accountId: string; subscriptionId: string; currency: string }): PrepaymentWallet;
-  deposit(input: { walletId: number; accountId: string; amount: number }): PrepaymentWallet;
-  withdraw(input: { walletId: number; accountId: string; amount: number }): PrepaymentWallet;
-  drawdown(input: { walletId: number; accountId: string; invoiceId: string; amount: number }): PrepaymentWallet;
-  getWallet(walletId: number): PrepaymentWallet | undefined;
-  getWalletTransactions(walletId: number): PrepaymentTransaction[];
-  listWalletsForAccount(accountId: string): PrepaymentWallet[];
-
-  // Analytics (credit dashboard)
-  getAccountSummary(accountId: string): AccountCreditSummary;
-  getGlobalBreakdown(): CreditBucketBreakdown;
-  getUsageTrend(days?: number, bucketSecs?: number): CreditUsageTrendPoint[];
-  getExpiryForecast(accountId: string, horizonSecs?: number): CreditExpiryForecast[];
-  topAccountsByBalance(limit?: number): TopAccount[];
-  listAccounts(): CreditAccount[];
-
-  // Reporting
-  printReport(accountId: string): CreditReport;
-  exportReport(accountId: string, format: 'csv' | 'json'): string;
-
-  // Audit trail
-  getAuditTrail(query: CreditAuditQuery): CreditAuditPage;
+export interface IGroupBillingService {
+  generateBillingSummary(group: any): any;
+  aggregateCharges(group: any, periodDays?: number): any[];
+  generateInvoice(group: any, periodStart: number, periodEnd: number, currency?: string): any;
+  issueInvoice(invoiceId: string, groupId: string): any | null;
+  markInvoicePaid(invoiceId: string, groupId: string): any | null;
+  getGroupInvoices(groupId: string): any[];
+  calculateGroupAnalytics(group: any): any;
+  recordAdminAction(groupId: string, action: string, actorAddress: string, targetAddress?: string, metadata?: Record<string, unknown>): any;
+  getAdminActions(groupId: string, limit?: number): any[];
+  canPerformAction(group: any, actorAddress: string, action: string): { allowed: boolean; reason?: string };
+  customizeGroupPlan(groupId: string, customization: any): any;
+  getGroupPlanCustomization(groupId: string): any | undefined;
+  overrideMemberBalance(group: any, memberAddress: string, newBalance: number, actorAddress: string): any | null;
 }
 
-// Re-exported from partner types — keeping original code untouched below.
-export type { SplitExecution } from '../../../src/types/partner';
+export interface ILoyaltyService {
+  addPointsRule(rule: any): any;
+  updatePointsRule(id: string, updates: any): any | null;
+  removePointsRule(id: string): void;
+  getPointsRules(trigger?: string): any[];
+  calculatePoints(trigger: string, context?: any): { points: number; ruleId: string } | null;
+  recordPointsEvent(subscriberId: string, points: number, type: 'earn' | 'redeem' | 'expire', trigger: string): void;
+  getPointsHistory(subscriberId: string, limit?: number): any[];
+  getLoyaltyAnalytics(allSubscribers: any[]): any;
+  createNotification(type: string, subscriberId: string, title: string, body: string, data?: Record<string, unknown>): any;
+  getNotifications(subscriberId: string, unreadOnly?: boolean): any[];
+  markNotificationRead(notificationId: string): void;
+  markAllNotificationsRead(subscriberId: string): void;
+  getUnreadCount(subscriberId: string): number;
+  createApiResponse<T>(data: T): any;
+  createErrorResponse(error: string): any;
+}

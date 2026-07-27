@@ -15,11 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-      - run: npm ci --legacy-peer-deps
+      - uses: ./.github/actions/setup-node
       - run: npm run format:check
       - run: npm run lint
 
@@ -28,11 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-      - run: npm ci --legacy-peer-deps
+      - uses: ./.github/actions/setup-node
       - run: npx tsc --noEmit
 
   test:
@@ -40,11 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-      - run: npm ci --legacy-peer-deps
+      - uses: ./.github/actions/setup-node
       - run: npm test
 
   audit:
@@ -52,9 +40,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-      - run: npm ci --legacy-peer-deps
+      - uses: ./.github/actions/setup-node
       - run: npx audit-ci --config audit-ci.json

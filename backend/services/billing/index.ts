@@ -28,6 +28,14 @@ export type {
   TaxRemittanceReportRequest,
 } from './taxTypes';
 export { DunningService, dunningService } from './dunningService';
+export type { FailureType, RetryScheduleConfig, RetryAnalytics } from './dunningService';
+export { ProrationService, prorationService } from './proration';
+export type {
+  ProrationConfiguration,
+  ProrationAnalytics,
+  ProrationDispute,
+  MidCycleChangeRequest,
+} from './proration';
 export { streamExport, reconcile } from './accountingExportService';
 export type {
   AccountingFormat,

@@ -54,16 +54,36 @@ export interface Transaction {
   timestamp: Date;
 }
 
+export enum ChainType {
+  EVM = 'evm',
+  STELLAR = 'stellar',
+}
+
 export enum SupportedChains {
   ETHEREUM = 1,
   POLYGON = 137,
   ARBITRUM = 42161,
   OPTIMISM = 10,
   BASE = 8453,
+  STELLAR = 0x8000,
+}
+
+export interface StellarChainInfo {
+  id: number;
+  name: string;
+  networkPassphrase: string;
+  horizonUrl: string;
+  sorobanRpcUrl: string;
+  nativeCurrency: {
+    name: string;
+    symbol: string;
+    decimals: number;
+  };
 }
 
 export interface ChainInfo {
   id: SupportedChains;
+  chainType: ChainType;
   name: string;
   rpcUrl: string;
   blockExplorer: string;
