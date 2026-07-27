@@ -3,7 +3,11 @@
  *
  * Handles large-dataset streaming exports, reconciliation checks,
  * and encoding-safe output for CSV/JSON/QuickBooks/Xero formats.
+ *
+ * Issue #768: Added async-generator streaming exports and SSE progress variants.
  */
+
+import { MemoryMonitor, toNdjsonLine } from '../shared/streaming';
 
 export type AccountingFormat = 'csv' | 'json' | 'quickbooks' | 'xero';
 export type TransactionType = 'revenue' | 'refund' | 'credit' | 'fee';
@@ -39,6 +43,32 @@ export interface StreamExportOptions {
   onChunk: (chunk: string) => void;
   /** Chunk size in number of records. Default: 500. */
   chunkSize?: number;
+}
+
+// ── Async streaming types (Issue #768) ──────────────────────────────────────
+
+/** Progress callback fired for each chunk during a streaming export. */
+export type ExportProgressCallback = (progress: {
+  /** 0–100 */
+  percent: number;
+  /** Records processed so far */
+  recordsProcessed: number;
+  /** Total records in the filtered result */
+  totalRecords: number;
+  /** Serialised chunk payload */
+  chunk: string;
+  /** Chunk index starting at 0 */
+  chunkIndex: number;
+}) => void | Promise<void>;
+
+/** Options for the async-generator streaming export variants. */
+export interface AsyncStreamExportOptions {
+  format: AccountingFormat;
+  filter?: ExportFilter;
+  /** Chunk size in records. Default: 500. */
+  chunkSize?: number;
+  /** Optional memory monitor — will call check() between chunks. */
+  memoryMonitor?: MemoryMonitor;
 }
 
 export interface ReconciliationResult {
@@ -204,6 +234,131 @@ export function streamExport(
   // Simple checksum over record IDs for reconciliation
   const cs = filtered.reduce((acc, r) => acc ^ r.id.split('').reduce((h, c) => h + c.charCodeAt(0), 0), 0);
   return { totalRecords: filtered.length, checksum: Math.abs(cs).toString(16) };
+}
+
+// ── Async-generator streaming export (Issue #768) ───────────────────────────
+
+/**
+ * Async-generator variant of `streamExport`.
+ *
+ * Yields string chunks lazily — the full result set is never held in memory at
+ * once. Each yielded value is a self-contained fragment that can be piped
+ * directly to an HTTP response or a file stream.
+ *
+ * ```ts
+ * const gen = streamExportAsync(records, { format: 'csv' });
+ * for await (const chunk of gen) {
+ *   res.write(chunk);
+ * }
+ * ```
+ */
+export async function* streamExportAsync(
+  records: TransactionRecord[],
+  options: AsyncStreamExportOptions
+): AsyncGenerator<string> {
+  const { format, filter = {}, chunkSize = 500, memoryMonitor } = options;
+  const filtered = applyFilter(records, filter);
+
+  if (format === 'json') {
+    yield '[';
+    for (let i = 0; i < filtered.length; i += chunkSize) {
+      const batch = filtered.slice(i, i + chunkSize);
+      const separator = i === 0 ? '' : ',';
+      yield separator + batch.map((r) => JSON.stringify(r)).join(',');
+      memoryMonitor?.check();
+      // Yield to event loop between chunks to avoid blocking
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    }
+    yield ']';
+  } else {
+    const headers = headersForFormat(format);
+    yield headers.map(csvEscape).join(',') + '\n';
+    for (let i = 0; i < filtered.length; i += chunkSize) {
+      const batch = filtered.slice(i, i + chunkSize);
+      yield batch.map((r) => recordToCsvRow(r, format)).join('\n') + '\n';
+      memoryMonitor?.check();
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    }
+  }
+}
+
+/**
+ * NDJSON streaming export — each record is its own JSON line.
+ *
+ * Suitable for endpoints that need line-by-line client parsing (e.g., the
+ * `GET /subscriptions/stream` endpoint).
+ */
+export async function* streamExportNdjson(
+  records: TransactionRecord[],
+  options: Omit<AsyncStreamExportOptions, 'format'>
+): AsyncGenerator<string> {
+  const { filter = {}, chunkSize = 500, memoryMonitor } = options;
+  const filtered = applyFilter(records, filter);
+
+  for (let i = 0; i < filtered.length; i += chunkSize) {
+    const batch = filtered.slice(i, i + chunkSize);
+    for (const record of batch) {
+      yield toNdjsonLine(record);
+    }
+    memoryMonitor?.check();
+    await new Promise<void>((resolve) => setImmediate(resolve));
+  }
+}
+
+/**
+ * Streaming export with per-chunk progress callbacks — intended for SSE
+ * endpoints where the caller needs to emit `progress` events to the client
+ * while the export is being built.
+ *
+ * Returns a summary `{ totalRecords, checksum }` once complete (same as
+ * the synchronous `streamExport`).
+ */
+export async function streamExportWithProgress(
+  records: TransactionRecord[],
+  options: AsyncStreamExportOptions,
+  onProgress: ExportProgressCallback
+): Promise<{ totalRecords: number; checksum: string }> {
+  const { format, filter = {}, chunkSize = 500, memoryMonitor } = options;
+  const filtered = applyFilter(records, filter);
+  const totalRecords = filtered.length;
+  let chunkIndex = 0;
+
+  let checksum = 0;
+
+  const emitChunk = async (chunk: string, recordsProcessed: number) => {
+    const percent = totalRecords === 0 ? 100 : Math.round((recordsProcessed / totalRecords) * 100);
+    await onProgress({ percent, recordsProcessed, totalRecords, chunk, chunkIndex });
+    chunkIndex++;
+    memoryMonitor?.check();
+    await new Promise<void>((resolve) => setImmediate(resolve));
+  };
+
+  if (format === 'json') {
+    await emitChunk('[', 0);
+    for (let i = 0; i < filtered.length; i += chunkSize) {
+      const batch = filtered.slice(i, i + chunkSize);
+      const separator = i === 0 ? '' : ',';
+      await emitChunk(separator + batch.map((r) => JSON.stringify(r)).join(','), i + batch.length);
+    }
+    await emitChunk(']', totalRecords);
+  } else {
+    const headers = headersForFormat(format);
+    await emitChunk(headers.map(csvEscape).join(',') + '\n', 0);
+    for (let i = 0; i < filtered.length; i += chunkSize) {
+      const batch = filtered.slice(i, i + chunkSize);
+      await emitChunk(
+        batch.map((r) => recordToCsvRow(r, format)).join('\n') + '\n',
+        i + batch.length
+      );
+    }
+  }
+
+  checksum = filtered.reduce(
+    (acc, r) => acc ^ r.id.split('').reduce((h, c) => h + c.charCodeAt(0), 0),
+    0
+  );
+
+  return { totalRecords, checksum: Math.abs(checksum).toString(16) };
 }
 
 // ── Reconciliation ────────────────────────────────────────────────────────────
