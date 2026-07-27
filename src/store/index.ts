@@ -9,3 +9,14 @@ export { useFraudStore } from './fraudStore';
 export { useGroupStore } from './groupStore';
 export { useTaxStore } from './taxStore';
 export { useSupportStore } from './supportStore';
+
+// Context + Hooks pattern exports
+export {
+  SubscriptionProvider,
+  useSubscriptionContext,
+  useSubscriptions,
+  useSubscriptionStats,
+  useSubscriptionStatus,
+  useSubscriptionActions,
+  useSubscription,
+} from '../context/SubscriptionContext';
