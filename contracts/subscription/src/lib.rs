@@ -6,6 +6,8 @@ mod gas_storage;
 mod invoice_branding;
 mod revenue;
 #[cfg(test)]
+mod gas_benchmarks;
+#[cfg(test)]
 mod test;
 
 use soroban_sdk::{token, Address, BytesN, Env, IntoVal, String, Symbol, TryFromVal, Val, Vec};

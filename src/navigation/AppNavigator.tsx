@@ -7,6 +7,7 @@ import {
   NavigationState,
   Route,
 } from '@react-navigation/native';
+import { performanceMonitor } from '../services/performanceMonitor';
 import { navigationRef } from './navigationRef';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -755,6 +756,12 @@ export const AppNavigator = () => {
       const activeRoute = getActiveRoute(
         state.routes[state.index ?? 0] as Route<string, object | undefined>
       );
+
+      // Track route transition for performance monitoring
+      if (activeRoute?.name) {
+        performanceMonitor.trackRouteTransition(activeRoute.name);
+      }
+
       const isAuthenticated = Boolean(user);
       if (!isRouteAllowed(activeRoute, isAuthenticated, subscriptionTier)) {
         console.warn(
