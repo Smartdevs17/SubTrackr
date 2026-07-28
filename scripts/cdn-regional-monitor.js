@@ -150,9 +150,8 @@ function aggregateStats(rawResponse) {
   snapshot.totalRequests = globalRequests;
   snapshot.totalHits = globalHits;
   snapshot.totalErrors = globalErrors;
-  snapshot.globalHitRate = globalRequests > 0
-    ? Math.round((globalHits / globalRequests) * 10000) / 100
-    : 0;
+  snapshot.globalHitRate =
+    globalRequests > 0 ? Math.round((globalHits / globalRequests) * 10000) / 100 : 0;
 
   // Sort regions by request volume descending
   snapshot.regions.sort((a, b) => b.requests - a.requests);
@@ -179,20 +178,16 @@ function toPrometheus(snapshot) {
 
     `# HELP ${ns}_hit_rate_by_region Cache hit rate by CDN region (0-100)`,
     `# TYPE ${ns}_hit_rate_by_region gauge`,
-    ...snapshot.regions.map(
-      (r) => `${ns}_hit_rate_by_region{region="${r.region}"} ${r.hitRate}`,
-    ),
+    ...snapshot.regions.map((r) => `${ns}_hit_rate_by_region{region="${r.region}"} ${r.hitRate}`),
 
     `# HELP ${ns}_requests_by_region Request count by CDN region`,
     `# TYPE ${ns}_requests_by_region gauge`,
-    ...snapshot.regions.map(
-      (r) => `${ns}_requests_by_region{region="${r.region}"} ${r.requests}`,
-    ),
+    ...snapshot.regions.map((r) => `${ns}_requests_by_region{region="${r.region}"} ${r.requests}`),
 
     `# HELP ${ns}_origin_requests_by_region Origin (cache-miss) requests by region`,
     `# TYPE ${ns}_origin_requests_by_region gauge`,
     ...snapshot.regions.map(
-      (r) => `${ns}_origin_requests_by_region{region="${r.region}"} ${r.originRequests}`,
+      (r) => `${ns}_origin_requests_by_region{region="${r.region}"} ${r.originRequests}`
     ),
   ];
   return lines.join('\n');
@@ -217,7 +212,7 @@ async function run() {
     // Alert if global hit rate < 60%
     if (snapshot.globalHitRate < 60 && snapshot.totalRequests > 100) {
       console.warn(
-        `[cdn-regional-monitor] WARN: Low CDN hit rate (${snapshot.globalHitRate}%) — investigate cache configuration`,
+        `[cdn-regional-monitor] WARN: Low CDN hit rate (${snapshot.globalHitRate}%) — investigate cache configuration`
       );
     }
 
@@ -225,7 +220,7 @@ async function run() {
     for (const region of snapshot.regions) {
       if (region.hitRate < 50 && region.requests > 50) {
         console.warn(
-          `[cdn-regional-monitor] WARN: Low hit rate in region ${region.region} (${region.hitRate}%)`,
+          `[cdn-regional-monitor] WARN: Low hit rate in region ${region.region} (${region.hitRate}%)`
         );
       }
     }
@@ -241,5 +236,8 @@ if (ONCE) {
   run();
   const interval = setInterval(run, MONITOR_INTERVAL_MS);
   process.on('SIGTERM', () => clearInterval(interval));
-  process.on('SIGINT', () => { clearInterval(interval); process.exit(0); });
+  process.on('SIGINT', () => {
+    clearInterval(interval);
+    process.exit(0);
+  });
 }

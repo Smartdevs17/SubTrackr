@@ -1,5 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TextInput,
+  TouchableOpacity,
+  ActivityIndicator,
+} from 'react-native';
 import { logStorage, LogEntry, LogSearchQuery } from '../../backend/elasticsearch/logStorage';
 
 export const LogDashboard: React.FC = () => {
@@ -31,7 +39,8 @@ export const LogDashboard: React.FC = () => {
   const renderLog = ({ item }: { item: LogEntry }) => (
     <View style={styles.logCard}>
       <View style={styles.logHeader}>
-        <Text style={[styles.logLevel, item.level === 'error' ? styles.levelError : styles.levelInfo]}>
+        <Text
+          style={[styles.logLevel, item.level === 'error' ? styles.levelError : styles.levelInfo]}>
           {item.level.toUpperCase()}
         </Text>
         <Text style={styles.logTimestamp}>{new Date(item.timestamp).toLocaleString()}</Text>
@@ -46,7 +55,7 @@ export const LogDashboard: React.FC = () => {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Log Analytics Dashboard</Text>
-      
+
       <View style={styles.searchContainer}>
         <TextInput
           style={styles.input}

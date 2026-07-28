@@ -1,11 +1,4 @@
-import { renderHook, act } from '@testing-library/react-hooks';
-import { NavigationContainer } from '@react-navigation/native';
-import React from 'react';
-import { navigationAnalytics, NavigationAnalyticsEvent } from '../analytics';
-
-const wrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <NavigationContainer>{children}</NavigationContainer>
-);
+import { navigationAnalytics } from '../analytics';
 
 describe('NavigationAnalytics', () => {
   beforeEach(() => {
