@@ -13,10 +13,7 @@
       "resizeMode": "contain",
       "backgroundColor": "#1a1a1a"
     },
-    "assetBundlePatterns": [
-      "assets/**",
-      "src/assets/**"
-    ],
+    "assetBundlePatterns": ["assets/**", "src/assets/**"],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.subtrackr.app",
@@ -67,12 +64,7 @@
         "staticTtlSeconds": 31536000,
         "publicApiTtlSeconds": 300,
         "staleWhileRevalidateSeconds": 60,
-        "cacheWarmPaths": [
-          "/plans",
-          "/pricing",
-          "/features",
-          "/public/config"
-        ],
+        "cacheWarmPaths": ["/plans", "/pricing", "/features", "/public/config"],
         "regions": ["us-east-1", "eu-west-1", "ap-southeast-1"],
         "surrogateKeyHeader": "Surrogate-Key",
         "cacheTagHeader": "Cache-Tag"

@@ -98,7 +98,10 @@ pub fn generate_merkle_proof(
         idx /= 2;
     }
 
-    MerkleProof { index: leaf_index, siblings }
+    MerkleProof {
+        index: leaf_index,
+        siblings,
+    }
 }
 
 pub fn batch_insert(env: &Env, key_prefix: &Bytes, values: &Vec<(Bytes, Bytes)>) {
@@ -236,10 +239,10 @@ mod tests {
         let key2 = Bytes::from_slice(&env, b"key2");
         let val2 = Bytes::from_slice(&env, b"value2");
 
-        let values = Vec::from_array(&env, [
-            (key1.clone(), val1.clone()),
-            (key2.clone(), val2.clone()),
-        ]);
+        let values = Vec::from_array(
+            &env,
+            [(key1.clone(), val1.clone()), (key2.clone(), val2.clone())],
+        );
 
         batch_insert(&env, &prefix, &values);
 
@@ -252,6 +255,12 @@ mod tests {
 
         let verify_keys = get_keys;
         let verify_values = Vec::from_array(&env, [Some(val1), Some(val2)]);
-        assert!(verify_batch(&env, &prefix, &verify_keys, &verify_values, &proof));
+        assert!(verify_batch(
+            &env,
+            &prefix,
+            &verify_keys,
+            &verify_values,
+            &proof
+        ));
     }
 }

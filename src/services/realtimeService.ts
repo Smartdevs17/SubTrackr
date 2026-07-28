@@ -79,10 +79,7 @@ interface PooledSocket {
 
 const socketPool = new Map<string, PooledSocket>();
 
-function acquireSocket(
-  url: string,
-  protocols?: string[],
-): PooledSocket {
+function acquireSocket(url: string, protocols?: string[]): PooledSocket {
   const existing = socketPool.get(url);
   if (existing && existing.ws.readyState <= WebSocket.OPEN) {
     existing.refCount++;
@@ -173,10 +170,7 @@ export class RealtimeService {
   // ── Connection lifecycle ──────────────────────────────────────────────────
 
   connect(): void {
-    if (
-      this._metrics.state === 'connected' ||
-      this._metrics.state === 'connecting'
-    ) {
+    if (this._metrics.state === 'connected' || this._metrics.state === 'connecting') {
       return;
     }
     this._metrics.state = 'connecting';
