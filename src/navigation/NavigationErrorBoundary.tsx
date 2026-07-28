@@ -1,6 +1,5 @@
 import React from 'react';
 import { Text, View, StyleSheet } from 'react-native';
-import { useNavigation, NavigationState } from '@react-navigation/native';
 
 interface NavigationErrorBoundaryProps {
   children: React.ReactNode;

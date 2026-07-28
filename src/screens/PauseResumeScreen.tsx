@@ -36,8 +36,6 @@ const PauseResumeScreen: React.FC<Props> = ({ route }) => {
   const {
     subscriptions,
     isLoading,
-    pauseRecords,
-    pauseAnalytics,
     pauseSubscription,
     resumeSubscription,
     getPauseHistory,
@@ -51,7 +49,7 @@ const PauseResumeScreen: React.FC<Props> = ({ route }) => {
   );
 
   const [selectedDuration, setSelectedDuration] = useState<number | null>(null);
-  const [reason, setReason] = useState('');
+  const [reason] = useState('');
 
   const activePause = pauseHistory.find((p) => p.status === 'active');
 

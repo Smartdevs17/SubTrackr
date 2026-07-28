@@ -26,7 +26,6 @@ const MerchantOnboardingScreen: React.FC = () => {
     onboarding,
     isLoading,
     startOnboarding,
-    submitDocument,
     nextStep,
     previousStep,
     requestVerification,
