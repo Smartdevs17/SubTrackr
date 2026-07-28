@@ -67,7 +67,9 @@ const VitalRow: React.FC<VitalRowProps> = ({ name, value, budget, unit = 'ms' })
         <Text style={styles.metricValue}>
           {value != null ? `${value.toFixed(0)} ${unit}` : '—'}
         </Text>
-        <Text style={styles.caption}>budget {budget} {unit}</Text>
+        <Text style={styles.caption}>
+          budget {budget} {unit}
+        </Text>
       </View>
     </View>
   );
@@ -131,17 +133,13 @@ const PerformanceDashboardScreen: React.FC = () => {
             label="Render p95"
             value={`${(summary.p95.render ?? 0).toFixed(1)} ms`}
             caption={`Budget ${budget.renderMs} ms`}
-            statusColor={
-              (summary.p95.render ?? 0) > budget.renderMs ? '#ef4444' : '#22c55e'
-            }
+            statusColor={(summary.p95.render ?? 0) > budget.renderMs ? '#ef4444' : '#22c55e'}
           />
           <StatPanel
             label="API p95"
             value={`${(summary.p95.network ?? 0).toFixed(1)} ms`}
             caption={`Budget ${budget.apiLatencyMs} ms`}
-            statusColor={
-              (summary.p95.network ?? 0) > budget.apiLatencyMs ? '#ef4444' : '#22c55e'
-            }
+            statusColor={(summary.p95.network ?? 0) > budget.apiLatencyMs ? '#ef4444' : '#22c55e'}
           />
           <StatPanel
             label="Memory avg"
@@ -162,11 +160,26 @@ const PerformanceDashboardScreen: React.FC = () => {
         {/* ── Core Web Vitals ── */}
         <Text style={styles.sectionTitle}>Core Web Vitals</Text>
         <View style={styles.card}>
-          <VitalRow name="LCP (Largest Contentful Paint)" value={vitals.lcp} budget={budget.lcpMs} unit="ms" />
+          <VitalRow
+            name="LCP (Largest Contentful Paint)"
+            value={vitals.lcp}
+            budget={budget.lcpMs}
+            unit="ms"
+          />
           <View style={styles.divider} />
-          <VitalRow name="FID (First Input Delay)" value={vitals.fid} budget={budget.fidMs} unit="ms" />
+          <VitalRow
+            name="FID (First Input Delay)"
+            value={vitals.fid}
+            budget={budget.fidMs}
+            unit="ms"
+          />
           <View style={styles.divider} />
-          <VitalRow name="CLS (Frame Drops)" value={vitals.cls} budget={budget.clsFrameDrops} unit="drops" />
+          <VitalRow
+            name="CLS (Frame Drops)"
+            value={vitals.cls}
+            budget={budget.clsFrameDrops}
+            unit="drops"
+          />
         </View>
 
         {/* ── Route Transitions ── */}
@@ -177,14 +190,20 @@ const PerformanceDashboardScreen: React.FC = () => {
               <View key={`route-${metric.timestamp}-${index}`} style={styles.row}>
                 <View style={styles.rowText}>
                   <Text style={styles.metricName}>
-                    {(metric.metadata?.from as string) ?? '?'} → {(metric.metadata?.to as string) ?? '?'}
+                    {(metric.metadata?.from as string) ?? '?'} →{' '}
+                    {(metric.metadata?.to as string) ?? '?'}
                   </Text>
                   <Text style={styles.metricType}>route transition</Text>
                 </View>
                 <Text
                   style={[
                     styles.metricValue,
-                    { color: (metric.durationMs ?? 0) > budget.routeTransitionMs ? '#ef4444' : colors.primary },
+                    {
+                      color:
+                        (metric.durationMs ?? 0) > budget.routeTransitionMs
+                          ? '#ef4444'
+                          : colors.primary,
+                    },
                   ]}>
                   {(metric.durationMs ?? 0).toFixed(0)} ms
                 </Text>
@@ -196,9 +215,7 @@ const PerformanceDashboardScreen: React.FC = () => {
         {/* ── Regression Alerts ── */}
         {regressions.length > 0 && (
           <>
-            <Text style={[styles.sectionTitle, { color: '#ef4444' }]}>
-              ⚠ Regression Alerts
-            </Text>
+            <Text style={[styles.sectionTitle, { color: '#ef4444' }]}>⚠ Regression Alerts</Text>
             {regressions.map((r, i) => (
               <RegressionRow key={`reg-${r.metric.timestamp}-${i}`} regression={r} />
             ))}
@@ -215,10 +232,11 @@ const PerformanceDashboardScreen: React.FC = () => {
               <Text style={styles.metricName}>{metric.name}</Text>
               <Text style={styles.metricType}>{metric.type}</Text>
             </View>
-            <Text style={[
-              styles.metricValue,
-              performanceMonitor.isRegression(metric) ? { color: '#ef4444' } : null,
-            ]}>
+            <Text
+              style={[
+                styles.metricValue,
+                performanceMonitor.isRegression(metric) ? { color: '#ef4444' } : null,
+              ]}>
               {formatMetricValue(metric)}
             </Text>
           </View>

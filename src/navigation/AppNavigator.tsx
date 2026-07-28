@@ -23,7 +23,9 @@ import { featureFlagsService } from '../services/featureFlags';
 import type { SubscriptionTier } from '../types/subscription';
 
 const HomeScreen = lazyScreen(() => import('../screens/HomeScreen'));
-const SettingsScreen = lazyScreen(() => import('../screens/SettingsScreen').then(m => ({ default: m.SettingsScreen })));
+const SettingsScreen = lazyScreen(() =>
+  import('../screens/SettingsScreen').then((m) => ({ default: m.SettingsScreen }))
+);
 
 const AddSubscriptionScreen = lazyScreen(() => import('../screens/AddSubscriptionScreen'));
 const CancellationFlowScreen = lazyScreen(() => import('../screens/CancellationFlowScreen'));
