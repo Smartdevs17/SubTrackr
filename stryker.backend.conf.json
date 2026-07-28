@@ -2,22 +2,22 @@
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
   "schemaVersion": "1.0",
   "mutate": [
-    "src/**/*.{ts,tsx}",
-    "!src/**/*.test.{ts,tsx}",
-    "!src/**/*.spec.{ts,tsx}",
-    "!src/**/__tests__/**",
-    "!src/**/__mocks__/**",
-    "!src/**/__fixtures__/**",
-    "!src/**/*.d.ts"
+    "backend/**/*.ts",
+    "!backend/**/*.test.ts",
+    "!backend/**/*.spec.ts",
+    "!backend/**/__tests__/**",
+    "!backend/**/__mocks__/**",
+    "!backend/**/__fixtures__/**",
+    "!backend/**/*.d.ts"
   ],
   "testRunner": "jest",
   "jest": {
     "projectType": "custom",
-    "configFile": "jest.config.js"
+    "configFile": "jest.backend.config.js"
   },
   "checkers": ["typescript"],
   "typescriptChecker": {
-    "tsconfigFile": "tsconfig.json"
+    "tsconfigFile": "backend/tsconfig.json"
   },
   "reporters": ["progress", "clear-text", "html", "dashboard"],
   "coverageAnalysis": "perTest",
@@ -27,12 +27,12 @@
     "low": 60,
     "break": 50
   },
-  "tempDirName": ".stryker-tmp",
+  "tempDirName": ".stryker-backend-tmp",
   "cleanTempDir": true,
   "dashboard": {
     "project": "github.com/Smartdevs17/SubTrackr",
     "version": "main",
-    "module": "frontend"
+    "module": "backend"
   },
   "timeoutMS": 60000,
   "plugins": ["@stryker-mutator/jest-runner", "@stryker-mutator/typescript-checker"]
