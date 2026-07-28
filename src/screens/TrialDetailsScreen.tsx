@@ -6,7 +6,6 @@ import { RootStackParamList } from '../navigation/types';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { useTrialStore } from '../store';
 import {
-  trialConfigService,
   abTestService,
   conversionTracker,
   reminderScheduler,
