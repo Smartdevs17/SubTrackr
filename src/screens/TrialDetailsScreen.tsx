@@ -5,11 +5,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { useTrialStore } from '../store';
-import {
-  abTestService,
-  conversionTracker,
-  reminderScheduler,
-} from '../services/trialService';
+import { abTestService, conversionTracker, reminderScheduler } from '../services/trialService';
 import {
   TrialStatus,
   TrialDuration,
