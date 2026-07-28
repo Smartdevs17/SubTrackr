@@ -396,5 +396,37 @@ export type { IPaymentGateway, IPaymentRouter, PaymentRequest, PaymentResult, Re
 export { buildRotationEmailHtml, buildRotationEmailText } from './notification/rotationEmailTemplate';
 export type { RotationEmailData } from './notification/rotationEmailTemplate';
 
+// ── RPC Circuit Breaker & Timeout (Issue #RPC-CB) ───────────────────────────
+export {
+  RpcProviderFallback,
+  CircuitBreaker,
+  CircuitOpenError,
+  RpcTimeoutError,
+  AllProvidersFailedError,
+  RpcMonitorService,
+  rpcMonitorService,
+  DEFAULT_CIRCUIT_BREAKER_CONFIG,
+  DEFAULT_RPC_GLOBAL_CONFIG,
+  DEFAULT_CHAIN_ENDPOINTS,
+  DEFAULT_STELLAR_CHAIN_CONFIG,
+  resolveEndpointUrl,
+} from './rpc';
+
+export type {
+  CircuitBreakerConfig,
+  RpcEndpointConfig,
+  RpcChainConfig,
+  RpcGlobalConfig,
+  CircuitState,
+  CircuitStateSnapshot,
+  CircuitBreakerEvent,
+  RpcCallOptions,
+  RpcCallResult,
+  RpcMonitorMetrics,
+  ChainHealthSummary,
+  RpcMonitorDashboard,
+  RpcDashboardQuery,
+} from './rpc';
+
 // ── Monitoring — Lock Metrics (Issue #610) ────────────────────────────────────
 export { collectLockMetrics, lockMetricsExporter } from '../monitoring/lockMetrics';
