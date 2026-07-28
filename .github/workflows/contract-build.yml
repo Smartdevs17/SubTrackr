@@ -55,7 +55,6 @@ jobs:
   feature-matrix:
     name: Feature Flag / ${{ matrix.feature }}
     runs-on: ubuntu-latest
-    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
@@ -92,6 +91,7 @@ jobs:
             cargo-feat-${{ runner.os }}-
 
       - name: cargo check — feature=${{ matrix.feature || 'default' }}
+        continue-on-error: true
         working-directory: contracts
         run: |
           FEATURE="${{ matrix.feature }}"
