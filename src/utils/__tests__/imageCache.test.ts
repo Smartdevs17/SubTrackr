@@ -104,13 +104,13 @@ describe('ImageCacheManager', () => {
       const cache = makeCache({ maxEntries: 2 });
 
       await cache.register('https://example.com/a.png');
-      // Small delay to ensure different timestamps
-      await new Promise((r) => setTimeout(r, 1));
+      // Delay enough that timestamps cannot collide under CI load
+      await new Promise((r) => setTimeout(r, 25));
       await cache.register('https://example.com/b.png');
-      await new Promise((r) => setTimeout(r, 1));
+      await new Promise((r) => setTimeout(r, 25));
       // Access 'a' again to make 'b' the LRU
       await cache.register('https://example.com/a.png');
-      await new Promise((r) => setTimeout(r, 1));
+      await new Promise((r) => setTimeout(r, 25));
       // Adding 'c' should evict 'b' (least recently accessed)
       await cache.register('https://example.com/c.png');
 
