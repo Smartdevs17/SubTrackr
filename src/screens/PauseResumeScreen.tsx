@@ -36,8 +36,6 @@ const PauseResumeScreen: React.FC<Props> = ({ route }) => {
   const {
     subscriptions,
     isLoading,
-    pauseRecords,
-    pauseAnalytics,
     pauseSubscription,
     resumeSubscription,
     getPauseHistory,
