@@ -29,6 +29,13 @@ export type {
 } from './taxTypes';
 export { DunningService, dunningService } from './dunningService';
 export type { FailureType, RetryScheduleConfig, RetryAnalytics } from './dunningService';
+export { GroupBillingService, groupBillingService } from './groupBilling';
+export type {
+  GroupBillingSummary,
+  GroupInvoice,
+  GroupAdminAction,
+  GroupPlanCustomization,
+} from './groupBilling';
 export { ProrationService, prorationService } from './proration';
 export type {
   ProrationConfiguration,
