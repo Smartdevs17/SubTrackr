@@ -19,15 +19,15 @@ export const BadgeCard: React.FC<BadgeCardProps> = ({ badge, isUnlocked }) => {
       <View
         style={[
           styles.badgeIconContainer,
-          { backgroundColor: isUnlocked ? badge.color : theme.colors.border },
+          { backgroundColor: isUnlocked ? badge.color : theme.colors.border.default },
         ]}>
         <Text style={styles.badgeIcon}>{badge.icon}</Text>
       </View>
-      <Text style={[styles.badgeName, { color: theme.colors.text }]} numberOfLines={1}>
+      <Text style={[styles.badgeName, { color: theme.colors.text.primary }]} numberOfLines={1}>
         {badge.name}
       </Text>
       {!isUnlocked && (
-        <Text style={[styles.lockedText, { color: theme.colors.textSecondary }]}>Locked</Text>
+        <Text style={[styles.lockedText, { color: theme.colors.text.secondary }]}>Locked</Text>
       )}
     </Card>
   );
@@ -49,18 +49,18 @@ export const LevelProgressBar: React.FC<LevelProgressBarProps> = ({ points, leve
   return (
     <View style={styles.progressContainer}>
       <View style={styles.levelHeader}>
-        <Text style={[styles.levelText, { color: theme.colors.text }]}>Level {level}</Text>
-        <Text style={[styles.pointsText, { color: theme.colors.textSecondary }]}>
+        <Text style={[styles.levelText, { color: theme.colors.text.primary }]}>Level {level}</Text>
+        <Text style={[styles.pointsText, { color: theme.colors.text.secondary }]}>
           {points} / {nextLevelPoints} XP
         </Text>
       </View>
-      <View style={[styles.barBackground, { backgroundColor: theme.colors.border }]}>
+      <View style={[styles.barBackground, { backgroundColor: theme.colors.border.default }]}>
         <View
           style={[
             styles.barForeground,
             {
               width: `${Math.min(100, Math.max(0, progress * 100))}%`,
-              backgroundColor: theme.colors.primary,
+              backgroundColor: theme.colors.brand.primary,
             },
           ]}
         />
@@ -82,24 +82,32 @@ export const LeaderboardList: React.FC<LeaderboardListProps> = ({ data }) => {
     <View
       style={[
         styles.leaderboardItem,
-        item.isCurrentUser && { backgroundColor: theme.colors.primary + '20', borderRadius: 8 },
+        { borderBottomColor: theme.colors.border.default },
+        item.isCurrentUser && {
+          backgroundColor: theme.colors.brand.primary + '20',
+          borderRadius: 8,
+        },
       ]}>
-      <Text style={[styles.rankText, { color: theme.colors.textSecondary }]}>{item.rank}</Text>
+      <Text style={[styles.rankText, { color: theme.colors.text.secondary }]}>{item.rank}</Text>
       <View style={styles.userInfo}>
-        <Text style={[styles.userName, { color: theme.colors.text }]}>
+        <Text style={[styles.userName, { color: theme.colors.text.primary }]}>
           {item.name} {item.isCurrentUser && '(You)'}
         </Text>
-        <Text style={[styles.userLevel, { color: theme.colors.textSecondary }]}>
+        <Text style={[styles.userLevel, { color: theme.colors.text.secondary }]}>
           Lvl {item.level}
         </Text>
       </View>
-      <Text style={[styles.userPoints, { color: theme.colors.primary }]}>{item.points} XP</Text>
+      <Text style={[styles.userPoints, { color: theme.colors.brand.primary }]}>
+        {item.points} XP
+      </Text>
     </View>
   );
 
   return (
     <View style={styles.leaderboardContainer}>
-      <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Global Leaderboard</Text>
+      <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>
+        Global Leaderboard
+      </Text>
       {data.map((item) => (
         <React.Fragment key={item.name}>{renderItem({ item })}</React.Fragment>
       ))}
@@ -172,7 +180,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
   },
   rankText: {
     width: 30,

@@ -115,4 +115,3 @@ export const getCurrencySymbol = (currency: string): string => {
   };
   return symbols[currency] || currency;
 };
-

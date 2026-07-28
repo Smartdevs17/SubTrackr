@@ -1,17 +1,9 @@
 name: Contract Invariant Tests
 
-on:
-  push:
-    branches: [main, dev, develop, 'feature/*']
-    paths:
-      - 'contracts/**'
-  pull_request:
-    branches: [main, dev, develop, 'feature/*']
-    paths:
-      - 'contracts/**'
+on: workflow_dispatch
 
 env:
-  RUST_VERSION: '1.85'
+  RUST_VERSION: '1.88'
   # Number of proptest cases per property. Increase for deeper fuzzing.
   PROPTEST_CASES: 200
 

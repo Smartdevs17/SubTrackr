@@ -1,4 +1,5 @@
 #![no_std]
+#![allow(clippy::too_many_arguments)]
 //! SubTrackr usage-metering contract.
 //!
 //! Real-time usage-based billing (issue: metered billing). Reporters push
@@ -125,7 +126,8 @@ impl SubTrackrMetering {
         state.last_timestamp = now;
         Self::add_to_bucket(&mut state, now, value);
 
-        if state.alert_threshold != 0 && !state.alert_fired && state.total >= state.alert_threshold {
+        if state.alert_threshold != 0 && !state.alert_fired && state.total >= state.alert_threshold
+        {
             state.alert_fired = true;
             env.events().publish(
                 (symbol_short!("usage_alt"), subscription_id, meter.clone()),
@@ -141,8 +143,10 @@ impl SubTrackrMetering {
             value,
             timestamp: now,
         };
-        env.events()
-            .publish((symbol_short!("usage"), subscription_id), observation.clone());
+        env.events().publish(
+            (symbol_short!("usage"), subscription_id),
+            observation.clone(),
+        );
         Ok(observation)
     }
 
@@ -226,7 +230,10 @@ impl SubTrackrMetering {
                 return;
             }
         }
-        state.buckets.push_back(UsageBucket { start, units: value });
+        state.buckets.push_back(UsageBucket {
+            start,
+            units: value,
+        });
         while state.buckets.len() > MAX_BUCKETS {
             state.buckets.remove(0);
         }
@@ -274,6 +281,8 @@ impl SubTrackrMetering {
             i += 1;
         }
         metrics.push_back(metric.clone());
-        env.storage().persistent().set(&DataKey::Meters(sub), &metrics);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Meters(sub), &metrics);
     }
 }

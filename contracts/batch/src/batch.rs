@@ -4,6 +4,27 @@ use crate::MAX_BATCH_SIZE;
 use soroban_sdk::{contracttype, Vec};
 use subtrackr_types::SubscriptionId;
 
+/// Reason supplied when a batch cancellation is requested.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CancelReason {
+    TooExpensive,
+    NoLongerNeeded,
+    FoundAlternative,
+    PoorService,
+    Custom,
+}
+
+/// Filtering criteria for batch update operations.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct BatchFilter {
+    pub plan_change: Option<bool>,
+    pub min_price: Option<i128>,
+    pub max_price: Option<i128>,
+    pub category: Option<Vec<u32>>,
+}
+
 /// The kind of operation applied across every subscription in a batch.
 #[contracttype]
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -27,6 +48,10 @@ pub struct BatchOperation {
     pub operation_type: OperationType,
     pub subscription_ids: Vec<SubscriptionId>,
     pub params: Vec<i128>,
+    /// Optional per-subscription cancel reasons for cancel batches.
+    pub cancel_reasons: Vec<CancelReason>,
+    /// Optional filtering criteria for update batches.
+    pub filter: Option<BatchFilter>,
 }
 
 /// Outcome for a single subscription within a batch.
@@ -37,6 +62,7 @@ pub struct OperationResult {
     pub success: bool,
     /// `0` on success, otherwise an operation-specific failure code.
     pub code: u32,
+    pub reason: Option<String>,
 }
 
 /// Aggregate result of executing a batch.
@@ -47,6 +73,7 @@ pub struct BatchResult {
     pub total_operations: u32,
     pub successful_operations: u32,
     pub failed_operations: u32,
+    pub skipped_operations: u32,
     pub results: Vec<OperationResult>,
     pub atomic: bool,
     /// True when an atomic batch failed and all writes were discarded.

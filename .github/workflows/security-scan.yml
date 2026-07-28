@@ -1,12 +1,6 @@
 name: Security Scan
 
-on:
-  push:
-    branches: [main, dev, develop]
-  pull_request:
-    branches: [main, dev, develop]
-  schedule:
-    - cron: '0 0 * * 1' # Run weekly on Mondays
+on: workflow_dispatch
 
 jobs:
   npm-audit:

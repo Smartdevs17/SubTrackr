@@ -8,7 +8,8 @@ import {
   TextInput,
   FlatList,
 } from 'react-native';
-
+import { useDebounce } from '../../src/hooks/useDebounce';
+import { ApiPlayground } from '../components/ApiPlayground';
 interface DocSection {
   id: string;
   title: string;
@@ -111,6 +112,23 @@ Events:
 
 Verify webhook signatures using HMAC-SHA256.`,
   },
+  {
+    id: 'versioning',
+    title: 'API Versioning',
+    icon: '🔄',
+    content: `SubTrackr APIs are versioned. The current version is v1.
+Always include the version in your request URL:
+https://api.subtrackr.io/v1/
+
+Backwards-incompatible changes will result in a new API version.`,
+  },
+  {
+    id: 'changelog',
+    title: 'Changelog',
+    icon: '📝',
+    content: `Stay up-to-date with our latest API and SDK releases.
+Check the Changelog documentation for detailed release notes.`,
+  },
 ];
 
 const QUICK_START_GUIDES: QuickStartGuide[] = [
@@ -146,14 +164,13 @@ const QUICK_START_GUIDES: QuickStartGuide[] = [
 
 export const DocumentationPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedSection, setSelectedSection] = useState<DocSection | null>(
-    null
-  );
+  const [selectedSection, setSelectedSection] = useState<DocSection | null>(null);
+  const debouncedSearchQuery = useDebounce(searchQuery);
 
   const filteredSections = DOC_SECTIONS.filter(
     (section) =>
-      section.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      section.content.toLowerCase().includes(searchQuery.toLowerCase())
+      section.title.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+      section.content.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
   );
 
   const getDifficultyColor = (difficulty: string): string => {
@@ -171,26 +188,14 @@ export const DocumentationPage: React.FC = () => {
 
   const renderSection = ({ item }: { item: DocSection }) => (
     <TouchableOpacity
-      style={[
-        styles.sectionCard,
-        selectedSection?.id === item.id && styles.sectionCardSelected,
-      ]}
-      onPress={() =>
-        setSelectedSection(
-          selectedSection?.id === item.id ? null : item
-        )
-      }
-    >
+      style={[styles.sectionCard, selectedSection?.id === item.id && styles.sectionCardSelected]}
+      onPress={() => setSelectedSection(selectedSection?.id === item.id ? null : item)}>
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionIcon}>{item.icon}</Text>
         <Text style={styles.sectionTitle}>{item.title}</Text>
-        <Text style={styles.expandIcon}>
-          {selectedSection?.id === item.id ? '▼' : '▶'}
-        </Text>
+        <Text style={styles.expandIcon}>{selectedSection?.id === item.id ? '▼' : '▶'}</Text>
       </View>
-      {selectedSection?.id === item.id && (
-        <Text style={styles.sectionContent}>{item.content}</Text>
-      )}
+      {selectedSection?.id === item.id && <Text style={styles.sectionContent}>{item.content}</Text>}
     </TouchableOpacity>
   );
 
@@ -202,14 +207,8 @@ export const DocumentationPage: React.FC = () => {
           style={[
             styles.difficultyBadge,
             { backgroundColor: getDifficultyColor(item.difficulty) + '20' },
-          ]}
-        >
-          <Text
-            style={[
-              styles.difficultyText,
-              { color: getDifficultyColor(item.difficulty) },
-            ]}
-          >
+          ]}>
+          <Text style={[styles.difficultyText, { color: getDifficultyColor(item.difficulty) }]}>
             {item.difficulty}
           </Text>
         </View>
@@ -223,9 +222,7 @@ export const DocumentationPage: React.FC = () => {
     <ScrollView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Documentation</Text>
-        <Text style={styles.subtitle}>
-          Everything you need to integrate with SubTrackr
-        </Text>
+        <Text style={styles.subtitle}>Everything you need to integrate with SubTrackr</Text>
       </View>
 
       <View style={styles.searchContainer}>
@@ -236,6 +233,11 @@ export const DocumentationPage: React.FC = () => {
           placeholder="Search documentation..."
           placeholderTextColor="#9CA3AF"
         />
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionGroupTitle}>Try the API</Text>
+        <ApiPlayground />
       </View>
 
       <View style={styles.section}>
@@ -261,8 +263,7 @@ export const DocumentationPage: React.FC = () => {
       <View style={styles.helpSection}>
         <Text style={styles.helpTitle}>Need Help?</Text>
         <Text style={styles.helpText}>
-          Can't find what you're looking for? Contact our developer support
-          team.
+          Can't find what you're looking for? Contact our developer support team.
         </Text>
         <TouchableOpacity style={styles.helpButton}>
           <Text style={styles.helpButtonText}>Contact Support</Text>

@@ -1,41 +1,37 @@
 /// Subscription Lifecycle Module
 ///
 /// Handles subscription CRUD operations: subscribe, cancel, pause, resume.
-/// Extracted from the monolithic contract for better maintainability.
 use soroban_sdk::{Address, Env, String, Vec};
 
 use crate::enforce_rate_limit;
 use crate::get_admin;
+use crate::storage_instance_get;
+use crate::storage_instance_set;
 use crate::storage_persistent_get;
+use crate::storage_persistent_remove;
 use crate::storage_persistent_set;
 use subtrackr_types::{Plan, StorageKey, Subscription, SubscriptionStatus};
 
 use super::plan;
 
-/// Maximum pause duration: 30 days in seconds.
 pub const MAX_PAUSE_DURATION: u64 = 2_592_000;
 
-/// Subscribe to a plan.
 pub fn subscribe(
     env: &Env,
     storage: &Address,
     subscriber: &Address,
     plan_id: u64,
 ) -> u64 {
-    if subscriber != get_admin(env, storage) {
+    if *subscriber != get_admin(env, storage) {
         enforce_rate_limit(env, storage, subscriber, "subscribe");
     }
     subscriber.require_auth();
 
-    let mut plan_data =
+    let mut plan_data: Plan =
         storage_persistent_get(env, storage, StorageKey::Plan(plan_id)).expect("Plan not found");
     assert!(plan_data.active, "Plan is not active");
-    assert!(
-        plan_data.merchant != *subscriber,
-        "Merchant cannot self-subscribe"
-    );
+    assert!(plan_data.merchant != *subscriber, "Merchant cannot self-subscribe");
 
-    // Check for existing active subscription (duplicate check via index)
     if let Some(existing_id) = get_user_plan_index(env, storage, subscriber, plan_id) {
         let existing_sub: Subscription =
             storage_persistent_get(env, storage, StorageKey::Subscription(existing_id))
@@ -46,7 +42,7 @@ pub fn subscribe(
     }
 
     let mut sub_count: u64 =
-        storage_persistent_get(env, storage, StorageKey::SubscriptionCount).unwrap_or(0);
+        storage_instance_get(env, storage, StorageKey::SubscriptionCount).unwrap_or(0);
     sub_count += 1;
 
     let now = env.ledger().timestamp();
@@ -67,26 +63,15 @@ pub fn subscribe(
         refund_requested_amount: 0,
     };
 
-    storage_persistent_set(
-        env,
-        storage,
-        StorageKey::Subscription(sub_count),
-        subscription,
-    );
-    storage_persistent_set(env, storage, StorageKey::SubscriptionCount, sub_count);
+    storage_persistent_set(env, storage, StorageKey::Subscription(sub_count), subscription);
+    storage_instance_set(env, storage, StorageKey::SubscriptionCount, sub_count);
 
     let mut user_subs: Vec<u64> = storage_persistent_get(
-        env,
-        storage,
-        StorageKey::UserSubscriptions(subscriber.clone()),
-    )
-    .unwrap_or(Vec::new(env));
+        env, storage, StorageKey::UserSubscriptions(subscriber.clone()),
+    ).unwrap_or(Vec::new(env));
     user_subs.push_back(sub_count);
     storage_persistent_set(
-        env,
-        storage,
-        StorageKey::UserSubscriptions(subscriber.clone()),
-        user_subs,
+        env, storage, StorageKey::UserSubscriptions(subscriber.clone()), user_subs,
     );
 
     set_user_plan_index(env, storage, subscriber, plan_id, sub_count);
@@ -94,17 +79,21 @@ pub fn subscribe(
     plan_data.subscriber_count += 1;
     storage_persistent_set(env, storage, StorageKey::Plan(plan_id), plan_data);
 
+    env.events().publish(
+        (String::from_str(env, "subscribed"), subscriber.clone()),
+        (sub_count, plan_id),
+    );
+
     sub_count
 }
 
-/// Cancel a subscription.
 pub fn cancel_subscription(
     env: &Env,
     storage: &Address,
     subscriber: &Address,
     subscription_id: u64,
 ) {
-    if subscriber != get_admin(env, storage) {
+    if *subscriber != get_admin(env, storage) {
         enforce_rate_limit(env, storage, subscriber, "cancel_subscription");
     }
     subscriber.require_auth();
@@ -120,12 +109,7 @@ pub fn cancel_subscription(
     );
 
     sub.status = SubscriptionStatus::Cancelled;
-    storage_persistent_set(
-        env,
-        storage,
-        StorageKey::Subscription(subscription_id),
-        sub.clone(),
-    );
+    storage_persistent_set(env, storage, StorageKey::Subscription(subscription_id), sub.clone());
 
     remove_user_plan_index(env, storage, subscriber, sub.plan_id);
 
@@ -135,9 +119,13 @@ pub fn cancel_subscription(
         plan_data.subscriber_count -= 1;
     }
     storage_persistent_set(env, storage, StorageKey::Plan(sub.plan_id), plan_data);
+
+    env.events().publish(
+        (String::from_str(env, "subscription_cancelled"), subscriber.clone()),
+        subscription_id,
+    );
 }
 
-/// Pause a subscription with the maximum allowed duration.
 pub fn pause_subscription(
     env: &Env,
     storage: &Address,
@@ -147,7 +135,6 @@ pub fn pause_subscription(
     pause_by_subscriber(env, storage, subscriber, subscription_id, MAX_PAUSE_DURATION);
 }
 
-/// Pause a subscription with a specific duration.
 pub fn pause_by_subscriber(
     env: &Env,
     storage: &Address,
@@ -155,7 +142,7 @@ pub fn pause_by_subscriber(
     subscription_id: u64,
     duration: u64,
 ) {
-    if subscriber != get_admin(env, storage) {
+    if *subscriber != get_admin(env, storage) {
         enforce_rate_limit(env, storage, subscriber, "pause_by_subscriber");
     }
     subscriber.require_auth();
@@ -165,25 +152,14 @@ pub fn pause_by_subscriber(
             .expect("Subscription not found");
 
     assert!(sub.subscriber == *subscriber, "Only subscriber can pause");
-    assert!(
-        sub.status == SubscriptionStatus::Active,
-        "Only active subscriptions can be paused"
-    );
-    assert!(
-        duration <= MAX_PAUSE_DURATION,
-        "Pause duration exceeds limit"
-    );
+    assert!(sub.status == SubscriptionStatus::Active, "Only active subscriptions can be paused");
+    assert!(duration <= MAX_PAUSE_DURATION, "Pause duration exceeds limit");
 
     sub.status = SubscriptionStatus::Paused;
     sub.paused_at = env.ledger().timestamp();
     sub.pause_duration = duration;
 
-    storage_persistent_set(
-        env,
-        storage,
-        StorageKey::Subscription(subscription_id),
-        sub.clone(),
-    );
+    storage_persistent_set(env, storage, StorageKey::Subscription(subscription_id), sub.clone());
 
     env.events().publish(
         (String::from_str(env, "subscription_paused"), subscriber.clone()),
@@ -191,14 +167,13 @@ pub fn pause_by_subscriber(
     );
 }
 
-/// Resume a paused subscription.
 pub fn resume_subscription(
     env: &Env,
     storage: &Address,
     subscriber: &Address,
     subscription_id: u64,
 ) {
-    if subscriber != get_admin(env, storage) {
+    if *subscriber != get_admin(env, storage) {
         enforce_rate_limit(env, storage, subscriber, "resume_subscription");
     }
     subscriber.require_auth();
@@ -222,12 +197,7 @@ pub fn resume_subscription(
     sub.paused_at = 0;
     sub.pause_duration = 0;
 
-    storage_persistent_set(
-        env,
-        storage,
-        StorageKey::Subscription(subscription_id),
-        sub,
-    );
+    storage_persistent_set(env, storage, StorageKey::Subscription(subscription_id), sub);
 
     env.events().publish(
         (String::from_str(env, "subscription_resumed"), subscriber.clone()),
@@ -235,7 +205,6 @@ pub fn resume_subscription(
     );
 }
 
-/// Get a subscription by ID, auto-resuming if paused period has elapsed.
 pub fn get_subscription(env: &Env, storage: &Address, subscription_id: u64) -> Subscription {
     let mut sub: Subscription =
         storage_persistent_get(env, storage, StorageKey::Subscription(subscription_id))
@@ -244,20 +213,17 @@ pub fn get_subscription(env: &Env, storage: &Address, subscription_id: u64) -> S
     sub
 }
 
-/// Get all subscription IDs for a user.
 pub fn get_user_subscriptions(env: &Env, storage: &Address, subscriber: &Address) -> Vec<u64> {
     storage_persistent_get(env, storage, StorageKey::UserSubscriptions(subscriber.clone()))
         .unwrap_or(Vec::new(env))
 }
 
-/// Get the total number of subscriptions.
 pub fn get_subscription_count(env: &Env, storage: &Address) -> u64 {
-    storage_persistent_get(env, storage, StorageKey::SubscriptionCount).unwrap_or(0)
+    storage_instance_get(env, storage, StorageKey::SubscriptionCount).unwrap_or(0)
 }
 
-// ── Internal Helpers ─────────────────────────────────────────────────────────
+// ── Internal Helpers ──
 
-/// Check if a paused subscription should auto-resume and update it.
 pub fn check_and_resume(env: &Env, sub: &mut Subscription) -> bool {
     if sub.status == SubscriptionStatus::Paused {
         let now = env.ledger().timestamp();
@@ -271,7 +237,6 @@ pub fn check_and_resume(env: &Env, sub: &mut Subscription) -> bool {
     false
 }
 
-/// Set the user-plan index for duplicate subscription prevention.
 fn set_user_plan_index(
     env: &Env,
     storage: &Address,
@@ -280,32 +245,21 @@ fn set_user_plan_index(
     subscription_id: u64,
 ) {
     storage_persistent_set(
-        env,
-        storage,
-        StorageKey::UserPlanIndex(subscriber.clone(), plan_id),
-        subscription_id,
+        env, storage, StorageKey::UserPlanIndex(subscriber.clone(), plan_id), subscription_id,
     );
 }
 
-/// Remove the user-plan index when subscription is cancelled.
 fn remove_user_plan_index(env: &Env, storage: &Address, subscriber: &Address, plan_id: u64) {
     storage_persistent_remove(
-        env,
-        storage,
-        StorageKey::UserPlanIndex(subscriber.clone(), plan_id),
+        env, storage, StorageKey::UserPlanIndex(subscriber.clone(), plan_id),
     );
 }
 
-/// Get the existing subscription ID for a user on a specific plan.
 fn get_user_plan_index(
     env: &Env,
     storage: &Address,
     subscriber: &Address,
     plan_id: u64,
 ) -> Option<u64> {
-    storage_persistent_get(
-        env,
-        storage,
-        StorageKey::UserPlanIndex(subscriber.clone(), plan_id),
-    )
+    storage_persistent_get(env, storage, StorageKey::UserPlanIndex(subscriber.clone(), plan_id))
 }

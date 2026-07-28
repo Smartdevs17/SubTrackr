@@ -1,6 +1,6 @@
 #![no_std]
 
-use soroban_sdk::{contracttype, Address, String, Vec};
+use soroban_sdk::{contracttype, Address, BytesN, String, Symbol, Vec};
 
 /// Billing interval in seconds.
 #[contracttype]
@@ -8,9 +8,13 @@ use soroban_sdk::{contracttype, Address, String, Vec};
 pub enum Interval {
     Daily,     // 86400s
     Weekly,    // 604800s
+    BiWeekly,  // 1209600s
     Monthly,   // 2592000s (30 days)
+    BiMonthly, // 5184000s (60 days)
     Quarterly, // 7776000s (90 days)
+    SemiAnnually, // 15552000s (180 days)
     Yearly,    // 31536000s (365 days)
+    Custom(u64),    // user-defined interval in seconds
 }
 
 impl Interval {
@@ -18,9 +22,13 @@ impl Interval {
         match self {
             Interval::Daily => 86_400,
             Interval::Weekly => 604_800,
+            Interval::BiWeekly => 1_209_600,
             Interval::Monthly => 2_592_000,
+            Interval::BiMonthly => 5_184_000,
             Interval::Quarterly => 7_776_000,
+            Interval::SemiAnnually => 15_552_000,
             Interval::Yearly => 31_536_000,
+            Interval::Custom(secs) => *secs,
         }
     }
 }
@@ -92,6 +100,132 @@ pub struct InvoiceConfig {
     pub default_tax_bps: u32,
     pub exchange_rate_scale: i128,
     pub payment_terms_secs: Timestamp,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum TaxType {
+    Vat,
+    Gst,
+    SalesTax,
+    DigitalServicesTax,
+    None,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct TaxJurisdiction {
+    pub country: String,
+    pub state: String,
+    pub city: String,
+    pub postal_code: String,
+    pub tax_type: TaxType,
+    pub rate_bps: u32,
+    pub label: String,
+    pub effective_date: Timestamp,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum CertificateStatus {
+    Pending,
+    Valid,
+    Expired,
+    Revoked,
+    Invalid,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct TaxExemption {
+    pub id: u64,
+    pub customer: Address,
+    pub certificate_number: String,
+    pub issuing_authority: String,
+    pub valid_from: Timestamp,
+    pub valid_until: Timestamp,
+    pub jurisdictions: Vec<TaxJurisdiction>,
+    pub status: CertificateStatus,
+    pub validated_at: Timestamp,
+    pub validated_by: Address,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum DigitalGoodsCategory {
+    Saas,
+    Streaming,
+    DigitalDownload,
+    CloudStorage,
+    OnlineService,
+    InAppPurchase,
+    Marketplace,
+    Other,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct TaxReportLineItem {
+    pub invoice_id: u64,
+    pub invoice_number: String,
+    pub subscription_id: u64,
+    pub customer: Address,
+    pub taxable_amount: i128,
+    pub tax_rate_bps: u32,
+    pub tax_amount: i128,
+    pub digital_goods_category: DigitalGoodsCategory,
+    pub invoice_date: Timestamp,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum RemittanceStatus {
+    Draft,
+    Generated,
+    Submitted,
+    Paid,
+    Amended,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct TaxRemittanceReport {
+    pub id: u64,
+    pub period: TimeRange,
+    pub jurisdiction: TaxJurisdiction,
+    pub merchant: Address,
+    pub total_taxable_amount: i128,
+    pub total_tax_collected: i128,
+    pub total_tax_remitted: i128,
+    pub transaction_count: u32,
+    pub line_items: Vec<TaxReportLineItem>,
+    pub generated_at: Timestamp,
+    pub submitted_at: Timestamp,
+    pub status: RemittanceStatus,
+    pub notes: String,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct NexusRegion {
+    pub country: String,
+    pub state: String,
+    pub city: String,
+    pub threshold_met: bool,
+    pub threshold_amount: i128,
+    pub transactions_in_period: u32,
+    pub total_revenue_in_period: i128,
+    pub first_nexus_date: Timestamp,
+    pub tax_type: TaxType,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct TaxRateChangeEvent {
+    pub jurisdiction: TaxJurisdiction,
+    pub old_rate_bps: u32,
+    pub new_rate_bps: u32,
+    pub effective_date: Timestamp,
 }
 
 /// A subscription plan created by a merchant.
@@ -203,6 +337,71 @@ pub struct UpgradeEvent {
 
 pub type SubscriptionId = u64;
 pub type MerchantId = Address;
+pub type PaymentMethodId = u64;
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum TokenType {
+    XLM,
+    USDC,
+    ETH,
+    Native,
+    MATIC,
+    ARB,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum PaymentPriority {
+    Primary,
+    Backup,
+    Fallback,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PaymentMethod {
+    pub id: PaymentMethodId,
+    pub user: Address,
+    pub token_type: TokenType,
+    pub token_address: Address,
+    pub chain_id: u64,
+    pub label: String,
+    pub priority: PaymentPriority,
+    pub max_spend_per_interval: i128,
+    pub is_verified: bool,
+    pub is_active: bool,
+    pub expires_at: u64,
+    pub last_used_at: u64,
+    pub created_at: u64,
+    pub updated_at: u64,
+    pub metadata: Vec<(String, String)>,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum PaymentAttemptStatus {
+    Pending,
+    Success,
+    Failed,
+    FallbackTriggered,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PaymentAttempt {
+    pub id: u64,
+    pub payment_method_id: PaymentMethodId,
+    pub subscription_id: u64,
+    pub amount: i128,
+    pub token_type: TokenType,
+    pub status: PaymentAttemptStatus,
+    pub failure_reason: String,
+    pub gas_price: i128,
+    pub gas_used: u64,
+    pub attempted_at: u64,
+    pub resolved_at: u64,
+}
 
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
@@ -229,6 +428,7 @@ pub enum RiskSignalKind {
     Chargeback,
     PatternShift,
     DeviceMismatch,
+    GeolocationAnomaly,
 }
 
 #[contracttype]
@@ -242,6 +442,16 @@ pub struct RiskSignal {
 
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
+pub struct FraudEvidence {
+    pub label: String,
+    pub value: String,
+    pub source: String,
+    pub captured_at: Timestamp,
+    pub confidence: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
 pub struct RiskScore {
     pub subscriber: Address,
     pub subscription_id: SubscriptionId,
@@ -250,10 +460,14 @@ pub struct RiskScore {
     pub velocity_score: u32,
     pub anomaly_score: u32,
     pub chargeback_score: u32,
+    pub device_mismatch_score: u32,
+    pub geolocation_score: u32,
+    pub pattern_shift_score: u32,
     pub action: FraudAction,
     pub reason: String,
     pub assessed_at: Timestamp,
     pub signals: Vec<RiskSignal>,
+    pub evidence: Vec<FraudEvidence>,
 }
 
 #[contracttype]
@@ -269,6 +483,8 @@ pub struct FraudCase {
     pub reason: String,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
+    pub evidence: Vec<FraudEvidence>,
+    pub reviewed_at: Timestamp,
 }
 
 #[contracttype]
@@ -282,14 +498,144 @@ pub struct FraudReport {
     pub average_risk: u32,
     pub velocity_alerts: u32,
     pub anomaly_alerts: u32,
+    pub geolocation_alerts: u32,
     pub chargeback_predictions: u32,
     pub high_risk_subscribers: u32,
+    pub pending_evidence_count: u32,
+    pub false_positive_feedback_count: u32,
     pub recent_cases: Vec<FraudCase>,
 }
 
-/// Storage keys for the proxy contract state.
+// ── Access Control Types ──
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum Role {
+    Admin,
+    Merchant,
+    Subscriber,
+    Auditor,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum Permission {
+    GrantRole,
+    RevokeRole,
+    DelegatePermission,
+    CreatePlan,
+    DeactivatePlan,
+    SetPlanQuotas,
+    SetRevenueRule,
+    Subscribe,
+    CancelSubscription,
+    PauseSubscription,
+    ResumeSubscription,
+    ChargeSubscription,
+    RequestRefund,
+    ApproveRefund,
+    RejectRefund,
+    RequestTransfer,
+    AcceptTransfer,
+    SetRateLimit,
+    RemoveRateLimit,
+    SetInvoiceContract,
+    ClearInvoiceContract,
+    UpgradeContract,
+    MigrateContract,
+    ViewAnalytics,
+    ViewAuditLog,
+    ViewPlans,
+    ViewSubscriptions,
+    SetEmergencyAdmin,
+    PauseEmergency,
+    SetAccessControl,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum RoleChangeAction {
+    Granted,
+    Revoked,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct RoleChangeEntry {
+    pub id: u64,
+    pub user: Address,
+    pub role: Role,
+    pub action: RoleChangeAction,
+    pub changed_by: Address,
+    pub timestamp: u64,
+}
+
+// ── Tax System Types (extended) ──
+
+/// Classification of digital goods for tax purposes (extended beyond DigitalGoodsCategory).
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum DigitalGoodsClass {
+    Standard,
+    ElectronicService,
+    Exempt,
+    ReducedRate,
+    TelecomService,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum MaybeDigitalGoodsClass {
+    None,
+    Some(DigitalGoodsClass),
+}
+
+/// A tax rate entry for a specific jurisdiction and tax type.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct TaxRateEntry {
+    pub jurisdiction_key: String,
+    pub tax_type: TaxType,
+    pub rate_bps: u32,
+    pub display_name: String,
+    pub effective_from: Timestamp,
+    pub effective_until: Timestamp,
+    pub applies_to_digital_goods: bool,
+    pub reverse_charge: bool,
+    pub nexus_threshold: i128,
+}
+
+/// Customer tax exemption status with certificate tracking.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct CustomerTaxStatus {
+    pub is_exempt: bool,
+    pub certificate_id: String,
+    pub certificate_expiry: Timestamp,
+    pub issuing_authority: String,
+    pub exempt_jurisdictions: Vec<String>,
+    pub digital_goods_override: MaybeDigitalGoodsClass,
+}
+
+/// A single line in a tax remittance report recording collected tax by jurisdiction.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct TaxRemittanceLineItem {
+    pub jurisdiction_key: String,
+    pub tax_type: TaxType,
+    pub taxable_amount: i128,
+    pub rate_bps: u32,
+    pub tax_collected: i128,
+    pub transaction_count: u32,
+    pub currency: String,
+}
+
+// ── Storage Keys ──
+/// Core storage keys for subscription, plan, invoice, and proxy state.
 ///
 /// IMPORTANT: Never reorder existing variants. Append new variants only.
+/// If this enum exceeds the Soroban `#[contracttype]` variant limit, split
+/// additional variants into `StorageKeyExt` and update callers accordingly.
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
 pub enum StorageKey {
@@ -323,16 +669,44 @@ pub enum StorageKey {
     ProxyUpgradeDelaySecs,
     ProxyRollbackDelaySecs,
     ProxyScheduledUpgrade,
-    ProxyPreviousImplementationCount,
+    ProxyPrevImplCount,
     ProxyPreviousImplementation(u32),
     ProxyUpgradeHistoryCount,
     ProxyUpgradeHistoryEntry(u32),
+
+    // ── Access Control & Oracle (shared across subscription + storage) ──
+    AccessControl,
+    OracleContract,
+    PriceBounds(u64),
+    TokenSymbol(Address),
 
     // ── Added in storage version 2 ──
     /// Index: (subscriber, plan_id) -> subscription_id (active/non-cancelled)
     UserPlanIndex(Address, u64),
 
-    // ── Added in storage version 3 ──
+    // ── Transient / Temporary storage ──
+    TmpLastCall(Address, String),
+    TmpProrationScratch(u64),
+    TmpChargeNonce(u64),
+    TmpChargeCommitment(u64),
+
+    // ── Admin-configurable limits ──
+    MaxPlansPerMerchant,
+    LargeChargeThreshold,
+}
+
+/// Extended storage keys for webhooks, revenue, quotas, cross-chain, and
+/// subscription-specific features.  Split from `StorageKey` to stay under the
+/// Soroban `#[contracttype]` variant limit (~50).
+///
+/// IMPORTANT: Never reorder existing variants. Append new variants only.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum StorageKeyExt {
+    // ── Proxy storage pointer ──
+    ProxyStorage,
+
+    // ── Webhooks (storage version 3) ──
     WebhookCount,
     Webhook(u64),
     MerchantWebhooks(Address),
@@ -340,34 +714,26 @@ pub enum StorageKey {
     WebhookDelivery(u64),
     WebhookDeliveriesByWebhook(u64),
 
-    /// Proxy pointer to the state storage contract.
-    ProxyStorage,
-
-    // ── Revenue recognition (added with revenue module) ──
-    /// RevenueRecognitionRule keyed by plan_id.
+    // ── Revenue recognition ──
     RevenueRecognitionRule(u64),
-    /// RevenueSchedule keyed by subscription_id.
     RevenueSchedule(u64),
-    /// Cumulative deferred revenue balance for a merchant.
     RevenueDeferredBalance(Address),
-    /// Cumulative recognised revenue balance for a merchant.
     RevenueRecognisedBalance(Address),
-    /// List of subscription IDs tracked for a merchant (for analytics).
     RevenueMerchantSubscriptions(Address),
 
-    // ── Added in storage version 4 (Quota & Usage) ──
-    /// List of quotas for a given plan (plan_id -> Vec<Quota>)
+    // ── Quota & Usage (storage version 4) ──
     PlanQuotas(u64),
-    /// Usage record for a subscription and metric (sub_id, metric -> UsageRecord)
     SubscriptionUsage(u64, QuotaMetric),
 
-    // ── Added in storage version 5 (Oracle Integration) ──
-    /// Address of the oracle contract for price feeds.
-    OracleContract,
-    /// Price bounds for slippage protection, keyed by plan_id.
-    PriceBounds(u64),
-    /// Mapping from token address to symbol name (for oracle lookups).
-    TokenSymbol(Address),
+    // ── Cross-Chain (storage version 9) ──
+    CrossChainTransfer(u64),
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ChargeCommitment {
+    pub hash: BytesN<32>,
+    pub committed_at: u64,
 }
 
 /// Slippage protection bounds for oracle-based pricing.
@@ -379,5 +745,362 @@ pub struct PriceBounds {
     /// Minimum allowed price as basis points of the stored plan price (e.g. 9500 = -5%).
     pub min_price_bps: u32,
     /// Quote currency symbol used for price lookup (e.g. "USD").
-    pub quote: String,
+    pub quote: Symbol,
+}
+
+pub type ApiKeyId = u64;
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum ApiKeyStatus {
+    Active,
+    Revoked,
+    Expired,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum UsageTier {
+    Free,
+    Basic,
+    Pro,
+    Enterprise,
+}
+
+impl UsageTier {
+    pub fn default_rate_limit(&self) -> RateLimitConfig {
+        match self {
+            UsageTier::Free => RateLimitConfig {
+                requests_per_minute: 100,
+                requests_per_hour: 1_000,
+                requests_per_day: 10_000,
+                burst_limit: 10,
+            },
+            UsageTier::Basic => RateLimitConfig {
+                requests_per_minute: 1_000,
+                requests_per_hour: 10_000,
+                requests_per_day: 100_000,
+                burst_limit: 50,
+            },
+            UsageTier::Pro => RateLimitConfig {
+                requests_per_minute: 10_000,
+                requests_per_hour: 100_000,
+                requests_per_day: 1_000_000,
+                burst_limit: 200,
+            },
+            UsageTier::Enterprise => RateLimitConfig {
+                requests_per_minute: 100_000,
+                requests_per_hour: 1_000_000,
+                requests_per_day: 10_000_000,
+                burst_limit: 1000,
+            },
+        }
+    }
+
+    pub fn price_per_thousand(&self) -> i128 {
+        match self {
+            UsageTier::Free => 0,
+            UsageTier::Basic => 1,       // 0.001 per 1k requests (in stroops)
+            UsageTier::Pro => 5,         // 0.005 per 1k
+            UsageTier::Enterprise => 10, // 0.01 per 1k
+        }
+    }
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct RateLimitConfig {
+    pub requests_per_minute: u32,
+    pub requests_per_hour: u32,
+    pub requests_per_day: u32,
+    pub burst_limit: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ApiKeyConfig {
+    pub name: String,
+    pub rate_limit: RateLimitConfig,
+    pub usage_tier: UsageTier,
+    pub expires_at: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ApiKey {
+    pub id: ApiKeyId,
+    pub owner: Address,
+    pub key_hash: BytesN<32>,
+    pub name: String,
+    pub rate_limit: RateLimitConfig,
+    pub usage_tier: UsageTier,
+    pub status: ApiKeyStatus,
+    pub created_at: u64,
+    pub expires_at: u64,
+    pub last_used_at: u64,
+    pub revoked_at: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct RateLimitWindow {
+    pub window_start: u64,
+    pub count: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ApiUsageRecord {
+    pub window_start: u64,
+    pub count: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct RateLimitStatus {
+    pub is_allowed: bool,
+    pub remaining: u32,
+    pub reset_at: u64,
+    pub retry_after: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct UsageReport {
+    pub key_id: ApiKeyId,
+    pub period: TimeRange,
+    pub total_requests: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ApiKeyAuditEntry {
+    pub id: u64,
+    pub key_id: ApiKeyId,
+    pub action: String,
+    pub changed_by: Address,
+    pub timestamp: u64,
+}
+
+// ── Billing ──
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct BillingSchedule {
+    pub interval: Interval,
+    pub start_date: u64,
+    pub custom_invoice_day: u32,
+    pub promotional_duration_days: u32,
+    pub promotional_rate: i128,
+}
+
+// ── Charging / Retry ──
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum ChargeStatus {
+    Pending,
+    Attempting,
+    Completed,
+    Exhausted,
+    Retrying,
+    Failed,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct RetryConfig {
+    pub max_retries: u32,
+    pub base_delay_secs: u64,
+    pub max_delay_secs: u64,
+    pub backoff_factor: u32,
+    pub circuit_breaker_threshold: u32,
+    pub circuit_breaker_cooldown_secs: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ChargeAttempt {
+    pub id: u64,
+    pub subscription_id: u64,
+    pub status: ChargeStatus,
+    pub amount: i128,
+    pub attempted_at: u64,
+    pub completed_at: u64,
+    pub error_message: String,
+    pub retry_count: u32,
+    pub max_retries: u32,
+    pub next_retry_at: u64,
+    pub circuit_breaker_until: u64,
+}
+
+// ── Loyalty & Rewards ──
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct LoyaltyTierConfig {
+    pub points_threshold: u64,
+    pub name: String,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct LoyaltyConfig {
+    pub points_per_dollar: u64,
+    pub expiration_days: u64,
+    pub streak_bonus_threshold: u64,
+    pub tiers: Vec<LoyaltyTierConfig>,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum PointTxType {
+    Earned,
+    Expired,
+    StreakBonus,
+    ReferralBonus,
+    Redeemed,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PointTransaction {
+    pub id: u64,
+    pub subscriber: Address,
+    pub amount: i128,
+    pub tx_type: PointTxType,
+    pub timestamp: u64,
+    pub reference_id: u64,
+    pub description: String,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct RewardsRedemption {
+    pub id: u64,
+    pub subscriber: Address,
+    pub points_cost: u64,
+    pub discount_amount: i128,
+    pub timestamp: u64,
+}
+
+// ── Webhooks ──
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum WebhookEventType {
+    SubscriptionCreated,
+    SubscriptionCancelled,
+    SubscriptionPaused,
+    SubscriptionResumed,
+    SubscriptionCharged,
+    RefundRequested,
+    RefundApproved,
+    RefundRejected,
+    PlanCreated,
+    PlanDeactivated,
+    TransferRequested,
+    TransferAccepted,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum WebhookDeliveryStatus {
+    Paused,
+    Pending,
+    Failed,
+    Retrying,
+    Delivered,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct WebhookRetryPolicy {
+    pub max_retries: u32,
+    pub initial_delay_secs: u64,
+    pub backoff_factor: u32,
+    pub max_delay_secs: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct WebhookConfig {
+    pub id: u64,
+    pub merchant: Address,
+    pub events: Vec<WebhookEventType>,
+    pub is_paused: bool,
+    pub retry_policy: WebhookRetryPolicy,
+    pub created_at: u64,
+    pub updated_at: u64,
+    pub health_check_at: u64,
+    pub healthy: bool,
+    pub success_count: u64,
+    pub failure_count: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct WebhookPlanSnapshot {
+    pub id: u64,
+    pub merchant: Address,
+    pub name: String,
+    pub price: i128,
+    pub token: Address,
+    pub interval: Interval,
+    pub active: bool,
+    pub subscriber_count: u32,
+    pub created_at: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct WebhookSubscriptionSnapshot {
+    pub id: u64,
+    pub plan_id: u64,
+    pub subscriber: Address,
+    pub status: SubscriptionStatus,
+    pub started_at: u64,
+    pub last_charged_at: u64,
+    pub next_charge_at: u64,
+    pub total_paid: i128,
+    pub total_gas_spent: u64,
+    pub charge_count: u32,
+    pub paused_at: u64,
+    pub pause_duration: u64,
+    pub refund_requested_amount: i128,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct WebhookEventPayload {
+    pub id: u64,
+    pub webhook_id: u64,
+    pub event_type: WebhookEventType,
+    pub merchant: Address,
+    pub occurred_at: u64,
+    pub subscription: WebhookSubscriptionSnapshot,
+    pub plan: WebhookPlanSnapshot,
+    pub previous_status: SubscriptionStatus,
+    pub current_status: SubscriptionStatus,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct WebhookDelivery {
+    pub id: u64,
+    pub webhook_id: u64,
+    pub event_id: u64,
+    pub event_type: WebhookEventType,
+    pub payload: WebhookEventPayload,
+    pub status: WebhookDeliveryStatus,
+    pub attempts: u32,
+    pub max_attempts: u32,
+    pub next_retry_at: u64,
+    pub last_attempt_at: u64,
+    pub delivered_at: u64,
+    pub response_code: u32,
+    pub error_message: String,
+    pub signature: String,
+    pub created_at: u64,
+    pub updated_at: u64,
 }

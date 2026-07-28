@@ -278,8 +278,8 @@ app.post('/webhooks', (req, res) => {
       },
     ];
 
-    this.sections.forEach(section => {
-      section.articles.forEach(article => {
+    this.sections.forEach((section) => {
+      section.articles.forEach((article) => {
         this.articles.set(article.slug, article);
       });
     });
@@ -310,7 +310,7 @@ app.post('/webhooks', (req, res) => {
   }
 
   async getSection(sectionId: string): Promise<DocumentationSection | null> {
-    return this.sections.find(s => s.id === sectionId) || null;
+    return this.sections.find((s) => s.id === sectionId) || null;
   }
 
   async getArticle(slug: string): Promise<DocumentationArticle | null> {
@@ -321,12 +321,10 @@ app.post('/webhooks', (req, res) => {
     const lowerQuery = query.toLowerCase();
     const results: DocumentationArticle[] = [];
 
-    this.articles.forEach(article => {
+    this.articles.forEach((article) => {
       const matchesTitle = article.title.toLowerCase().includes(lowerQuery);
       const matchesContent = article.content.toLowerCase().includes(lowerQuery);
-      const matchesTags = article.tags.some(tag =>
-        tag.toLowerCase().includes(lowerQuery)
-      );
+      const matchesTags = article.tags.some((tag) => tag.toLowerCase().includes(lowerQuery));
 
       if (matchesTitle || matchesContent || matchesTags) {
         results.push(article);
@@ -347,7 +345,7 @@ app.post('/webhooks', (req, res) => {
     if (!article) return [];
 
     return Array.from(this.articles.values())
-      .filter(a => a.slug !== slug && a.category === article.category)
+      .filter((a) => a.slug !== slug && a.category === article.category)
       .slice(0, 3);
   }
 }

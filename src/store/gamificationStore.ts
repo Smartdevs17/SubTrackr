@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { asyncStorageAdapter } from '../utils/storage';
 import { UserProgress, AchievementTrigger } from '../types/gamification';
 import { gamificationService } from '../services/gamificationService';
 import { presentLocalNotification } from '../services/notificationService';
@@ -92,7 +92,7 @@ export const useGamificationStore = create<GamificationState>()(
     }),
     {
       name: STORAGE_KEY,
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => asyncStorageAdapter),
     }
   )
 );

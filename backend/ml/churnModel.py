@@ -1,6 +1,7 @@
 import math
 import random
 from typing import Dict, List, Optional
+from .logger import logger
 
 class ChurnPredictionModel:
     def __init__(self):
@@ -36,10 +37,11 @@ class ChurnPredictionModel:
         
         return features
 
-    def predict_churn(self, subscriber_address: str, user_data: Dict) -> Dict:
+    def predict_churn(self, subscriber_address: str, user_data: Dict, correlation_id: str = None) -> Dict:
         """
         Predict churn probability and return risk scoring.
         """
+        logger.info(f"Predicting churn for {subscriber_address}", correlation_id=correlation_id)
         features = self._extract_features(user_data)
         
         # Calculate risk score (0.0 to 1.0)
@@ -62,13 +64,15 @@ class ChurnPredictionModel:
             for factor in sorted_factors if factor[1] > 0.1
         ]
         
-        return {
+        result = {
             "subscriber": subscriber_address,
             "churn_probability": round(risk_score, 4),
             "risk_level": risk_level,
             "risk_factors": top_factors,
             "recommended_action": self._get_recommended_action(risk_level, top_factors)
         }
+        logger.debug(f"Churn prediction result for {subscriber_address}: {risk_score}", correlation_id=correlation_id)
+        return result
         
     def _get_recommended_action(self, risk_level: str, top_factors: List[Dict]) -> str:
         if risk_level == "Low":
@@ -84,6 +88,35 @@ class ChurnPredictionModel:
             return "Prioritize open support tickets for immediate resolution."
         else:
             return "Offer a 1-month free subscription to retain user."
+
+
+class RevenueForecastModel:
+    def forecast(self, observations: List[Dict], horizon: int = 3) -> List[Dict]:
+        values = [float(item.get("revenue", 0)) for item in observations]
+        if not values:
+            return []
+
+        latest = values[-1]
+        deltas = [values[index] - values[index - 1] for index in range(1, len(values))]
+        average_delta = sum(deltas) / len(deltas) if deltas else 0
+        variance = (
+            sum((delta - average_delta) ** 2 for delta in deltas) / len(deltas)
+            if deltas
+            else max(latest * 0.05, 1)
+        )
+        deviation = math.sqrt(variance)
+
+        forecast = []
+        for step in range(1, horizon + 1):
+            expected = max(0, latest + average_delta * step)
+            confidence = deviation * math.sqrt(step) * 1.96
+            forecast.append({
+                "period": f"forecast_{step}",
+                "expected_revenue": round(expected, 2),
+                "lower_bound": round(max(0, expected - confidence), 2),
+                "upper_bound": round(expected + confidence, 2),
+            })
+        return forecast
 
 if __name__ == "__main__":
     model = ChurnPredictionModel()

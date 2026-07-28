@@ -131,4 +131,74 @@ describe('accountingExport', () => {
     expect(schedules[0]?.lastRunAt).toBe(fixedNow);
     expect(schedules[0]?.nextRunAt).toBeGreaterThan(fixedNow);
   });
+
+  it('exports JSON format with all fields', async () => {
+    const result = await export_to_accounting('merchant-4', 'json', {
+      subscriptions: [makeSubscription()],
+      now: fixedNow,
+    });
+
+    expect(result.mimeType).toBe('application/json');
+    expect(result.fileName).toMatch(/\.json$/);
+    const parsed = JSON.parse(result.content);
+    expect(Array.isArray(parsed)).toBe(true);
+    expect(parsed[0]).toMatchObject({
+      merchantId: 'merchant-4',
+      subscriptionId: 'sub_1',
+      subscriptionName: 'Slack',
+      transactionType: 'revenue',
+      price: 12.5,
+    });
+  });
+
+  it('filters by date range', () => {
+    const inRange = makeSubscription({ nextBillingDate: new Date(Date.UTC(2026, 1, 15)) });
+    const outOfRange = makeSubscription({
+      id: 'sub_out',
+      nextBillingDate: new Date(Date.UTC(2026, 5, 1)),
+    });
+
+    const csv = buildAccountingExportCsv([inRange, outOfRange], 'merchant-5', 'csv', {
+      includeInactive: true,
+      dateFrom: Date.UTC(2026, 0, 1),
+      dateTo: Date.UTC(2026, 2, 31),
+    });
+
+    expect(csv).toContain('sub_1');
+    expect(csv).not.toContain('sub_out');
+  });
+
+  it('filters by transaction type', () => {
+    const active = makeSubscription({ id: 'active_sub', isActive: true });
+    const inactive = makeSubscription({ id: 'inactive_sub', isActive: false });
+
+    const csv = buildAccountingExportCsv([active, inactive], 'merchant-6', 'csv', {
+      includeInactive: true,
+      transactionTypes: ['revenue'],
+    });
+
+    expect(csv).toContain('active_sub');
+    expect(csv).not.toContain('inactive_sub');
+  });
+
+  it('includes deferred revenue column when requested', () => {
+    const csv = buildAccountingExportCsv([makeSubscription()], 'merchant-7', 'csv', {
+      includeDeferredRevenue: true,
+      deferredRevenueMap: { sub_1: 5.25 },
+    });
+
+    expect(csv).toContain('"DeferredRevenue"');
+    expect(csv).toContain('"5.25"');
+  });
+
+  it('stores content in history for re-download', async () => {
+    await export_to_accounting('merchant-8', 'csv', {
+      subscriptions: [makeSubscription()],
+      now: fixedNow,
+    });
+
+    const history = await get_export_history('merchant-8');
+    expect(history[0]?.content).toBeTruthy();
+    expect(history[0]?.content).toContain('sub_1');
+  });
 });
