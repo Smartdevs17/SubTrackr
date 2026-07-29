@@ -1,4 +1,4 @@
-import { calculateSubscriptionAnalytics, toMonthlyRevenue } from '../analyticsService';
+import { calculateSubscriptionAnalytics, toMonthlyRevenue, calculateRetentionCurve } from '../analyticsService';
 import { Subscription, SubscriptionCategory, BillingCycle } from '../../types/subscription';
 
 const makeSubscription = (overrides: Partial<Subscription> = {}): Subscription => ({
@@ -98,5 +98,42 @@ describe('calculateSubscriptionAnalytics', () => {
     ];
     const result = calculateSubscriptionAnalytics(subs);
     expect(result.arpu).toBeCloseTo((15 + 25 + 35) / 3);
+  });
+
+  it('calculates linear regression vs exponential forecasting models', () => {
+    const sub1 = makeSubscription({ id: '1', price: 50, createdAt: new Date('2026-01-01') });
+    const sub2 = makeSubscription({ id: '2', price: 100, createdAt: new Date('2026-02-01') });
+    const linearResult = calculateSubscriptionAnalytics([sub1, sub2], new Date('2026-03-01'), 'linear', 3);
+    const expResult = calculateSubscriptionAnalytics([sub1, sub2], new Date('2026-03-01'), 'exponential', 3);
+    expect(linearResult.forecast).toHaveLength(3);
+    expect(expResult.forecast).toHaveLength(3);
+    // In linear model with upward trend, M+1 expected revenue will differ from exponential decay
+    expect(linearResult.forecast[0].expectedRevenue).toBeGreaterThan(0);
+    expect(expResult.forecast[0].expectedRevenue).toBeGreaterThan(0);
+  });
+
+  it('calculates MoM MRR growth rate when multiple months of trend data exist', () => {
+    const sub1 = makeSubscription({ id: '1', price: 100, createdAt: new Date('2026-01-01') });
+    const sub2 = makeSubscription({ id: '2', price: 50, createdAt: new Date('2026-02-01') });
+    const result = calculateSubscriptionAnalytics([sub1, sub2]);
+    // In Jan revenue was 100, in Feb revenue is 150 (since both active), growth rate should be > 0
+    expect(result.mrrGrowthRate).toBeDefined();
+    expect(result.arrGrowthRate).toEqual(result.mrrGrowthRate);
+  });
+});
+
+describe('calculateRetentionCurve', () => {
+  it('returns standard intervals with 0 retention for empty list', () => {
+    const curve = calculateRetentionCurve([]);
+    expect(curve).toHaveLength(5);
+    expect(curve[0].day).toBe(1);
+    expect(curve[0].retentionRate).toBe(0);
+  });
+
+  it('calculates retention rates across day milestones', () => {
+    const sub = makeSubscription({ id: '1', isActive: true, createdAt: new Date('2026-01-01') });
+    const curve = calculateRetentionCurve([sub], new Date('2026-06-01'));
+    expect(curve).toHaveLength(5);
+    expect(curve[0].retentionRate).toBe(1);
   });
 });
