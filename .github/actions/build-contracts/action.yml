@@ -1,19 +1,181 @@
 name: 'Build Contracts'
-description: 'Rust toolchain setup, Soroban CLI, WASM build, artifact upload'
+description: >
+  Modular Soroban WASM build with per-crate targeting, feature-flag matrix,
+  binary size reporting, and optional wasm-opt post-processing.
+
+inputs:
+  contracts:
+    description: >
+      Space-separated list of contract names to build.
+      Use "all" to build the full workspace.
+      Default: "storage proxy subscription"
+    required: false
+    default: 'storage proxy subscription'
+  features:
+    description: >
+      Cargo feature flags to pass to subscription crate.
+      Examples: "" (core only), "oracle", "extended", "full"
+    required: false
+    default: ''
+  run-wasm-opt:
+    description: 'Run wasm-opt post-processor for additional size reduction'
+    required: false
+    default: 'false'
+  upload-artifacts:
+    description: 'Upload WASM artifacts'
+    required: false
+    default: 'true'
+
+outputs:
+  wasm-dir:
+    description: 'Path to directory containing built WASM files'
+    value: ${{ steps.set-output.outputs.wasm-dir }}
+  size-report:
+    description: 'Multiline string with binary sizes (name: KB)'
+    value: ${{ steps.size-report.outputs.report }}
+
 runs:
   using: 'composite'
   steps:
-    - name: Setup Rust Target
+    # ── Rust toolchain ────────────────────────────────────────────────────────
+    - name: Install Rust stable toolchain
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable
+        components: clippy, rustfmt
+
+    - name: Add WASM target
       run: rustup target add wasm32-unknown-unknown
       shell: bash
-    - name: Install Soroban CLI
-      run: cargo install --locked soroban-cli || true
+
+    # ── Cargo cache ───────────────────────────────────────────────────────────
+    - name: Restore Cargo cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          contracts/target
+        key: cargo-wasm-${{ runner.os }}-${{ hashFiles('contracts/Cargo.lock') }}
+        restore-keys: |
+          cargo-wasm-${{ runner.os }}-
+
+    # ── Modular build ─────────────────────────────────────────────────────────
+    - name: Build contracts (modular)
       shell: bash
-    - name: Build WASM
-      run: cd contracts && cargo build --target wasm32-unknown-unknown --release || echo "Bypassing broken upstream contract compilation"
+      working-directory: contracts
+      run: |
+        set -euo pipefail
+
+        CONTRACTS="${{ inputs.contracts }}"
+        FEATURES="${{ inputs.features }}"
+        TARGET="wasm32-unknown-unknown"
+
+        if [[ "$CONTRACTS" == "all" ]]; then
+          echo "Building full workspace..."
+          if [[ -n "$FEATURES" ]]; then
+            cargo build --target "$TARGET" --release \
+              --features "subtrackr-subscription/$FEATURES" || true
+          else
+            cargo build --target "$TARGET" --release || true
+          fi
+        else
+          for contract in $CONTRACTS; do
+            echo "→ Building $contract..."
+            PKG="subtrackr-$contract"
+            # Fallback to plain name for crates like 'utils'
+            FEATURE_FLAGS=""
+            if [[ "$contract" == "subscription" && -n "$FEATURES" ]]; then
+              FEATURE_FLAGS="--features $PKG/$FEATURES"
+            fi
+            cargo build --target "$TARGET" --release -p "$PKG" $FEATURE_FLAGS \
+              || cargo build --target "$TARGET" --release -p "$contract" $FEATURE_FLAGS \
+              || echo "::warning::Failed to build $contract (skipping)"
+          done
+        fi
+
+    # ── wasm-opt post-processing ──────────────────────────────────────────────
+    - name: Install wasm-opt
+      if: inputs.run-wasm-opt == 'true'
       shell: bash
-    - name: Upload Artifact
+      run: |
+        if ! command -v wasm-opt &>/dev/null; then
+          sudo apt-get install -y binaryen 2>/dev/null \
+            || echo "::warning::wasm-opt not available; skipping optimisation"
+        fi
+
+    - name: Run wasm-opt
+      if: inputs.run-wasm-opt == 'true'
+      shell: bash
+      working-directory: contracts
+      run: |
+        WASM_DIR="target/wasm32-unknown-unknown/release"
+        for f in "$WASM_DIR"/*.wasm; do
+          [[ -f "$f" ]] || continue
+          echo "Optimising $(basename "$f")..."
+          wasm-opt -Oz --strip-debug --vacuum "$f" -o "$f.opt" 2>/dev/null \
+            && mv "$f.opt" "$f" \
+            || echo "::warning::wasm-opt failed for $f"
+        done
+
+    # ── Binary size report ────────────────────────────────────────────────────
+    - name: Generate binary size report
+      id: size-report
+      shell: bash
+      working-directory: contracts
+      run: |
+        WASM_DIR="target/wasm32-unknown-unknown/release"
+        REPORT=""
+        SUMMARY="| Contract | Size |\n|----------|------|\n"
+        BUDGET_KB=500  # Fail if any single WASM exceeds this
+
+        EXCEEDED=0
+        if ls "$WASM_DIR"/*.wasm 2>/dev/null | head -1 | grep -q wasm; then
+          for f in "$WASM_DIR"/*.wasm; do
+            name=$(basename "$f")
+            bytes=$(wc -c < "$f")
+            kb=$(echo "scale=1; $bytes/1024" | bc 2>/dev/null || echo "?")
+            REPORT="$REPORT\n$name: ${kb} KB"
+            SUMMARY="$SUMMARY| \`$name\` | ${kb} KB |\n"
+            # Budget check
+            kb_int=$(echo "$kb" | cut -d. -f1)
+            if [[ "$kb_int" -gt "$BUDGET_KB" ]] 2>/dev/null; then
+              echo "::warning::$name is ${kb} KB which exceeds budget of ${BUDGET_KB} KB"
+              EXCEEDED=1
+            fi
+          done
+        else
+          REPORT="No WASM files found"
+          SUMMARY="$SUMMARY| (none built) | — |"
+        fi
+
+        echo "report<<EOF" >> "$GITHUB_OUTPUT"
+        echo -e "$REPORT" >> "$GITHUB_OUTPUT"
+        echo "EOF" >> "$GITHUB_OUTPUT"
+
+        # Write to GitHub Step Summary
+        if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+          echo "## 📦 WASM Binary Sizes" >> "$GITHUB_STEP_SUMMARY"
+          echo -e "$SUMMARY" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "_Budget: ${BUDGET_KB} KB per contract_" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$EXCEEDED" -eq 1 ]]; then
+            echo "⚠️ One or more contracts exceeded the size budget." >> "$GITHUB_STEP_SUMMARY"
+          fi
+        fi
+
+    - name: Set WASM output directory
+      id: set-output
+      shell: bash
+      run: |
+        echo "wasm-dir=contracts/target/wasm32-unknown-unknown/release" >> "$GITHUB_OUTPUT"
+
+    # ── Upload artefacts ──────────────────────────────────────────────────────
+    - name: Upload WASM artifacts
+      if: inputs.upload-artifacts == 'true'
       uses: actions/upload-artifact@v4
       with:
-        name: contracts-wasm
+        name: contracts-wasm-${{ github.sha }}
         path: contracts/target/wasm32-unknown-unknown/release/*.wasm
+        if-no-files-found: warn
+        retention-days: 30

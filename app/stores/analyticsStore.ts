@@ -22,59 +22,15 @@ import { useCreditStore } from './creditStore';
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
 
-const computeCreditSnapshot = (): CreditMetricSnapshot => {
-  const state = useCreditStore.getState();
-  const accounts = Object.values(state.accounts);
-  let issued = 0;
-  let applied = 0;
-  let expired = 0;
-  let transferredIn = 0;
-  let transferredOut = 0;
-  let outstandingLots = 0;
-  let outstandingBalance = 0;
-  let expiring7d = 0;
-  let expiring30d = 0;
-  const nowSec = Math.floor(Date.now() / 1000);
-  for (const acc of accounts) {
-    outstandingBalance += acc.balance;
-    for (const lot of acc.lots) {
-      if (lot.remaining <= 0) continue;
-      outstandingLots += 1;
-      if (lot.expiresAt) {
-        const daysLeft = Math.ceil((lot.expiresAt - nowSec) / 86_400);
-        if (daysLeft <= 7) expiring7d += lot.remaining;
-        else if (daysLeft <= 30) expiring30d += lot.remaining;
-      }
-    }
-    for (const tx of acc.transactions) {
-      if (tx.kind === 'issue') issued += tx.amount;
-      else if (tx.kind === 'apply') applied += Math.abs(tx.amount);
-      else if (tx.kind === 'expire') expired += Math.abs(tx.amount);
-      else if (tx.kind === 'transfer_in') transferredIn += tx.amount;
-      else if (tx.kind === 'transfer_out') transferredOut += Math.abs(tx.amount);
-    }
-  }
-  const consumptionRate = issued > 0 ? Math.round((applied / issued) * 100) : 0;
-  return {
-    outstandingBalance,
-    outstandingLots,
-    lifetimeIssued: issued,
-    lifetimeApplied: applied,
-    lifetimeExpired: expired,
-    lifetimeTransferredIn: transferredIn,
-    lifetimeTransferredOut: transferredOut,
-    consumptionRate,
-    expiringWithin7d: expiring7d,
-    expiringWithin30d: expiring30d,
-  };
-};
+export const DEFAULT_WIDGETS = [
+  'overview',
+  'revenueTrend',
+  'cohortHeatmap',
+  'churnBreakdown',
+  'forecast',
+  'planMigrations',
+];
 
-/**
- * Adapts the app's personal Subscription model into merchant-style
- * SubscriberRecords so CohortService (built for the merchant analytics
- * platform) can compute cohort/retention/churn/LTV metrics on it. Each
- * tracked subscription stands in for a "subscriber" of this account.
- */
 const toSubscriberRecords = (subscriptions: Subscription[]): SubscriberRecord[] =>
   subscriptions.map((subscription) => ({
     subscriberId: subscription.id,
@@ -112,6 +68,9 @@ interface CreditMetricSnapshot {
 interface AnalyticsStoreState {
   report: SubscriptionAnalyticsReport | null;
   granularity: CohortGranularity;
+  forecastModel: 'linear' | 'exponential';
+  enabledWidgets: string[];
+  widgetOrder: string[];
   cohortBuckets: CohortBucket[];
   retentionCurve: RetentionCurvePoint[];
   churnBreakdown: ChurnBreakdown | null;
@@ -120,15 +79,24 @@ interface AnalyticsStoreState {
   revenueTrendWithAnomalies: AnomalyFlaggedPoint[];
   creditSnapshot: CreditMetricSnapshot | null;
   setGranularity: (granularity: CohortGranularity) => void;
+  setForecastModel: (model: 'linear' | 'exponential') => void;
+  toggleWidget: (widgetId: string) => void;
+  reorderWidgets: (newOrder: string[]) => void;
+  resetWidgetConfig: () => void;
   compute: (subscriptions: Subscription[]) => void;
   exportCSV: (subscriptions: Subscription[]) => string;
   exportCohortCsv: () => string;
   exportCohortPdf: () => string;
+  exportSummaryCsv: () => string;
+  exportSummaryText: () => string;
 }
 
 export const useAnalyticsStore = create<AnalyticsStoreState>()((set, get) => ({
   report: null,
   granularity: 'month',
+  forecastModel: 'exponential',
+  enabledWidgets: [...DEFAULT_WIDGETS],
+  widgetOrder: [...DEFAULT_WIDGETS],
   cohortBuckets: [],
   retentionCurve: [],
   churnBreakdown: null,
@@ -139,14 +107,34 @@ export const useAnalyticsStore = create<AnalyticsStoreState>()((set, get) => ({
 
   setGranularity: (granularity) => {
     set({ granularity });
-    // Recompute is cheap (in-memory, no I/O) — callers re-run `compute` with
-    // the latest subscriptions list whenever granularity changes.
+  },
+
+  setForecastModel: (forecastModel) => {
+    set({ forecastModel });
+  },
+
+  toggleWidget: (widgetId) => {
+    const { enabledWidgets } = get();
+    const isEnabled = enabledWidgets.includes(widgetId);
+    if (isEnabled && enabledWidgets.length <= 1) return; // Prevent disabling all widgets
+    const updated = isEnabled
+      ? enabledWidgets.filter((id) => id !== widgetId)
+      : [...enabledWidgets, widgetId];
+    set({ enabledWidgets: updated });
+  },
+
+  reorderWidgets: (newOrder) => {
+    set({ widgetOrder: newOrder });
+  },
+
+  resetWidgetConfig: () => {
+    set({ enabledWidgets: [...DEFAULT_WIDGETS], widgetOrder: [...DEFAULT_WIDGETS] });
   },
 
   compute: (subscriptions) => {
-    const report = calculateSubscriptionAnalytics(subscriptions);
+    const { granularity, forecastModel } = get();
+    const report = calculateSubscriptionAnalytics(subscriptions, new Date(), forecastModel, 3);
     const records = toSubscriberRecords(subscriptions);
-    const granularity = get().granularity;
     const now = Date.now();
     const periodStart = now - 30 * DAY_MS;
 
@@ -171,6 +159,52 @@ export const useAnalyticsStore = create<AnalyticsStoreState>()((set, get) => ({
   exportCohortCsv: () => cohortTableToCsv(get().cohortBuckets),
 
   exportCohortPdf: () => cohortTableToPdfText(get().cohortBuckets, 'Cohort Retention Report'),
+
+  exportSummaryCsv: () => {
+    const { report, forecastModel } = get();
+    if (!report) return '';
+    const headers = ['Metric', 'Value'];
+    const rows = [
+      ['MRR', report.mrr.toFixed(2)],
+      ['ARR', report.arr.toFixed(2)],
+      ['MRR Growth Rate (%)', report.mrrGrowthRate.toFixed(2)],
+      ['ARR Growth Rate (%)', report.arrGrowthRate.toFixed(2)],
+      ['ARPU', report.arpu.toFixed(2)],
+      ['LTV', report.ltv.toFixed(2)],
+      ['Active Subscribers', report.subscriberCount.toString()],
+      ['Gross Churn Rate (%)', (report.churn.grossChurnRate * 100).toFixed(2)],
+      ['Net Churn Rate (%)', (report.churn.netChurnRate * 100).toFixed(2)],
+      ['Forecast Model', forecastModel],
+    ];
+    report.forecast.forEach((f) => {
+      rows.push([`Forecast ${f.label} (Expected Revenue)`, f.expectedRevenue.toFixed(2)]);
+    });
+    return [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+  },
+
+  exportSummaryText: () => {
+    const { report, forecastModel } = get();
+    if (!report) return 'No analytics computed yet.';
+    return [
+      '========================================',
+      '     SUBTRACKR ANALYTICS SUMMARY        ',
+      '========================================',
+      `Active MRR:           $${report.mrr.toFixed(2)} (${report.mrrGrowthRate >= 0 ? '+' : ''}${report.mrrGrowthRate.toFixed(1)}% MoM)`,
+      `Active ARR:           $${report.arr.toFixed(2)} (${report.arrGrowthRate >= 0 ? '+' : ''}${report.arrGrowthRate.toFixed(1)}% YoY)`,
+      `ARPU:                 $${report.arpu.toFixed(2)}`,
+      `Customer LTV:         $${report.ltv.toFixed(2)}`,
+      `Active Subscribers:   ${report.subscriberCount}`,
+      `Gross Churn Rate:     ${(report.churn.grossChurnRate * 100).toFixed(1)}%`,
+      `Net Churn Rate:       ${(report.churn.netChurnRate * 100).toFixed(1)}%`,
+      '----------------------------------------',
+      `Revenue Forecast (${forecastModel.toUpperCase()} MODEL):`,
+      ...report.forecast.map(
+        (f) =>
+          `  - ${f.label}: $${f.expectedRevenue.toFixed(2)} (Range: $${f.lowerBound.toFixed(2)} - $${f.upperBound.toFixed(2)})`
+      ),
+      '========================================',
+    ].join('\n');
+  },
 }));
 
 export type { CreditMetricSnapshot };
