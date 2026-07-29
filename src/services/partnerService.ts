@@ -1,16 +1,13 @@
 import type {
   SplitConfiguration,
-  SplitExecution,
   SplitTier,
-  Partner,
   PartnerEarnings,
   PayoutRecord,
-  SplitType,
 } from '../types/partner';
-import { PartnerStatus, PartnerPayoutSchedule } from '../types/partner';
+import { PartnerPayoutSchedule } from '../types/partner';
 
 export interface SplitResult {
-  splits: Array<{ partnerId: string; amount: number; percentage: number }>;
+  splits: { partnerId: string; amount: number; percentage: number }[];
   platformRevenue: number;
   totalSplit: number;
 }
@@ -91,12 +88,15 @@ export class SplitEngine {
 
     const sortedTiers = [...tiers].sort((a, b) => a.threshold - b.threshold);
     let remaining = grossAmount;
-    const splits: Array<{ partnerId: string; amount: number; percentage: number }> = [];
+    const splits: { partnerId: string; amount: number; percentage: number }[] = [];
 
     for (const tier of sortedTiers) {
       if (remaining <= 0) break;
 
-      const tierAmount = Math.min(tier.fixedAmount ?? remaining * (tier.splitPercentage / 100), remaining);
+      const tierAmount = Math.min(
+        tier.fixedAmount ?? remaining * (tier.splitPercentage / 100),
+        remaining
+      );
       if (tierAmount <= 0) continue;
 
       splits.push({
@@ -115,10 +115,7 @@ export class SplitEngine {
     };
   }
 
-  static executeWaterfall(
-    configurations: SplitConfiguration[],
-    grossAmount: number
-  ): SplitResult {
+  static executeWaterfall(configurations: SplitConfiguration[], grossAmount: number): SplitResult {
     const sorted = [...configurations].sort((a, b) => {
       const priorityA = a.tiers?.[0]?.priority ?? 0;
       const priorityB = b.tiers?.[0]?.priority ?? 0;
@@ -126,7 +123,7 @@ export class SplitEngine {
     });
 
     let remaining = grossAmount;
-    const allSplits: Array<{ partnerId: string; amount: number; percentage: number }> = [];
+    const allSplits: { partnerId: string; amount: number; percentage: number }[] = [];
 
     for (const config of sorted) {
       if (remaining <= 0) break;
@@ -182,14 +179,18 @@ export class SplitEngine {
         if (totalPercentage > 100) {
           errors.push('Total tier percentage cannot exceed 100');
         }
-        const hasDuplicatePriorities = new Set(config.tiers.map((t) => t.priority)).size !== config.tiers.length;
+        const hasDuplicatePriorities =
+          new Set(config.tiers.map((t) => t.priority)).size !== config.tiers.length;
         if (hasDuplicatePriorities) {
           errors.push('Tier priorities must be unique');
         }
       }
     }
 
-    if (config.payoutSchedule && !Object.values(PartnerPayoutSchedule).includes(config.payoutSchedule)) {
+    if (
+      config.payoutSchedule &&
+      !Object.values(PartnerPayoutSchedule).includes(config.payoutSchedule)
+    ) {
       errors.push('Invalid payout schedule');
     }
 
@@ -262,7 +263,6 @@ export class PartnerService {
         return diff >= 7 * 24 * 60 * 60 * 1000;
       }
       case 'threshold': {
-        const threshold = config.minPayoutThreshold ?? 0;
         // Threshold check should be done at call site with actual pending balance
         return true;
       }
@@ -271,10 +271,7 @@ export class PartnerService {
     }
   }
 
-  static mergeTierConfigs(
-    existing: SplitTier[],
-    incoming: SplitTier[]
-  ): SplitTier[] {
+  static mergeTierConfigs(existing: SplitTier[], incoming: SplitTier[]): SplitTier[] {
     const byId = new Map(existing.map((t) => [t.id, t]));
     for (const tier of incoming) {
       byId.set(tier.id, tier);

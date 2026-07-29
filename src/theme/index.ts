@@ -1,7 +1,13 @@
 export { useTheme } from './useTheme';
 export { useThemeColors } from '../hooks/useThemeColors';
 export { useThemeStore } from './themeStore';
-export { darkTheme, lightTheme, highContrastTheme, builtInThemes, createBrandTheme } from './themes';
+export {
+  darkTheme,
+  lightTheme,
+  highContrastTheme,
+  builtInThemes,
+  createBrandTheme,
+} from './themes';
 export {
   buildThemeFromConfig,
   createThemeVariantPair,

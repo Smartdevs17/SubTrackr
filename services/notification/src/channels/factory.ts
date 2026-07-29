@@ -17,7 +17,9 @@ export class ChannelFactory {
     return provider;
   }
 
-  async dispatch(notification: Notification): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  async dispatch(
+    notification: Notification
+  ): Promise<{ success: boolean; messageId?: string; error?: string }> {
     const provider = this.get(notification.channel);
     return provider.send(notification);
   }
@@ -27,10 +29,13 @@ export function createDefaultFactory(env: Record<string, string | undefined>): C
   const factory = new ChannelFactory();
   factory.register('email', new EmailProvider(env.SENDGRID_API_KEY ?? ''));
   factory.register('push', new PushProvider(env.EXPO_ACCESS_TOKEN));
-  factory.register('sms', new SMSProvider(
-    env.TWILIO_ACCOUNT_SID ?? '',
-    env.TWILIO_AUTH_TOKEN ?? '',
-    env.TWILIO_FROM_NUMBER ?? ''
-  ));
+  factory.register(
+    'sms',
+    new SMSProvider(
+      env.TWILIO_ACCOUNT_SID ?? '',
+      env.TWILIO_AUTH_TOKEN ?? '',
+      env.TWILIO_FROM_NUMBER ?? ''
+    )
+  );
   return factory;
 }

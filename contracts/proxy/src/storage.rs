@@ -1,8 +1,8 @@
 use soroban_sdk::{Address, Env, Vec};
-use subtrackr_types::{ScheduledUpgrade, StorageKey, UpgradeEvent};
+use subtrackr_types::{ScheduledUpgrade, StorageKey, StorageKeyExt, UpgradeEvent};
 
 pub(crate) fn is_initialized(env: &Env) -> bool {
-    env.storage().instance().has(&StorageKey::ProxyStorage)
+    env.storage().instance().has(&StorageKeyExt::ProxyStorage)
 }
 
 pub(crate) fn admin(env: &Env) -> Address {
@@ -30,14 +30,14 @@ pub(crate) fn set_implementation(env: &Env, implementation: &Address) {
 pub(crate) fn storage_address(env: &Env) -> Address {
     env.storage()
         .instance()
-        .get(&StorageKey::ProxyStorage)
+        .get(&StorageKeyExt::ProxyStorage)
         .expect("Storage address not set")
 }
 
 pub(crate) fn set_storage_address(env: &Env, storage: &Address) {
     env.storage()
         .instance()
-        .set(&StorageKey::ProxyStorage, storage);
+        .set(&StorageKeyExt::ProxyStorage, storage);
 }
 
 pub(crate) fn version(env: &Env) -> u32 {

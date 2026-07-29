@@ -88,11 +88,11 @@ export interface SplitExecution {
   subscriptionId: string;
   transactionId: string;
   grossAmount: number;
-  splits: Array<{
+  splits: {
     partnerId: string;
     amount: number;
     percentage: number;
-  }>;
+  }[];
   platformRevenue: number;
   executedAt: Date;
   status: 'pending' | 'completed' | 'failed';

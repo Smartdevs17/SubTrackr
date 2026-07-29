@@ -584,10 +584,7 @@ export const useAccountingStore = create<AccountingState>()(
           },
           deferredRevenue: {
             ...state.deferredRevenue,
-            [merchantId]: Math.max(
-              0,
-              (state.deferredRevenue[merchantId] ?? 0) - deferred
-            ),
+            [merchantId]: Math.max(0, (state.deferredRevenue[merchantId] ?? 0) - deferred),
           },
           journalEntries: [...state.journalEntries, journalEntry],
         }));

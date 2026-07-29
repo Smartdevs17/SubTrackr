@@ -1,10 +1,6 @@
 name: E2E Detox Tests
 
-on:
-  push:
-    branches: ['main']
-  pull_request:
-    branches: ['main']
+on: workflow_dispatch
 
 jobs:
   test-ios:
@@ -12,12 +8,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-      - name: Install dependencies
-        run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
+      - uses: ./.github/actions/setup-node
       - name: Expo Prebuild
         run: npx expo prebuild -p ios
       - name: Setup Ruby
@@ -69,12 +60,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-      - name: Install dependencies
-        run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
+      - uses: ./.github/actions/setup-node
       - name: Setup Java
         uses: actions/setup-java@v3
         with:

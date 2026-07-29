@@ -21,7 +21,9 @@ async function main() {
   channel.consume(QUEUE, async (msg) => {
     if (!msg) return;
     try {
-      const notification = JSON.parse(msg.content.toString()) as import('./types/notification').Notification;
+      const notification = JSON.parse(
+        msg.content.toString()
+      ) as import('./types/notification').Notification;
       await processNotification(notification);
       channel.ack(msg);
     } catch (err) {

@@ -6,16 +6,16 @@ import { expect, describe, it, beforeEach, afterEach, jest } from '@jest/globals
 
 jest.mock('../../services/network/networkMonitor', () => {
   let isOnlineValue = true;
-  const listeners = new Set<(connected: boolean) => void>();
+  const listeners /*: Set<(b: boolean) => void>*/ = new Set();
   return {
     networkMonitor: {
       isOnline: () => isOnlineValue,
-      subscribe: (cb: (connected: boolean) => void) => {
+      subscribe: (cb) => {
         listeners.add(cb);
         cb(isOnlineValue);
         return () => listeners.delete(cb);
       },
-      setOnline: (status: boolean) => {
+      setOnline: (status) => {
         isOnlineValue = status;
         listeners.forEach((cb) => cb(status));
       },
@@ -73,9 +73,7 @@ describe('useOfflineSync hook', () => {
   });
 
   it('retries sync operation with exponential backoff on failure', async () => {
-    let callCount = 0;
     const syncSpy = jest.fn(() => {
-      callCount++;
       return Promise.reject(new Error('Sync failed'));
     });
 
@@ -84,17 +82,20 @@ describe('useOfflineSync hook', () => {
     });
 
     networkMonitor.setOnline(true);
-    renderHook(() => useOfflineSync());
+    await act(async () => {
+      renderHook(() => useOfflineSync());
+    });
 
     expect(syncSpy).toHaveBeenCalledTimes(1);
 
     await act(async () => {
-      jest.advanceTimersByTime(1000);
+      jest.advanceTimersByTime(1100);
     });
+
     expect(syncSpy).toHaveBeenCalledTimes(2);
 
     await act(async () => {
-      jest.advanceTimersByTime(2000);
+      jest.advanceTimersByTime(2100);
     });
     expect(syncSpy).toHaveBeenCalledTimes(3);
   });

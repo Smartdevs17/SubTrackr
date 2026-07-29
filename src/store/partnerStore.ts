@@ -8,11 +8,9 @@ import type {
   SplitExecution,
   PartnerEarnings,
   PartnerStatus,
-  SplitType,
-  PartnerPayoutSchedule,
 } from '../types/partner';
 import { errorHandler, AppError } from '../services/errorHandler';
-import { partnerService } from '../services/partnerService';
+import { SplitEngine } from '../services/partnerService';
 
 const STORAGE_KEY = 'subtrackr-partners';
 
@@ -30,15 +28,23 @@ interface PartnerState {
   isLoading: boolean;
   error: AppError | null;
 
-  onboardPartner: (data: Omit<Partner, 'id' | 'createdAt' | 'updatedAt' | 'onboardedAt'>) => Promise<Partner>;
+  onboardPartner: (
+    data: Omit<Partner, 'id' | 'createdAt' | 'updatedAt' | 'onboardedAt'>
+  ) => Promise<Partner>;
   updatePartner: (id: string, data: Partial<Partner>) => Promise<void>;
   verifyPartner: (id: string) => Promise<void>;
   rejectPartner: (id: string, reason: string) => Promise<void>;
   suspendPartner: (id: string) => Promise<void>;
   reactivatePartner: (id: string) => Promise<void>;
-  configureSplit: (data: Omit<SplitConfiguration, 'id' | 'createdAt' | 'updatedAt'>) => Promise<SplitConfiguration>;
+  configureSplit: (
+    data: Omit<SplitConfiguration, 'id' | 'createdAt' | 'updatedAt'>
+  ) => Promise<SplitConfiguration>;
   updateSplitConfiguration: (id: string, data: Partial<SplitConfiguration>) => Promise<void>;
-  executeSplit: (splitConfigurationId: string, transactionId: string, grossAmount: number) => Promise<SplitExecution>;
+  executeSplit: (
+    splitConfigurationId: string,
+    transactionId: string,
+    grossAmount: number
+  ) => Promise<SplitExecution>;
   recordPayout: (data: Omit<PayoutRecord, 'id' | 'createdAt'>) => Promise<PayoutRecord>;
   getPartnerEarnings: (partnerId: string, startDate?: Date, endDate?: Date) => PartnerEarnings;
   getPartnerPayouts: (partnerId: string) => PayoutRecord[];
@@ -92,7 +98,7 @@ export const usePartnerStore = create<PartnerState>()(
         } catch (error) {
           const appError = errorHandler.handleError(error as Error, {
             action: 'updatePartner',
-            partnerId: id,
+            metadata: { partnerId: id },
           });
           set({ error: appError, isLoading: false });
           throw appError;
@@ -100,7 +106,10 @@ export const usePartnerStore = create<PartnerState>()(
       },
 
       verifyPartner: async (id) => {
-        await get().updatePartner(id, { status: 'verified' as PartnerStatus, verifiedAt: new Date() });
+        await get().updatePartner(id, {
+          status: 'verified' as PartnerStatus,
+          verifiedAt: new Date(),
+        });
       },
 
       rejectPartner: async (id, reason) => {
@@ -129,7 +138,7 @@ export const usePartnerStore = create<PartnerState>()(
       configureSplit: async (data) => {
         set({ isLoading: true, error: null });
         try {
-          const validation = partnerService.validateSplitConfig(data);
+          const validation = SplitEngine.validateSplitConfig(data);
           if (!validation.isValid) {
             throw new Error(`Invalid split configuration: ${validation.errors.join(', ')}`);
           }
@@ -166,7 +175,7 @@ export const usePartnerStore = create<PartnerState>()(
         } catch (error) {
           const appError = errorHandler.handleError(error as Error, {
             action: 'updateSplitConfiguration',
-            splitConfigurationId: id,
+            metadata: { splitConfigurationId: id },
           });
           set({ error: appError, isLoading: false });
           throw appError;
@@ -181,7 +190,7 @@ export const usePartnerStore = create<PartnerState>()(
             throw new Error('Split configuration not found');
           }
 
-          const result = partnerService.calculateSplit(config, grossAmount);
+          const result = SplitEngine.calculateSplit(config, grossAmount);
           const execution: SplitExecution = {
             id: generateUniqueId(),
             splitConfigurationId,
@@ -203,7 +212,7 @@ export const usePartnerStore = create<PartnerState>()(
         } catch (error) {
           const appError = errorHandler.handleError(error as Error, {
             action: 'executeSplit',
-            splitConfigurationId,
+            metadata: { splitConfigurationId },
           });
           set({ error: appError, isLoading: false });
           throw appError;
@@ -266,8 +275,8 @@ export const usePartnerStore = create<PartnerState>()(
       },
 
       getPartnerPayouts: (partnerId) => {
-        return get().payoutRecords
-          .filter((p) => p.partnerId === partnerId)
+        return get()
+          .payoutRecords.filter((p) => p.partnerId === partnerId)
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       },
 
@@ -285,7 +294,7 @@ export const usePartnerStore = create<PartnerState>()(
         } catch (error) {
           const appError = errorHandler.handleError(error as Error, {
             action: 'deleteSplitConfiguration',
-            splitConfigurationId: id,
+            metadata: { splitConfigurationId: id },
           });
           set({ error: appError, isLoading: false });
           throw appError;

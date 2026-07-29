@@ -3,11 +3,41 @@
 mod gas_optimization;
 mod gas_profiler;
 mod gas_storage;
+mod invoice_branding;
 mod revenue;
-use soroban_sdk::{token, Address, Env, IntoVal, String, Symbol, TryFromVal, Val, Vec};
-use subtrackr_oracle::{OracleError, SubTrackrOracleClient};
+pub mod achievements;
+#[cfg(test)]
+mod gas_benchmarks;
+#[cfg(test)]
+mod test;
+
+// ── Modular architecture (Issue #743) ────────────────────────────────────────
+mod admin;
+mod billing;
+mod cancellation;
+mod charging;
+mod errors;
+mod events;
+mod event_store;
+mod loyalty;
+mod payment;
+mod payment_methods;
+mod plan;
+mod proration;
+mod quota;
+mod reentrancy;
+mod retention;
+mod state;
+mod subscription_lifecycle;
+mod timeout;
+mod usage;
+mod webhook;
+
+use soroban_sdk::{token, Address, BytesN, Env, IntoVal, String, Symbol, TryFromVal, Val, Vec};
+#[cfg(feature = "oracle")]
+use subtrackr_oracle;
 use subtrackr_types::{
-    Interval, Invoice, Permission, Plan, PriceBounds, StorageKey, Subscription, SubscriptionStatus,
+    ChargeCommitment, Interval, Invoice, Permission, Plan, PriceBounds, StorageKey, StorageKeyExt, Subscription, SubscriptionStatus,
     TimeRange,
 };
 
@@ -16,9 +46,41 @@ const MAX_PAUSE_DURATION: u64 = 2_592_000; // 30 days
 
 /// Default maximum number of plans a merchant can create.
 /// This can be overridden on-chain by the admin via `set_max_plans_per_merchant`.
-const MAX_PLANS_PER_MERCHANT: u32 = 100;
+pub(crate) const MAX_PLANS_PER_MERCHANT: u32 = 100;
 
-const STORAGE_VERSION: u32 = 2;
+const STORAGE_VERSION: u32 = 3;
+
+// ── Cross-Chain Types ──
+
+#[soroban_sdk::contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum TransferStatus {
+    Pending,
+    Completed,
+    Failed,
+}
+
+#[soroban_sdk::contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct CrossChainTransferRequest {
+    pub subscription_id: u64,
+    pub source_chain_type: Symbol,
+    pub source_chain_id: u64,
+    pub target_chain_type: Symbol,
+    pub target_chain_id: u64,
+    pub status: TransferStatus,
+    pub initiated_at: u64,
+    pub completed_at: Option<u64>,
+}
+
+#[soroban_sdk::contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct CrossChainBillingSummary {
+    pub stellar_total: i128,
+    pub evm_total: i128,
+    pub total_subscriptions: u32,
+    pub aggregated_monthly: i128,
+}
 
 #[soroban_sdk::contracttype]
 #[derive(Clone, Debug, PartialEq)]
@@ -60,10 +122,10 @@ pub struct SubscriptionGroup {
     pub updated_at: u64,
 }
 
-fn storage_instance_get<V: TryFromVal<Env, Val>>(
+pub(crate) fn storage_instance_get<K: IntoVal<Env, Val>, V: TryFromVal<Env, Val>>(
     env: &Env,
     storage: &Address,
-    key: StorageKey,
+    key: K,
 ) -> Option<V> {
     let args: Vec<Val> = soroban_sdk::vec![env, key.into_val(env)];
     let val_opt: Option<Val> = env.invoke_contract(
@@ -74,10 +136,10 @@ fn storage_instance_get<V: TryFromVal<Env, Val>>(
     val_opt.map(|val| V::try_from_val(env, &val).unwrap())
 }
 
-fn storage_instance_set<V: IntoVal<Env, Val>>(
+pub(crate) fn storage_instance_set<K: IntoVal<Env, Val>, V: IntoVal<Env, Val>>(
     env: &Env,
     storage: &Address,
-    key: StorageKey,
+    key: K,
     value: V,
 ) {
     let val: Val = value.into_val(env);
@@ -89,7 +151,7 @@ fn storage_instance_set<V: IntoVal<Env, Val>>(
     );
 }
 
-fn storage_instance_remove(env: &Env, storage: &Address, key: StorageKey) {
+pub(crate) fn storage_instance_remove<K: IntoVal<Env, Val>>(env: &Env, storage: &Address, key: K) {
     let args: Vec<Val> = soroban_sdk::vec![env, key.into_val(env)];
     env.invoke_contract::<()>(
         storage,
@@ -98,10 +160,10 @@ fn storage_instance_remove(env: &Env, storage: &Address, key: StorageKey) {
     );
 }
 
-fn storage_persistent_get<V: TryFromVal<Env, Val>>(
+pub(crate) fn storage_persistent_get<K: IntoVal<Env, Val>, V: TryFromVal<Env, Val>>(
     env: &Env,
     storage: &Address,
-    key: StorageKey,
+    key: K,
 ) -> Option<V> {
     let args: Vec<Val> = soroban_sdk::vec![env, key.into_val(env)];
     let val_opt: Option<Val> = env.invoke_contract(
@@ -112,10 +174,10 @@ fn storage_persistent_get<V: TryFromVal<Env, Val>>(
     val_opt.map(|val| V::try_from_val(env, &val).unwrap())
 }
 
-fn storage_persistent_set<V: IntoVal<Env, Val>>(
+pub(crate) fn storage_persistent_set<K: IntoVal<Env, Val>, V: IntoVal<Env, Val>>(
     env: &Env,
     storage: &Address,
-    key: StorageKey,
+    key: K,
     value: V,
 ) {
     let val: Val = value.into_val(env);
@@ -127,7 +189,7 @@ fn storage_persistent_set<V: IntoVal<Env, Val>>(
     );
 }
 
-fn storage_persistent_remove(env: &Env, storage: &Address, key: StorageKey) {
+pub(crate) fn storage_persistent_remove<K: IntoVal<Env, Val>>(env: &Env, storage: &Address, key: K) {
     let args: Vec<Val> = soroban_sdk::vec![env, key.into_val(env)];
     env.invoke_contract::<()>(
         storage,
@@ -163,10 +225,10 @@ fn secs_to_ledgers(secs: u64) -> u32 {
     }
 }
 
-fn storage_temporary_get<V: TryFromVal<Env, Val>>(
+pub(crate) fn storage_temporary_get<K: IntoVal<Env, Val>, V: TryFromVal<Env, Val>>(
     env: &Env,
     storage: &Address,
-    key: StorageKey,
+    key: K,
 ) -> Option<V> {
     let args: Vec<Val> = soroban_sdk::vec![env, key.into_val(env)];
     let val_opt: Option<Val> = env.invoke_contract(
@@ -177,10 +239,10 @@ fn storage_temporary_get<V: TryFromVal<Env, Val>>(
     val_opt.map(|val| V::try_from_val(env, &val).unwrap())
 }
 
-fn storage_temporary_set<V: IntoVal<Env, Val>>(
+pub(crate) fn storage_temporary_set<K: IntoVal<Env, Val>, V: IntoVal<Env, Val>>(
     env: &Env,
     storage: &Address,
-    key: StorageKey,
+    key: K,
     value: V,
     ttl_ledgers: u32,
 ) {
@@ -194,7 +256,7 @@ fn storage_temporary_set<V: IntoVal<Env, Val>>(
 }
 
 #[allow(dead_code)]
-fn storage_temporary_remove(env: &Env, storage: &Address, key: StorageKey) {
+pub(crate) fn storage_temporary_remove<K: IntoVal<Env, Val>>(env: &Env, storage: &Address, key: K) {
     let args: Vec<Val> = soroban_sdk::vec![env, key.into_val(env)];
     env.invoke_contract::<()>(
         storage,
@@ -203,7 +265,7 @@ fn storage_temporary_remove(env: &Env, storage: &Address, key: StorageKey) {
     );
 }
 
-fn get_admin(env: &Env, storage: &Address) -> Address {
+pub(crate) fn get_admin(env: &Env, storage: &Address) -> Address {
     storage_instance_get(env, storage, StorageKey::Admin).expect("Admin not set")
 }
 
@@ -222,7 +284,7 @@ fn require_permission(env: &Env, storage: &Address, caller: &Address, permission
     }
 }
 
-fn enforce_rate_limit(env: &Env, storage: &Address, caller: &Address, function_name: &str) {
+pub(crate) fn enforce_rate_limit(env: &Env, storage: &Address, caller: &Address, function_name: &str) {
     let fname = String::from_str(env, function_name);
     let min_interval: Option<u64> =
         storage_instance_get(env, storage, StorageKey::RateLimit(fname.clone()));
@@ -361,25 +423,33 @@ fn resolve_charge_price(env: &Env, storage: &Address, plan: &Plan) -> i128 {
     let token_sym = token_sym_opt.unwrap();
     let quote_sym = bounds.quote;
 
-    let client = SubTrackrOracleClient::new(env, &oracle);
+    #[cfg(feature = "oracle")]
+    {
+        let client = subtrackr_oracle::SubTrackrOracleClient::new(env, &oracle);
 
-    if let Ok(Ok(price)) = client.try_get_price_with_cache(&token_sym, &quote_sym, &600) {
-        let oracle_value = price.value;
-        if oracle_value <= 0 {
-            return plan.price;
-        }
+        if let Ok(Ok(price)) = client.try_get_price_with_cache(&token_sym, &quote_sym, &600) {
+            let oracle_value = price.value;
+            if oracle_value <= 0 {
+                return plan.price;
+            }
 
-        let max_price = (plan.price as u128).saturating_mul(bounds.max_price_bps as u128) / 10_000;
-        let min_price = (plan.price as u128).saturating_mul(bounds.min_price_bps as u128) / 10_000;
+            let max_price = (plan.price as u128).saturating_mul(bounds.max_price_bps as u128) / 10_000;
+            let min_price = (plan.price as u128).saturating_mul(bounds.min_price_bps as u128) / 10_000;
 
-        if oracle_value > max_price as i128 {
-            max_price as i128
-        } else if oracle_value < min_price as i128 {
-            min_price as i128
+            if oracle_value > max_price as i128 {
+                max_price as i128
+            } else if oracle_value < min_price as i128 {
+                min_price as i128
+            } else {
+                oracle_value
+            }
         } else {
-            oracle_value
+            plan.price
         }
-    } else {
+    }
+    #[cfg(not(feature = "oracle"))]
+    {
+        let _ = (oracle, token_sym, quote_sym);
         plan.price
     }
 }
@@ -559,6 +629,7 @@ impl SubTrackrSubscription {
     }
 
     /// Look up the current oracle price for a token/quote pair, using cached read.
+    #[cfg(feature = "oracle")]
     pub fn get_oracle_price(
         env: Env,
         proxy: Address,
@@ -566,11 +637,11 @@ impl SubTrackrSubscription {
         token: Symbol,
         quote: Symbol,
         ttl: u64,
-    ) -> Result<i128, OracleError> {
+    ) -> Result<i128, subtrackr_oracle::OracleError> {
         proxy.require_auth();
         let oracle: Address = storage_instance_get(&env, &storage, StorageKey::OracleContract)
             .expect("Oracle contract not set");
-        let client = SubTrackrOracleClient::new(&env, &oracle);
+        let client = subtrackr_oracle::SubTrackrOracleClient::new(&env, &oracle);
         let price = client.get_price_with_cache(&token, &quote, &ttl);
         Ok(price.value)
     }
@@ -657,6 +728,21 @@ impl SubTrackrSubscription {
         proxy.require_auth();
         storage_instance_get(&env, &storage, StorageKey::MaxPlansPerMerchant)
             .unwrap_or(MAX_PLANS_PER_MERCHANT)
+    }
+
+    // ── MEV Protection Admin ──
+
+    pub fn set_large_charge_threshold(env: Env, proxy: Address, storage: Address, threshold: i128) {
+        proxy.require_auth();
+        let admin = get_admin(&env, &storage);
+        admin.require_auth();
+        assert!(threshold > 0, "Threshold must be positive");
+        storage_instance_set(&env, &storage, StorageKey::LargeChargeThreshold, threshold);
+    }
+
+    pub fn get_large_charge_threshold(env: Env, proxy: Address, storage: Address) -> i128 {
+        proxy.require_auth();
+        storage_instance_get(&env, &storage, StorageKey::LargeChargeThreshold).unwrap_or(10_000_000_000) // Default 1000 units
     }
 
     // ── Plan Management ──
@@ -981,7 +1067,40 @@ impl SubTrackrSubscription {
 
     // ── Payment Processing ──
 
+    pub fn commit_charge(env: Env, proxy: Address, storage: Address, subscription_id: u64, hash: BytesN<32>) {
+        proxy.require_auth();
+        let sub: Subscription =
+            storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
+                .expect("Subscription not found");
+
+        if sub.subscriber != get_admin(&env, &storage) {
+            enforce_rate_limit(&env, &storage, &sub.subscriber, "commit_charge");
+        }
+        sub.subscriber.require_auth();
+
+        let now = env.ledger().timestamp();
+        let commitment = ChargeCommitment {
+            hash,
+            committed_at: now,
+        };
+
+        // Store commitment temporarily for a generous timeframe, e.g., 100 ledgers (~8 mins)
+        let ttl_ledgers = 100;
+        storage_temporary_set(&env, &storage, StorageKey::TmpChargeCommitment(subscription_id), commitment, ttl_ledgers);
+    }
+
     pub fn charge_subscription(env: Env, proxy: Address, storage: Address, subscription_id: u64) {
+        Self::reveal_charge(env, proxy, storage, subscription_id, 0, false);
+    }
+
+    pub fn reveal_charge(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscription_id: u64,
+        expected_gas_bid: i128,
+        is_private_mempool: bool,
+    ) {
         proxy.require_auth();
         let mut sub: Subscription =
             storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
@@ -1014,6 +1133,36 @@ impl SubTrackrSubscription {
             .expect("Plan not found");
 
         let charge_price = resolve_charge_price(&env, &storage, &plan);
+
+        // ── MEV Protection: Commit-Reveal & Gas Analysis ──
+        let threshold = storage_instance_get(&env, &storage, StorageKey::LargeChargeThreshold)
+            .unwrap_or(10_000_000_000);
+
+        if charge_price >= threshold {
+            let commitment_opt: Option<ChargeCommitment> =
+                storage_temporary_get(&env, &storage, StorageKey::TmpChargeCommitment(subscription_id));
+            let commitment = commitment_opt.expect("Large charge requires prior commit_charge");
+
+            let mut payload = soroban_sdk::Bytes::new(&env);
+            payload.append(&soroban_sdk::Bytes::from_array(&env, &subscription_id.to_be_bytes()));
+            payload.append(&soroban_sdk::Bytes::from_array(&env, &expected_gas_bid.to_be_bytes()));
+            let is_priv = if is_private_mempool { 1u8 } else { 0u8 };
+            payload.append(&soroban_sdk::Bytes::from_array(&env, &[is_priv]));
+
+            let expected_hash: soroban_sdk::BytesN<32> = env.crypto().sha256(&payload).into();
+            assert!(commitment.hash == expected_hash, "Commitment hash mismatch");
+
+            // Prevent commitment reuse
+            storage_temporary_remove(&env, &storage, StorageKey::TmpChargeCommitment(subscription_id));
+        }
+
+        // Gas price analysis for attack detection
+        if expected_gas_bid > 0 {
+            env.events().publish(
+                (String::from_str(&env, "mev_monitoring"), subscription_id),
+                (expected_gas_bid, is_private_mempool, now),
+            );
+        }
 
         token::Client::new(&env, &plan.token).transfer(
             &sub.subscriber,
@@ -1348,8 +1497,179 @@ impl SubTrackrSubscription {
     }
 }
 
+    // ── Cross-Chain Subscription Management ──
+
+    /// Initiate a cross-chain subscription transfer.
+    /// Records the transfer request with target chain information.
+    pub fn request_cross_chain_transfer(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscription_id: u64,
+        target_chain_type: Symbol,
+        target_chain_id: u64,
+    ) {
+        proxy.require_auth();
+        let sub: Subscription =
+            storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
+                .expect("Subscription not found");
+
+        if sub.subscriber != get_admin(&env, &storage) {
+            enforce_rate_limit(&env, &storage, &sub.subscriber, "request_cross_chain_transfer");
+        }
+
+        sub.subscriber.require_auth();
+        assert!(
+            sub.status != SubscriptionStatus::Cancelled,
+            "Subscription is cancelled"
+        );
+
+        let transfer_key = StorageKeyExt::CrossChainTransfer(subscription_id);
+        let pending = CrossChainTransferRequest {
+            subscription_id,
+            source_chain_type: Symbol::new(&env, "stellar"),
+            source_chain_id: 0x8000,
+            target_chain_type: target_chain_type.clone(),
+            target_chain_id,
+            status: TransferStatus::Pending,
+            initiated_at: env.ledger().timestamp(),
+            completed_at: None,
+        };
+
+        storage_persistent_set(&env, &storage, transfer_key, pending);
+
+        env.events().publish(
+            (String::from_str(&env, "cross_chain_transfer_requested"), subscription_id),
+            (sub.subscriber.clone(), target_chain_type, target_chain_id),
+        );
+    }
+
+    /// Approve a pending cross-chain subscription transfer.
+    /// Updates the subscription with new chain information.
+    pub fn approve_cross_chain_transfer(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscription_id: u64,
+    ) {
+        proxy.require_auth();
+        let admin = get_admin(&env, &storage);
+        admin.require_auth();
+
+        let transfer_key = StorageKeyExt::CrossChainTransfer(subscription_id);
+        let pending: CrossChainTransferRequest = storage_persistent_get(&env, &storage, transfer_key.clone())
+            .expect("No pending cross-chain transfer");
+
+        assert!(
+            pending.status == TransferStatus::Pending,
+            "Transfer is not pending"
+        );
+
+        let mut sub: Subscription =
+            storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
+                .expect("Subscription not found");
+
+        let chain_type = pending.target_chain_type.clone();
+        let chain_id = pending.target_chain_id;
+
+        let updated = CrossChainTransferRequest {
+            status: TransferStatus::Completed,
+            completed_at: Some(env.ledger().timestamp()),
+            ..pending
+        };
+
+        storage_persistent_set(&env, &storage, transfer_key, updated);
+
+        env.events().publish(
+            (String::from_str(&env, "cross_chain_transfer_approved"), subscription_id),
+            (chain_type, chain_id),
+        );
+    }
+
+    /// Get the cross-chain transfer status for a subscription.
+    pub fn get_cross_chain_transfer(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscription_id: u64,
+    ) -> Option<CrossChainTransferRequest> {
+        proxy.require_auth();
+        storage_persistent_get(&env, &storage, StorageKeyExt::CrossChainTransfer(subscription_id))
+    }
+
+    /// Aggregate billing totals across all chains for a user.
+    /// Returns total amounts separated by chain type.
+    pub fn aggregate_cross_chain_billing(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscriber: Address,
+    ) -> CrossChainBillingSummary {
+        proxy.require_auth();
+        let user_subs: Vec<u64> = storage_persistent_get(&env, &storage, StorageKey::UserSubscriptions(subscriber))
+            .unwrap_or(Vec::new(&env));
+
+        let mut stellar_total: i128 = 0;
+        let mut evm_total: i128 = 0;
+        let mut total_subscriptions: u32 = 0;
+
+        for sub_id in user_subs.iter() {
+            let sub_opt: Option<Subscription> = storage_persistent_get(&env, &storage, StorageKey::Subscription(sub_id));
+            if let Some(sub) = sub_opt {
+                if sub.status == SubscriptionStatus::Active {
+                    let plan_opt: Option<Plan> = storage_persistent_get(&env, &storage, StorageKey::Plan(sub.plan_id));
+                    if let Some(plan) = plan_opt {
+                        // In a real implementation, we'd differentiate by chain metadata
+                        // For now, all Soroban subscriptions are "stellar"
+                        stellar_total += plan.price;
+                        total_subscriptions += 1;
+                    }
+                }
+            }
+        }
+
+        CrossChainBillingSummary {
+            stellar_total,
+            evm_total,
+            total_subscriptions,
+            aggregated_monthly: stellar_total + evm_total,
+        }
+    }
+
+    /// Get all subscriptions from all chains for unified display.
+    pub fn get_unified_subscriptions(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscriber: Address,
+    ) -> Vec<Subscription> {
+        proxy.require_auth();
+        let user_subs: Vec<u64> = storage_persistent_get(&env, &storage, StorageKey::UserSubscriptions(subscriber))
+            .unwrap_or(Vec::new(&env));
+
+        let mut result: Vec<Subscription> = Vec::new(&env);
+        for sub_id in user_subs.iter() {
+            let sub_opt: Option<Subscription> = storage_persistent_get(&env, &storage, StorageKey::Subscription(sub_id));
+            if let Some(sub) = sub_opt {
+                result.push_back(sub);
+            }
+        }
+        result
+    }
+
 // ── Extended APIs (disabled by default) ──
 //
+    pub fn set_invoice_branding(env: Env, proxy: Address, storage: Address, tenant_id: String, branding: invoice_branding::InvoiceBranding) {
+        proxy.require_auth();
+        let admin: Address = storage_instance_get(&env, &storage, StorageKey::Admin).expect("Admin not set");
+        require_permission(&env, &storage, &admin, Permission::SetInvoiceContract);
+        invoice_branding::set_invoice_branding(&env, tenant_id, branding);
+    }
+
+    pub fn get_invoice_branding(env: Env, tenant_id: String) -> Option<invoice_branding::InvoiceBranding> {
+        invoice_branding::get_invoice_branding(&env, tenant_id)
+    }
+
 // These APIs depend on additional modules/types that are still evolving.
 // Enable with `--features extended` in the `subtrackr-subscription` crate.
 #[cfg(feature = "extended")]

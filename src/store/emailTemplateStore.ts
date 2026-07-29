@@ -47,7 +47,13 @@ export const useEmailTemplateStore = create<EmailTemplateState>((set, get) => ({
   updateBlocks: (templateId, blocks) => {
     const defaultLocale = emailTemplateService.get(templateId)?.defaultLocale ?? 'en';
     const template = emailTemplateService.update(templateId, {
-      locales: [{ locale: defaultLocale, subject: emailTemplateService.get(templateId)?.locales[0]?.subject ?? '', blocks }],
+      locales: [
+        {
+          locale: defaultLocale,
+          subject: emailTemplateService.get(templateId)?.locales[0]?.subject ?? '',
+          blocks,
+        },
+      ],
     });
     if (template) {
       set((state) => ({

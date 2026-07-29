@@ -15,7 +15,10 @@ export class SubscriptionCRDT {
    * Merges two CRDT subscription states deterministically.
    * Returns a new merged state.
    */
-  static merge(stateA: CRDTSubscriptionState, stateB: CRDTSubscriptionState): CRDTSubscriptionState {
+  static merge(
+    stateA: CRDTSubscriptionState,
+    stateB: CRDTSubscriptionState
+  ): CRDTSubscriptionState {
     const mergedSubs: Record<string, Subscription> = {};
     const mergedMeta: Record<string, SubscriptionMetadata> = {};
 
@@ -35,8 +38,14 @@ export class SubscriptionCRDT {
       const mergedDeletedAt = Math.max(deletedAtA, deletedAtB);
 
       // Find the maximum field update timestamp in A and B
-      const maxUpdateA = Object.values(metaA.timestamps || {}).reduce((max, t) => Math.max(max, t), 0);
-      const maxUpdateB = Object.values(metaB.timestamps || {}).reduce((max, t) => Math.max(max, t), 0);
+      const maxUpdateA = Object.values(metaA.timestamps || {}).reduce(
+        (max, t) => Math.max(max, t),
+        0
+      );
+      const maxUpdateB = Object.values(metaB.timestamps || {}).reduce(
+        (max, t) => Math.max(max, t),
+        0
+      );
       const maxUpdate = Math.max(maxUpdateA, maxUpdateB);
 
       // If deletedAt is newer than any field update, the item is deleted
@@ -60,10 +69,9 @@ export class SubscriptionCRDT {
       const mergedSub = {} as Partial<Subscription>;
       const mergedTimestamps: Record<string, number> = {};
 
-      const allKeys = new Set([
-        ...Object.keys(subA || {}),
-        ...Object.keys(subB || {}),
-      ]) as Set<keyof Subscription>;
+      const allKeys = new Set([...Object.keys(subA || {}), ...Object.keys(subB || {})]) as Set<
+        keyof Subscription
+      >;
 
       for (const key of allKeys) {
         const tA = (metaA.timestamps && metaA.timestamps[key as string]) || 0;
@@ -105,7 +113,8 @@ export class SubscriptionCRDT {
       // Convert date/string fields back to appropriate types if needed
       if (mergedSub.createdAt) mergedSub.createdAt = new Date(mergedSub.createdAt);
       if (mergedSub.updatedAt) mergedSub.updatedAt = new Date(mergedSub.updatedAt);
-      if (mergedSub.nextBillingDate) mergedSub.nextBillingDate = new Date(mergedSub.nextBillingDate);
+      if (mergedSub.nextBillingDate)
+        mergedSub.nextBillingDate = new Date(mergedSub.nextBillingDate);
 
       mergedSubs[id] = mergedSub as Subscription;
       mergedMeta[id] = {

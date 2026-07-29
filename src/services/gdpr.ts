@@ -74,7 +74,12 @@ export const gdprService = {
 
   async exportData(userId = 'user-123'): Promise<ExportResponse> {
     // Log DPA activity
-    gdprService.logDPAActivity(userId, 'Subject Access Request (SAR)', ['identity', 'contact', 'financial', 'subscription']);
+    gdprService.logDPAActivity(userId, 'Subject Access Request (SAR)', [
+      'identity',
+      'contact',
+      'financial',
+      'subscription',
+    ]);
 
     const payload: DataExportPayload = {
       exportId: createId('export'),
@@ -141,7 +146,11 @@ export const gdprService = {
 
     if (!permanent) {
       // Anonymize retained data instead of deleting
-      gdprService.logDPAActivity(userId, 'Data anonymization on retention', ['identity', 'contact', 'financial']);
+      gdprService.logDPAActivity(userId, 'Data anonymization on retention', [
+        'identity',
+        'contact',
+        'financial',
+      ]);
       return {
         success: true,
         message: 'User data has been anonymized',
@@ -159,7 +168,13 @@ export const gdprService = {
       anonymizedFields,
     };
 
-    gdprService.logDPAActivity(userId, 'Right to erasure request', ['identity', 'contact', 'financial', 'behavioral', 'subscription']);
+    gdprService.logDPAActivity(userId, 'Right to erasure request', [
+      'identity',
+      'contact',
+      'financial',
+      'behavioral',
+      'subscription',
+    ]);
 
     console.log('[GDPR] Deletion scheduled:', request);
 
@@ -184,12 +199,15 @@ export const gdprService = {
 
   // ─── Consent Management ──────────────────────────────────────────────────────
 
-  async updateConsent(preferences: ConsentPreferences, userId = 'user-123'): Promise<ConsentPreferences> {
+  async updateConsent(
+    preferences: ConsentPreferences,
+    userId = 'user-123'
+  ): Promise<ConsentPreferences> {
     const timestamp = nowIso();
     const version = '1.0';
 
     // Record timestamped consent for each category
-    const categories: Array<ConsentRecord['category']> = ['analytics', 'marketing', 'notifications'];
+    const categories: ConsentRecord['category'][] = ['analytics', 'marketing', 'notifications'];
     for (const category of categories) {
       const key = category as keyof ConsentPreferences;
       if (key in preferences) {

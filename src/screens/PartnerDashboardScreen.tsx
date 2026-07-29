@@ -1,21 +1,10 @@
-import React, { useState, useMemo, useCallback } from 'react';
-import {
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  Alert,
-} from 'react-native';
+import React, { useState, useMemo } from 'react';
+import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Card } from '../components/common/Card';
-import { Button } from '../components/common/Button';
-import { FormScreen } from '../components/common/ScreenTemplates';
 import { spacing, typography, borderRadius } from '../utils/constants';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { usePartnerStore } from '../store/partnerStore';
-import type { Partner, SplitType, PartnerPayoutSchedule } from '../types/partner';
-import { SplitEngine } from '../services/partnerService';
+import type { PartnerStatus } from '../types/partner';
 
 type Tab = 'partners' | 'splits' | 'payouts';
 
@@ -33,18 +22,18 @@ const PartnerDashboardScreen: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>('partners');
   const [selectedPartnerId, setSelectedPartnerId] = useState<string | null>(null);
 
-  const partnerEarnings = useMemo(() => {
+  const _partnerEarnings = useMemo(() => {
     if (!selectedPartnerId) return null;
     return getPartnerEarnings(selectedPartnerId);
   }, [selectedPartnerId, getPartnerEarnings, payoutRecords]);
 
   const totalPendingPayouts = useMemo(
-    () => partners.reduce((sum, p) => sum + (getPartnerEarnings(p.id).pendingPayouts), 0),
+    () => partners.reduce((sum, p) => sum + getPartnerEarnings(p.id).pendingPayouts, 0),
     [partners, getPartnerEarnings]
   );
 
   const totalCompletedPayouts = useMemo(
-    () => partners.reduce((sum, p) => sum + (getPartnerEarnings(p.id).completedPayouts), 0),
+    () => partners.reduce((sum, p) => sum + getPartnerEarnings(p.id).completedPayouts, 0),
     [partners, getPartnerEarnings]
   );
 
@@ -71,7 +60,11 @@ const PartnerDashboardScreen: React.FC = () => {
                       {partner.company ?? 'Individual'} · {partner.email}
                     </Text>
                   </View>
-                  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(partner.status) }]}>
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      { backgroundColor: getStatusColor(partner.status) },
+                    ]}>
                     <Text style={styles.statusText}>{partner.status}</Text>
                   </View>
                 </View>
@@ -96,7 +89,9 @@ const PartnerDashboardScreen: React.FC = () => {
                 {isSelected && (
                   <View style={styles.partnerDetail}>
                     <Text style={styles.detailLabel}>Onboarded</Text>
-                    <Text style={styles.detailValue}>{new Date(partner.onboardedAt).toLocaleDateString()}</Text>
+                    <Text style={styles.detailValue}>
+                      {new Date(partner.onboardedAt).toLocaleDateString()}
+                    </Text>
                     {partner.paymentAddress && (
                       <>
                         <Text style={styles.detailLabel}>Payment Address</Text>
@@ -138,19 +133,11 @@ const PartnerDashboardScreen: React.FC = () => {
                 {configs.map((config) => (
                   <View key={config.id} style={styles.configRow}>
                     <View style={styles.configInfo}>
-                      <Text style={styles.configType}>
-                        {config.splitType.toUpperCase()}
-                      </Text>
-                      <Text style={styles.configPartner}>
-                        Partner: {config.partnerId}
-                      </Text>
-                      <Text style={styles.configSchedule}>
-                        Schedule: {config.payoutSchedule}
-                      </Text>
+                      <Text style={styles.configType}>{config.splitType.toUpperCase()}</Text>
+                      <Text style={styles.configPartner}>Partner: {config.partnerId}</Text>
+                      <Text style={styles.configSchedule}>Schedule: {config.payoutSchedule}</Text>
                       {config.percentage !== undefined && (
-                        <Text style={styles.configValue}>
-                          Split: {config.percentage}%
-                        </Text>
+                        <Text style={styles.configValue}>Split: {config.percentage}%</Text>
                       )}
                       {config.fixedAmount !== undefined && (
                         <Text style={styles.configValue}>
@@ -158,7 +145,9 @@ const PartnerDashboardScreen: React.FC = () => {
                         </Text>
                       )}
                     </View>
-                    <View style={[styles.activeIndicator, config.isActive && styles.activeIndicatorOn]} />
+                    <View
+                      style={[styles.activeIndicator, config.isActive && styles.activeIndicatorOn]}
+                    />
                   </View>
                 ))}
               </Card>
@@ -184,7 +173,11 @@ const PartnerDashboardScreen: React.FC = () => {
             <Card key={payout.id} style={styles.payoutCard}>
               <View style={styles.payoutHeader}>
                 <Text style={styles.payoutPartner}>{payout.partnerId}</Text>
-                <View style={[styles.statusBadge, { backgroundColor: getPayoutStatusColor(payout.status) }]}>
+                <View
+                  style={[
+                    styles.statusBadge,
+                    { backgroundColor: getPayoutStatusColor(payout.status) },
+                  ]}>
                   <Text style={styles.statusText}>{payout.status}</Text>
                 </View>
               </View>
@@ -192,11 +185,10 @@ const PartnerDashboardScreen: React.FC = () => {
                 {payout.currency} {payout.netAmount.toFixed(2)}
               </Text>
               <Text style={styles.payoutMeta}>
-                Gross: {payout.currency} {payout.grossAmount.toFixed(2)} · Fee: {payout.currency} {payout.platformFee.toFixed(2)}
+                Gross: {payout.currency} {payout.grossAmount.toFixed(2)} · Fee: {payout.currency}{' '}
+                {payout.platformFee.toFixed(2)}
               </Text>
-              <Text style={styles.payoutMeta}>
-                {new Date(payout.createdAt).toLocaleString()}
-              </Text>
+              <Text style={styles.payoutMeta}>{new Date(payout.createdAt).toLocaleString()}</Text>
             </Card>
           ))
       )}
@@ -246,9 +238,7 @@ const PartnerDashboardScreen: React.FC = () => {
         <View style={styles.summaryRow}>
           <Card style={styles.summaryCard}>
             <Text style={styles.summaryLabel}>Partners</Text>
-            <Text style={[styles.summaryValue, { color: colors.primary }]}>
-              {partners.length}
-            </Text>
+            <Text style={[styles.summaryValue, { color: colors.primary }]}>{partners.length}</Text>
           </Card>
           <Card style={styles.summaryCard}>
             <Text style={styles.summaryLabel}>Pending Payouts</Text>

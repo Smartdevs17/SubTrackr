@@ -108,10 +108,7 @@ export const UpsellWidget: React.FC<UpsellWidgetProps> = ({
   }
 
   return (
-    <View
-      style={styles.container}
-      accessibilityRole="region"
-      accessibilityLabel="Upsell recommendations">
+    <View style={styles.container} accessibilityLabel="Upsell recommendations">
       <Text style={styles.heading}>Recommended for You</Text>
       <Text style={styles.subheading}>{TRIGGER_LABELS[trigger]}</Text>
       {recommendation.items.map((item) => (

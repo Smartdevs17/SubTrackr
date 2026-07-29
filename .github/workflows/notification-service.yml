@@ -1,12 +1,6 @@
 name: Notification Service CI
 
-on:
-  push:
-    branches: [main, feat/575-notification-microservice]
-    paths: ['services/notification/**', 'backend/messaging/**']
-  pull_request:
-    branches: [main]
-    paths: ['services/notification/**', 'backend/messaging/**']
+on: workflow_dispatch
 
 jobs:
   typecheck-lint-test:

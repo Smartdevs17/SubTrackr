@@ -29,7 +29,7 @@ SELECT
 FROM subscriptions s
 WHERE s.status = 'active'
 GROUP BY s.user_id
-WITH DATA;
+WITH DATA; 
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_asm_user_id
   ON active_subscriptions_summary (user_id);

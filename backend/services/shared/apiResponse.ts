@@ -20,6 +20,7 @@
  */
 
 import { randomUUID } from 'crypto';
+import { piiClassifier, type ClassificationLevel } from './piiClassifier';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Core types
@@ -137,6 +138,10 @@ export type ErrorCode =
   // ── Idempotency ──────────────────────────────────────────────────────────
   | 'IDEMPOTENCY_KEY_COLLISION'
   | 'IDEMPOTENCY_REQUEST_IN_FLIGHT'
+  // ── Usage metering ───────────────────────────────────────────────────────
+  | 'USAGE_BATCH_TOO_LARGE'
+  | 'USAGE_INVALID_EVENT'
+  | 'USAGE_HARD_LIMIT_EXCEEDED'
   // ── Locking (Issue #610) ─────────────────────────────────────────────────
   | 'LOCK_ACQUISITION_TIMEOUT'
   | 'LOCK_DEADLOCK_DETECTED'
@@ -212,6 +217,10 @@ export const ERROR_HTTP_STATUS_MAP: Record<ErrorCode, number> = {
   // Idempotency
   IDEMPOTENCY_KEY_COLLISION: 422,
   IDEMPOTENCY_REQUEST_IN_FLIGHT: 409,
+  // Usage metering
+  USAGE_BATCH_TOO_LARGE: 413,
+  USAGE_INVALID_EVENT: 422,
+  USAGE_HARD_LIMIT_EXCEEDED: 402,
   // Locking (Issue #610)
   LOCK_ACQUISITION_TIMEOUT: 409,
   LOCK_DEADLOCK_DETECTED: 409,
@@ -327,3 +336,58 @@ export const API_VERSION_VALUE = '1';
  * so that the requestId in the response meta can be correlated with server logs.
  */
 export const REQUEST_ID_HEADER = 'X-Request-ID';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// #668 – PII Redaction middleware helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Redact PII from an ApiSuccessResponse before sending it over the wire.
+ *
+ * @example
+ * // In an Express handler:
+ * const response = ok(userData, requestId);
+ * res.json(redactResponse(response));               // standard level
+ * res.json(redactResponse(response, 'strict'));      // strict level
+ */
+export function redactResponse<T>(
+  response: ApiSuccessResponse<T>,
+  level: ClassificationLevel = 'standard',
+  allowList?: string[]
+): ApiSuccessResponse<unknown> {
+  return {
+    ...response,
+    data: piiClassifier.redact(response.data, { level, allowList }),
+  };
+}
+
+/**
+ * Express/Fastify-compatible middleware factory that automatically redacts PII
+ * from every outgoing JSON response body.
+ *
+ * Usage:
+ * ```ts
+ * app.use(createPiiRedactionMiddleware());              // standard
+ * app.use(createPiiRedactionMiddleware('strict'));       // strict
+ * ```
+ */
+export function createPiiRedactionMiddleware(
+  level: ClassificationLevel = 'standard',
+  allowList?: string[]
+) {
+  return function piiRedactionMiddleware(
+    _req: unknown,
+    res: {
+      json: (body: unknown) => void;
+      send: (body: unknown) => void;
+    },
+    next: () => void
+  ): void {
+    const originalJson = res.json.bind(res);
+    res.json = (body: unknown) => {
+      const redacted = piiClassifier.redact(body, { level, allowList });
+      return originalJson(redacted);
+    };
+    next();
+  };
+}

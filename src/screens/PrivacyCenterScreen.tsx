@@ -53,15 +53,30 @@ const PrivacyCenterScreen = () => {
     );
   };
 
-  const consentItems: Array<{
+  const consentItems: {
     key: keyof typeof consent;
     label: string;
     description: string;
     category: 'analytics' | 'marketing' | 'notifications';
-  }> = [
-    { key: 'analytics', label: 'Analytics', description: 'Share anonymous usage data to help improve the app.', category: 'analytics' },
-    { key: 'marketing', label: 'Marketing', description: 'Receive updates about new features and promotions.', category: 'marketing' },
-    { key: 'notifications', label: 'Notifications', description: 'Receive billing reminders and important alerts.', category: 'notifications' },
+  }[] = [
+    {
+      key: 'analytics',
+      label: 'Analytics',
+      description: 'Share anonymous usage data to help improve the app.',
+      category: 'analytics',
+    },
+    {
+      key: 'marketing',
+      label: 'Marketing',
+      description: 'Receive updates about new features and promotions.',
+      category: 'marketing',
+    },
+    {
+      key: 'notifications',
+      label: 'Notifications',
+      description: 'Receive billing reminders and important alerts.',
+      category: 'notifications',
+    },
   ];
 
   return (
@@ -87,7 +102,10 @@ const PrivacyCenterScreen = () => {
               </Text>
             </View>
             <TouchableOpacity
-              style={[styles.toggleBtn, consent[item.key] ? styles.toggleActive : styles.toggleInactive]}
+              style={[
+                styles.toggleBtn,
+                consent[item.key] ? styles.toggleActive : styles.toggleInactive,
+              ]}
               onPress={async () => {
                 const updated = { [item.key]: !consent[item.key] } as Partial<typeof consent>;
                 setConsent(updated);
@@ -146,7 +164,9 @@ const PrivacyCenterScreen = () => {
           )}
           <View style={styles.actionBtnText}>
             <Text style={[styles.actionBtnTitle, styles.dangerText]}>Delete My Account</Text>
-            <Text style={styles.actionBtnDesc}>Right to erasure — cascade delete all your data</Text>
+            <Text style={styles.actionBtnDesc}>
+              Right to erasure — cascade delete all your data
+            </Text>
           </View>
         </TouchableOpacity>
       </View>

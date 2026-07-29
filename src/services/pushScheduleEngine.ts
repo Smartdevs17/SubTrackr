@@ -24,7 +24,7 @@ export interface ScheduledNotification {
 
 export interface DigestEntry {
   userId: string;
-  notifications: Array<{ title: string; body: string; category: OptInCategory }>;
+  notifications: { title: string; body: string; category: OptInCategory }[];
   scheduledFor: string; // ISO-8601
   frequency: 'daily' | 'weekly';
 }
@@ -96,7 +96,10 @@ export class PushScheduleEngine {
    * Escalate priority for overdue payments.
    * If a billing notification has been pending >24h, escalate to critical.
    */
-  escalateOverdue(notification: ScheduledNotification, overdueHours: number): ScheduledNotification {
+  escalateOverdue(
+    notification: ScheduledNotification,
+    overdueHours: number
+  ): ScheduledNotification {
     if (notification.category === 'billing' && overdueHours >= 24) {
       return { ...notification, priority: 'critical', deliverAt: new Date().toISOString() };
     }
@@ -182,7 +185,7 @@ export class PushScheduleEngine {
 // ─── DigestBuilder ────────────────────────────────────────────────────────────
 
 export class DigestBuilder {
-  private queue = new Map<string, Array<{ title: string; body: string; category: OptInCategory }>>();
+  private queue = new Map<string, { title: string; body: string; category: OptInCategory }[]>();
 
   /** Queue a notification for digest instead of immediate delivery */
   enqueue(userId: string, title: string, body: string, category: OptInCategory): void {

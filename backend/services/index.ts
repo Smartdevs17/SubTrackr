@@ -341,6 +341,36 @@ export type {
   AccessCheckOptions,
 } from './accessControl';
 
+// ── Dunning Email Sequences & A/B Testing (Issue #728) ──────────────────────
+export { DunningEmailSequenceService, dunningEmailSequenceService } from './notification/dunningEmailSequences';
+
+// ── SLA Monitoring (Issue #729) ───────────────────────────────────────────
+export { SlaMonitoringService, slaMonitoringService } from './shared/slaMonitoring';
+export type {
+  SlaTierDefinition,
+  SlaAnalytics,
+  SlaCreditRule,
+  SlaMonitoringEvent,
+} from './shared/slaMonitoring';
+
+// ── Group Billing (Issue #732) ────────────────────────────────────────────
+export { GroupBillingService, groupBillingService } from './billing/groupBilling';
+export type {
+  GroupBillingSummary,
+  GroupInvoice,
+  GroupAdminAction,
+  GroupPlanCustomization,
+} from './billing/groupBilling';
+
+// ── Loyalty Service (Issue #734) ──────────────────────────────────────────
+export { LoyaltyService, loyaltyService } from './billing/loyaltyService';
+export type {
+  LoyaltyPointsRule,
+  LoyaltyAnalyticsData,
+  LoyaltyNotification,
+  LoyaltyApiResponse,
+} from './billing/loyaltyService';
+
 // ── DI Container ──────────────────────────────────────────────────────────────
 export { container, Container } from './container';
 

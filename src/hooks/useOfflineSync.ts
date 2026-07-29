@@ -29,11 +29,11 @@ export function useOfflineSync() {
       // Exponential backoff
       const nextDelay = Math.min(backoffDelayRef.current * 2, 60000); // cap at 60s
       console.warn(`Sync failed, retrying in ${backoffDelayRef.current}ms`, err);
-      
+
       retryTimeoutRef.current = setTimeout(() => {
         triggerSyncWithBackoff();
       }, backoffDelayRef.current);
-      
+
       backoffDelayRef.current = nextDelay;
     }
   }, [syncWithServer]);

@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Theme, ThemeExportData, ThemeConfig, ThemeVariantPair } from '../theme/types';
+import { buildThemeFromConfig } from '../theme/customThemeBuilder';
 
-const API_BASE = '/api/v1/merchant/themes';
 const THEME_API_KEY = 'subtrackr-theme-api-sync';
 
 export interface ThemeApiResponse<T> {
@@ -19,8 +19,6 @@ interface ThemeApiRecord {
   updatedAt: string;
 }
 
-const defaultHeaders = { 'Content-Type': 'application/json' };
-
 export const themeService = {
   async fetchThemes(): Promise<ThemeApiResponse<ThemeApiRecord[]>> {
     try {
@@ -30,7 +28,10 @@ export const themeService = {
       }
       return { success: true, data: [] };
     } catch (err) {
-      return { success: false, error: err instanceof Error ? err.message : 'Failed to fetch themes' };
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Failed to fetch themes',
+      };
     }
   },
 
@@ -114,7 +115,10 @@ export const themeService = {
       await AsyncStorage.setItem(THEME_API_KEY, JSON.stringify(themes));
       return { success: true, data: records };
     } catch (err) {
-      return { success: false, error: err instanceof Error ? err.message : 'Failed to save theme pair' };
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Failed to save theme pair',
+      };
     }
   },
 
@@ -128,7 +132,10 @@ export const themeService = {
       }
       return { success: true };
     } catch (err) {
-      return { success: false, error: err instanceof Error ? err.message : 'Failed to delete theme' };
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Failed to delete theme',
+      };
     }
   },
 
@@ -185,16 +192,18 @@ export const themeService = {
       if (!modeConfig) {
         return { success: false, error: 'No theme config found in export data' };
       }
-      const { buildThemeFromConfig } = await import('../theme/customThemeBuilder');
       const theme = buildThemeFromConfig(
         modeConfig,
         exportData.theme.dark ? 'dark' : 'light',
         shared.id || `imported-${Date.now()}`,
-        shared.name || 'Imported Theme',
+        shared.name || 'Imported Theme'
       );
       return { success: true, data: theme };
     } catch (err) {
-      return { success: false, error: err instanceof Error ? err.message : 'Failed to import theme' };
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Failed to import theme',
+      };
     }
   },
 };

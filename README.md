@@ -197,6 +197,24 @@ npm run lint
 - Make sure you're connected to the same Stellar network as the app (testnet/public)
 </details>
 
+## Local Development Environment
+
+SubTrackr utilizes a fully containerized local environment orchestrated via Docker Compose, eliminating the need to manually install dependencies like PostgreSQL, Redis, Soroban CLI, Rust, and Node.js.
+
+### Architecture
+* **API Gateway (Backend):** Port 3000
+* **Background Workers:** Billing queues
+* **Webhook Dispatcher:** Payload deliveries
+* **ML Service (Python):** Port 8001
+* **Database & Cache:** PostgreSQL (5432), Redis (6379)
+* **Soroban Node:** Standalone local network (8000)
+
+### Quick Setup
+
+1. **Initialize the Environment**
+   ```bash
+   ./scripts/setup.sh
+   
 ## Contributing
 
 We welcome contributions! SubTrackr participates in the **Stellar Wave Program** via [Drips](https://www.drips.network/). Contributors can earn points and rewards by picking up issues labeled **`Stellar Wave`**.

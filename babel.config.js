@@ -3,6 +3,7 @@ module.exports = function (api) {
   const isProduction = process.env.NODE_ENV === 'production';
 
   const plugins = [
+    '@babel/plugin-transform-flow-strip-types',
     [
       'babel-plugin-module-resolver',
       {

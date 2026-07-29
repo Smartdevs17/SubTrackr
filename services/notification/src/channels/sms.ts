@@ -7,7 +7,9 @@ export class SMSProvider implements ChannelProvider {
     private readonly fromNumber: string
   ) {}
 
-  async send(notification: import('../types/notification').Notification): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  async send(
+    notification: import('../types/notification').Notification
+  ): Promise<{ success: boolean; messageId?: string; error?: string }> {
     return { success: true, messageId: `sms-${Date.now()}` };
   }
 }

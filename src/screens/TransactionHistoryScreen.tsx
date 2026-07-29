@@ -38,7 +38,7 @@ const TYPE_LABEL: Record<TransactionType, string> = {
   [TransactionType.REFUND]: 'Refund',
 };
 
-const FILTERS: Array<TransactionStatus | 'all'> = [
+const FILTERS: (TransactionStatus | 'all')[] = [
   'all',
   TransactionStatus.CONFIRMED,
   TransactionStatus.PENDING,
@@ -341,7 +341,7 @@ const styles = StyleSheet.create({
   },
   // Detail overlay
   detailOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'flex-end',
   },

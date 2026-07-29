@@ -14,9 +14,17 @@ import {
   PaymentMethodService,
   PaymentMethodError,
   PaymentMethodErrorCode,
-  PaymentMethodExpiryCheck,
   WalletConnection,
 } from '../services/walletService';
+import type { PaymentMethodExpiryCheck } from '../services/paymentMethodService';
+import { Network } from '../config/networks';
+
+// ── Types ──────────────────────────────────────────────────────────
+
+export interface NetworkMismatch {
+  connectedChainId: number;
+  preferredNetwork: Network;
+}
 
 interface WalletState {
   // Connection state from service

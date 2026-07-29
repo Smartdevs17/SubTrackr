@@ -2,6 +2,7 @@
 #![allow(clippy::too_many_arguments)]
 
 use soroban_sdk::{contract, contracterror, contractimpl, contracttype, Address, Env, Vec};
+use subtrackr_types::CoreError;
 
 const MAX_BATCH_ITEMS: u32 = 100;
 const GAS_BASE: u64 = 50_000;
@@ -15,6 +16,24 @@ pub enum BatchError {
     AlreadyExecuted = 2,
 }
 
+impl From<BatchError> for CoreError {
+    fn from(err: BatchError) -> Self {
+        match err {
+            BatchError::InvalidBatch => CoreError::InvalidConfig,
+            BatchError::AlreadyExecuted => CoreError::InvalidStateTransition,
+        }
+    }
+}
+
+impl From<CoreError> for BatchError {
+    fn from(err: CoreError) -> Self {
+        match err {
+            CoreError::InvalidConfig => BatchError::InvalidBatch,
+            CoreError::InvalidStateTransition => BatchError::AlreadyExecuted,
+            _ => BatchError::InvalidBatch,
+        }
+    }
+}
 #[contracttype]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum OperationType {
