@@ -226,6 +226,27 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
       }
 
       // -----------------------------------------------------------------
+      // Public tier configs  GET /rate-limits/tiers
+      // -----------------------------------------------------------------
+      if (pathname === '/rate-limits/tiers' && method === 'GET') {
+        sendJson(res, 200, {
+          algorithm: 'token_bucket',
+          tiers: {
+            free: rateLimitingService.getPublicTierLimits(
+              rateLimitingService.getRateLimitTier(SubscriptionTier.FREE),
+            ),
+            pro: rateLimitingService.getPublicTierLimits(
+              rateLimitingService.getRateLimitTier(SubscriptionTier.PREMIUM),
+            ),
+            enterprise: rateLimitingService.getPublicTierLimits(
+              rateLimitingService.getRateLimitTier(SubscriptionTier.ENTERPRISE),
+            ),
+          },
+        });
+        return;
+      }
+
+      // -----------------------------------------------------------------
       // Rate-limit status  GET /rate-limits/status?apiKey=...&tier=...
       // -----------------------------------------------------------------
       if (pathname === '/rate-limits/status' && method === 'GET') {
@@ -236,7 +257,11 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
           return;
         }
         const status = rateLimitingService.getRateLimitStatus(apiKey, tier);
-        sendJson(res, 200, status);
+        sendJson(res, 200, {
+          ...status,
+          rateLimitTier: rateLimitingService.getRateLimitTier(tier),
+          algorithm: 'token_bucket',
+        });
         return;
       }
 
@@ -281,6 +306,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
             monthlyLimit?: number;
             burstLimit?: number;
             concurrentLimit?: number;
+            refillRatePerSecond?: number;
           };
         };
         if (!body.apiKey) {
@@ -365,6 +391,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
         console.info(`[Server] Plans    → /plans`);
         console.info(`[Server] Metrics  → GET /metrics/plan-cache`);
         console.info(`[Server] RateLimit → GET /rate-limits/analytics`);
+        console.info(`[Server] RateLimit → GET /rate-limits/tiers`);
         console.info(`[Server] RateLimit → GET /rate-limits/status?apiKey=...`);
         console.info(`[Server] RateLimit → POST /rate-limits/bypass`);
         console.info(`[Server] RateLimit → POST /rate-limits/config`);
