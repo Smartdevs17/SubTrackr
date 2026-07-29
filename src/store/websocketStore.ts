@@ -99,11 +99,9 @@ export const useWebSocketStore = create<WebSocketState>((set, get) => ({
 
 // ── Typed hook aliases ────────────────────────────────────────────────────────
 
-export const useWebSocketState = () =>
-  useWebSocketStore((s) => s.state);
+export const useWebSocketState = () => useWebSocketStore((s) => s.state);
 
-export const useWebSocketMetrics = () =>
-  useWebSocketStore((s) => s.metrics);
+export const useWebSocketMetrics = () => useWebSocketStore((s) => s.metrics);
 
 export const useWebSocketActions = () =>
   useWebSocketStore((s) => ({
@@ -120,10 +118,7 @@ export const useWebSocketActions = () =>
  * Subscribe to all subscription events for a given user.
  * Returns the unsubscribe function — call it in a useEffect cleanup.
  */
-export function subscribeToUserEvents(
-  userId: string,
-  handler: EventHandler
-): () => void {
+export function subscribeToUserEvents(userId: string, handler: EventHandler): () => void {
   return realtimeService.subscribe(handler, { userId });
 }
 

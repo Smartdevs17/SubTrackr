@@ -54,10 +54,22 @@ config.transformer.assetPlugins = config.transformer.assetPlugins || [];
 // Ensure all static asset file types are covered
 config.resolver.assetExts = [
   ...(config.resolver.assetExts || []),
-  'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg',
-  'ttf', 'otf', 'woff', 'woff2',
-  'mp4', 'mov', 'mp3', 'wav',
-  'lottie', 'json',
+  'png',
+  'jpg',
+  'jpeg',
+  'gif',
+  'webp',
+  'svg',
+  'ttf',
+  'otf',
+  'woff',
+  'woff2',
+  'mp4',
+  'mov',
+  'mp3',
+  'wav',
+  'lottie',
+  'json',
 ];
 
 // Asset hash in filename for cache-busting (Metro default behaviour; explicit here for clarity)
