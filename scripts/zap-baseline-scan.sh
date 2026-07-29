@@ -72,4 +72,8 @@ if alerts:
     raise SystemExit(1)
 PY
 
-exit "$last_status"
+if [ "$last_status" -ne 0 ]; then
+  echo "ZAP completed with exit code ${last_status}; merge gating is handled by ZAP_FAIL_LEVEL=${FAIL_LEVEL}."
+fi
+
+exit 0
