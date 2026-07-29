@@ -44,7 +44,28 @@ export type {
   ExportFilter,
   StreamExportOptions,
   ReconciliationResult,
+  CustomFieldMapping,
+  ExportSchedule,
+  ExportScheduleInput,
+  ExportHistoryEntry,
+  ExportAnalytics,
+  ExportFrequency,
+  ExportStatus,
 } from './accountingExportService';
+export {
+  handleCreateExport,
+  handleGetExportStatus,
+  handleDownloadExport,
+  handleRecordDownload,
+  handleCreateSchedule,
+  handleGetSchedules,
+  handleUpdateSchedule,
+  handleDeleteSchedule,
+  handleGetAnalytics,
+  handleGetHistory,
+} from './exportApi';
+export type { ApiResponse } from './exportApi';
+
 export {
   BackendPartnerService,
 } from './partnerService';
