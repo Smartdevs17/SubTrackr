@@ -29,7 +29,6 @@ enum LoyaltyKey {
     PointTx(u64),
     RedemptionCount,
 }
-
 // ── Constants ──────────────────────────────────────────────────────────────────
 
 /// Maximum points a single subscriber can hold (anti-inflation).

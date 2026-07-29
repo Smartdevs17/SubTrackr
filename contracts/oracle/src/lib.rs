@@ -1,5 +1,20 @@
 #![no_std]
 #![allow(clippy::too_many_arguments)]
+//! SubTrackr price oracle contract.
+//!
+//! A push-style oracle: authorized feed addresses submit signed price
+//! observations for `(token, quote)` pairs, and subscription/billing contracts
+//! read USD-equivalent prices through [`SubTrackrOracle::get_price`] and friends.
+//!
+//! Reliability features required for charging real money:
+//! * **Caching with TTL** — [`get_price_with_cache`] avoids recomputation within a window.
+//! * **Fallback oracle** — each feed may register a redundant source.
+//! * **Circuit breaker** — repeated stale/deviating updates trip the feed until reset.
+//! * **Staleness detection** — observations older than the configured window are rejected.
+//! * **Multiple quote currencies** — pairs are keyed by `(token, quote)`.
+//! * **Deviation thresholds** — out-of-band updates raise alerts and fault the breaker.
+//!
+//! [`get_price_with_cache`]: SubTrackrOracle::get_price_with_cache
 
 mod price;
 
@@ -10,6 +25,7 @@ pub use price::{
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, symbol_short, Address, Env, Symbol,
 };
+use subtrackr_types::CoreError;
 
 /// Number of consecutive faults that trips a feed's circuit breaker.
 const CIRCUIT_FAULT_LIMIT: u32 = 3;
@@ -34,6 +50,45 @@ pub enum OracleError {
     CircuitOpen = 10,
     NoHistory = 11,
     InvalidConfig = 12,
+}
+
+impl From<OracleError> for CoreError {
+    fn from(err: OracleError) -> Self {
+        match err {
+            OracleError::AlreadyInitialized => CoreError::AlreadyInitialized,
+            OracleError::NotInitialized => CoreError::NotInitialized,
+            OracleError::Unauthorized => CoreError::Unauthorized,
+            OracleError::FeedNotFound => CoreError::FeedNotFound,
+            OracleError::FeedExists => CoreError::FeedExists,
+            OracleError::InvalidPrice => CoreError::InvalidPrice,
+            OracleError::InvalidTimestamp => CoreError::InvalidTimestamp,
+            OracleError::NoPriceAvailable => CoreError::NoPriceAvailable,
+            OracleError::StalePrice => CoreError::StalePrice,
+            OracleError::CircuitOpen => CoreError::CircuitOpen,
+            OracleError::NoHistory => CoreError::NoHistory,
+            OracleError::InvalidConfig => CoreError::InvalidConfig,
+        }
+    }
+}
+
+impl From<CoreError> for OracleError {
+    fn from(err: CoreError) -> Self {
+        match err {
+            CoreError::AlreadyInitialized => OracleError::AlreadyInitialized,
+            CoreError::NotInitialized => OracleError::NotInitialized,
+            CoreError::Unauthorized => OracleError::Unauthorized,
+            CoreError::FeedNotFound => OracleError::FeedNotFound,
+            CoreError::FeedExists => OracleError::FeedExists,
+            CoreError::InvalidPrice => OracleError::InvalidPrice,
+            CoreError::InvalidTimestamp => OracleError::InvalidTimestamp,
+            CoreError::NoPriceAvailable => OracleError::NoPriceAvailable,
+            CoreError::StalePrice => OracleError::StalePrice,
+            CoreError::CircuitOpen => OracleError::CircuitOpen,
+            CoreError::NoHistory => OracleError::NoHistory,
+            CoreError::InvalidConfig => OracleError::InvalidConfig,
+            _ => OracleError::InvalidConfig,
+        }
+    }
 }
 
 #[contracttype]
