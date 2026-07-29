@@ -38,6 +38,49 @@ export interface IMeteringService {
   ): number;
   checkThresholds(userId: string, metricType: string): Promise<UsageThresholdAlert | null>;
   calculateOverage(userId: string, metricType?: string): Promise<number>;
+  getUsageByMetric(subscriptionId: string): Record<string, number>;
+  getUsageHistory(subscriptionId?: string, metric?: string): Array<{
+    subscriptionId: string;
+    metric: string;
+    value: number;
+    timestamp: Date;
+  }>;
+  getUsageTrends(subscriptionId: string): Array<{
+    metric: string;
+    currentPeriod: number;
+    previousPeriod: number;
+    changePercent: number;
+    trend: 'increasing' | 'decreasing' | 'stable';
+  }>;
+  getAnalytics(subscriptionId?: string): {
+    totalUsage: number;
+    usageByMetric: Record<string, number>;
+    usageBySubscription: Record<string, number>;
+    usageHistory: Array<{
+      subscriptionId: string;
+      metric: string;
+      value: number;
+      timestamp: Date;
+    }>;
+    trends: Array<{
+      metric: string;
+      currentPeriod: number;
+      previousPeriod: number;
+      changePercent: number;
+      trend: 'increasing' | 'decreasing' | 'stable';
+    }>;
+    alertsCount: number;
+    alerts: Array<{
+      id: string;
+      subscriptionId: string;
+      metric: string;
+      threshold: number;
+      currentUsage: number;
+      message: string;
+      createdAt: Date;
+      acknowledged: boolean;
+    }>;
+  };
 }
 
 export interface IPricingService {
@@ -56,7 +99,7 @@ export interface IDunningService {
   configurePlan(planId: string, config: Partial<DunningConfiguration>): DunningConfiguration;
   getConfiguration(planId: string): DunningConfiguration | undefined;
   startDunning(subscriptionId: string, subscriberId: string, merchantId: string, planId: string): DunningEntry;
-  recordFailedCharge(subscriptionId: string): DunningEntry | null;
+  recordFailedCharge(subscriptionId: string, failureType?: string): DunningEntry | null;
   recordSuccessfulCharge(subscriptionId: string): void;
   getDunningEntry(subscriptionId: string): DunningEntry | undefined;
   listActiveDunning(merchantId?: string): DunningEntry[];
@@ -66,6 +109,32 @@ export interface IDunningService {
   getCommunications(subscriptionId: string): DunningCommunication[];
   getAnalytics(merchantId?: string): DunningAnalytics;
   getProcessableEntries(): DunningEntry[];
+  configureRetrySchedule(schedule: {
+    failureType: string;
+    baseDelayHours?: number;
+    maxRetries?: number;
+    backoffMultiplier?: number;
+    maxDelayHours?: number;
+  }): void;
+  getRetrySchedule(failureType: string): {
+    failureType: string;
+    baseDelayHours: number;
+    maxRetries: number;
+    backoffMultiplier: number;
+    maxDelayHours: number;
+  };
+  calculateRetryDelay(failureType: string, attempt: number): number;
+  getRetryAnalytics(merchantId?: string): {
+    totalRetries: number;
+    successfulRetries: number;
+    failedRetries: number;
+    retryRate: number;
+    successRate: number;
+    averageRetriesBeforeSuccess: number;
+    retriesByFailureType: Record<string, number>;
+    retriesByStage: Record<string, number>;
+    averageTimeToRecovery: number;
+  };
 }
 
 export interface IAccountingExportService {

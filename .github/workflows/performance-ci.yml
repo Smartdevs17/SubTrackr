@@ -1,0 +1,233 @@
+name: Performance CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # ── 1. Frontend performance budget ──────────────────────────────────────────
+  performance-budget:
+    name: Frontend Performance Budget
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-node
+
+      - name: Run performance budget check
+        run: npm run performance:ci
+        env:
+          # Point at the CI artifact if one was produced by a prior E2E run.
+          # Falls back gracefully when no report exists (validates config only).
+          PERFORMANCE_REPORT: ${{ github.workspace }}/artifacts/performance-report.json
+
+      - name: Upload performance budget config
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-budget-${{ github.sha }}
+          path: performance-budget.json
+          retention-days: 30
+
+  # ── 2. Bundle size analysis ──────────────────────────────────────────────────
+  bundle-size:
+    name: Bundle Size Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-node
+
+      - name: Run bundle size check
+        run: npx size-limit --json > bundle-size-report.json || true
+
+      - name: Post bundle size comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let report = [];
+            try {
+              report = JSON.parse(fs.readFileSync('bundle-size-report.json', 'utf8'));
+            } catch {
+              console.log('No bundle size report generated (no .size-limit.json entries matched)');
+              return;
+            }
+            if (!report.length) return;
+
+            const rows = report.map(r => {
+              const passed = r.passed !== false ? '✅' : '❌';
+              const size = r.size ? `${(r.size / 1024).toFixed(1)} KB` : '—';
+              const limit = r.sizeLimit ? `${(r.sizeLimit / 1024).toFixed(1)} KB` : '—';
+              return `| ${passed} | \`${r.name}\` | ${size} | ${limit} |`;
+            }).join('\n');
+
+            const body = [
+              '### 📦 Bundle Size Report',
+              '',
+              '| Status | Package | Size | Limit |',
+              '|--------|---------|------|-------|',
+              rows,
+            ].join('\n');
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body,
+            });
+
+      - name: Upload bundle report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-size-${{ github.sha }}
+          path: bundle-size-report.json
+          if-no-files-found: ignore
+          retention-days: 30
+
+  # ── 3. Soroban gas benchmarks ────────────────────────────────────────────────
+  gas-benchmarks:
+    name: Gas Benchmarks (Soroban)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          components: clippy, rustfmt
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            contracts/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('contracts/Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Restore gas baseline
+        uses: actions/cache@v4
+        with:
+          path: gas-benchmarks/baseline.json
+          key: gas-baseline-${{ hashFiles('contracts/subscription/src/**/*.rs', 'contracts/types/src/**/*.rs') }}
+          restore-keys: |
+            gas-baseline-
+
+      - name: Run gas benchmarks
+        id: gas_bench
+        run: bash scripts/gas-benchmark.sh
+        env:
+          GAS_REGRESSION_THRESHOLD: '0.10'
+          COMMIT_SHA: ${{ github.sha }}
+          COMMIT_TIME: ${{ github.event.head_commit.timestamp }}
+        continue-on-error: true
+
+      - name: Save updated baseline (main branch only)
+        if: github.ref == 'refs/heads/main'
+        uses: actions/cache@v4
+        with:
+          path: gas-benchmarks/baseline.json
+          key: gas-baseline-${{ hashFiles('contracts/subscription/src/**/*.rs', 'contracts/types/src/**/*.rs') }}
+
+      - name: Upload gas benchmark artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gas-benchmarks-${{ github.sha }}
+          path: |
+            gas-benchmarks/baseline.json
+            gas-benchmarks/trends.json
+            gas-benchmarks/gas_trend.svg
+          if-no-files-found: ignore
+          retention-days: 90
+
+      - name: Post gas benchmark results to PR
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const trendsPath = 'gas-benchmarks/trends.json';
+            if (!fs.existsSync(trendsPath)) return;
+
+            const trends = JSON.parse(fs.readFileSync(trendsPath, 'utf8'));
+            const latest = trends[trends.length - 1];
+            if (!latest?.results) return;
+
+            const rows = Object.entries(latest.results)
+              .map(([fn, m]) => {
+                const cpu = m.instructions ?? 0;
+                return `| \`${fn}\` | ${cpu.toLocaleString()} |`;
+              })
+              .join('\n');
+
+            const body = [
+              '### ⛽ Gas Benchmark Results',
+              '',
+              '| Function | CPU Instructions |',
+              '|----------|-----------------|',
+              rows,
+              '',
+              `Commit: \`${latest.sha}\``,
+            ].join('\n');
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body,
+            });
+
+      - name: Fail if gas regressions detected
+        if: steps.gas_bench.outcome == 'failure'
+        run: |
+          echo "::error::Gas benchmarks detected regressions exceeding the 10% threshold."
+          echo "Download the gas-benchmarks artifact to see the full report."
+          exit 1
+
+  # ── 4. Contracts lint & test ─────────────────────────────────────────────────
+  contracts-ci:
+    name: Contracts (Clippy + Test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          components: clippy, rustfmt
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            contracts/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('contracts/Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-
+
+      - name: Cargo fmt check
+        run: npm run contracts:fmt
+
+      - name: Cargo clippy
+        run: npm run contracts:clippy
+
+      - name: Cargo test
+        run: npm run contracts:test
