@@ -62,6 +62,18 @@ export { AuditService, auditService } from './shared/auditService';
 export { RateLimitingService, rateLimitingService } from './shared/rateLimitingService';
 export { MonitoringService, monitoringService } from './shared/monitoring';
 export { apiClient } from './shared/apiClient';
+export {
+  DatabaseService,
+  getDatabaseService,
+  resetDatabaseService,
+  ConnectionStringRotator,
+} from './shared/databaseService';
+export type {
+  DatabaseFailoverStatus,
+  DatabaseServiceOptions,
+  ConnectionStringRotationOptions,
+  ParsedConnectionString,
+} from './shared/databaseService';
 
 // ── Upstream additions ────────────────────────────────────────────────────────
 export { ExportService, exportService } from './exportService';
