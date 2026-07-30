@@ -42,3 +42,60 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-node
       - run: npx audit-ci --config audit-ci.json
+
+  mutation-frontend:
+    name: Mutation Tests (Frontend)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-node
+      - name: Run frontend mutation tests
+        run: npx --yes @stryker-mutator/core@9.0.0 run --configFile stryker.conf.json
+        continue-on-error: true
+      - name: Upload mutation report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mutation-report-frontend
+          path: reports/mutation/
+      - name: Check mutation score
+        run: node scripts/check-mutation-score.js --module=frontend
+
+  mutation-backend:
+    name: Mutation Tests (Backend)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-node
+      - name: Run backend mutation tests
+        run: npx --yes @stryker-mutator/core@9.0.0 run --configFile stryker.backend.conf.json
+        continue-on-error: true
+      - name: Upload mutation report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mutation-report-backend
+          path: reports/mutation-backend/
+      - name: Check mutation score
+        run: node scripts/check-mutation-score.js --module=backend
+
+  mutation-summary:
+    name: Mutation Score Summary
+    needs: [mutation-frontend, mutation-backend]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-node
+      - name: Download frontend report
+        uses: actions/download-artifact@v4
+        with:
+          name: mutation-report-frontend
+          path: reports/mutation/
+      - name: Download backend report
+        uses: actions/download-artifact@v4
+        with:
+          name: mutation-report-backend
+          path: reports/mutation-backend/
+      - name: Generate mutation summary
+        run: node scripts/check-mutation-score.js --summary
