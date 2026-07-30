@@ -29,6 +29,11 @@ export type {
 } from './taxTypes';
 export { DunningService, dunningService } from './dunningService';
 export type { FailureType, RetryScheduleConfig, RetryAnalytics } from './dunningService';
+export {
+  ProgressiveDunningEngine,
+  progressiveDunningEngine,
+  createDefaultEscalationPolicy,
+} from '../../../src/services/progressiveDunningEngine';
 export { ProrationService, prorationService } from './proration';
 export type {
   ProrationConfiguration,
