@@ -16,5 +16,18 @@ export { useSupportStore } from './supportStore';
 export { useAuthStore } from './authStore';
 export { useCancellationStore } from './cancellationStore';
 export { useHealthStore } from './healthStore';
-
+export { useLoyaltyStore } from './loyaltyStore';
+export { useSlaStore } from './slaStore';
+export { useGamificationStore } from './gamificationStore';
 export { useThemeStore } from '../theme/themeStore';
+
+// Context + Hooks pattern exports (Issue #742)
+export {
+  SubscriptionProvider,
+  useSubscriptionContext,
+  useSubscriptions,
+  useSubscriptionStats,
+  useSubscriptionStatus,
+  useSubscriptionActions,
+  useSubscription,
+} from '../context/SubscriptionContext';

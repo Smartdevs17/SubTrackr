@@ -1,4 +1,17 @@
-fastapi
-uvicorn
-pydantic
-scikit-learn
+# ETL Module Dependencies
+# Core
+pydantic>=2.0.0
+
+# Feature Store Integrations (optional, uncomment as needed)
+# google-cloud-bigquery>=3.0.0
+# redis>=4.0.0
+
+# Pipeline Orchestration (for Airflow integration)
+# apache-airflow>=2.5.0
+
+# Monitoring
+# prometheus-client>=0.14.0
+
+# Testing
+pytest>=7.0.0
+pytest-cov>=4.0.0

@@ -68,6 +68,7 @@ export type RootStackParamList = {
   BillingSettings: undefined;
   BillingAlignment: undefined;
   ChangePlan: { subscriptionId: string };
+  PauseResume: { id: string };
   PaymentMethods: undefined;
   AnalyticsDashboard: undefined;
   TrialDetails: { trialId: string } | undefined;
@@ -88,6 +89,8 @@ export type RootStackParamList = {
   // Issue #550: Advanced dunning
   DunningDashboard: undefined;
   PauseSubscription: { subscriptionId: string };
+  RoleManagement: undefined;
+  RevenueReport: undefined;
 };
 
 export type TabParamList = {

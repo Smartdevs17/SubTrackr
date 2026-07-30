@@ -254,3 +254,19 @@ container.bind('IPlanCacheService', () => {
   }
   return svc as PlanCacheService;
 });
+
+// ── Dunning Email Sequences & A/B Testing (#728) ─────────────────────────────
+import { dunningEmailSequenceService } from './notification/dunningEmailSequences';
+container.register('IDunningEmailSequenceService', dunningEmailSequenceService);
+
+// ── SLA Monitoring (#729) ────────────────────────────────────────────────────
+import { slaMonitoringService } from './shared/slaMonitoring';
+container.register('ISlaMonitoringService', slaMonitoringService);
+
+// ── Group Billing (#732) ─────────────────────────────────────────────────────
+import { groupBillingService } from './billing/groupBilling';
+container.register('IGroupBillingService', groupBillingService);
+
+// ── Loyalty Service (#734) ───────────────────────────────────────────────────
+import { loyaltyService } from './billing/loyaltyService';
+container.register('ILoyaltyService', loyaltyService);

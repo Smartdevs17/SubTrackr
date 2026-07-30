@@ -46,4 +46,33 @@ config.resolver.blockList = [
   /src\/design-system\/.*/,
 ];
 
+// ── CDN asset configuration ────────────────────────────────────────────────────
+// Assets served from Expo CDN get long-lived immutable Cache-Control headers.
+// The content hash in the asset filename ensures cache invalidation on change.
+config.transformer.assetPlugins = config.transformer.assetPlugins || [];
+
+// Ensure all static asset file types are covered
+config.resolver.assetExts = [
+  ...(config.resolver.assetExts || []),
+  'png',
+  'jpg',
+  'jpeg',
+  'gif',
+  'webp',
+  'svg',
+  'ttf',
+  'otf',
+  'woff',
+  'woff2',
+  'mp4',
+  'mov',
+  'mp3',
+  'wav',
+  'lottie',
+  'json',
+];
+
+// Asset hash in filename for cache-busting (Metro default behaviour; explicit here for clarity)
+config.transformer.assetRegistryPath = 'react-native/Libraries/Image/AssetRegistry';
+
 module.exports = config;

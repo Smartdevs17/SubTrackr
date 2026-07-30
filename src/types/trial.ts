@@ -108,3 +108,47 @@ export interface TrialStats {
     }
   >;
 }
+
+export interface TrialExtensionRule {
+  id: string;
+  name: string;
+  maxExtensions: number;
+  extensionDurationDays: number;
+  conditions: {
+    minDaysRemaining?: number;
+    maxExtensionsUsed?: number;
+    requiredConversionEvents?: string[];
+  };
+}
+
+export interface TrialExtension {
+  id: string;
+  trialConfigId: string;
+  ruleId: string;
+  extendedAt: Date;
+  previousEndDate: Date;
+  newEndDate: Date;
+  extensionCount: number;
+}
+
+export interface TrialExtensionConfig {
+  rules: TrialExtensionRule[];
+  maxTotalExtensions: number;
+  autoExtendOnEngagement: boolean;
+}
+
+export interface TrialAnalytics {
+  totalTrials: number;
+  activeTrials: number;
+  convertedTrials: number;
+  expiredTrials: number;
+  cancelledTrials: number;
+  conversionRate: number;
+  avgTimeToConvert: number;
+  avgTimeToExpire: number;
+  extensionCount: number;
+  funnelStepRates: Record<string, number>;
+  variantStats: Record<string, { trials: number; conversions: number; conversionRate: number }>;
+  dailyConversions: Array<{ date: string; count: number }>;
+  dropOffPoints: Array<{ step: string; dropOffRate: number }>;
+}

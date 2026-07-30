@@ -172,6 +172,17 @@ export type {
   WebhookDeliveryResult,
   WebhookEventInput,
 } from './notification/webhook';
+// Unified webhook barrel (Issue #727 Technical Scope)
+export { WebhookManagementApi, webhookManagementApi } from './notification/webhookManagementApi';
+// Event catalog — wildcard filtering & schema validation
+export {
+  EventCatalogRegistry,
+  eventCatalog,
+  EVENT_CATALOG,
+} from './webhook/eventCatalog';
+export type { EventDefinition, EventCategory, SchemaField } from './webhook/eventCatalog';
+export { EventSchemaValidator, eventSchemaValidator } from './webhook/eventSchemaValidator';
+export type { ValidationResult } from './webhook/eventSchemaValidator';
 export { WebSocketServer, webSocketServer } from './notification/websocket';
 export type {
   SubscriptionEventType as WSSubscriptionEventType,
@@ -340,6 +351,36 @@ export type {
   UnauthorizedAccessEvent,
   AccessCheckOptions,
 } from './accessControl';
+
+// ── Dunning Email Sequences & A/B Testing (Issue #728) ──────────────────────
+export { DunningEmailSequenceService, dunningEmailSequenceService } from './notification/dunningEmailSequences';
+
+// ── SLA Monitoring (Issue #729) ───────────────────────────────────────────
+export { SlaMonitoringService, slaMonitoringService } from './shared/slaMonitoring';
+export type {
+  SlaTierDefinition,
+  SlaAnalytics,
+  SlaCreditRule,
+  SlaMonitoringEvent,
+} from './shared/slaMonitoring';
+
+// ── Group Billing (Issue #732) ────────────────────────────────────────────
+export { GroupBillingService, groupBillingService } from './billing/groupBilling';
+export type {
+  GroupBillingSummary,
+  GroupInvoice,
+  GroupAdminAction,
+  GroupPlanCustomization,
+} from './billing/groupBilling';
+
+// ── Loyalty Service (Issue #734) ──────────────────────────────────────────
+export { LoyaltyService, loyaltyService } from './billing/loyaltyService';
+export type {
+  LoyaltyPointsRule,
+  LoyaltyAnalyticsData,
+  LoyaltyNotification,
+  LoyaltyApiResponse,
+} from './billing/loyaltyService';
 
 // ── DI Container ──────────────────────────────────────────────────────────────
 export { container, Container } from './container';
