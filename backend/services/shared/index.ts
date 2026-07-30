@@ -51,6 +51,8 @@ export type {
   RateLimitResponse,
   RateLimitMiddlewareOptions,
 } from './rateLimitMiddleware';
+export { TokenBucket, refillRateFromHourlyLimit } from './tokenBucket';
+export type { TokenBucketConfig, TokenBucketSnapshot, ConsumeResult } from './tokenBucket';
 export { apiClient } from './apiClient';
 export {
   ok,
