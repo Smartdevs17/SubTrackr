@@ -95,8 +95,8 @@ export interface ReadWritePoolOptions {
 export class ReadWritePool implements Pool {
   readonly primary: Pool;
   private readonly replicas: Map<string, Pool>;
-  private readonly replicaEndpoints: ReplicaEndpoint[];
-  private readonly config: DatabaseConfig;
+  private replicaEndpoints: ReplicaEndpoint[];
+  private config: DatabaseConfig;
   private readonly lagState: Map<string, ReplicaLagState> = new Map();
   private readonly queryStats: Map<string, ReplicaQueryStats> = new Map();
   private readonly lagSamples: Map<string, number[]> = new Map();
@@ -111,7 +111,7 @@ export class ReadWritePool implements Pool {
   ) {
     this.primary = primary;
     this.replicas = replicas;
-    this.replicaEndpoints = endpoints;
+    this.replicaEndpoints = [...endpoints];
     this.config = config;
 
     for (const endpoint of endpoints) {
@@ -327,6 +327,75 @@ export class ReadWritePool implements Pool {
     for (const pool of this.replicas.values()) {
       await pool.end();
     }
+  }
+
+  /**
+   * Hot-swap replica pools after connection-string rotation.
+   * Closes previous replica pools and reseeds lag/query state.
+   */
+  async replaceReplicaPools(
+    nextReplicas: Map<string, Pool>,
+    endpoints: ReplicaEndpoint[],
+  ): Promise<void> {
+    const previous = [...this.replicas.entries()];
+    this.replicas.clear();
+    this.replicaEndpoints.length = 0;
+    this.replicaEndpoints.push(...endpoints);
+    this.lagState.clear();
+    this.queryStats.clear();
+    this.lagSamples.clear();
+    this.roundRobinIndex = 0;
+
+    for (const endpoint of endpoints) {
+      const pool = nextReplicas.get(endpoint.name);
+      if (pool) {
+        this.replicas.set(endpoint.name, pool);
+      }
+      this.lagState.set(endpoint.name, {
+        name: endpoint.name,
+        lagMs: 0,
+        lagP99Ms: 0,
+        available: true,
+        lastCheckedAt: 0,
+      });
+      this.lagSamples.set(endpoint.name, []);
+      this.queryStats.set(endpoint.name, {
+        name: endpoint.name,
+        queryCount: 0,
+        totalLatencyMs: 0,
+        lastLatencyMs: 0,
+        errors: 0,
+      });
+    }
+
+    this.config = { ...this.config, replicas: [...endpoints] };
+
+    for (const [, pool] of previous) {
+      try {
+        await pool.end();
+      } catch {
+        // Ignore close errors during rotation
+      }
+    }
+
+    if (this.replicas.size > 0 && !this.lagPollTimer) {
+      this.startLagMonitoring();
+    }
+    if (this.replicas.size === 0) {
+      this.stopLagMonitoring();
+    }
+  }
+
+  /** Mark a replica unavailable (manual / forced failover). */
+  markReplicaUnavailable(name: string): void {
+    const state = this.lagState.get(name);
+    if (state) state.available = false;
+  }
+
+  /** Restore a replica to the candidate set. */
+  markReplicaAvailable(name: string): void {
+    const state = this.lagState.get(name);
+    if (state) state.available = true;
   }
 }
 
