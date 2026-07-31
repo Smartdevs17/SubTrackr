@@ -6,6 +6,10 @@ import {
   WalletError,
   WalletErrorCode,
   errorTracker,
+  NetworkError,
+  NetworkErrorCode,
+  ContractError,
+  ContractErrorCode,
 } from '../walletService';
 import { ethers } from 'ethers';
 import { getContractAddress, ERC20__factory } from '../../contracts';
@@ -49,6 +53,16 @@ jest.mock('../../contracts', () => ({
 
 jest.mock('../../config/evm', () => ({
   getEvmRpcUrl: jest.fn().mockReturnValue('https://rpc.example.com'),
+  getChainType: jest.fn().mockReturnValue('evm'),
+  getDefaultStellarNetwork: jest.fn().mockReturnValue({
+    name: 'Stellar Testnet',
+    networkPassphrase: 'Test SDF Network ; September 2015',
+    horizonUrl: 'https://horizon-testnet.stellar.org',
+    sorobanRpcUrl: 'https://soroban-testnet.stellar.org',
+    nativeAsset: 'XLM',
+  }),
+  STELLAR_NETWORKS: {},
+  EVM_RPC_URLS: { 1: 'https://rpc.example.com' },
 }));
 
 const mockedGetContractAddress = getContractAddress as jest.MockedFunction<
@@ -261,7 +275,7 @@ describe('WalletServiceManager', () => {
       } catch (e) {
         expect(e).toBeInstanceOf(WalletError);
         expect((e as WalletError).code).toBe(WalletErrorCode.NOT_CONNECTED);
-        expect((e as WalletError).userMessage).toBe('Wallet is not connected.');
+        expect((e as WalletError).userMessage).toBe('EVM wallet is not connected.');
         expect((e as WalletError).recovery).toBeDefined();
       }
     });
@@ -353,7 +367,14 @@ describe('WalletServiceManager', () => {
       });
 
       try {
-        await mgr.createSablierStream('0xToken', '10', Date.now(), Date.now() + 86400000, '0xRecipient', 1);
+        await mgr.createSablierStream(
+          '0xToken',
+          '10',
+          Date.now(),
+          Date.now() + 86400000,
+          '0xRecipient',
+          1
+        );
         fail('expected to throw');
       } catch (e) {
         expect(e).toBeInstanceOf(WalletError);
@@ -377,7 +398,12 @@ describe('WalletServiceManager', () => {
 
     it('preserves cause stack when cause is an Error', () => {
       const cause = new Error('rpc timeout');
-      const err = new WalletError(WalletErrorCode.UNKNOWN, 'Something went wrong.', undefined, cause);
+      const err = new WalletError(
+        WalletErrorCode.UNKNOWN,
+        'Something went wrong.',
+        undefined,
+        cause
+      );
       expect(err.stack).toContain('Caused by:');
     });
   });
@@ -402,7 +428,7 @@ describe('WalletServiceManager', () => {
   });
 
   describe('getTokenBalances – structured error', () => {
-    it('throws WalletError BALANCE_FETCH_FAILED when provider fails', async () => {
+    it('throws NetworkError RPC_ERROR when provider fails', async () => {
       const mgr = freshManager();
       const mockProvider = {
         getBalance: jest.fn().mockRejectedValue(new Error('RPC down')),
@@ -416,9 +442,33 @@ describe('WalletServiceManager', () => {
         await mgr.getTokenBalances('0xAddr', 1);
         fail('expected to throw');
       } catch (e) {
-        expect(e).toBeInstanceOf(WalletError);
-        expect((e as WalletError).code).toBe(WalletErrorCode.BALANCE_FETCH_FAILED);
-        expect((e as WalletError).recovery).toBeDefined();
+        expect(e).toBeInstanceOf(NetworkError);
+        expect((e as NetworkError).code).toBe(NetworkErrorCode.RPC_ERROR);
+        expect((e as NetworkError).recovery).toBeDefined();
+      }
+    });
+  });
+
+  describe('approveErc20 – structured error', () => {
+    it('throws ContractError EXECUTION_FAILED when approval transaction fails', async () => {
+      const mgr = freshManager();
+      const mockSigner = {
+        provider: { getNetwork: jest.fn().mockResolvedValue({ chainId: 1 }) },
+        getAddress: jest.fn().mockResolvedValue('0xSender'),
+      };
+      jest.spyOn(mgr as any, 'getWalletSigner').mockReturnValue(mockSigner);
+
+      jest.spyOn(ethers, 'Contract' as any).mockImplementation(() => ({
+        approve: jest.fn().mockRejectedValue(new Error('Transaction reverted')),
+      }));
+
+      try {
+        await mgr.approveErc20('0xToken', '0xSpender', 100);
+        fail('expected to throw');
+      } catch (e) {
+        expect(e).toBeInstanceOf(ContractError);
+        expect((e as ContractError).code).toBe(ContractErrorCode.EXECUTION_FAILED);
+        expect((e as ContractError).userMessage).toBe('Token approval failed.');
       }
     });
   });
