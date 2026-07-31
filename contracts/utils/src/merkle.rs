@@ -80,15 +80,15 @@ pub fn generate_merkle_proof(
     while level_len > 1 {
         let mut next_level: Vec<BytesN<32>> = Vec::new(env);
         for i in (0..level_len).step_by(2) {
-            let left = current_level.get(i).unwrap();
+            let left = current_level.get(i as u32).unwrap();
             if i + 1 < level_len {
-                let right = current_level.get(i + 1).unwrap();
+                let right = current_level.get((i + 1) as u32).unwrap();
                 if i as u64 == idx {
-                    siblings.push_back(right);
+                    siblings.push_back(right.clone());
                 } else if (i + 1) as u64 == idx {
-                    siblings.push_back(left);
+                    siblings.push_back(left.clone());
                 }
-                next_level.push_back(hash_pair(&left, &right));
+                next_level.push_back(hash_pair(&left.clone(), &right.clone()));
             } else {
                 next_level.push_back(left);
             }
@@ -113,7 +113,7 @@ pub fn batch_insert(env: &Env, key_prefix: &Bytes, values: &Vec<(Bytes, Bytes)>)
         let storage_key = make_storage_key(env, key_prefix, &key);
         env.storage().persistent().set(&storage_key, &value);
 
-        let leaf = hash_key_value(env, &key, &value);
+        let leaf = hash_key_value(env, &key, &Some(value));
         leaves.push_back(leaf);
     }
 

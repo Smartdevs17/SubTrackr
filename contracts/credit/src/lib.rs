@@ -50,6 +50,7 @@ impl From<CreditError> for CoreError {
             CreditError::InvalidAmount => CoreError::InvalidAmount,
             CreditError::InsufficientCredit => CoreError::InsufficientCredit,
             CreditError::SelfTransfer => CoreError::SelfTransfer,
+            CreditError::WalletNotFound => CoreError::NotFound,
         }
     }
 }
@@ -63,6 +64,7 @@ impl From<CoreError> for CreditError {
             CoreError::InvalidAmount => CreditError::InvalidAmount,
             CoreError::InsufficientCredit => CreditError::InsufficientCredit,
             CoreError::SelfTransfer => CreditError::SelfTransfer,
+            CoreError::NotFound => CreditError::WalletNotFound,
             _ => CreditError::InvalidAmount,
         }
     }
@@ -478,7 +480,7 @@ impl SubTrackrCredit {
         let mut results: Vec<(Address, i128)> = Vec::new(&env);
         let mut i: u32 = 0;
         while i < MAX_HISTORY {
-            let key = DataKey::Counter(i);
+            let key = DataKey::Counter(i as u64);
             if !env.storage().persistent().has(&key) {
                 break;
             }
@@ -531,7 +533,6 @@ impl SubTrackrCredit {
     }
 
     fn next_wallet_id(env: &Env) -> u64 {
-        let id: u64 = env.storage().instance().get(&DataKey::Admin).map(|_| id).unwrap_or(0);
         let base: u64 = env.storage().instance().get(&symbol_short!("NWID")).unwrap_or(0);
         env.storage()
             .instance()
