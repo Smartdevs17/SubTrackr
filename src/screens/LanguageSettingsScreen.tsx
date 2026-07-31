@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { languageService } from '../services/i18n';
+import { useThemeColors } from '../hooks/useThemeColors';
 
 const LANGUAGES = [
   { code: 'en', name: 'English', nativeName: 'English' },
@@ -11,6 +12,8 @@ const LANGUAGES = [
 
 const LanguageSettingsScreen = () => {
   const { t, i18n } = useTranslation();
+  const colors = useThemeColors();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const currentLanguage = i18n.language;
 
   const handleLanguageChange = async (code: string) => {
@@ -62,73 +65,75 @@ const LanguageSettingsScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8F9FA',
-  },
-  header: {
-    padding: 20,
-    backgroundColor: '#FFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#EEE',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1A1A1A',
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 5,
-  },
-  list: {
-    padding: 15,
-  },
-  item: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#FFF',
-    borderRadius: 12,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#EEE',
-  },
-  activeItem: {
-    borderColor: '#007AFF',
-    backgroundColor: '#F0F7FF',
-  },
-  nativeName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-  },
-  englishName: {
-    fontSize: 12,
-    color: '#999',
-    marginTop: 2,
-  },
-  activeText: {
-    color: '#007AFF',
-  },
-  checkmark: {
-    fontSize: 20,
-    color: '#007AFF',
-    fontWeight: 'bold',
-  },
-  footer: {
-    padding: 30,
-    alignItems: 'center',
-  },
-  footerText: {
-    fontSize: 12,
-    color: '#BBB',
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-});
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background.primary,
+    },
+    header: {
+      padding: 20,
+      backgroundColor: colors.background.card,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border.default,
+    },
+    title: {
+      fontSize: 24,
+      fontWeight: '700',
+      color: colors.text.primary,
+    },
+    subtitle: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      marginTop: 5,
+    },
+    list: {
+      padding: 15,
+    },
+    item: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: 20,
+      backgroundColor: colors.background.card,
+      borderRadius: 12,
+      marginBottom: 10,
+      borderWidth: 1,
+      borderColor: colors.border.default,
+    },
+    activeItem: {
+      borderColor: colors.primary,
+      backgroundColor: colors.background.secondary,
+    },
+    nativeName: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: colors.text.primary,
+    },
+    englishName: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    activeText: {
+      color: colors.primary,
+    },
+    checkmark: {
+      fontSize: 20,
+      color: colors.primary,
+      fontWeight: 'bold',
+    },
+    footer: {
+      padding: 30,
+      alignItems: 'center',
+    },
+    footerText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      lineHeight: 18,
+    },
+  });
+}
 
 export default LanguageSettingsScreen;

@@ -86,3 +86,25 @@ func main() {
 	fmt.Println(subs)
 }
 ```
+# SubTrackr SDKs
+
+Official SDKs are available for JavaScript/TypeScript, Python, and Go. The SDK contract method surface is generated from `docs/openapi.yaml`; run:
+
+```bash
+npm run sdk:generate
+```
+
+The generator writes endpoint metadata to `sdks/generated/endpoints.json`, which is used as the source of truth when updating language-specific clients.
+
+## Validation
+
+```bash
+npm run sdk:test:js
+pip install -e sdks/python requests
+npm run sdk:test:python
+npm run sdk:test:go
+```
+
+## Publication
+
+The `SDK Packages` GitHub Actions workflow validates all SDKs on pull requests that touch SDK or OpenAPI files. Tags matching `sdk-v*` publish the JavaScript SDK to npm using `NPM_TOKEN`.

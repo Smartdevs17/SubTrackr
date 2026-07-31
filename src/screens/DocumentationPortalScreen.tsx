@@ -1,12 +1,5 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  SafeAreaView,
-  TouchableOpacity,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity } from 'react-native';
 import { Card } from '../components/common/Card';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 
@@ -28,7 +21,8 @@ const DOC_SECTIONS: DocSection[] = [
     subsections: [
       {
         title: 'Base URL',
-        content: 'Sandbox: https://api.sandbox.subtrackr.dev/v1\nProduction: https://api.subtrackr.dev/v1',
+        content:
+          'Sandbox: https://api.sandbox.subtrackr.dev/v1\nProduction: https://api.subtrackr.dev/v1',
       },
       {
         title: 'Authentication',
@@ -37,8 +31,7 @@ const DOC_SECTIONS: DocSection[] = [
       },
       {
         title: 'Rate Limits',
-        content:
-          'Sandbox: 60 requests/minute, 10,000 requests/day\nProduction: Varies by plan',
+        content: 'Sandbox: 60 requests/minute, 10,000 requests/day\nProduction: Varies by plan',
       },
     ],
   },
@@ -50,7 +43,8 @@ const DOC_SECTIONS: DocSection[] = [
     subsections: [
       {
         title: 'GET /subscriptions',
-        content: 'List all subscriptions with optional filtering and pagination.\n\nQuery params: status, category, page, limit',
+        content:
+          'List all subscriptions with optional filtering and pagination.\n\nQuery params: status, category, page, limit',
       },
       {
         title: 'POST /subscriptions',
@@ -146,12 +140,13 @@ const DOC_SECTIONS: DocSection[] = [
     subsections: [
       {
         title: 'Error Format',
-        content: 'All errors return: { "error": { "code": "string", "message": "string", "details": {} } }',
+        content:
+          'All errors return: { "error": { "code": "string", "message": "string", "details": {} } }',
       },
       {
         title: 'Common Error Codes',
         content:
-          '400 - Bad Request: Invalid parameters\n401 - Unauthorized: Invalid or missing API key\n403 - Forbidden: Insufficient permissions\n404 - Not Found: Resource doesn\'t exist\n429 - Rate Limited: Too many requests\n500 - Server Error: Internal error',
+          "400 - Bad Request: Invalid parameters\n401 - Unauthorized: Invalid or missing API key\n403 - Forbidden: Insufficient permissions\n404 - Not Found: Resource doesn't exist\n429 - Rate Limited: Too many requests\n500 - Server Error: Internal error",
       },
     ],
   },
@@ -166,9 +161,7 @@ const DocumentationPortalScreen: React.FC = () => {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <Text style={styles.title}>API Documentation</Text>
-          <Text style={styles.subtitle}>
-            Complete reference for the SubTrackr API
-          </Text>
+          <Text style={styles.subtitle}>Complete reference for the SubTrackr API</Text>
         </View>
 
         <Card style={styles.searchCard}>
@@ -181,13 +174,12 @@ const DocumentationPortalScreen: React.FC = () => {
             <TouchableOpacity
               key={section.id}
               style={[styles.tocItem, expandedSection === section.id && styles.tocItemActive]}
-              onPress={() => setExpandedSection(expandedSection === section.id ? null : section.id)}>
+              onPress={() =>
+                setExpandedSection(expandedSection === section.id ? null : section.id)
+              }>
               <Text style={styles.tocIcon}>{section.icon}</Text>
               <Text
-                style={[
-                  styles.tocText,
-                  expandedSection === section.id && styles.tocTextActive,
-                ]}>
+                style={[styles.tocText, expandedSection === section.id && styles.tocTextActive]}>
                 {section.title}
               </Text>
             </TouchableOpacity>
@@ -205,9 +197,7 @@ const DocumentationPortalScreen: React.FC = () => {
                 <Text style={styles.sectionIcon}>{section.icon}</Text>
                 <Text style={styles.sectionTitle}>{section.title}</Text>
               </View>
-              <Text style={styles.expandIcon}>
-                {expandedSection === section.id ? '▼' : '▶'}
-              </Text>
+              <Text style={styles.expandIcon}>{expandedSection === section.id ? '▼' : '▶'}</Text>
             </TouchableOpacity>
 
             {expandedSection === section.id && (
