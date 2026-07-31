@@ -101,6 +101,7 @@ const PaymentMethodsScreen = lazyScreen(() =>
 );
 const AnalyticsDashboard = lazyScreen(() => import('../../app/screens/AnalyticsDashboard'));
 const TrialDetailsScreen = lazyScreen(() => import('../screens/TrialDetailsScreen'));
+const ChurnPredictionScreen = lazyScreen(() => import('../screens/ChurnPredictionScreen'));
 
 // Issue #547: GDPR
 const PrivacyCenterScreen = lazyScreen(() => import('../screens/PrivacyCenterScreen'));
@@ -441,6 +442,11 @@ const HomeStack = () => (
       name="TrialDetails"
       component={TrialDetailsScreen}
       options={{ title: 'Trial Details', headerShown: true }}
+    />
+    <Stack.Screen
+      name="ChurnPrediction"
+      component={ChurnPredictionScreen}
+      options={{ title: 'Churn Analytics', headerShown: true }}
     />
   </Stack.Navigator>
 );
