@@ -368,6 +368,40 @@ Reset your sandbox data via the API:
 POST /v1/sandbox/reset
 ```
 
+## Streaming (Issue #768)
+
+For large datasets, SubTrackr provides memory-efficient streaming endpoints. See the full reference in [streaming-api.md](./streaming-api.md).
+
+### Quick Reference
+
+| Endpoint | Protocol | Description |
+|---|---|---|
+| `GET /subscriptions/stream` | NDJSON (chunked) | Stream transaction records line by line |
+| `GET /exports/stream/:exportId` | Server-Sent Events | Real-time export progress + chunks |
+| `GET /exports/download/:token` | Chunked download | Download exported file without buffering |
+| `GET /metrics/memory` | JSON | Current server memory usage |
+
+### Basic Usage
+
+**Stream records incrementally (JavaScript)**
+
+```js
+const res = await fetch('/subscriptions/stream?limit=100');
+const reader = res.body.getReader();
+// read line-by-line — see streaming-api.md for full example
+```
+
+**Track export progress (React Native)**
+
+```tsx
+import { useExportStream } from '../services/hooks/useExportStream';
+
+const { progress, downloadUrl, startExport } = useExportStream();
+// startExport('exp_123', { format: 'csv' });
+```
+
+---
+
 ## Support
 
 - **Documentation**: [docs.subtrackr.io](https://docs.subtrackr.io)
