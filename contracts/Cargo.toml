@@ -43,7 +43,7 @@ overflow-checks = true
 
 # ── Workspace-wide dependency versions (DRY) ─────────────────────────────────
 [workspace.dependencies]
-soroban-sdk = "21.0.0"
+soroban-sdk = "27.0.3"
 arbitrary = { version = "1.3", features = ["derive"] }
 
 # ── Workspace-wide feature flags ─────────────────────────────────────────────
