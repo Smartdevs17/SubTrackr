@@ -13,7 +13,11 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { biometricService, BiometricSettings, BiometricType } from '../services/auth/biometricService';
+import {
+  biometricService,
+  BiometricSettings,
+  BiometricType,
+} from '../services/auth/biometricService';
 
 interface BiometricAuthState {
   /** True when the device has enrolled biometrics. */
@@ -45,7 +49,10 @@ export function useBiometricAuth(): BiometricAuthState {
   const [error, setError] = useState<string | null>(null);
   const [cancelled, setCancelled] = useState(false);
   const [supportedTypes, setSupportedTypes] = useState<BiometricType[]>(['none']);
-  const [settings, setSettings] = useState<BiometricSettings>({ enabled: false, fallbackToPIN: true });
+  const [settings, setSettings] = useState<BiometricSettings>({
+    enabled: false,
+    fallbackToPIN: true,
+  });
 
   // Load availability and settings on mount
   useEffect(() => {
@@ -64,31 +71,36 @@ export function useBiometricAuth(): BiometricAuthState {
       }
     };
     void init();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const authenticate = useCallback(async (reason?: string): Promise<boolean> => {
-    setIsLoading(true);
-    setError(null);
-    setCancelled(false);
+  const authenticate = useCallback(
+    async (reason?: string): Promise<boolean> => {
+      setIsLoading(true);
+      setError(null);
+      setCancelled(false);
 
-    const result = await biometricService.authenticate(
-      reason ?? 'Authenticate to access SubTrackr',
-      settings.fallbackToPIN
-    );
+      const result = await biometricService.authenticate(
+        reason ?? 'Authenticate to access SubTrackr',
+        settings.fallbackToPIN
+      );
 
-    setIsLoading(false);
+      setIsLoading(false);
 
-    if (result.success) {
-      setIsAuthenticated(true);
-      return true;
-    }
+      if (result.success) {
+        setIsAuthenticated(true);
+        return true;
+      }
 
-    setIsAuthenticated(false);
-    setCancelled(result.cancelled ?? false);
-    setError(result.error ?? 'Authentication failed.');
-    return false;
-  }, [settings.fallbackToPIN]);
+      setIsAuthenticated(false);
+      setCancelled(result.cancelled ?? false);
+      setError(result.error ?? 'Authentication failed.');
+      return false;
+    },
+    [settings.fallbackToPIN]
+  );
 
   const saveSettings = useCallback(async (patch: Partial<BiometricSettings>) => {
     const updated = await biometricService.saveSettings(patch);

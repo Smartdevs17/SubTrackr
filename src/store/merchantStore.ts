@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { asyncStorageAdapter } from '../utils/storage';
 import {
   MerchantOnboarding,
   MerchantOnboardingFormData,
@@ -9,45 +9,43 @@ import {
   VerificationTier,
   MerchantDocument,
   DocumentType,
+  OnboardingNotification,
+  OnboardingAnalytics,
+  KycVerificationRequest,
 } from '../types/merchant';
 
 const STORAGE_KEY = 'subtrackr-merchant-onboarding';
-const STORE_VERSION = 2;
+const STORE_VERSION = 1;
 
-// ── Extended types ────────────────────────────────────────────────────────────
+interface MerchantState {
+  onboarding: MerchantOnboarding | null;
+  isLoading: boolean;
+  error: string | null;
+  kycRequests: KycVerificationRequest[];
 
-export interface ComplianceResult {
-  passed: boolean;
-  sanctionsHit: boolean;
-  pepHit: boolean;
-  checkedAt: Date;
-  notes?: string;
+  startOnboarding: (data: MerchantOnboardingFormData) => Promise<void>;
+  submitDocument: (docType: DocumentType, uri: string) => Promise<void>;
+  nextStep: () => Promise<void>;
+  previousStep: () => Promise<void>;
+  requestVerification: () => Promise<void>;
+  approveVerification: (tier: VerificationTier, notes?: string) => Promise<void>;
+  rejectVerification: (reason: string) => Promise<void>;
+  getOnboardingStatus: () => OnboardingStatus;
+  addNotification: (
+    notification: Omit<OnboardingNotification, 'id' | 'createdAt' | 'read'>
+  ) => void;
+  markNotificationRead: (notificationId: string) => void;
+  getUnreadNotificationCount: () => number;
+  getOnboardingAnalytics: () => OnboardingAnalytics;
+  submitKycRequest: () => Promise<void>;
+  uploadDocument: (docType: DocumentType, uri: string) => Promise<void>;
 }
 
-export interface PaymentSetup {
-  method: 'stellar_xlm' | 'stellar_usdc' | 'bank_transfer';
-  walletAddress?: string;
-  bankAccountLast4?: string;
-  configuredAt: Date;
-}
-
-export interface ExtendedMerchantOnboarding extends MerchantOnboarding {
-  formData: Partial<MerchantOnboardingFormData>;
-  compliance?: ComplianceResult;
-  paymentSetup?: PaymentSetup;
-  welcomeTourCompleted: boolean;
-  /** ISO timestamp of last save for resume detection */
-  savedAt: string;
-  /** Verification timeout: ISO timestamp */
-  verificationDeadline?: string;
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-const generateUniqueId = (): string =>
-  `${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 8)}`;
-
-const ONBOARDING_EXPIRY_DAYS = 30;
+const generateUniqueId = (): string => {
+  const timestamp = Date.now().toString(36);
+  const randomComponent = Math.random().toString(36).substring(2, 8);
+  return `${timestamp}-${randomComponent}`;
+};
 
 const getDefaultSteps = (): OnboardingStep[] => [
   OnboardingStep.BUSINESS_INFO,
@@ -56,116 +54,39 @@ const getDefaultSteps = (): OnboardingStep[] => [
   OnboardingStep.REVIEW,
 ];
 
-/** Simulate compliance screening (sanctions + PEP check). */
-const runComplianceCheck = async (
-  data: Partial<MerchantOnboardingFormData>,
-): Promise<ComplianceResult> => {
-  // In production this calls a real KYB/AML provider.
-  // Blocked countries list (simplified).
-  const BLOCKED_COUNTRIES = ['KP', 'IR', 'SY', 'CU'];
-  const sanctionsHit = BLOCKED_COUNTRIES.includes((data.country ?? '').toUpperCase());
-  const pepHit = false; // placeholder
-  return {
-    passed: !sanctionsHit && !pepHit,
-    sanctionsHit,
-    pepHit,
-    checkedAt: new Date(),
-  };
-};
-
-// ── Store interface ───────────────────────────────────────────────────────────
-
-interface MerchantState {
-  onboarding: ExtendedMerchantOnboarding | null;
-  isLoading: boolean;
-  error: string | null;
-
-  /** Start or resume an onboarding session. */
-  startOnboarding: (data: MerchantOnboardingFormData) => Promise<void>;
-  /** Save current form data without advancing step (save-and-resume). */
-  saveProgress: (data: Partial<MerchantOnboardingFormData>) => void;
-  submitDocument: (docType: DocumentType, uri: string) => Promise<void>;
-  retryRejectedDocument: (docId: string, newUri: string) => Promise<void>;
-  nextStep: () => Promise<void>;
-  previousStep: () => void;
-  runComplianceScreening: () => Promise<ComplianceResult>;
-  configurePayment: (setup: Omit<PaymentSetup, 'configuredAt'>) => void;
-  requestVerification: () => Promise<void>;
-  approveVerification: (tier: VerificationTier, notes?: string) => void;
-  rejectVerification: (reason: string) => void;
-  completeWelcomeTour: () => void;
-  getOnboardingStatus: () => OnboardingStatus;
-  /** True if a previous incomplete session exists and can be resumed. */
-  canResume: () => boolean;
-  clearOnboarding: () => void;
-}
-
-// ── Store ─────────────────────────────────────────────────────────────────────
-
 export const useMerchantStore = create<MerchantState>()(
   persist(
     (set, get) => ({
       onboarding: null,
       isLoading: false,
       error: null,
+      kycRequests: [],
 
-      startOnboarding: async (data) => {
+      startOnboarding: async (data: MerchantOnboardingFormData) => {
         set({ isLoading: true, error: null });
         try {
-          const existing = get().onboarding;
-          // Resume if an in-progress session exists and hasn't expired
-          if (existing && existing.status === OnboardingStatus.IN_PROGRESS) {
-            const savedAt = new Date(existing.savedAt);
-            const expired =
-              Date.now() - savedAt.getTime() > ONBOARDING_EXPIRY_DAYS * 86_400_000;
-            if (!expired) {
-              set({
-                onboarding: {
-                  ...existing,
-                  formData: { ...existing.formData, ...data },
-                  savedAt: new Date().toISOString(),
-                },
-                isLoading: false,
-              });
-              return;
-            }
-          }
-
-          const now = new Date();
-          const newOnboarding: ExtendedMerchantOnboarding = {
+          const newOnboarding: MerchantOnboarding = {
             id: generateUniqueId(),
             merchantAddress: data.email,
             steps: getDefaultSteps(),
             currentStep: OnboardingStep.BUSINESS_INFO,
             status: OnboardingStatus.IN_PROGRESS,
             documents: [],
-            formData: data,
-            welcomeTourCompleted: false,
-            savedAt: now.toISOString(),
-            startedAt: now,
-            updatedAt: now,
-            expiresAt: new Date(now.getTime() + ONBOARDING_EXPIRY_DAYS * 86_400_000),
+            startedAt: new Date(),
+            updatedAt: new Date(),
+            completedSteps: [],
+            notifications: [],
           };
           set({ onboarding: newOnboarding, isLoading: false });
-        } catch (err) {
-          set({ error: err instanceof Error ? err.message : 'Failed to start onboarding', isLoading: false });
+        } catch (error) {
+          set({
+            error: error instanceof Error ? error.message : 'Failed to start onboarding',
+            isLoading: false,
+          });
         }
       },
 
-      saveProgress: (data) => {
-        const { onboarding } = get();
-        if (!onboarding) return;
-        set({
-          onboarding: {
-            ...onboarding,
-            formData: { ...onboarding.formData, ...data },
-            savedAt: new Date().toISOString(),
-            updatedAt: new Date(),
-          },
-        });
-      },
-
-      submitDocument: async (docType, uri) => {
+      submitDocument: async (docType: DocumentType, uri: string) => {
         set({ isLoading: true, error: null });
         try {
           const { onboarding } = get();
@@ -179,96 +100,57 @@ export const useMerchantStore = create<MerchantState>()(
             status: 'pending',
           };
 
-          // Replace existing doc of same type if present
-          const docs = onboarding.documents.filter((d) => d.type !== docType);
           set({
-            onboarding: { ...onboarding, documents: [...docs, newDoc], updatedAt: new Date() },
+            onboarding: {
+              ...onboarding,
+              documents: [...onboarding.documents, newDoc],
+              updatedAt: new Date(),
+            },
             isLoading: false,
           });
-        } catch (err) {
-          set({ error: err instanceof Error ? err.message : 'Failed to submit document', isLoading: false });
+        } catch (error) {
+          set({
+            error: error instanceof Error ? error.message : 'Failed to submit document',
+            isLoading: false,
+          });
         }
-      },
-
-      retryRejectedDocument: async (docId, newUri) => {
-        const { onboarding } = get();
-        if (!onboarding) return;
-        const docs = onboarding.documents.map((d) =>
-          d.id === docId ? { ...d, uri: newUri, status: 'pending' as const, uploadedAt: new Date() } : d,
-        );
-        set({ onboarding: { ...onboarding, documents: docs, updatedAt: new Date() } });
       },
 
       nextStep: async () => {
         const { onboarding } = get();
         if (!onboarding) return;
 
-        const idx = onboarding.steps.indexOf(onboarding.currentStep);
-        if (idx >= onboarding.steps.length - 1) return;
+        const currentIndex = onboarding.steps.indexOf(onboarding.currentStep);
+        if (currentIndex >= onboarding.steps.length - 1) return;
 
-        const nextStep = onboarding.steps[idx + 1];
-
-        // Auto-run compliance before REVIEW step
-        if (nextStep === OnboardingStep.REVIEW && !onboarding.compliance) {
-          await get().runComplianceScreening();
-        }
-
+        const currentStep = onboarding.steps[currentIndex + 1];
         const newStatus =
-          nextStep === OnboardingStep.REVIEW
+          currentStep === OnboardingStep.REVIEW
             ? OnboardingStatus.PENDING_REVIEW
             : OnboardingStatus.IN_PROGRESS;
 
         set({
           onboarding: {
-            ...get().onboarding!,
-            currentStep: nextStep,
+            ...onboarding,
+            currentStep,
             status: newStatus,
-            savedAt: new Date().toISOString(),
             updatedAt: new Date(),
           },
         });
       },
 
-      previousStep: () => {
+      previousStep: async () => {
         const { onboarding } = get();
         if (!onboarding) return;
-        const idx = onboarding.steps.indexOf(onboarding.currentStep);
-        if (idx <= 0) return;
+
+        const currentIndex = onboarding.steps.indexOf(onboarding.currentStep);
+        if (currentIndex <= 0) return;
+
         set({
           onboarding: {
             ...onboarding,
-            currentStep: onboarding.steps[idx - 1],
+            currentStep: onboarding.steps[currentIndex - 1],
             status: OnboardingStatus.IN_PROGRESS,
-            savedAt: new Date().toISOString(),
-            updatedAt: new Date(),
-          },
-        });
-      },
-
-      runComplianceScreening: async () => {
-        const { onboarding } = get();
-        if (!onboarding) throw new Error('No onboarding in progress');
-        set({ isLoading: true });
-        try {
-          const result = await runComplianceCheck(onboarding.formData);
-          set({
-            onboarding: { ...get().onboarding!, compliance: result, updatedAt: new Date() },
-            isLoading: false,
-          });
-          return result;
-        } catch (err) {
-          set({ isLoading: false, error: err instanceof Error ? err.message : 'Compliance check failed' });
-          throw err;
-        }
-      },
-
-      configurePayment: (setup) => {
-        const { onboarding } = get();
-        if (!onboarding) return;
-        set({
-          onboarding: {
-            ...onboarding,
-            paymentSetup: { ...setup, configuredAt: new Date() },
             updatedAt: new Date(),
           },
         });
@@ -277,37 +159,45 @@ export const useMerchantStore = create<MerchantState>()(
       requestVerification: async () => {
         const { onboarding } = get();
         if (!onboarding) return;
-        const deadline = new Date(Date.now() + 7 * 86_400_000).toISOString(); // 7-day timeout
+
         set({
           onboarding: {
             ...onboarding,
             status: OnboardingStatus.PENDING_REVIEW,
-            verificationDeadline: deadline,
             updatedAt: new Date(),
           },
         });
       },
 
-      approveVerification: (tier, notes) => {
+      approveVerification: async (tier: VerificationTier, notes?: string) => {
         const { onboarding } = get();
         if (!onboarding) return;
+
         const limits =
           tier === VerificationTier.ENHANCED
-            ? { monthlyVolume: 1_000_000, maxTransactions: 10_000 }
-            : { monthlyVolume: 10_000, maxTransactions: 100 };
+            ? { monthlyVolume: 1000000, maxTransactions: 10000 }
+            : { monthlyVolume: 10000, maxTransactions: 100 };
+
         set({
           onboarding: {
             ...onboarding,
             status: OnboardingStatus.VERIFIED,
-            verificationResult: { isVerified: true, tier, reviewedAt: new Date(), reviewerNotes: notes, limits },
+            verificationResult: {
+              isVerified: true,
+              tier,
+              reviewedAt: new Date(),
+              reviewerNotes: notes,
+              limits,
+            },
             updatedAt: new Date(),
           },
         });
       },
 
-      rejectVerification: (reason) => {
+      rejectVerification: async (reason: string) => {
         const { onboarding } = get();
         if (!onboarding) return;
+
         set({
           onboarding: {
             ...onboarding,
@@ -324,29 +214,181 @@ export const useMerchantStore = create<MerchantState>()(
         });
       },
 
-      completeWelcomeTour: () => {
+      getOnboardingStatus: () => {
+        const { onboarding } = get();
+        return onboarding?.status ?? OnboardingStatus.NOT_STARTED;
+      },
+
+      addNotification: (notification) => {
         const { onboarding } = get();
         if (!onboarding) return;
-        set({ onboarding: { ...onboarding, welcomeTourCompleted: true } });
+
+        const newNotification: OnboardingNotification = {
+          ...notification,
+          id: generateUniqueId(),
+          createdAt: new Date(),
+          read: false,
+        };
+
+        set({
+          onboarding: {
+            ...onboarding,
+            notifications: [...onboarding.notifications, newNotification],
+            updatedAt: new Date(),
+          },
+        });
       },
 
-      getOnboardingStatus: () => get().onboarding?.status ?? OnboardingStatus.NOT_STARTED,
-
-      canResume: () => {
+      markNotificationRead: (notificationId) => {
         const { onboarding } = get();
-        if (!onboarding) return false;
-        if (onboarding.status !== OnboardingStatus.IN_PROGRESS) return false;
-        const savedAt = new Date(onboarding.savedAt);
-        return Date.now() - savedAt.getTime() <= ONBOARDING_EXPIRY_DAYS * 86_400_000;
+        if (!onboarding) return;
+
+        set({
+          onboarding: {
+            ...onboarding,
+            notifications: onboarding.notifications.map((n) =>
+              n.id === notificationId ? { ...n, read: true } : n
+            ),
+            updatedAt: new Date(),
+          },
+        });
       },
 
-      clearOnboarding: () => set({ onboarding: null, error: null }),
+      getUnreadNotificationCount: () => {
+        const { onboarding } = get();
+        if (!onboarding) return 0;
+        return onboarding.notifications.filter((n) => !n.read).length;
+      },
+
+      getOnboardingAnalytics: (): OnboardingAnalytics => {
+        const { onboarding, kycRequests } = get();
+        const totalStarted = onboarding ? 1 : 0;
+        const totalCompleted = onboarding?.status === OnboardingStatus.VERIFIED ? 1 : 0;
+        const totalRejected = onboarding?.status === OnboardingStatus.REJECTED ? 1 : 0;
+        const completionRate = totalStarted > 0 ? totalCompleted / totalStarted : 0;
+
+        let averageTimeToComplete = 0;
+        if (onboarding?.status === OnboardingStatus.VERIFIED) {
+          const startTime = new Date(onboarding.startedAt).getTime();
+          const endTime = new Date(onboarding.updatedAt).getTime();
+          averageTimeToComplete = (endTime - startTime) / (1000 * 60 * 60 * 24);
+        }
+
+        const dropOffByStep: Record<string, number> = {};
+        if (onboarding) {
+          const currentStepIndex = onboarding.steps.indexOf(onboarding.currentStep);
+          onboarding.steps.forEach((step, index) => {
+            if (index > currentStepIndex) {
+              dropOffByStep[step] = (dropOffByStep[step] || 0) + 1;
+            }
+          });
+        }
+
+        const totalDocuments = onboarding?.documents.length || 0;
+        const rejectedDocuments =
+          onboarding?.documents.filter((d) => d.status === 'rejected').length || 0;
+        const documentRejectionRate = totalDocuments > 0 ? rejectedDocuments / totalDocuments : 0;
+
+        let averageVerificationTime = 0;
+        const verifiedRequests = kycRequests.filter((r) => r.status === 'approved');
+        if (verifiedRequests.length > 0) {
+          averageVerificationTime = verifiedRequests.length;
+        }
+
+        return {
+          totalStarted,
+          totalCompleted,
+          totalRejected,
+          completionRate,
+          averageTimeToComplete,
+          dropOffByStep,
+          documentRejectionRate,
+          averageVerificationTime,
+        };
+      },
+
+      submitKycRequest: async () => {
+        const { onboarding } = get();
+        if (!onboarding) return;
+
+        set({ isLoading: true, error: null });
+        try {
+          const kycRequest: KycVerificationRequest = {
+            merchantId: onboarding.id,
+            documents: onboarding.documents,
+            businessInfo: {
+              businessName: onboarding.merchantAddress,
+              businessType: '',
+              country: '',
+              phoneNumber: '',
+              email: onboarding.merchantAddress,
+            },
+            submittedAt: new Date(),
+            status: 'pending',
+          };
+
+          set((state) => ({
+            kycRequests: [...state.kycRequests, kycRequest],
+            onboarding: {
+              ...state.onboarding!,
+              status: OnboardingStatus.PENDING_REVIEW,
+              updatedAt: new Date(),
+            },
+            isLoading: false,
+          }));
+        } catch (error) {
+          set({
+            error: error instanceof Error ? error.message : 'Failed to submit KYC request',
+            isLoading: false,
+          });
+        }
+      },
+
+      uploadDocument: async (docType: DocumentType, uri: string) => {
+        set({ isLoading: true, error: null });
+        try {
+          const { onboarding } = get();
+          if (!onboarding) throw new Error('No onboarding in progress');
+
+          const newDoc: MerchantDocument = {
+            id: generateUniqueId(),
+            type: docType,
+            uri,
+            uploadedAt: new Date(),
+            status: 'pending',
+          };
+
+          const notification: OnboardingNotification = {
+            id: generateUniqueId(),
+            type: 'document_uploaded',
+            title: 'Document Uploaded',
+            message: `Your ${docType.replace(/_/g, ' ')} has been uploaded successfully.`,
+            createdAt: new Date(),
+            read: false,
+          };
+
+          set({
+            onboarding: {
+              ...onboarding,
+              documents: [...onboarding.documents, newDoc],
+              notifications: [...onboarding.notifications, notification],
+              updatedAt: new Date(),
+            },
+            isLoading: false,
+          });
+        } catch (error) {
+          set({
+            error: error instanceof Error ? error.message : 'Failed to upload document',
+            isLoading: false,
+          });
+        }
+      },
     }),
     {
       name: STORAGE_KEY,
       version: STORE_VERSION,
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => asyncStorageAdapter),
       partialize: (state) => ({ onboarding: state.onboarding }),
-    },
-  ),
+    }
+  )
 );

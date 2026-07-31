@@ -10,7 +10,6 @@ import {
   NetworkErrorCode,
   ContractError,
   ContractErrorCode,
-  AppError,
 } from '../walletService';
 import { ethers } from 'ethers';
 import { getContractAddress, ERC20__factory } from '../../contracts';
@@ -54,6 +53,16 @@ jest.mock('../../contracts', () => ({
 
 jest.mock('../../config/evm', () => ({
   getEvmRpcUrl: jest.fn().mockReturnValue('https://rpc.example.com'),
+  getChainType: jest.fn().mockReturnValue('evm'),
+  getDefaultStellarNetwork: jest.fn().mockReturnValue({
+    name: 'Stellar Testnet',
+    networkPassphrase: 'Test SDF Network ; September 2015',
+    horizonUrl: 'https://horizon-testnet.stellar.org',
+    sorobanRpcUrl: 'https://soroban-testnet.stellar.org',
+    nativeAsset: 'XLM',
+  }),
+  STELLAR_NETWORKS: {},
+  EVM_RPC_URLS: { 1: 'https://rpc.example.com' },
 }));
 
 const mockedGetContractAddress = getContractAddress as jest.MockedFunction<
@@ -266,7 +275,7 @@ describe('WalletServiceManager', () => {
       } catch (e) {
         expect(e).toBeInstanceOf(WalletError);
         expect((e as WalletError).code).toBe(WalletErrorCode.NOT_CONNECTED);
-        expect((e as WalletError).userMessage).toBe('Wallet is not connected.');
+        expect((e as WalletError).userMessage).toBe('EVM wallet is not connected.');
         expect((e as WalletError).recovery).toBeDefined();
       }
     });
@@ -358,7 +367,14 @@ describe('WalletServiceManager', () => {
       });
 
       try {
-        await mgr.createSablierStream('0xToken', '10', Date.now(), Date.now() + 86400000, '0xRecipient', 1);
+        await mgr.createSablierStream(
+          '0xToken',
+          '10',
+          Date.now(),
+          Date.now() + 86400000,
+          '0xRecipient',
+          1
+        );
         fail('expected to throw');
       } catch (e) {
         expect(e).toBeInstanceOf(WalletError);
@@ -382,7 +398,12 @@ describe('WalletServiceManager', () => {
 
     it('preserves cause stack when cause is an Error', () => {
       const cause = new Error('rpc timeout');
-      const err = new WalletError(WalletErrorCode.UNKNOWN, 'Something went wrong.', undefined, cause);
+      const err = new WalletError(
+        WalletErrorCode.UNKNOWN,
+        'Something went wrong.',
+        undefined,
+        cause
+      );
       expect(err.stack).toContain('Caused by:');
     });
   });

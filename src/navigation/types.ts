@@ -1,5 +1,4 @@
 import { NavigatorScreenParams } from '@react-navigation/native';
-import { BillingCycle } from '../types/subscription';
 
 export type RootStackParamList = {
   Home: undefined;
@@ -49,6 +48,8 @@ export type RootStackParamList = {
   ChangePlan: { subscriptionId: string };
   PaymentMethods: undefined;
   AnalyticsDashboard: undefined;
+  AdvancedSearch: undefined;
+  NotFound: { reason?: string };
 };
 
 export type TabParamList = {

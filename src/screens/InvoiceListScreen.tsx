@@ -53,11 +53,12 @@ const InvoiceListScreen: React.FC = () => {
     [InvoiceStatus.PAID]: { backgroundColor: colors.status.success },
     [InvoiceStatus.VOID]: { backgroundColor: colors.status.error },
   };
-  };
 
   return (
     <SafeAreaView style={styles.container} testID="invoice-list-screen">
-      <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
         <View style={styles.header}>
           <Text style={styles.title}>Invoices</Text>
           <Text style={styles.subtitle}>Track generated billing records and delivery status.</Text>
@@ -107,32 +108,32 @@ const InvoiceListScreen: React.FC = () => {
 
 function createStyles(colors: ReturnType<typeof useThemeColors>) {
   return StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background.primary },
-  content: { padding: spacing.lg, gap: spacing.md },
-  header: { marginBottom: spacing.xs },
-  title: { ...typography.h1, color: colors.text },
-  subtitle: { ...typography.body, color: colors.textSecondary, marginTop: spacing.xs },
-  invoiceCard: { marginBottom: spacing.sm },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  meta: { flex: 1, paddingRight: spacing.md },
-  invoiceNumber: { ...typography.h3, color: colors.text },
-  invoiceName: { ...typography.body, color: colors.textSecondary, marginTop: 2 },
-  statusBadge: {
-    borderRadius: borderRadius.full,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    alignSelf: 'flex-start',
-  },
-  statusText: { ...typography.caption, color: colors.text, fontWeight: '700' },
-  detailsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: spacing.sm,
-  },
-  detailLabel: { ...typography.caption, color: colors.textSecondary, textTransform: 'uppercase' },
-  detailValue: { ...typography.body, color: colors.text },
-  totalValue: { ...typography.h3, color: colors.accent },
+    container: { flex: 1, backgroundColor: colors.background.primary },
+    content: { padding: spacing.lg, gap: spacing.md },
+    header: { marginBottom: spacing.xs },
+    title: { ...typography.h1, color: colors.text },
+    subtitle: { ...typography.body, color: colors.textSecondary, marginTop: spacing.xs },
+    invoiceCard: { marginBottom: spacing.sm },
+    row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    meta: { flex: 1, paddingRight: spacing.md },
+    invoiceNumber: { ...typography.h3, color: colors.text },
+    invoiceName: { ...typography.body, color: colors.textSecondary, marginTop: 2 },
+    statusBadge: {
+      borderRadius: borderRadius.full,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 4,
+      alignSelf: 'flex-start',
+    },
+    statusText: { ...typography.caption, color: colors.text, fontWeight: '700' },
+    detailsRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginTop: spacing.sm,
+    },
+    detailLabel: { ...typography.caption, color: colors.textSecondary, textTransform: 'uppercase' },
+    detailValue: { ...typography.body, color: colors.text },
+    totalValue: { ...typography.h3, color: colors.accent },
   });
 }
 

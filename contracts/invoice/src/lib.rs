@@ -10,8 +10,9 @@ use alloc::vec;
 use soroban_sdk::{Address, Bytes, Env, IntoVal, String, TryFromVal, Val, Vec};
 use subtrackr_types::{
     CustomerTaxStatus, DigitalGoodsClass, Invoice, InvoiceConfig, InvoiceLineItem, InvoiceStatus,
-    Plan, StorageKey, Subscription, TaxRateChangeEvent, TaxRateEntry, TaxRemittanceLineItem,
-    TaxRemittanceReport, TaxType, TaxJurisdiction, TimeRange, TaxReportLineItem, RemittanceStatus,
+    MaybeDigitalGoodsClass, Plan, StorageKey, Subscription, TaxRateChangeEvent, TaxRateEntry,
+    TaxRemittanceLineItem, TaxRemittanceReport, TaxType, TaxJurisdiction, TimeRange,
+    TaxReportLineItem, RemittanceStatus,
 };
 
 const DEFAULT_RATE_SCALE: i128 = 1_000_000;
@@ -179,7 +180,7 @@ fn get_customer_tax_status(env: &Env, subscriber: &Address) -> CustomerTaxStatus
             certificate_expiry: 0,
             issuing_authority: String::from_str(env, ""),
             exempt_jurisdictions: Vec::new(env),
-            digital_goods_override: None,
+            digital_goods_override: MaybeDigitalGoodsClass::None,
         })
 }
 
@@ -611,7 +612,7 @@ impl SubTrackrInvoice {
         certificate_expiry: u64,
         issuing_authority: String,
         exempt_jurisdictions: Vec<String>,
-        digital_goods_override: Option<DigitalGoodsClass>,
+        digital_goods_override: MaybeDigitalGoodsClass,
     ) {
         let stored_admin = get_admin(&env);
         assert!(admin == stored_admin, "Admin mismatch");

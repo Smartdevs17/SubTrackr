@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { colors, spacing } from '../../src/utils/constants';
 import { Card } from '../../src/components/common/Card';
-import { PredictionService, ChurnPrediction } from '../../backend/services/predictionService';
+import { PredictionService, ChurnPrediction, RiskFactor } from '../../backend/services/analytics/predictionService';
 
 const ChurnPredictionScreen = () => {
   const [loading, setLoading] = useState(true);
@@ -78,13 +78,13 @@ const ChurnPredictionScreen = () => {
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Key Risk Factors</Text>
-            {prediction.riskFactors.map((factor, index) => (
+            {prediction.riskFactors.map((factor: RiskFactor, index: number) => (
               <Card key={index} style={styles.factorCard}>
                 <View style={styles.factorRow}>
                   <Text style={styles.factorName}>
                     {factor.factor
                       .split('_')
-                      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                      .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
                       .join(' ')}
                   </Text>
                   <Text style={styles.factorImpact}>
