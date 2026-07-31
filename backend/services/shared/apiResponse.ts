@@ -162,7 +162,12 @@ export type ErrorCode =
   | 'PAYMENT_GATEWAY_ERROR'
   | 'PAYMENT_GATEWAY_FALLBACK_FAILED'
   | 'PAYMENT_GATEWAY_CONFIG_INVALID'
-  | 'PAYMENT_REFUND_PARTIAL_FAILED';
+  | 'PAYMENT_REFUND_PARTIAL_FAILED'
+  // ── RPC / Circuit Breaker (RPC timeout & circuit breaker feature) ─────────
+  | 'RPC_TIMEOUT'
+  | 'RPC_CIRCUIT_OPEN'
+  | 'RPC_ALL_PROVIDERS_FAILED'
+  | 'RPC_PROVIDER_NOT_FOUND';
 
 /**
  * Maps each error code to the HTTP status code that should be sent to the
@@ -242,6 +247,11 @@ export const ERROR_HTTP_STATUS_MAP: Record<ErrorCode, number> = {
   PAYMENT_GATEWAY_FALLBACK_FAILED: 502,
   PAYMENT_GATEWAY_CONFIG_INVALID: 422,
   PAYMENT_REFUND_PARTIAL_FAILED: 422,
+  // RPC / Circuit Breaker
+  RPC_TIMEOUT: 504,
+  RPC_CIRCUIT_OPEN: 503,
+  RPC_ALL_PROVIDERS_FAILED: 503,
+  RPC_PROVIDER_NOT_FOUND: 404,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

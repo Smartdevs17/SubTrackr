@@ -18,3 +18,22 @@ export { RetentionCalculator, RETENTION_CURVE_DAYS } from './retentionCalculator
 export { cohortTableToCsv, ltvBreakdownToCsv, cohortTableToPdf, churnBreakdownToPdf, buildSimplePdf } from './cohortReportExport';
 export { SubscriberRecordRepository, subscriberRecordRepository } from './subscriberRecordRepository';
 export { AnalyticsDashboardApi, analyticsDashboardApi } from './analyticsDashboardApi';
+export {
+  analyzeTrend,
+  calculateAccuracy,
+  generateVisualizationData,
+  generateRevenueForecast,
+  generateForecastAlerts,
+} from './revenueForecastService';
+export type {
+  RevenueDataPoint,
+  ForecastPoint as RevenueForecastPoint,
+  TrendAnalysis,
+  ForecastAccuracy,
+  RevenueForecastResult,
+  ForecastVisualizationData,
+  ForecastAlert,
+  ForecastGranularity,
+  TrendDirection,
+  ForecastModel,
+} from './revenueForecastService';
