@@ -18,3 +18,10 @@ export { RetentionCalculator, RETENTION_CURVE_DAYS } from './retentionCalculator
 export { cohortTableToCsv, ltvBreakdownToCsv, cohortTableToPdf, churnBreakdownToPdf, buildSimplePdf } from './cohortReportExport';
 export { SubscriberRecordRepository, subscriberRecordRepository } from './subscriberRecordRepository';
 export { AnalyticsDashboardApi, analyticsDashboardApi } from './analyticsDashboardApi';
+export { FraudAnalyticsService, fraudAnalyticsService } from './fraudAnalyticsService';
+export type {
+  FraudSummary,
+  FraudTrendPoint,
+  FraudSignalBreakdown,
+  PreventionRecommendation,
+} from './fraudAnalyticsService';

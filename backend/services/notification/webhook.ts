@@ -11,6 +11,8 @@ import type {
   WebhookRetryPolicy,
   WebhookSecret,
 } from '../../../src/types/webhook';
+import { eventCatalog } from '../webhook/eventCatalog';
+import { eventSchemaValidator } from '../webhook/eventSchemaValidator';
 
 export type { WebhookEventInput } from '../../../src/types/webhook';
 
@@ -104,10 +106,23 @@ export const buildWebhookPayload = (input: WebhookEventInput): WebhookEventPaylo
   };
 };
 
+/**
+ * Determines whether a given event type should be delivered to this webhook.
+ *
+ * Subscription patterns are matched with wildcard support:
+ *  - `"*"` — matches every event type
+ *  - `"subscription.*"` — matches all events whose type starts with `subscription.`
+ *  - `"payment.failed"` — exact match only
+ *
+ * Paused webhooks always return false regardless of pattern.
+ */
 export const isWebhookEventAllowed = (
   webhook: Pick<WebhookConfig, 'events' | 'isPaused'>,
   eventType: WebhookEventType
-): boolean => !webhook.isPaused && webhook.events.includes(eventType);
+): boolean => {
+  if (webhook.isPaused) return false;
+  return webhook.events.some((pattern) => eventCatalog.matchesWildcard(pattern, eventType));
+};
 
 /** Returns true if `signature` matches any signing secret currently valid for `webhook`. */
 export const verifyWebhookSignatureAny = (
@@ -475,6 +490,77 @@ export class WebhookDeliveryService {
     if (result.delivery.status === 'delivered') {
       this.deliveredKeys.set(idempotencyKey, now());
     }
+    return result;
+  }
+
+  /**
+   * Sends a simulated test webhook delivery to the webhook's configured URL.
+   *
+   * Generates a realistic sample payload from the event catalog schema, signs it
+   * with the webhook's current secret, and dispatches it — bypassing idempotency
+   * deduplication and rate limiting so developers can rapidly invoke tests from
+   * the developer portal or CLI without interference.
+   *
+   * @param webhookId - The webhook to test.
+   * @param eventType - Which event type to simulate. Falls back to the first subscribed
+   *                    event if omitted.
+   * @param customPayload - Optional payload fields to merge over the generated example.
+   * @returns The delivery record for the simulated attempt.
+   */
+  async testWebhook(
+    webhookId: string,
+    eventType?: WebhookEventType,
+    customPayload?: Record<string, unknown>
+  ): Promise<WebhookDeliveryResult> {
+    const webhook = this.webhooks.get(webhookId);
+    if (!webhook) throw new Error(`Webhook ${webhookId} not found`);
+
+    // Resolve the event type to test — prefer the caller's choice, otherwise use the
+    // first concrete (non-wildcard) subscribed event, and finally fall back to the
+    // first entry in the catalog so the test always has a valid schema to work with.
+    const resolvedEventType: WebhookEventType =
+      eventType ??
+      (webhook.events.find((e) => !e.includes('*')) as WebhookEventType | undefined) ??
+      (eventCatalog.getActiveEvents()[0]?.type as WebhookEventType);
+
+    const schemaExample = eventSchemaValidator.generateExample(resolvedEventType) ?? {};
+    const testId = createId('tevt');
+    const testPayload: WebhookEventPayload = {
+      id: testId,
+      webhookId,
+      eventType: resolvedEventType,
+      occurredAt: now(),
+      merchantId: webhook.merchantId,
+      subscription: schemaExample['subscription'] as WebhookEventPayload['subscription'],
+      plan: schemaExample['plan'] as WebhookEventPayload['plan'],
+      payloadVersion: 1,
+      ...(customPayload as Partial<WebhookEventPayload>),
+    };
+
+    const signature = signWebhookPayload(testPayload, webhook.secretKey);
+    const idempotencyKey = `test:${testId}`;
+
+    const delivery: WebhookDelivery = {
+      id: createId('tdel'),
+      webhookId,
+      eventId: testPayload.id,
+      eventType: resolvedEventType,
+      url: webhook.url,
+      payload: testPayload,
+      status: 'pending',
+      attempts: 0,
+      maxAttempts: webhook.retryPolicy.maxRetries,
+      createdAt: now(),
+      updatedAt: now(),
+      signature,
+      idempotencyKey,
+    };
+
+    this.deliveries.set(delivery.id, delivery);
+    // sendWithRetry handles the HTTP dispatch; test deliveries use the full
+    // retry machinery so portal users see realistic latency + status codes.
+    const result = await this.sendWithRetry(webhook, delivery);
+    this.deliveries.set(delivery.id, result.delivery);
     return result;
   }
 

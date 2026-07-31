@@ -13,8 +13,6 @@ use soroban_sdk::{contracterror, contracttype, Env, Symbol};
 /// - Storage: Storage and persistence errors (6xx)
 /// - External: External service errors (7xx)
 /// - Recovery: Recovery errors (8xx)
-#[contracterror]
-#[contracttype]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
 pub enum CoreError {
@@ -148,7 +146,7 @@ impl CoreError {
     }
 
     pub fn emit_event(self, env: &Env) {
-        env.events().publish((Symbol::new(env, "error"),), self);
+        env.events().publish((Symbol::new(env, "error"),), self.error_code());
     }
 }
 

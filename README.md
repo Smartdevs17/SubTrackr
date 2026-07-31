@@ -258,7 +258,7 @@ SubTrackr prioritizes the security of your subscriptions and on-chain transactio
 
 - **Dependency Scanning**: Powered by GitHub Dependabot and `npm audit`.
 - **Security Monitoring**: Automated workflows run high-level vulnerability scans on every push and pull request.
-- **Reporting**: Found a vulnerability? Please see our [Security Policy](docs/security.md) for reporting guidelines.
+- **Reporting**: Found a vulnerability? Please see our [Security Policy](docs/SECURITY.md) for reporting guidelines.
 
 To run a manual security audit:
 
