@@ -379,6 +379,29 @@ Returns all subscription IDs for a given subscriber.
 | ------------ | --------- | ---------- |
 | `subscriber` | `Address` | `Vec<u64>` |
 
+#### `generateMerchantReport(dashboardData, format)`
+Generates exportable standardized merchant reports in `json` or `csv` format.
+
+---
+
+## Automated Compliance API
+
+The `ComplianceService` handles continuous regulatory monitoring, automated checks, alerts management, audit trail logging, and reporting exports.
+
+### Methods
+
+#### `runAutomatedChecks(subscriptions)`
+Executes compliance rule evaluation across all subscriptions and generates warning/failure alerts.
+
+#### `getAlerts()` & `acknowledgeAlert(alertId, performer)`
+Retrieves active compliance alerts and acknowledges specific regulatory issues.
+
+#### `getAuditTrail()` & `logAuditEntry(action, performer, targetId, details)`
+Manages immutable audit trail logs for compliance operations.
+
+#### `generateComplianceReport(format)`
+Exports full compliance status and audit logs in `json` or `csv`.
+
 #### `get_merchant_plans`
 
 Returns all plan IDs for a given merchant.
@@ -1012,3 +1035,18 @@ soroban contract deploy \
 ## Versioning
 
 This API documentation corresponds to the current `main` branch. The Soroban contract does not use semantic versioning on-chain; breaking changes require redeployment to a new contract ID. Client-side services follow the app version in `package.json`.
+
+---
+
+## Merchant Analytics API
+
+The `MerchantAnalyticsService` computes merchant dashboard metrics, subscriber retention, revenue growth, actionable merchant insights, and financial report exports.
+
+### Methods
+
+#### `computeAnalytics(merchantId, merchantName, subscriptions, filter)`
+Computes metrics including MRR, ARR, ARPU, total lifetime revenue, subscriber churn rate, growth rate, plan performance, and actionable insights.
+
+#### `generateMerchantReport(dashboardData, format)`
+Generates exportable standardized merchant reports in `json` or `csv` format.
+

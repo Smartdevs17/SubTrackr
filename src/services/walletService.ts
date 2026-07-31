@@ -1,99 +1,87 @@
 import { ethers } from 'ethers';
-import { Framework, SFError } from '@superfluid-finance/sdk-core';
 
-import { ERC20__factory, getContractAddress } from '../contracts';
-import { getEvmRpcUrl } from '../config/evm';
+import { GasEstimate, ChainType } from '../types/wallet';
+
+import { NetworkError, NetworkErrorCode, ContractError, ContractErrorCode } from '../errors';
+import { getEvmRpcUrl, getDefaultStellarNetwork, getChainType } from '../config/evm';
+import { TokenService } from './tokenService';
+import { GasService } from './gasService';
+import { StreamService } from './streamService';
+import { PaymentMethodService } from './paymentMethodService';
 import {
-  TIME_CONSTANTS,
-  CRYPTO_CONSTANTS,
-  CHAIN_IDS,
-  ADDRESS_CONSTANTS,
-} from '../utils/constants/values';
+  WalletConnection,
+  WalletError,
+  WalletErrorCode,
+  errorTracker,
+  TokenBalance,
+  SuperfluidStreamResult,
+  SuperfluidCreateFlowContext,
+  WalletServiceContext,
+  isUserRejectedError,
+} from './walletServiceShared';
 
-export interface WalletConnection {
-  address: string;
+export { GasEstimate };
+export { NetworkError, NetworkErrorCode, ContractError, ContractErrorCode };
+export {
+  PaymentMethodService,
+  PaymentMethodError,
+  PaymentMethodErrorCode,
+} from './paymentMethodService';
+export {
+  WalletConnection,
+  WalletError,
+  WalletErrorCode,
+  errorTracker,
+  TokenBalance,
+  SuperfluidStreamResult,
+} from './walletServiceShared';
+
+export type { StreamSetup } from './walletServiceShared';
+
+export interface SupportedChainInfo {
+  chainType: ChainType;
   chainId: number;
-  isConnected: boolean;
-  provider?: ethers.providers.Web3Provider;
-  /** EIP-1193 provider from WalletConnect / AppKit — required for signing Superfluid txs */
-  eip1193Provider?: ethers.providers.ExternalProvider;
-}
-
-export interface TokenBalance {
-  symbol: string;
   name: string;
-  address: string;
-  balance: string;
-  decimals: number;
-  logoURI?: string;
+  rpcUrl?: string;
 }
 
-export interface StreamSetup {
-  token: string;
-  amount: number;
-  flowRate: string;
-  startDate: Date;
-  endDate?: Date;
-  protocol: 'superfluid' | 'sablier';
-}
-
-export interface GasEstimate {
-  gasLimit: string;
-  gasPrice: string;
-  estimatedCost: string;
-}
-
-/** Result after an on-chain Superfluid CFA stream is created */
-export interface SuperfluidStreamResult {
-  txHash: string;
-  /** Correlates with Superfluid subgraph queries (filter by sender, receiver, token) */
-  streamId: string;
-}
-
-const SECONDS_PER_MONTH = TIME_CONSTANTS.SECONDS_PER_MONTH;
-
-function isUserRejectedError(error: unknown): boolean {
-  if (error == null || typeof error !== 'object') return false;
-  const e = error as { code?: number | string; message?: string };
-  if (e.code === 4001 || e.code === 'ACTION_REJECTED') return true;
-  const msg = typeof e.message === 'string' ? e.message.toLowerCase() : '';
-  return msg.includes('user rejected') || msg.includes('user denied');
-}
-
-function superTokenResolverSymbol(chainId: number, tokenSymbol: string): string {
-  const s = tokenSymbol.toUpperCase();
-  if (s === 'USDC' || s === 'USDC.E') return 'USDCx';
-  if (s === 'MATIC') return 'MATICx';
-  if (s === 'ETH') {
-    if (chainId === CHAIN_IDS.POLYGON) return 'MATICx';
-    return 'ETHx';
-  }
-  if (s === 'ARB') {
-    throw new Error(
-      'ARB is not supported as a Superfluid super token on this flow. Use ETH for native streaming on Arbitrum.'
-    );
-  }
-  if (s.endsWith('X')) return s;
-  return `${s}x`;
-}
-
-function formatSuperfluidError(error: unknown): string {
-  if (error instanceof SFError) {
-    return error.message;
-  }
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return 'Superfluid stream creation failed';
-}
-
-// This is a hook-based service that needs to be used within React components
-// For the service layer, we'll create a different approach
-
-export class WalletServiceManager {
+export class WalletServiceManager implements WalletServiceContext {
   private static instance: WalletServiceManager;
   private connection: WalletConnection | null = null;
   private listeners: ((connection: WalletConnection | null) => void)[] = [];
+  private readonly tokenService: TokenService;
+  private readonly gasService: GasService;
+  private readonly streamService: StreamService;
+
+  private readonly supportedChains: SupportedChainInfo[] = [
+    {
+      chainType: ChainType.EVM,
+      chainId: 1,
+      name: 'Ethereum',
+      rpcUrl: 'https://cloudflare-eth.com',
+    },
+    { chainType: ChainType.EVM, chainId: 137, name: 'Polygon', rpcUrl: 'https://polygon-rpc.com' },
+    {
+      chainType: ChainType.EVM,
+      chainId: 42161,
+      name: 'Arbitrum',
+      rpcUrl: 'https://arb1.arbitrum.io/rpc',
+    },
+    {
+      chainType: ChainType.EVM,
+      chainId: 10,
+      name: 'Optimism',
+      rpcUrl: 'https://mainnet.optimism.io',
+    },
+    { chainType: ChainType.EVM, chainId: 8453, name: 'Base', rpcUrl: 'https://mainnet.base.org' },
+    { chainType: ChainType.STELLAR, chainId: 0x8000, name: 'Stellar (Soroban)' },
+  ];
+
+  constructor() {
+    this.tokenService = new TokenService(this);
+    this.gasService = new GasService(this);
+    this.streamService = new StreamService(this);
+  }
 
   static getInstance(): WalletServiceManager {
     if (!WalletServiceManager.instance) {
@@ -103,12 +91,7 @@ export class WalletServiceManager {
   }
 
   async initialize(): Promise<void> {
-    try {
-      console.log('WalletServiceManager initialized successfully');
-    } catch (error) {
-      console.error('Failed to initialize WalletServiceManager:', error);
-      throw error;
-    }
+    // Initialization is intentionally lightweight for now.
   }
 
   setConnection(connection: WalletConnection | null): void {
@@ -136,63 +119,191 @@ export class WalletServiceManager {
   }
 
   async disconnectWallet(): Promise<void> {
+    this.connection = null;
+    this.notifyListeners();
+  }
+
+  getSupportedChains(): SupportedChainInfo[] {
+    return [...this.supportedChains];
+  }
+
+  getStellarProvider(): any {
+    if (typeof window !== 'undefined' && (window as any).stellarProvider) {
+      return (window as any).stellarProvider;
+    }
+    if (typeof window !== 'undefined' && (window as any).freighter) {
+      return (window as any).freighter;
+    }
+    return null;
+  }
+
+  async connectStellarWallet(): Promise<WalletConnection> {
     try {
-      this.connection = null;
-      this.notifyListeners();
-      console.log('Wallet disconnected');
+      const freighterApi = this.getStellarProvider();
+      if (!freighterApi || !freighterApi.isConnected) {
+        throw new WalletError(
+          WalletErrorCode.NOT_CONNECTED,
+          'Freighter wallet is not available.',
+          'Please install Freighter wallet extension and try again.'
+        );
+      }
+
+      const publicKey = await freighterApi.getPublicKey();
+      const network = getDefaultStellarNetwork();
+
+      const connection: WalletConnection = {
+        address: publicKey,
+        chainId: 0x8000,
+        chainType: ChainType.STELLAR,
+        isConnected: true,
+        stellarPublicKey: publicKey,
+      };
+
+      this.setConnection(connection);
+      return connection;
     } catch (error) {
-      console.error('Failed to disconnect wallet:', error);
-      throw error;
+      if (error instanceof WalletError) throw error;
+      throw new WalletError(
+        WalletErrorCode.NOT_CONNECTED,
+        'Failed to connect to Stellar wallet.',
+        'Check Freighter extension and try again.',
+        error
+      );
+    }
+  }
+
+  async connectEvmWallet(
+    eip1193Provider: ethers.providers.ExternalProvider
+  ): Promise<WalletConnection> {
+    try {
+      const web3Provider = new ethers.providers.Web3Provider(eip1193Provider);
+      const accounts = await web3Provider.send('eth_requestAccounts', []);
+      const network = await web3Provider.getNetwork();
+
+      const connection: WalletConnection = {
+        address: accounts[0],
+        chainId: network.chainId,
+        chainType: ChainType.EVM,
+        isConnected: true,
+        provider: web3Provider,
+        eip1193Provider,
+      };
+
+      this.setConnection(connection);
+      return connection;
+    } catch (error) {
+      if (isUserRejectedError(error)) {
+        throw new WalletError(
+          WalletErrorCode.USER_REJECTED,
+          'Connection was rejected.',
+          'Approve connection in your wallet to continue.'
+        );
+      }
+      throw new WalletError(
+        WalletErrorCode.NOT_CONNECTED,
+        'Failed to connect EVM wallet.',
+        'Check your wallet extension and try again.',
+        error
+      );
+    }
+  }
+
+  async switchChain(chainType: ChainType, chainId: number): Promise<void> {
+    const conn = this.connection;
+    if (!conn) {
+      throw new WalletError(
+        WalletErrorCode.NOT_CONNECTED,
+        'No wallet connected.',
+        'Connect a wallet first.'
+      );
+    }
+
+    if (chainType === ChainType.EVM) {
+      if (!conn.eip1193Provider) {
+        throw new WalletError(
+          WalletErrorCode.NOT_CONNECTED,
+          'No EVM wallet connected.',
+          'Connect an EVM wallet first.'
+        );
+      }
+
+      try {
+        const provider = conn.eip1193Provider as any;
+        await provider.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: `0x${chainId.toString(16)}` }],
+        });
+      } catch (switchError: any) {
+        if (switchError.code === 4902) {
+          throw new WalletError(
+            WalletErrorCode.NETWORK_MISMATCH,
+            `Chain ${chainId} is not available in your wallet.`,
+            'Add the chain to your wallet first.'
+          );
+        }
+        throw new WalletError(
+          WalletErrorCode.NETWORK_MISMATCH,
+          'Failed to switch chain.',
+          'Try switching manually in your wallet.',
+          switchError
+        );
+      }
+
+      const web3Provider = new ethers.providers.Web3Provider(conn.eip1193Provider);
+      const network = await web3Provider.getNetwork();
+
+      this.setConnection({
+        ...conn,
+        chainId: network.chainId,
+        chainType: ChainType.EVM,
+        provider: web3Provider,
+      });
+    } else if (chainType === ChainType.STELLAR) {
+      if (!conn.stellarPublicKey) {
+        await this.connectStellarWallet();
+      }
+      this.setConnection({
+        ...conn,
+        chainId: 0x8000,
+        chainType: ChainType.STELLAR,
+      });
     }
   }
 
   async getTokenBalances(address: string, chainId: number): Promise<TokenBalance[]> {
+    const chainType = getChainType(chainId);
+    if (chainType === ChainType.STELLAR) {
+      return this.getStellarTokenBalances(address);
+    }
+    return this.tokenService.getTokenBalances(address, chainId);
+  }
+
+  private async getStellarTokenBalances(address: string): Promise<TokenBalance[]> {
     try {
-      const provider = this.getProvider(chainId);
-      const balances: TokenBalance[] = [];
-
-      // Get native token balance (ETH, MATIC, etc.)
-      const nativeBalance = await provider.getBalance(address);
-      const nativeSymbol = this.getNativeSymbol(chainId);
-
-      balances.push({
-        symbol: nativeSymbol,
-        name: this.getNativeName(chainId),
-        address: '0x0000000000000000000000000000000000000000',
-        balance: ethers.utils.formatEther(nativeBalance),
-        decimals: CRYPTO_CONSTANTS.ETH_DECIMALS,
-      });
-
-      // Get USDC balance if on supported chains
-      if (
-        chainId === CHAIN_IDS.ETHEREUM ||
-        chainId === CHAIN_IDS.POLYGON ||
-        chainId === CHAIN_IDS.ARBITRUM
-      ) {
-        const usdcAddress = getContractAddress(chainId, 'usdc');
-        if (!usdcAddress) {
-          return balances;
-        }
-        const usdcContract = ERC20__factory.connect(usdcAddress, provider);
-
-        try {
-          const usdcBalance = await usdcContract.balanceOf(address);
-          balances.push({
-            symbol: 'USDC',
-            name: 'USD Coin',
-            address: usdcAddress,
-            balance: ethers.utils.formatUnits(usdcBalance, CRYPTO_CONSTANTS.USDC_DECIMALS),
-            decimals: CRYPTO_CONSTANTS.USDC_DECIMALS,
-          });
-        } catch {
-          console.log('USDC not available on this chain');
-        }
+      const network = getDefaultStellarNetwork();
+      const response = await fetch(`${network.horizonUrl}/accounts/${address}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch Stellar account');
       }
+      const accountData = await response.json();
+
+      const balances: TokenBalance[] = accountData.balances.map((bal: any) => ({
+        symbol: bal.asset_type === 'native' ? 'XLM' : bal.asset_code,
+        name: bal.asset_type === 'native' ? 'Stellar Lumens' : bal.asset_code,
+        address: bal.asset_type === 'native' ? 'native' : `${bal.asset_code}:${bal.asset_issuer}`,
+        balance: bal.balance,
+        decimals: bal.asset_type === 'native' ? 7 : 7,
+      }));
 
       return balances;
     } catch (error) {
-      console.error('Failed to get token balances:', error);
-      throw error;
+      errorTracker.record(WalletErrorCode.BALANCE_FETCH_FAILED);
+      throw new WalletError(
+        WalletErrorCode.BALANCE_FETCH_FAILED,
+        'Failed to fetch Stellar token balances.',
+        'Check the address and try again.',
+        error
+      );
     }
   }
 
@@ -203,47 +314,31 @@ export class WalletServiceManager {
     chainId: number,
     userGasLimitOverride?: string
   ): Promise<GasEstimate> {
-    const provider = this.getProvider(chainId);
-
-    // Use getFeeData for EIP-1559 support
-    const feeData = await provider.getFeeData();
-    const gasPrice = feeData.maxFeePerGas ?? feeData.gasPrice ?? ethers.BigNumber.from(0);
-
-    let gasLimit: ethers.BigNumber;
-
-    if (userGasLimitOverride) {
-      gasLimit = ethers.BigNumber.from(userGasLimitOverride);
-    } else {
-      try {
-        const estimated = await provider.estimateGas({
-          from,
-          to,
-          value: ethers.utils.parseEther(value || '0'),
-        });
-        // Network-specific buffer: higher for Polygon due to congestion variability
-        const bufferMultiplier =
-          chainId === CHAIN_IDS.POLYGON
-            ? CRYPTO_CONSTANTS.POLYGON_GAS_BUFFER_MULTIPLIER
-            : CRYPTO_CONSTANTS.DEFAULT_GAS_BUFFER_MULTIPLIER;
-        gasLimit = estimated.mul(bufferMultiplier).div(100);
-      } catch (err) {
-        console.warn('Gas estimation failed, using safe fallback:', err);
-        gasLimit = ethers.BigNumber.from(CRYPTO_CONSTANTS.FALLBACK_GAS_LIMIT);
-      }
+    const chainType = getChainType(chainId);
+    if (chainType === ChainType.STELLAR) {
+      return this.estimateStellarGas();
     }
+    return this.gasService.estimateGas(from, to, value, chainId, userGasLimitOverride);
+  }
 
-    const estimatedCost = gasPrice.mul(gasLimit);
+  private async estimateStellarGas(): Promise<GasEstimate> {
     return {
-      gasLimit: gasLimit.toString(),
-      gasPrice: ethers.utils.formatUnits(gasPrice, 'gwei'),
-      estimatedCost: ethers.utils.formatEther(estimatedCost),
+      gasLimit: '1000000',
+      gasPrice: '0.00001',
+      estimatedCost: '0.01',
     };
   }
 
-  private getWalletSigner(): ethers.Signer {
+  getWalletSigner(): ethers.Signer {
     const conn = this.connection;
     if (!conn?.eip1193Provider) {
-      throw new Error('Wallet is not connected or does not expose a signing provider.');
+      const err = new WalletError(
+        WalletErrorCode.NOT_CONNECTED,
+        'EVM wallet is not connected.',
+        'Connect an EVM wallet and try again.'
+      );
+      errorTracker.record(WalletErrorCode.NOT_CONNECTED);
+      throw err;
     }
     const web3Provider = new ethers.providers.Web3Provider(conn.eip1193Provider);
     return web3Provider.getSigner();
@@ -255,45 +350,26 @@ export class WalletServiceManager {
     recipient: string,
     chainId: number,
     signer: ethers.Signer
-  ) {
-    const sf = await Framework.create({
+  ): Promise<SuperfluidCreateFlowContext> {
+    const streamService = this.streamService as unknown as {
+      buildSuperfluidCreateFlowContext: (
+        tokenSymbol: string,
+        amountPerMonth: string,
+        recipient: string,
+        chainId: number,
+        signer: ethers.Signer
+      ) => Promise<SuperfluidCreateFlowContext>;
+    };
+
+    return streamService.buildSuperfluidCreateFlowContext(
+      tokenSymbol,
+      amountPerMonth,
+      recipient,
       chainId,
-      provider: signer.provider!,
-    });
-
-    const resolverSymbol = superTokenResolverSymbol(chainId, tokenSymbol);
-    const superToken = await sf.loadSuperToken(resolverSymbol);
-    const decimals = await superToken.contract.decimals();
-
-    const amountBn = ethers.utils.parseUnits(amountPerMonth, decimals);
-    const flowRate = amountBn.div(SECONDS_PER_MONTH);
-    if (flowRate.lte(0)) {
-      throw new Error(
-        'Monthly amount is too small to stream (flow rate rounds to zero per second). Increase the amount.'
-      );
-    }
-
-    const sender = await signer.getAddress();
-    const receiver = ethers.utils.getAddress(recipient);
-
-    if (sender.toLowerCase() === receiver.toLowerCase()) {
-      throw new Error('Recipient must be a different address than your connected wallet.');
-    }
-
-    const createOp = sf.cfaV1.createFlow({
-      superToken: superToken.address,
-      sender,
-      receiver,
-      flowRate: flowRate.toString(),
-    });
-
-    return { createOp, superTokenAddress: superToken.address, sender, receiver, flowRate };
+      signer
+    );
   }
 
-  /**
-   * Estimates gas for creating a CFA stream (monthly amount → per-second flow rate).
-   * Call while the wallet is on `chainId`.
-   */
   async estimateSuperfluidCreateFlow(
     tokenSymbol: string,
     amountPerMonth: string,
@@ -372,10 +448,22 @@ export class WalletServiceManager {
       };
     } catch (error) {
       if (isUserRejectedError(error)) {
-        throw new Error('Transaction was rejected in your wallet.');
+        errorTracker.record(WalletErrorCode.USER_REJECTED);
+        throw new WalletError(
+          WalletErrorCode.USER_REJECTED,
+          'Transaction was rejected in your wallet.',
+          'Open your wallet and approve the transaction to continue.'
+        );
       }
-      console.error('Failed to create Superfluid stream:', error);
-      throw new Error(formatSuperfluidError(error));
+      if (error instanceof WalletError) {
+        throw error;
+      }
+      throw new WalletError(
+        WalletErrorCode.STREAM_CREATION_FAILED,
+        'Stream creation failed.',
+        'Check your token balance and try again.',
+        error
+      );
     }
   }
 
@@ -387,183 +475,62 @@ export class WalletServiceManager {
     recipient: string,
     chainId: number
   ): Promise<string> {
-    try {
-      const signer = this.getWalletSigner();
-      const network = await signer.provider!.getNetwork();
-      if (network.chainId !== chainId) {
-        throw new Error(
-          `Wallet network (${network.chainId}) does not match selected chain (${chainId}). Switch network in your wallet.`
-        );
-      }
-
-      // 1. Get Token Decimals & Parse Amount
-      const erc20Abi = [
-        'function decimals() view returns (uint8)',
-        'function approve(address spender, uint256 amount) returns (bool)',
-        'function allowance(address owner, address spender) view returns (uint256)',
-      ];
-      const erc20 = new ethers.Contract(token, erc20Abi, signer);
-      const decimals = await erc20.decimals();
-      const amountBn = ethers.utils.parseUnits(amount, decimals);
-
-      // Sablier V2 LockupLinear is consistently deployed at this address across major EVM networks
-      const SABLIER_V2_LOCKUP_LINEAR = ADDRESS_CONSTANTS.SABLIER_V2_LOCKUP_LINEAR;
-
-      // 2. Ensure Allowance (approve exact amount if insufficient)
-      const owner = await signer.getAddress();
-      const currentAllowance: ethers.BigNumber = await erc20.allowance(owner, SABLIER_V2_LOCKUP_LINEAR);
-      if (currentAllowance.lt(amountBn)) {
-        const txApprove = await erc20.approve(SABLIER_V2_LOCKUP_LINEAR, amountBn);
-        await txApprove.wait();
-      }
-
-      // 3. Create the Sablier Stream
-      const abi = [
-        'function createWithDurations(tuple(address sender, address recipient, uint128 totalAmount, address asset, bool cancelable, bool transferable, tuple(uint40 cliff, uint40 total) durations, address broker) params) external returns (uint256 streamId)',
-      ];
-
-      const sablierContract = new ethers.Contract(SABLIER_V2_LOCKUP_LINEAR, abi, signer);
-      const sender = await signer.getAddress();
-
-      // Calculate duration in seconds
-      const totalDuration = Math.floor((stopTime - startTime) / 1000);
-
-      const params = {
-        sender: sender,
-        recipient: recipient,
-        totalAmount: amountBn,
-        asset: token,
-        cancelable: true,
-        transferable: true,
-        durations: {
-          cliff: 0,
-          total: totalDuration,
-        },
-        broker: ADDRESS_CONSTANTS.ZERO_ADDRESS,
-      };
-
-      const txCreate = await sablierContract.createWithDurations(params);
-      const receipt = await txCreate.wait();
-
-      if (!receipt?.transactionHash) {
-        throw new Error('Transaction mined without a hash');
-      }
-
-      return receipt.transactionHash;
-    } catch (error) {
-      if (isUserRejectedError(error)) {
-        throw new Error('Transaction was rejected in your wallet.');
-      }
-      console.error('Failed to create Sablier stream:', error);
-      throw error;
-    }
+    return this.streamService.createSablierStream(
+      token,
+      amount,
+      startTime,
+      stopTime,
+      recipient,
+      chainId
+    );
   }
 
-  /**
-   * Returns the ERC20 allowance that `owner` granted to `spender`.
-   */
   async getErc20Allowance(
     token: string,
     owner: string,
     spender: string,
     chainId: number
   ): Promise<ethers.BigNumber> {
-    const provider = this.getProvider(chainId);
-    const erc20Abi = ['function allowance(address owner, address spender) view returns (uint256)'];
-    const erc20 = new ethers.Contract(token, erc20Abi, provider);
-    return erc20.allowance(owner, spender);
+    return this.tokenService.getErc20Allowance(token, owner, spender, chainId);
   }
 
-  /**
-   * Estimates gas for approving an ERC20 allowance to `spender`.
-   */
   async estimateApproveGas(
     token: string,
     spender: string,
     amount: ethers.BigNumberish,
     chainId: number
   ): Promise<GasEstimate> {
-    const provider = this.getProvider(chainId);
-    const feeData = await provider.getFeeData();
-    const gasPrice = feeData.maxFeePerGas ?? feeData.gasPrice ?? ethers.BigNumber.from(0);
-
-    const erc20Abi = ['function approve(address spender, uint256 amount) returns (bool)'];
-    const conn = this.connection;
-    if (!conn?.eip1193Provider) {
-      throw new Error('Wallet is not connected for gas estimation.');
-    }
-    const web3Provider = new ethers.providers.Web3Provider(conn.eip1193Provider);
-    const signer = web3Provider.getSigner();
-    const erc20WithSigner = new ethers.Contract(token, erc20Abi, signer);
-
-    let gasLimit: ethers.BigNumber;
-    try {
-      const estimated = await erc20WithSigner.estimateGas.approve(spender, amount);
-      const bufferMultiplier =
-        chainId === CHAIN_IDS.POLYGON
-          ? CRYPTO_CONSTANTS.POLYGON_GAS_BUFFER_MULTIPLIER
-          : CRYPTO_CONSTANTS.DEFAULT_GAS_BUFFER_MULTIPLIER;
-      gasLimit = estimated.mul(bufferMultiplier).div(100);
-    } catch (err) {
-      console.warn('Approve gas estimation failed, using fallback:', err);
-      gasLimit = ethers.BigNumber.from(CRYPTO_CONSTANTS.FALLBACK_GAS_LIMIT);
-    }
-
-    const estimatedCost = gasPrice.mul(gasLimit);
-    return {
-      gasLimit: gasLimit.toString(),
-      gasPrice: ethers.utils.formatUnits(gasPrice, 'gwei'),
-      estimatedCost: ethers.utils.formatEther(estimatedCost),
-    };
+    return this.gasService.estimateApproveGas(token, spender, amount, chainId);
   }
 
-  /**
-   * Performs an ERC20 approve for `spender` and waits for mining.
-   * Returns transaction hash.
-   */
-  async approveErc20(
-    token: string,
-    spender: string,
-    amount: ethers.BigNumberish
-  ): Promise<string> {
-    const signer = this.getWalletSigner();
-    const erc20Abi = ['function approve(address spender, uint256 amount) returns (bool)'];
-    const erc20 = new ethers.Contract(token, erc20Abi, signer);
-    const tx = await erc20.approve(spender, amount);
-    const receipt = await tx.wait();
-    if (!receipt?.transactionHash) {
-      throw new Error('Approval transaction mined without a hash');
-    }
-    return receipt.transactionHash;
+  async approveErc20(token: string, spender: string, amount: ethers.BigNumberish): Promise<string> {
+    return this.gasService.approveErc20(token, spender, amount);
   }
 
-  private getProvider(chainId: number): ethers.providers.JsonRpcProvider {
+  getProvider(chainId: number): ethers.providers.JsonRpcProvider {
+    const chainType = getChainType(chainId);
+    if (chainType === ChainType.STELLAR) {
+      throw new Error(
+        'Stellar provider is not an ethers provider. Use getStellarProvider() instead.'
+      );
+    }
     return new ethers.providers.JsonRpcProvider(getEvmRpcUrl(chainId));
-  }
-
-  private getNativeSymbol(chainId: number): string {
-    const symbols: Record<number, string> = {
-      [CHAIN_IDS.ETHEREUM]: 'ETH',
-      [CHAIN_IDS.POLYGON]: 'MATIC',
-      [CHAIN_IDS.ARBITRUM]: 'ETH',
-    };
-    return symbols[chainId] || 'ETH';
-  }
-
-  private getNativeName(chainId: number): string {
-    const names: Record<number, string> = {
-      [CHAIN_IDS.ETHEREUM]: 'Ethereum',
-      [CHAIN_IDS.POLYGON]: 'Polygon',
-      [CHAIN_IDS.ARBITRUM]: 'Arbitrum',
-    };
-    return names[chainId] || 'Ethereum';
   }
 
   isConnected(): boolean {
     return this.connection?.isConnected || false;
   }
+
+  isStellarConnected(): boolean {
+    return this.connection?.chainType === ChainType.STELLAR && this.connection.isConnected;
+  }
+
+  isEvmConnected(): boolean {
+    return this.connection?.chainType === ChainType.EVM && this.connection.isConnected;
+  }
 }
 
 // Export singleton instance
 export const walletServiceManager = WalletServiceManager.getInstance();
+export const paymentMethodService = PaymentMethodService.getInstance(walletServiceManager);
 export default walletServiceManager;

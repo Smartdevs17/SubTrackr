@@ -7,7 +7,7 @@ set -euo pipefail
 #
 # Includes:
 # - contracts/Cargo.toml
-# - contracts/src/**
+# - contracts/{proxy,storage,subscription,types}/**
 # - WASM hash (if built) for reference
 #
 # Usage:
@@ -26,15 +26,38 @@ TMP_DIR="$(mktemp -d)"
 mkdir -p "$TMP_DIR/contracts"
 
 cp "$CONTRACTS_DIR/Cargo.toml" "$TMP_DIR/contracts/Cargo.toml"
-mkdir -p "$TMP_DIR/contracts/src"
-cp -R "$CONTRACTS_DIR/src/"* "$TMP_DIR/contracts/src/"
+if [ -f "$CONTRACTS_DIR/Cargo.lock" ]; then
+  cp "$CONTRACTS_DIR/Cargo.lock" "$TMP_DIR/contracts/Cargo.lock"
+fi
 
-# If a compiled wasm exists, compute checksums and include metadata
-WASM_PATH="$CONTRACTS_DIR/target/wasm32-unknown-unknown/release/contracts.wasm"
-if [ -f "$WASM_PATH" ]; then
-  echo "📦 Found compiled WASM. Computing checksums..."
-  (cd "$CONTRACTS_DIR" && \
-    sha256sum "$WASM_PATH" > "$TMP_DIR/contracts/WASM_SHA256.txt" || shasum -a 256 "$WASM_PATH" > "$TMP_DIR/contracts/WASM_SHA256.txt")
+cp -R "$CONTRACTS_DIR/proxy" "$TMP_DIR/contracts/proxy"
+cp -R "$CONTRACTS_DIR/storage" "$TMP_DIR/contracts/storage"
+cp -R "$CONTRACTS_DIR/subscription" "$TMP_DIR/contracts/subscription"
+cp -R "$CONTRACTS_DIR/types" "$TMP_DIR/contracts/types"
+
+# If compiled WASMs exist, compute checksums and include metadata
+WASM_DIR="$CONTRACTS_DIR/target/wasm32-unknown-unknown/release"
+WASM_LIST=(
+  "subtrackr_proxy.wasm"
+  "subtrackr_storage.wasm"
+  "subtrackr_subscription.wasm"
+)
+
+FOUND=0
+for WASM in "${WASM_LIST[@]}"; do
+  if [ -f "$WASM_DIR/$WASM" ]; then
+    FOUND=1
+  fi
+done
+
+if [ "$FOUND" -eq 1 ]; then
+  echo "📦 Found compiled WASMs. Computing checksums..."
+  : > "$TMP_DIR/contracts/WASM_SHA256.txt"
+  for WASM in "${WASM_LIST[@]}"; do
+    if [ -f "$WASM_DIR/$WASM" ]; then
+      (cd "$WASM_DIR" && (sha256sum "$WASM" || shasum -a 256 "$WASM") >> "$TMP_DIR/contracts/WASM_SHA256.txt")
+    fi
+  done
 fi
 
 echo "🗜️  Creating archive: $OUT"
@@ -42,4 +65,3 @@ echo "🗜️  Creating archive: $OUT"
 
 rm -rf "$TMP_DIR"
 echo "✅ Source package created at: $OUT"
-

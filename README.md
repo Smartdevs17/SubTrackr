@@ -144,11 +144,11 @@ cp .env.example .env
 
 > **Note**: If `.env.example` doesn't exist, create a new `.env` file with the following variables:
 
-| Variable             | Description                               | Example Value                                                     |
-| -------------------- | ----------------------------------------- | ----------------------------------------------------------------- |
-| `STELLAR_NETWORK`    | `testnet` or `public` Stellar network     | `testnet`                                                         |
-| `CONTRACT_ID`        | Deployed Soroban subscription contract ID | `CB64...` (your deployed contract address)                        |
-| `WEB3AUTH_CLIENT_ID` | Web3Auth client ID for social login       | Get one from [Web3Auth Dashboard](https://dashboard.web3auth.io/) |
+| Variable             | Description                                   | Example Value                                                     |
+| -------------------- | --------------------------------------------- | ----------------------------------------------------------------- |
+| `STELLAR_NETWORK`    | `testnet` or `public` Stellar network         | `testnet`                                                         |
+| `CONTRACT_ID`        | Deployed SubTrackr proxy contract ID (stable) | `CB64...` (your deployed proxy contract address)                  |
+| `WEB3AUTH_CLIENT_ID` | Web3Auth client ID for social login           | Get one from [Web3Auth Dashboard](https://dashboard.web3auth.io/) |
 
 ### 4. Run the Mobile App
 
@@ -173,15 +173,16 @@ You can then run the app on:
 If you want to work on the smart contracts:
 
 ```bash
-# Navigate to contracts directory
-cd contracts
+# Local (requires local Soroban network + `alice` identity)
+./scripts/deploy-local.sh
 
-# Build the contract
-cargo build --target wasm32-unknown-unknown --release
-
-# Deploy to Stellar testnet
-soroban contract deploy --wasm target/wasm32-unknown-unknown/release/subtrackr.wasm --network testnet
+# Testnet
+export SOROBAN_ACCOUNT="your-testnet-identity"
+export ADMIN_ADDRESS="GB..."
+./scripts/deploy-testnet.sh
 ```
+
+SubTrackr uses an upgradeable architecture (proxy + storage + implementation). Use the deployed `PROXY_ID` (saved to `contracts/.env.<network>`) as the stable contract ID.
 
 ### 6. Run Tests
 
@@ -215,6 +216,24 @@ npm run lint
 - Make sure you're connected to the same Stellar network as the app (testnet/public)
 </details>
 
+## Local Development Environment
+
+SubTrackr utilizes a fully containerized local environment orchestrated via Docker Compose, eliminating the need to manually install dependencies like PostgreSQL, Redis, Soroban CLI, Rust, and Node.js.
+
+### Architecture
+* **API Gateway (Backend):** Port 3000
+* **Background Workers:** Billing queues
+* **Webhook Dispatcher:** Payload deliveries
+* **ML Service (Python):** Port 8001
+* **Database & Cache:** PostgreSQL (5432), Redis (6379)
+* **Soroban Node:** Standalone local network (8000)
+
+### Quick Setup
+
+1. **Initialize the Environment**
+   ```bash
+   ./scripts/setup.sh
+   
 ## Contributing
 
 We welcome contributions! SubTrackr participates in the **Stellar Wave Program** via [Drips](https://www.drips.network/). Contributors can earn points and rewards by picking up issues labeled **`Stellar Wave`**.
@@ -258,9 +277,10 @@ SubTrackr prioritizes the security of your subscriptions and on-chain transactio
 
 - **Dependency Scanning**: Powered by GitHub Dependabot and `npm audit`.
 - **Security Monitoring**: Automated workflows run high-level vulnerability scans on every push and pull request.
-- **Reporting**: Found a vulnerability? Please see our [Security Policy](docs/security.md) for reporting guidelines.
+- **Reporting**: Found a vulnerability? Please see our [Security Policy](docs/SECURITY.md) for reporting guidelines.
 
 To run a manual security audit:
+
 ```bash
 npm run security:audit
 ```
