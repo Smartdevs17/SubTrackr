@@ -43,6 +43,16 @@ SubTrackr is a mobile application for managing recurring payments and subscripti
 - Invoice preview before generation
 - Detailed payment history and status tracking
 
+**Fraud Detection with Real-time Monitoring**
+
+- Real-time fraud detection with multiple detection methods
+- Risk scoring system (0-100) with automatic blocking
+- 10+ fraud indicators (velocity, amount anomaly, location mismatch, etc.)
+- Real-time alerts for high-risk transactions
+- Fraud investigation workflow
+- Comprehensive fraud analytics and reporting
+- Prevented loss tracking and false positive monitoring
+
 **Wallet Integration**
 
 - Native Freighter wallet connection for Stellar transactions
@@ -267,7 +277,7 @@ SubTrackr prioritizes the security of your subscriptions and on-chain transactio
 
 - **Dependency Scanning**: Powered by GitHub Dependabot and `npm audit`.
 - **Security Monitoring**: Automated workflows run high-level vulnerability scans on every push and pull request.
-- **Reporting**: Found a vulnerability? Please see our [Security Policy](docs/security.md) for reporting guidelines.
+- **Reporting**: Found a vulnerability? Please see our [Security Policy](docs/SECURITY.md) for reporting guidelines.
 
 To run a manual security audit:
 

@@ -97,6 +97,33 @@ export const useUsageStore = create<UsageState>()(
               isLoading: false,
             };
           });
+
+          // Evaluate thresholds and trigger auto-upgrade if hard limit reached
+          const newStatus = get().getQuotaStatus(subscriptionId, metric);
+          if (newStatus === QuotaStatus.HARD_LIMIT_REACHED) {
+            const planId = get().subscriptionPlans[subscriptionId] || 'free';
+            const UPGRADE_PATH: Record<string, string> = { free: 'pro', pro: 'enterprise' };
+            const nextPlanId = UPGRADE_PATH[planId];
+
+            if (nextPlanId) {
+              import('./subscriptionStore').then(({ useSubscriptionStore }) => {
+                const newPrice = nextPlanId === 'enterprise' ? 99 : 29;
+                useSubscriptionStore
+                  .getState()
+                  .executePlanChange(
+                    subscriptionId,
+                    { price: newPrice, name: nextPlanId },
+                    'immediate'
+                  )
+                  .catch(console.error);
+
+                set((state) => ({
+                  subscriptionPlans: { ...state.subscriptionPlans, [subscriptionId]: nextPlanId },
+                }));
+                get().fetchUsage(subscriptionId, nextPlanId);
+              });
+            }
+          }
         } catch (error) {
           const appError = errorHandler.handleError(error as Error, {
             action: 'recordUsage',
