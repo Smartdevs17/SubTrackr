@@ -2,7 +2,15 @@ export { DeveloperPortalService } from './services/portalService';
 export { IntegrationGuidesService } from './services/integrationGuidesService';
 export { DeveloperOnboarding } from './components/DeveloperOnboarding';
 export { ApiKeyManager } from './components/ApiKeyManager';
-export { DashboardPage, ApiKeysPage, DocumentationPage, UsagePage, OnboardingPage } from './pages';
+export {
+  DashboardPage,
+  ApiKeysPage,
+  DocumentationPage,
+  UsagePage,
+  OnboardingPage,
+  MigrationPage,
+  SandboxSettingsPage,
+} from './pages';
 export type {
   PortalUser,
   PortalDashboard,

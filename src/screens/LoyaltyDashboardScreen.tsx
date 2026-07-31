@@ -9,17 +9,15 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
+  FlatList,
 } from 'react-native';
-import { FlashList } from '@shopify/flash-list';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
-import { useThemeColors } from '../hooks/useThemeColors';
 import { useLoyaltyStore } from '../store/loyaltyStore';
-import { useWalletStore } from '../store/walletStore';
+import { useWalletStore, selectAddress } from '../store/walletStore';
 import { Card } from '../components/common/Card';
-import { LoyaltyTier, RewardType, TierBenefits } from '../types/loyalty';
+import { LoyaltyTier, TierBenefits } from '../types/loyalty';
 
 const LoyaltyDashboardScreen: React.FC = () => {
-  const colors = useThemeColors();
   const {
     loyaltyStatus,
     transactions,
@@ -27,10 +25,9 @@ const LoyaltyDashboardScreen: React.FC = () => {
     program,
     isLoading,
     initializeProgram,
-    accumulatePoints,
     redeemPoints,
   } = useLoyaltyStore();
-  const { address } = useWalletStore();
+  const address = useWalletStore(selectAddress);
 
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedReward, setSelectedReward] = useState<string>('');
@@ -69,19 +66,19 @@ const LoyaltyDashboardScreen: React.FC = () => {
   const getTierColor = (tier: LoyaltyTier): string => {
     switch (tier) {
       case LoyaltyTier.PLATINUM:
-        return colors.textSecondary;
+        return '#E5E4E2';
       case LoyaltyTier.GOLD:
-        return colors.status.warning;
+        return '#FFD700';
       case LoyaltyTier.SILVER:
-        return colors.border.default;
+        return '#C0C0C0';
       default:
-        return colors.brand.secondary;
+        return '#CD7F32';
     }
   };
 
   const getNextTierInfo = (): TierBenefits | null => {
     if (!program || !loyaltyStatus) return null;
-    const currentTierIndex = program.tiers.findIndex(t => t.tier === loyaltyStatus.tier);
+    const currentTierIndex = program.tiers.findIndex((t) => t.tier === loyaltyStatus.tier);
     if (currentTierIndex >= program.tiers.length - 1) return null;
     return program.tiers[currentTierIndex + 1];
   };
@@ -91,33 +88,22 @@ const LoyaltyDashboardScreen: React.FC = () => {
       return (
         <Card style={styles.statusCard}>
           <Text style={styles.emptyText}>No loyalty status yet</Text>
-          <Text style={styles.emptySubtext}>
-            Start subscribing to earn rewards!
-          </Text>
+          <Text style={styles.emptySubtext}>Start subscribing to earn rewards!</Text>
         </Card>
       );
     }
 
     const nextTier = getNextTierInfo();
-    const pointsToNextTier = nextTier
-      ? nextTier.pointsThreshold - loyaltyStatus.lifetimePoints
-      : 0;
+    const pointsToNextTier = nextTier ? nextTier.pointsThreshold - loyaltyStatus.lifetimePoints : 0;
 
     return (
       <Card style={styles.statusCard}>
         <View style={styles.tierHeader}>
-          <View
-            style={[
-              styles.tierBadge,
-              { backgroundColor: getTierColor(loyaltyStatus.tier) },
-            ]}>
-            <Text style={styles.tierBadgeText}>
-              {loyaltyStatus.tier.toUpperCase()}
-            </Text>
+          <View style={[styles.tierBadge, { backgroundColor: getTierColor(loyaltyStatus.tier) }]}>
+            <Text style={styles.tierBadgeText}>{loyaltyStatus.tier.toUpperCase()}</Text>
           </View>
           <Text style={styles.memberSince}>
-            Member since{' '}
-            {new Date(loyaltyStatus.memberSince).toLocaleDateString()}
+            Member since {new Date(loyaltyStatus.memberSince).toLocaleDateString()}
           </Text>
         </View>
 
@@ -148,15 +134,11 @@ const LoyaltyDashboardScreen: React.FC = () => {
 
         <View style={styles.statsGrid}>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>
-              {loyaltyStatus.lifetimePoints.toLocaleString()}
-            </Text>
+            <Text style={styles.statValue}>{loyaltyStatus.lifetimePoints.toLocaleString()}</Text>
             <Text style={styles.statLabel}>Lifetime Points</Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>
-              ${loyaltyStatus.totalSpent.toFixed(0)}
-            </Text>
+            <Text style={styles.statValue}>${loyaltyStatus.totalSpent.toFixed(0)}</Text>
             <Text style={styles.statLabel}>Total Spent</Text>
           </View>
         </View>
@@ -176,10 +158,9 @@ const LoyaltyDashboardScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      <FlashList
+      <FlatList
         data={rewards.filter((r) => r.isActive)}
         keyExtractor={(item) => item.id}
-        scrollEnabled={false}
         renderItem={({ item: reward }) => (
           <TouchableOpacity
             style={styles.rewardItem}
@@ -237,17 +218,10 @@ const LoyaltyDashboardScreen: React.FC = () => {
         {program.tiers.map((tier) => (
           <View key={tier.tier} style={styles.tierItem}>
             <View style={styles.tierInfo}>
-              <View
-                style={[
-                  styles.tierDot,
-                  { backgroundColor: getTierColor(tier.tier) },
-                ]}
-              />
+              <View style={[styles.tierDot, { backgroundColor: getTierColor(tier.tier) }]} />
               <Text style={styles.tierName}>{tier.tier.toUpperCase()}</Text>
             </View>
-            <Text style={styles.tierThreshold}>
-              {tier.pointsThreshold.toLocaleString()} pts
-            </Text>
+            <Text style={styles.tierThreshold}>{tier.pointsThreshold.toLocaleString()} pts</Text>
           </View>
         ))}
       </Card>
@@ -287,11 +261,9 @@ const LoyaltyDashboardScreen: React.FC = () => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Redeem Reward</Text>
-            <Text style={styles.modalSubtitle}>
-              Select a reward to redeem your points
-            </Text>
+            <Text style={styles.modalSubtitle}>Select a reward to redeem your points</Text>
 
-            <FlashList
+            <FlatList
               data={rewards.filter((r) => r.isActive)}
               keyExtractor={(item) => item.id}
               renderItem={({ item: reward }) => (
@@ -305,9 +277,7 @@ const LoyaltyDashboardScreen: React.FC = () => {
                     <Text style={styles.rewardOptionName}>{reward.name}</Text>
                     <Text style={styles.rewardOptionDesc}>{reward.description}</Text>
                   </View>
-                  <Text style={styles.rewardOptionCost}>
-                    {reward.pointsCost} pts
-                  </Text>
+                  <Text style={styles.rewardOptionCost}>{reward.pointsCost} pts</Text>
                 </TouchableOpacity>
               )}
             />
@@ -321,9 +291,7 @@ const LoyaltyDashboardScreen: React.FC = () => {
                 }}>
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.confirmButton}
-                onPress={handleRedeemReward}>
+              <TouchableOpacity style={styles.confirmButton} onPress={handleRedeemReward}>
                 <Text style={styles.confirmButtonText}>Redeem</Text>
               </TouchableOpacity>
             </View>
@@ -348,19 +316,19 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: spacing.sm,
     color: colors.textSecondary,
-    fontSize: typography.fontSizeMd,
+    fontSize: typography.body2.fontSize,
   },
   header: {
     padding: spacing.md,
     paddingTop: spacing.lg,
   },
   title: {
-    fontSize: typography.fontSizeXl,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.h2.fontSize,
+    fontWeight: typography.h2.fontWeight,
     color: colors.text,
   },
   subtitle: {
-    fontSize: typography.fontSizeMd,
+    fontSize: typography.body2.fontSize,
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
@@ -382,11 +350,11 @@ const styles = StyleSheet.create({
   },
   tierBadgeText: {
     color: colors.text,
-    fontSize: typography.fontSizeSm,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.small.fontSize,
+    fontWeight: '700',
   },
   memberSince: {
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.small.fontSize,
     color: colors.textSecondary,
   },
   pointsDisplay: {
@@ -395,11 +363,11 @@ const styles = StyleSheet.create({
   },
   pointsValue: {
     fontSize: 48,
-    fontWeight: typography.fontWeightBold,
+    fontWeight: '700',
     color: colors.text,
   },
   pointsLabel: {
-    fontSize: typography.fontSizeMd,
+    fontSize: typography.body2.fontSize,
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
@@ -412,7 +380,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   progressText: {
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.small.fontSize,
     color: colors.textSecondary,
   },
   progressBar: {
@@ -437,12 +405,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statValue: {
-    fontSize: typography.fontSizeLg,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.h3.fontSize,
+    fontWeight: typography.h3.fontWeight,
     color: colors.text,
   },
   statLabel: {
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.small.fontSize,
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
@@ -458,14 +426,14 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   rewardsTitle: {
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.body.fontSize,
+    fontWeight: '700',
     color: colors.text,
   },
   redeemLink: {
-    fontSize: typography.fontSizeMd,
+    fontSize: typography.body.fontSize,
     color: colors.primary,
-    fontWeight: typography.fontWeightMedium,
+    fontWeight: '600',
   },
   rewardItem: {
     flexDirection: 'row',
@@ -479,12 +447,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   rewardName: {
-    fontSize: typography.fontSizeMd,
+    fontSize: typography.body.fontSize,
     color: colors.text,
-    fontWeight: typography.fontWeightMedium,
+    fontWeight: '600',
   },
   rewardDesc: {
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.body2.fontSize,
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
@@ -492,12 +460,12 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   costValue: {
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.body.fontSize,
+    fontWeight: '700',
     color: colors.primary,
   },
   costLabel: {
-    fontSize: typography.fontSizeXs,
+    fontSize: typography.small.fontSize,
     color: colors.textSecondary,
   },
   transactionsCard: {
@@ -506,8 +474,8 @@ const styles = StyleSheet.create({
     marginTop: 0,
   },
   transactionsTitle: {
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.body.fontSize,
+    fontWeight: '700',
     color: colors.text,
     marginBottom: spacing.md,
   },
@@ -522,23 +490,23 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   transactionDesc: {
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.body2.fontSize,
     color: colors.text,
   },
   transactionDate: {
-    fontSize: typography.fontSizeXs,
+    fontSize: typography.small.fontSize,
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
   transactionAmount: {
-    fontSize: typography.fontSizeSm,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.body2.fontSize,
+    fontWeight: '700',
   },
   positiveAmount: {
     color: colors.success,
   },
   negativeAmount: {
-    color: colors.danger,
+    color: colors.error,
   },
   membersCard: {
     padding: spacing.md,
@@ -547,8 +515,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   membersTitle: {
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.body.fontSize,
+    fontWeight: '700',
     color: colors.text,
     marginBottom: spacing.md,
   },
@@ -571,21 +539,21 @@ const styles = StyleSheet.create({
     marginRight: spacing.sm,
   },
   tierName: {
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.body2.fontSize,
     color: colors.text,
-    fontWeight: typography.fontWeightMedium,
+    fontWeight: '600',
   },
   tierThreshold: {
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.body2.fontSize,
     color: colors.textSecondary,
   },
   emptyText: {
-    fontSize: typography.fontSizeMd,
+    fontSize: typography.body2.fontSize,
     color: colors.textSecondary,
     textAlign: 'center',
   },
   emptySubtext: {
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.small.fontSize,
     color: colors.textSecondary,
     textAlign: 'center',
     marginTop: spacing.xs,
@@ -603,13 +571,13 @@ const styles = StyleSheet.create({
     maxHeight: '70%',
   },
   modalTitle: {
-    fontSize: typography.fontSizeLg,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.h3.fontSize,
+    fontWeight: '700',
     color: colors.text,
     marginBottom: spacing.xs,
   },
   modalSubtitle: {
-    fontSize: typography.fontSizeMd,
+    fontSize: typography.body2.fontSize,
     color: colors.textSecondary,
     marginBottom: spacing.lg,
   },
@@ -630,18 +598,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   rewardOptionName: {
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightMedium,
+    fontSize: typography.body.fontSize,
+    fontWeight: '600',
     color: colors.text,
   },
   rewardOptionDesc: {
-    fontSize: typography.fontSizeSm,
+    fontSize: typography.body2.fontSize,
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
   rewardOptionCost: {
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.body.fontSize,
+    fontWeight: '700',
     color: colors.primary,
   },
   modalButtons: {
@@ -659,8 +627,8 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     color: colors.text,
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightMedium,
+    fontSize: typography.body.fontSize,
+    fontWeight: '600',
   },
   confirmButton: {
     flex: 1,
@@ -671,8 +639,8 @@ const styles = StyleSheet.create({
   },
   confirmButtonText: {
     color: colors.text,
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
+    fontSize: typography.body.fontSize,
+    fontWeight: '700',
   },
 });
 

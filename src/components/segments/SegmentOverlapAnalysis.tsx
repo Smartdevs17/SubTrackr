@@ -44,7 +44,10 @@ export const SegmentOverlapAnalysis: React.FC<SegmentOverlapAnalysisProps> = ({
               </Text>
             </View>
             <View
-              style={[styles.progressBarContainer, { backgroundColor: theme.colors.border.default }]}>
+              style={[
+                styles.progressBarContainer,
+                { backgroundColor: theme.colors.border.default },
+              ]}>
               <View
                 style={[
                   styles.progressBar,

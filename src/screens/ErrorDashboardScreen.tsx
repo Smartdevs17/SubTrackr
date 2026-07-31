@@ -156,157 +156,157 @@ const ErrorDashboardScreen: React.FC = () => {
 
 function createStyles(colors: ReturnType<typeof useThemeColors>) {
   return StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background.primary,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  header: {
-    padding: spacing.lg,
-    alignItems: 'center',
-  },
-  title: {
-    ...typography.h1,
-    color: colors.text,
-    marginBottom: spacing.xs,
-  },
-  subtitle: {
-    ...typography.body,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: spacing.md,
-    marginBottom: spacing.lg,
-  },
-  statCard: {
-    width: '48%',
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    margin: '1%',
-    borderLeftWidth: 4,
-    shadowColor: colors.overlay,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  statValue: {
-    ...typography.h2,
-    color: colors.text,
-    fontWeight: 'bold',
-  },
-  statTitle: {
-    ...typography.body,
-    color: colors.textSecondary,
-    marginTop: spacing.xs,
-  },
-  section: {
-    marginBottom: spacing.lg,
-    paddingHorizontal: spacing.lg,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  sectionTitle: {
-    ...typography.h2,
-    color: colors.text,
-  },
-  clearButton: {
-    backgroundColor: colors.error,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.sm,
-  },
-  clearButtonText: {
-    color: colors.onPrimary,
-    ...typography.body,
-    fontWeight: '600',
-  },
-  errorItem: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    marginVertical: spacing.xs,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  errorHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  errorType: {
-    ...typography.body,
-    fontWeight: '600',
-    fontSize: 12,
-  },
-  errorSeverity: {
-    ...typography.body,
-    fontWeight: '600',
-    fontSize: 12,
-  },
-  errorMessage: {
-    ...typography.body,
-    color: colors.text,
-    marginBottom: spacing.sm,
-  },
-  errorTimestamp: {
-    ...typography.body,
-    color: colors.textSecondary,
-    fontSize: 12,
-  },
-  errorComponent: {
-    ...typography.body,
-    color: colors.textSecondary,
-    fontSize: 12,
-    marginTop: spacing.xs,
-  },
-  separator: {
-    height: 1,
-    backgroundColor: colors.border,
-    marginVertical: spacing.xs,
-  },
-  emptyState: {
-    alignItems: 'center',
-    padding: spacing.xl,
-  },
-  emptyStateText: {
-    ...typography.h3,
-    color: colors.text,
-    marginBottom: spacing.sm,
-  },
-  emptyStateSubtext: {
-    ...typography.body,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-  typeBreakdown: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.sm,
-    padding: spacing.md,
-    marginVertical: spacing.xs,
-  },
-  typeName: {
-    ...typography.body,
-    fontWeight: '600',
-  },
-  typeCount: {
-    ...typography.body,
-    color: colors.textSecondary,
-  },
+    container: {
+      flex: 1,
+      backgroundColor: colors.background.primary,
+    },
+    scrollView: {
+      flex: 1,
+    },
+    header: {
+      padding: spacing.lg,
+      alignItems: 'center',
+    },
+    title: {
+      ...typography.h1,
+      color: colors.text.primary,
+      marginBottom: spacing.xs,
+    },
+    subtitle: {
+      ...typography.body,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+    statsContainer: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      paddingHorizontal: spacing.md,
+      marginBottom: spacing.lg,
+    },
+    statCard: {
+      width: '48%',
+      backgroundColor: colors.surface,
+      borderRadius: borderRadius.md,
+      padding: spacing.md,
+      margin: '1%',
+      borderLeftWidth: 4,
+      shadowColor: colors.overlay,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 3,
+    },
+    statValue: {
+      ...typography.h2,
+      color: colors.text.primary,
+      fontWeight: 'bold',
+    },
+    statTitle: {
+      ...typography.body,
+      color: colors.textSecondary,
+      marginTop: spacing.xs,
+    },
+    section: {
+      marginBottom: spacing.lg,
+      paddingHorizontal: spacing.lg,
+    },
+    sectionHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: spacing.md,
+    },
+    sectionTitle: {
+      ...typography.h2,
+      color: colors.text.primary,
+    },
+    clearButton: {
+      backgroundColor: colors.error,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderRadius: borderRadius.sm,
+    },
+    clearButtonText: {
+      color: colors.onPrimary,
+      ...typography.body,
+      fontWeight: '600',
+    },
+    errorItem: {
+      backgroundColor: colors.surface,
+      borderRadius: borderRadius.md,
+      padding: spacing.md,
+      marginVertical: spacing.xs,
+      borderWidth: 1,
+      borderColor: colors.border.default,
+    },
+    errorHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: spacing.sm,
+    },
+    errorType: {
+      ...typography.body,
+      fontWeight: '600',
+      fontSize: 12,
+    },
+    errorSeverity: {
+      ...typography.body,
+      fontWeight: '600',
+      fontSize: 12,
+    },
+    errorMessage: {
+      ...typography.body,
+      color: colors.text.primary,
+      marginBottom: spacing.sm,
+    },
+    errorTimestamp: {
+      ...typography.body,
+      color: colors.textSecondary,
+      fontSize: 12,
+    },
+    errorComponent: {
+      ...typography.body,
+      color: colors.textSecondary,
+      fontSize: 12,
+      marginTop: spacing.xs,
+    },
+    separator: {
+      height: 1,
+      backgroundColor: colors.border.default,
+      marginVertical: spacing.xs,
+    },
+    emptyState: {
+      alignItems: 'center',
+      padding: spacing.xl,
+    },
+    emptyStateText: {
+      ...typography.h3,
+      color: colors.text.primary,
+      marginBottom: spacing.sm,
+    },
+    emptyStateSubtext: {
+      ...typography.body,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+    typeBreakdown: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderRadius: borderRadius.sm,
+      padding: spacing.md,
+      marginVertical: spacing.xs,
+    },
+    typeName: {
+      ...typography.body,
+      fontWeight: '600',
+    },
+    typeCount: {
+      ...typography.body,
+      color: colors.textSecondary,
+    },
   });
 }
 

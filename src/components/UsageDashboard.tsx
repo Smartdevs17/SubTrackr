@@ -9,7 +9,7 @@ export const UsageDashboard = () => {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Usage & Billing</Text>
-      
+
       <View style={styles.card}>
         <Text style={styles.metricTitle}>API Calls</Text>
         <Text style={styles.metricValue}>85,000 / 100,000</Text>
@@ -33,13 +33,13 @@ export const UsageDashboard = () => {
 function createStyles(colors: ReturnType<typeof useThemeColors>) {
   return StyleSheet.create({
     container: { padding: 16 },
-    title: { fontSize: 22, fontWeight: 'bold', marginBottom: 16, color: colors.text },
+    title: { fontSize: 22, fontWeight: 'bold', marginBottom: 16, color: colors.text.primary },
     card: { padding: 16, backgroundColor: colors.surface, borderRadius: 8, marginBottom: 12 },
-    metricTitle: { fontSize: 16, fontWeight: '600', color: colors.text },
-    metricValue: { fontSize: 14, marginVertical: 8, color: colors.text },
+    metricTitle: { fontSize: 16, fontWeight: '600', color: colors.text.primary },
+    metricValue: { fontSize: 14, marginVertical: 8, color: colors.text.primary },
     progressBar: {
       height: 8,
-      backgroundColor: colors.border,
+      backgroundColor: colors.border.default,
       borderRadius: 4,
       overflow: 'hidden',
     },

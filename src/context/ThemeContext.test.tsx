@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, renderHook } from '@testing-library/react-hooks/native';
+import { act, renderHook } from '@testing-library/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ThemeProvider, useTheme } from './ThemeContext';
 import { darkColors, lightColors } from '../theme/colors';
@@ -9,12 +9,12 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 );
 
 const mockRemove = jest.fn();
-const mockAddChangeListener = jest.fn(() => ({ remove: mockRemove }));
+const mockAddChangeListener = jest.fn((_cb: any) => ({ remove: mockRemove }));
 const mockGetColorScheme = jest.fn();
 
 jest.mock('react-native/Libraries/Utilities/Appearance', () => ({
-  getColorScheme: (...args: unknown[]) => mockGetColorScheme(...args),
-  addChangeListener: (...args: unknown[]) => mockAddChangeListener(...args),
+  getColorScheme: () => mockGetColorScheme(),
+  addChangeListener: (cb: any) => mockAddChangeListener(cb),
 }));
 
 const wrapper = ({ children }: { children: React.ReactNode }) => (
@@ -105,9 +105,9 @@ describe('ThemeContext', () => {
 
   it('throws outside provider', () => {
     const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
-    const { result } = renderHook(() => useTheme());
-
-    expect(result.error).toEqual(new Error('useTheme must be used within a ThemeProvider'));
+    expect(() => renderHook(() => useTheme())).toThrow(
+      'useTheme must be used within a ThemeProvider'
+    );
     consoleErrorSpy.mockRestore();
   });
 

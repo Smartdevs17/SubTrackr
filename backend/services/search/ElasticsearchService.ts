@@ -10,7 +10,10 @@ export interface SearchQuery {
   filters?: {
     categories?: SubscriptionCategory[];
     billingCycles?: BillingCycle[];
+    plans?: string[];
+    statuses?: Array<'active' | 'inactive'>;
     priceRange?: { min: number; max: number };
+    dateRange?: { from: Date; to: Date; field?: 'nextBillingDate' | 'createdAt' };
     isActive?: boolean;
     isCryptoEnabled?: boolean;
   };
@@ -31,6 +34,8 @@ export interface SearchHit {
 export interface FacetResult {
   categories: { key: SubscriptionCategory; count: number }[];
   billingCycles: { key: BillingCycle; count: number }[];
+  plans: { key: string; count: number }[];
+  statuses: { key: 'active' | 'inactive'; count: number }[];
   priceStats: { min: number; max: number; avg: number };
   activeCount: number;
   cryptoCount: number;
@@ -41,6 +46,7 @@ export interface SearchResult {
   total: number;
   took: number;
   facets: FacetResult;
+  indexLagMs?: number;
 }
 
 export interface SearchAnalyticsEvent {
@@ -48,6 +54,22 @@ export interface SearchAnalyticsEvent {
   resultCount: number;
   timestamp: number;
   filters: SearchQuery['filters'];
+}
+
+export interface SavedSearchDefinition {
+  id: string;
+  name: string;
+  query: SearchQuery;
+  notifyOnNewMatches?: boolean;
+  lastMatchCount?: number;
+  createdAt: number;
+}
+
+export interface SavedSearchMatchNotification {
+  savedSearchId: string;
+  savedSearchName: string;
+  newMatchCount: number;
+  newSubscriptionIds: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -60,12 +82,17 @@ interface IndexedDocument {
   source: Subscription;
 }
 
-function tokenize(text: string): string[] {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .split(/\s+/)
-    .filter(Boolean);
+function normalizeDate(value: Date | string | number): Date {
+  return value instanceof Date ? value : new Date(value);
+}
+
+function tokenize(text: string, locale?: string): string[] {
+  const normalized = text
+    .toLocaleLowerCase(locale ?? 'en')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s@.]/g, ' ');
+  return normalized.split(/\s+/).filter(Boolean);
 }
 
 function levenshtein(a: string, b: string, maxEdits: number): number {
@@ -90,6 +117,26 @@ function fuzzyMatch(token: string, term: string, maxEdits: number, minLength: nu
   return levenshtein(token, term, maxEdits) <= maxEdits;
 }
 
+function resolvePlanName(sub: Subscription): string {
+  return sub.planName?.trim() || sub.name;
+}
+
+function resolveSearchFieldValue(sub: Subscription, field: string): string | undefined {
+  if (field === 'planName') return resolvePlanName(sub);
+  const value = (sub as unknown as Record<string, unknown>)[field];
+  return typeof value === 'string' ? value : undefined;
+}
+
+function wrapHighlight(value: string, terms: string[]): string {
+  let highlighted = value;
+  for (const term of terms) {
+    if (term.length < 2) continue;
+    const regex = new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    highlighted = highlighted.replace(regex, '<em>$1</em>');
+  }
+  return highlighted;
+}
+
 // ---------------------------------------------------------------------------
 // ElasticsearchService
 // ---------------------------------------------------------------------------
@@ -97,6 +144,8 @@ function fuzzyMatch(token: string, term: string, maxEdits: number, minLength: nu
 export class ElasticsearchService {
   private index: Map<string, IndexedDocument> = new Map();
   private analytics: SearchAnalyticsEvent[] = [];
+  private savedSearches: SavedSearchDefinition[] = [];
+  private lastIndexedAt: number | null = null;
   private readonly config: ElasticsearchConfig;
 
   constructor(config: ElasticsearchConfig = DEFAULT_ES_CONFIG) {
@@ -108,10 +157,11 @@ export class ElasticsearchService {
   indexDocument(subscription: Subscription): void {
     const tokens: string[] = [];
     for (const { field } of this.config.searchFields) {
-      const value = (subscription as unknown as Record<string, unknown>)[field];
-      if (typeof value === 'string') tokens.push(...tokenize(value));
+      const value = resolveSearchFieldValue(subscription, field);
+      if (value) tokens.push(...tokenize(value));
     }
     this.index.set(subscription.id, { id: subscription.id, tokens, source: subscription });
+    this.lastIndexedAt = Date.now();
   }
 
   bulkIndex(subscriptions: Subscription[]): void {
@@ -119,12 +169,22 @@ export class ElasticsearchService {
     for (const sub of subscriptions) this.indexDocument(sub);
   }
 
+  reindexForSchemaChange(subscriptions: Subscription[]): void {
+    this.bulkIndex(subscriptions);
+  }
+
   deleteDocument(id: string): void {
     this.index.delete(id);
+    this.lastIndexedAt = Date.now();
   }
 
   get documentCount(): number {
     return this.index.size;
+  }
+
+  getIndexLagMs(): number {
+    if (this.lastIndexedAt == null) return 0;
+    return Math.max(0, Date.now() - this.lastIndexedAt);
   }
 
   // ── Search ───────────────────────────────────────────────────────────────
@@ -160,6 +220,7 @@ export class ElasticsearchService {
       total: afterFacets.length,
       took: Date.now() - start,
       facets,
+      indexLagMs: this.getIndexLagMs(),
     };
 
     if (this.config.analyticsEnabled && query.query?.trim()) {
@@ -169,6 +230,54 @@ export class ElasticsearchService {
     return result;
   }
 
+  // ── Saved searches ───────────────────────────────────────────────────────
+
+  registerSavedSearch(savedSearch: SavedSearchDefinition): void {
+    const existing = this.savedSearches.findIndex((s) => s.id === savedSearch.id);
+    if (existing >= 0) {
+      this.savedSearches[existing] = savedSearch;
+    } else {
+      this.savedSearches.push(savedSearch);
+    }
+  }
+
+  removeSavedSearch(id: string): void {
+    this.savedSearches = this.savedSearches.filter((s) => s.id !== id);
+  }
+
+  listSavedSearches(): SavedSearchDefinition[] {
+    return [...this.savedSearches];
+  }
+
+  loadSavedSearches(savedSearches: SavedSearchDefinition[]): void {
+    this.savedSearches = [...savedSearches];
+  }
+
+  checkSavedSearchNotifications(): SavedSearchMatchNotification[] {
+    const notifications: SavedSearchMatchNotification[] = [];
+
+    for (const saved of this.savedSearches) {
+      if (!saved.notifyOnNewMatches) continue;
+
+      const { total, hits } = this.search(saved.query);
+      const previousCount = saved.lastMatchCount ?? 0;
+      if (total <= previousCount) {
+        saved.lastMatchCount = total;
+        continue;
+      }
+
+      notifications.push({
+        savedSearchId: saved.id,
+        savedSearchName: saved.name,
+        newMatchCount: total - previousCount,
+        newSubscriptionIds: hits.slice(0, total - previousCount).map((h) => h.subscription.id),
+      });
+      saved.lastMatchCount = total;
+    }
+
+    return notifications;
+  }
+
   // ── Scoring ──────────────────────────────────────────────────────────────
 
   private _score(doc: IndexedDocument, queryString?: string): number {
@@ -176,8 +285,8 @@ export class ElasticsearchService {
     const terms = tokenize(queryString);
     let score = 0;
     for (const { field, boost } of this.config.searchFields) {
-      const value = (doc.source as unknown as Record<string, unknown>)[field];
-      if (typeof value !== 'string') continue;
+      const value = resolveSearchFieldValue(doc.source, field);
+      if (!value) continue;
       const fieldTokens = tokenize(value);
       for (const term of terms) {
         for (const token of fieldTokens) {
@@ -195,14 +304,15 @@ export class ElasticsearchService {
     const terms = tokenize(queryString);
     const highlights: Record<string, string> = {};
     for (const { field } of this.config.searchFields) {
-      const value = (doc.source as unknown as Record<string, unknown>)[field];
-      if (typeof value !== 'string') continue;
-      const matched = tokenize(value).some((token) =>
+      const value = resolveSearchFieldValue(doc.source, field);
+      if (!value) continue;
+      const fieldTokens = tokenize(value);
+      const matched = fieldTokens.some((token) =>
         terms.some((term) =>
           fuzzyMatch(token, term, this.config.fuzzyMaxEdits, this.config.fuzzyMinLength)
         )
       );
-      if (matched) highlights[field] = value;
+      if (matched) highlights[field] = wrapHighlight(value, terms);
     }
     return highlights;
   }
@@ -214,8 +324,24 @@ export class ElasticsearchService {
     if (filters.categories?.length && !filters.categories.includes(sub.category)) return false;
     if (filters.billingCycles?.length && !filters.billingCycles.includes(sub.billingCycle))
       return false;
+    if (filters.plans?.length) {
+      const plan = resolvePlanName(sub).toLowerCase();
+      if (!filters.plans.some((p) => plan.includes(p.toLowerCase()))) return false;
+    }
+    if (filters.statuses?.length) {
+      const status = sub.isActive ? 'active' : 'inactive';
+      if (!filters.statuses.includes(status)) return false;
+    }
     if (filters.priceRange) {
       if (sub.price < filters.priceRange.min || sub.price > filters.priceRange.max) return false;
+    }
+    if (filters.dateRange) {
+      const field = filters.dateRange.field ?? 'nextBillingDate';
+      const raw = sub[field];
+      const date = normalizeDate(raw as Date);
+      const from = normalizeDate(filters.dateRange.from);
+      const to = normalizeDate(filters.dateRange.to);
+      if (date < from || date > to) return false;
     }
     if (filters.isActive !== undefined && sub.isActive !== filters.isActive) return false;
     if (filters.isCryptoEnabled !== undefined && sub.isCryptoEnabled !== filters.isCryptoEnabled)
@@ -226,6 +352,8 @@ export class ElasticsearchService {
   private _computeFacets(subscriptions: Subscription[]): FacetResult {
     const categoryMap = new Map<SubscriptionCategory, number>();
     const cycleMap = new Map<BillingCycle, number>();
+    const planMap = new Map<string, number>();
+    const statusMap = new Map<'active' | 'inactive', number>();
     let priceMin = Infinity;
     let priceMax = -Infinity;
     let priceSum = 0;
@@ -235,6 +363,10 @@ export class ElasticsearchService {
     for (const sub of subscriptions) {
       categoryMap.set(sub.category, (categoryMap.get(sub.category) ?? 0) + 1);
       cycleMap.set(sub.billingCycle, (cycleMap.get(sub.billingCycle) ?? 0) + 1);
+      const plan = resolvePlanName(sub);
+      planMap.set(plan, (planMap.get(plan) ?? 0) + 1);
+      const status = sub.isActive ? 'active' : 'inactive';
+      statusMap.set(status, (statusMap.get(status) ?? 0) + 1);
       if (sub.price < priceMin) priceMin = sub.price;
       if (sub.price > priceMax) priceMax = sub.price;
       priceSum += sub.price;
@@ -248,6 +380,12 @@ export class ElasticsearchService {
         .map(([key, count]) => ({ key, count }))
         .sort((a, b) => b.count - a.count),
       billingCycles: Array.from(cycleMap.entries())
+        .map(([key, count]) => ({ key, count }))
+        .sort((a, b) => b.count - a.count),
+      plans: Array.from(planMap.entries())
+        .map(([key, count]) => ({ key, count }))
+        .sort((a, b) => b.count - a.count),
+      statuses: Array.from(statusMap.entries())
         .map(([key, count]) => ({ key, count }))
         .sort((a, b) => b.count - a.count),
       priceStats: { min: n ? priceMin : 0, max: n ? priceMax : 0, avg: n ? priceSum / n : 0 },
@@ -271,8 +409,8 @@ export class ElasticsearchService {
       else if (field === 'price') cmp = a.doc.source.price - b.doc.source.price;
       else if (field === 'nextBillingDate')
         cmp =
-          new Date(a.doc.source.nextBillingDate).getTime() -
-          new Date(b.doc.source.nextBillingDate).getTime();
+          normalizeDate(a.doc.source.nextBillingDate).getTime() -
+          normalizeDate(b.doc.source.nextBillingDate).getTime();
       else if (field === 'category')
         cmp = a.doc.source.category.localeCompare(b.doc.source.category);
       return order === 'asc' ? cmp : -cmp;
