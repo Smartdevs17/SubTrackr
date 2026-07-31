@@ -1,7 +1,15 @@
 {
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
   "schemaVersion": "1.0",
-  "mutate": ["src/**/*.{ts,tsx}", "!src/**/*.test.{ts,tsx}", "!src/**/__tests__/**"],
+  "mutate": [
+    "src/**/*.{ts,tsx}",
+    "!src/**/*.test.{ts,tsx}",
+    "!src/**/*.spec.{ts,tsx}",
+    "!src/**/__tests__/**",
+    "!src/**/__mocks__/**",
+    "!src/**/__fixtures__/**",
+    "!src/**/*.d.ts"
+  ],
   "testRunner": "jest",
   "jest": {
     "projectType": "custom",
@@ -11,11 +19,21 @@
   "typescriptChecker": {
     "tsconfigFile": "tsconfig.json"
   },
-  "reporters": ["progress", "clear-text", "html"],
+  "reporters": ["progress", "clear-text", "html", "dashboard"],
   "coverageAnalysis": "perTest",
+  "concurrency": 4,
   "thresholds": {
     "high": 80,
     "low": 60,
     "break": 50
-  }
+  },
+  "tempDirName": ".stryker-tmp",
+  "cleanTempDir": true,
+  "dashboard": {
+    "project": "github.com/Smartdevs17/SubTrackr",
+    "version": "main",
+    "module": "frontend"
+  },
+  "timeoutMS": 60000,
+  "plugins": ["@stryker-mutator/jest-runner", "@stryker-mutator/typescript-checker"]
 }

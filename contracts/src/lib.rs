@@ -5,9 +5,10 @@
 #![no_std]
 
 use soroban_sdk::{
-    contract, contractimpl, contracttype, Address, BytesN, Env, IntoVal, String, Symbol, TryFromVal,
-    Val, Vec,
+    contract, contractimpl, contracttype, Address, Bytes, BytesN, Env, IntoVal, String, Symbol,
+    TryFromVal, Val, Vec,
 };
+use utils::merkle::{self, MerkleProof};
 
 // ════════════════════════════════════════════════════════════════
 // DATA STRUCTURES
@@ -523,6 +524,43 @@ impl SubTrackrBatch {
         }
     }
 
+    // ── Batch Storage Operations (Merkle Tree) ──
+
+    /// Batch read multiple storage keys using Merkle accumulator
+    pub fn batch_get_storage(
+        env: Env,
+        key_prefix: Bytes,
+        keys: Vec<Bytes>,
+    ) -> (Vec<(Bytes, Option<Bytes>)>, MerkleProof) {
+        merkle::batch_get(&env, &key_prefix, &keys)
+    }
+
+    /// Batch insert multiple key-value pairs with Merkle root update
+    pub fn batch_insert_storage(
+        env: Env,
+        key_prefix: Bytes,
+        values: Vec<(Bytes, Bytes)>,
+    ) {
+        merkle::batch_insert(&env, &key_prefix, &values);
+    }
+
+    /// Verify a batch of key-value pairs against stored Merkle root
+    pub fn verify_batch_storage(
+        env: Env,
+        key_prefix: Bytes,
+        keys: Vec<Bytes>,
+        values: Vec<Option<Bytes>>,
+        proof: MerkleProof,
+    ) -> bool {
+        merkle::verify_batch(&env, &key_prefix, &keys, &values, &proof)
+    }
+
+    /// Get the Merkle root for a given key prefix
+    pub fn get_merkle_root(env: Env, key_prefix: Bytes) -> Option<BytesN<32>> {
+        let root_key = make_root_key(&env, &key_prefix);
+        env.storage().instance().get(&root_key)
+    }
+
     fn vec_contains_address(vec: &Vec<Address>, address: &Address) -> bool {
         for item in vec.iter() {
             if &item == address {
@@ -820,6 +858,13 @@ pub fn validate_batch_operations(batch: &Vec<BatchOperation>) -> bool {
     }
 
     true
+}
+
+fn make_root_key(env: &Env, prefix: &Bytes) -> Bytes {
+    let mut root_key = Bytes::new(env);
+    root_key.append(prefix);
+    root_key.append(&Bytes::from_slice(env, b"_merkle_root"));
+    root_key
 }
 
 #[cfg(test)]
