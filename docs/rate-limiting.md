@@ -23,26 +23,37 @@ SubTrackr's API enforces rate limits to ensure fair usage and platform stability
 
 ## Overview
 
-Rate limiting protects the SubTrackr API from abusive traffic patterns while guaranteeing capacity for all users. Limits operate on three complementary windows:
+Rate limiting protects the SubTrackr API from abusive traffic patterns while guaranteeing capacity for all users. The primary algorithm is a **token bucket**:
 
-| Window | Description |
-|--------|-------------|
-| **Hourly** | Rolling 60-minute window |
-| **Daily** | Rolling 24-hour window |
-| **Monthly** | Rolling 30-day window |
+| Mechanism | Description |
+|-----------|-------------|
+| **Token bucket** | Continuous refill at a tier-specific rate up to burst capacity |
+| **Hourly / daily / monthly caps** | Hard quota ceilings on top of the bucket |
+| **Concurrency limit** | Caps simultaneous in-flight requests per key |
 
-In addition, a **burst token bucket** smooths short-lived traffic spikes, and a **concurrency limit** caps simultaneous in-flight requests per key.
+Public client tiers are **free**, **pro**, and **enterprise** (subscription `basic`/`premium` both map to **pro**).
 
 ---
 
 ## Rate Limit Tiers
 
-| Tier | Hourly | Daily | Monthly | Burst | Concurrent |
-|------|-------:|------:|--------:|------:|-----------:|
-| **Free** | 100 | 500 | 10,000 | 20 | 2 |
-| **Basic** | 500 | 2,500 | 50,000 | 50 | 5 |
-| **Premium** | 1,000 | 10,000 | 200,000 | 100 | 10 |
-| **Enterprise** | 10,000 | 100,000 | 2,000,000 | 500 | 50 |
+### Public tiers (free / pro / enterprise)
+
+| Tier | Hourly | Daily | Monthly | Burst | Refill (tokens/s) | Concurrent |
+|------|-------:|------:|--------:|------:|------------------:|-----------:|
+| **Free** | 100 | 500 | 10,000 | 20 | 1 | 2 |
+| **Pro** | 1,000 | 10,000 | 200,000 | 100 | 5 | 10 |
+| **Enterprise** | 10,000 | 100,000 | 2,000,000 | 500 | 20 | 50 |
+
+### Subscription tier mapping
+
+| Subscription | Rate-limit tier |
+|--------------|-----------------|
+| `free` | free |
+| `basic`, `premium` | pro |
+| `enterprise` | enterprise |
+
+Fine-grained per-subscription defaults (including `basic`) remain available via `TIER_RATE_LIMITS` for billing alignment.
 
 > **Note:** Tier limits are defaults. Per-key custom limits and bypass overrides take precedence. See [Custom Limits per API Key](#custom-limits-per-api-key).
 
@@ -50,13 +61,19 @@ In addition, a **burst token bucket** smooths short-lived traffic spikes, and a 
 
 ## How Rate Limits Work
 
-### Token bucket (burst)
+### Token bucket (primary)
 
-Each API key has a token bucket refilled at **1 token per second** up to the burst limit. A request consumes one token. If the bucket is empty the request is rejected even if the hourly window has remaining capacity.
+Each API key has a token bucket with:
 
-### Window counters
+- **Capacity** = burst limit for the tier
+- **Refill rate** = tier-specific tokens per second (continuous, not fixed-window)
+- **Cost** = 1 token per request
 
-Three independent sliding-window counters track requests per hour, per day, and per month. The most restrictive limit that has been exhausted determines the `Retry-After` value.
+A request is allowed only when at least one token is available. If the bucket is empty the API returns `429` with `Retry-After` derived from the deficit and refill rate. Short traffic spikes are absorbed up to burst capacity while the sustained rate stays bounded by refill.
+
+### Window counters (hard caps)
+
+Independent hourly, daily, and monthly counters enforce absolute quotas. Exhausting any window rejects the request even if the token bucket still has tokens. The most restrictive exhausted window determines `Retry-After`.
 
 ### Concurrency
 
@@ -412,6 +429,7 @@ Set custom rate limits for a specific API key.
 | `limits.monthlyLimit` | number | No | Override monthly request limit |
 | `limits.burstLimit` | number | No | Override burst token bucket size |
 | `limits.concurrentLimit` | number | No | Override max concurrent requests |
+| `limits.refillRatePerSecond` | number | No | Override token-bucket refill rate |
 
 ---
 

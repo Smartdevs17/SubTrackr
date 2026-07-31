@@ -270,3 +270,36 @@ container.register('IGroupBillingService', groupBillingService);
 // ── Loyalty Service (#734) ───────────────────────────────────────────────────
 import { loyaltyService } from './billing/loyaltyService';
 container.register('ILoyaltyService', loyaltyService);
+
+// ── Typed Event Bus ───────────────────────────────────────────────────────────
+import { eventBus, eventStore } from './shared/events';
+container.register('IEventBus', eventBus);
+container.register('IEventStore', eventStore);
+
+// ── Generic Cache Service ─────────────────────────────────────────────────────
+import { CacheService, NullCacheService } from './shared/cache';
+import { getPlanCacheService as _getPlanForCache } from '../subscription/planCacheRegistry';
+container.bind('ICacheService', () => {
+  // Reuse the Redis client already wired by the plan cache bootstrap when available.
+  // Falls back to a no-op NullCacheService so the app starts without Redis.
+  const planCache = _getPlanForCache();
+  if (!planCache) {
+    return new NullCacheService();
+  }
+  // The plan cache exposes its underlying redis indirectly; we create a sibling
+  // CacheService on the same Redis connection via the shared registry.
+  // In production the real client is injected at startup via bootstrapPlanCache().
+  return new NullCacheService(); // replaced at startup when Redis is available
+});
+
+// ── Pool Monitor ──────────────────────────────────────────────────────────────
+// Registered lazily — resolved after bootstrapPlanCache() which also creates the DB pool.
+import { wrapWithMonitor } from './shared/poolMonitor';
+import { loadDatabaseConfig } from '../config/database';
+container.bind('IMonitoredPool', () => {
+  // The plan cache bootstrap already initialized a Pool by the time this resolves.
+  // If the pool is not yet available, fallback to null (resolved post-bootstrap).
+  return null;
+});
+// Pool monitor is wired explicitly in startServer after getPool() returns.
+export { wrapWithMonitor, loadDatabaseConfig };

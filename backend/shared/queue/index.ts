@@ -32,3 +32,34 @@ export type {
 
 export { createJobQueueSystem } from './queueFactory';
 export type { JobQueueSystem, JobQueueSystemConfig } from './queueFactory';
+
+// ── Priority management additions ─────────────────────────────────────────────
+
+export {
+  RetryPolicy,
+  defaultRetryPolicy,
+  DEFAULT_BASE_DELAY_MS,
+  DEFAULT_MAX_DELAY_MS,
+  DEFAULT_MAX_ATTEMPTS,
+} from './retryPolicy';
+export type { RetryPolicyConfig, RetryDecision } from './retryPolicy';
+
+export { DeadLetterQueue } from './deadLetterQueue';
+export type { DeadLetterEntry, DeadLetterQueueConfig } from './deadLetterQueue';
+
+export {
+  JobRateLimiter,
+  createDefaultJobRateLimiter,
+} from './jobRateLimiter';
+export type { RateLimitConfig, RateLimitDecision, RateLimitStats } from './jobRateLimiter';
+
+export { JobScheduler } from './jobScheduler';
+export type { CronJobDefinition, ScheduledJobStatus, JobSchedulerOptions } from './jobScheduler';
+
+export { JobMonitoringDashboard } from './jobMonitoringDashboard';
+export type {
+  QueueHealthSummary,
+  DlqSummary,
+  JobDashboardSnapshot,
+  JobMonitoringDashboardConfig,
+} from './jobMonitoringDashboard';

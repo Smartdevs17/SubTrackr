@@ -96,6 +96,7 @@ const PaymentMethodsScreen = lazyScreen(() =>
   }))
 );
 const AnalyticsDashboard = lazyScreen(() => import('../../app/screens/AnalyticsDashboard'));
+const AutomatedComplianceDashboard = lazyScreen(() => import('../screens/AutomatedComplianceDashboard'));
 const TrialDetailsScreen = lazyScreen(() => import('../screens/TrialDetailsScreen'));
 
 // Issue #547: GDPR
@@ -617,7 +618,12 @@ const SettingsStack = () => (
     <Stack.Screen
       name="AnalyticsDashboard"
       component={AnalyticsDashboard}
-      options={{ title: 'Analytics Dashboard', headerShown: true }}
+      options={{ title: 'Analytics', headerShown: true }}
+    />
+    <Stack.Screen
+      name="AutomatedCompliance"
+      component={AutomatedComplianceDashboard}
+      options={{ title: 'Automated Compliance', headerShown: true }}
     />
     {/* Issue #547: GDPR */}
     <Stack.Screen
