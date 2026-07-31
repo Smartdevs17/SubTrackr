@@ -11,4 +11,4 @@ path = "src/lib.rs"
 crate-type = ["rlib"]
 
 [dependencies]
-soroban-sdk = "21.7.7"
+soroban-sdk = "27.0.3"
