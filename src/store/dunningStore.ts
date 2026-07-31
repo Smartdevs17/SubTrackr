@@ -8,6 +8,8 @@ import {
   DunningConfiguration,
   DunningCommunication,
   DEFAULT_DUNNING_STAGES,
+  FailureReason,
+  RetryStrategy,
 } from '../types/dunning';
 
 const STORAGE_KEY = 'subtrackr-dunning';
@@ -122,7 +124,8 @@ export interface DunningState {
     subscriptionId: string,
     subscriberId: string,
     merchantId: string,
-    planId?: string
+    planId?: string,
+    failureReason?: FailureReason
   ) => DunningEntry;
   recordPaymentAttempt: (
     subscriptionId: string,
@@ -157,8 +160,7 @@ export interface DunningState {
   clearError: () => void;
 }
 
-const DEFAULT_CONFIG: DunningConfiguration = {
-  planId: 'default',
+const DEFAULT_STRATEGY: RetryStrategy = {
   stages: DEFAULT_DUNNING_STAGES,
   maxRetries: RETRY_SCHEDULE_DAYS.length,
   retryIntervalHours: 24,
@@ -167,6 +169,27 @@ const DEFAULT_CONFIG: DunningConfiguration = {
   cancelAfterDays: 14,
   communicationChannels: ['email', 'push', 'in_app'],
 };
+
+const DEFAULT_CONFIG: DunningConfiguration = {
+  planId: 'default',
+  defaultStrategy: DEFAULT_STRATEGY,
+  strategies: {},
+};
+
+function getStrategy(
+  config: DunningConfiguration,
+  failureReason?: FailureReason,
+  abTestVariant?: string
+): RetryStrategy {
+  if (config.abTestConfig?.enabled && abTestVariant) {
+    const variant = config.abTestConfig.variants.find((v) => v.id === abTestVariant);
+    if (variant) return variant.strategy;
+  }
+  if (failureReason && config.strategies[failureReason]) {
+    return config.strategies[failureReason]!;
+  }
+  return config.defaultStrategy;
+}
 
 export const useDunningStore = create<DunningState>()(
   persist(
@@ -178,12 +201,19 @@ export const useDunningStore = create<DunningState>()(
       isLoading: false,
       error: null,
 
-      startDunning: (subscriptionId, subscriberId, merchantId, planId = 'default') => {
+      startDunning: (
+        subscriptionId,
+        subscriberId,
+        merchantId,
+        planId = 'default',
+        failureReason = 'default'
+      ) => {
         const existing = get().entries.find((e) => e.subscriptionId === subscriptionId);
         if (existing) return existing;
 
         const config = get().configurations[planId] ?? DEFAULT_CONFIG;
-        const firstStage = config.stages[0] ?? DEFAULT_DUNNING_STAGES[0];
+        const strategy = getStrategy(config, failureReason);
+        const firstStage = strategy.stages[0] ?? DEFAULT_DUNNING_STAGES[0];
         const ts = now();
 
         const entry: DunningEntry = {
@@ -192,6 +222,7 @@ export const useDunningStore = create<DunningState>()(
           subscriberId,
           merchantId,
           planId,
+          failureReason,
           currentStage: firstStage.stage,
           failedAttempts: 0,
           totalFailedCharges: 0,
@@ -233,10 +264,13 @@ export const useDunningStore = create<DunningState>()(
           return null;
         }
 
+        const newFailureReason = failureReason ?? entry.failureReason;
         const config = get().configurations[entry.planId] ?? DEFAULT_CONFIG;
+        const strategy = getStrategy(config, newFailureReason, entry.abTestVariant);
         const ts = now();
-        const stageIdx = config.stages.findIndex((s) => s.stage === entry.currentStage);
-        const stageConfig = config.stages[stageIdx];
+
+        const stageIdx = strategy.stages.findIndex((s) => s.stage === entry.currentStage);
+        const stageConfig = strategy.stages[stageIdx];
         const newFailedAttempts = entry.failedAttempts + 1;
 
         get().retryHistory.push({
@@ -249,7 +283,7 @@ export const useDunningStore = create<DunningState>()(
         });
 
         let nextStage: DunningStage = entry.currentStage;
-        let nextDelay = config.retryIntervalHours * ONE_HOUR_MS;
+        let nextDelay = strategy.retryIntervalHours * ONE_HOUR_MS;
         const newComm: DunningCommunication = {
           id: createId('dcom'),
           stage: entry.currentStage,
@@ -262,9 +296,9 @@ export const useDunningStore = create<DunningState>()(
 
         if (newFailedAttempts >= schedule.maxRetries) {
           const nextIdx = stageIdx + 1;
-          if (nextIdx < config.stages.length) {
-            nextStage = config.stages[nextIdx].stage;
-            nextDelay = config.stages[nextIdx].delayHours * ONE_HOUR_MS;
+          if (nextIdx < strategy.stages.length) {
+            nextStage = strategy.stages[nextIdx].stage;
+            nextDelay = strategy.stages[nextIdx].delayHours * ONE_HOUR_MS;
           } else {
             nextStage = 'cancel';
             nextDelay = 24 * ONE_HOUR_MS;
@@ -291,6 +325,7 @@ export const useDunningStore = create<DunningState>()(
             e.subscriptionId === subscriptionId
               ? {
                   ...e,
+                  failureReason: newFailureReason,
                   currentStage: nextStage,
                   failedAttempts: nextStage !== entry.currentStage ? 0 : newFailedAttempts,
                   totalFailedCharges: e.totalFailedCharges + 1,
@@ -357,7 +392,8 @@ export const useDunningStore = create<DunningState>()(
         const entry = get().entries.find((e) => e.subscriptionId === subscriptionId);
         if (!entry) return;
         const config = get().configurations[entry.planId] ?? DEFAULT_CONFIG;
-        const stageConfig = config.stages.find((s) => s.stage === entry.currentStage);
+        const strategy = getStrategy(config, entry.failureReason, entry.abTestVariant);
+        const stageConfig = strategy.stages.find((s) => s.stage === entry.currentStage);
         const delay = (stageConfig?.delayHours ?? 24) * ONE_HOUR_MS;
 
         set((s) => ({
@@ -373,7 +409,8 @@ export const useDunningStore = create<DunningState>()(
         const entry = get().entries.find((e) => e.subscriptionId === subscriptionId);
         if (!entry) return;
         const config = get().configurations[entry.planId] ?? DEFAULT_CONFIG;
-        const stageConfig = config.stages.find((s) => s.stage === stage);
+        const strategy = getStrategy(config, entry.failureReason, entry.abTestVariant);
+        const stageConfig = strategy.stages.find((s) => s.stage === stage);
         const delay = (stageConfig?.delayHours ?? 24) * ONE_HOUR_MS;
 
         set((s) => ({

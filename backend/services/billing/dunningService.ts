@@ -6,6 +6,8 @@ import type {
   DunningEntry,
   DunningStage,
   DunningStageConfig,
+  FailureReason,
+  RetryStrategy
 } from '../../../src/types/dunning';
 import { DEFAULT_DUNNING_STAGES, DUNNING_TEMPLATES } from '../../../src/types/dunning';
 import {
@@ -82,18 +84,36 @@ export class DunningService {
 
   configurePlan(planId: string, config: Partial<DunningConfiguration>): DunningConfiguration {
     const existing = this.configurations.get(planId);
+    
+    const defaultStrategy: RetryStrategy = config.defaultStrategy ?? existing?.defaultStrategy ?? {
+      stages: DEFAULT_DUNNING_STAGES,
+      maxRetries: 3,
+      retryIntervalHours: 1,
+      warnAfterFailures: 3,
+      suspendAfterDays: 3,
+      cancelAfterDays: 7,
+      communicationChannels: ['email', 'push'],
+    };
+
     const merged: DunningConfiguration = {
       planId,
-      stages: config.stages ?? existing?.stages ?? DEFAULT_DUNNING_STAGES,
-      maxRetries: config.maxRetries ?? existing?.maxRetries ?? 3,
-      retryIntervalHours: config.retryIntervalHours ?? existing?.retryIntervalHours ?? 1,
-      warnAfterFailures: config.warnAfterFailures ?? existing?.warnAfterFailures ?? 3,
-      suspendAfterDays: config.suspendAfterDays ?? existing?.suspendAfterDays ?? 3,
-      cancelAfterDays: config.cancelAfterDays ?? existing?.cancelAfterDays ?? 7,
-      communicationChannels: config.communicationChannels ?? existing?.communicationChannels ?? ['email', 'push'],
+      defaultStrategy,
+      strategies: config.strategies ?? existing?.strategies ?? {},
+      abTestConfig: config.abTestConfig ?? existing?.abTestConfig,
     };
+    
     this.configurations.set(planId, merged);
     return merged;
+  }
+
+  configureABTest(planId: string, enabled: boolean, variants: Array<{ id: string; weight: number; strategy: RetryStrategy }>): void {
+    const config = this.configurations.get(planId);
+    if (config) {
+      config.abTestConfig = { enabled, variants };
+      this.configurations.set(planId, config);
+    } else {
+      this.configurePlan(planId, { abTestConfig: { enabled, variants } });
+    }
   }
 
   getConfiguration(planId: string): DunningConfiguration | undefined {
@@ -138,6 +158,7 @@ export class DunningService {
     subscriberId: string,
     merchantId: string,
     planId: string,
+    failureReason: FailureReason = 'default'
   ): DunningEntry {
     const existing = this.entries.get(subscriptionId);
     if (existing) {
@@ -145,7 +166,22 @@ export class DunningService {
     }
 
     const config = this.configurations.get(planId);
-    const firstStage = config?.stages[0] ?? DEFAULT_DUNNING_STAGES[0];
+    let abTestVariant: string | undefined;
+    if (config?.abTestConfig?.enabled && config.abTestConfig.variants.length > 0) {
+      // Pick variant randomly based on weight
+      const totalWeight = config.abTestConfig.variants.reduce((sum, v) => sum + v.weight, 0);
+      let r = Math.random() * totalWeight;
+      for (const v of config.abTestConfig.variants) {
+        r -= v.weight;
+        if (r <= 0) {
+          abTestVariant = v.id;
+          break;
+        }
+      }
+    }
+
+    const strategy = this.getStrategy(planId, failureReason, abTestVariant);
+    const firstStage = strategy.stages[0] ?? DEFAULT_DUNNING_STAGES[0];
     const now_ts = now();
 
     const entry: DunningEntry = {
@@ -154,6 +190,8 @@ export class DunningService {
       subscriberId,
       merchantId,
       planId,
+      failureReason,
+      abTestVariant,
       currentStage: firstStage.stage,
       failedAttempts: 0,
       totalFailedCharges: 0,
@@ -244,8 +282,8 @@ export class DunningService {
     if (shouldAdvanceStage() && config) {
       const currentStageIndex = config.stages.findIndex((s) => s.stage === entry.currentStage);
       const nextStageIndex = currentStageIndex + 1;
-      if (nextStageIndex < config.stages.length) {
-        const nextStage = config.stages[nextStageIndex];
+      if (nextStageIndex < strategy.stages.length) {
+        const nextStage = strategy.stages[nextStageIndex];
         entry.currentStage = nextStage.stage;
         entry.failedAttempts = 0;
         entry.nextActionAt = now_ts + nextStage.delayHours * ONE_HOUR_MS;
@@ -277,8 +315,10 @@ export class DunningService {
       this.progressiveEngine.recordRecovery(entry);
     }
 
+    entry.updatedAt = now();
+    this.recoveredEntries.push(entry);
+
     this.entries.delete(subscriptionId);
-    this.communicationLog.delete(subscriptionId);
   }
 
   getDunningEntry(subscriptionId: string): DunningEntry | undefined {
@@ -306,8 +346,8 @@ export class DunningService {
     const entry = this.entries.get(subscriptionId);
     if (!entry) return null;
 
-    const config = this.configurations.get(entry.planId);
-    const stageConfig = config?.stages.find((s) => s.stage === entry.currentStage);
+    const strategy = this.getStrategy(entry.planId, entry.failureReason, entry.abTestVariant);
+    const stageConfig = strategy.stages.find((s) => s.stage === entry.currentStage);
     entry.isPaused = false;
     entry.nextActionAt = now() + (stageConfig?.delayHours ?? 24) * ONE_HOUR_MS;
     entry.updatedAt = now();
@@ -319,8 +359,8 @@ export class DunningService {
     const entry = this.entries.get(subscriptionId);
     if (!entry) return null;
 
-    const config = this.configurations.get(entry.planId);
-    const stageConfig = config?.stages.find((s) => s.stage === stage);
+    const strategy = this.getStrategy(entry.planId, entry.failureReason, entry.abTestVariant);
+    const stageConfig = strategy.stages.find((s) => s.stage === stage);
     entry.currentStage = stage;
     entry.failedAttempts = 0;
     entry.nextActionAt = now() + (stageConfig?.delayHours ?? 24) * ONE_HOUR_MS;
@@ -413,6 +453,10 @@ export class DunningService {
 
   getAnalytics(merchantId?: string): DunningAnalytics {
     const allEntries = this.listActiveDunning(merchantId);
+    const recovered = merchantId 
+      ? this.recoveredEntries.filter(e => e.merchantId === merchantId)
+      : this.recoveredEntries;
+
     const stageBreakdown: Record<DunningStage, number> = {
       retry: 0,
       warn: 0,
@@ -420,8 +464,12 @@ export class DunningService {
       cancel: 0,
     };
 
+    let totalLost = 0;
     for (const entry of allEntries) {
       stageBreakdown[entry.currentStage] = (stageBreakdown[entry.currentStage] ?? 0) + 1;
+      if (entry.currentStage === 'cancel') {
+        totalLost++;
+      }
     }
 
     const retryAnalytics = this.getRetryAnalytics(merchantId);
@@ -443,7 +491,7 @@ export class DunningService {
   }
 
   private sendCommunication(entry: DunningEntry, stageConfig: DunningStageConfig): DunningCommunication {
-    const template = DUNNING_TEMPLATES.find((t) => t.id === stageConfig.templateId);
+    const template = this.templates.find((t) => t.id === stageConfig.templateId);
     const comm: DunningCommunication = {
       id: createId('dcom'),
       stage: stageConfig.stage,
@@ -470,6 +518,27 @@ export class DunningService {
     return Array.from(this.entries.values()).filter(
       (e) => !e.isPaused && e.nextActionAt <= now_ts
     );
+  }
+
+  addTemplate(template: DunningCommunicationTemplate): void {
+    if (!this.templates.find(t => t.id === template.id)) {
+      this.templates.push(template);
+    }
+  }
+
+  updateTemplate(id: string, template: Partial<DunningCommunicationTemplate>): void {
+    const index = this.templates.findIndex(t => t.id === id);
+    if (index !== -1) {
+      this.templates[index] = { ...this.templates[index], ...template };
+    }
+  }
+
+  removeTemplate(id: string): void {
+    this.templates = this.templates.filter(t => t.id !== id);
+  }
+
+  getTemplates(): DunningCommunicationTemplate[] {
+    return [...this.templates];
   }
 }
 

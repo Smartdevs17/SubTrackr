@@ -14,6 +14,9 @@ import {
   DunningStage,
   DunningCommunication,
   DunningAnalytics,
+  FailureReason,
+  DunningCommunicationTemplate,
+  RetryStrategy
 } from '../../../src/types/dunning';
 import {
   TransactionRecord,
@@ -97,6 +100,7 @@ export interface ITaxService {
 
 export interface IDunningService {
   configurePlan(planId: string, config: Partial<DunningConfiguration>): DunningConfiguration;
+  configureABTest(planId: string, enabled: boolean, variants: Array<{ id: string; weight: number; strategy: RetryStrategy }>): void;
   getConfiguration(planId: string): DunningConfiguration | undefined;
   startDunning(subscriptionId: string, subscriberId: string, merchantId: string, planId: string): DunningEntry;
   recordFailedCharge(subscriptionId: string, failureType?: string): DunningEntry | null;
