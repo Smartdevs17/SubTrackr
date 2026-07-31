@@ -88,6 +88,18 @@ export { AuditService, auditService } from './shared/auditService';
 export { RateLimitingService, rateLimitingService } from './shared/rateLimitingService';
 export { MonitoringService, monitoringService } from './shared/monitoring';
 export { apiClient } from './shared/apiClient';
+export {
+  DatabaseService,
+  getDatabaseService,
+  resetDatabaseService,
+  ConnectionStringRotator,
+} from './shared/databaseService';
+export type {
+  DatabaseFailoverStatus,
+  DatabaseServiceOptions,
+  ConnectionStringRotationOptions,
+  ParsedConnectionString,
+} from './shared/databaseService';
 
 // ── Upstream additions ────────────────────────────────────────────────────────
 export { ExportService, exportService } from './exportService';
@@ -201,6 +213,17 @@ export type {
   WebhookDeliveryResult,
   WebhookEventInput,
 } from './notification/webhook';
+// Unified webhook barrel (Issue #727 Technical Scope)
+export { WebhookManagementApi, webhookManagementApi } from './notification/webhookManagementApi';
+// Event catalog — wildcard filtering & schema validation
+export {
+  EventCatalogRegistry,
+  eventCatalog,
+  EVENT_CATALOG,
+} from './webhook/eventCatalog';
+export type { EventDefinition, EventCategory, SchemaField } from './webhook/eventCatalog';
+export { EventSchemaValidator, eventSchemaValidator } from './webhook/eventSchemaValidator';
+export type { ValidationResult } from './webhook/eventSchemaValidator';
 export { WebSocketServer, webSocketServer } from './notification/websocket';
 export type {
   SubscriptionEventType as WSSubscriptionEventType,
@@ -424,6 +447,38 @@ export type { IPaymentGateway, IPaymentRouter, PaymentRequest, PaymentResult, Re
 // ── Notification — Rotation Email Template (Issue #603) ──────────────────────
 export { buildRotationEmailHtml, buildRotationEmailText } from './notification/rotationEmailTemplate';
 export type { RotationEmailData } from './notification/rotationEmailTemplate';
+
+// ── RPC Circuit Breaker & Timeout (Issue #RPC-CB) ───────────────────────────
+export {
+  RpcProviderFallback,
+  CircuitBreaker,
+  CircuitOpenError,
+  RpcTimeoutError,
+  AllProvidersFailedError,
+  RpcMonitorService,
+  rpcMonitorService,
+  DEFAULT_CIRCUIT_BREAKER_CONFIG,
+  DEFAULT_RPC_GLOBAL_CONFIG,
+  DEFAULT_CHAIN_ENDPOINTS,
+  DEFAULT_STELLAR_CHAIN_CONFIG,
+  resolveEndpointUrl,
+} from './rpc';
+
+export type {
+  CircuitBreakerConfig,
+  RpcEndpointConfig,
+  RpcChainConfig,
+  RpcGlobalConfig,
+  CircuitState,
+  CircuitStateSnapshot,
+  CircuitBreakerEvent,
+  RpcCallOptions,
+  RpcCallResult,
+  RpcMonitorMetrics,
+  ChainHealthSummary,
+  RpcMonitorDashboard,
+  RpcDashboardQuery,
+} from './rpc';
 
 // ── Monitoring — Lock Metrics (Issue #610) ────────────────────────────────────
 export { collectLockMetrics, lockMetricsExporter } from '../monitoring/lockMetrics';

@@ -226,7 +226,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
           </View>
         ))}
       </View>
-      
+
       <LogDashboard />
     </ScrollView>
   );

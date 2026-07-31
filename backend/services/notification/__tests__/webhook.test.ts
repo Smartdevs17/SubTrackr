@@ -283,4 +283,189 @@ describe('WebhookDeliveryService', () => {
     expect(retry.delivery.status).toBe('delivered');
     expect(retry.delivery.attempts).toBeGreaterThanOrEqual(1);
   });
+
+  // ── Wildcard Event Filtering (Issue #727) ────────────────────────────────────
+
+  it('allows events matching a wildcard category pattern (subscription.*)', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue({ ok: true, status: 200 });
+    const service = new WebhookDeliveryService({ fetchImpl: fetchImpl as typeof fetch });
+
+    const webhook = service.registerWebhook({
+      merchantId: 'merchant_1',
+      url: 'https://example.com/webhook',
+      events: ['subscription.*' as any],
+      secretKey: 'secret',
+    });
+
+    // subscription.created should match subscription.*
+    const result = await service.deliverEvent(
+      makeInput({ webhookId: webhook.id, eventType: 'subscription.created' as any })
+    );
+    expect(result?.delivery.status).toBe('delivered');
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('blocks events that do not match the wildcard category (subscription.* vs payment.failed)', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue({ ok: true, status: 200 });
+    const service = new WebhookDeliveryService({ fetchImpl: fetchImpl as typeof fetch });
+
+    const webhook = service.registerWebhook({
+      merchantId: 'merchant_1',
+      url: 'https://example.com/webhook',
+      events: ['subscription.*' as any],
+      secretKey: 'secret',
+    });
+
+    const result = await service.deliverEvent(
+      makeInput({ webhookId: webhook.id, eventType: 'payment.failed' as any })
+    );
+    // deliverEvent returns null when the event is not allowed
+    expect(result).toBeNull();
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('allows all events with the global wildcard (*)', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue({ ok: true, status: 200 });
+    const service = new WebhookDeliveryService({ fetchImpl: fetchImpl as typeof fetch });
+
+    const webhook = service.registerWebhook({
+      merchantId: 'merchant_1',
+      url: 'https://example.com/webhook',
+      events: ['*' as any],
+      secretKey: 'secret',
+    });
+
+    const r1 = await service.deliverEvent(
+      makeInput({ webhookId: webhook.id, eventType: 'subscription.created' as any })
+    );
+    const r2 = await service.deliverEvent(
+      makeInput({ webhookId: webhook.id, eventType: 'payment.failed' as any, idempotencyKey: 'key-2' })
+    );
+    const r3 = await service.deliverEvent(
+      makeInput({ webhookId: webhook.id, eventType: 'invoice.paid' as any, idempotencyKey: 'key-3' })
+    );
+
+    expect(r1?.delivery.status).toBe('delivered');
+    expect(r2?.delivery.status).toBe('delivered');
+    expect(r3?.delivery.status).toBe('delivered');
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+  });
+
+  it('blocks delivery to a paused webhook regardless of wildcard pattern', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue({ ok: true, status: 200 });
+    const service = new WebhookDeliveryService({ fetchImpl: fetchImpl as typeof fetch });
+
+    const webhook = service.registerWebhook({
+      merchantId: 'merchant_1',
+      url: 'https://example.com/webhook',
+      events: ['*' as any],
+      secretKey: 'secret',
+      isPaused: true,
+    });
+
+    const result = await service.deliverEvent(
+      makeInput({ webhookId: webhook.id, eventType: 'subscription.created' as any })
+    );
+    expect(result).toBeNull();
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  // ── Exponential Backoff Delay Calculation (Issue #727) ───────────────────────
+
+  it('computes exponential backoff delays correctly across multiple attempts', async () => {
+    const delays: number[] = [];
+    const fetchImpl = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('fail'))
+      .mockRejectedValueOnce(new Error('fail'))
+      .mockRejectedValueOnce(new Error('fail'))
+      .mockResolvedValueOnce({ ok: true, status: 200 });
+    const sleepImpl = jest.fn((ms: number) => {
+      delays.push(ms);
+      return Promise.resolve();
+    });
+    const service = new WebhookDeliveryService({ fetchImpl: fetchImpl as typeof fetch, sleepImpl });
+
+    const webhook = service.registerWebhook({
+      merchantId: 'merchant_1',
+      url: 'https://example.com/webhook',
+      events: ['subscription.charged'],
+      secretKey: 'secret',
+      retryPolicy: {
+        maxRetries: 3,
+        initialDelayMs: 1_000,
+        maxDelayMs: 60_000,
+        backoffFactor: 2,
+        // No retryDelaysMs — uses the exponential formula
+      },
+    });
+
+    await service.deliverEvent(makeInput({ webhookId: webhook.id }));
+
+    // Delay for attempt 1: initialDelayMs * factor^0 = 1000 * 1 = 1000
+    // Delay for attempt 2: initialDelayMs * factor^1 = 1000 * 2 = 2000
+    // Delay for attempt 3: initialDelayMs * factor^2 = 1000 * 4 = 4000
+    expect(delays).toEqual([1_000, 2_000, 4_000]);
+    expect(fetchImpl).toHaveBeenCalledTimes(4);
+  });
+
+  // ── Test Webhook Simulation (Issue #727) ─────────────────────────────────────
+
+  it('testWebhook sends a simulated delivery and returns a delivery record', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue({ ok: true, status: 200 });
+    const service = new WebhookDeliveryService({ fetchImpl: fetchImpl as typeof fetch });
+
+    const webhook = service.registerWebhook({
+      merchantId: 'merchant_1',
+      url: 'https://example.com/webhook',
+      events: ['subscription.created' as any],
+      secretKey: 'secret',
+    });
+
+    const result = await service.testWebhook(webhook.id, 'subscription.created' as any);
+
+    expect(result.delivery.status).toBe('delivered');
+    expect(result.delivery.webhookId).toBe(webhook.id);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    // The delivery should carry the HMAC signature header
+    const [, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    expect((init.headers as Record<string, string>)['X-SubTrackr-Signature']).toBeDefined();
+  });
+
+  it('testWebhook bypasses idempotency — repeated calls all fire', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue({ ok: true, status: 200 });
+    const service = new WebhookDeliveryService({ fetchImpl: fetchImpl as typeof fetch });
+
+    const webhook = service.registerWebhook({
+      merchantId: 'merchant_1',
+      url: 'https://example.com/webhook',
+      events: ['subscription.created' as any],
+      secretKey: 'secret',
+    });
+
+    // Fire the same event type three times — each gets a unique test payload id
+    await service.testWebhook(webhook.id, 'subscription.created' as any);
+    await service.testWebhook(webhook.id, 'subscription.created' as any);
+    await service.testWebhook(webhook.id, 'subscription.created' as any);
+
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+  });
+
+  it('testWebhook accepts a custom payload override', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue({ ok: true, status: 200 });
+    const service = new WebhookDeliveryService({ fetchImpl: fetchImpl as typeof fetch });
+
+    const webhook = service.registerWebhook({
+      merchantId: 'merchant_1',
+      url: 'https://example.com/webhook',
+      events: ['subscription.created' as any],
+      secretKey: 'secret',
+    });
+
+    const custom = { merchantId: 'override_merchant' };
+    const result = await service.testWebhook(webhook.id, 'subscription.created' as any, custom);
+
+    expect(result.delivery.status).toBe('delivered');
+    expect(result.delivery.payload.merchantId).toBe('override_merchant');
+  });
 });

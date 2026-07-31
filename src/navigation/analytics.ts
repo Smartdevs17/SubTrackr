@@ -1,5 +1,3 @@
-import { NavigationState, PartialState, Route } from '@react-navigation/native';
-
 export interface NavigationAnalyticsEvent {
   type: 'screen_view' | 'navigation_action' | 'navigation_error' | 'deep_link';
   screenName: string;

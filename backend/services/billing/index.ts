@@ -29,6 +29,18 @@ export type {
 } from './taxTypes';
 export { DunningService, dunningService } from './dunningService';
 export type { FailureType, RetryScheduleConfig, RetryAnalytics } from './dunningService';
+export { GroupBillingService, groupBillingService } from './groupBilling';
+export type {
+  GroupBillingSummary,
+  GroupInvoice,
+  GroupAdminAction,
+  GroupPlanCustomization,
+} from './groupBilling';
+export {
+  ProgressiveDunningEngine,
+  progressiveDunningEngine,
+  createDefaultEscalationPolicy,
+} from '../../../src/services/progressiveDunningEngine';
 export { ProrationService, prorationService } from './proration';
 export type {
   ProrationConfiguration,
@@ -44,7 +56,28 @@ export type {
   ExportFilter,
   StreamExportOptions,
   ReconciliationResult,
+  CustomFieldMapping,
+  ExportSchedule,
+  ExportScheduleInput,
+  ExportHistoryEntry,
+  ExportAnalytics,
+  ExportFrequency,
+  ExportStatus,
 } from './accountingExportService';
+export {
+  handleCreateExport,
+  handleGetExportStatus,
+  handleDownloadExport,
+  handleRecordDownload,
+  handleCreateSchedule,
+  handleGetSchedules,
+  handleUpdateSchedule,
+  handleDeleteSchedule,
+  handleGetAnalytics,
+  handleGetHistory,
+} from './exportApi';
+export type { ApiResponse } from './exportApi';
+
 export {
   BackendPartnerService,
 } from './partnerService';
@@ -58,3 +91,14 @@ export type {
   IPartnerService,
 } from './interfaces';
 export { BillingError, BillingErrorCode } from './errors';
+
+// Strategy Pattern Pricing exports (Issue #741)
+export { PricingStrategy, PricingContext as PricingStrategyContext, PricingResult, PricingAnalytics } from './pricingStrategy';
+export { FlatRateStrategy } from './flatRateStrategy';
+export { UsageBasedStrategy } from './usageBasedStrategy';
+export { TieredPricingStrategy } from './tieredStrategy';
+export { DynamicPricingStrategy } from './dynamicStrategy';
+export { PricingStrategyFactory, PlanType } from './strategyFactory';
+export { BillingEngine, BillingEngineConfig } from './billingEngine';
+export { PricingAnalyticsService, RevenueMetrics } from './billingAnalytics';
+

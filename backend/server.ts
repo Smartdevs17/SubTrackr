@@ -44,6 +44,11 @@ import {
   streamExportWithProgress,
 } from './services/billing/accountingExportService';
 import type { TransactionRecord } from './services/billing/accountingExportService';
+import {
+  rpcMonitorService,
+  DEFAULT_CHAIN_ENDPOINTS,
+  RpcProviderFallback,
+} from './services/rpc';
 
 export interface StartServerOptions {
   port?: number;
@@ -84,8 +89,8 @@ async function ensurePlanCache(pool: Pool): Promise<PlanCacheBootstrap> {
 function buildRateLimitMiddleware() {
   return createRateLimitMiddleware({
     service: rateLimitingService,
-    // Bypass paths (health/metrics never throttled)
-    bypassPaths: ['/health', '/metrics', '/metrics/plan-cache'],
+    // Bypass paths (health/metrics/rpc never throttled)
+    bypassPaths: ['/health', '/metrics', '/metrics/plan-cache', '/metrics/rpc', '/rpc/dashboard', '/rpc/health', '/rpc/events'],
     // Tier resolver: reads x-subscription-tier header; defaults to FREE
     tierFn: (apiKey, _userId) => {
       // In production this would look up the tier from a DB / cache.
@@ -220,6 +225,40 @@ function matchPlanId(pathname: string): string | null {
   const match = pathname.match(/^\/plans\/([^/]+)$/);
   return match?.[1] ?? null;
 }
+// ── RPC Provider Fallback instances (hot-reloadable) ─────────────────────────
+const rpcProviders = new Map<number, RpcProviderFallback>();
+
+function getOrCreateRpcProvider(chainId: number): RpcProviderFallback {
+  let provider = rpcProviders.get(chainId);
+  if (!provider) {
+    const chainConfig = DEFAULT_CHAIN_ENDPOINTS[chainId];
+    if (!chainConfig) {
+      throw new Error(`No RPC configuration for chain ${chainId}`);
+    }
+    provider = new RpcProviderFallback(chainConfig, rpcMonitorService);
+    rpcProviders.set(chainId, provider);
+
+    // Register circuits with the monitor
+    for (const snapshot of provider.getCircuitStates()) {
+      rpcMonitorService.registerCircuit(snapshot);
+    }
+  }
+  return provider;
+}
+
+function registerAllChainProviders(): void {
+  for (const chainIdStr of Object.keys(DEFAULT_CHAIN_ENDPOINTS)) {
+    const chainId = Number(chainIdStr);
+    try {
+      const provider = getOrCreateRpcProvider(chainId);
+      for (const snapshot of provider.getCircuitStates()) {
+        rpcMonitorService.registerCircuit(snapshot);
+      }
+    } catch (err) {
+      console.warn(`[Server] Could not register RPC provider for chain ${chainId}:`, err);
+    }
+  }
+}
 
 export async function startServer(options: StartServerOptions = {}): Promise<RunningServer> {
   const pool = options.pool ?? (await getPool());
@@ -236,6 +275,9 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
   });
 
   const rateLimitMw = buildRateLimitMiddleware();
+
+  // Initialize all RPC providers at startup so the dashboard is ready immediately
+  registerAllChainProviders();
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
@@ -255,6 +297,110 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
           status: 'ok',
           planCache: cacheHealthy ? 'redis' : 'degraded',
         });
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // RPC Circuit Breaker Dashboard  GET /rpc/dashboard
+      // -----------------------------------------------------------------
+      if (pathname === '/rpc/dashboard' && method === 'GET') {
+        const chainIdParam = url.searchParams.get('chainId');
+        const endpointUrl = url.searchParams.get('endpointUrl');
+        const eventLimit = url.searchParams.get('eventLimit');
+
+        const query: { chainId?: number; endpointUrl?: string; eventLimit?: number } = {};
+        if (chainIdParam) query.chainId = Number(chainIdParam);
+        if (endpointUrl) query.endpointUrl = endpointUrl;
+        if (eventLimit) query.eventLimit = Number(eventLimit);
+
+        const dashboard = rpcMonitorService.getDashboard(query);
+        sendJson(res, 200, dashboard);
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // RPC Chain Health  GET /rpc/health/:chainId
+      // -----------------------------------------------------------------
+      const rpcHealthMatch = pathname.match(/^\/rpc\/health\/(\d+)$/);
+      if (rpcHealthMatch && method === 'GET') {
+        const chainId = Number(rpcHealthMatch[1]);
+        const health = rpcMonitorService.getChainHealth(chainId);
+        if (!health) {
+          sendJson(res, 404, { error: `No health data for chain ${chainId}` });
+          return;
+        }
+        sendJson(res, 200, health);
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // RPC Circuit Reset  POST /rpc/reset
+      // -----------------------------------------------------------------
+      if (pathname === '/rpc/reset' && method === 'POST') {
+        const body = (await readJsonBody(req)) as {
+          chainId: number;
+          endpointUrl?: string;
+          action: 'reset' | 'open' | 'reset_all' | 'reset_metrics';
+        };
+
+        if (!body.chainId || !body.action) {
+          sendJson(res, 400, { error: 'chainId and action are required' });
+          return;
+        }
+
+        const provider = rpcProviders.get(body.chainId);
+        if (!provider) {
+          sendJson(res, 404, { error: `No RPC provider for chain ${body.chainId}` });
+          return;
+        }
+
+        switch (body.action) {
+          case 'reset':
+            if (!body.endpointUrl) {
+              sendJson(res, 400, { error: 'endpointUrl is required for reset action' });
+              return;
+            }
+            provider.manualResetEndpoint(body.endpointUrl);
+            sendJson(res, 200, { success: true, action: 'reset', endpointUrl: body.endpointUrl });
+            return;
+          case 'open':
+            if (!body.endpointUrl) {
+              sendJson(res, 400, { error: 'endpointUrl is required for open action' });
+              return;
+            }
+            provider.manualOpenEndpoint(body.endpointUrl);
+            sendJson(res, 200, { success: true, action: 'open', endpointUrl: body.endpointUrl });
+            return;
+          case 'reset_all':
+            provider.manualResetAll();
+            sendJson(res, 200, { success: true, action: 'reset_all', chainId: body.chainId });
+            return;
+          case 'reset_metrics':
+            rpcMonitorService.resetAllMetrics();
+            sendJson(res, 200, { success: true, action: 'reset_metrics' });
+            return;
+          default:
+            sendJson(res, 400, { error: `Unknown action: ${body.action}` });
+            return;
+        }
+      }
+
+      // -----------------------------------------------------------------
+      // RPC Prometheus metrics  GET /metrics/rpc
+      // -----------------------------------------------------------------
+      if (pathname === '/metrics/rpc' && method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4; charset=utf-8' });
+        res.end(rpcMonitorService.getPrometheusMetrics());
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // RPC Events  GET /rpc/events
+      // -----------------------------------------------------------------
+      if (pathname === '/rpc/events' && method === 'GET') {
+        const limit = url.searchParams.get('limit');
+        const events = rpcMonitorService.getRecentEvents(limit ? Number(limit) : 50);
+        sendJson(res, 200, { events, count: events.length });
         return;
       }
 
@@ -297,6 +443,27 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
       }
 
       // -----------------------------------------------------------------
+      // Public tier configs  GET /rate-limits/tiers
+      // -----------------------------------------------------------------
+      if (pathname === '/rate-limits/tiers' && method === 'GET') {
+        sendJson(res, 200, {
+          algorithm: 'token_bucket',
+          tiers: {
+            free: rateLimitingService.getPublicTierLimits(
+              rateLimitingService.getRateLimitTier(SubscriptionTier.FREE),
+            ),
+            pro: rateLimitingService.getPublicTierLimits(
+              rateLimitingService.getRateLimitTier(SubscriptionTier.PREMIUM),
+            ),
+            enterprise: rateLimitingService.getPublicTierLimits(
+              rateLimitingService.getRateLimitTier(SubscriptionTier.ENTERPRISE),
+            ),
+          },
+        });
+        return;
+      }
+
+      // -----------------------------------------------------------------
       // Rate-limit status  GET /rate-limits/status?apiKey=...&tier=...
       // -----------------------------------------------------------------
       if (pathname === '/rate-limits/status' && method === 'GET') {
@@ -307,7 +474,11 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
           return;
         }
         const status = rateLimitingService.getRateLimitStatus(apiKey, tier);
-        sendJson(res, 200, status);
+        sendJson(res, 200, {
+          ...status,
+          rateLimitTier: rateLimitingService.getRateLimitTier(tier),
+          algorithm: 'token_bucket',
+        });
         return;
       }
 
@@ -352,6 +523,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
             monthlyLimit?: number;
             burstLimit?: number;
             concurrentLimit?: number;
+            refillRatePerSecond?: number;
           };
         };
         if (!body.apiKey) {
@@ -522,7 +694,13 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
         console.info(`[Server] Stream    → GET /subscriptions/stream`);
         console.info(`[Server] SSE       → GET /exports/stream/:exportId`);
         console.info(`[Server] Download  → GET /exports/download/:token`);
+        console.info(`[Server] RPC       → GET /rpc/dashboard`);
+        console.info(`[Server] RPC       → GET /rpc/health/:chainId`);
+        console.info(`[Server] RPC       → POST /rpc/reset`);
+        console.info(`[Server] RPC       → GET /rpc/events`);
+        console.info(`[Server] RPC       → GET /metrics/rpc`);
         console.info(`[Server] RateLimit → GET /rate-limits/analytics`);
+        console.info(`[Server] RateLimit → GET /rate-limits/tiers`);
         console.info(`[Server] RateLimit → GET /rate-limits/status?apiKey=...`);
         console.info(`[Server] RateLimit → POST /rate-limits/bypass`);
         console.info(`[Server] RateLimit → POST /rate-limits/config`);

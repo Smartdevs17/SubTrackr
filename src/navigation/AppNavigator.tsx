@@ -23,7 +23,9 @@ import { featureFlagsService } from '../services/featureFlags';
 import type { SubscriptionTier } from '../types/subscription';
 
 const HomeScreen = lazyScreen(() => import('../screens/HomeScreen'));
-const SettingsScreen = lazyScreen(() => import('../screens/SettingsScreen').then(m => ({ default: m.SettingsScreen })));
+const SettingsScreen = lazyScreen(() =>
+  import('../screens/SettingsScreen').then((m) => ({ default: m.SettingsScreen }))
+);
 
 const AddSubscriptionScreen = lazyScreen(() => import('../screens/AddSubscriptionScreen'));
 const CancellationFlowScreen = lazyScreen(() => import('../screens/CancellationFlowScreen'));
@@ -99,6 +101,7 @@ const PaymentMethodsScreen = lazyScreen(() =>
 );
 const AnalyticsDashboard = lazyScreen(() => import('../../app/screens/AnalyticsDashboard'));
 const TrialDetailsScreen = lazyScreen(() => import('../screens/TrialDetailsScreen'));
+const ChurnPredictionScreen = lazyScreen(() => import('../screens/ChurnPredictionScreen'));
 
 // Issue #547: GDPR
 const PrivacyCenterScreen = lazyScreen(() => import('../screens/PrivacyCenterScreen'));
@@ -439,6 +442,11 @@ const HomeStack = () => (
       name="TrialDetails"
       component={TrialDetailsScreen}
       options={{ title: 'Trial Details', headerShown: true }}
+    />
+    <Stack.Screen
+      name="ChurnPrediction"
+      component={ChurnPredictionScreen}
+      options={{ title: 'Churn Analytics', headerShown: true }}
     />
   </Stack.Navigator>
 );

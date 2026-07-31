@@ -45,7 +45,7 @@
 use soroban_sdk::contracterror;
 use subtrackr_types::CoreError;
 
-#[contracterror]
+#[soroban_sdk::contracttype]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
 pub enum ContractError {
