@@ -4,14 +4,19 @@ import {
   acceptRetentionOffer,
   recordCancellation,
   categorizeCancellationReason,
+  analyzeSentiment,
+  getRecentCancellation,
+  markReactivation,
+  isWithinReactivationWindow,
   RetentionOffer,
   CancellationRecord,
   UserSegmentContext,
-} from '../../backend/services/retentionService';
+  SentimentLabel,
+} from '../../backend/services/analytics/retentionService';
 import { useSubscriptionStore } from './subscriptionStore';
 import { useUserStore } from './userStore';
 
-export type CancellationStep = 'REASON' | 'OFFERS' | 'CONFIRM' | 'SUCCESS';
+export type CancellationStep = 'REASON' | 'FEEDBACK' | 'OFFERS' | 'CONFIRM' | 'SUCCESS';
 
 export const CANCELLATION_REASONS = [
   'Too Expensive',
@@ -28,6 +33,8 @@ interface CancellationState {
   currentStep: CancellationStep;
   subscriptionId: string | null;
   reason: string | null;
+  feedbackText: string;
+  sentiment: SentimentLabel | null;
   offers: RetentionOffer[];
   acceptedOfferId: string | null;
   cancellationRecord: CancellationRecord | null;
@@ -36,10 +43,16 @@ interface CancellationState {
 
   // Actions
   initFlow: (subscriptionId: string) => void;
-  selectReason: (reason: string) => Promise<void>;
+  selectReason: (reason: string) => void;
+  submitFeedback: (feedbackText: string) => Promise<void>;
   acceptOffer: (offerId: string) => Promise<void>;
   declineOffers: () => void;
   confirmCancellation: () => Promise<void>;
+  /** Edge case: re-subscribing within 30 days of a cancellation. */
+  checkReactivationEligibility: (
+    subscriptionId: string
+  ) => { withinWindow: boolean; daysSinceCancellation: number } | null;
+  confirmReactivation: (subscriptionId: string) => void;
   reset: () => void;
 }
 
@@ -47,6 +60,8 @@ const initialState = {
   currentStep: 'REASON' as CancellationStep,
   subscriptionId: null,
   reason: null,
+  feedbackText: '',
+  sentiment: null,
   offers: [],
   acceptedOfferId: null,
   cancellationRecord: null,
@@ -89,19 +104,24 @@ export const useCancellationStore = create<CancellationState>((set, get) => ({
     set({ ...initialState, subscriptionId });
   },
 
-  selectReason: async (reason) => {
-    set({ isLoading: true, error: null, reason });
+  selectReason: (reason) => {
+    set({ reason, currentStep: 'FEEDBACK', error: null });
+  },
+
+  submitFeedback: async (feedbackText) => {
+    set({ isLoading: true, error: null });
     try {
-      const { subscriptionId } = get();
-      if (!subscriptionId) throw new Error('No subscription selected');
+      const { subscriptionId, reason } = get();
+      if (!subscriptionId || !reason) throw new Error('No subscription or reason selected');
 
       const context = buildSegmentContext(subscriptionId);
       if (!context) throw new Error('Could not load subscription context');
 
+      const sentiment = feedbackText.trim() ? analyzeSentiment(feedbackText).label : null;
       const reasonCategory = categorizeCancellationReason(reason);
       const offers = generateRetentionOffers(context, reasonCategory);
 
-      set({ offers, currentStep: 'OFFERS', isLoading: false });
+      set({ feedbackText, sentiment, offers, currentStep: 'OFFERS', isLoading: false });
     } catch (e) {
       set({ error: e instanceof Error ? e.message : 'Failed to load offers', isLoading: false });
     }
@@ -129,7 +149,7 @@ export const useCancellationStore = create<CancellationState>((set, get) => ({
   confirmCancellation: async () => {
     set({ isLoading: true, error: null });
     try {
-      const { subscriptionId, reason, offers, acceptedOfferId } = get();
+      const { subscriptionId, reason, offers, acceptedOfferId, feedbackText } = get();
       const { user } = useUserStore.getState();
 
       if (!subscriptionId || !reason || !user) throw new Error('Missing cancellation data');
@@ -139,7 +159,8 @@ export const useCancellationStore = create<CancellationState>((set, get) => ({
         subscriptionId,
         reason,
         offers.map((o) => o.id),
-        acceptedOfferId
+        acceptedOfferId,
+        feedbackText.trim() || undefined
       );
 
       // Mark subscription as inactive in local store
@@ -154,6 +175,25 @@ export const useCancellationStore = create<CancellationState>((set, get) => ({
         error: e instanceof Error ? e.message : 'Failed to process cancellation',
         isLoading: false,
       });
+    }
+  },
+
+  checkReactivationEligibility: (subscriptionId) => {
+    // Edge case: user cancels and re-subscribes within 30 days. Read-only check.
+    const recent = getRecentCancellation(subscriptionId);
+    if (!recent) return null;
+    return {
+      withinWindow: isWithinReactivationWindow(recent.daysSinceCancellation),
+      daysSinceCancellation: recent.daysSinceCancellation,
+    };
+  },
+
+  confirmReactivation: (subscriptionId) => {
+    markReactivation(subscriptionId);
+    const { toggleSubscriptionStatus, subscriptions } = useSubscriptionStore.getState();
+    const sub = subscriptions.find((s) => s.id === subscriptionId);
+    if (sub && !sub.isActive) {
+      toggleSubscriptionStatus(subscriptionId);
     }
   },
 

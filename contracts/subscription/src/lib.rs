@@ -1,11 +1,18 @@
 #![no_std]
+mod billing;
+mod charging;
+mod errors;
+mod event_store;
+mod events;
+mod gas_optimization;
 mod gas_profiler;
 mod gas_storage;
-mod gas_optimization;
+mod state;
 use soroban_sdk::{token, Address, Env, IntoVal, String, Symbol, TryFromVal, Val, Vec};
-use subtrackr_oracle::{SubTrackrOracleClient, OracleError};
+use subtrackr_oracle::{OracleError, SubTrackrOracleClient};
 use subtrackr_types::{
-    Interval, Invoice, Permission, Plan, PriceBounds, StorageKey, Subscription, SubscriptionStatus, TimeRange,
+    Interval, Invoice, Permission, Plan, PriceBounds, StorageKey, Subscription, SubscriptionStatus,
+    TimeRange,
 };
 
 /// Billing interval in seconds.
@@ -129,6 +136,72 @@ fn storage_persistent_remove(env: &Env, storage: &Address, key: StorageKey) {
     );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Transient (temporary) storage helpers
+//
+// These helpers route through the storage contract's new `temporary_*` bridge
+// methods.  Temporary entries auto-expire after `ttl_ledgers` ledger closes,
+// which is cheaper than persistent storage and avoids unbounded instance
+// storage growth for short-lived state such as rate-limit timestamps.
+//
+// Soroban ledger close time ≈ 5 seconds, so:
+//   60 s  ≈  12 ledgers
+//   1 min ≈  12 ledgers
+//   1 h   ≈  720 ledgers
+//   1 d   ≈  17 280 ledgers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Convert a duration in seconds to an approximate ledger count.
+/// Uses 5 seconds per ledger as the Soroban mainnet target.
+fn secs_to_ledgers(secs: u64) -> u32 {
+    // Minimum 1 ledger; cap at u32::MAX to avoid overflow.
+    let ledgers = (secs / 5).max(1);
+    if ledgers > u32::MAX as u64 {
+        u32::MAX
+    } else {
+        ledgers as u32
+    }
+}
+
+fn storage_temporary_get<V: TryFromVal<Env, Val>>(
+    env: &Env,
+    storage: &Address,
+    key: StorageKey,
+) -> Option<V> {
+    let args: Vec<Val> = soroban_sdk::vec![env, key.into_val(env)];
+    let val_opt: Option<Val> = env.invoke_contract(
+        storage,
+        &soroban_sdk::Symbol::new(env, "temporary_get"),
+        args,
+    );
+    val_opt.map(|val| V::try_from_val(env, &val).unwrap())
+}
+
+fn storage_temporary_set<V: IntoVal<Env, Val>>(
+    env: &Env,
+    storage: &Address,
+    key: StorageKey,
+    value: V,
+    ttl_ledgers: u32,
+) {
+    let val: Val = value.into_val(env);
+    let args: Vec<Val> = soroban_sdk::vec![env, key.into_val(env), val, ttl_ledgers.into_val(env)];
+    env.invoke_contract::<()>(
+        storage,
+        &soroban_sdk::Symbol::new(env, "temporary_set"),
+        args,
+    );
+}
+
+fn storage_temporary_remove(env: &Env, storage: &Address, key: StorageKey) {
+    let args: Vec<Val> = soroban_sdk::vec![env, key.into_val(env)];
+    env.invoke_contract::<()>(
+        storage,
+        &soroban_sdk::Symbol::new(env, "temporary_remove"),
+        args,
+    );
+}
+
 fn get_admin(env: &Env, storage: &Address) -> Address {
     storage_instance_get(env, storage, StorageKey::Admin).expect("Admin not set")
 }
@@ -140,16 +213,10 @@ fn get_access_control(env: &Env, storage: &Address) -> Option<Address> {
 fn require_permission(env: &Env, storage: &Address, caller: &Address, permission: Permission) {
     let ac_opt: Option<Address> = get_access_control(env, storage);
     if let Some(ac_addr) = ac_opt {
-        let args: Vec<Val> = soroban_sdk::vec![
-            env,
-            caller.clone().into_val(env),
-            permission.into_val(env)
-        ];
-        let has_perm: bool = env.invoke_contract(
-            &ac_addr,
-            &Symbol::new(env, "has_permission"),
-            args,
-        );
+        let args: Vec<Val> =
+            soroban_sdk::vec![env, caller.clone().into_val(env), permission.into_val(env)];
+        let has_perm: bool =
+            env.invoke_contract(&ac_addr, &Symbol::new(env, "has_permission"), args);
         assert!(has_perm, "Unauthorized: missing required permission");
     }
 }
@@ -167,10 +234,28 @@ fn enforce_rate_limit(env: &Env, storage: &Address, caller: &Address, function_n
     }
 
     let now = env.ledger().timestamp();
-    let last_opt: Option<u64> = storage_instance_get(
+
+    // ── Gas optimisation (Issue #395) ────────────────────────────────────────
+    // Rate-limit timestamps only need to survive for `min_secs` seconds.
+    // Using temporary storage (auto-expiring TTL) instead of instance storage:
+    //   • Avoids unbounded growth of instance storage with one entry per
+    //     (caller, function) pair.
+    //   • Costs fewer ledger-entry rent fees because the entry expires
+    //     automatically rather than persisting indefinitely.
+    //   • Reduces the instance storage footprint, which lowers the base fee
+    //     charged on every contract invocation.
+    //
+    // Migration note: existing LastCall entries in instance storage are
+    // intentionally ignored here.  The worst-case effect is that a caller
+    // who was rate-limited before the upgrade can make one extra call
+    // immediately after the upgrade.  This is acceptable because:
+    //   a) the window is at most `min_secs` wide, and
+    //   b) the rate-limit is re-enforced from the very next call onward.
+    // ─────────────────────────────────────────────────────────────────────────
+    let last_opt: Option<u64> = storage_temporary_get(
         env,
         storage,
-        StorageKey::LastCall(caller.clone(), fname.clone()),
+        StorageKey::TmpLastCall(caller.clone(), fname.clone()),
     );
 
     if let Some(last) = last_opt {
@@ -186,11 +271,16 @@ fn enforce_rate_limit(env: &Env, storage: &Address, caller: &Address, function_n
         }
     }
 
-    storage_instance_set(
+    // Store the new timestamp with a TTL equal to the rate-limit window.
+    // Once the window expires the entry is automatically removed, freeing
+    // ledger space without requiring an explicit delete.
+    let ttl = secs_to_ledgers(min_secs);
+    storage_temporary_set(
         env,
         storage,
-        StorageKey::LastCall(caller.clone(), fname),
+        StorageKey::TmpLastCall(caller.clone(), fname),
         now,
+        ttl,
     );
 }
 
@@ -278,12 +368,8 @@ fn resolve_charge_price(env: &Env, storage: &Address, plan: &Plan) -> i128 {
             return plan.price;
         }
 
-        let max_price = (plan.price as u128)
-            .saturating_mul(bounds.max_price_bps as u128)
-            / 10_000;
-        let min_price = (plan.price as u128)
-            .saturating_mul(bounds.min_price_bps as u128)
-            / 10_000;
+        let max_price = (plan.price as u128).saturating_mul(bounds.max_price_bps as u128) / 10_000;
+        let min_price = (plan.price as u128).saturating_mul(bounds.min_price_bps as u128) / 10_000;
 
         if oracle_value > max_price as i128 {
             max_price as i128
@@ -449,24 +535,33 @@ impl SubTrackrSubscription {
             "Max must be >= min"
         );
         assert!(bounds.max_price_bps > 0, "Max must be positive");
-        storage_persistent_set(
-            &env,
-            &storage,
-            StorageKey::PriceBounds(plan_id),
-            bounds,
-        );
+        storage_persistent_set(&env, &storage, StorageKey::PriceBounds(plan_id), bounds);
     }
 
-    pub fn clear_price_bounds(env: Env, proxy: Address, storage: Address, merchant: Address, plan_id: u64) {
+    pub fn clear_price_bounds(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        merchant: Address,
+        plan_id: u64,
+    ) {
         proxy.require_auth();
         merchant.require_auth();
         let plan: Plan = storage_persistent_get(&env, &storage, StorageKey::Plan(plan_id))
             .expect("Plan not found");
-        assert!(plan.merchant == merchant, "Only plan owner can clear bounds");
+        assert!(
+            plan.merchant == merchant,
+            "Only plan owner can clear bounds"
+        );
         storage_persistent_remove(&env, &storage, StorageKey::PriceBounds(plan_id));
     }
 
-    pub fn get_price_bounds(env: Env, proxy: Address, storage: Address, plan_id: u64) -> Option<PriceBounds> {
+    pub fn get_price_bounds(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        plan_id: u64,
+    ) -> Option<PriceBounds> {
         proxy.require_auth();
         storage_persistent_get(&env, &storage, StorageKey::PriceBounds(plan_id))
     }
@@ -504,7 +599,13 @@ impl SubTrackrSubscription {
         storage_instance_set(&env, &storage, StorageKey::TokenSymbol(token), symbol);
     }
 
-    pub fn remove_token_symbol(env: Env, proxy: Address, storage: Address, admin: Address, token: Address) {
+    pub fn remove_token_symbol(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        admin: Address,
+        token: Address,
+    ) {
         proxy.require_auth();
         admin.require_auth();
         let stored_admin = get_admin(&env, &storage);
@@ -512,7 +613,12 @@ impl SubTrackrSubscription {
         storage_instance_remove(&env, &storage, StorageKey::TokenSymbol(token));
     }
 
-    pub fn get_token_symbol(env: Env, proxy: Address, storage: Address, token: Address) -> Option<Symbol> {
+    pub fn get_token_symbol(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        token: Address,
+    ) -> Option<Symbol> {
         proxy.require_auth();
         storage_instance_get(&env, &storage, StorageKey::TokenSymbol(token))
     }
@@ -700,6 +806,19 @@ impl SubTrackrSubscription {
         plan.subscriber_count += 1;
         storage_persistent_set(&env, &storage, StorageKey::Plan(plan_id), plan);
 
+        let metadata = event_store::build_event_metadata(&env, &subscriber);
+        event_store::record_event(
+            &env,
+            sub_count,
+            plan_id,
+            events::SubscriptionEventType::Created,
+            metadata,
+            &SubscriptionStatus::Active,
+            &SubscriptionStatus::Active,
+            plan_id,
+            0,
+        );
+
         sub_count
     }
 
@@ -726,6 +845,8 @@ impl SubTrackrSubscription {
             "Subscription not active"
         );
 
+        let prior_status = sub.status.clone();
+
         sub.status = SubscriptionStatus::Cancelled;
         storage_persistent_set(
             &env,
@@ -743,6 +864,19 @@ impl SubTrackrSubscription {
             plan.subscriber_count -= 1;
         }
         storage_persistent_set(&env, &storage, StorageKey::Plan(sub.plan_id), plan);
+
+        let metadata = event_store::build_event_metadata(&env, &subscriber);
+        event_store::record_event(
+            &env,
+            subscription_id,
+            sub.plan_id,
+            events::SubscriptionEventType::Cancelled,
+            metadata,
+            &prior_status,
+            &SubscriptionStatus::Cancelled,
+            sub.plan_id,
+            0,
+        );
     }
 
     pub fn pause_subscription(
@@ -809,6 +943,19 @@ impl SubTrackrSubscription {
             (String::from_str(&env, "subscription_paused"), subscriber),
             (subscription_id, sub.paused_at, duration),
         );
+
+        let metadata = event_store::build_event_metadata(&env, &subscriber);
+        event_store::record_event(
+            &env,
+            subscription_id,
+            sub.plan_id,
+            events::SubscriptionEventType::Paused,
+            metadata,
+            &SubscriptionStatus::Active,
+            &SubscriptionStatus::Paused,
+            sub.plan_id,
+            0,
+        );
     }
 
     pub fn resume_subscription(
@@ -827,6 +974,8 @@ impl SubTrackrSubscription {
         let mut sub: Subscription =
             storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
                 .expect("Subscription not found");
+
+        let prior_status = sub.status.clone();
 
         assert!(sub.subscriber == subscriber, "Only subscriber can resume");
         assert!(
@@ -853,6 +1002,19 @@ impl SubTrackrSubscription {
         env.events().publish(
             (String::from_str(&env, "subscription_resumed"), subscriber),
             subscription_id,
+        );
+
+        let metadata = event_store::build_event_metadata(&env, &subscriber);
+        event_store::record_event(
+            &env,
+            subscription_id,
+            sub.plan_id,
+            events::SubscriptionEventType::Resumed,
+            metadata,
+            &prior_status,
+            &SubscriptionStatus::Active,
+            sub.plan_id,
+            0,
         );
     }
 
@@ -932,6 +1094,22 @@ impl SubTrackrSubscription {
             (sub.subscriber.clone(), charge_price, 100_000u64, now),
         );
 
+        let metadata = event_store::build_event_metadata(&env, &sub.subscriber);
+        event_store::record_event(
+            &env,
+            subscription_id,
+            sub.plan_id,
+            events::SubscriptionEventType::Charged,
+            metadata,
+            &SubscriptionStatus::Active,
+            &SubscriptionStatus::Active,
+            sub.plan_id,
+            charge_price,
+        );
+
+        // Accumulate loyalty points after successful charge.
+        loyalty::accumulate_points(&env, &storage, &sub.subscriber, plan.price, now);
+
         if let Some(invoice_addr) = invoice_contract(&env, &storage) {
             let period = TimeRange {
                 start: sub.last_charged_at,
@@ -992,6 +1170,19 @@ impl SubTrackrSubscription {
             (String::from_str(&env, "refund_requested"), subscription_id),
             (sub.subscriber.clone(), amount),
         );
+
+        let metadata = event_store::build_event_metadata(&env, &sub.subscriber);
+        event_store::record_event(
+            &env,
+            subscription_id,
+            sub.plan_id,
+            events::SubscriptionEventType::RefundRequested,
+            metadata,
+            &sub.status,
+            &sub.status,
+            sub.plan_id,
+            amount,
+        );
     }
 
     pub fn approve_refund(env: Env, proxy: Address, storage: Address, subscription_id: u64) {
@@ -1023,6 +1214,19 @@ impl SubTrackrSubscription {
             (String::from_str(&env, "refund_approved"), subscription_id),
             (sub.subscriber.clone(), amount),
         );
+
+        let metadata = event_store::build_event_metadata(&env, &admin);
+        event_store::record_event(
+            &env,
+            subscription_id,
+            sub.plan_id,
+            events::SubscriptionEventType::RefundApproved,
+            metadata,
+            &sub.status,
+            &sub.status,
+            sub.plan_id,
+            amount,
+        );
     }
 
     pub fn reject_refund(env: Env, proxy: Address, storage: Address, subscription_id: u64) {
@@ -1047,6 +1251,19 @@ impl SubTrackrSubscription {
         env.events().publish(
             (String::from_str(&env, "refund_rejected"), subscription_id),
             sub.subscriber.clone(),
+        );
+
+        let metadata = event_store::build_event_metadata(&env, &admin);
+        event_store::record_event(
+            &env,
+            subscription_id,
+            sub.plan_id,
+            events::SubscriptionEventType::RefundRejected,
+            metadata,
+            &sub.status,
+            &sub.status,
+            sub.plan_id,
+            0,
         );
     }
 
@@ -1088,6 +1305,19 @@ impl SubTrackrSubscription {
                 subscription_id,
             ),
             (sub.subscriber.clone(), recipient),
+        );
+
+        let metadata = event_store::build_event_metadata(&env, &sub.subscriber);
+        event_store::record_event(
+            &env,
+            subscription_id,
+            sub.plan_id,
+            events::SubscriptionEventType::TransferRequested,
+            metadata,
+            &sub.status,
+            &sub.status,
+            sub.plan_id,
+            0,
         );
     }
 
@@ -1167,6 +1397,19 @@ impl SubTrackrSubscription {
         env.events().publish(
             (String::from_str(&env, "transfer_accepted"), subscription_id),
             (old, recipient),
+        );
+
+        let metadata = event_store::build_event_metadata(&env, &recipient);
+        event_store::record_event(
+            &env,
+            subscription_id,
+            sub.plan_id,
+            events::SubscriptionEventType::TransferAccepted,
+            metadata,
+            &sub.status,
+            &sub.status,
+            sub.plan_id,
+            0,
         );
     }
 
@@ -1294,6 +1537,126 @@ impl SubTrackrSubscription {
         revenue::get_revenue_schedule(&env, &storage, subscription_id)
     }
 
+    // ── Loyalty & Rewards API ──
+
+    pub fn initialize_loyalty(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        config: subtrackr_types::LoyaltyConfig,
+    ) {
+        proxy.require_auth();
+        get_admin(&env, &storage).require_auth();
+        loyalty::set_loyalty_config(&env, &storage, &config);
+    }
+
+    pub fn update_loyalty_config(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        config: subtrackr_types::LoyaltyConfig,
+    ) {
+        proxy.require_auth();
+        get_admin(&env, &storage).require_auth();
+        loyalty::set_loyalty_config(&env, &storage, &config);
+    }
+
+    pub fn get_loyalty_config(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+    ) -> Option<subtrackr_types::LoyaltyConfig> {
+        proxy.require_auth();
+        loyalty::get_loyalty_config(&env, &storage)
+    }
+
+    pub fn get_points(env: Env, proxy: Address, storage: Address, subscriber: Address) -> u64 {
+        proxy.require_auth();
+        loyalty::get_eligible_points(&env, &storage, &subscriber)
+    }
+
+    pub fn get_lifetime_points(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscriber: Address,
+    ) -> u64 {
+        proxy.require_auth();
+        loyalty::get_lifetime_points(&env, &storage, &subscriber)
+    }
+
+    pub fn get_streak(env: Env, proxy: Address, storage: Address, subscriber: Address) -> u64 {
+        proxy.require_auth();
+        loyalty::get_streak(&env, &storage, &subscriber)
+    }
+
+    pub fn get_loyalty_status(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscriber: Address,
+    ) -> (
+        u64,
+        u64,
+        u64,
+        i128,
+        Option<subtrackr_types::LoyaltyTierConfig>,
+    ) {
+        proxy.require_auth();
+        let points = loyalty::get_eligible_points(&env, &storage, &subscriber);
+        let lifetime = loyalty::get_lifetime_points(&env, &storage, &subscriber);
+        let streak = loyalty::get_streak(&env, &storage, &subscriber);
+        let spent = loyalty::get_total_spent(&env, &storage, &subscriber);
+        let tier = loyalty::get_current_tier(&env, &storage, &subscriber);
+        (points, lifetime, streak, spent, tier)
+    }
+
+    pub fn redeem_loyalty_points(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscriber: Address,
+        points: u64,
+        charge_amount: i128,
+    ) -> i128 {
+        proxy.require_auth();
+        subscriber.require_auth();
+        let now = env.ledger().timestamp();
+        loyalty::redeem_points(&env, &storage, &subscriber, points, charge_amount, now)
+    }
+
+    pub fn earn_referral_bonus(env: Env, proxy: Address, storage: Address, referrer: Address) {
+        proxy.require_auth();
+        let now = env.ledger().timestamp();
+        loyalty::earn_referral_bonus(&env, &storage, &referrer, now);
+    }
+
+    pub fn expire_points(env: Env, proxy: Address, storage: Address, subscriber: Address) {
+        proxy.require_auth();
+        get_admin(&env, &storage).require_auth();
+        loyalty::expire_points(&env, &storage, &subscriber);
+    }
+
+    pub fn get_point_transactions(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscriber: Address,
+    ) -> Vec<subtrackr_types::PointTransaction> {
+        proxy.require_auth();
+        loyalty::get_point_transactions(&env, &storage, &subscriber)
+    }
+
+    pub fn get_redemption(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        redemption_id: u64,
+    ) -> Option<subtrackr_types::RewardsRedemption> {
+        proxy.require_auth();
+        loyalty::get_redemption(&env, &storage, redemption_id)
+    }
+
     // ── Quota & Usage API ──
 
     pub fn set_plan_quotas(
@@ -1387,7 +1750,14 @@ impl SubTrackrSubscription {
         proxy.require_auth();
         user.require_auth();
         payment_methods::add_payment_method(
-            &env, &user, token_type, token_address, chain_id, label, priority, max_spend_per_interval,
+            &env,
+            &user,
+            token_type,
+            token_address,
+            chain_id,
+            label,
+            priority,
+            max_spend_per_interval,
         )
     }
 
@@ -1454,7 +1824,12 @@ impl SubTrackrSubscription {
         proxy.require_auth();
         user.require_auth();
         payment_methods::charge_with_fallback(
-            &env, &user, &merchant, &token_address, amount, subscription_id,
+            &env,
+            &user,
+            &merchant,
+            &token_address,
+            amount,
+            subscription_id,
         )
     }
 
@@ -1509,9 +1884,211 @@ impl SubTrackrSubscription {
         user.require_auth();
         payment_methods::deactivate_expired_methods(&env, &user)
     }
+
+    // ── Event Sourcing & Audit Trail ──
+
+    pub fn set_retention_policy(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        max_events_per_subscription: u32,
+        max_events_per_merchant: u32,
+        retention_days: u64,
+        auto_prune_enabled: bool,
+    ) {
+        proxy.require_auth();
+        get_admin(&env, &storage).require_auth();
+
+        let policy = events::EventRetentionPolicy {
+            max_events_per_subscription,
+            max_events_per_merchant,
+            retention_days,
+            auto_prune_enabled,
+        };
+        event_store::set_retention_policy(&env, policy);
+    }
+
+    pub fn get_retention_policy(
+        env: Env,
+        _storage: Address,
+    ) -> Option<events::EventRetentionPolicy> {
+        event_store::get_retention_policy(&env)
+    }
+
+    pub fn get_events(
+        env: Env,
+        _storage: Address,
+        subscription_id: u64,
+        filter_type: Option<u32>,
+        start_time: u64,
+        end_time: u64,
+        limit: u32,
+        offset: u32,
+    ) -> Vec<events::StoredEvent> {
+        let event_types = filter_type.map(|t| {
+            let mut types: Vec<events::SubscriptionEventType> = Vec::new(&env);
+            types.push_back(events::SubscriptionEventType::Created);
+            types
+        });
+
+        let filter = events::EventFilter {
+            subscription_id: Some(subscription_id),
+            event_types: None,
+            date_range: if start_time > 0 || end_time > 0 {
+                Some(TimeRange {
+                    start: start_time,
+                    end: end_time,
+                })
+            } else {
+                None
+            },
+            actor: None,
+            limit: if limit == 0 { 100 } else { limit },
+            offset,
+        };
+
+        event_store::get_events(&env, filter)
+    }
+
+    pub fn get_event(env: Env, _storage: Address, event_id: u64) -> Option<events::StoredEvent> {
+        event_store::get_event(&env, event_id)
+    }
+
+    pub fn get_event_count(env: Env, _storage: Address, subscription_id: u64) -> u64 {
+        event_store::get_event_count(&env, subscription_id)
+    }
+
+    pub fn reconstruct_subscription_state(
+        env: Env,
+        _storage: Address,
+        subscription_id: u64,
+    ) -> Option<Subscription> {
+        state::reconstruct_state(&env, subscription_id)
+    }
+
+    pub fn reconstruct_subscription_state_at(
+        env: Env,
+        _storage: Address,
+        subscription_id: u64,
+        target_timestamp: u64,
+    ) -> Option<Subscription> {
+        state::reconstruct_state_at(&env, subscription_id, target_timestamp)
+    }
+
+    pub fn export_events(
+        env: Env,
+        _storage: Address,
+        proxy: Address,
+        _merchant: Address,
+        plan_id: u64,
+        start_time: u64,
+        end_time: u64,
+    ) -> Result<Vec<events::StoredEvent>, errors::ContractError> {
+        proxy.require_auth();
+        let range = TimeRange {
+            start: start_time,
+            end: end_time,
+        };
+        event_store::export_events(&env, plan_id, range)
+    }
+
+    // ── Billing Schedules ──
+
+    pub fn set_billing_schedule(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscription_id: u64,
+        interval: subtrackr_types::Interval,
+        start_date: u64,
+        trial_period_days: u32,
+        promotional_rate: i128,
+        promotional_duration_days: u32,
+        custom_invoice_day: u32,
+    ) {
+        proxy.require_auth();
+        let sub: Subscription =
+            storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
+                .expect("Subscription not found");
+        sub.subscriber.require_auth();
+
+        let schedule = subtrackr_types::BillingSchedule {
+            interval,
+            start_date,
+            trial_period_days,
+            promotional_rate,
+            promotional_duration_days,
+            custom_invoice_day,
+        };
+        billing::set_billing_schedule(&env, subscription_id, &schedule);
+    }
+
+    pub fn get_billing_schedule(
+        env: Env,
+        _storage: Address,
+        subscription_id: u64,
+    ) -> Option<subtrackr_types::BillingSchedule> {
+        billing::get_billing_schedule(&env, subscription_id)
+    }
+
+    pub fn get_billing_preview(
+        env: Env,
+        _storage: Address,
+        subscription_id: u64,
+        price: i128,
+        periods: u32,
+    ) -> Vec<billing::BillingPreviewItem> {
+        let schedule = billing::get_billing_schedule(&env, subscription_id).unwrap_or(
+            subtrackr_types::BillingSchedule {
+                interval: subtrackr_types::Interval::Monthly,
+                start_date: 0,
+                trial_period_days: 0,
+                promotional_rate: 0,
+                promotional_duration_days: 0,
+                custom_invoice_day: 0,
+            },
+        );
+        let now = env.ledger().timestamp();
+        billing::get_billing_preview(&env, &schedule, price, now, periods)
+    }
+
+    // ── Multi-step Charging with Retry ──
+
+    pub fn start_charge(
+        env: Env,
+        _storage: Address,
+        subscription_id: u64,
+        amount: i128,
+    ) -> subtrackr_types::ChargeAttempt {
+        charging::start_charge(&env, subscription_id, amount)
+    }
+
+    pub fn retry_charge(
+        env: Env,
+        _storage: Address,
+        charge_id: u64,
+    ) -> Option<subtrackr_types::ChargeAttempt> {
+        let config = charging::default_retry_config();
+        charging::retry_charge(&env, charge_id, &config)
+    }
+
+    pub fn get_charge_history(
+        env: Env,
+        _storage: Address,
+        subscription_id: u64,
+    ) -> Vec<subtrackr_types::ChargeAttempt> {
+        charging::get_charge_history(&env, subscription_id)
+    }
+
+    pub fn abort_charge(env: Env, _storage: Address, proxy: Address, charge_id: u64) {
+        proxy.require_auth();
+        let mut attempt =
+            charging::get_charge_attempt(&env, charge_id).expect("Charge attempt not found");
+        charging::abort_charge(&env, &mut attempt);
+    }
 }
 
-//  Proration & Plan Changes 
+//  Proration & Plan Changes
 
 /// Preview proration before confirming a plan change
 pub fn preview_proration(
@@ -1523,21 +2100,22 @@ pub fn preview_proration(
     effective_date: u64, // 0 = Immediate, 1 = EndOfPeriod
 ) -> ProrationResult {
     proxy.require_auth();
-    
-    let sub: Subscription = storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
-        .expect("Subscription not found");
-    
+
+    let sub: Subscription =
+        storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
+            .expect("Subscription not found");
+
     let old_plan: Plan = storage_persistent_get(&env, &storage, StorageKey::Plan(sub.plan_id))
         .expect("Old plan not found");
     let new_plan: Plan = storage_persistent_get(&env, &storage, StorageKey::Plan(new_plan_id))
         .expect("New plan not found");
-    
+
     let effective = if effective_date == 0 {
         EffectiveDate::Immediate
     } else {
         EffectiveDate::EndOfPeriod
     };
-    
+
     proration::preview_proration(&env, &sub, old_plan.price, new_plan.price, effective)
 }
 
@@ -1553,31 +2131,36 @@ pub fn change_plan(
 ) {
     proxy.require_auth();
     subscriber.require_auth();
-    
-    let mut sub: Subscription = storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
-        .expect("Subscription not found");
-    
-    assert!(sub.subscriber == subscriber, "Only subscriber can change plan");
+
+    let mut sub: Subscription =
+        storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
+            .expect("Subscription not found");
+
+    assert!(
+        sub.subscriber == subscriber,
+        "Only subscriber can change plan"
+    );
     assert!(
         sub.status == SubscriptionStatus::Active || sub.status == SubscriptionStatus::Paused,
         "Subscription must be active to change plan"
     );
-    
+
     let old_plan: Plan = storage_persistent_get(&env, &storage, StorageKey::Plan(sub.plan_id))
         .expect("Old plan not found");
     let new_plan: Plan = storage_persistent_get(&env, &storage, StorageKey::Plan(new_plan_id))
         .expect("New plan not found");
-    
+
     assert!(new_plan.active, "New plan is not active");
-    
+
     let effective = if effective_date == 0 {
         EffectiveDate::Immediate
     } else {
         EffectiveDate::EndOfPeriod
     };
-    
-    let proration_result = proration::calculate_proration(&env, &sub, old_plan.price, new_plan.price, effective);
-    
+
+    let proration_result =
+        proration::calculate_proration(&env, &sub, old_plan.price, new_plan.price, effective);
+
     // Handle proration payment or credit
     if proration_result.amount > 0 {
         if proration_result.is_credit {
@@ -1604,47 +2187,48 @@ pub fn change_plan(
             );
         }
     }
-    
+
     // Update subscription
     let now = env.ledger().timestamp();
-    
+
     if effective == EffectiveDate::Immediate {
         // Reset billing cycle from now
         sub.last_charged_at = now;
         sub.next_charge_at = now + new_plan.interval.seconds();
     }
     // For EndOfPeriod, keep current billing dates
-    
+
     sub.plan_id = new_plan_id;
-    sub.total_paid += if proration_result.is_credit { 0 } else { proration_result.amount };
-    
+    sub.total_paid += if proration_result.is_credit {
+        0
+    } else {
+        proration_result.amount
+    };
+
     storage_persistent_set(
         &env,
         &storage,
         StorageKey::Subscription(subscription_id),
         sub.clone(),
     );
-    
+
     // Update user plan index
     remove_user_plan_index(&env, &storage, &subscriber, old_plan.id);
     set_user_plan_index(&env, &storage, &subscriber, new_plan_id, subscription_id);
-    
+
     // Update plan subscriber counts
     let mut old_plan_mut = old_plan.clone();
     if old_plan_mut.subscriber_count > 0 {
         old_plan_mut.subscriber_count -= 1;
     }
     storage_persistent_set(&env, &storage, StorageKey::Plan(old_plan.id), old_plan_mut);
-    
+
     let mut new_plan_mut = new_plan.clone();
     new_plan_mut.subscriber_count += 1;
     storage_persistent_set(&env, &storage, StorageKey::Plan(new_plan_id), new_plan_mut);
-    
+
     env.events().publish(
-        (
-            String::from_str(&env, "plan_changed"),
-            subscription_id,
-        ),
+        (String::from_str(&env, "plan_changed"), subscription_id),
         (
             subscriber,
             old_plan.id,
@@ -1652,6 +2236,24 @@ pub fn change_plan(
             proration_result.amount,
             proration_result.is_credit,
         ),
+    );
+
+    let event_type = if new_plan.price >= old_plan.price {
+        events::SubscriptionEventType::Upgraded
+    } else {
+        events::SubscriptionEventType::Downgraded
+    };
+    let metadata = event_store::build_event_metadata(&env, &subscriber);
+    event_store::record_event(
+        &env,
+        subscription_id,
+        new_plan_id,
+        event_type,
+        metadata,
+        &sub.status,
+        &sub.status,
+        new_plan_id,
+        proration_result.amount,
     );
 }
 
@@ -1674,21 +2276,28 @@ pub fn apply_credit_memo_to_charge(
     subscription_id: u64,
 ) -> i128 {
     proxy.require_auth();
-    
-    let mut sub: Subscription = storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
-        .expect("Subscription not found");
-    
-    let mut memo: CreditMemo = storage_persistent_get(&env, &storage, StorageKey::CreditMemo(subscription_id))
-        .expect("No credit memo found");
-    
+
+    let mut sub: Subscription =
+        storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
+            .expect("Subscription not found");
+
+    let mut memo: CreditMemo =
+        storage_persistent_get(&env, &storage, StorageKey::CreditMemo(subscription_id))
+            .expect("No credit memo found");
+
     let plan: Plan = storage_persistent_get(&env, &storage, StorageKey::Plan(sub.plan_id))
         .expect("Plan not found");
-    
+
     let charge_price = Self::resolve_charge_price(&env, &storage, &plan);
     let final_charge = proration::apply_credit_memo(charge_price, &mut memo);
-    
+
     // Update stored memo
-    storage_persistent_set(&env, &storage, StorageKey::CreditMemo(subscription_id), memo);
-    
+    storage_persistent_set(
+        &env,
+        &storage,
+        StorageKey::CreditMemo(subscription_id),
+        memo,
+    );
+
     final_charge
 }

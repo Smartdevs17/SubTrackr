@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { asyncStorageAdapter } from '../utils/storage';
 import NetInfo, { NetInfoSubscription } from '@react-native-community/netinfo';
 
 import walletServiceManager from '../services/walletService';
@@ -394,7 +394,7 @@ export const useTransactionQueueStore = create<TransactionQueueState>()(
     {
       name: STORAGE_KEY,
       version: 1,
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => asyncStorageAdapter),
       partialize: (state) => ({ queuedTransactions: state.queuedTransactions }),
       onRehydrateStorage: () => () => {
         void useTransactionQueueStore.getState().refreshConnectivity();
