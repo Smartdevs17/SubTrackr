@@ -46,8 +46,8 @@ export const StatCard: React.FC<StatCardProps> = ({ label, value, trend, trendDi
     trendDirection === 'up'
       ? colors.success
       : trendDirection === 'down'
-      ? colors.error
-      : colors.textSecondary;
+        ? colors.error
+        : colors.textSecondary;
 
   return (
     <Card style={styles.statCard}>

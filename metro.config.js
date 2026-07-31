@@ -2,61 +2,77 @@ const { getDefaultConfig } = require('expo/metro-config');
 
 const config = getDefaultConfig(__dirname);
 
-// ─── Tree-shaking / minification ─────────────────────────────────────────────
-// Enable minification in production so unused code paths are removed by the
-// Metro bundler's inline-requires and dead-code-elimination passes.
 config.transformer = {
   ...config.transformer,
-  // Inline requires defers module evaluation until first use — this effectively
-  // implements lazy loading for heavy modules (ethers, stellar-sdk, etc.)
-  // and removes them from the critical path entirely when not needed.
+  experimentalImportBundleSupport: true,
+  hermesEnabled: true,
+  unstable_transformImportMeta: true,
   getTransformOptions: async () => ({
     transform: {
-      experimentalImportSupport: false,
+      experimentalImportSupport: true,
       inlineRequires: true,
     },
   }),
 };
 
-// ─── Resolver: platform-specific module aliases ───────────────────────────────
-// Prefer the ES-module (tree-shakeable) entry point for libraries that ship
-// both CJS and ESM builds.
-config.resolver = {
-  ...config.resolver,
-  // Prioritise .mjs then .js so bundler picks up ESM where available
-  sourceExts: ['mjs', 'js', 'jsx', 'ts', 'tsx', 'cjs', 'json'],
-};
-
-// ─── Bundle analyser ──────────────────────────────────────────────────────────
-// Run:  EXPO_BUNDLE_ANALYZE=true npx expo export
-// Then: npx react-native-bundle-visualizer
-// Or:   npx metro-viz  (if installed)
-//
-// We wire this through an env flag so CI stays fast.
-if (process.env.EXPO_BUNDLE_ANALYZE === 'true') {
-  // metro-bundle-analyzer serialises a stats JSON alongside the bundle
-  const { MetroBundleAnalyzerPlugin } = (() => {
-    try {
-      return require('metro-bundle-analyzer');
-    } catch {
-      console.warn(
-        '[metro] metro-bundle-analyzer not installed. ' +
-        'Run: npm install --save-dev metro-bundle-analyzer'
-      );
-      return { MetroBundleAnalyzerPlugin: null };
-    }
-  })();
-
-  if (MetroBundleAnalyzerPlugin) {
-    config.serializer = {
-      ...config.serializer,
-      customSerializer: MetroBundleAnalyzerPlugin.createSerializer({
-        enabled: true,
-        openAnalyzer: false,           // don't auto-open browser in CI
-        fileName: 'bundle-stats.json', // output alongside dist/
-      }),
-    };
+if (process.env.NODE_ENV === 'production') {
+  config.transformer.minifierConfig = {
+    compress: {
+      drop_console: true,
+      drop_debugger: true,
+      pure_funcs: ['console.info', 'console.debug', 'console.trace'],
+    },
+  };
+  try {
+    const hermesSerializer = require('@shopify/metro-serializer-hermes');
+    config.serializer.customSerializer = hermesSerializer.serializer;
+  } catch (e) {
+    // Serializer not available, continue without it
   }
 }
+
+config.resolver.sourceExts = [...config.resolver.sourceExts, 'mjs'];
+config.resolver.unstable_enablePackageExports = true;
+
+// Exclude non-bundle directories from Metro bundling
+config.resolver.blockList = [
+  /backend\/.*/,
+  /app\/.*/,
+  /developer-portal\/.*/,
+  /contracts\/.*/,
+  /chaos\/.*/,
+  /sandbox\/.*/,
+  /ml-service\/.*/,
+  /src\/design-system\/.*/,
+];
+
+// ── CDN asset configuration ────────────────────────────────────────────────────
+// Assets served from Expo CDN get long-lived immutable Cache-Control headers.
+// The content hash in the asset filename ensures cache invalidation on change.
+config.transformer.assetPlugins = config.transformer.assetPlugins || [];
+
+// Ensure all static asset file types are covered
+config.resolver.assetExts = [
+  ...(config.resolver.assetExts || []),
+  'png',
+  'jpg',
+  'jpeg',
+  'gif',
+  'webp',
+  'svg',
+  'ttf',
+  'otf',
+  'woff',
+  'woff2',
+  'mp4',
+  'mov',
+  'mp3',
+  'wav',
+  'lottie',
+  'json',
+];
+
+// Asset hash in filename for cache-busting (Metro default behaviour; explicit here for clarity)
+config.transformer.assetRegistryPath = 'react-native/Libraries/Image/AssetRegistry';
 
 module.exports = config;

@@ -77,13 +77,7 @@ interface ErrorCardProps {
   inline?: boolean;
 }
 
-const ErrorCard: React.FC<ErrorCardProps> = ({
-  title,
-  message,
-  suggestions,
-  onRetry,
-  inline,
-}) => {
+const ErrorCard: React.FC<ErrorCardProps> = ({ title, message, suggestions, onRetry, inline }) => {
   const content = (
     <View style={styles.errorCard}>
       <Text style={styles.errorIcon} accessibilityElementsHidden>
@@ -146,11 +140,7 @@ export const AsyncStateView: React.FC<AsyncStateViewProps> = ({
       if (skeleton) return <>{skeleton}</>;
       return (
         <View style={styles.spinnerContainer} testID={testID ? `${testID}-loading` : undefined}>
-          <ActivityIndicator
-            size="large"
-            color={colors.primary}
-            accessibilityLabel="Loading"
-          />
+          <ActivityIndicator size="large" color={colors.primary} accessibilityLabel="Loading" />
         </View>
       );
 

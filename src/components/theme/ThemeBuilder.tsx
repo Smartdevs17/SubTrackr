@@ -21,7 +21,7 @@ const COLOR_FIELDS: { key: 'primary' | 'secondary' | 'accent'; label: string }[]
 /** Full theme builder: pick built-in themes, toggle mode, or create a brand theme */
 export const ThemeBuilder: React.FC = () => {
   const theme = useTheme();
-  const { allThemes, toggleMode, addBrandTheme, removeCustomTheme, customThemes } = useThemeStore();
+  const { allThemes, addBrandTheme, removeCustomTheme, customThemes } = useThemeStore();
   const c = theme.colors;
 
   const [brandName, setBrandName] = useState('');
@@ -51,7 +51,7 @@ export const ThemeBuilder: React.FC = () => {
           styles.toggleBtn,
           { backgroundColor: c.background.card, borderColor: c.border.default },
         ]}
-        onPress={toggleMode}
+        onPress={theme.toggleTheme}
         accessibilityRole="button"
         accessibilityLabel={`Switch to ${theme.mode === 'dark' ? 'light' : 'dark'} mode`}>
         <Text style={[styles.toggleText, { color: c.text.primary }]}>
@@ -90,8 +90,8 @@ export const ThemeBuilder: React.FC = () => {
           accessibilityLabel="Brand theme name"
         />
         {COLOR_FIELDS.map(({ key, label }) => (
-            <View key={key} style={styles.colorRow}>
-              <View style={[styles.colorDot, { backgroundColor: brandColors[key] }]} />
+          <View key={key} style={styles.colorRow}>
+            <View style={[styles.colorDot, { backgroundColor: brandColors[key] }]} />
             <Text style={[styles.colorLabel, { color: c.text.primary }]}>{label}</Text>
             <TextInput
               style={[

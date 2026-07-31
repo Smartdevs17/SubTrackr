@@ -1,6 +1,14 @@
 import { renderHook, act, waitFor } from '@testing-library/react-native';
 import { useSubscriptionStore } from '../../store/subscriptionStore';
 import { useRefresh } from '../../hooks/useRefresh';
+import { BillingCycle, SubscriptionCategory } from '../../types/subscription';
+
+jest.mock('../../services/notificationService', () => ({
+  syncRenewalReminders: jest.fn(() => Promise.resolve()),
+  presentChargeSuccessNotification: jest.fn(() => Promise.resolve()),
+  presentChargeFailedNotification: jest.fn(() => Promise.resolve()),
+  presentLocalNotification: jest.fn(() => Promise.resolve()),
+}));
 
 /**
  * Test suite for pull-to-refresh race condition fix
@@ -12,6 +20,8 @@ import { useRefresh } from '../../hooks/useRefresh';
  */
 
 describe('HomeScreen - Pull-to-Refresh Race Condition Fix', () => {
+  let storeResult: any;
+
   beforeEach(() => {
     // Reset store state before each test
     useSubscriptionStore.setState({
@@ -19,6 +29,8 @@ describe('HomeScreen - Pull-to-Refresh Race Condition Fix', () => {
       isLoading: false,
       error: null,
     });
+    const { result } = renderHook(() => useSubscriptionStore());
+    storeResult = result;
   });
 
   describe('Acceptance Criteria', () => {
@@ -40,9 +52,7 @@ describe('HomeScreen - Pull-to-Refresh Race Condition Fix', () => {
       expect(result.current.refreshing).toBe(false);
     });
 
-    test('AC2: No stale data shown - refreshSubscriptions fetches before clearing', async () => {
-      const { result: storeResult } = renderHook(() => useSubscriptionStore());
-
+    test('AC2: No stale data shown - fetchSubscriptions fetches before clearing', async () => {
       // Set initial subscriptions
       act(() => {
         useSubscriptionStore.setState({
@@ -50,9 +60,10 @@ describe('HomeScreen - Pull-to-Refresh Race Condition Fix', () => {
             {
               id: '1',
               name: 'Old Subscription',
+              category: SubscriptionCategory.OTHER,
               price: 10,
               currency: 'USD',
-              billingCycle: 'monthly',
+              billingCycle: BillingCycle.MONTHLY,
               nextBillingDate: new Date(),
               isActive: true,
               notificationsEnabled: true,
@@ -64,9 +75,9 @@ describe('HomeScreen - Pull-to-Refresh Race Condition Fix', () => {
         });
       });
 
-      // Call refreshSubscriptions
+      // Call fetchSubscriptions
       await act(async () => {
-        await storeResult.current.refreshSubscriptions();
+        await storeResult.current.fetchSubscriptions();
       });
 
       // Verify loading state was set and cleared properly
@@ -76,7 +87,6 @@ describe('HomeScreen - Pull-to-Refresh Race Condition Fix', () => {
     });
 
     test('AC3: Loading state is correct during refresh', async () => {
-      const { result: storeResult } = renderHook(() => useSubscriptionStore());
       const { result: refreshResult } = renderHook(() => useRefresh());
 
       const loadingStates: boolean[] = [];
@@ -121,7 +131,6 @@ describe('HomeScreen - Pull-to-Refresh Race Condition Fix', () => {
 
   describe('Race Condition Scenarios', () => {
     test('Scenario 1: User pulls to refresh while data is loading', async () => {
-      const { result: storeResult } = renderHook(() => useSubscriptionStore());
       const { result: refreshResult } = renderHook(() => useRefresh());
 
       const fetchDuration = 200;
@@ -169,7 +178,6 @@ describe('HomeScreen - Pull-to-Refresh Race Condition Fix', () => {
     });
 
     test('Scenario 3: Error during refresh does not leave infinite loading state', async () => {
-      const { result: storeResult } = renderHook(() => useSubscriptionStore());
       const { result: refreshResult } = renderHook(() => useRefresh());
 
       const testError = new Error('Fetch failed');
@@ -193,14 +201,13 @@ describe('HomeScreen - Pull-to-Refresh Race Condition Fix', () => {
 
   describe('State Consistency', () => {
     test('Subscriptions state remains consistent after refresh', async () => {
-      const { result: storeResult } = renderHook(() => useSubscriptionStore());
-
       const initialSub = {
         id: '1',
         name: 'Test Sub',
+        category: SubscriptionCategory.OTHER,
         price: 9.99,
         currency: 'USD',
-        billingCycle: 'monthly' as const,
+        billingCycle: BillingCycle.MONTHLY,
         nextBillingDate: new Date(),
         isActive: true,
         notificationsEnabled: true,
@@ -216,7 +223,7 @@ describe('HomeScreen - Pull-to-Refresh Race Condition Fix', () => {
       const beforeRefresh = storeResult.current.subscriptions.length;
 
       await act(async () => {
-        await storeResult.current.refreshSubscriptions();
+        await storeResult.current.fetchSubscriptions();
       });
 
       const afterRefresh = storeResult.current.subscriptions.length;

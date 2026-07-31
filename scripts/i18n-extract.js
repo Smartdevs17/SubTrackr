@@ -19,20 +19,20 @@
  *   node scripts/i18n-extract.js --report-only  # never exits with code 1 (CI info only)
  */
 
-const fs   = require('fs');
+const fs = require('fs');
 const path = require('path');
 
-const SRC_DIR      = path.resolve(__dirname, '../src');
-const LOCALES_DIR  = path.resolve(__dirname, '../src/i18n/locales');
-const LOCALES      = ['en', 'hi', 'ar'];
-const FIX_MODE     = process.argv.includes('--fix');
-const REPORT_ONLY  = process.argv.includes('--report-only');
+const SRC_DIR = path.resolve(__dirname, '../src');
+const LOCALES_DIR = path.resolve(__dirname, '../src/i18n/locales');
+const LOCALES = ['en', 'hi', 'ar'];
+const FIX_MODE = process.argv.includes('--fix');
+const REPORT_ONLY = process.argv.includes('--report-only');
 
 // ── 1. Extract keys from source code ─────────────────────────────────────────
 
 const KEY_PATTERNS = [
-  /\bt\(\s*['"`]([^'"`]+)['"`]/g,            // t('key')
-  /i18n\.t\(\s*['"`]([^'"`]+)['"`]/g,        // i18n.t('key')
+  /\bt\(\s*['"`]([^'"`]+)['"`]/g, // t('key')
+  /i18n\.t\(\s*['"`]([^'"`]+)['"`]/g, // i18n.t('key')
   /useTranslation.*?\bt\(\s*['"`]([^'"`]+)['"`]/gs, // useTranslation hook
 ];
 
@@ -56,7 +56,7 @@ function walkDir(dir, ext = ['.ts', '.tsx', '.js', '.jsx']) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
       for (const k of walkDir(full, ext)) results.add(k);
-    } else if (entry.isFile() && ext.some(e => full.endsWith(e))) {
+    } else if (entry.isFile() && ext.some((e) => full.endsWith(e))) {
       for (const k of extractKeysFromFile(full)) results.add(k);
     }
   }
@@ -101,20 +101,20 @@ function saveLocale(lang, data) {
   console.log(`  ✔ Saved ${filePath}`);
 }
 
-const codeKeys  = walkDir(SRC_DIR);
-const enLocale  = loadLocale('en');
-const enFlat    = flatten(enLocale);
-const enKeys    = new Set(Object.keys(enFlat));
+const codeKeys = walkDir(SRC_DIR);
+const enLocale = loadLocale('en');
+const enFlat = flatten(enLocale);
+const enKeys = new Set(Object.keys(enFlat));
 
-const newKeys    = [...codeKeys].filter(k => !enKeys.has(k));
-const unusedKeys = [...enKeys].filter(k => !codeKeys.has(k));
+const newKeys = [...codeKeys].filter((k) => !enKeys.has(k));
+const unusedKeys = [...enKeys].filter((k) => !codeKeys.has(k));
 
 let hasIssues = false;
 
 // Report new keys (in code, missing from en.json)
 if (newKeys.length > 0) {
   console.warn(`\n⚠  ${newKeys.length} key(s) used in code but missing from en.json:`);
-  newKeys.forEach(k => console.warn(`   - ${k}`));
+  newKeys.forEach((k) => console.warn(`   - ${k}`));
   hasIssues = true;
   if (FIX_MODE) {
     for (const key of newKeys) {
@@ -130,18 +130,18 @@ if (newKeys.length > 0) {
 // Report unused keys (in en.json, not used in code)
 if (unusedKeys.length > 0) {
   console.warn(`\n⚠  ${unusedKeys.length} key(s) in en.json are not used in the codebase:`);
-  unusedKeys.forEach(k => console.warn(`   - ${k}`));
+  unusedKeys.forEach((k) => console.warn(`   - ${k}`));
   // Unused keys are a warning, not a hard failure
 }
 
 // Report per-locale missing keys
-for (const lang of LOCALES.filter(l => l !== 'en')) {
-  const loc    = loadLocale(lang);
-  const flat   = flatten(loc);
-  const missing = [...enKeys].filter(k => !(k in flat));
+for (const lang of LOCALES.filter((l) => l !== 'en')) {
+  const loc = loadLocale(lang);
+  const flat = flatten(loc);
+  const missing = [...enKeys].filter((k) => !(k in flat));
   if (missing.length > 0) {
     console.warn(`\n⚠  ${missing.length} key(s) missing from ${lang}.json:`);
-    missing.forEach(k => console.warn(`   - ${k}`));
+    missing.forEach((k) => console.warn(`   - ${k}`));
     hasIssues = true;
     if (FIX_MODE) {
       const locData = loadLocale(lang);

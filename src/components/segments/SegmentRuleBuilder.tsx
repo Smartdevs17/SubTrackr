@@ -112,7 +112,10 @@ export const SegmentRuleBuilder: React.FC<SegmentRuleBuilderProps> = ({
                       { borderColor: theme.colors.border.default },
                     ]}>
                     <Text
-                      style={[styles.chipText, rule.field === f.value && { color: theme.colors.onPrimary }]}>
+                      style={[
+                        styles.chipText,
+                        rule.field === f.value && { color: theme.colors.onPrimary },
+                      ]}>
                       {f.label}
                     </Text>
                   </TouchableOpacity>
@@ -135,7 +138,10 @@ export const SegmentRuleBuilder: React.FC<SegmentRuleBuilderProps> = ({
                       { borderColor: theme.colors.border.default },
                     ]}>
                     <Text
-                      style={[styles.chipText, rule.operator === o.value && { color: theme.colors.onPrimary }]}>
+                      style={[
+                        styles.chipText,
+                        rule.operator === o.value && { color: theme.colors.onPrimary },
+                      ]}>
                       {o.label}
                     </Text>
                   </TouchableOpacity>

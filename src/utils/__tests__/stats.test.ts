@@ -27,7 +27,9 @@ describe('toMonthlyPrice', () => {
   });
 
   it('multiplies by weeks-per-month for weekly', () => {
-    expect(toMonthlyPrice(10, BillingCycle.WEEKLY)).toBeCloseTo(10 * BILLING_CONVERSIONS.WEEKS_PER_MONTH);
+    expect(toMonthlyPrice(10, BillingCycle.WEEKLY)).toBeCloseTo(
+      10 * BILLING_CONVERSIONS.WEEKS_PER_MONTH
+    );
   });
 
   it('returns price as-is for custom', () => {
