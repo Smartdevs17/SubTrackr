@@ -106,7 +106,7 @@
     "expo-image": "~2.3.0",
     "expo-linking": "~7.1.7",
     "expo-notifications": "^0.31.5",
-    "expo-status-bar": "~2.2.3",
+    "expo-status-bar": "~57.0.1",
     "express": "^5.2.1",
     "graphql": "^16.13.2",
     "graphql-http": "^1.22.4",
