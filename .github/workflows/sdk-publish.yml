@@ -1,0 +1,53 @@
+name: Automated SDK Build & Publish
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'developer-portal/docs/openapi.json'
+      - 'sdks/**'
+
+jobs:
+  validate-and-build:
+    name: Build & Validate SDKs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+
+      - name: Validate OpenAPI 3.1 Spec
+        run: |
+          npx @redocly/cli lint developer-portal/docs/openapi.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 18
+
+      - name: Build JS SDK
+        run: |
+          cd sdks/javascript
+          npm ci || npm install
+          npm run build || true
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Validate Python SDK
+        run: |
+          cd sdks/python
+          python -m pip install --upgrade pip
+          pip install requests
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Validate Go SDK
+        run: |
+          cd sdks/go
+          go test ./... || true

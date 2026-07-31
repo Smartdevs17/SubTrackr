@@ -5,6 +5,7 @@ import * as path from 'path';
 type BaselineMap = Record<string, string>;
 
 const baselineFile = path.resolve(__dirname, '../fixtures/visual-baselines.json');
+const diffDir = path.resolve(__dirname, '../../artifacts/visual-diffs');
 
 const readBaselines = (): BaselineMap => {
   if (!fs.existsSync(baselineFile)) return {};
@@ -30,6 +31,24 @@ export const assertVisualSnapshot = (name: string, screenshotPath: string) => {
     baselines[name] = currentHash;
     writeBaselines(baselines);
     return;
+  }
+
+  if (currentHash !== baselines[name]) {
+    fs.mkdirSync(diffDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(diffDir, `${name}.json`),
+      JSON.stringify(
+        {
+          name,
+          baselineHash: baselines[name],
+          currentHash,
+          screenshotPath,
+          capturedAt: new Date().toISOString(),
+        },
+        null,
+        2
+      )
+    );
   }
 
   expect(currentHash).toBe(baselines[name]);

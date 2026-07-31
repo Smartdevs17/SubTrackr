@@ -1,7 +1,11 @@
+import { ChainType } from './wallet';
+
 export interface Subscription {
   id: string;
   name: string;
   description?: string;
+  /** Optional remote URL for the subscription's icon image */
+  iconUrl?: string;
   category: SubscriptionCategory;
   price: number;
   currency: string;
@@ -18,8 +22,41 @@ export interface Subscription {
   totalGasSpent?: number;
   chargeCount?: number;
   lastGasCost?: number;
+  /** Oracle-sourced fiat equivalent price for display purposes */
+  fiatPrice?: number;
+  fiatCurrency?: string;
+  fiatPriceUpdatedAt?: Date;
+  oraclePriceDeviationBps?: number;
+  groupId?: string;
+  groupMemberAddress?: string;
+  timezone?: string;
+  /** Chain information for multi-chain support (default: EVM/Ethereum) */
+  chainType?: ChainType;
+  chainId?: number;
+  /** Cross-chain subscription transfer state */
+  crossChainTransfer?: CrossChainTransfer;
+  /** Unified billing aggregation */
+  billingAggregationId?: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface CrossChainTransfer {
+  sourceChainType: ChainType;
+  sourceChainId: number;
+  targetChainType: ChainType;
+  targetChainId: number;
+  status: 'pending' | 'approved' | 'completed' | 'failed';
+  initiatedAt: Date;
+  completedAt?: Date;
+  transferFee?: number;
+}
+
+export interface UnifiedSubscriptionFilter {
+  chainType?: ChainType;
+  chainId?: number;
+  status?: 'active' | 'paused' | 'cancelled';
+  searchQuery?: string;
 }
 
 export enum SubscriptionCategory {
@@ -72,6 +109,14 @@ export interface SubscriptionFormData {
   isCryptoEnabled: boolean;
   cryptoToken?: string;
   cryptoAmount?: number;
+  /** Chain selection for multi-chain support (default: EVM/Ethereum) */
+  chainType?: ChainType;
+  chainId?: number;
+}
+
+export interface ChainSpendBreakdown {
+  stellar: number;
+  evm: Record<number, number>;
 }
 
 export interface SubscriptionStats {
@@ -80,4 +125,11 @@ export interface SubscriptionStats {
   totalYearlySpend: number;
   categoryBreakdown: Record<SubscriptionCategory, number>;
   totalGasSpent?: number;
+  totalFiatMonthlySpend?: number;
+  fiatCurrency?: string;
+  /** Cross-chain spend breakdown */
+  chainBreakdown?: ChainSpendBreakdown;
+  /** Total spend across all chains */
+  crossChainTotalMonthlySpend?: number;
+  crossChainTotalYearlySpend?: number;
 }

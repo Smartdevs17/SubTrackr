@@ -1,11 +1,24 @@
 import {
+  BillingAllocationStrategy,
+  CustomBillingWeights,
   GroupAnalytics,
   GroupChargeResult,
   GroupConfig,
   GroupInvite,
   GroupMember,
+  GroupMemberRole,
   GroupPlanSharingRules,
+  MemberBillingAllocation,
   SubscriptionGroup,
+} from '../types/group';
+import { allocateMemberBilling, applyAllocationToMembers } from './groupBillingAllocation';
+
+export { allocateMemberBilling, applyAllocationToMembers } from './groupBillingAllocation';
+export type {
+  BillingAllocationStrategy,
+  CustomBillingWeights,
+  MemberBillingAllocation,
+  MemberBillingAllocationItem,
 } from '../types/group';
 
 const createId = (prefix: string): string =>
@@ -22,6 +35,7 @@ export const createSubscriptionGroup = (owner: string, config: GroupConfig): Sub
   const ownerMember: GroupMember = {
     address: owner,
     role: 'owner',
+    permissions: ['invite', 'remove', 'billing', 'analytics'],
     joinedAt: now,
     outstandingBalance: 0,
     usageUnits: 0,
@@ -78,12 +92,14 @@ export const joinGroupWithInvite = (
   const invite = group.invites.find((entry) => entry.id === inviteId);
   if (!invite || invite.status !== 'pending') throw new Error('Invite is not available');
   if (invite.expiresAt.getTime() < Date.now()) throw new Error('Invite has expired');
-  if (group.members.length >= group.planSharingRules.seatLimit) throw new Error('Member limit reached');
+  if (group.members.length >= group.planSharingRules.seatLimit)
+    throw new Error('Member limit reached');
 
   const member: GroupMember = {
     address: invite.inviteeAddress,
     displayName,
     role: 'member',
+    permissions: ['view'],
     joinedAt: new Date(),
     outstandingBalance: 0,
     usageUnits: 0,
@@ -99,8 +115,12 @@ export const joinGroupWithInvite = (
   };
 };
 
-export const removeGroupMember = (group: SubscriptionGroup, memberAddress: string): SubscriptionGroup => {
-  if (memberAddress === group.owner) throw new Error('Transfer ownership before removing the owner');
+export const removeGroupMember = (
+  group: SubscriptionGroup,
+  memberAddress: string
+): SubscriptionGroup => {
+  if (memberAddress === group.owner)
+    throw new Error('Transfer ownership before removing the owner');
 
   const member = group.members.find((entry) => entry.address === memberAddress);
   if (!member) return group;
@@ -116,8 +136,9 @@ export const removeGroupMember = (group: SubscriptionGroup, memberAddress: strin
 export const chargeGroup = (group: SubscriptionGroup, amount: number): GroupChargeResult => {
   if (amount <= 0) throw new Error('Charge amount must be greater than zero');
 
+  const billableAmount = group.planSharingRules.familyPlanPrice ?? amount;
   const payer = group.planSharingRules.ownerPaysForMembers ? group.owner : 'members';
-  const memberShare = amount / Math.max(group.members.length, 1);
+  const memberShare = billableAmount / Math.max(group.members.length, 1);
   const breakdown = group.members.map((member) => ({
     memberAddress: member.address,
     amount: group.planSharingRules.ownerPaysForMembers ? 0 : Number(memberShare.toFixed(2)),
@@ -130,7 +151,7 @@ export const chargeGroup = (group: SubscriptionGroup, amount: number): GroupChar
   return {
     groupId: group.groupId,
     payer,
-    amount,
+    amount: billableAmount,
     breakdown,
     chargedAt: new Date(),
   };
@@ -143,4 +164,92 @@ export const getGroupAnalytics = (group: SubscriptionGroup): GroupAnalytics => (
   totalUsage: group.members.reduce((sum, member) => sum + member.usageUnits, 0),
   usagePoolLimit: group.planSharingRules.usagePoolLimit,
   outstandingBalance: group.members.reduce((sum, member) => sum + member.outstandingBalance, 0),
+  totalSpend: group.charges.reduce((sum, charge) => sum + charge.amount, 0),
+  memberActivity: group.members.reduce(
+    (activity, member) => ({ ...activity, [member.address]: member.usageUnits }),
+    {}
+  ),
 });
+
+export const updateGroupMemberRole = (
+  group: SubscriptionGroup,
+  memberAddress: string,
+  role: GroupMemberRole
+): SubscriptionGroup => ({
+  ...group,
+  members: group.members.map((member) =>
+    member.address === memberAddress
+      ? {
+          ...member,
+          role,
+          permissions:
+            role === 'admin'
+              ? ['invite', 'remove', 'analytics']
+              : role === 'owner'
+                ? ['invite', 'remove', 'billing', 'analytics']
+                : ['view'],
+        }
+      : member
+  ),
+  updatedAt: new Date(),
+});
+
+/** Admin helper — change a non-owner member's role with validation. */
+export const changeMemberRole = (
+  group: SubscriptionGroup,
+  memberAddress: string,
+  role: GroupMemberRole
+): SubscriptionGroup => {
+  if (role === 'owner') {
+    throw new Error('Use ownership transfer to assign the owner role');
+  }
+
+  const member = group.members.find((entry) => entry.address === memberAddress);
+  if (!member) throw new Error('Member not found');
+  if (member.address === group.owner) {
+    throw new Error('Cannot change the owner role via role change');
+  }
+
+  return updateGroupMemberRole(group, memberAddress, role);
+};
+
+/**
+ * Charge a group using an explicit allocation strategy, persist the charge,
+ * and update member outstanding balances.
+ */
+export const chargeGroupWithAllocation = (
+  group: SubscriptionGroup,
+  amount: number,
+  strategy: BillingAllocationStrategy = 'equal',
+  customWeights?: CustomBillingWeights
+): { group: SubscriptionGroup; charge: GroupChargeResult; allocation: MemberBillingAllocation } => {
+  if (amount <= 0) throw new Error('Charge amount must be greater than zero');
+
+  const billableAmount = group.planSharingRules.familyPlanPrice ?? amount;
+  const allocation = allocateMemberBilling(group, billableAmount, strategy, customWeights);
+  const payer =
+    strategy === 'owner_pays' || group.planSharingRules.ownerPaysForMembers
+      ? group.owner
+      : 'members';
+
+  const charge: GroupChargeResult = {
+    groupId: group.groupId,
+    payer,
+    amount: billableAmount,
+    breakdown: allocation.items.map((item) => ({
+      memberAddress: item.memberAddress,
+      amount: item.amount,
+      description: item.description,
+    })),
+    chargedAt: allocation.allocatedAt,
+  };
+
+  const withBalances = applyAllocationToMembers(group, allocation);
+  const updated: SubscriptionGroup = {
+    ...withBalances,
+    charges: [...withBalances.charges, charge],
+    updatedAt: new Date(),
+  };
+
+  return { group: updated, charge, allocation };
+};

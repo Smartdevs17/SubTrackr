@@ -56,38 +56,33 @@ const SandboxDashboardScreen: React.FC = () => {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <Text style={styles.title}>Sandbox Dashboard</Text>
-          <Text style={styles.subtitle}>
-            Manage your sandbox environment and test data
-          </Text>
+          <Text style={styles.subtitle}>Manage your sandbox environment and test data</Text>
         </View>
 
         <View style={styles.envSection}>
           <Text style={styles.sectionTitle}>Environment</Text>
           <View style={styles.envBar}>
-            {[SandboxEnvironment.DEVELOPMENT, SandboxEnvironment.STAGING, SandboxEnvironment.PRODUCTION].map(
-              (env) => (
-                <EnvironmentBadge
-                  key={env}
-                  environment={env}
-                  isActive={sandboxConfig.environment === env}
-                  onPress={() => switchEnvironment(env)}
-                />
-              )
-            )}
+            {[
+              SandboxEnvironment.DEVELOPMENT,
+              SandboxEnvironment.STAGING,
+              SandboxEnvironment.PRODUCTION,
+            ].map((env) => (
+              <EnvironmentBadge
+                key={env}
+                environment={env}
+                isActive={sandboxConfig.environment === env}
+                onPress={() => switchEnvironment(env)}
+              />
+            ))}
           </View>
-          <Text style={styles.envDescription}>
-            {sandboxConfig.description}
-          </Text>
+          <Text style={styles.envDescription}>{sandboxConfig.description}</Text>
         </View>
 
         <View style={styles.statsGrid}>
           <StatCard label="Test Subscriptions" value={testSubscriptions.length} />
           <StatCard label="Active" value={activeSubs.length} />
           <StatCard label="Monthly Total" value={`$${totalMonthly.toFixed(2)}`} />
-          <StatCard
-            label="API Calls"
-            value={usageStats?.totalRequests?.toLocaleString() || '0'}
-          />
+          <StatCard label="API Calls" value={usageStats?.totalRequests?.toLocaleString() || '0'} />
         </View>
 
         <Card style={styles.section}>
@@ -101,7 +96,9 @@ const SandboxDashboardScreen: React.FC = () => {
             </View>
             <View style={styles.configItem}>
               <Text style={styles.configLabel}>Max API Calls</Text>
-              <Text style={styles.configValue}>{(sandboxConfig.maxApiCalls ?? 10000).toLocaleString()}</Text>
+              <Text style={styles.configValue}>
+                {(sandboxConfig.maxApiCalls ?? 10000).toLocaleString()}
+              </Text>
             </View>
             <View style={styles.configItem}>
               <Text style={styles.configLabel}>Data Reset Interval</Text>
@@ -109,7 +106,11 @@ const SandboxDashboardScreen: React.FC = () => {
             </View>
             <View style={styles.configItem}>
               <Text style={styles.configLabel}>Status</Text>
-              <Text style={[styles.configValue, { color: sandboxConfig.isActive ? colors.success : colors.error }]}>
+              <Text
+                style={[
+                  styles.configValue,
+                  { color: sandboxConfig.isActive ? colors.success : colors.error },
+                ]}>
                 {sandboxConfig.isActive ? 'Active' : 'Inactive'}
               </Text>
             </View>
@@ -119,14 +120,14 @@ const SandboxDashboardScreen: React.FC = () => {
         <Card style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Allowed Features</Text>
-            <Text style={styles.sectionMeta}>{(sandboxConfig.allowedFeatures ?? []).length} features</Text>
+            <Text style={styles.sectionMeta}>
+              {(sandboxConfig.allowedFeatures ?? []).length} features
+            </Text>
           </View>
           <View style={styles.featureGrid}>
             {(sandboxConfig.allowedFeatures ?? []).map((feature: string) => (
               <View key={feature} style={styles.featureChip}>
-                <Text style={styles.featureChipText}>
-                  {feature.replace(/_/g, ' ')}
-                </Text>
+                <Text style={styles.featureChipText}>{feature.replace(/_/g, ' ')}</Text>
               </View>
             ))}
           </View>
@@ -164,8 +165,8 @@ const SandboxDashboardScreen: React.FC = () => {
                           sub.status === 'active'
                             ? colors.success
                             : sub.status === 'paused'
-                            ? colors.warning
-                            : colors.error,
+                              ? colors.warning
+                              : colors.error,
                       },
                     ]}>
                     <Text style={styles.statusText}>{sub.status}</Text>
@@ -208,13 +209,15 @@ const SandboxDashboardScreen: React.FC = () => {
             {(usageStats.topErrors ?? []).length > 0 && (
               <>
                 <Text style={styles.subsectionTitle}>Top Errors</Text>
-                {(usageStats.topErrors ?? []).map((error: { code: number; count: number; message: string }) => (
-                  <View key={error.code} style={styles.errorRow}>
-                    <Text style={styles.errorCode}>{error.code}</Text>
-                    <Text style={styles.errorMessage}>{error.message}</Text>
-                    <Text style={styles.errorCount}>{error.count}x</Text>
-                  </View>
-                ))}
+                {(usageStats.topErrors ?? []).map(
+                  (error: { code: number; count: number; message: string }) => (
+                    <View key={error.code} style={styles.errorRow}>
+                      <Text style={styles.errorCode}>{error.code}</Text>
+                      <Text style={styles.errorMessage}>{error.message}</Text>
+                      <Text style={styles.errorCount}>{error.count}x</Text>
+                    </View>
+                  )
+                )}
               </>
             )}
           </Card>

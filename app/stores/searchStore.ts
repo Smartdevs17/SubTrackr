@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { useSubscriptionStore } from './subscriptionStore';
+import { useSubscriptionStore } from '../../src/store/subscriptionStore';
 import { Subscription } from '../types/subscription';
 
 type Facets = {
@@ -30,7 +30,7 @@ type SearchState = {
 };
 
 export const useSearchStore = create<SearchState>()((set, get) => {
-  const { subscriptions } = require('../store/subscriptionStore').useSubscriptionStore.getState();
+  const { subscriptions } = useSubscriptionStore.getState();
   return {
     query: '',
     facets: {},
@@ -39,13 +39,13 @@ export const useSearchStore = create<SearchState>()((set, get) => {
     setQuery: (q: string) => {
       set({ query: q });
       // Basic debounce-like refresh by recalculating results on demand
-      const subState = require('../store/subscriptionStore').useSubscriptionStore.getState();
+      const subState = useSubscriptionStore.getState();
       set({ results: subState.subscriptions });
     },
     setFacets: (f: Partial<Facets>) => {
       set((state) => ({ facets: { ...state.facets, ...f } }));
       // Refresh results when facets change
-      const subState = require('../store/subscriptionStore').useSubscriptionStore.getState();
+      const subState = useSubscriptionStore.getState();
       set({ results: subState.subscriptions });
     },
     updateResults: (subs: Subscription[]) => set({ results: subs }),
