@@ -23,6 +23,8 @@ export enum DocumentType {
   ID_FRONT = 'id_front',
   ID_BACK = 'id_back',
   BUSINESS_LICENSE = 'business_license',
+  PROOF_OF_ADDRESS = 'proof_of_address',
+  TAX_DOCUMENT = 'tax_document',
 }
 
 export interface MerchantDocument {
@@ -31,6 +33,7 @@ export interface MerchantDocument {
   uri: string;
   uploadedAt: Date;
   status: 'pending' | 'approved' | 'rejected';
+  rejectionReason?: string;
 }
 
 export interface VerificationResult {
@@ -55,6 +58,8 @@ export interface MerchantOnboarding {
   startedAt: Date;
   updatedAt: Date;
   expiresAt?: Date;
+  completedSteps: OnboardingStep[];
+  notifications: OnboardingNotification[];
 }
 
 export interface MerchantOnboardingFormData {
@@ -63,4 +68,39 @@ export interface MerchantOnboardingFormData {
   country: string;
   phoneNumber: string;
   email: string;
+}
+
+export interface OnboardingNotification {
+  id: string;
+  type:
+    | 'step_completed'
+    | 'document_uploaded'
+    | 'verification_requested'
+    | 'verification_approved'
+    | 'verification_rejected'
+    | 'reminder';
+  title: string;
+  message: string;
+  createdAt: Date;
+  read: boolean;
+}
+
+export interface OnboardingAnalytics {
+  totalStarted: number;
+  totalCompleted: number;
+  totalRejected: number;
+  completionRate: number;
+  averageTimeToComplete: number;
+  dropOffByStep: Record<string, number>;
+  documentRejectionRate: number;
+  averageVerificationTime: number;
+}
+
+export interface KycVerificationRequest {
+  merchantId: string;
+  documents: MerchantDocument[];
+  businessInfo: MerchantOnboardingFormData;
+  submittedAt: Date;
+  status: 'pending' | 'in_review' | 'approved' | 'rejected';
+  reviewNotes?: string;
 }

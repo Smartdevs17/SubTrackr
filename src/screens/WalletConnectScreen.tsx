@@ -10,6 +10,8 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  Modal,
+  FlatList,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -21,6 +23,8 @@ import walletServiceManager, { WalletConnection, TokenBalance } from '../service
 import { TICKER_TO_COINGECKO_ID } from '../services/priceService';
 import { useTokenPrices } from '../hooks/useTokenPrices';
 import { useWalletStore } from '../store';
+import { useNetworkStore } from '../store/networkStore';
+import { ALL_NETWORKS, Network } from '../config/networks';
 import { RootStackParamList } from '../navigation/types';
 import { useThemeColors } from '../hooks/useThemeColors';
 
@@ -33,12 +37,14 @@ const WalletConnectScreen: React.FC = () => {
   const { open } = useAppKit();
   const { address, isConnected, chainId } = useAppKitAccount();
   const { walletProvider } = useAppKitProvider();
-  const { connectWallet, disconnect } = useWalletStore();
+  const { disconnect } = useWalletStore();
+  const { currentNetwork, setNetwork: setNetworkStore } = useNetworkStore();
 
   const [isConnecting, setIsConnecting] = useState(false);
   const [connection, setConnection] = useState<WalletConnection | null>(null);
   const [tokenBalances, setTokenBalances] = useState<TokenBalance[]>([]);
   const [isLoadingBalances, setIsLoadingBalances] = useState(false);
+  const [showNetworkPicker, setShowNetworkPicker] = useState(false);
   const tokenPriceIds = tokenBalances.map((token) => token.symbol);
   const {
     prices,
@@ -51,6 +57,18 @@ const WalletConnectScreen: React.FC = () => {
     tokenIds: tokenPriceIds,
     enabled: tokenPriceIds.length > 0,
   });
+
+  const networkMismatch = React.useMemo(() => {
+    if (!connection || !currentNetwork) return null;
+    const connectedNetwork = ALL_NETWORKS.find((n) => n.chainId === connection.chainId);
+    if (connectedNetwork && connectedNetwork.id !== currentNetwork.id) {
+      return {
+        connectedChainId: connection.chainId,
+        preferredNetwork: currentNetwork,
+      };
+    }
+    return null;
+  }, [connection, currentNetwork]);
 
   useEffect(() => {
     initializeWalletService();
@@ -66,7 +84,6 @@ const WalletConnectScreen: React.FC = () => {
       };
       setConnection(realConnection);
       walletServiceManager.setConnection(realConnection);
-      connectWallet();
       loadTokenBalances();
     } else if (!isConnected) {
       void walletServiceManager.disconnectWallet();
@@ -160,6 +177,11 @@ const WalletConnectScreen: React.FC = () => {
     } else {
       Alert.alert('Error', 'Please connect a wallet first');
     }
+  };
+
+  const handleSelectNetwork = async (network: Network) => {
+    setShowNetworkPicker(false);
+    await setNetworkStore(network.id);
   };
 
   const formatAddress = (address: string): string => {
@@ -284,6 +306,46 @@ const WalletConnectScreen: React.FC = () => {
           </View>
         ) : (
           <View style={styles.connectedSection}>
+            {/* Network Mismatch Banner (#69) */}
+            {networkMismatch && (
+              <View style={styles.mismatchBanner}>
+                <Text style={styles.mismatchIcon}>⚠️</Text>
+                <View style={styles.mismatchTextContainer}>
+                  <Text style={styles.mismatchTitle}>Network Mismatch</Text>
+                  <Text style={styles.mismatchBody}>
+                    Wallet is on {getChainName(networkMismatch.connectedChainId)}, but preferred
+                    network is {networkMismatch.preferredNetwork.name}.
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.switchNetworkButton}
+                  onPress={() => setShowNetworkPicker(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Switch preferred network">
+                  <Text style={styles.switchNetworkText}>Switch</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Network Selector (#69) */}
+            <Card variant="elevated" padding="large">
+              <View style={styles.networkSelectorRow}>
+                <View>
+                  <Text style={styles.networkSelectorLabel}>Preferred Network</Text>
+                  <Text style={styles.networkSelectorValue}>
+                    {currentNetwork?.name ?? 'Not set'}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.changeNetworkButton}
+                  onPress={() => setShowNetworkPicker(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Change preferred network">
+                  <Text style={styles.changeNetworkText}>Change</Text>
+                </TouchableOpacity>
+              </View>
+            </Card>
+
             {/* Connection Status */}
             <Card variant="elevated" padding="large">
               <View style={styles.connectionHeader}>
@@ -471,6 +533,53 @@ const WalletConnectScreen: React.FC = () => {
           </Card>
         )}
       </ScrollView>
+
+      {/* Network Picker Modal (#69) */}
+      <Modal
+        visible={showNetworkPicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowNetworkPicker(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Network</Text>
+              <TouchableOpacity
+                onPress={() => setShowNetworkPicker(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Close network picker">
+                <Text style={styles.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={ALL_NETWORKS}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.networkItem,
+                    currentNetwork?.id === item.id && styles.networkItemSelected,
+                  ]}
+                  onPress={() => handleSelectNetwork(item)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Select ${item.name}`}>
+                  <Text style={styles.networkItemIcon}>
+                    {item.type === 'stellar' ? '⭐' : '🔷'}
+                  </Text>
+                  <View style={styles.networkItemInfo}>
+                    <Text style={styles.networkItemName}>{item.name}</Text>
+                    <Text style={styles.networkItemType}>
+                      {item.type.toUpperCase()}
+                      {item.isTestnet ? ' · Testnet' : ''}
+                    </Text>
+                  </View>
+                  {currentNetwork?.id === item.id && <Text style={styles.networkItemCheck}>✓</Text>}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -571,6 +680,69 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       textAlign: 'center',
       marginTop: spacing.sm,
       fontStyle: 'italic',
+    },
+    mismatchBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.warningBackground,
+      borderRadius: borderRadius.md,
+      padding: spacing.md,
+      marginBottom: spacing.md,
+    },
+    mismatchIcon: {
+      fontSize: 24,
+      marginRight: spacing.sm,
+    },
+    mismatchTextContainer: {
+      flex: 1,
+    },
+    mismatchTitle: {
+      ...typography.caption,
+      color: colors.text.primary,
+      fontWeight: '600',
+      marginBottom: spacing.xs,
+    },
+    mismatchBody: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      fontSize: 12,
+    },
+    switchNetworkButton: {
+      backgroundColor: colors.primary,
+      borderRadius: borderRadius.md,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+    },
+    switchNetworkText: {
+      ...typography.caption,
+      color: colors.onPrimary,
+      fontWeight: '600',
+    },
+    networkSelectorRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    networkSelectorLabel: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      marginBottom: spacing.xs,
+    },
+    networkSelectorValue: {
+      ...typography.body,
+      color: colors.text.primary,
+      fontWeight: '600',
+    },
+    changeNetworkButton: {
+      backgroundColor: colors.surfaceVariant,
+      borderRadius: borderRadius.md,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+    },
+    changeNetworkText: {
+      ...typography.caption,
+      color: colors.primary,
+      fontWeight: '600',
     },
     connectionHeader: {
       flexDirection: 'row',
@@ -821,6 +993,68 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     readyIcon: {
       fontSize: 48,
       marginBottom: spacing.sm,
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: colors.overlay,
+      justifyContent: 'flex-end',
+    },
+    modalContainer: {
+      backgroundColor: colors.background.primary,
+      borderTopLeftRadius: borderRadius.xl,
+      borderTopRightRadius: borderRadius.xl,
+      maxHeight: '60%',
+      paddingBottom: spacing.xl,
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: spacing.lg,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border.default,
+    },
+    modalTitle: {
+      ...typography.h3,
+      color: colors.text.primary,
+    },
+    modalClose: {
+      fontSize: 20,
+      color: colors.textSecondary,
+      padding: spacing.sm,
+    },
+    networkItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.lg,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border.default,
+    },
+    networkItemSelected: {
+      backgroundColor: colors.surfaceVariant,
+    },
+    networkItemIcon: {
+      fontSize: 24,
+      marginRight: spacing.md,
+    },
+    networkItemInfo: {
+      flex: 1,
+    },
+    networkItemName: {
+      ...typography.body,
+      color: colors.text.primary,
+      fontWeight: '600',
+      marginBottom: spacing.xs,
+    },
+    networkItemType: {
+      ...typography.caption,
+      color: colors.textSecondary,
+    },
+    networkItemCheck: {
+      fontSize: 18,
+      color: colors.primary,
+      fontWeight: '600',
     },
   });
 }

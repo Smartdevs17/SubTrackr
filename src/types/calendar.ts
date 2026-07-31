@@ -78,6 +78,7 @@ export interface CalendarIntegration {
   connectedAt: string;
   lastSyncedAt?: string;
   reminderOffsets: number[];
+  syncSettings?: CalendarSyncSettings;
 }
 
 export type CalendarEventKind = 'billing_reminder' | 'one_time_payment';
@@ -159,6 +160,50 @@ export interface ReminderOffsetOption {
   label: string;
   offset: number;
 }
+
+export type SyncDirection = 'to_calendar' | 'from_calendar' | 'bidirectional';
+export type CalendarEventType =
+  | 'payment_due'
+  | 'payment_received'
+  | 'trial_ending'
+  | 'renewal'
+  | 'contract_end';
+export type SyncMethod = 'webhook' | 'poll';
+
+export interface CalendarSyncSettings {
+  syncDirection: SyncDirection;
+  enabledEventTypes: CalendarEventType[];
+  syncMethod: SyncMethod;
+  lastSyncResult?: {
+    syncedAt: string;
+    pushed: number;
+    pulled: number;
+    conflicts: number;
+    errors: number;
+  };
+}
+
+export const ALL_CALENDAR_EVENT_TYPES: CalendarEventType[] = [
+  'payment_due',
+  'payment_received',
+  'trial_ending',
+  'renewal',
+  'contract_end',
+];
+
+export const CALENDAR_EVENT_TYPE_LABELS: Record<CalendarEventType, string> = {
+  payment_due: 'Payment Due',
+  payment_received: 'Payment Received',
+  trial_ending: 'Trial Ending',
+  renewal: 'Renewal',
+  contract_end: 'Contract End',
+};
+
+export const SYNC_DIRECTION_LABELS: Record<SyncDirection, string> = {
+  to_calendar: 'SubTrackr → Calendar',
+  from_calendar: 'Calendar → SubTrackr',
+  bidirectional: 'Two-way sync',
+};
 
 export const CALENDAR_PROVIDERS: CalendarProvider[] = ['google', 'apple', 'outlook'];
 

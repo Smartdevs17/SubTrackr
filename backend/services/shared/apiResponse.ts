@@ -20,6 +20,7 @@
  */
 
 import { randomUUID } from 'crypto';
+import { piiClassifier, type ClassificationLevel } from './piiClassifier';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Core types
@@ -55,6 +56,8 @@ export interface ApiError {
   message: string;
   /** Optional field-level validation details. */
   details?: Record<string, string>;
+  /** For OCC conflicts, the current version of the resource on the server. */
+  version?: number;
 }
 
 /** Successful response envelope. */
@@ -94,6 +97,8 @@ export type ErrorCode =
   | 'UNAUTHORIZED'
   | 'FORBIDDEN'
   | 'CONFLICT'
+  /** Optimistic Concurrency Control failure. */
+  | 'CONFLICT_VERSION_MISMATCH'
   | 'BAD_REQUEST'
   | 'SERVICE_UNAVAILABLE'
   // ── Rate limiting ─────────────────────────────────────────────────────────
@@ -133,6 +138,10 @@ export type ErrorCode =
   // ── Idempotency ──────────────────────────────────────────────────────────
   | 'IDEMPOTENCY_KEY_COLLISION'
   | 'IDEMPOTENCY_REQUEST_IN_FLIGHT'
+  // ── Usage metering ───────────────────────────────────────────────────────
+  | 'USAGE_BATCH_TOO_LARGE'
+  | 'USAGE_INVALID_EVENT'
+  | 'USAGE_HARD_LIMIT_EXCEEDED'
   // ── Locking (Issue #610) ─────────────────────────────────────────────────
   | 'LOCK_ACQUISITION_TIMEOUT'
   | 'LOCK_DEADLOCK_DETECTED'
@@ -153,7 +162,12 @@ export type ErrorCode =
   | 'PAYMENT_GATEWAY_ERROR'
   | 'PAYMENT_GATEWAY_FALLBACK_FAILED'
   | 'PAYMENT_GATEWAY_CONFIG_INVALID'
-  | 'PAYMENT_REFUND_PARTIAL_FAILED';
+  | 'PAYMENT_REFUND_PARTIAL_FAILED'
+  // ── RPC / Circuit Breaker (RPC timeout & circuit breaker feature) ─────────
+  | 'RPC_TIMEOUT'
+  | 'RPC_CIRCUIT_OPEN'
+  | 'RPC_ALL_PROVIDERS_FAILED'
+  | 'RPC_PROVIDER_NOT_FOUND';
 
 /**
  * Maps each error code to the HTTP status code that should be sent to the
@@ -168,6 +182,7 @@ export const ERROR_HTTP_STATUS_MAP: Record<ErrorCode, number> = {
   UNAUTHORIZED: 401,
   FORBIDDEN: 403,
   CONFLICT: 409,
+  CONFLICT_VERSION_MISMATCH: 409,
   BAD_REQUEST: 400,
   SERVICE_UNAVAILABLE: 503,
   // Rate limiting
@@ -207,6 +222,10 @@ export const ERROR_HTTP_STATUS_MAP: Record<ErrorCode, number> = {
   // Idempotency
   IDEMPOTENCY_KEY_COLLISION: 422,
   IDEMPOTENCY_REQUEST_IN_FLIGHT: 409,
+  // Usage metering
+  USAGE_BATCH_TOO_LARGE: 413,
+  USAGE_INVALID_EVENT: 422,
+  USAGE_HARD_LIMIT_EXCEEDED: 402,
   // Locking (Issue #610)
   LOCK_ACQUISITION_TIMEOUT: 409,
   LOCK_DEADLOCK_DETECTED: 409,
@@ -228,6 +247,11 @@ export const ERROR_HTTP_STATUS_MAP: Record<ErrorCode, number> = {
   PAYMENT_GATEWAY_FALLBACK_FAILED: 502,
   PAYMENT_GATEWAY_CONFIG_INVALID: 422,
   PAYMENT_REFUND_PARTIAL_FAILED: 422,
+  // RPC / Circuit Breaker
+  RPC_TIMEOUT: 504,
+  RPC_CIRCUIT_OPEN: 503,
+  RPC_ALL_PROVIDERS_FAILED: 503,
+  RPC_PROVIDER_NOT_FOUND: 404,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -279,11 +303,12 @@ export function fail(
   code: ErrorCode,
   message: string,
   requestId?: string,
-  details?: Record<string, string>,
+  details?: Record<string, string> | { version?: number },
 ): ApiErrorResponse {
+  const errorPayload: ApiError = { code, message, ...details };
   return {
     success: false,
-    error: { code, message, ...(details ? { details } : {}) },
+    error: errorPayload,
     meta: buildMeta(requestId),
   };
 }
@@ -321,3 +346,58 @@ export const API_VERSION_VALUE = '1';
  * so that the requestId in the response meta can be correlated with server logs.
  */
 export const REQUEST_ID_HEADER = 'X-Request-ID';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// #668 – PII Redaction middleware helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Redact PII from an ApiSuccessResponse before sending it over the wire.
+ *
+ * @example
+ * // In an Express handler:
+ * const response = ok(userData, requestId);
+ * res.json(redactResponse(response));               // standard level
+ * res.json(redactResponse(response, 'strict'));      // strict level
+ */
+export function redactResponse<T>(
+  response: ApiSuccessResponse<T>,
+  level: ClassificationLevel = 'standard',
+  allowList?: string[]
+): ApiSuccessResponse<unknown> {
+  return {
+    ...response,
+    data: piiClassifier.redact(response.data, { level, allowList }),
+  };
+}
+
+/**
+ * Express/Fastify-compatible middleware factory that automatically redacts PII
+ * from every outgoing JSON response body.
+ *
+ * Usage:
+ * ```ts
+ * app.use(createPiiRedactionMiddleware());              // standard
+ * app.use(createPiiRedactionMiddleware('strict'));       // strict
+ * ```
+ */
+export function createPiiRedactionMiddleware(
+  level: ClassificationLevel = 'standard',
+  allowList?: string[]
+) {
+  return function piiRedactionMiddleware(
+    _req: unknown,
+    res: {
+      json: (body: unknown) => void;
+      send: (body: unknown) => void;
+    },
+    next: () => void
+  ): void {
+    const originalJson = res.json.bind(res);
+    res.json = (body: unknown) => {
+      const redacted = piiClassifier.redact(body, { level, allowList });
+      return originalJson(redacted);
+    };
+    next();
+  };
+}

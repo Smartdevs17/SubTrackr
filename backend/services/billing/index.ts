@@ -28,6 +28,14 @@ export type {
   TaxRemittanceReportRequest,
 } from './taxTypes';
 export { DunningService, dunningService } from './dunningService';
+export type { FailureType, RetryScheduleConfig, RetryAnalytics } from './dunningService';
+export { ProrationService, prorationService } from './proration';
+export type {
+  ProrationConfiguration,
+  ProrationAnalytics,
+  ProrationDispute,
+  MidCycleChangeRequest,
+} from './proration';
 export { streamExport, reconcile } from './accountingExportService';
 export type {
   AccountingFormat,
@@ -37,5 +45,52 @@ export type {
   StreamExportOptions,
   ReconciliationResult,
 } from './accountingExportService';
-export type { IMeteringService, IPricingService, ITaxService, IDunningService, IAccountingExportService } from './interfaces';
+export {
+  BackendPartnerService,
+} from './partnerService';
+export type { SplitConfiguration, PartnerPayoutSchedule } from '../../../src/types/partner';
+
+// Credit system — see creditService.ts for architectural notes.
+export { CreditService, creditService, creditReportToCsv } from './creditService';
+export type {
+  AccountCreditSummary,
+  ApplyCreditInput,
+  ApplyCreditResult,
+  CreditAccount,
+  CreditAuditPage,
+  CreditAuditQuery,
+  CreditBucketBreakdown,
+  CreditEntry,
+  CreditEntryKind,
+  CreditExpiryForecast,
+  CreditLot,
+  CreditReport,
+  CreditUsageTrendPoint,
+  ExpirationPolicy,
+  IssueCreditInput,
+  PrepaymentTransaction,
+  PrepaymentWallet,
+  TopAccount,
+  TransferCreditInput,
+} from './creditTypes';
+export type {
+  IMeteringService,
+  IPricingService,
+  ITaxService,
+  IDunningService,
+  IAccountingExportService,
+  IPartnerService,
+  ICreditService,
+} from './interfaces';
 export { BillingError, BillingErrorCode } from './errors';
+
+// Strategy Pattern Pricing exports (Issue #741)
+export { PricingStrategy, PricingContext as PricingStrategyContext, PricingResult, PricingAnalytics } from './pricingStrategy';
+export { FlatRateStrategy } from './flatRateStrategy';
+export { UsageBasedStrategy } from './usageBasedStrategy';
+export { TieredPricingStrategy } from './tieredStrategy';
+export { DynamicPricingStrategy } from './dynamicStrategy';
+export { PricingStrategyFactory, PlanType } from './strategyFactory';
+export { BillingEngine, BillingEngineConfig } from './billingEngine';
+export { PricingAnalyticsService, RevenueMetrics } from './billingAnalytics';
+

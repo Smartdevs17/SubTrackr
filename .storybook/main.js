@@ -1,15 +1,12 @@
 /**
  * Storybook Configuration for SubTrackr Design System
- * 
+ *
  * Location: .storybook/main.js
  * Run: npm run storybook
  */
 
 module.exports = {
-  stories: [
-    '../src/design-system/stories/**/*.stories.{ts,tsx}',
-    '../src/**/*.stories.{ts,tsx}',
-  ],
+  stories: ['../src/design-system/stories/**/*.stories.{ts,tsx}', '../src/**/*.stories.{ts,tsx}'],
   addons: [
     '@storybook/addon-essentials',
     '@storybook/addon-ondevice-actions',
@@ -30,7 +27,7 @@ module.exports = {
     reactDocgenTypescriptOptions: {
       shouldExtractLiteralValuesAsTypes: true,
       shouldRemoveUndefinedFromOptional: true,
-      propFilter: (prop: any) => {
+      propFilter: (prop) => {
         if (prop.parent) {
           return !prop.parent.fileName.includes('node_modules');
         }

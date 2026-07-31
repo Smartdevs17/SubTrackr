@@ -2,6 +2,14 @@ import { renderHook, act } from '@testing-library/react-hooks';
 import { useFilteredSubscriptions } from '../useFilteredSubscriptions';
 import { Subscription, SubscriptionCategory, BillingCycle } from '../../types/subscription';
 
+beforeEach(() => {
+  jest.useFakeTimers();
+});
+
+afterEach(() => {
+  jest.useRealTimers();
+});
+
 describe('useFilteredSubscriptions', () => {
   const mockSubscriptions: Subscription[] = [
     {
@@ -62,6 +70,9 @@ describe('useFilteredSubscriptions', () => {
 
     act(() => {
       result.current.filters.setSearchQuery('Netflix');
+    });
+    act(() => {
+      jest.advanceTimersByTime(500);
     });
 
     expect(result.current.filteredAndSorted).toHaveLength(1);

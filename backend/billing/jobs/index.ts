@@ -18,3 +18,15 @@ export type { PaymentConfirmationHandler, PaymentConfirmationResult } from './pa
 
 export { BillingJobQueue } from './billingJobQueue';
 export type { BillingJobQueueConfig } from './billingJobQueue';
+
+export {
+  MonthlyRevenueRecognitionJob,
+  computeEntryRecognition,
+} from './monthlyRevenueRecognitionJob';
+export type {
+  RevenueSchedule,
+  RevenueScheduleEntry,
+  RecognitionJournalEntry,
+  RevenueRecognitionRepository,
+  RecognitionJobMetrics,
+} from './monthlyRevenueRecognitionJob';

@@ -2,6 +2,32 @@
 export { ConnectionPool, getPool, stellarPool } from './connectionPool';
 export type { PoolConfig, PoolMetrics } from './connectionPool';
 
+// ── Streaming primitives (Issue #768) ─────────────────────────────────────────
+export {
+  createCursorStream,
+  collectStream,
+  encodeOpaqueCursor,
+  decodeOpaqueCursor,
+  MemoryMonitor,
+  toNdjsonLine,
+  parseNdjsonBuffer,
+} from './shared/streaming';
+export type {
+  CursorPage,
+  CursorQueryOptions,
+  PageFetcher,
+  MemorySnapshot,
+  MemoryMonitorConfig,
+} from './shared/streaming';
+export { SseEmitter } from './shared/sseEmitter';
+export type {
+  SseEventName,
+  SseProgressData,
+  SseChunkData,
+  SseCompleteData,
+  SseErrorData,
+} from './shared/sseEmitter';
+
 // ── Repository pattern (#405) ─────────────────────────────────────────────────
 export * from './repositories';
 
@@ -62,6 +88,18 @@ export { AuditService, auditService } from './shared/auditService';
 export { RateLimitingService, rateLimitingService } from './shared/rateLimitingService';
 export { MonitoringService, monitoringService } from './shared/monitoring';
 export { apiClient } from './shared/apiClient';
+export {
+  DatabaseService,
+  getDatabaseService,
+  resetDatabaseService,
+  ConnectionStringRotator,
+} from './shared/databaseService';
+export type {
+  DatabaseFailoverStatus,
+  DatabaseServiceOptions,
+  ConnectionStringRotationOptions,
+  ParsedConnectionString,
+} from './shared/databaseService';
 
 // ── Upstream additions ────────────────────────────────────────────────────────
 export { ExportService, exportService } from './exportService';
@@ -112,6 +150,7 @@ export type {
 } from './subscription/ElasticsearchService';
 export type { ISubscriptionEventStore, IElasticsearchService } from './subscription/interfaces';
 export { SubscriptionError } from './subscription/errors';
+export type { CursorQuery } from './subscription/subscriptionEventStore';
 
 // ── Billing Module ────────────────────────────────────────────────────────────
 export { MeteringService } from './billing/meteringService';
@@ -120,13 +159,15 @@ export { PricingService } from './billing/pricingService';
 export type { PriceRecommendation, ABTestScenario, PricingContext } from './billing/pricingService';
 export { TaxService } from './billing/taxService';
 export { DunningService, dunningService } from './billing/dunningService';
-export { streamExport, reconcile } from './billing/accountingExportService';
+export { streamExport, reconcile, streamExportAsync, streamExportNdjson, streamExportWithProgress } from './billing/accountingExportService';
 export type {
   AccountingFormat,
   TransactionType,
   TransactionRecord,
   ExportFilter,
   StreamExportOptions,
+  AsyncStreamExportOptions,
+  ExportProgressCallback,
   ReconciliationResult,
 } from './billing/accountingExportService';
 export type {
@@ -172,6 +213,17 @@ export type {
   WebhookDeliveryResult,
   WebhookEventInput,
 } from './notification/webhook';
+// Unified webhook barrel (Issue #727 Technical Scope)
+export { WebhookManagementApi, webhookManagementApi } from './notification/webhookManagementApi';
+// Event catalog — wildcard filtering & schema validation
+export {
+  EventCatalogRegistry,
+  eventCatalog,
+  EVENT_CATALOG,
+} from './webhook/eventCatalog';
+export type { EventDefinition, EventCategory, SchemaField } from './webhook/eventCatalog';
+export { EventSchemaValidator, eventSchemaValidator } from './webhook/eventSchemaValidator';
+export type { ValidationResult } from './webhook/eventSchemaValidator';
 export { WebSocketServer, webSocketServer } from './notification/websocket';
 export type {
   SubscriptionEventType as WSSubscriptionEventType,
@@ -341,6 +393,49 @@ export type {
   AccessCheckOptions,
 } from './accessControl';
 
+// ── Dunning Email Sequences & A/B Testing (Issue #728) ──────────────────────
+export { DunningEmailSequenceService, dunningEmailSequenceService } from './notification/dunningEmailSequences';
+
+// ── SLA Monitoring (Issue #729) ───────────────────────────────────────────
+export { SlaMonitoringService, slaMonitoringService } from './shared/slaMonitoring';
+export type {
+  SlaTierDefinition,
+  SlaAnalytics,
+  SlaCreditRule,
+  SlaMonitoringEvent,
+} from './shared/slaMonitoring';
+
+// ── Subscription SLA Monitoring (Issue #779) ──────────────────────────────
+export { SubscriptionSlaMonitoringService } from './subscriptionSlaMonitoring';
+export type {
+  SlaMetricKind as SubSlaMetricKind,
+  SlaBreachSeverity as SubSlaBreachSeverity,
+  SubscriptionTier as SubSlaTier,
+  SubscriptionSlaTarget as SubSlaTarget,
+  SlaMetricSample as SubSlaMetricSample,
+  SlaBreachRecord as SubSlaBreachRecord,
+  SlaSubscriptionConfig as SubSlaSubscriptionConfig,
+  SlaHealthSummary as SubSlaHealthSummary,
+} from './subscriptionSlaMonitoring';
+
+// ── Group Billing (Issue #732) ────────────────────────────────────────────
+export { GroupBillingService, groupBillingService } from './billing/groupBilling';
+export type {
+  GroupBillingSummary,
+  GroupInvoice,
+  GroupAdminAction,
+  GroupPlanCustomization,
+} from './billing/groupBilling';
+
+// ── Loyalty Service (Issue #734) ──────────────────────────────────────────
+export { LoyaltyService, loyaltyService } from './billing/loyaltyService';
+export type {
+  LoyaltyPointsRule,
+  LoyaltyAnalyticsData,
+  LoyaltyNotification,
+  LoyaltyApiResponse,
+} from './billing/loyaltyService';
+
 // ── DI Container ──────────────────────────────────────────────────────────────
 export { container, Container } from './container';
 
@@ -366,5 +461,40 @@ export type { IPaymentGateway, IPaymentRouter, PaymentRequest, PaymentResult, Re
 export { buildRotationEmailHtml, buildRotationEmailText } from './notification/rotationEmailTemplate';
 export type { RotationEmailData } from './notification/rotationEmailTemplate';
 
+// ── RPC Circuit Breaker & Timeout (Issue #RPC-CB) ───────────────────────────
+export {
+  RpcProviderFallback,
+  CircuitBreaker,
+  CircuitOpenError,
+  RpcTimeoutError,
+  AllProvidersFailedError,
+  RpcMonitorService,
+  rpcMonitorService,
+  DEFAULT_CIRCUIT_BREAKER_CONFIG,
+  DEFAULT_RPC_GLOBAL_CONFIG,
+  DEFAULT_CHAIN_ENDPOINTS,
+  DEFAULT_STELLAR_CHAIN_CONFIG,
+  resolveEndpointUrl,
+} from './rpc';
+
+export type {
+  CircuitBreakerConfig,
+  RpcEndpointConfig,
+  RpcChainConfig,
+  RpcGlobalConfig,
+  CircuitState,
+  CircuitStateSnapshot,
+  CircuitBreakerEvent,
+  RpcCallOptions,
+  RpcCallResult,
+  RpcMonitorMetrics,
+  ChainHealthSummary,
+  RpcMonitorDashboard,
+  RpcDashboardQuery,
+} from './rpc';
+
 // ── Monitoring — Lock Metrics (Issue #610) ────────────────────────────────────
 export { collectLockMetrics, lockMetricsExporter } from '../monitoring/lockMetrics';
+
+// ── Proration Calculator API (Issue #784) ──────────────────────────────────────
+export { ProrationApiService } from './prorationApiService';

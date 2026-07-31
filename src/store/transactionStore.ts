@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Transaction, TransactionStatus, TransactionType } from '../types/transaction';
+import { Transaction, TransactionStatus } from '../types/transaction';
 
 const STORAGE_KEY = 'subtrackr-transaction-history';
 const MAX_RECORDS = 500;

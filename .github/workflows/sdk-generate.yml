@@ -1,20 +1,12 @@
 name: SDK Auto-Generation
 
-on:
-  push:
-    paths:
-      - 'spec/openapi.yaml'
-      - 'scripts/sdk-generate.sh'
-      - '.github/workflows/sdk-generate.yml'
-  pull_request:
-    paths:
-      - 'spec/openapi.yaml'
+on: workflow_dispatch
 
 jobs:
   validate-spec:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Validate OpenAPI spec
         uses: mbowman100/swagger-validator-action@v1
         with:
@@ -32,8 +24,8 @@ jobs:
       matrix:
         language: [javascript, python, go]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '20'
           cache: 'npm'

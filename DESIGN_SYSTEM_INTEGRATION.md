@@ -1,8 +1,9 @@
-/**
- * Design System Integration Guide
- * 
- * Step-by-step guide for integrating the new design system into SubTrackr
- */
+/\*\*
+
+- Design System Integration Guide
+-
+- Step-by-step guide for integrating the new design system into SubTrackr
+  \*/
 
 # Design System Integration Guide
 
@@ -57,6 +58,7 @@ src/design-system/
 The design system extracts and improves existing components:
 
 **Existing Components** → **Design System Components**
+
 - `src/components/common/Button.tsx` → `src/design-system/components/Button.tsx`
 - `src/components/common/Card.tsx` → `src/design-system/components/Card.tsx`
 - Manual Input implementations → `src/design-system/components/Input.tsx`
@@ -68,12 +70,14 @@ The design system extracts and improves existing components:
 Update component imports throughout the codebase:
 
 **Before:**
+
 ```typescript
 import { Button } from '@/components/common';
 import { Card } from '@/components/common';
 ```
 
 **After:**
+
 ```typescript
 import { Button, Card, Input, Modal, Toast } from '@/design-system';
 ```
@@ -83,6 +87,7 @@ import { Button, Card, Input, Modal, Toast } from '@/design-system';
 Replace hardcoded colors with design tokens:
 
 **Before:**
+
 ```typescript
 const buttonStyle = {
   backgroundColor: '#6366f1',
@@ -91,6 +96,7 @@ const buttonStyle = {
 ```
 
 **After:**
+
 ```typescript
 import { colors } from '@/design-system/tokens';
 
@@ -105,6 +111,7 @@ const buttonStyle = {
 Replace hardcoded spacing values with the spacing scale:
 
 **Before:**
+
 ```typescript
 const styles = StyleSheet.create({
   container: {
@@ -116,6 +123,7 @@ const styles = StyleSheet.create({
 ```
 
 **After:**
+
 ```typescript
 import { spacing } from '@/design-system/tokens';
 
@@ -133,6 +141,7 @@ const styles = StyleSheet.create({
 Apply consistent typography styles:
 
 **Before:**
+
 ```typescript
 <Text style={{ fontSize: 16, fontWeight: '600', lineHeight: 24 }}>
   Heading
@@ -140,6 +149,7 @@ Apply consistent typography styles:
 ```
 
 **After:**
+
 ```typescript
 import { typography } from '@/design-system/tokens';
 
@@ -151,6 +161,7 @@ import { typography } from '@/design-system/tokens';
 Ensure all interactive elements have proper accessibility labels:
 
 **Before:**
+
 ```typescript
 <TouchableOpacity onPress={handlePress}>
   <Text>Save</Text>
@@ -158,6 +169,7 @@ Ensure all interactive elements have proper accessibility labels:
 ```
 
 **After:**
+
 ```typescript
 <Button
   label="Save"
@@ -206,12 +218,14 @@ export const SubscriptionCard = ({ subscription }: Props) => {
 Update test imports and add accessibility checks:
 
 **Before:**
+
 ```typescript
 import { render } from '@testing-library/react-native';
 import { Button } from '@/components/common';
 ```
 
 **After:**
+
 ```typescript
 import { render } from '@testing-library/react-native';
 import { Button } from '@/design-system';
@@ -245,6 +259,7 @@ src/screens/
 ```
 
 Example:
+
 ```typescript
 import { Button, Card, Toast } from '@/design-system';
 import { spacing, typography } from '@/design-system/tokens';
@@ -255,7 +270,7 @@ export const SubscriptionList = () => {
   return (
     <View style={{ gap: spacing.md, padding: spacing.lg }}>
       <Text style={typography.h1}>My Subscriptions</Text>
-      
+
       {subscriptions.map((sub) => (
         <Card key={sub.id} variant="elevated" padding="md">
           <Text style={typography.h3}>{sub.name}</Text>
@@ -371,6 +386,7 @@ The design system is optimized for performance:
 ### Components not rendering
 
 Ensure imports are correct:
+
 ```typescript
 // ✓ Correct
 import { Button } from '@/design-system';
@@ -382,6 +398,7 @@ import { Button } from '@/design-system/components';
 ### Colors not applying
 
 Make sure to use color tokens:
+
 ```typescript
 // ✓ Correct
 import { colors } from '@/design-system/tokens';
@@ -394,6 +411,7 @@ const backgroundColor = '#6366f1';
 ### Accessibility not working
 
 Verify accessibility props are passed:
+
 ```typescript
 // ✓ Correct
 <Button

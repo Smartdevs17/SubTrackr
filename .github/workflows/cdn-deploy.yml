@@ -1,21 +1,6 @@
 name: CDN Configuration Deploy
 
-on:
-  push:
-    branches: [main, develop]
-    paths:
-      - 'infra/fastly/**'
-      - '.github/workflows/cdn-deploy.yml'
-  workflow_dispatch:
-    inputs:
-      provider:
-        description: 'CDN provider'
-        required: true
-        default: 'fastly'
-        type: choice
-        options:
-          - fastly
-          - cloudflare
+on: workflow_dispatch
 
 env:
   NODE_VERSION: '20'
@@ -26,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Check VCL syntax (basic)
         run: |
@@ -46,7 +31,7 @@ jobs:
     environment: production
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Deploy VCL snippet to Fastly
         env:
@@ -68,7 +53,7 @@ jobs:
     environment: production
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Verify Cloudflare cache tag support
         env:
@@ -88,10 +73,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'

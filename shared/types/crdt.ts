@@ -79,10 +79,7 @@ export interface LWWRegister<T> {
 }
 
 /** Merge two LWW-Registers: the one with the later timestamp wins. */
-export function mergeLWWRegister<T>(
-  local: LWWRegister<T>,
-  remote: LWWRegister<T>,
-): LWWRegister<T> {
+export function mergeLWWRegister<T>(local: LWWRegister<T>, remote: LWWRegister<T>): LWWRegister<T> {
   if (remote.timestamp > local.timestamp) return remote;
   if (remote.timestamp < local.timestamp) return local;
   // Tie-break by nodeId for determinism
@@ -96,7 +93,7 @@ export function mergeLWWRegister<T>(
  * Each element has a unique tag (UUID) to distinguish concurrent add/remove.
  * An element is in the set if any of its tags are in `added` but not in `removed`.
  */
-export interface ORSet<T> {
+export interface ORSet {
   /** Map from element key (serialised) to a set of unique add-tags. */
   added: Record<string, string[]>;
   /** Set of removed tags. */
@@ -104,7 +101,7 @@ export interface ORSet<T> {
 }
 
 /** Add an element to an OR-Set, generating a unique tag. */
-export function orSetAdd<T>(set: ORSet<T>, key: string, tag: string): ORSet<T> {
+export function orSetAdd(set: ORSet, key: string, tag: string): ORSet {
   const existing = set.added[key] ?? [];
   return {
     ...set,
@@ -113,7 +110,7 @@ export function orSetAdd<T>(set: ORSet<T>, key: string, tag: string): ORSet<T> {
 }
 
 /** Remove an element from an OR-Set by marking all its current tags as removed. */
-export function orSetRemove<T>(set: ORSet<T>, key: string): ORSet<T> {
+export function orSetRemove(set: ORSet, key: string): ORSet {
   const tags = set.added[key] ?? [];
   return {
     ...set,
@@ -122,18 +119,18 @@ export function orSetRemove<T>(set: ORSet<T>, key: string): ORSet<T> {
 }
 
 /** Check whether an element is in the OR-Set. */
-export function orSetContains<T>(set: ORSet<T>, key: string): boolean {
+export function orSetContains(set: ORSet, key: string): boolean {
   const tags = set.added[key] ?? [];
   return tags.some((tag) => !set.removed.includes(tag));
 }
 
 /** Return all keys currently in the OR-Set. */
-export function orSetValues<T>(set: ORSet<T>): string[] {
-  return Object.keys(set.added).filter((key) => orSetContains<T>(set, key));
+export function orSetValues(set: ORSet): string[] {
+  return Object.keys(set.added).filter((key) => orSetContains(set, key));
 }
 
 /** Merge two OR-Sets: union of added tags, union of removed tags. */
-export function mergeORSet<T>(local: ORSet<T>, remote: ORSet<T>): ORSet<T> {
+export function mergeORSet(local: ORSet, remote: ORSet): ORSet {
   const mergedAdded: Record<string, string[]> = { ...local.added };
   for (const [key, tags] of Object.entries(remote.added)) {
     const localTags = mergedAdded[key] ?? [];
@@ -207,7 +204,7 @@ export function lwwMapSet<T>(
   key: string,
   value: T,
   nodeId: string,
-  clock: VectorClock,
+  clock: VectorClock
 ): LWWMap<T> {
   return {
     ...map,
@@ -266,7 +263,7 @@ export interface EntityCRDTState {
   /** LWW scalar fields. */
   lwwFields: LWWMap<unknown>;
   /** OR-Set collections (keyed by field name). */
-  orSets: Record<string, ORSet<unknown>>;
+  orSets: Record<string, ORSet>;
   /** PN-Counters (keyed by field name). */
   counters: Record<string, PNCounter>;
   /** Merged vector clock across all fields. */

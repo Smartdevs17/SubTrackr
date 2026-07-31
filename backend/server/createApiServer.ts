@@ -6,7 +6,7 @@
 
 import express, { type Express } from 'express';
 import { cacheHeadersMiddleware } from '../shared/middleware';
-import { createPublicApiRouter } from '../subscription/router/publicApiRouter';
+import { createPublicApiRouter, createThemeRouter } from '../subscription/router';
 import { API_VERSION_HEADER, API_VERSION_VALUE } from '../services/shared/apiResponse';
 
 export interface CreateApiServerOptions {
@@ -33,6 +33,7 @@ export function createApiServer(options: CreateApiServerOptions = {}): Express {
 
   app.use(cacheHeadersMiddleware());
   app.use(createPublicApiRouter());
+  app.use('/api/v1/merchant', createThemeRouter());
 
   app.use((_req, res) => {
     res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Not found' } });

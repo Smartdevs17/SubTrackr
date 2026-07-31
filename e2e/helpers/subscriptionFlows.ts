@@ -1,4 +1,6 @@
-import { by, device, element, expect, waitFor } from 'detox';
+import { by, element, expect, waitFor } from 'detox';
+import { E2ELaunchConfig, launchApp } from './launchArgs';
+import { SeededSubscription } from './testData';
 
 const BILLING_LABELS: Record<'monthly' | 'yearly' | 'weekly', string> = {
   monthly: 'Monthly',
@@ -6,14 +8,27 @@ const BILLING_LABELS: Record<'monthly' | 'yearly' | 'weekly', string> = {
   weekly: 'Weekly',
 };
 
-export const launchCleanApp = async () => {
-  await device.launchApp({ newInstance: true, delete: true });
+/**
+ * Launch a fully isolated, empty app. Every test calls this in `beforeEach` so
+ * no state leaks between cases — storage is wiped, the clock/locale are pinned,
+ * animations are off and the network is mocked.
+ */
+export const launchCleanApp = async (config: E2ELaunchConfig = {}) => {
+  await launchApp(config);
   await waitFor(element(by.id('app-root')))
     .toExist()
     .withTimeout(30000);
   await waitFor(element(by.id('home-screen')))
     .toExist()
     .withTimeout(30000);
+};
+
+/**
+ * Launch with hermetic seed data already loaded. Faster and more deterministic
+ * than driving the UI to create fixtures, and keeps each test self-contained.
+ */
+export const launchSeededApp = async (seed: SeededSubscription[], config: E2ELaunchConfig = {}) => {
+  await launchCleanApp({ ...config, seed });
 };
 
 export const createSubscription = async (
