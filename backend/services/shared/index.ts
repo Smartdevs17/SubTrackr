@@ -30,6 +30,18 @@ export { redactResponse, createPiiRedactionMiddleware } from './apiResponse';
 export { RateLimitingService, rateLimitingService } from './rateLimitingService';
 export type { BypassConfig, CustomLimits } from './rateLimitingService';
 export {
+  DatabaseService,
+  getDatabaseService,
+  resetDatabaseService,
+  ConnectionStringRotator,
+} from './databaseService';
+export type {
+  DatabaseFailoverStatus,
+  DatabaseServiceOptions,
+  ConnectionStringRotationOptions,
+  ParsedConnectionString,
+} from './databaseService';
+export {
   createRateLimitMiddleware,
   createRateLimitStatusMiddleware,
   RATE_LIMIT_HEADERS,
@@ -39,6 +51,8 @@ export type {
   RateLimitResponse,
   RateLimitMiddlewareOptions,
 } from './rateLimitMiddleware';
+export { TokenBucket, refillRateFromHourlyLimit } from './tokenBucket';
+export type { TokenBucketConfig, TokenBucketSnapshot, ConsumeResult } from './tokenBucket';
 export { apiClient } from './apiClient';
 export {
   ok,

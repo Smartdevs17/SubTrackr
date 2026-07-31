@@ -92,7 +92,11 @@ if (budget.lcpMs && report.lcpMs != null && report.lcpMs > budget.lcpMs) {
 if (budget.fidMs && report.fidMs != null && report.fidMs > budget.fidMs) {
   failures.push(`FID ${report.fidMs}ms exceeds ${budget.fidMs}ms`);
 }
-if (budget.clsFrameDrops && report.clsFrameDrops != null && report.clsFrameDrops > budget.clsFrameDrops) {
+if (
+  budget.clsFrameDrops &&
+  report.clsFrameDrops != null &&
+  report.clsFrameDrops > budget.clsFrameDrops
+) {
   failures.push(`CLS frame drops ${report.clsFrameDrops} exceeds ${budget.clsFrameDrops}`);
 }
 

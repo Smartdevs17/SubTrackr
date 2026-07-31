@@ -86,7 +86,7 @@ export class StellarPaymentStrategy implements PaymentStrategy {
 }
 
 export class PaymentStrategyFactory {
-  private static strategies: Map<ChainType, PaymentStrategy> = new Map([
+  private static strategies: Map<ChainType, PaymentStrategy> = new Map<ChainType, PaymentStrategy>([
     [ChainType.EVM, new EVMPaymentStrategy()],
     [ChainType.STELLAR, new StellarPaymentStrategy()],
   ]);

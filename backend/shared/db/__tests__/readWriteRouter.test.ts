@@ -278,6 +278,32 @@ describe('readWriteRouter', () => {
       expect(state?.lagMs).toBe(300);
       expect(state?.lagP99Ms).toBe(300);
     });
+
+    it('replaces replica pools during connection string rotation', async () => {
+      const primary = makeMockPool('primary');
+      const oldReplica = makeMockPool('replica-1');
+      const newReplica = makeMockPool('replica-2');
+      const pool = new ReadWritePool(
+        primary,
+        new Map([['replica-1', oldReplica]]),
+        [{ name: 'replica-1', host: 'r1', port: 6433 }],
+        makeConfig({ replicas: [{ name: 'replica-1', host: 'r1', port: 6433 }] }),
+      );
+      await pool.pollReplicationLag();
+
+      await pool.replaceReplicaPools(
+        new Map([['replica-2', newReplica]]),
+        [{ name: 'replica-2', host: 'r2', port: 6434 }],
+      );
+      await pool.pollReplicationLag();
+
+      expect(oldReplica.end).toHaveBeenCalled();
+      const responseHeaders = new Map<string, string>();
+      await runWithQueryRoutingContext({ responseHeaders }, async () => {
+        await pool.query('SELECT 1');
+      });
+      expect(responseHeaders.get('X-DB-Route')).toBe('replica:replica-2');
+    });
   });
 
   describe('attachRoutingHeaderInterceptor', () => {

@@ -36,6 +36,19 @@ import { rateLimitingService } from './services/shared/rateLimitingService';
 import { createRateLimitMiddleware, RATE_LIMIT_HEADERS } from './services/shared/rateLimitMiddleware';
 import { applyETagToRawHandler } from './shared/middleware/etagMiddleware';
 import { SubscriptionTier } from '../src/types/subscription';
+// Issue #768 — streaming imports
+import { MemoryMonitor } from './services/shared/streaming';
+import { SseEmitter } from './services/shared/sseEmitter';
+import {
+  streamExportNdjson,
+  streamExportWithProgress,
+} from './services/billing/accountingExportService';
+import type { TransactionRecord } from './services/billing/accountingExportService';
+import {
+  rpcMonitorService,
+  DEFAULT_CHAIN_ENDPOINTS,
+  RpcProviderFallback,
+} from './services/rpc';
 
 export interface StartServerOptions {
   port?: number;
@@ -76,8 +89,8 @@ async function ensurePlanCache(pool: Pool): Promise<PlanCacheBootstrap> {
 function buildRateLimitMiddleware() {
   return createRateLimitMiddleware({
     service: rateLimitingService,
-    // Bypass paths (health/metrics never throttled)
-    bypassPaths: ['/health', '/metrics', '/metrics/plan-cache'],
+    // Bypass paths (health/metrics/rpc never throttled)
+    bypassPaths: ['/health', '/metrics', '/metrics/plan-cache', '/metrics/rpc', '/rpc/dashboard', '/rpc/health', '/rpc/events'],
     // Tier resolver: reads x-subscription-tier header; defaults to FREE
     tierFn: (apiKey, _userId) => {
       // In production this would look up the tier from a DB / cache.
@@ -145,9 +158,106 @@ function sendJson(
   res.end(JSON.stringify(body));
 }
 
+// ---------------------------------------------------------------------------
+// Issue #768 — Streaming helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Pipe an async generator of NDJSON strings to a chunked HTTP response.
+ * Uses Transfer-Encoding: chunked automatically (Node default for res.write).
+ */
+async function streamNdjsonResponse(
+  res: http.ServerResponse,
+  gen: AsyncGenerator<string>,
+): Promise<void> {
+  res.writeHead(200, {
+    'Content-Type': 'application/x-ndjson; charset=utf-8',
+    'Transfer-Encoding': 'chunked',
+    'Cache-Control': 'no-cache',
+    'X-Content-Type-Options': 'nosniff',
+  });
+  for await (const line of gen) {
+    res.write(line);
+  }
+  res.end();
+}
+
+/**
+ * Send a streaming file download (CSV or JSON) with appropriate headers.
+ */
+async function streamFileDownload(
+  res: http.ServerResponse,
+  gen: AsyncGenerator<string>,
+  filename: string,
+  mimeType: string,
+): Promise<void> {
+  res.writeHead(200, {
+    'Content-Type': mimeType,
+    'Content-Disposition': `attachment; filename="${filename}"`,
+    'Transfer-Encoding': 'chunked',
+    'Cache-Control': 'no-store',
+  });
+  for await (const chunk of gen) {
+    res.write(chunk);
+  }
+  res.end();
+}
+
+/** Shared memory monitor instance for the server process. */
+const serverMemoryMonitor = new MemoryMonitor({
+  rssThresholdBytes: 500 * 1024 * 1024,
+  heapThresholdBytes: 256 * 1024 * 1024,
+  onThresholdExceeded: (snap, field) => {
+    console.warn(`[MemoryMonitor] Threshold exceeded: ${field} — ${MemoryMonitor.format(snap)}`);
+  },
+});
+
+/**
+ * Stub: fetch transaction records for the requesting merchant.
+ * Replace with a real DB query when Postgres is wired in.
+ */
+function getTransactionRecordsForMerchant(merchantId: string): TransactionRecord[] {
+  void merchantId;
+  return []; // real implementation queries DB
+}
+
 function matchPlanId(pathname: string): string | null {
   const match = pathname.match(/^\/plans\/([^/]+)$/);
   return match?.[1] ?? null;
+}
+// ── RPC Provider Fallback instances (hot-reloadable) ─────────────────────────
+const rpcProviders = new Map<number, RpcProviderFallback>();
+
+function getOrCreateRpcProvider(chainId: number): RpcProviderFallback {
+  let provider = rpcProviders.get(chainId);
+  if (!provider) {
+    const chainConfig = DEFAULT_CHAIN_ENDPOINTS[chainId];
+    if (!chainConfig) {
+      throw new Error(`No RPC configuration for chain ${chainId}`);
+    }
+    provider = new RpcProviderFallback(chainConfig, rpcMonitorService);
+    rpcProviders.set(chainId, provider);
+
+    // Register circuits with the monitor
+    for (const snapshot of provider.getCircuitStates()) {
+      rpcMonitorService.registerCircuit(snapshot);
+    }
+  }
+  return provider;
+}
+
+function registerAllChainProviders(): void {
+  for (const chainIdStr of Object.keys(DEFAULT_CHAIN_ENDPOINTS)) {
+    const chainId = Number(chainIdStr);
+    try {
+      const provider = getOrCreateRpcProvider(chainId);
+      for (const snapshot of provider.getCircuitStates()) {
+        rpcMonitorService.registerCircuit(snapshot);
+      }
+    } catch (err) {
+      console.warn(`[Server] Could not register RPC provider for chain ${chainId}:`, err);
+    }
+  }
 }
 
 export async function startServer(options: StartServerOptions = {}): Promise<RunningServer> {
@@ -165,6 +275,9 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
   });
 
   const rateLimitMw = buildRateLimitMiddleware();
+
+  // Initialize all RPC providers at startup so the dashboard is ready immediately
+  registerAllChainProviders();
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
@@ -184,6 +297,110 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
           status: 'ok',
           planCache: cacheHealthy ? 'redis' : 'degraded',
         });
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // RPC Circuit Breaker Dashboard  GET /rpc/dashboard
+      // -----------------------------------------------------------------
+      if (pathname === '/rpc/dashboard' && method === 'GET') {
+        const chainIdParam = url.searchParams.get('chainId');
+        const endpointUrl = url.searchParams.get('endpointUrl');
+        const eventLimit = url.searchParams.get('eventLimit');
+
+        const query: { chainId?: number; endpointUrl?: string; eventLimit?: number } = {};
+        if (chainIdParam) query.chainId = Number(chainIdParam);
+        if (endpointUrl) query.endpointUrl = endpointUrl;
+        if (eventLimit) query.eventLimit = Number(eventLimit);
+
+        const dashboard = rpcMonitorService.getDashboard(query);
+        sendJson(res, 200, dashboard);
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // RPC Chain Health  GET /rpc/health/:chainId
+      // -----------------------------------------------------------------
+      const rpcHealthMatch = pathname.match(/^\/rpc\/health\/(\d+)$/);
+      if (rpcHealthMatch && method === 'GET') {
+        const chainId = Number(rpcHealthMatch[1]);
+        const health = rpcMonitorService.getChainHealth(chainId);
+        if (!health) {
+          sendJson(res, 404, { error: `No health data for chain ${chainId}` });
+          return;
+        }
+        sendJson(res, 200, health);
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // RPC Circuit Reset  POST /rpc/reset
+      // -----------------------------------------------------------------
+      if (pathname === '/rpc/reset' && method === 'POST') {
+        const body = (await readJsonBody(req)) as {
+          chainId: number;
+          endpointUrl?: string;
+          action: 'reset' | 'open' | 'reset_all' | 'reset_metrics';
+        };
+
+        if (!body.chainId || !body.action) {
+          sendJson(res, 400, { error: 'chainId and action are required' });
+          return;
+        }
+
+        const provider = rpcProviders.get(body.chainId);
+        if (!provider) {
+          sendJson(res, 404, { error: `No RPC provider for chain ${body.chainId}` });
+          return;
+        }
+
+        switch (body.action) {
+          case 'reset':
+            if (!body.endpointUrl) {
+              sendJson(res, 400, { error: 'endpointUrl is required for reset action' });
+              return;
+            }
+            provider.manualResetEndpoint(body.endpointUrl);
+            sendJson(res, 200, { success: true, action: 'reset', endpointUrl: body.endpointUrl });
+            return;
+          case 'open':
+            if (!body.endpointUrl) {
+              sendJson(res, 400, { error: 'endpointUrl is required for open action' });
+              return;
+            }
+            provider.manualOpenEndpoint(body.endpointUrl);
+            sendJson(res, 200, { success: true, action: 'open', endpointUrl: body.endpointUrl });
+            return;
+          case 'reset_all':
+            provider.manualResetAll();
+            sendJson(res, 200, { success: true, action: 'reset_all', chainId: body.chainId });
+            return;
+          case 'reset_metrics':
+            rpcMonitorService.resetAllMetrics();
+            sendJson(res, 200, { success: true, action: 'reset_metrics' });
+            return;
+          default:
+            sendJson(res, 400, { error: `Unknown action: ${body.action}` });
+            return;
+        }
+      }
+
+      // -----------------------------------------------------------------
+      // RPC Prometheus metrics  GET /metrics/rpc
+      // -----------------------------------------------------------------
+      if (pathname === '/metrics/rpc' && method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4; charset=utf-8' });
+        res.end(rpcMonitorService.getPrometheusMetrics());
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // RPC Events  GET /rpc/events
+      // -----------------------------------------------------------------
+      if (pathname === '/rpc/events' && method === 'GET') {
+        const limit = url.searchParams.get('limit');
+        const events = rpcMonitorService.getRecentEvents(limit ? Number(limit) : 50);
+        sendJson(res, 200, { events, count: events.length });
         return;
       }
 
@@ -226,6 +443,27 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
       }
 
       // -----------------------------------------------------------------
+      // Public tier configs  GET /rate-limits/tiers
+      // -----------------------------------------------------------------
+      if (pathname === '/rate-limits/tiers' && method === 'GET') {
+        sendJson(res, 200, {
+          algorithm: 'token_bucket',
+          tiers: {
+            free: rateLimitingService.getPublicTierLimits(
+              rateLimitingService.getRateLimitTier(SubscriptionTier.FREE),
+            ),
+            pro: rateLimitingService.getPublicTierLimits(
+              rateLimitingService.getRateLimitTier(SubscriptionTier.PREMIUM),
+            ),
+            enterprise: rateLimitingService.getPublicTierLimits(
+              rateLimitingService.getRateLimitTier(SubscriptionTier.ENTERPRISE),
+            ),
+          },
+        });
+        return;
+      }
+
+      // -----------------------------------------------------------------
       // Rate-limit status  GET /rate-limits/status?apiKey=...&tier=...
       // -----------------------------------------------------------------
       if (pathname === '/rate-limits/status' && method === 'GET') {
@@ -236,7 +474,11 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
           return;
         }
         const status = rateLimitingService.getRateLimitStatus(apiKey, tier);
-        sendJson(res, 200, status);
+        sendJson(res, 200, {
+          ...status,
+          rateLimitTier: rateLimitingService.getRateLimitTier(tier),
+          algorithm: 'token_bucket',
+        });
         return;
       }
 
@@ -281,6 +523,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
             monthlyLimit?: number;
             burstLimit?: number;
             concurrentLimit?: number;
+            refillRatePerSecond?: number;
           };
         };
         if (!body.apiKey) {
@@ -337,6 +580,89 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
         return;
       }
 
+      // -----------------------------------------------------------------
+      // Issue #768 — GET /subscriptions/stream
+      // Cursor-based NDJSON stream of transaction records.
+      // Query params: cursor, limit, merchantId
+      // -----------------------------------------------------------------
+      if (pathname === '/subscriptions/stream' && method === 'GET') {
+        const merchantId = url.searchParams.get('merchantId') ?? 'default';
+        const limit = Math.min(500, Math.max(1, parseInt(url.searchParams.get('limit') ?? '100', 10)));
+        const records = getTransactionRecordsForMerchant(merchantId);
+        const gen = streamExportNdjson(records, {
+          chunkSize: limit,
+          memoryMonitor: serverMemoryMonitor,
+        });
+        await streamNdjsonResponse(res, gen);
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // Issue #768 — GET /exports/stream/:exportId
+      // SSE endpoint: emits progress events while building an export.
+      // -----------------------------------------------------------------
+      if (pathname.startsWith('/exports/stream/') && method === 'GET') {
+        const exportId = pathname.slice('/exports/stream/'.length);
+        if (!exportId) { sendJson(res, 400, { error: 'exportId is required' }); return; }
+        const format = (url.searchParams.get('format') ?? 'json') as 'csv' | 'json';
+        const merchantId = url.searchParams.get('merchantId') ?? 'default';
+        const records = getTransactionRecordsForMerchant(merchantId);
+        const sse = new SseEmitter(req, res, { heartbeatMs: 15_000, retryMs: 3000 });
+        let chunkIndex = 0;
+        try {
+          const result = await streamExportWithProgress(
+            records,
+            { format, chunkSize: 500, memoryMonitor: serverMemoryMonitor },
+            async (progress) => {
+              if (!sse.isConnected) return;
+              sse.progress({
+                percent: progress.percent,
+                message: `Processing chunk ${chunkIndex + 1}`,
+                recordsProcessed: progress.recordsProcessed,
+                totalRecords: progress.totalRecords,
+              });
+              sse.chunk({ payload: progress.chunk, index: chunkIndex });
+              chunkIndex++;
+            }
+          );
+          sse.complete({
+            downloadUrl: `/exports/download/${exportId}?format=${format}`,
+            totalRecords: result.totalRecords,
+            checksum: result.checksum,
+          });
+        } catch (err) {
+          sse.error({ message: err instanceof Error ? err.message : 'Export failed' });
+        }
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // Issue #768 — GET /exports/download/:token
+      // Streaming file download (CSV or JSON).
+      // -----------------------------------------------------------------
+      if (pathname.startsWith('/exports/download/') && method === 'GET') {
+        const token = pathname.slice('/exports/download/'.length);
+        if (!token) { sendJson(res, 400, { error: 'token is required' }); return; }
+        const format = (url.searchParams.get('format') ?? 'json') as 'csv' | 'json';
+        const merchantId = url.searchParams.get('merchantId') ?? 'default';
+        const records = getTransactionRecordsForMerchant(merchantId);
+        const mimeType = format === 'csv' ? 'text/csv; charset=utf-8' : 'application/json; charset=utf-8';
+        const filename = `export-${token}.${format}`;
+        const gen = streamExportNdjson(records, { memoryMonitor: serverMemoryMonitor });
+        await streamFileDownload(res, gen, filename, mimeType);
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // Issue #768 — GET /metrics/memory
+      // Returns current process memory stats.
+      // -----------------------------------------------------------------
+      if (pathname === '/metrics/memory' && method === 'GET') {
+        const snap = serverMemoryMonitor.snapshot();
+        sendJson(res, 200, snap);
+        return;
+      }
+
       sendJson(res, 404, { error: 'Not found' });
     } catch (err) {
       console.error('[Server] Request error:', err);
@@ -361,10 +687,20 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
     await new Promise<void>((resolve) => {
       server.listen(port, host, () => {
         console.info(`[Server] Listening on http://${host}:${port}`);
-        console.info(`[Server] GraphQL  → POST /graphql`);
-        console.info(`[Server] Plans    → /plans`);
-        console.info(`[Server] Metrics  → GET /metrics/plan-cache`);
+        console.info(`[Server] GraphQL   → POST /graphql`);
+        console.info(`[Server] Plans     → /plans`);
+        console.info(`[Server] Metrics   → GET /metrics/plan-cache`);
+        console.info(`[Server] Memory    → GET /metrics/memory`);
+        console.info(`[Server] Stream    → GET /subscriptions/stream`);
+        console.info(`[Server] SSE       → GET /exports/stream/:exportId`);
+        console.info(`[Server] Download  → GET /exports/download/:token`);
+        console.info(`[Server] RPC       → GET /rpc/dashboard`);
+        console.info(`[Server] RPC       → GET /rpc/health/:chainId`);
+        console.info(`[Server] RPC       → POST /rpc/reset`);
+        console.info(`[Server] RPC       → GET /rpc/events`);
+        console.info(`[Server] RPC       → GET /metrics/rpc`);
         console.info(`[Server] RateLimit → GET /rate-limits/analytics`);
+        console.info(`[Server] RateLimit → GET /rate-limits/tiers`);
         console.info(`[Server] RateLimit → GET /rate-limits/status?apiKey=...`);
         console.info(`[Server] RateLimit → POST /rate-limits/bypass`);
         console.info(`[Server] RateLimit → POST /rate-limits/config`);

@@ -5,7 +5,9 @@ import { RootStackParamList } from '../types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-const SettingsScreen = lazyScreen(() => import('../../screens/SettingsScreen'));
+const SettingsScreen = lazyScreen(() =>
+  import('../../screens/SettingsScreen').then((m) => ({ default: m.SettingsScreen }))
+);
 const LanguageSettingsScreen = lazyScreen(() => import('../../screens/LanguageSettingsScreen'));
 const NotificationPreferencesScreen = lazyScreen(
   () => import('../../screens/NotificationPreferencesScreen')

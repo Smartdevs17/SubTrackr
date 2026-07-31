@@ -27,7 +27,9 @@ const SegmentDetailScreen = lazyScreen(() =>
 const GroupManagementScreen = lazyScreen(() => import('../../screens/GroupManagementScreen'));
 const SupportDashboardScreen = lazyScreen(() => import('../../screens/SupportDashboardScreen'));
 const TrialDetailsScreen = lazyScreen(() => import('../../screens/TrialDetailsScreen'));
-const NotFoundScreen = lazyScreen(() => import('../../screens/NotFoundScreen'));
+const NotFoundScreen = lazyScreen(() =>
+  import('../../screens/NotFoundScreen').then((m) => ({ default: m.NotFoundScreen }))
+);
 
 export const SocialStack = () => (
   <Stack.Navigator>
