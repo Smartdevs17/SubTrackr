@@ -2,9 +2,11 @@
  * Rate limiting middleware for SubTrackr API.
  *
  * Supports:
- *   - Per-API-key rate limiting (hourly / daily / monthly / burst / concurrent)
+ *   - Token-bucket burst limiting with continuous refill
+ *   - Per-API-key rate limiting (hourly / daily / monthly / concurrent)
  *   - Per-user rate limiting (aggregate across all keys for a user)
  *   - Standard rate-limit response headers (X-RateLimit-*)
+ *   - Tier-based limits (free / pro / enterprise)
  *   - Bypass list for trusted clients (service accounts, internal health checks)
  *   - Configurable limits that can be overridden per-key
  *
@@ -16,7 +18,7 @@
 
 import { SubscriptionTier } from '../../src/types/subscription';
 import { RateLimitingService } from './rateLimitingService';
-import { TIER_RATE_LIMITS } from '../../src/types/rateLimiting';
+import { TIER_RATE_LIMITS, mapSubscriptionToRateLimitTier } from '../../src/types/rateLimiting';
 
 // ---------------------------------------------------------------------------
 // Minimal request / response types — structural, no Express dep required
@@ -254,6 +256,7 @@ export function createRateLimitMiddleware(options: RateLimitMiddlewareOptions) {
 
     const tier = tierFn(apiKey ?? identifier, userId);
     const limits = TIER_RATE_LIMITS[tier];
+    const publicTier = mapSubscriptionToRateLimitTier(tier);
 
     // -----------------------------------------------------------------------
     // Per-API-key check
@@ -265,7 +268,10 @@ export function createRateLimitMiddleware(options: RateLimitMiddlewareOptions) {
       res.setHeader(RATE_LIMIT_HEADERS.LIMIT, limits.hourlyLimit);
       res.setHeader(RATE_LIMIT_HEADERS.REMAINING, status.remaining.hourly);
       res.setHeader(RATE_LIMIT_HEADERS.RESET, Math.ceil(status.resetAt.hourly / 1_000));
-      res.setHeader(RATE_LIMIT_HEADERS.POLICY, `${tier};hourly=${limits.hourlyLimit};daily=${limits.dailyLimit}`);
+      res.setHeader(
+        RATE_LIMIT_HEADERS.POLICY,
+        `${publicTier};hourly=${limits.hourlyLimit};daily=${limits.dailyLimit};burst=${limits.burstLimit};refill=${limits.refillRatePerSecond}/s`,
+      );
 
       if (!check.allowed && !softMode) {
         sendRateLimitExceeded(

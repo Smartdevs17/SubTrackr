@@ -9,6 +9,7 @@ import {
   Dimensions,
 } from 'react-native';
 import Svg, { Rect, Text as SvgText, Line, G } from 'react-native-svg';
+import { useNavigation } from '@react-navigation/native';
 import { spacing, typography, borderRadius } from '../utils/constants';
 import { useSubscriptionStore } from '../store';
 import { SubscriptionCategory, BillingCycle } from '../types/subscription';
@@ -25,6 +26,7 @@ const CHART_HEIGHT = 200;
 type DateRange = 'week' | 'month' | 'year';
 
 const AnalyticsScreen: React.FC = () => {
+  const navigation = useNavigation<any>();
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { subscriptions, stats, calculateStats } = useSubscriptionStore();
@@ -213,18 +215,75 @@ const AnalyticsScreen: React.FC = () => {
         </View>
         <View style={styles.summaryContainer}>
           <Card style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>MRR</Text>
+            <View style={styles.badgeRow}>
+              <Text style={styles.summaryLabel}>MRR</Text>
+              <View
+                style={[
+                  styles.growthBadge,
+                  subscriptionAnalytics.mrrGrowthRate >= 0
+                    ? styles.badgeSuccess
+                    : styles.badgeDanger,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.growthText,
+                    subscriptionAnalytics.mrrGrowthRate >= 0
+                      ? styles.textSuccess
+                      : styles.textDanger,
+                  ]}
+                >
+                  {subscriptionAnalytics.mrrGrowthRate >= 0 ? '+' : ''}
+                  {subscriptionAnalytics.mrrGrowthRate.toFixed(1)}% MoM
+                </Text>
+              </View>
+            </View>
             <Text style={styles.summaryValue}>
               {formatCurrency(subscriptionAnalytics.mrr, preferredCurrency)}
             </Text>
           </Card>
           <Card style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>ARR</Text>
+            <View style={styles.badgeRow}>
+              <Text style={styles.summaryLabel}>ARR</Text>
+              <View
+                style={[
+                  styles.growthBadge,
+                  subscriptionAnalytics.arrGrowthRate >= 0
+                    ? styles.badgeSuccess
+                    : styles.badgeDanger,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.growthText,
+                    subscriptionAnalytics.arrGrowthRate >= 0
+                      ? styles.textSuccess
+                      : styles.textDanger,
+                  ]}
+                >
+                  {subscriptionAnalytics.arrGrowthRate >= 0 ? '+' : ''}
+                  {subscriptionAnalytics.arrGrowthRate.toFixed(1)}% YoY
+                </Text>
+              </View>
+            </View>
             <Text style={styles.summaryValue}>
               {formatCurrency(subscriptionAnalytics.arr, preferredCurrency)}
             </Text>
           </Card>
         </View>
+
+        <TouchableOpacity
+          style={styles.dashboardBanner}
+          onPress={() => navigation?.navigate?.('AnalyticsDashboard')}
+        >
+          <View style={styles.bannerContent}>
+            <Text style={styles.bannerTitle}>🔥 Advanced Cohort & MRR Suite</Text>
+            <Text style={styles.bannerSubtitle}>
+              Interactive retention heatmaps, LTV by channel, linear & exponential forecasting & customizable widgets
+            </Text>
+          </View>
+          <Text style={styles.bannerArrow}>→</Text>
+        </TouchableOpacity>
         <Card style={styles.chartCard}>
           <Text style={styles.chartTitle}>Revenue Health</Text>
           <View style={styles.projectionItem}>
@@ -477,6 +536,39 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     emptyIcon: { fontSize: 64, marginBottom: spacing.md },
     emptyTitle: { ...typography.h2, color: colors.text.primary, marginBottom: spacing.sm },
     emptyText: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
+    badgeRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      width: '100%',
+      marginBottom: spacing.xs,
+    },
+    growthBadge: {
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 10,
+    },
+    badgeSuccess: { backgroundColor: 'rgba(16, 185, 129, 0.15)' },
+    badgeDanger: { backgroundColor: 'rgba(239, 68, 68, 0.15)' },
+    growthText: { fontSize: 10, fontWeight: '700' },
+    textSuccess: { color: '#10B981' },
+    textDanger: { color: '#EF4444' },
+    dashboardBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginHorizontal: spacing.lg,
+      marginBottom: spacing.md,
+      padding: spacing.md,
+      backgroundColor: 'rgba(59, 130, 246, 0.12)',
+      borderRadius: borderRadius.lg,
+      borderWidth: 1,
+      borderColor: 'rgba(59, 130, 246, 0.3)',
+    },
+    bannerContent: { flex: 1, marginRight: spacing.sm },
+    bannerTitle: { ...typography.bodyBold, color: '#60A5FA', marginBottom: 2 },
+    bannerSubtitle: { ...typography.caption, color: colors.textSecondary, fontSize: 11 },
+    bannerArrow: { fontSize: 20, color: '#60A5FA', fontWeight: '700' },
   });
 }
 

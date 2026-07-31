@@ -11,12 +11,39 @@ path = "src/lib.rs"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-soroban-sdk = "21.0.0"
+soroban-sdk = { workspace = true }
 subtrackr-types = { path = "../types" }
-subtrackr-oracle = { path = "../oracle" }
+subtrackr-oracle = { path = "../oracle", optional = true }
 
 [features]
+# ── Core feature (always compiled) ───────────────────────────────────────────
+default = []
+
+# ── Optional modules ─────────────────────────────────────────────────────────
+# Activate oracle price-feed integration
+oracle = ["dep:subtrackr-oracle"]
+
+# Extended subscription features: revenue recognition, quota/usage, proration,
+# payment methods.  Excluded from the minimal core binary.
 extended = []
 
+# Metering: usage-based billing hooks
+metering = []
+
+# Audit log: publish detailed on-chain audit events
+audit-log = []
+
+# Credit: credit memo / prepayment module
+credit = []
+
+# Fraud: fraud detection hooks integrated into charge flow
+fraud = []
+
+# Convenience alias — enables all optional modules
+full = ["oracle", "extended", "metering", "audit-log", "credit", "fraud"]
+
+# Test utilities — NEVER compiled into production WASM
+testutils = ["soroban-sdk/testutils"]
+
 [dev-dependencies]
-soroban-sdk = { version = "21.0.0", features = ["testutils"] }
+soroban-sdk = { workspace = true, features = ["testutils"] }

@@ -26,14 +26,18 @@ const ENDPOINTS: Endpoint[] = [
     path: '/v1/subscriptions',
     name: 'Create Subscription',
     hasBody: true,
-    defaultBody: JSON.stringify({
-      name: "Netflix",
-      category: "streaming",
-      price: 15.99,
-      currency: "USD",
-      billingCycle: "monthly",
-      startDate: "2024-01-01T00:00:00Z"
-    }, null, 2)
+    defaultBody: JSON.stringify(
+      {
+        name: 'Netflix',
+        category: 'streaming',
+        price: 15.99,
+        currency: 'USD',
+        billingCycle: 'monthly',
+        startDate: '2024-01-01T00:00:00Z',
+      },
+      null,
+      2
+    ),
   },
   { id: 'list_pay', method: 'GET', path: '/v1/payments', name: 'List Payments' },
 ];
@@ -45,8 +49,11 @@ export const ApiPlayground: React.FC = () => {
   const [apiKey, setApiKey] = useState('sk_test_your_api_key_here');
   const [requestBody, setRequestBody] = useState(ENDPOINTS[0].defaultBody || '');
   const [selectedLang, setSelectedLang] = useState('cURL');
-  
-  const [response, setResponse] = useState<{ status: number | null, data: string | null }>({ status: null, data: null });
+
+  const [response, setResponse] = useState<{ status: number | null; data: string | null }>({
+    status: null,
+    data: null,
+  });
   const [loading, setLoading] = useState(false);
 
   const handleEndpointSelect = (endpoint: Endpoint) => {
@@ -61,8 +68,10 @@ export const ApiPlayground: React.FC = () => {
     const bodyStr = selectedEndpoint.hasBody ? `\n  -d '${requestBody}'` : '';
     const bodyJs = selectedEndpoint.hasBody ? `,\n  body: JSON.stringify(${requestBody})` : '';
     const bodyPy = selectedEndpoint.hasBody ? `\npayload = ${requestBody}` : '';
-    const bodyGo = selectedEndpoint.hasBody ? `\npayload := strings.NewReader(\`${requestBody}\`)` : '';
-    
+    const bodyGo = selectedEndpoint.hasBody
+      ? `\npayload := strings.NewReader(\`${requestBody}\`)`
+      : '';
+
     switch (selectedLang) {
       case 'cURL':
         return `curl -X ${method} ${url} \\
@@ -118,31 +127,45 @@ func main() {
     setTimeout(() => {
       let mockResponse = {};
       let mockStatus = 200;
-      
+
       if (selectedEndpoint.id === 'list_sub') {
         mockResponse = {
           success: true,
-          data: [{ id: "sub_123", name: "Netflix", price: 15.99, status: "active" }],
-          pagination: { page: 1, limit: 20, total: 1 }
+          data: [{ id: 'sub_123', name: 'Netflix', price: 15.99, status: 'active' }],
+          pagination: { page: 1, limit: 20, total: 1 },
         };
       } else if (selectedEndpoint.id === 'create_sub') {
         try {
           const bodyData = JSON.parse(requestBody);
-          mockResponse = { success: true, data: { id: "sub_new", ...bodyData, status: "active", createdAt: new Date().toISOString() } };
+          mockResponse = {
+            success: true,
+            data: {
+              id: 'sub_new',
+              ...bodyData,
+              status: 'active',
+              createdAt: new Date().toISOString(),
+            },
+          };
           mockStatus = 201;
-        } catch(e) {
-          mockResponse = { success: false, error: { code: "INVALID_REQUEST", message: "Invalid JSON body" } };
+        } catch (e) {
+          mockResponse = {
+            success: false,
+            error: { code: 'INVALID_REQUEST', message: 'Invalid JSON body' },
+          };
           mockStatus = 400;
         }
       } else {
         mockResponse = { success: true, data: [] };
       }
-      
+
       if (apiKey === '') {
-        mockResponse = { success: false, error: { code: "UNAUTHORIZED", message: "Missing API Key" } };
+        mockResponse = {
+          success: false,
+          error: { code: 'UNAUTHORIZED', message: 'Missing API Key' },
+        };
         mockStatus = 401;
       }
-      
+
       setResponse({ status: mockStatus, data: JSON.stringify(mockResponse, null, 2) });
       setLoading(false);
     }, 800);
@@ -151,20 +174,37 @@ func main() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Interactive API Playground</Text>
-      
+
       <View style={styles.layout}>
         {/* Left Column - Configuration */}
         <View style={styles.configColumn}>
           <Text style={styles.label}>Endpoint</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.endpointsScroll}>
-            {ENDPOINTS.map(ep => (
-              <TouchableOpacity 
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.endpointsScroll}>
+            {ENDPOINTS.map((ep) => (
+              <TouchableOpacity
                 key={ep.id}
-                style={[styles.endpointTab, selectedEndpoint.id === ep.id && styles.endpointTabSelected]}
-                onPress={() => handleEndpointSelect(ep)}
-              >
-                <Text style={[styles.endpointMethod, { color: ep.method === 'GET' ? '#3B82F6' : '#10B981' }]}>{ep.method}</Text>
-                <Text style={[styles.endpointName, selectedEndpoint.id === ep.id && styles.endpointNameSelected]}>{ep.name}</Text>
+                style={[
+                  styles.endpointTab,
+                  selectedEndpoint.id === ep.id && styles.endpointTabSelected,
+                ]}
+                onPress={() => handleEndpointSelect(ep)}>
+                <Text
+                  style={[
+                    styles.endpointMethod,
+                    { color: ep.method === 'GET' ? '#3B82F6' : '#10B981' },
+                  ]}>
+                  {ep.method}
+                </Text>
+                <Text
+                  style={[
+                    styles.endpointName,
+                    selectedEndpoint.id === ep.id && styles.endpointNameSelected,
+                  ]}>
+                  {ep.name}
+                </Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -205,18 +245,25 @@ func main() {
         <View style={styles.codeColumn}>
           <View style={styles.codeSection}>
             <View style={styles.langTabs}>
-              {LANGUAGES.map(lang => (
-                <TouchableOpacity 
-                  key={lang} 
+              {LANGUAGES.map((lang) => (
+                <TouchableOpacity
+                  key={lang}
                   style={[styles.langTab, selectedLang === lang && styles.langTabSelected]}
-                  onPress={() => setSelectedLang(lang)}
-                >
-                  <Text style={[styles.langTabText, selectedLang === lang && styles.langTabTextSelected]}>{lang}</Text>
+                  onPress={() => setSelectedLang(lang)}>
+                  <Text
+                    style={[
+                      styles.langTabText,
+                      selectedLang === lang && styles.langTabTextSelected,
+                    ]}>
+                    {lang}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </View>
             <View style={styles.codeBlock}>
-              <Text style={styles.codeText} selectable>{generateCode()}</Text>
+              <Text style={styles.codeText} selectable>
+                {generateCode()}
+              </Text>
             </View>
           </View>
 
@@ -224,12 +271,20 @@ func main() {
             <View style={styles.responseSection}>
               <View style={styles.responseHeader}>
                 <Text style={styles.label}>Response</Text>
-                <View style={[styles.statusBadge, response.status === 200 || response.status === 201 ? styles.statusSuccess : styles.statusError]}>
+                <View
+                  style={[
+                    styles.statusBadge,
+                    response.status === 200 || response.status === 201
+                      ? styles.statusSuccess
+                      : styles.statusError,
+                  ]}>
                   <Text style={styles.statusText}>{response.status}</Text>
                 </View>
               </View>
               <View style={styles.codeBlock}>
-                <Text style={styles.codeText} selectable>{response.data}</Text>
+                <Text style={styles.codeText} selectable>
+                  {response.data}
+                </Text>
               </View>
             </View>
           )}
