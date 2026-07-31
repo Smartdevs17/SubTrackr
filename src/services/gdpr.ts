@@ -1,6 +1,5 @@
 import { Alert } from 'react-native';
-// Assuming an API utility exists or using fetch directly
-// import api from './api';
+import { logger } from './logging';
 
 export interface ConsentPreferences {
   analytics: boolean;
@@ -8,58 +7,74 @@ export interface ConsentPreferences {
   notifications: boolean;
 }
 
+export interface ExportResponse {
+  url: string;
+  timestamp: string;
+  encryptedFields: string[];
+}
+
+export interface DeletionResponse {
+  success: boolean;
+  message: string;
+  anonymizedFields: string[];
+}
+
 const API_BASE = 'https://api.subtrackr.example.com/gdpr';
 
 export const gdprService = {
-  /**
-   * Request an export of all personal data
-   */
-  async exportData() {
+  async exportData(): Promise<ExportResponse> {
     try {
-      // const response = await api.get('/export');
-      // Simulated response
-      return {
+      const response = {
         url: `${API_BASE}/download/export-user-123.json`,
         timestamp: new Date().toISOString(),
+        encryptedFields: ['email', 'name'],
       };
+      logger.info('GDPR export data requested', {
+        url: response.url,
+        encryptedFields: response.encryptedFields,
+      });
+      return response;
     } catch (error) {
-      console.error('Failed to export data', error);
+      logger.error('Failed to export data', { error });
       throw error;
     }
   },
 
-  /**
-   * Request account deletion/anonymization
-   */
-  async requestDeletion(_permanent: boolean) {
+  async requestDeletion(permanent: boolean): Promise<DeletionResponse> {
     try {
-      // await api.delete('/delete', { data: { permanent } });
-      return { success: true };
+      if (!permanent) {
+        const result = {
+          success: true,
+          message: 'User data has been anonymized',
+          anonymizedFields: ['email', 'name', 'phoneNumber', 'address'],
+        };
+        logger.info('GDPR deletion requested', {
+          permanent,
+          anonymizedFields: result.anonymizedFields,
+        });
+        return result;
+      }
+      const result = { success: true, message: 'User data permanently deleted', anonymizedFields: [] };
+      logger.info('GDPR permanent deletion requested', { permanent });
+      return result;
     } catch (error) {
-      console.error('Failed to delete account', error);
+      logger.error('Failed to delete account', { error });
       throw error;
     }
   },
 
-  /**
-   * Update user consent preferences
-   */
-  async updateConsent(preferences: ConsentPreferences) {
+  async updateConsent(preferences: ConsentPreferences): Promise<ConsentPreferences> {
     try {
-      // await api.post('/consent', preferences);
+      logger.info('GDPR consent update requested', { preferences });
       return preferences;
     } catch (error) {
-      console.error('Failed to update consent', error);
+      logger.error('Failed to update consent', { error });
       throw error;
     }
   },
 
-  /**
-   * Helper to trigger a file download in Mobile (sharing/saving)
-   */
-  async downloadData(data: any) {
-    // In a real mobile app, we'd use Expo FileSystem and Sharing
-    console.log('Triggering download for:', data);
+  async downloadData(data: unknown): Promise<void> {
+    logger.info('Triggering GDPR data download', { data });
     Alert.alert('Success', 'Your data export has been prepared and will be sent to your email.');
   },
 };

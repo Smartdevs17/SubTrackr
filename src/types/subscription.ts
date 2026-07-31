@@ -14,10 +14,20 @@ export interface Subscription {
   cryptoStreamId?: string;
   cryptoToken?: string;
   cryptoAmount?: number;
+  externalId?: string;
+  externalSource?: string;
   gasBudget?: number;
   totalGasSpent?: number;
   chargeCount?: number;
   lastGasCost?: number;
+  /** Oracle-sourced fiat equivalent price for display purposes */
+  fiatPrice?: number;
+  fiatCurrency?: string;
+  fiatPriceUpdatedAt?: Date;
+  oraclePriceDeviationBps?: number;
+  groupId?: string;
+  groupMemberAddress?: string;
+  timezone?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -72,6 +82,8 @@ export interface SubscriptionFormData {
   isCryptoEnabled: boolean;
   cryptoToken?: string;
   cryptoAmount?: number;
+  externalId?: string;
+  externalSource?: string;
 }
 
 export interface SubscriptionStats {
@@ -80,4 +92,6 @@ export interface SubscriptionStats {
   totalYearlySpend: number;
   categoryBreakdown: Record<SubscriptionCategory, number>;
   totalGasSpent?: number;
+  totalFiatMonthlySpend?: number;
+  fiatCurrency?: string;
 }

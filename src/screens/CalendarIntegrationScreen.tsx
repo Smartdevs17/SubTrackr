@@ -1,9 +1,10 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import {
   Alert,
   Linking,
   SafeAreaView,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -14,10 +15,16 @@ import { Card } from '../components/common/Card';
 import { useCalendarStore } from '../store/calendarStore';
 import { useSubscriptionStore } from '../store/subscriptionStore';
 import {
+  ALL_CALENDAR_EVENT_TYPES,
+  CALENDAR_EVENT_TYPE_LABELS,
   CALENDAR_PROVIDERS,
   REMINDER_OFFSET_OPTIONS,
   REMINDER_PRESETS,
+  SUBSCRIPTION_TIMEZONES,
+  SYNC_DIRECTION_LABELS,
+  type CalendarEventType,
   type CalendarProvider,
+  type SyncDirection,
 } from '../types/calendar';
 import { borderRadius, colors, spacing, typography } from '../utils/constants';
 
@@ -51,6 +58,9 @@ const CalendarIntegrationScreen: React.FC = () => {
     pendingAuthorizations,
     reminderOffsets,
     error,
+    oneTimePayments,
+    scheduleConflicts,
+    timezone,
     beginConnection,
     completeConnection,
     cancelConnection,
@@ -58,6 +68,13 @@ const CalendarIntegrationScreen: React.FC = () => {
     setReminderOffsets,
     toggleReminderOffset,
     clearError,
+    addOneTimePayment,
+    cancelOneTimePayment,
+    checkConflicts,
+    exportCalendar,
+    setTimezone,
+    setSyncDirection,
+    toggleEventType,
   } = useCalendarStore();
   const subscriptions = useSubscriptionStore((state) => state.subscriptions);
 
@@ -113,6 +130,57 @@ const CalendarIntegrationScreen: React.FC = () => {
       .getState()
       .syncSubscriptions(useSubscriptionStore.getState().subscriptions);
   };
+
+  const handleExportICal = useCallback(async () => {
+    try {
+      const payload = exportCalendar(subscriptions, timezone);
+      await Share.share({
+        message: payload.ical,
+        title: payload.filename,
+      });
+      Alert.alert(
+        'Calendar exported',
+        `Exported ${payload.events.length} events to ${payload.filename}`
+      );
+    } catch (exportError) {
+      Alert.alert(
+        'Export failed',
+        exportError instanceof Error ? exportError.message : 'Could not export calendar.'
+      );
+    }
+  }, [subscriptions, timezone, exportCalendar]);
+
+  const handleCheckConflicts = useCallback(() => {
+    checkConflicts(subscriptions);
+  }, [subscriptions, checkConflicts]);
+
+  const handleScheduleOneTimePayment = useCallback(() => {
+    Alert.prompt
+      ? Alert.prompt(
+          'Schedule one-time payment',
+          'Enter subscription ID and amount (e.g., sub-1,29.99)',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Schedule',
+              onPress: (input?: string) => {
+                if (!input) return;
+                const [subId, amountStr] = input.split(',');
+                const amount = parseFloat(amountStr);
+                if (subId && !isNaN(amount)) {
+                  addOneTimePayment(subId, amount, 'USD', new Date(), 'One-time payment');
+                  Alert.alert('Scheduled', `One-time payment of ${amount} USD for ${subId}`);
+                }
+              },
+            },
+          ],
+          'plain-text'
+        )
+      : Alert.alert(
+          'Schedule one-time payment',
+          'Use the calendar app to schedule one-time payments from the billing screen.'
+        );
+  }, [addOneTimePayment]);
 
   const handleConnect = async (provider: CalendarProvider) => {
     try {
@@ -263,6 +331,85 @@ const CalendarIntegrationScreen: React.FC = () => {
           })}
         </Card>
 
+        {integrations.length > 0 && (
+          <Card style={styles.section}>
+            <Text style={styles.sectionTitle}>Two-way sync settings</Text>
+            <Text style={styles.sectionDescription}>
+              Control how events flow between SubTrackr and your calendars. With two-way sync,
+              changes on your calendar (reschedule, snooze, delete) are reflected in SubTrackr.
+            </Text>
+
+            {integrations.map((integration) => (
+              <View key={`sync-${integration.id}`} style={styles.providerCard}>
+                <Text style={styles.providerLabel}>{providerLabels[integration.provider]}</Text>
+
+                <Text style={styles.syncSettingLabel}>Sync direction</Text>
+                <View style={styles.syncDirectionRow}>
+                  {(['to_calendar', 'from_calendar', 'bidirectional'] as SyncDirection[]).map(
+                    (dir) => {
+                      const currentDir = integration.syncSettings?.syncDirection ?? 'bidirectional';
+                      const isSelected = currentDir === dir;
+                      return (
+                        <TouchableOpacity
+                          key={dir}
+                          style={[styles.syncDirChip, isSelected && styles.offsetChipActive]}
+                          onPress={() => setSyncDirection(integration.id, dir)}>
+                          <Text
+                            style={[
+                              styles.offsetChipText,
+                              isSelected && styles.offsetChipTextActive,
+                            ]}>
+                            {SYNC_DIRECTION_LABELS[dir]}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    }
+                  )}
+                </View>
+
+                <Text style={styles.syncSettingLabel}>Event types to sync</Text>
+                <View style={styles.eventTypeGrid}>
+                  {ALL_CALENDAR_EVENT_TYPES.map((eventType: CalendarEventType) => {
+                    const enabled =
+                      integration.syncSettings?.enabledEventTypes?.includes(eventType) ??
+                      ['payment_due', 'renewal', 'trial_ending'].includes(eventType);
+                    return (
+                      <TouchableOpacity
+                        key={eventType}
+                        style={[styles.eventTypeChip, enabled && styles.offsetChipActive]}
+                        onPress={() => toggleEventType(integration.id, eventType)}>
+                        <Text
+                          style={[styles.offsetChipText, enabled && styles.offsetChipTextActive]}>
+                          {CALENDAR_EVENT_TYPE_LABELS[eventType]}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <Text style={styles.syncSettingLabel}>
+                  Sync method: {integration.syncSettings?.syncMethod ?? 'webhook'} (real-time via
+                  webhook, fallback to hourly poll)
+                </Text>
+
+                {integration.syncSettings?.lastSyncResult && (
+                  <View style={styles.syncResultRow}>
+                    <Text style={styles.syncResultText}>
+                      Last sync:{' '}
+                      {new Date(integration.syncSettings.lastSyncResult.syncedAt).toLocaleString()}
+                      {' — '}
+                      {integration.syncSettings.lastSyncResult.pushed} pushed,{' '}
+                      {integration.syncSettings.lastSyncResult.pulled} pulled
+                      {integration.syncSettings.lastSyncResult.conflicts > 0 &&
+                        `, ${integration.syncSettings.lastSyncResult.conflicts} conflicts`}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            ))}
+          </Card>
+        )}
+
         <Card style={styles.section}>
           <Text style={styles.sectionTitle}>Reminder customization</Text>
           <Text style={styles.sectionDescription}>
@@ -350,6 +497,101 @@ const CalendarIntegrationScreen: React.FC = () => {
             <Text style={styles.emptyPreview}>
               Connect a provider to start generating renewal events from active subscriptions.
             </Text>
+          )}
+        </Card>
+
+        <Card style={styles.section}>
+          <Text style={styles.sectionTitle}>Calendar export</Text>
+          <Text style={styles.sectionDescription}>
+            Export all subscription renewal events as an iCal file for use with any calendar app.
+          </Text>
+          <TouchableOpacity style={styles.actionButton} onPress={handleExportICal}>
+            <Text style={styles.actionButtonText}>Export iCal (.ics)</Text>
+          </TouchableOpacity>
+        </Card>
+
+        <Card style={styles.section}>
+          <Text style={styles.sectionTitle}>Timezone</Text>
+          <Text style={styles.sectionDescription}>
+            Set your preferred timezone for calendar events. Current: {timezone}.
+          </Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.timezoneScroll}>
+            {SUBSCRIPTION_TIMEZONES.map((tz) => (
+              <TouchableOpacity
+                key={tz}
+                style={[styles.timezoneChip, tz === timezone && styles.offsetChipActive]}
+                onPress={() => setTimezone(tz)}>
+                <Text
+                  style={[styles.offsetChipText, tz === timezone && styles.offsetChipTextActive]}>
+                  {tz}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </Card>
+
+        <Card style={styles.section}>
+          <Text style={styles.sectionTitle}>Schedule conflicts</Text>
+          <Text style={styles.sectionDescription}>
+            Detect overlapping subscription billing dates and total charges per day.
+          </Text>
+          <TouchableOpacity style={styles.actionButton} onPress={handleCheckConflicts}>
+            <Text style={styles.actionButtonText}>Check for conflicts</Text>
+          </TouchableOpacity>
+          {scheduleConflicts.length > 0
+            ? scheduleConflicts.slice(0, 5).map((conflict) => (
+                <View key={conflict.date} style={styles.conflictRow}>
+                  <Text style={styles.conflictDate}>{conflict.date}</Text>
+                  <Text style={styles.conflictDetail}>
+                    {conflict.conflictingSubscriptions.length} subscriptions —{' '}
+                    {conflict.totalAmount.toFixed(2)} USD total
+                  </Text>
+                  {conflict.conflictingSubscriptions.map((sub) => (
+                    <Text key={sub.id} style={styles.conflictSub}>
+                      {sub.name}: {sub.currency} {sub.amount.toFixed(2)}
+                    </Text>
+                  ))}
+                </View>
+              ))
+            : scheduleConflicts.length === 0 && (
+                <Text style={styles.emptyPreview}>
+                  No conflicts detected. Tap "Check for conflicts" to scan.
+                </Text>
+              )}
+        </Card>
+
+        <Card style={styles.section}>
+          <Text style={styles.sectionTitle}>One-time payments</Text>
+          <Text style={styles.sectionDescription}>
+            Schedule one-time payments beyond recurring subscriptions.
+          </Text>
+          <TouchableOpacity style={styles.actionButton} onPress={handleScheduleOneTimePayment}>
+            <Text style={styles.actionButtonText}>Schedule payment</Text>
+          </TouchableOpacity>
+          {oneTimePayments.length > 0 ? (
+            oneTimePayments.map((payment) => (
+              <View key={payment.id} style={styles.conflictRow}>
+                <Text style={styles.conflictDate}>{payment.description}</Text>
+                <Text style={styles.conflictDetail}>
+                  {payment.currency} {payment.amount.toFixed(2)} — {payment.status}
+                </Text>
+                <Text style={styles.conflictSub}>
+                  {new Date(payment.scheduledDate).toLocaleDateString()}
+                </Text>
+                {payment.status === 'pending' && (
+                  <TouchableOpacity
+                    style={[styles.actionButton, styles.disconnectButton]}
+                    onPress={() => cancelOneTimePayment(payment.id)}>
+                    <Text style={styles.actionButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ))
+          ) : (
+            <Text style={styles.emptyPreview}>No one-time payments scheduled.</Text>
           )}
         </Card>
 
@@ -480,6 +722,68 @@ const styles = StyleSheet.create({
     borderColor: `${colors.error}66`,
   },
   errorButtonText: { ...typography.caption, color: colors.error, fontWeight: '600' },
+  timezoneScroll: { marginTop: spacing.sm },
+  timezoneChip: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    marginRight: spacing.sm,
+  },
+  conflictRow: {
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    gap: spacing.xs,
+  },
+  conflictDate: { ...typography.body, color: colors.text, fontWeight: '600' },
+  conflictDetail: { ...typography.caption, color: colors.textSecondary },
+  conflictSub: { ...typography.small, color: colors.textSecondary, paddingLeft: spacing.sm },
+  syncSettingLabel: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontWeight: '600',
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  syncDirectionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  syncDirChip: {
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  eventTypeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  eventTypeChip: {
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  syncResultRow: {
+    marginTop: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: borderRadius.md,
+    backgroundColor: `${colors.primary}10`,
+  },
+  syncResultText: {
+    ...typography.small,
+    color: colors.textSecondary,
+  },
 });
 
 export default CalendarIntegrationScreen;

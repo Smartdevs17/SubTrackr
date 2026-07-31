@@ -1,6 +1,5 @@
 import math
-import random
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 class ChurnPredictionModel:
     def __init__(self):
@@ -13,35 +12,10 @@ class ChurnPredictionModel:
             "price_sensitivity": 0.1
         }
 
-    def _extract_features(self, user_data: Dict) -> Dict:
-        """
-        Extract normalized features from raw user data.
-        """
-        features = {}
-        # Normalize payment failures (0 to 1)
-        features["payment_failures"] = min(user_data.get("recent_payment_failures", 0) / 3.0, 1.0)
-        
-        # Normalize login frequency drop (e.g., 50% drop -> 0.5)
-        baseline_logins = max(user_data.get("baseline_logins_per_month", 1), 1)
-        recent_logins = user_data.get("recent_logins", baseline_logins)
-        drop = max(0, (baseline_logins - recent_logins) / baseline_logins)
-        features["login_frequency_drop"] = drop
-        
-        # Normalize support tickets
-        features["support_tickets"] = min(user_data.get("open_support_tickets", 0) / 2.0, 1.0)
-        
-        # Add random noise for simulation
-        features["app_crashes"] = random.uniform(0, 0.2)
-        features["price_sensitivity"] = user_data.get("price_sensitivity_index", 0.5)
-        
-        return features
-
-    def predict_churn(self, subscriber_address: str, user_data: Dict) -> Dict:
+    def predict_churn(self, subscriber_address: str, features: Dict) -> Dict:
         """
         Predict churn probability and return risk scoring.
         """
-        features = self._extract_features(user_data)
-        
         # Calculate risk score (0.0 to 1.0)
         risk_score = 0.0
         for feature, value in features.items():
@@ -85,6 +59,35 @@ class ChurnPredictionModel:
         else:
             return "Offer a 1-month free subscription to retain user."
 
+
+class RevenueForecastModel:
+    def forecast(self, observations: List[Dict], horizon: int = 3) -> List[Dict]:
+        values = [float(item.get("revenue", 0)) for item in observations]
+        if not values:
+            return []
+
+        latest = values[-1]
+        deltas = [values[index] - values[index - 1] for index in range(1, len(values))]
+        average_delta = sum(deltas) / len(deltas) if deltas else 0
+        variance = (
+            sum((delta - average_delta) ** 2 for delta in deltas) / len(deltas)
+            if deltas
+            else max(latest * 0.05, 1)
+        )
+        deviation = math.sqrt(variance)
+
+        forecast = []
+        for step in range(1, horizon + 1):
+            expected = max(0, latest + average_delta * step)
+            confidence = deviation * math.sqrt(step) * 1.96
+            forecast.append({
+                "period": f"forecast_{step}",
+                "expected_revenue": round(expected, 2),
+                "lower_bound": round(max(0, expected - confidence), 2),
+                "upper_bound": round(expected + confidence, 2),
+            })
+        return forecast
+
 if __name__ == "__main__":
     model = ChurnPredictionModel()
     test_data = {
@@ -94,5 +97,11 @@ if __name__ == "__main__":
         "open_support_tickets": 1,
         "price_sensitivity_index": 0.8
     }
-    prediction = model.predict_churn("0xDEF456", test_data)
+    prediction = model.predict_churn("0xDEF456", {
+        "payment_failures": 0.67,
+        "login_frequency_drop": 0.75,
+        "support_tickets": 0.5,
+        "app_crashes": 0.0,
+        "price_sensitivity": test_data["price_sensitivity_index"],
+    })
     print(f"Churn Prediction: {prediction}")

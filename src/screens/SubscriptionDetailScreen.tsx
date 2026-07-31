@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
   Switch,
+  Share,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -18,6 +19,7 @@ import { formatCurrency } from '../utils/formatting';
 import { colors, spacing, typography } from '../utils/constants';
 import { getCategoryIcon } from '../utils/subscriptionHelpers';
 import { RootStackParamList } from '../navigation/types';
+import { useGroupStore } from '../store/groupStore';
 
 // Components
 import { Button } from '../components/common/Button';
@@ -34,16 +36,45 @@ const SubscriptionDetailScreen: React.FC = () => {
 
   const { subscriptions, toggleSubscriptionStatus, updateSubscription, recordBillingOutcome } =
     useSubscriptionStore();
+  const { groups } = useGroupStore();
   const { preferredCurrency, exchangeRates } = useSettingsStore();
   const rates = exchangeRates?.rates || {};
 
   const subscription = useMemo(() => subscriptions?.find((s) => s.id === id), [id, subscriptions]);
+  const subscriptionGroup = useMemo(
+    () => groups.find((group) => group.groupId === subscription?.groupId),
+    [groups, subscription?.groupId]
+  );
 
   const [loading, setLoading] = useState(!subscription);
 
   useEffect(() => {
     if (subscription) {
       setLoading(false);
+    }
+  }, [subscription]);
+
+  const handleEdit = useCallback(() => {
+    navigation.navigate('EditSubscription', { id: subscription.id });
+  }, [subscription, navigation]);
+
+  const handleShare = useCallback(async () => {
+    if (!subscription) return;
+    const billingCycle =
+      subscription.billingCycle.charAt(0).toUpperCase() + subscription.billingCycle.slice(1);
+    const price = formatCurrency(subscription.price, subscription.currency);
+    const deepLink = `subtrackr://subscription/${subscription.id}`;
+
+    const message =
+      `📋 ${subscription.name}\n` + `💰 ${price} / ${billingCycle}\n` + `🔗 ${deepLink}`;
+
+    try {
+      const result = await Share.share({ message, title: subscription.name });
+      if (result.action === Share.dismissedAction) {
+        // User dismissed — no action needed
+      }
+    } catch {
+      Alert.alert('Error', 'Unable to open the share sheet. Please try again.');
     }
   }, [subscription]);
 
@@ -96,7 +127,7 @@ const SubscriptionDetailScreen: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} testID="subscription-detail-screen">
       <ScreenTransition type="slide" duration={400}>
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
           {/* Header */}
@@ -112,7 +143,24 @@ const SubscriptionDetailScreen: React.FC = () => {
             <Text style={styles.title} accessibilityRole="header">
               Subscription Details
             </Text>
-            <View style={styles.placeholder} />
+            <View style={styles.headerActions}>
+              <TouchableOpacity
+                onPress={handleShare}
+                style={styles.headerActionButton}
+                accessibilityRole="button"
+                accessibilityLabel={`Share ${subscription.name}`}
+                testID="share-subscription-button">
+                <Text style={styles.shareButtonText}>Share</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleEdit}
+                style={styles.editButton}
+                accessibilityRole="button"
+                accessibilityLabel="Edit subscription"
+                testID="edit-subscription-button">
+                <Text style={styles.editButtonText}>Edit</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Main Info Card */}
@@ -178,6 +226,30 @@ const SubscriptionDetailScreen: React.FC = () => {
               </Text>
             </View>
           </Card>
+
+          {subscriptionGroup ? (
+            <Card style={styles.standardCard}>
+              <Text style={styles.sectionTitle}>Group plan</Text>
+              <View style={styles.dataRow}>
+                <Text style={styles.dataLabel}>Group</Text>
+                <Text style={styles.dataValue}>{subscriptionGroup.name}</Text>
+              </View>
+              <View style={styles.dataRow}>
+                <Text style={styles.dataLabel}>Seats</Text>
+                <Text style={styles.dataValue}>
+                  {subscriptionGroup.members.length}/{subscriptionGroup.planSharingRules.seatLimit}
+                </Text>
+              </View>
+              <View style={styles.dataRow}>
+                <Text style={styles.dataLabel}>Billing</Text>
+                <Text style={styles.dataValue}>
+                  {subscriptionGroup.planSharingRules.ownerPaysForMembers
+                    ? 'Consolidated'
+                    : 'Member split'}
+                </Text>
+              </View>
+            </Card>
+          ) : null}
 
           {/* Notifications */}
           <Card style={styles.statusCard}>
@@ -248,6 +320,7 @@ const SubscriptionDetailScreen: React.FC = () => {
               onPress={handlePauseResume}
               variant="secondary"
               style={styles.actionButton}
+              testID="pause-resume-subscription-button"
             />
 
             <Button
@@ -255,6 +328,7 @@ const SubscriptionDetailScreen: React.FC = () => {
               variant="danger"
               onPress={handleStartCancellation}
               style={styles.cancelButton}
+              testID="cancel-subscription-button"
             />
           </View>
         </ScrollView>
@@ -299,6 +373,30 @@ const styles = StyleSheet.create({
   },
   placeholder: {
     width: 40,
+  },
+  editButton: {
+    padding: spacing.sm,
+    width: 40,
+    alignItems: 'flex-end',
+  },
+  editButtonText: {
+    ...typography.body,
+    color: colors.primary,
+    fontWeight: '500',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  headerActionButton: {
+    padding: spacing.sm,
+    alignItems: 'center',
+  },
+  shareButtonText: {
+    ...typography.body,
+    color: colors.primary,
+    fontWeight: '500',
   },
   backIcon: {
     padding: spacing.sm,

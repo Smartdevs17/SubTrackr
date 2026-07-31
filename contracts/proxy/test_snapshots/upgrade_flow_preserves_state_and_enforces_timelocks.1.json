@@ -1626,6 +1626,18 @@
                         "key": {
                           "vec": [
                             {
+                              "symbol": "ProxyPrevImplCount"
+                            }
+                          ]
+                        },
+                        "val": {
+                          "u32": 1
+                        }
+                      },
+                      {
+                        "key": {
+                          "vec": [
+                            {
                               "symbol": "ProxyPreviousImplementation"
                             },
                             {
@@ -1635,18 +1647,6 @@
                         },
                         "val": {
                           "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOLZM"
-                        }
-                      },
-                      {
-                        "key": {
-                          "vec": [
-                            {
-                              "symbol": "ProxyPreviousImplementationCount"
-                            }
-                          ]
-                        },
-                        "val": {
-                          "u32": 1
                         }
                       },
                       {
@@ -3968,7 +3968,7 @@
             "data": {
               "vec": [
                 {
-                  "string": "caught panic 'Upgrade timelock not expired' from contract function 'Symbol(obj#1021)'"
+                  "string": "caught panic 'Upgrade timelock not expired' from contract function 'Symbol(obj#989)'"
                 },
                 {
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOLZM"
@@ -6023,7 +6023,7 @@
             "data": {
               "vec": [
                 {
-                  "string": "caught panic 'Upgrade timelock not expired' from contract function 'Symbol(obj#1953)'"
+                  "string": "caught panic 'Upgrade timelock not expired' from contract function 'Symbol(obj#1917)'"
                 },
                 {
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4"
