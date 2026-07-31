@@ -26,6 +26,41 @@ services:
       retries: 5
     <<: *default-resources
 
+  # Issue #600: PgBouncer transaction-pooling proxy for serverless connection
+  # multiplexing. App / serverless handlers -> pgbouncer :6432 -> postgres :5432.
+  # Credentials are interpolated from .env (see .env.example) — never hardcoded.
+  pgbouncer:
+    image: edoburu/pgbouncer:1.23.1
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASS:-postgres}
+      DB_NAME: ${DB_NAME:-subtrackr}
+      # Transaction pooling: small server pool fans out to many clients.
+      POOL_MODE: transaction
+      AUTH_TYPE: scram-sha-256
+      MAX_CLIENT_CONN: "500"
+      DEFAULT_POOL_SIZE: "50"
+      MIN_POOL_SIZE: "5"
+      RESERVE_POOL_SIZE: "10"
+      # Prepared-statement support in transaction mode (PgBouncer >= 1.21).
+      MAX_PREPARED_STATEMENTS: "256"
+      # Force-close server connections abandoned past the leak threshold (30s).
+      SERVER_IDLE_TIMEOUT: "30"
+      QUERY_TIMEOUT: "30"
+    ports:
+      - "${COMPOSE_PORT_PGBOUNCER:-6432}:6432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 6432 -U ${DB_USER:-postgres}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    <<: *default-resources
+
   redis:
     image: redis:7-alpine
     ports:

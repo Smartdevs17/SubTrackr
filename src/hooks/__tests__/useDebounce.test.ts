@@ -174,6 +174,8 @@ describe('useDebounce', () => {
 
     act(() => {
       rerender({ value: 'ab' });
+    });
+    act(() => {
       jest.advanceTimersByTime(DEBOUNCE_DELAY_BY_NETWORK.wifi);
     });
 
@@ -189,10 +191,20 @@ describe('useDebounce', () => {
 
     act(() => {
       rerender({ value: 'n' });
+    });
+    act(() => {
       jest.advanceTimersByTime(50);
+    });
+    act(() => {
       rerender({ value: 'ne' });
+    });
+    act(() => {
       jest.advanceTimersByTime(50);
+    });
+    act(() => {
       rerender({ value: 'net' });
+    });
+    act(() => {
       jest.advanceTimersByTime(DELAY);
     });
 
@@ -208,6 +220,8 @@ describe('useDebounce', () => {
 
     act(() => {
       rerender({ value: 'xy' });
+    });
+    act(() => {
       jest.advanceTimersByTime(CUSTOM_DELAY - 1);
     });
     expect(result.current).toBe('x');
@@ -226,6 +240,8 @@ describe('useDebounce', () => {
 
     act(() => {
       rerender({ value: 'b' });
+    });
+    act(() => {
       jest.advanceTimersByTime(0);
     });
 
@@ -248,6 +264,8 @@ describe('useDebounce', () => {
 
     act(() => {
       rerender({ value: 'changed' });
+    });
+    act(() => {
       jest.advanceTimersByTime(DELAY);
     });
 

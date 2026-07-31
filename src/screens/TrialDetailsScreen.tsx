@@ -1,19 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { useTrialStore } from '../store';
-import { trialConfigService, abTestService, conversionTracker, reminderScheduler } from '../services/trialService';
-import { TrialStatus, TrialDuration, TrialFeatureAccess, PaymentRequirement, TrialReminder } from '../types/trial';
+import { abTestService, conversionTracker, reminderScheduler } from '../services/trialService';
+import {
+  TrialStatus,
+  TrialDuration,
+  TrialFeatureAccess,
+  PaymentRequirement,
+  TrialReminder,
+  TrialConfig,
+  TrialExtensionRule,
+} from '../types/trial';
 import { FormScreen } from '../components/common/ScreenTemplates';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
@@ -28,11 +29,18 @@ interface ConversionFunnelData {
 }
 
 export const TrialDetailsScreen: React.FC = () => {
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const _navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<TrialDetailsRouteProp>();
   const colors = useThemeColors();
   const styles = React.useMemo(() => createStyles(colors), [colors]);
-  const { trialConfigs, abTestAssignments, conversionFunnel, isLoading, error } = useTrialStore();
+  const {
+    trialConfigs,
+    abTestAssignments: _abTestAssignments,
+    conversionFunnel: _conversionFunnel,
+    extensionRules,
+    isLoading,
+    error,
+  } = useTrialStore();
 
   const [selectedTrial, setSelectedTrial] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -43,6 +51,9 @@ export const TrialDetailsScreen: React.FC = () => {
     paymentRequirement: PaymentRequirement.REQUIRED,
     abTestId: '',
   });
+  const [newRuleName, setNewRuleName] = useState('');
+  const [newRuleMaxExtensions, setNewRuleMaxExtensions] = useState('3');
+  const [newRuleDurationDays, setNewRuleDurationDays] = useState('3');
 
   useEffect(() => {
     if (route.params?.trialId) {
@@ -70,13 +81,9 @@ export const TrialDetailsScreen: React.FC = () => {
 
   const handleCreateTrial = async () => {
     try {
-      await trialConfigService.create(
-        newTrialConfig.subscriptionId,
-        newTrialConfig.duration,
-        newTrialConfig.featureAccess,
-        newTrialConfig.paymentRequirement,
-        newTrialConfig.abTestId || undefined
-      );
+      await useTrialStore
+        .getState()
+        .startTrial(newTrialConfig.subscriptionId, newTrialConfig.duration);
       setShowCreateForm(false);
       setNewTrialConfig({
         subscriptionId: '',
@@ -86,8 +93,33 @@ export const TrialDetailsScreen: React.FC = () => {
         abTestId: '',
       });
     } catch {
-      // Error handled by service
+      // Error handled by store
     }
+  };
+
+  const handleStartTrial = async (subscriptionId: string, duration: TrialDuration) => {
+    await useTrialStore.getState().startTrial(subscriptionId, duration);
+  };
+
+  const handleExtendTrial = async (trialId: string, ruleId: string) => {
+    try {
+      await useTrialStore.getState().extendTrial(trialId, ruleId);
+    } catch {
+      // Error handled by store
+    }
+  };
+
+  const handleAddExtensionRule = () => {
+    if (!newRuleName.trim()) return;
+    useTrialStore.getState().addExtensionRule({
+      name: newRuleName,
+      maxExtensions: parseInt(newRuleMaxExtensions, 10) || 3,
+      extensionDurationDays: parseInt(newRuleDurationDays, 10) || 3,
+      conditions: {},
+    });
+    setNewRuleName('');
+    setNewRuleMaxExtensions('3');
+    setNewRuleDurationDays('3');
   };
 
   const handleConvertTrial = async (trialId: string) => {
@@ -110,24 +142,24 @@ export const TrialDetailsScreen: React.FC = () => {
 
   const renderStatusBadge = (status: TrialStatus) => {
     let backgroundColor = colors.border.default;
-    let textColor = colors.text;
+    let textColor: string = colors.text.primary;
 
     switch (status) {
       case TrialStatus.ACTIVE:
         backgroundColor = colors.primary;
-        textColor = colors.background;
+        textColor = colors.background.primary;
         break;
       case TrialStatus.CONVERTED:
         backgroundColor = colors.success;
-        textColor = colors.background;
+        textColor = colors.background.primary;
         break;
       case TrialStatus.EXPIRED:
         backgroundColor = colors.warning;
-        textColor = colors.background;
+        textColor = colors.background.primary;
         break;
       case TrialStatus.CANCELLED:
         backgroundColor = colors.error;
-        textColor = colors.background;
+        textColor = colors.background.primary;
         break;
     }
 
@@ -138,22 +170,21 @@ export const TrialDetailsScreen: React.FC = () => {
     );
   };
 
-  const renderTrialCard = (trial: any) => (
+  const renderTrialCard = (trial: TrialConfig) => (
     <TouchableOpacity
       key={trial.id}
       onPress={() => setSelectedTrial(trial.id)}
-      style={styles.trialCard}
-    >
+      style={styles.trialCard}>
       <View style={styles.trialCardHeader}>
         <Text style={styles.trialCardTitle}>Trial {trial.id.substring(0, 8)}</Text>
         {renderStatusBadge(trial.status)}
       </View>
       <View style={styles.trialCardMeta}>
         <Text style={styles.trialCardMetaText}>
-          Duration: {TrialDuration[trial.duration] || trial.duration}
+          Duration: {trial.duration.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
         </Text>
         <Text style={styles.trialCardMetaText}>
-          Access: {TrialFeatureAccess[trial.featureAccess] || trial.featureAccess}
+          Access: {trial.featureAccess.charAt(0).toUpperCase() + trial.featureAccess.slice(1)}
         </Text>
       </View>
       {trial.abTestId && (
@@ -173,7 +204,7 @@ export const TrialDetailsScreen: React.FC = () => {
 
     return (
       <View style={styles.funnelContainer}>
-        {steps.map((step, index) => (
+        {steps.map((step, _index) => (
           <View key={step.eventType} style={styles.funnelStep}>
             <View style={styles.funnelStepHeader}>
               <Text style={styles.funnelStepLabel}>{step.eventType.replace(/_/g, ' ')}</Text>
@@ -203,7 +234,7 @@ export const TrialDetailsScreen: React.FC = () => {
       return <Text style={styles.emptyText}>No active A/B test for this trial</Text>;
     }
 
-    const assignments = abTestService.getAssignmentsForTest(abTestId);
+    const _assignments = abTestService.getAssignmentsForTest(abTestId);
     const distribution = abTestService.getVariantDistribution(abTestId);
     const stats = useTrialStore.getState().getConversionStats(abTestId);
 
@@ -228,7 +259,10 @@ export const TrialDetailsScreen: React.FC = () => {
               <View
                 style={[
                   styles.distributionBar,
-                  { width: `${(count / stats.totalTrials) * 100}%`, backgroundColor: colors.secondary },
+                  {
+                    width: `${(count / stats.totalTrials) * 100}%`,
+                    backgroundColor: colors.secondary,
+                  },
                 ]}
               />
             </View>
@@ -241,7 +275,7 @@ export const TrialDetailsScreen: React.FC = () => {
 
   const renderReminders = () => {
     const schedule = selectedTrialConfig
-      ? reminderScheduler.getByTrialConfigId(selectedTrial.id)
+      ? reminderScheduler.getByTrialConfigId(selectedTrialConfig.id)
       : undefined;
 
     if (!schedule) {
@@ -270,10 +304,118 @@ export const TrialDetailsScreen: React.FC = () => {
     <FormScreen
       title="Free Trial Details"
       subtitle="Manage trial configurations and A/B tests"
-      testID="trial-details-screen"
-    >
+      testID="trial-details-screen">
       <ScrollView style={styles.scrollContent}>
         {error && <Text style={styles.errorText}>{error}</Text>}
+
+        {/* Analytics Summary */}
+        <Card padding="medium" style={styles.section}>
+          <Text style={styles.sectionTitle}>Trial Analytics</Text>
+          <View style={styles.analyticsGrid}>
+            <View style={styles.analyticsItem}>
+              <Text style={styles.analyticsValue}>
+                {(useTrialStore.getState().getConversionStats().conversionRate * 100).toFixed(1)}%
+              </Text>
+              <Text style={styles.analyticsLabel}>Conversion Rate</Text>
+            </View>
+            <View style={styles.analyticsItem}>
+              <Text style={styles.analyticsValue}>{trialConfigs.length}</Text>
+              <Text style={styles.analyticsLabel}>Total Trials</Text>
+            </View>
+            <View style={styles.analyticsItem}>
+              <Text style={styles.analyticsValue}>
+                {trialConfigs.filter((tc) => tc.status === TrialStatus.ACTIVE).length}
+              </Text>
+              <Text style={styles.analyticsLabel}>Active Trials</Text>
+            </View>
+          </View>
+        </Card>
+
+        {/* Extension Rules */}
+        <Card padding="medium" style={styles.section}>
+          <Text style={styles.sectionTitle}>Extension Rules</Text>
+          {extensionRules.length === 0 ? (
+            <Text style={styles.emptyText}>No extension rules configured</Text>
+          ) : (
+            extensionRules.map((rule: TrialExtensionRule) => (
+              <View key={rule.id} style={styles.ruleRow}>
+                <View style={styles.ruleInfo}>
+                  <Text style={styles.ruleName}>{rule.name}</Text>
+                  <Text style={styles.ruleDetail}>
+                    Max: {rule.maxExtensions} extensions, {rule.extensionDurationDays} days each
+                  </Text>
+                </View>
+              </View>
+            ))
+          )}
+          <View style={styles.addRuleForm}>
+            <TextInput
+              style={[styles.input, styles.ruleInput]}
+              value={newRuleName}
+              onChangeText={setNewRuleName}
+              placeholder="Rule name"
+              placeholderTextColor={colors.textSecondary}
+            />
+            <TextInput
+              style={[styles.input, styles.ruleInputSmall]}
+              value={newRuleMaxExtensions}
+              onChangeText={setNewRuleMaxExtensions}
+              placeholder="Max"
+              placeholderTextColor={colors.textSecondary}
+              keyboardType="numeric"
+            />
+            <TextInput
+              style={[styles.input, styles.ruleInputSmall]}
+              value={newRuleDurationDays}
+              onChangeText={setNewRuleDurationDays}
+              placeholder="Days"
+              placeholderTextColor={colors.textSecondary}
+              keyboardType="numeric"
+            />
+            <Button title="Add" onPress={handleAddExtensionRule} variant="secondary" size="small" />
+          </View>
+        </Card>
+
+        {/* Trial Lifecycle Actions */}
+        {selectedTrialConfig && selectedTrialConfig.status === TrialStatus.ACTIVE && (
+          <Card padding="medium" style={styles.section}>
+            <Text style={styles.sectionTitle}>Trial Lifecycle</Text>
+            <View style={styles.lifecycleButtons}>
+              <Button
+                title="Start New"
+                onPress={() =>
+                  handleStartTrial(selectedTrialConfig.subscriptionId, selectedTrialConfig.duration)
+                }
+                variant="secondary"
+                size="medium"
+                style={styles.actionButton}
+              />
+              {extensionRules.length > 0 && (
+                <Button
+                  title="Extend"
+                  onPress={() => handleExtendTrial(selectedTrialConfig.id, extensionRules[0].id)}
+                  variant="secondary"
+                  size="medium"
+                  style={styles.actionButton}
+                />
+              )}
+              <Button
+                title="Convert"
+                onPress={() => handleConvertTrial(selectedTrialConfig.id)}
+                variant="primary"
+                size="medium"
+                style={styles.actionButton}
+              />
+              <Button
+                title="Expire"
+                onPress={() => handleExpireTrial(selectedTrialConfig.id)}
+                variant="danger"
+                size="medium"
+                style={styles.actionButton}
+              />
+            </View>
+          </Card>
+        )}
 
         {/* Trial Configs List */}
         <Card padding="medium" style={styles.section}>
@@ -320,16 +462,12 @@ export const TrialDetailsScreen: React.FC = () => {
                       styles.pickerOption,
                       newTrialConfig.duration === duration && styles.pickerOptionSelected,
                     ]}
-                    onPress={() =>
-                      setNewTrialConfig((prev) => ({ ...prev, duration }))
-                    }
-                  >
+                    onPress={() => setNewTrialConfig((prev) => ({ ...prev, duration }))}>
                     <Text
                       style={[
                         styles.pickerText,
                         newTrialConfig.duration === duration && styles.pickerTextSelected,
-                      ]}
-                    >
+                      ]}>
                       {duration.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
                     </Text>
                   </TouchableOpacity>
@@ -349,14 +487,12 @@ export const TrialDetailsScreen: React.FC = () => {
                     ]}
                     onPress={() =>
                       setNewTrialConfig((prev) => ({ ...prev, featureAccess: access }))
-                    }
-                  >
+                    }>
                     <Text
                       style={[
                         styles.pickerText,
                         newTrialConfig.featureAccess === access && styles.pickerTextSelected,
-                      ]}
-                    >
+                      ]}>
                       {access.charAt(0).toUpperCase() + access.slice(1)}
                     </Text>
                   </TouchableOpacity>
@@ -376,14 +512,12 @@ export const TrialDetailsScreen: React.FC = () => {
                     ]}
                     onPress={() =>
                       setNewTrialConfig((prev) => ({ ...prev, paymentRequirement: req }))
-                    }
-                  >
+                    }>
                     <Text
                       style={[
                         styles.pickerText,
                         newTrialConfig.paymentRequirement === req && styles.pickerTextSelected,
-                      ]}
-                    >
+                      ]}>
                       {req.charAt(0).toUpperCase() + req.slice(1)}
                     </Text>
                   </TouchableOpacity>
@@ -411,18 +545,24 @@ export const TrialDetailsScreen: React.FC = () => {
               </View>
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Duration</Text>
-                <Text style={styles.detailValue}>{TrialDuration[selectedTrialConfig.duration]}</Text>
+                <Text style={styles.detailValue}>
+                  {selectedTrialConfig.duration
+                    .replace(/_/g, ' ')
+                    .replace(/\b\w/g, (c) => c.toUpperCase())}
+                </Text>
               </View>
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Feature Access</Text>
                 <Text style={styles.detailValue}>
-                  {TrialFeatureAccess[selectedTrialConfig.featureAccess]}
+                  {selectedTrialConfig.featureAccess.charAt(0).toUpperCase() +
+                    selectedTrialConfig.featureAccess.slice(1)}
                 </Text>
               </View>
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Payment</Text>
                 <Text style={styles.detailValue}>
-                  {PaymentRequirement[selectedTrialConfig.paymentRequirement]}
+                  {selectedTrialConfig.paymentRequirement.charAt(0).toUpperCase() +
+                    selectedTrialConfig.paymentRequirement.slice(1)}
                 </Text>
               </View>
               {selectedTrialConfig.startDate && (
@@ -503,7 +643,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     sectionTitle: {
       ...typography.h3,
-      color: colors.text,
+      color: colors.text.primary,
       marginBottom: spacing.md,
     },
     subsectionTitle: {
@@ -529,7 +669,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     trialCardTitle: {
       ...typography.body,
-      color: colors.text,
+      color: colors.text.primary,
       fontWeight: '600',
     },
     trialCardMeta: {
@@ -550,7 +690,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     abTestText: {
       ...typography.caption,
-      color: colors.background || '#0f172a',
+      color: colors.background.primary || '#0f172a',
       fontWeight: '600',
     },
     statusBadge: {
@@ -567,7 +707,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     label: {
       ...typography.body,
-      color: colors.text,
+      color: colors.text.primary,
       marginBottom: spacing.xs,
       fontWeight: '500',
     },
@@ -578,7 +718,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       borderRadius: borderRadius.md,
       borderWidth: 1,
       borderColor: colors.border?.default || '#334155',
-      color: colors.text,
+      color: colors.text.primary,
     },
     pickerContainer: {
       flexDirection: 'row',
@@ -599,7 +739,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     pickerText: {
       ...typography.caption,
-      color: colors.text,
+      color: colors.text.primary,
     },
     pickerTextSelected: {
       color: colors.onPrimary || '#ffffff',
@@ -619,7 +759,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     detailValue: {
       ...typography.body,
-      color: colors.text,
+      color: colors.text.primary,
       fontWeight: '500',
       textTransform: 'capitalize',
     },
@@ -651,13 +791,13 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     funnelStepLabel: {
       ...typography.body,
-      color: colors.text,
+      color: colors.text.primary,
       fontWeight: '500',
       textTransform: 'capitalize',
     },
     funnelStepCount: {
       ...typography.body,
-      color: colors.text,
+      color: colors.text.primary,
       fontWeight: '600',
     },
     funnelBarContainer: {
@@ -689,7 +829,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     statValue: {
       ...typography.h2,
-      color: colors.text,
+      color: colors.text.primary,
       fontWeight: '700',
     },
     statLabel: {
@@ -705,7 +845,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     variantName: {
       ...typography.caption,
-      color: colors.text,
+      color: colors.text.primary,
       width: 80,
       fontWeight: '500',
     },
@@ -722,7 +862,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     distributionCount: {
       ...typography.caption,
-      color: colors.text,
+      color: colors.text.primary,
       width: 30,
       textAlign: 'right',
     },
@@ -733,7 +873,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     reminderType: {
       ...typography.body,
-      color: colors.text,
+      color: colors.text.primary,
       fontWeight: '600',
     },
     reminderStatus: {
@@ -745,6 +885,63 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       ...typography.caption,
       color: colors.textSecondary || '#cbd5e1',
       marginTop: spacing.xs,
+    },
+    analyticsGrid: {
+      flexDirection: 'row',
+      justifyContent: 'space-around',
+    },
+    analyticsItem: {
+      alignItems: 'center',
+      flex: 1,
+    },
+    analyticsValue: {
+      ...typography.h2,
+      color: colors.text.primary,
+      fontWeight: '700',
+    },
+    analyticsLabel: {
+      ...typography.caption,
+      color: colors.textSecondary || '#cbd5e1',
+      textAlign: 'center',
+      marginTop: spacing.xs,
+    },
+    ruleRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: spacing.sm,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border?.default || '#334155',
+    },
+    ruleInfo: {
+      flex: 1,
+    },
+    ruleName: {
+      ...typography.body,
+      color: colors.text.primary,
+      fontWeight: '600',
+    },
+    ruleDetail: {
+      ...typography.caption,
+      color: colors.textSecondary || '#cbd5e1',
+      marginTop: spacing.xs,
+    },
+    addRuleForm: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      marginTop: spacing.md,
+    },
+    ruleInput: {
+      flex: 1,
+    },
+    ruleInputSmall: {
+      width: 60,
+    },
+    lifecycleButtons: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.sm,
     },
   });
 }

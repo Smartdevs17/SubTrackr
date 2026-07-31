@@ -7,16 +7,15 @@ import {
   Intervention,
   HealthScoreStatus,
   HealthScoreWeights,
+  InterventionType,
   DEFAULT_WEIGHTS,
   SCORE_THRESHOLDS,
   HealthScoreBreakdown,
 } from '../types/health';
-import { errorHandler, AppError } from '../services/errorHandler';
+import { AppError } from '../services/errorHandler';
 import { useSettingsStore } from './settingsStore';
 
 const STORAGE_KEY = 'subtrackr-health-scores';
-const HISTORY_STORAGE_KEY = 'subtrackr-health-score-history';
-const INTERVENTION_STORAGE_KEY = 'subtrackr-interventions';
 
 const generateId = (): string => `hs-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
@@ -95,6 +94,7 @@ export const useHealthStore = create<HealthState>()(
           userId,
           score: clampedOverall,
           status,
+          trend: existing?.trend ?? 'stable',
           breakdown: {
             overall: clampedOverall,
             loginFrequency: Math.round(loginScore),
@@ -124,7 +124,10 @@ export const useHealthStore = create<HealthState>()(
           history: [...state.history, historyEntry],
         }));
 
-        if (status === HealthScoreStatus.RED && (!existing || existing.status !== HealthScoreStatus.RED)) {
+        if (
+          status === HealthScoreStatus.RED &&
+          (!existing || existing.status !== HealthScoreStatus.RED)
+        ) {
           get().recordIntervention(score.id, InterventionType.PRIORITY_EMAIL);
           get().recordIntervention(score.id, InterventionType.ACCOUNT_MANAGER_ALERT);
         }
@@ -193,17 +196,19 @@ export const useHealthStore = create<HealthState>()(
       },
 
       updateWeights: (weights) => {
-        useSettingsStore.setState({ healthScoreWeights: weights });
+        useSettingsStore.setState({
+          healthScoreWeights: weights as unknown as Record<string, number>,
+        });
       },
 
       getWeights: () => {
         const settings = useSettingsStore.getState();
-        return (settings.healthScoreWeights as HealthScoreWeights) ?? DEFAULT_WEIGHTS;
+        return (settings.healthScoreWeights as unknown as HealthScoreWeights) ?? DEFAULT_WEIGHTS;
       },
     }),
     {
       name: STORAGE_KEY,
-      storage: debouncedAsyncStorageAdapter,
+      storage: createJSONStorage(() => debouncedAsyncStorageAdapter),
       version: 0,
     }
   )

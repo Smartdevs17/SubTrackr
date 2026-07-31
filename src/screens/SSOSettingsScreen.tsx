@@ -428,7 +428,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#f0f0f0',
   },
-  sectionTitle: { ...typography.h4, marginBottom: spacing.xs },
+  sectionTitle: { ...typography.h3, marginBottom: spacing.xs },
   helperText: { fontSize: 13, color: '#888', marginBottom: spacing.sm },
   configLabel: { fontSize: 12, color: '#666', marginTop: spacing.xs },
   configValue: { fontSize: 14, marginBottom: spacing.xs },

@@ -1,19 +1,8 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { asyncStorageAdapter } from '../utils/storage';
-import {
-  darkTheme,
-  lightTheme,
-  highContrastTheme,
-  builtInThemes,
-  createBrandTheme,
-} from './themes';
-import {
-  buildThemeFromConfig,
-  createThemeVariantPair,
-  generateUniqueThemeId,
-  inheritTheme,
-} from './customThemeBuilder';
+import { darkTheme, lightTheme, builtInThemes, createBrandTheme } from './themes';
+import { buildThemeFromConfig, generateUniqueThemeId } from './customThemeBuilder';
 import { getAccessibilityRating } from './accessibility';
 import { themeService } from '../services/themeService';
 import type {
@@ -24,7 +13,6 @@ import type {
   ThemeVariantPair,
   ThemeExportData,
   ThemePreviewState,
-  ThemeColors,
 } from './types';
 
 export type StoreThemeMode = ThemeMode | 'system';

@@ -11,7 +11,7 @@ import {
   Modal,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
-import { useNavigation } from '@react-navigation/native';
+import { useAppNavigation } from '../navigation/types';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
@@ -42,7 +42,7 @@ import { useSubscriptionStore } from '../store';
 const ImportScreen: React.FC = () => {
   const { subscriptions, addSubscription, updateSubscription, deleteSubscription } =
     useSubscriptionStore();
-  const navigation = useNavigation<any>();
+  const navigation = useAppNavigation<'Import'>();
 
   const [importMode, setImportMode] = useState<ImportMode>('upsert');
   const [importText, setImportText] = useState('');

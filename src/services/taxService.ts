@@ -9,7 +9,7 @@ import {
   TaxRate,
   TaxRateSyncJob,
   TaxReport,
-  TaxSyncJobStatus,
+  TaxType,
 } from '../types/tax';
 
 const isRateActive = (rate: TaxRate, transactionDate: Date): boolean => {
@@ -25,7 +25,8 @@ export const calculateTaxAmount = (config: TaxConfig, input: TaxCalculationInput
     (entry) =>
       entry.region === input.region &&
       entry.validUntil.getTime() >= input.transactionDate.getTime() &&
-      (entry.subscriptionId === input.subscriptionId || entry.customerId === input.customerId)
+      (entry.subscriptionId === input.subscriptionId ||
+        (entry.customerId && input.customerId && entry.customerId === input.customerId))
   );
 
   const rate = config.ratesByRegion.find(
@@ -100,15 +101,18 @@ export class AvalaraClient {
     this.baseUrl = baseUrl;
   }
 
-  async lookupRate(country: string, region?: string): Promise<{ rateBps: number; taxType: TaxType }> {
+  async lookupRate(
+    _country: string,
+    _region?: string
+  ): Promise<{ rateBps: number; taxType: TaxType }> {
     return { rateBps: 0, taxType: 'sales_tax' };
   }
 
-  async validateCertificate(certificateId: string): Promise<{ valid: boolean }> {
+  async validateCertificate(_certificateId: string): Promise<{ valid: boolean }> {
     return { valid: false };
   }
 
-  async fetchRatesForMerchant(merchantId: string): Promise<TaxRate[]> {
+  async fetchRatesForMerchant(_merchantId: string): Promise<TaxRate[]> {
     return [];
   }
 }
@@ -122,15 +126,18 @@ export class TaxJarClient {
     this.baseUrl = baseUrl;
   }
 
-  async lookupRate(country: string, region?: string): Promise<{ rateBps: number; taxType: TaxType }> {
+  async lookupRate(
+    _country: string,
+    _region?: string
+  ): Promise<{ rateBps: number; taxType: TaxType }> {
     return { rateBps: 0, taxType: 'sales_tax' };
   }
 
-  async validateCertificate(certificateId: string): Promise<{ valid: boolean }> {
+  async validateCertificate(_certificateId: string): Promise<{ valid: boolean }> {
     return { valid: false };
   }
 
-  async fetchRatesForMerchant(merchantId: string): Promise<TaxRate[]> {
+  async fetchRatesForMerchant(_merchantId: string): Promise<TaxRate[]> {
     return [];
   }
 }
@@ -150,7 +157,7 @@ export class TaxRateSyncService {
     };
   }
 
-  setProvider(provider: TaxProvider, apiKey?: string, companyCode?: string): void {
+  setProvider(provider: TaxProvider, _apiKey?: string, _companyCode?: string): void {
     this.provider = provider;
   }
 
@@ -187,7 +194,10 @@ export class TaxRateSyncService {
     return job;
   }
 
-  async lookupRate(country: string, region?: string): Promise<{ rateBps: number; taxType: TaxType }> {
+  async lookupRate(
+    country: string,
+    region?: string
+  ): Promise<{ rateBps: number; taxType: TaxType }> {
     const client = this.clients[this.provider];
     if (!client) return { rateBps: 0, taxType: 'sales_tax' };
     return client.lookupRate(country, region);
@@ -210,7 +220,8 @@ export class NexusDetectionService {
   detectNexus(region: string, cumulativeRevenue: number): TaxNexusStatus {
     const threshold = this.thresholds.get(region) ?? 0;
     const hasNexus = threshold === 0 || cumulativeRevenue >= threshold;
-    const percentToThreshold = threshold > 0 ? Math.min((cumulativeRevenue / threshold) * 100, 100) : 0;
+    const percentToThreshold =
+      threshold > 0 ? Math.min((cumulativeRevenue / threshold) * 100, 100) : 0;
 
     return {
       region,
@@ -256,7 +267,9 @@ export class ExemptionCertificateService {
   getExpiringCertificates(withinDays: number): TaxExemptionUpload[] {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() + withinDays);
-    return Array.from(this.uploads.values()).filter((u) => u.validUntil <= cutoff && u.status !== 'rejected');
+    return Array.from(this.uploads.values()).filter(
+      (u) => u.validUntil <= cutoff && u.status !== 'rejected'
+    );
   }
 
   rejectCertificate(uploadId: string, reason: string): void {

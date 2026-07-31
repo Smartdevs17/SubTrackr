@@ -11,11 +11,10 @@ import {
   CreditNoteReason,
 } from '../types/credit';
 import { InvoiceStatus } from '../types/invoice';
-import { errorHandler, AppError } from '../services/errorHandler';
+import { AppError } from '../services/errorHandler';
 import { useInvoiceStore } from './invoiceStore';
 
 const STORAGE_KEY = 'subtrackr-credits';
-const WALLET_STORAGE_KEY = 'subtrackr-prepayment-wallets';
 
 const toValidDate = (value: unknown, fallback = new Date()): Date => {
   if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
@@ -26,9 +25,10 @@ const toValidDate = (value: unknown, fallback = new Date()): Date => {
   return fallback;
 };
 
-const generateId = (): string => `credit-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+const generateId = (): string =>
+  `credit-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
-const normalizeCreditNote = (raw: Partial<CreditNote>): CreditNote => {
+const _normalizeCreditNote = (raw: Partial<CreditNote>): CreditNote => {
   const now = new Date();
   return {
     id: raw.id ?? generateId(),
@@ -50,7 +50,7 @@ const normalizeCreditNote = (raw: Partial<CreditNote>): CreditNote => {
   };
 };
 
-const normalizePrepaymentWallet = (raw: Partial<PrepaymentWallet>): PrepaymentWallet => {
+const _normalizePrepaymentWallet = (raw: Partial<PrepaymentWallet>): PrepaymentWallet => {
   const now = new Date();
   return {
     id: raw.id ?? generateId(),
@@ -86,12 +86,20 @@ interface CreditState {
   issueCreditNote: (id: string) => CreditNote;
   voidCreditNote: (id: string) => void;
 
-  applyCreditToInvoice: (creditNoteId: string, invoiceId: string, amount?: number) => CreditNote | null;
+  applyCreditToInvoice: (
+    creditNoteId: string,
+    invoiceId: string,
+    amount?: number
+  ) => CreditNote | null;
   autoApplyCreditToNextInvoice: (subscriptionId: string) => CreditNote | null;
 
   expireCreditNotes: () => void;
 
-  getOrCreateWallet: (subscriptionId: string, userId: string, currency?: string) => PrepaymentWallet;
+  getOrCreateWallet: (
+    subscriptionId: string,
+    userId: string,
+    currency?: string
+  ) => PrepaymentWallet;
   depositPrepayment: (walletId: string, amount: number) => PrepaymentWallet | null;
   withdrawPrepayment: (walletId: string, amount: number) => PrepaymentWallet | null;
   autoDrawdownAtBillingClose: (subscriptionId: string, invoiceAmount: number) => number;
@@ -180,10 +188,7 @@ export const useCreditStore = create<CreditState>()(
           return null;
         }
 
-        const applyAmount = Math.min(
-          amount ?? note.remainingAmount,
-          note.remainingAmount
-        );
+        const applyAmount = Math.min(amount ?? note.remainingAmount, note.remainingAmount);
 
         if (applyAmount <= 0) return null;
 
@@ -196,9 +201,10 @@ export const useCreditStore = create<CreditState>()(
           remainingAmount: newRemaining,
           status: newStatus,
           appliedAt: new Date(),
-          appliedToInvoiceIds: newRemaining <= 0
-            ? [...note.appliedToInvoiceIds, invoiceId]
-            : [...note.appliedToInvoiceIds, invoiceId],
+          appliedToInvoiceIds:
+            newRemaining <= 0
+              ? [...note.appliedToInvoiceIds, invoiceId]
+              : [...note.appliedToInvoiceIds, invoiceId],
           updatedAt: new Date(),
         };
 
@@ -292,9 +298,10 @@ export const useCreditStore = create<CreditState>()(
               remainingAmount: newRemaining,
               status: newStatus,
               appliedAt: new Date(),
-              appliedToInvoiceIds: newRemaining <= 0
-                ? [...note.appliedToInvoiceIds, invoice.id]
-                : [...note.appliedToInvoiceIds, invoice.id],
+              appliedToInvoiceIds:
+                newRemaining <= 0
+                  ? [...note.appliedToInvoiceIds, invoice.id]
+                  : [...note.appliedToInvoiceIds, invoice.id],
               updatedAt: new Date(),
             };
 
@@ -349,7 +356,8 @@ export const useCreditStore = create<CreditState>()(
       getOrCreateWallet: (subscriptionId, userId, currency = 'USD') => {
         const state = get();
         const existing = state.prepaymentWallets.find(
-          (w) => w.subscriptionId === subscriptionId && w.userId === userId && w.currency === currency
+          (w) =>
+            w.subscriptionId === subscriptionId && w.userId === userId && w.currency === currency
         );
         if (existing) return existing;
 
@@ -492,8 +500,7 @@ export const useCreditStore = create<CreditState>()(
         );
         const outstanding = userNotes.filter(
           (c) =>
-            c.status === CreditNoteStatus.ISSUED ||
-            c.status === CreditNoteStatus.PARTIALLY_APPLIED
+            c.status === CreditNoteStatus.ISSUED || c.status === CreditNoteStatus.PARTIALLY_APPLIED
         );
 
         const totalIssued = issued.reduce((sum, c) => sum + c.amount, 0);
@@ -526,7 +533,7 @@ export const useCreditStore = create<CreditState>()(
     }),
     {
       name: STORAGE_KEY,
-      storage: debouncedAsyncStorageAdapter,
+      storage: createJSONStorage(() => debouncedAsyncStorageAdapter),
       version: 0,
     }
   )

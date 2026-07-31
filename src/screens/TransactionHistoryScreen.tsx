@@ -341,7 +341,7 @@ const styles = StyleSheet.create({
   },
   // Detail overlay
   detailOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'flex-end',
   },

@@ -3,9 +3,11 @@
  *
  * Environment variables (primary):
  *   DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD, DB_SSL
+ *   DATABASE_URL – optional postgres:// URL (overrides discrete DB_* host fields)
  *
- * Read replicas (optional — comma-separated host:port pairs):
+ * Read replicas (optional — comma-separated host:port pairs OR URLs):
  *   DB_READ_REPLICAS – e.g. "replica-1.internal:6432,replica-2.internal:6433"
+ *   DATABASE_READ_URLS – e.g. "postgres://u:p@r1:5432/db,postgres://u:p@r2:5432/db"
  *   DB_REPLICA_POOL_SIZE – PgBouncer pool size per replica (default: 25)
  *
  * Replication lag thresholds (milliseconds):
@@ -17,6 +19,10 @@
  */
 
 import type { PoolConfig } from '../shared/db/connectionPool';
+import {
+  ConnectionStringRotator,
+  type ParsedConnectionString,
+} from '../shared/db/connectionStringRotation';
 
 export interface ReplicaEndpoint {
   /** Logical name used in metrics labels (replica-1, replica-2, …). */
@@ -77,26 +83,70 @@ function parseReplicaEndpoints(raw: string | undefined): ReplicaEndpoint[] {
     });
 }
 
-function buildPrimaryConfig(env: NodeJS.ProcessEnv): Required<PoolConfig> {
+function poolDefaults(env: NodeJS.ProcessEnv): Pick<
+  Required<PoolConfig>,
+  'max' | 'idleTimeoutMillis' | 'connectionTimeoutMillis' | 'statementTimeout'
+> {
   return {
+    max: parsePositiveInt(env.DB_POOL_MAX, 20),
+    idleTimeoutMillis: parsePositiveInt(env.DB_IDLE_TIMEOUT_MS, 10_000),
+    connectionTimeoutMillis: parsePositiveInt(env.DB_CONNECTION_TIMEOUT_MS, 30_000),
+    statementTimeout: parsePositiveInt(env.DB_STATEMENT_TIMEOUT_MS, 30_000),
+  };
+}
+
+function primaryFromParsed(
+  parsed: ParsedConnectionString,
+  env: NodeJS.ProcessEnv,
+): Required<PoolConfig> {
+  return {
+    ...poolDefaults(env),
+    host: parsed.host,
+    port: parsed.port,
+    database: parsed.database,
+    user: parsed.user,
+    password: parsed.password,
+    ssl: (parsed.ssl || env.DB_SSL === 'true') ? { rejectUnauthorized: true } : false,
+  };
+}
+
+function buildPrimaryConfig(env: NodeJS.ProcessEnv): Required<PoolConfig> {
+  if (env.DATABASE_URL?.trim()) {
+    const rotator = new ConnectionStringRotator({ primaryUrl: env.DATABASE_URL });
+    const primary = rotator.getPrimary();
+    if (primary) {
+      return primaryFromParsed(primary, env);
+    }
+  }
+
+  return {
+    ...poolDefaults(env),
     host: env.DB_HOST?.trim() || 'localhost',
     port: parsePositiveInt(env.DB_PORT, 5432),
     database: env.DB_NAME?.trim() || 'subtrackr',
     user: env.DB_USER?.trim() || 'postgres',
     password: env.DB_PASSWORD ?? '',
-    max: parsePositiveInt(env.DB_POOL_MAX, 20),
-    idleTimeoutMillis: parsePositiveInt(env.DB_IDLE_TIMEOUT_MS, 10_000),
-    connectionTimeoutMillis: parsePositiveInt(env.DB_CONNECTION_TIMEOUT_MS, 30_000),
-    statementTimeout: parsePositiveInt(env.DB_STATEMENT_TIMEOUT_MS, 30_000),
     ssl: env.DB_SSL === 'true' ? { rejectUnauthorized: true } : false,
   };
+}
+
+function resolveReplicas(env: NodeJS.ProcessEnv): ReplicaEndpoint[] {
+  if (env.DATABASE_READ_URLS?.trim()) {
+    const rotator = ConnectionStringRotator.fromEnv(env);
+    return rotator.getReplicas().map((r) => ({
+      name: r.name,
+      host: r.host,
+      port: r.port,
+    }));
+  }
+  return parseReplicaEndpoints(env.DB_READ_REPLICAS);
 }
 
 /** Load database configuration from environment variables. */
 export function loadDatabaseConfig(env: NodeJS.ProcessEnv = process.env): DatabaseConfig {
   return {
     primary: buildPrimaryConfig(env),
-    replicas: parseReplicaEndpoints(env.DB_READ_REPLICAS),
+    replicas: resolveReplicas(env),
     replicaPoolSize: parsePositiveInt(
       env.DB_REPLICA_POOL_SIZE,
       DEFAULT_DATABASE_CONFIG.replicaPoolSize,

@@ -1,12 +1,9 @@
-import { lightTheme, darkTheme, highContrastTheme } from './themes';
 import type {
   Theme,
   ThemeMode,
   ThemeConfig,
   ThemeColors,
   ExtendedThemeColors,
-  FontConfig,
-  LogoConfig,
   ThemeVariantPair,
   ThemeSharedConfig,
 } from './types';

@@ -16,4 +16,53 @@ export { DlqCleanupJob, dlqCleanupJob } from './jobs/dlqCleanupJob';
 export { WebSocketServer, webSocketServer } from './websocket';
 export type { SubscriptionEventType, SubscriptionEvent, EventFilter, ClientInfo } from './websocket';
 export type { INotificationPreferenceService, IAlertingService, IWebhookDeliveryService, IWebsocketService } from './interfaces';
+export {
+  NotificationCenterService,
+  notificationCenterService,
+  defaultPreferences,
+  defaultTypePreference,
+  resolveChannels,
+  isInQuietHours,
+  nextDeliveryTime,
+  renderTemplate,
+  computeAnalytics,
+  matchesHistoryFilter,
+  MAX_HISTORY_PER_USER,
+} from './notificationCenterService';
+export type {
+  ChannelTransport,
+  DeliverInput,
+  QuietHours,
+  SubscriberNotificationPreferences,
+} from './notificationCenterService';
+export type {
+  NotificationChannel,
+  NotificationType,
+  NotificationTypeMeta,
+  NotificationStatus,
+  NotificationRecord,
+  NotificationStats,
+  NotificationAnalytics,
+  NotificationTemplate,
+  NotificationHistoryFilter,
+  DeliveryResult,
+  RenderedTemplate,
+  TypePreference,
+} from '../../../src/types/notification';
+export {
+  NOTIFICATION_CHANNELS,
+  NOTIFICATION_TYPES,
+  NOTIFICATION_TYPE_META,
+} from '../../../src/types/notification';
 export { NotificationError, NotificationErrorCode } from './errors';
+export { DunningEmailSequenceService, dunningEmailSequenceService } from './dunningEmailSequences';
+export type {
+  DunningEmailVariant,
+  DunningABTest,
+  DunningABTestAssignment,
+  DunningABTestResult,
+  DunningEmailSequence,
+  DunningSequenceStage,
+  DunningEmailDeliveryLog,
+  DunningDeliverabilityMetrics,
+} from '../../../src/types/dunningABTest';

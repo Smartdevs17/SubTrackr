@@ -1,6 +1,12 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Text } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import {
+  NavigationContainer,
+  LinkingOptions,
+  getStateFromPath,
+  NavigationState,
+  Route,
+} from '@react-navigation/native';
 import { navigationRef } from './navigationRef';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -12,6 +18,10 @@ import { darkNavigationTheme, lightNavigationTheme } from '../theme/navigationTh
 
 import HomeScreen from '../screens/HomeScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
+import { useUserStore } from '../store/userStore';
+import { FeatureId } from '../types/feature';
+import { featureFlagsService } from '../services/featureFlags';
+import type { SubscriptionTier } from '../types/subscription';
 
 const AddSubscriptionScreen = lazyScreen(() => import('../screens/AddSubscriptionScreen'));
 const CancellationFlowScreen = lazyScreen(() => import('../screens/CancellationFlowScreen'));
@@ -46,7 +56,9 @@ const AdminDashboardScreen = lazyScreen(() => import('../screens/AdminDashboardS
 const FraudDashboard = lazyScreen(() => import('../screens/FraudDashboard'));
 const GroupManagementScreen = lazyScreen(() => import('../screens/GroupManagementScreen'));
 const TaxSettingsScreen = lazyScreen(() => import('../screens/TaxSettingsScreen'));
-const CreditsAndPrepaymentsScreen = lazyScreen(() => import('../screens/CreditsAndPrepaymentsScreen'));
+const CreditsAndPrepaymentsScreen = lazyScreen(
+  () => import('../screens/CreditsAndPrepaymentsScreen')
+);
 const TaxComplianceScreen = lazyScreen(() => import('../screens/TaxComplianceScreen'));
 const SupportDashboardScreen = lazyScreen(() => import('../screens/SupportDashboardScreen'));
 const SegmentManagementScreen = lazyScreen(() =>
@@ -70,7 +82,6 @@ const SandboxDashboardScreen = lazyScreen(() => import('../screens/SandboxDashbo
 const ApiKeyManagementScreen = lazyScreen(() => import('../screens/ApiKeyManagementScreen'));
 const DocumentationPortalScreen = lazyScreen(() => import('../screens/DocumentationPortalScreen'));
 const IntegrationGuidesScreen = lazyScreen(() => import('../screens/IntegrationGuidesScreen'));
-const PartnerDashboardScreen = lazyScreen(() => import('../screens/PartnerDashboardScreen'));
 const PerformanceDashboardScreen = lazyScreen(
   () => import('../screens/PerformanceDashboardScreen')
 );
@@ -85,15 +96,28 @@ const PaymentMethodsScreen = lazyScreen(() =>
   }))
 );
 const AnalyticsDashboard = lazyScreen(() => import('../../app/screens/AnalyticsDashboard'));
+const AutomatedComplianceDashboard = lazyScreen(() => import('../screens/AutomatedComplianceDashboard'));
 const TrialDetailsScreen = lazyScreen(() => import('../screens/TrialDetailsScreen'));
-const RenewalWorkspaceScreen = lazyScreen(() =>
-  import('../../app/screens/RenewalWorkspaceScreen').then((m) => ({ default: m.default }))
-);
-const EntityManagementScreen = lazyScreen(() => import('../screens/EntityManagementScreen'));
-const PauseSubscriptionScreen = lazyScreen(() => import('../screens/PauseSubscriptionScreen'));
 
 // Issue #547: GDPR
 const PrivacyCenterScreen = lazyScreen(() => import('../screens/PrivacyCenterScreen'));
+const ChurnPredictionScreen = lazyScreen(() => import('../../app/screens/ChurnPredictionScreen'));
+
+const InvoiceCustomizationScreen = lazyScreen(() =>
+  import('../../app/screens/InvoiceCustomizationScreen').then((m) => ({
+    default: m.InvoiceCustomizationScreen,
+  }))
+);
+const InvoiceMarketplaceScreen = lazyScreen(() =>
+  import('../../app/screens/InvoiceMarketplaceScreen').then((m) => ({
+    default: m.InvoiceMarketplaceScreen,
+  }))
+);
+const InvoiceAnalyticsScreen = lazyScreen(() =>
+  import('../../app/screens/InvoiceAnalyticsScreen').then((m) => ({
+    default: m.InvoiceAnalyticsScreen,
+  }))
+);
 const DataExportScreen = lazyScreen(() => import('../screens/DataExportScreen'));
 // Issue #548: Push notifications
 const NotificationPreferencesScreen = lazyScreen(
@@ -106,6 +130,166 @@ const DunningDashboardScreen = lazyScreen(() => import('../screens/DunningDashbo
 
 const Tab = createBottomTabNavigator<TabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
+
+const routeFeatureMap: Partial<Record<keyof RootStackParamList, FeatureId>> = {
+  CryptoPayment: FeatureId.CRYPTO_INTEGRATION,
+  Analytics: FeatureId.ADVANCED_ANALYTICS,
+  Export: FeatureId.EXPORT_DATA,
+  DeveloperPortal: FeatureId.DEVELOPER_PORTAL,
+  SandboxDashboard: FeatureId.SANDBOX_ACCESS,
+  ApiKeyManagement: FeatureId.API_ACCESS,
+};
+
+const authRequiredRoutes: Set<keyof RootStackParamList> = new Set([
+  'Profile',
+  'AdminDashboard',
+  'ApiKeyManagement',
+  'DeveloperPortal',
+  'SandboxDashboard',
+  'MerchantOnboarding',
+  'AffiliateDashboard',
+  'LoyaltyDashboard',
+  'CampaignManagement',
+]);
+
+const requiredParamsByRoute: Partial<Record<keyof RootStackParamList, string[]>> = {
+  SubscriptionDetail: ['id'],
+  CancellationFlow: ['subscriptionId'],
+  InvoiceDetail: ['id'],
+  SegmentDetail: ['segmentId'],
+};
+
+const getActiveRoute = (
+  route: Route<string, object | undefined> | undefined
+): Route<string, object | undefined> | undefined => {
+  const r = route as Route<string, object | undefined> & {
+    state?: { routes: Route<string, object | undefined>[]; index: number };
+  };
+  if (!r || !r.state || !Array.isArray(r.state.routes)) {
+    return route;
+  }
+
+  const nested = r.state.routes[r.state.index ?? 0] as Route<string, object | undefined>;
+  return getActiveRoute(nested);
+};
+
+const hasValidRequiredParams = (route: Route<string, object | undefined> | undefined): boolean => {
+  if (!route) return false;
+  const expected = requiredParamsByRoute[route.name as keyof RootStackParamList];
+  if (!expected) return true;
+
+  const params = route.params as Record<string, unknown> | undefined;
+  return expected.every((key) => typeof params?.[key] === 'string' && params?.[key]);
+};
+
+const getStateFromPathSafe = (path: string, options?: any) => {
+  const state = getStateFromPath(path, options);
+  if (!state || !state.routes?.length) return undefined;
+
+  const activeRoute = getActiveRoute(
+    state.routes[state.index ?? 0] as Route<string, object | undefined>
+  );
+  if (!hasValidRequiredParams(activeRoute)) return undefined;
+
+  return state;
+};
+
+const isRouteAllowed = (
+  route: Route<string, object | undefined> | undefined,
+  isAuthenticated: boolean,
+  subscriptionTier: SubscriptionTier
+): boolean => {
+  if (!route) return false;
+
+  if (authRequiredRoutes.has(route.name as keyof RootStackParamList) && !isAuthenticated) {
+    return false;
+  }
+
+  const featureId = routeFeatureMap[route.name as keyof RootStackParamList];
+  if (featureId) {
+    const feature = featureFlagsService.getFeature(featureId);
+    if (!feature || !feature.enabled) {
+      return false;
+    }
+
+    if (!feature.tierAccess.includes(subscriptionTier)) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
+const linking: LinkingOptions<TabParamList> = {
+  prefixes: ['subtrackr://', 'https://subtrackr.app'],
+  config: {
+    screens: {
+      HomeTab: {
+        path: '',
+        screens: {
+          Home: 'home',
+          AddSubscription: 'subscriptions/add',
+          SubscriptionDetail: 'subscriptions/:id',
+          CancellationFlow: 'subscriptions/:subscriptionId/cancel',
+          WalletConnect: 'wallet/connect',
+          CryptoPayment: 'crypto-payment/:subscriptionId?',
+          Community: 'community',
+          Profile: 'profile/:subscriber?',
+          Analytics: 'analytics',
+          SlaDashboard: 'sla',
+          InvoiceList: 'invoices',
+          InvoiceDetail: 'invoices/:id',
+          GDPRSettings: 'settings/privacy',
+          LanguageSettings: 'settings/language',
+          ErrorDashboard: 'errors',
+          SegmentManagement: 'segments',
+          SegmentDetail: 'segments/:segmentId',
+          Gamification: 'gamification',
+          FraudDashboard: 'fraud',
+          GroupManagement: 'groups',
+          SupportDashboard: 'support',
+          UsageDashboard: 'usage/:subscriptionId?/:planId?/:name?',
+          DeveloperPortal: 'developer',
+          SandboxDashboard: 'sandbox',
+          ApiKeyManagement: 'api-keys',
+          DocumentationPortal: 'docs',
+          IntegrationGuides: 'integration-guides',
+          ChurnPrediction: 'churn-analytics',
+          InvoiceCustomization: 'invoice/customization',
+          InvoiceMarketplace: 'invoice/marketplace',
+          InvoiceAnalytics: 'invoice/analytics',
+        },
+      },
+      AddTab: 'add',
+      WalletTab: 'wallet',
+      AnalyticsTab: 'analytics',
+      RevenueTab: 'revenue',
+      SettingsTab: {
+        path: 'settings',
+        screens: {
+          Settings: '',
+          CalendarIntegration: 'calendar',
+          WebhookSettings: 'webhooks',
+          AccountingExport: 'accounting',
+          BatchOperations: 'batch',
+          AdminDashboard: 'admin',
+          FraudDashboard: 'fraud',
+          TaxSettings: 'tax',
+          SupportDashboard: 'support',
+          GroupManagement: 'groups',
+          MerchantOnboarding: 'merchant-onboarding',
+          AffiliateDashboard: 'affiliate',
+          LoyaltyDashboard: 'loyalty',
+          CampaignManagement: 'campaigns',
+          DeveloperPortal: 'developer',
+          DocumentationPortal: 'docs',
+          ApiKeyManagement: 'api-keys',
+        },
+      },
+    },
+  },
+  getStateFromPath: getStateFromPathSafe,
+};
 
 const HomeStack = () => (
   <Stack.Navigator>
@@ -231,14 +415,29 @@ const HomeStack = () => (
       options={{ title: 'Integrations', headerShown: true }}
     />
     <Stack.Screen
+      name="ChurnPrediction"
+      component={ChurnPredictionScreen}
+      options={{ title: 'Churn Analytics', headerShown: true }}
+    />
+    <Stack.Screen
+      name="InvoiceCustomization"
+      component={InvoiceCustomizationScreen}
+      options={{ title: 'Invoice Customization', headerShown: true }}
+    />
+    <Stack.Screen
+      name="InvoiceMarketplace"
+      component={InvoiceMarketplaceScreen}
+      options={{ title: 'Template Marketplace', headerShown: true }}
+    />
+    <Stack.Screen
+      name="InvoiceAnalytics"
+      component={InvoiceAnalyticsScreen}
+      options={{ title: 'Invoice Analytics', headerShown: true }}
+    />
+    <Stack.Screen
       name="TrialDetails"
       component={TrialDetailsScreen}
       options={{ title: 'Trial Details', headerShown: true }}
-    />
-  </Stack.Navigator>
-      name="PartnerDashboard"
-      component={PartnerDashboardScreen}
-      options={{ title: 'Partner Dashboard', headerShown: true }}
     />
   </Stack.Navigator>
 );
@@ -280,11 +479,6 @@ const SettingsStack = () => (
       name="LanguageSettings"
       component={LanguageSettingsScreen}
       options={{ title: 'Language', headerShown: true }}
-    />
-    <Stack.Screen
-      name="Export"
-      component={ExportScreen}
-      options={{ title: 'Export', headerShown: true }}
     />
     <Stack.Screen
       name="BatchOperations"
@@ -340,6 +534,8 @@ const SettingsStack = () => (
       name="CreditsAndPrepayments"
       component={CreditsAndPrepaymentsScreen}
       options={{ title: 'Credits & Prepayments', headerShown: true }}
+    />
+    <Stack.Screen
       name="TaxCompliance"
       component={TaxComplianceScreen}
       options={{ title: 'Tax Compliance', headerShown: true }}
@@ -422,7 +618,12 @@ const SettingsStack = () => (
     <Stack.Screen
       name="AnalyticsDashboard"
       component={AnalyticsDashboard}
-      options={{ title: 'Analytics Dashboard', headerShown: true }}
+      options={{ title: 'Analytics', headerShown: true }}
+    />
+    <Stack.Screen
+      name="AutomatedCompliance"
+      component={AutomatedComplianceDashboard}
+      options={{ title: 'Automated Compliance', headerShown: true }}
     />
     {/* Issue #547: GDPR */}
     <Stack.Screen
@@ -549,11 +750,34 @@ export const AppNavigator = () => {
     prefetchModule('SubscriptionDetail', () => import('../screens/SubscriptionDetailScreen'));
   }, []);
 
+  const user = useUserStore((state) => state.user);
+  const subscriptionTier = useUserStore((state) => state.subscriptionTier);
   const { isDark } = useTheme();
+
+  const handleStateChange = useCallback(
+    (state?: NavigationState) => {
+      if (!state) return;
+      const activeRoute = getActiveRoute(
+        state.routes[state.index ?? 0] as Route<string, object | undefined>
+      );
+      const isAuthenticated = Boolean(user);
+      if (!isRouteAllowed(activeRoute, isAuthenticated, subscriptionTier)) {
+        console.warn(
+          `Blocked navigation to ${activeRoute?.name}. Falling back to HomeTab due to auth/feature gating.`
+        );
+        if (navigationRef.isReady()) {
+          navigationRef.reset({ index: 0, routes: [{ name: 'HomeTab' }] });
+        }
+      }
+    },
+    [subscriptionTier, user]
+  );
 
   return (
     <NavigationContainer
       ref={navigationRef}
+      linking={linking}
+      onStateChange={handleStateChange}
       theme={isDark ? darkNavigationTheme : lightNavigationTheme}>
       <TabNavigator />
     </NavigationContainer>

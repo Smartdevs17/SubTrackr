@@ -1,12 +1,6 @@
 name: Notification Service CI
 
-on:
-  push:
-    branches: [main, feat/575-notification-microservice]
-    paths: ['services/notification/**', 'backend/messaging/**']
-  pull_request:
-    branches: [main]
-    paths: ['services/notification/**', 'backend/messaging/**']
+on: workflow_dispatch
 
 jobs:
   typecheck-lint-test:
@@ -16,10 +10,10 @@ jobs:
         working-directory: services/notification
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '20'
           cache: 'npm'

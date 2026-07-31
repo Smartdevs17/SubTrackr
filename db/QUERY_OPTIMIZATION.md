@@ -46,11 +46,11 @@ without DB access — see **§5**.
 a query the existing indexes (`001_base_indexes.sql`, `006_usage_alerts.sql`) do
 **not** fully cover:
 
-| Index | Table | Serves |
-|---|---|---|
-| `idx_alerts_subscription_created (subscription_id, created_at DESC)` | `usage_alerts` | `WHERE subscription_id = $1 AND created_at > $2 ORDER BY created_at DESC` (`alertingRepository.ts:57`, `usageAlertsController.ts:144`) |
-| `idx_payment_methods_user_id (user_id, id)` | `payment_methods` | keyset pagination `WHERE user_id = $1 AND id > $cursor ORDER BY id` (`resolvers.ts:257`) |
-| `idx_usage_metrics_subscription_meter (subscription_id, meter_id)` | `usage_metrics` | exact lookup `WHERE subscription_id = $1 AND meter_id = $2` (`alertingService.ts:130`) |
+| Index                                                                | Table             | Serves                                                                                                                                 |
+| -------------------------------------------------------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `idx_alerts_subscription_created (subscription_id, created_at DESC)` | `usage_alerts`    | `WHERE subscription_id = $1 AND created_at > $2 ORDER BY created_at DESC` (`alertingRepository.ts:57`, `usageAlertsController.ts:144`) |
+| `idx_payment_methods_user_id (user_id, id)`                          | `payment_methods` | keyset pagination `WHERE user_id = $1 AND id > $cursor ORDER BY id` (`resolvers.ts:257`)                                               |
+| `idx_usage_metrics_subscription_meter (subscription_id, meter_id)`   | `usage_metrics`   | exact lookup `WHERE subscription_id = $1 AND meter_id = $2` (`alertingService.ts:130`)                                                 |
 
 Why not the existing indexes:
 
@@ -61,7 +61,7 @@ Why not the existing indexes:
   scanned and sorted.
 - `idx_usage_metrics_subscription` is single-column and **partial**
   (`WHERE current_usage > 0`), so it can't serve the exact `(subscription_id,
-  meter_id)` lookup for zero-usage rows.
+meter_id)` lookup for zero-usage rows.
 
 All three are created `CONCURRENTLY IF NOT EXISTS` (online, idempotent).
 
@@ -126,9 +126,12 @@ import { SlowQueryMonitor } from './backend/shared/query/slowQueryMonitor';
 
 const monitor = new SlowQueryMonitor(pool, {
   slowThresholdMs: 100,
-  onSlowQuery: (e) => logger.warn('slow_query', {
-    fingerprint: e.fingerprint, durationMs: e.durationMs, rowCount: e.rowCount,
-  }),
+  onSlowQuery: (e) =>
+    logger.warn('slow_query', {
+      fingerprint: e.fingerprint,
+      durationMs: e.durationMs,
+      rowCount: e.rowCount,
+    }),
 });
 
 await monitor.query('SELECT ... WHERE user_id = $1', [userId]); // timed

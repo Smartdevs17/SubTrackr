@@ -38,7 +38,9 @@ const InvoiceListScreen: React.FC = () => {
 
   const onRefresh = async () => {
     await refresh({
-      clearBefore: () => useInvoiceStore.setState({ invoices: [] }),
+      clearBefore: () => {
+        useInvoiceStore.setState({ invoices: [] });
+      },
       fetcher: async () => {
         // invoiceStore has no remote fetcher in this build; keep UX smooth
         await new Promise((r) => setTimeout(r, 350));
@@ -70,7 +72,9 @@ const InvoiceListScreen: React.FC = () => {
             message="Invoices are created automatically after successful billing events occur on tracked plans."
             icon="🧾"
             actionText="Go to Dashboard"
-            onAction={() => navigation.navigate('Home')}
+            onAction={() => {
+              navigation.navigate('Home');
+            }}
           />
         ) : (
           sortedInvoices.map((invoice) => (

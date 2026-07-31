@@ -1,21 +1,10 @@
-import React, { useState, useMemo, useCallback } from 'react';
-import {
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  Alert,
-} from 'react-native';
+import React, { useState, useMemo } from 'react';
+import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Card } from '../components/common/Card';
-import { Button } from '../components/common/Button';
-import { FormScreen } from '../components/common/ScreenTemplates';
 import { spacing, typography, borderRadius } from '../utils/constants';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { usePartnerStore } from '../store/partnerStore';
-import type { Partner, SplitType, PartnerPayoutSchedule } from '../types/partner';
-import { SplitEngine } from '../services/partnerService';
+import type { PartnerStatus } from '../types/partner';
 
 type Tab = 'partners' | 'splits' | 'payouts';
 
@@ -33,7 +22,7 @@ const PartnerDashboardScreen: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>('partners');
   const [selectedPartnerId, setSelectedPartnerId] = useState<string | null>(null);
 
-  const partnerEarnings = useMemo(() => {
+  const _partnerEarnings = useMemo(() => {
     if (!selectedPartnerId) return null;
     return getPartnerEarnings(selectedPartnerId);
   }, [selectedPartnerId, getPartnerEarnings, payoutRecords]);

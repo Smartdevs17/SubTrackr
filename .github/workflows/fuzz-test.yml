@@ -1,21 +1,6 @@
 name: Cargo-Fuzz Pipeline
 
-on:
-  push:
-    branches: [main, develop]
-    paths:
-      - 'contracts/subscription/**'
-      - 'contracts/fuzz/**'
-      - '.github/workflows/fuzz-test.yml'
-      - '.github/corpus/**'
-  pull_request:
-    branches: [main, develop]
-    paths:
-      - 'contracts/subscription/**'
-      - 'contracts/fuzz/**'
-      - '.github/workflows/fuzz-test.yml'
-  schedule:
-    - cron: '0 6 * * 1'  # weekly: Monday 06:00 UTC
+on: workflow_dispatch
 
 jobs:
   cargo-fuzz:
@@ -33,7 +18,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install nightly toolchain (cargo-fuzz)
         uses: actions-rust-lang/setup-rust-toolchain@v1

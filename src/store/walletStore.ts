@@ -8,15 +8,32 @@ import {
   PaymentMethodFormData,
   PaymentPriority,
   PaymentAttempt,
+  FallbackChain,
+  FallbackChainValidation,
+  PaymentMethodAnalytics,
+  PaymentMethodExpiryAlert,
+  PaymentMethodShare,
+  PaymentMethodShareRole,
 } from '../types/wallet';
 import {
   WalletServiceManager,
   PaymentMethodService,
   PaymentMethodError,
   PaymentMethodErrorCode,
-  PaymentMethodExpiryCheck,
   WalletConnection,
 } from '../services/walletService';
+import type {
+  ChainPaymentResult,
+  PaymentMethodExpiryCheck,
+} from '../services/paymentMethodService';
+import { Network } from '../config/networks';
+
+// ── Types ──────────────────────────────────────────────────────────
+
+export interface NetworkMismatch {
+  connectedChainId: number;
+  preferredNetwork: Network;
+}
 
 interface WalletState {
   // Connection state from service
@@ -60,6 +77,44 @@ interface WalletState {
     fallback: PaymentMethod[];
   };
   checkTokenContractUpgrade: (id: string) => Promise<boolean>;
+
+  // Fallback chains
+  fallbackChains: FallbackChain[];
+  createFallbackChain: (
+    name: string,
+    methodIds: string[],
+    options?: Partial<Pick<FallbackChain, 'subscriptionId' | 'maxAttempts' | 'stopOnHardDecline'>>
+  ) => FallbackChain;
+  updateFallbackChain: (id: string, updates: Partial<FallbackChain>) => void;
+  deleteFallbackChain: (id: string) => void;
+  reorderFallbackChain: (id: string, methodIds: string[]) => void;
+  validateFallbackChain: (id: string) => FallbackChainValidation | null;
+  chainForSubscription: (subscriptionId: string) => FallbackChain | null;
+  processPaymentWithChain: (
+    subscriptionId: string,
+    amount: string,
+    chainId: number,
+    maxGasPriceGwei?: number
+  ) => Promise<ChainPaymentResult>;
+
+  // Expiry alerts
+  expiryAlerts: () => PaymentMethodExpiryAlert[];
+  deactivateExpiredMethods: () => number;
+
+  // Analytics
+  paymentAnalytics: () => PaymentMethodAnalytics;
+
+  // Sharing
+  paymentMethodShares: PaymentMethodShare[];
+  sharePaymentMethod: (
+    methodId: string,
+    granteeId: string,
+    role: PaymentMethodShareRole,
+    options?: { spendLimit?: string; expiresAt?: Date }
+  ) => PaymentMethodShare;
+  revokePaymentMethodShare: (shareId: string) => void;
+  sharesForMethod: (methodId: string) => PaymentMethodShare[];
+  methodsSharedWith: (granteeId: string) => PaymentMethod[];
 }
 
 const PAYMENT_STORAGE_KEY = '@subtrackr_payment_methods';
@@ -80,6 +135,8 @@ export const useWalletStore = create<WalletState>()(
         cryptoStreams: [],
         paymentMethods: [],
         paymentAttempts: [],
+        fallbackChains: [],
+        paymentMethodShares: [],
         isLoading: false,
         error: null,
 
@@ -111,6 +168,10 @@ export const useWalletStore = create<WalletState>()(
               cryptoStreams: [],
               paymentMethods: [],
               paymentAttempts: [],
+              // Chains and shares reference methods that are gone, so they go
+              // with them rather than dangling.
+              fallbackChains: [],
+              paymentMethodShares: [],
             });
           } catch (error) {
             set({ error: 'Failed to disconnect wallet' });
@@ -519,20 +580,212 @@ export const useWalletStore = create<WalletState>()(
             return false;
           }
         },
+
+        // ── Fallback chains ────────────────────────────────────────────
+
+        createFallbackChain: (name, methodIds, options = {}) => {
+          const now = new Date();
+          const chain: FallbackChain = {
+            id: `chain_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            name,
+            methodIds,
+            subscriptionId: options.subscriptionId ?? null,
+            maxAttempts: options.maxAttempts ?? 0,
+            stopOnHardDecline: options.stopOnHardDecline ?? false,
+            isActive: true,
+            createdAt: now,
+            updatedAt: now,
+          };
+
+          const validation = paymentService.validateChain(chain, get().paymentMethods);
+          if (!validation.isValid) {
+            const message = validation.errors.join('; ');
+            set({ error: message });
+            throw new PaymentMethodError(
+              PaymentMethodErrorCode.FALLBACK_FAILED,
+              message,
+              'Fix the chain configuration and try again.'
+            );
+          }
+
+          set((state) => ({ fallbackChains: [...state.fallbackChains, chain], error: null }));
+          return chain;
+        },
+
+        updateFallbackChain: (id, updates) =>
+          set((state) => ({
+            fallbackChains: state.fallbackChains.map((chain) =>
+              chain.id === id ? { ...chain, ...updates, updatedAt: new Date() } : chain
+            ),
+          })),
+
+        deleteFallbackChain: (id) =>
+          set((state) => ({
+            fallbackChains: state.fallbackChains.filter((chain) => chain.id !== id),
+          })),
+
+        reorderFallbackChain: (id, methodIds) =>
+          set((state) => ({
+            fallbackChains: state.fallbackChains.map((chain) =>
+              chain.id === id ? { ...chain, methodIds, updatedAt: new Date() } : chain
+            ),
+          })),
+
+        validateFallbackChain: (id) => {
+          const chain = get().fallbackChains.find((candidate) => candidate.id === id);
+          if (!chain) return null;
+          return paymentService.validateChain(chain, get().paymentMethods);
+        },
+
+        chainForSubscription: (subscriptionId) =>
+          paymentService.selectChainForSubscription(get().fallbackChains, subscriptionId),
+
+        processPaymentWithChain: async (subscriptionId, amount, chainId, maxGasPriceGwei = 500) => {
+          set({ isLoading: true, error: null });
+          try {
+            const { paymentMethods } = get();
+            // A merchant who has never configured a chain still gets one,
+            // derived from the priority ordering.
+            const chain =
+              get().chainForSubscription(subscriptionId) ??
+              paymentService.buildDefaultChain(paymentMethods);
+
+            const result = await paymentService.processPaymentWithChain(
+              chain,
+              paymentMethods,
+              subscriptionId,
+              amount,
+              chainId,
+              maxGasPriceGwei
+            );
+
+            const attempts = [
+              ...get().paymentAttempts,
+              ...result.fallbackAttempts,
+              ...(result.attempt ? [result.attempt] : []),
+            ];
+
+            set({
+              paymentAttempts: attempts,
+              paymentMethods: result.attempt
+                ? paymentMethods.map((method) =>
+                    method.id === result.attempt!.paymentMethodId
+                      ? { ...method, lastUsedAt: new Date(), updatedAt: new Date() }
+                      : method
+                  )
+                : paymentMethods,
+              isLoading: false,
+            });
+
+            return result;
+          } catch (error) {
+            set({
+              error:
+                error instanceof PaymentMethodError
+                  ? error.userMessage
+                  : error instanceof Error
+                    ? error.message
+                    : 'Chain payment failed',
+              isLoading: false,
+            });
+            throw error;
+          }
+        },
+
+        // ── Expiry alerts ──────────────────────────────────────────────
+
+        expiryAlerts: () =>
+          paymentService.buildExpiryAlerts(get().paymentMethods, get().fallbackChains),
+
+        deactivateExpiredMethods: () => {
+          const { paymentMethods } = get();
+          const expired = new Set(
+            paymentService.getExpiredMethods(paymentMethods).map((method) => method.id)
+          );
+          if (expired.size === 0) return 0;
+
+          set({
+            paymentMethods: paymentMethods.map((method) =>
+              expired.has(method.id) ? paymentService.markPaymentMethodExpired(method) : method
+            ),
+          });
+          return expired.size;
+        },
+
+        // ── Analytics ──────────────────────────────────────────────────
+
+        paymentAnalytics: () =>
+          paymentService.computeAnalytics(get().paymentMethods, get().paymentAttempts),
+
+        // ── Sharing ────────────────────────────────────────────────────
+
+        sharePaymentMethod: (methodId, granteeId, role, options = {}) => {
+          const method = get().paymentMethods.find((candidate) => candidate.id === methodId);
+          if (!method) {
+            throw new PaymentMethodError(
+              PaymentMethodErrorCode.INVALID_TOKEN,
+              'Payment method not found.',
+              'Refresh your payment methods and try again.'
+            );
+          }
+
+          try {
+            const share = paymentService.createShare(method, granteeId, role, options);
+            set((state) => ({
+              paymentMethodShares: [...state.paymentMethodShares, share],
+              error: null,
+            }));
+            return share;
+          } catch (error) {
+            set({
+              error: error instanceof PaymentMethodError ? error.userMessage : 'Failed to share',
+            });
+            throw error;
+          }
+        },
+
+        revokePaymentMethodShare: (shareId) =>
+          set((state) => ({
+            paymentMethodShares: state.paymentMethodShares.map((share) =>
+              share.id === shareId && share.revokedAt === null
+                ? { ...share, revokedAt: new Date() }
+                : share
+            ),
+          })),
+
+        sharesForMethod: (methodId) =>
+          get().paymentMethodShares.filter(
+            (share) => share.methodId === methodId && paymentService.isShareActive(share)
+          ),
+
+        methodsSharedWith: (granteeId) =>
+          paymentService.getSharedMethods(
+            get().paymentMethods,
+            get().paymentMethodShares,
+            granteeId
+          ),
       };
     },
     {
       name: PAYMENT_STORAGE_KEY,
       storage: createJSONStorage(() => asyncStorageAdapter),
-      // Only persist payment methods and attempts; connection and streams are ephemeral
+      // Only persist payment configuration and history; connection and streams
+      // are ephemeral.
       partialize: (state) => ({
         paymentMethods: state.paymentMethods,
         paymentAttempts: state.paymentAttempts,
+        fallbackChains: state.fallbackChains,
+        paymentMethodShares: state.paymentMethodShares,
       }),
       onRehydrateStorage: () => (_state, error) => {
         if (error) {
           console.warn('[walletStore] Hydration error — resetting payment data:', error);
-          useWalletStore.setState({ paymentMethods: [], paymentAttempts: [] });
+          useWalletStore.setState({
+            paymentMethods: [],
+            paymentAttempts: [],
+            fallbackChains: [],
+            paymentMethodShares: [],
+          });
         }
       },
     }

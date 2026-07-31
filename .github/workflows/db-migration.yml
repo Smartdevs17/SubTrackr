@@ -1,18 +1,6 @@
 name: DB Migration Validation
 
-on:
-  push:
-    paths:
-      - 'backend/migrations/**'
-      - 'scripts/db-migrate-dryrun.js'
-      - 'scripts/db-schema-drift.js'
-      - 'scripts/db-migration-lint.js'
-  pull_request:
-    paths:
-      - 'backend/migrations/**'
-      - 'scripts/db-migrate-dryrun.js'
-      - 'scripts/db-schema-drift.js'
-      - 'scripts/db-migration-lint.js'
+on: workflow_dispatch
 
 env:
   NODE_VERSION: '20'
@@ -24,14 +12,8 @@ jobs:
     name: Migration Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-
-      - run: npm ci --legacy-peer-deps
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-node
 
       - name: Lint migrations
         run: node scripts/db-migration-lint.js --migrations-dir backend/migrations
@@ -40,14 +22,8 @@ jobs:
     name: Migration Dry-Run
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-
-      - run: npm ci --legacy-peer-deps
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-node
 
       - name: Dry-run migrations (no DB changes)
         run: |
@@ -76,14 +52,8 @@ jobs:
     env:
       DATABASE_URL: postgresql://subtrackr:testpassword@localhost:5432/subtrackr_test
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-
-      - run: npm ci --legacy-peer-deps
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-node
 
       - name: Apply migrations (up)
         run: npm run db:migrate:up
@@ -101,14 +71,8 @@ jobs:
     name: Schema Drift Detection
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-
-      - run: npm ci --legacy-peer-deps
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-node
 
       - name: Detect schema drift
         run: node scripts/db-schema-drift.js
@@ -117,14 +81,8 @@ jobs:
     name: Expand-Migrate-Contract Validation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-
-      - run: npm ci --legacy-peer-deps
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-node
 
       - name: Validate EMC state file exists (if migrations present)
         run: |

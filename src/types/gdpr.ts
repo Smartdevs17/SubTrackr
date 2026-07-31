@@ -1,5 +1,10 @@
 export type PIICategory =
-  'identity' | 'contact' | 'financial' | 'behavioral' | 'technical' | 'subscription';
+  | 'identity'
+  | 'contact'
+  | 'financial'
+  | 'behavioral'
+  | 'technical'
+  | 'subscription';
 
 export interface PIIField {
   field: string;

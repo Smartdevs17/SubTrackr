@@ -339,7 +339,7 @@ export function parseCSV(csvContent: string): SubscriptionInput[] {
       const columnIndex = headerMap.get(mapping.csvColumn.toLowerCase());
       if (columnIndex !== undefined && values[columnIndex]) {
         const rawValue = values[columnIndex];
-        const value = mapping.transform ? String(mapping.transform(rawValue)) : rawValue;
+        const value = mapping.transform ? mapping.transform(rawValue) : rawValue;
 
         (subscription as Record<string, unknown>)[mapping.fieldName] = value;
       }
@@ -715,6 +715,17 @@ export function processImport(
           updatedCount++;
         }
       } else {
+        // Check for duplicates in create mode
+        if (existingByNameMatch || existingByIdMatch) {
+          errors.push({
+            row: rowNum,
+            field: 'name',
+            message: `Duplicate subscription: "${input.name}" already exists`,
+            value: input.name,
+          });
+          return;
+        }
+
         // Create new
         const newSubscription: Subscription = {
           id: input.id || generateUniqueId(),

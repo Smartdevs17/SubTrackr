@@ -138,6 +138,10 @@ export type ErrorCode =
   // ── Idempotency ──────────────────────────────────────────────────────────
   | 'IDEMPOTENCY_KEY_COLLISION'
   | 'IDEMPOTENCY_REQUEST_IN_FLIGHT'
+  // ── Usage metering ───────────────────────────────────────────────────────
+  | 'USAGE_BATCH_TOO_LARGE'
+  | 'USAGE_INVALID_EVENT'
+  | 'USAGE_HARD_LIMIT_EXCEEDED'
   // ── Locking (Issue #610) ─────────────────────────────────────────────────
   | 'LOCK_ACQUISITION_TIMEOUT'
   | 'LOCK_DEADLOCK_DETECTED'
@@ -158,7 +162,12 @@ export type ErrorCode =
   | 'PAYMENT_GATEWAY_ERROR'
   | 'PAYMENT_GATEWAY_FALLBACK_FAILED'
   | 'PAYMENT_GATEWAY_CONFIG_INVALID'
-  | 'PAYMENT_REFUND_PARTIAL_FAILED';
+  | 'PAYMENT_REFUND_PARTIAL_FAILED'
+  // ── RPC / Circuit Breaker (RPC timeout & circuit breaker feature) ─────────
+  | 'RPC_TIMEOUT'
+  | 'RPC_CIRCUIT_OPEN'
+  | 'RPC_ALL_PROVIDERS_FAILED'
+  | 'RPC_PROVIDER_NOT_FOUND';
 
 /**
  * Maps each error code to the HTTP status code that should be sent to the
@@ -213,6 +222,10 @@ export const ERROR_HTTP_STATUS_MAP: Record<ErrorCode, number> = {
   // Idempotency
   IDEMPOTENCY_KEY_COLLISION: 422,
   IDEMPOTENCY_REQUEST_IN_FLIGHT: 409,
+  // Usage metering
+  USAGE_BATCH_TOO_LARGE: 413,
+  USAGE_INVALID_EVENT: 422,
+  USAGE_HARD_LIMIT_EXCEEDED: 402,
   // Locking (Issue #610)
   LOCK_ACQUISITION_TIMEOUT: 409,
   LOCK_DEADLOCK_DETECTED: 409,
@@ -234,6 +247,11 @@ export const ERROR_HTTP_STATUS_MAP: Record<ErrorCode, number> = {
   PAYMENT_GATEWAY_FALLBACK_FAILED: 502,
   PAYMENT_GATEWAY_CONFIG_INVALID: 422,
   PAYMENT_REFUND_PARTIAL_FAILED: 422,
+  // RPC / Circuit Breaker
+  RPC_TIMEOUT: 504,
+  RPC_CIRCUIT_OPEN: 503,
+  RPC_ALL_PROVIDERS_FAILED: 503,
+  RPC_PROVIDER_NOT_FOUND: 404,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

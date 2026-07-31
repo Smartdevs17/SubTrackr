@@ -1,4 +1,4 @@
-import type { Theme, BrandConfig, ExtendedThemeColors } from './types';
+import type { Theme, BrandConfig } from './types';
 import { generateExtendedColors } from './customThemeBuilder';
 
 export const darkTheme: Theme = {

@@ -68,7 +68,12 @@ export interface RevenueJournalEntry {
   subscriptionId: string;
   merchantId: string;
   type:
-    'charge' | 'recognition' | 'modification' | 'termination' | 'acceleration' | 'trial_conversion';
+    | 'charge'
+    | 'recognition'
+    | 'modification'
+    | 'termination'
+    | 'acceleration'
+    | 'trial_conversion';
   amount: number;
   debitAccount: string;
   creditAccount: string;

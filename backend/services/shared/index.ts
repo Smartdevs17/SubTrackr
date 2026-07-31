@@ -28,6 +28,17 @@ export { PiiClassifier, piiClassifier, redact, isPiiField, DEFAULT_PATTERNS } fr
 export type { ClassificationLevel, PiiPattern, ClassifyResult, RedactOptions } from './piiClassifier';
 export { redactResponse, createPiiRedactionMiddleware } from './apiResponse';
 export { RateLimitingService, rateLimitingService } from './rateLimitingService';
+export type { BypassConfig, CustomLimits } from './rateLimitingService';
+export {
+  createRateLimitMiddleware,
+  createRateLimitStatusMiddleware,
+  RATE_LIMIT_HEADERS,
+} from './rateLimitMiddleware';
+export type {
+  RateLimitRequest,
+  RateLimitResponse,
+  RateLimitMiddlewareOptions,
+} from './rateLimitMiddleware';
 export { apiClient } from './apiClient';
 export {
   ok,
@@ -50,3 +61,111 @@ export type {
 } from './apiResponse';
 export type { TransactionStatus, AlertSeverity, AlertChannel, TransactionEvent, Metric, Alert, AlertRule, AlertChannelConfig, DashboardSnapshot } from './types';
 export { MonitoringService, monitoringService } from './monitoring';
+
+// ── Typed Event Bus ────────────────────────────────────────────────────────────
+export {
+  EventBus,
+  SpyEventBus,
+  EventCollector,
+  InMemoryEventStore,
+  buildEvent,
+  validateEventPayload,
+  EventValidationError,
+  eventBus,
+  eventStore,
+  eventBusPrometheusMetrics,
+} from './events';
+export type {
+  DomainEvent,
+  AnyDomainEvent,
+  EventPayload,
+  EventHandler,
+  EventFilter,
+  EventSubscription,
+  SubscriptionOptions,
+  EventBusMetrics,
+  IEventBus,
+  EventSourcedStore,
+  EventStoreQuery,
+  AggregateSnapshot,
+  ValidationResult,
+  // Subscription domain payloads
+  SubscriptionCreatedPayload,
+  SubscriptionCancelledPayload,
+  SubscriptionRenewedPayload,
+  SubscriptionUpgradedPayload,
+  SubscriptionPausedPayload,
+  SubscriptionResumedPayload,
+  SubscriptionPaymentFailedPayload,
+  SubscriptionEvent,
+  // Billing domain payloads
+  InvoiceGeneratedPayload,
+  PaymentCapturedPayload,
+  UsageThresholdReachedPayload,
+  ChargebackRaisedPayload,
+  BillingEvent,
+  // Analytics domain payloads
+  ChurnRiskUpdatedPayload,
+  CohortAggregatedPayload,
+  MrrChangedPayload,
+  AnalyticsEvent,
+  // Auth domain payloads
+  ApiKeyRotatedPayload,
+  SsoSessionCreatedPayload,
+  AuthEvent,
+  // Contract domain payloads
+  ContractInvokedPayload,
+  ContractUpgradedPayload,
+  ContractEvent,
+} from './events';
+
+// ── Generic Cache Service ──────────────────────────────────────────────────────
+export { CacheService, NullCacheService, wireInvalidation } from './cache';
+export type {
+  ICacheService,
+  CacheServiceConfig,
+  CacheMetrics,
+  InvalidationRule,
+} from './cache';
+
+// ── Compression Middleware ────────────────────────────────────────────────────
+export {
+  applyCompression,
+  negotiateEncoding,
+  generateETag,
+  isETagMatch,
+  compressionMetrics,
+  compressionPrometheusMetrics,
+} from './compression';
+export type {
+  CompressionConfig,
+  CompressionMetrics,
+  CompressionMiddlewareOptions,
+  Encoding,
+} from './compression';
+
+// ── Cursor Pagination + Field Selection ───────────────────────────────────────
+export {
+  encodeCursor,
+  decodeCursor,
+  buildCursorClause,
+  buildPage,
+  parseFieldSelection,
+  selectFields,
+  selectFieldsAll,
+} from './pagination';
+export type {
+  CursorPayload,
+  PageOptions,
+  PageResult,
+  SqlCursorClause,
+} from './pagination';
+
+// ── Connection Pool Monitor ───────────────────────────────────────────────────
+export { MonitoredPool, wrapWithMonitor } from './poolMonitor';
+export type {
+  PoolMonitorConfig,
+  PoolStats,
+  LeakRecord,
+  PoolTuningRecommendation,
+} from './poolMonitor';

@@ -26,7 +26,7 @@ export interface TaxConfig {
   remittanceSchedule: RemittanceSchedule;
   exemptions: TaxExemption[];
   reverseChargeRegions: string[];
-  provider: TaxProvider;
+  provider?: TaxProvider;
 }
 
 export interface TaxCalculationInput {

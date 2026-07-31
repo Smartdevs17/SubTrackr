@@ -8,6 +8,7 @@ import {
   ConversionFunnelEvent,
   TrialReminderSchedule,
   TrialReminder,
+  TrialExtension,
 } from '../types/trial';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -147,7 +148,12 @@ class ABTestService {
     }
   }
 
-  assignCohort(abTestId: string, userId: string, variantName: string, cohort?: string): ABTestAssignment {
+  assignCohort(
+    abTestId: string,
+    userId: string,
+    variantName: string,
+    cohort?: string
+  ): ABTestAssignment {
     const now = new Date();
     const assignment: ABTestAssignment = {
       id: `${abTestId}-${userId}-${Date.now()}`,
@@ -335,3 +341,88 @@ export const trialConfigService = new TrialConfigService();
 export const abTestService = new ABTestService();
 export const conversionTracker = new ConversionTracker();
 export const reminderScheduler = new ReminderScheduler();
+
+class TrialNotificationService {
+  private scheduledNotifications: Array<{
+    id: string;
+    trialConfigId: string;
+    type: 'expiring_soon' | 'expired' | 'extended' | 'converted';
+    scheduledAt: Date;
+    sent: boolean;
+    message: string;
+  }> = [];
+
+  scheduleExpirationReminder(trialConfig: TrialConfig): void {
+    if (!trialConfig.endDate) return;
+    const endDate = new Date(trialConfig.endDate);
+    const now = new Date();
+
+    const daysUntilExpiry = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (daysUntilExpiry <= 3 && daysUntilExpiry > 0) {
+      this.scheduledNotifications.push({
+        id: `notif-exp-${trialConfig.id}-${Date.now()}`,
+        trialConfigId: trialConfig.id,
+        type: 'expiring_soon',
+        scheduledAt: new Date(
+          now.getTime() + Math.max(0, daysUntilExpiry - 1) * 24 * 60 * 60 * 1000
+        ),
+        sent: false,
+        message: `Your trial for subscription ${trialConfig.subscriptionId} expires in ${daysUntilExpiry} day(s).`,
+      });
+    }
+  }
+
+  scheduleExtensionNotification(trialConfig: TrialConfig, extension: TrialExtension): void {
+    this.scheduledNotifications.push({
+      id: `notif-ext-${extension.id}-${Date.now()}`,
+      trialConfigId: trialConfig.id,
+      type: 'extended',
+      scheduledAt: new Date(),
+      sent: false,
+      message: `Your trial has been extended until ${new Date(extension.newEndDate).toLocaleDateString()}.`,
+    });
+  }
+
+  scheduleExpiredNotification(trialConfig: TrialConfig): void {
+    this.scheduledNotifications.push({
+      id: `notif-expired-${trialConfig.id}-${Date.now()}`,
+      trialConfigId: trialConfig.id,
+      type: 'expired',
+      scheduledAt: new Date(),
+      sent: false,
+      message: `Your trial for subscription ${trialConfig.subscriptionId} has expired.`,
+    });
+  }
+
+  scheduleConvertedNotification(trialConfig: TrialConfig): void {
+    this.scheduledNotifications.push({
+      id: `notif-converted-${trialConfig.id}-${Date.now()}`,
+      trialConfigId: trialConfig.id,
+      type: 'converted',
+      scheduledAt: new Date(),
+      sent: false,
+      message: `Your trial for subscription ${trialConfig.subscriptionId} has been converted successfully.`,
+    });
+  }
+
+  getPendingNotifications(): Array<{
+    id: string;
+    trialConfigId: string;
+    type: 'expiring_soon' | 'expired' | 'extended' | 'converted';
+    scheduledAt: Date;
+    sent: boolean;
+    message: string;
+  }> {
+    return this.scheduledNotifications.filter((n) => !n.sent);
+  }
+
+  markSent(notificationId: string): void {
+    const notif = this.scheduledNotifications.find((n) => n.id === notificationId);
+    if (notif) {
+      notif.sent = true;
+    }
+  }
+}
+
+export const trialNotificationService = new TrialNotificationService();
