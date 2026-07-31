@@ -782,6 +782,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         };
 
         set({ pauseAnalytics: analytics });
+        return analytics;
       },
 
       addSubscription: async (data: SubscriptionFormData) => {

@@ -3,15 +3,15 @@ const { drMonitor } = require('../backend/dr/drMonitoring');
 
 async function runTest() {
   console.log('--- Starting Disaster Recovery Automated Drill ---');
-  
+
   // 1. Run the DR Drill
   console.log('\nRunning core DR drill (Backup -> Verify -> Restore)...');
   const drillResult = await disasterRecoveryService.runDrDrill();
-  
+
   console.log('Drill passed:', drillResult.passed);
   console.log('Backup ID:', drillResult.backupId);
   console.log('RTO Compliant:', drillResult.rtoCompliant, `(${drillResult.recovery.durationMs}ms)`);
-  
+
   if (!drillResult.passed) {
     console.error('DR Drill failed details:', JSON.stringify(drillResult, null, 2));
     process.exit(1);

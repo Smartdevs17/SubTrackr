@@ -17,16 +17,49 @@ members = [
     "utils",
 ]
 
+# ── Release profile — optimised for minimum WASM binary size ─────────────────
 [profile.release]
-opt-level = "z"
-overflow-checks = true
+opt-level = "z"          # Minimise binary size (vs. speed)
+overflow-checks = true   # Keep safe arithmetic in release
 debug = 0
-strip = "symbols"
+strip = "symbols"        # Strip debug symbols from WASM
 debug-assertions = false
-panic = "abort"
-codegen-units = 1
-lto = true
+panic = "abort"          # No unwinding — saves ~10 KB per crate
+codegen-units = 1        # Single codegen unit enables better LTO pruning
+lto = true               # Full LTO across crates
 
+# ── Dev profile — faster compilation for iteration ───────────────────────────
+[profile.dev]
+opt-level = 0
+debug = true
+overflow-checks = true
+# Do NOT set codegen-units or lto here — keep compilation fast
+
+# ── Test profile — enable some optimisation so tests run at reasonable speed ──
+[profile.test]
+opt-level = 1
+debug = true
+overflow-checks = true
+
+# ── Workspace-wide dependency versions (DRY) ─────────────────────────────────
 [workspace.dependencies]
 soroban-sdk = "21.0.0"
 arbitrary = { version = "1.3", features = ["derive"] }
+
+# ── Workspace-wide feature flags ─────────────────────────────────────────────
+# Each crate opts in by declaring the same feature name in its own [features]
+# section and forwarding to the workspace dependency where needed.
+#
+# Standard feature names used across the workspace:
+#
+#   testutils   — Enables soroban-sdk/testutils; NEVER included in production WASM
+#   extended    — Optional subscription features (revenue, quota, proration)
+#   oracle      — Oracle price-feed integration in subscription contract
+#   metering    — Usage metering module
+#   audit-log   — On-chain audit log emission
+#   batch-ops   — Batch operation endpoints
+#   credit      — Credit memo / prepayment module
+#   fraud       — Fraud detection hooks
+#
+# CI targets:
+#   core-only   — Alias: no optional features, smallest binary

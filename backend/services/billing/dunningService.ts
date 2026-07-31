@@ -10,7 +10,11 @@ import type {
   RetryStrategy
 } from '../../../src/types/dunning';
 import { DEFAULT_DUNNING_STAGES, DUNNING_TEMPLATES } from '../../../src/types/dunning';
-import type { IDunningService } from './interfaces';
+import {
+  ProgressiveDunningEngine,
+  progressiveDunningEngine,
+} from '../../../src/services/progressiveDunningEngine';
+import type { EscalationEvent } from '../../../src/types/dunningEscalation';
 
 const ONE_HOUR_MS = 3_600_000;
 const ONE_DAY_MS = 86_400_000;
@@ -72,6 +76,11 @@ export class DunningService {
     timestamp: number;
     delayHours: number;
   }> = [];
+  private progressiveEngine: ProgressiveDunningEngine;
+
+  constructor(engine: ProgressiveDunningEngine = progressiveDunningEngine) {
+    this.progressiveEngine = engine;
+  }
 
   configurePlan(planId: string, config: Partial<DunningConfiguration>): DunningConfiguration {
     const existing = this.configurations.get(planId);
@@ -198,7 +207,40 @@ export class DunningService {
 
     this.entries.set(subscriptionId, entry);
     this.communicationLog.set(subscriptionId, []);
+    this.progressiveEngine.trackStageEntry(entry);
     return entry;
+  }
+
+  /**
+   * Evaluate and apply progressive escalation rules for a subscription.
+   * Returns the escalation event when a stage change occurs, otherwise null.
+   */
+  progressiveEscalate(subscriptionId: string, now = Date.now()): {
+    entry: DunningEntry;
+    event: EscalationEvent;
+  } | null {
+    const entry = this.entries.get(subscriptionId);
+    if (!entry || entry.isPaused) return null;
+
+    const rule = this.progressiveEngine.findMatchingRule(entry, now);
+    if (!rule) return null;
+
+    const { entry: updated, event } = this.progressiveEngine.applyEscalation(entry, rule);
+    this.entries.set(subscriptionId, updated);
+
+    const stageConfig =
+      this.configurations.get(updated.planId)?.stages.find((s) => s.stage === updated.currentStage) ??
+      DEFAULT_DUNNING_STAGES.find((s) => s.stage === updated.currentStage);
+
+    if (stageConfig) {
+      this.sendCommunication(updated, stageConfig);
+    }
+
+    return { entry: updated, event };
+  }
+
+  getProgressiveEngine(): ProgressiveDunningEngine {
+    return this.progressiveEngine;
   }
 
   recordFailedCharge(
@@ -270,6 +312,7 @@ export class DunningService {
         timestamp: now(),
         delayHours: 0,
       });
+      this.progressiveEngine.recordRecovery(entry);
     }
 
     entry.updatedAt = now();

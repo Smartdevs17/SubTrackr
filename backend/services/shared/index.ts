@@ -19,16 +19,28 @@ export type { Environment, EncryptionKey, EncryptedField, BlindIndex, DecryptedF
 export { keyManager, KeyManager } from './keyManager';
 export type { KeyRotationInfo } from './keyManager';
 export { AuditService, auditService } from './auditService';
-export type { AuditAction, AuditEvent, AuditReport, ExportFormat, RetentionPolicy } from './auditTypes';
+export type { AuditAction, AuditEvent, AuditReport, ExportFormat, RetentionPolicy } from './retentionPolicy' as any;
 export { exportUserData, deleteUserData, anonymizeUserData, updateConsent } from './gdpr';
 export type { UserConsent, ExportResult, DeletionResult, AnonymizationResult } from './gdpr';
 export { piiAuditService, PiiAuditService } from './piiAudit';
 export type { PiiAccessAction, PiiAccessRecord, LineageNode, PiiLineageTrail, PiiAuditReport } from './piiAudit';
-export { PiiClassifier, piiClassifier, redact, isPiiField, DEFAULT_PATTERNS } from './piiClassifier';
+export { PiiClassifier, piiClassifier, redact, isPiiField as isPiiFieldClassifier, DEFAULT_PATTERNS } from './piiClassifier';
 export type { ClassificationLevel, PiiPattern, ClassifyResult, RedactOptions } from './piiClassifier';
 export { redactResponse, createPiiRedactionMiddleware } from './apiResponse';
 export { RateLimitingService, rateLimitingService } from './rateLimitingService';
 export type { BypassConfig, CustomLimits } from './rateLimitingService';
+export {
+  DatabaseService,
+  getDatabaseService,
+  resetDatabaseService,
+  ConnectionStringRotator,
+} from './databaseService';
+export type {
+  DatabaseFailoverStatus,
+  DatabaseServiceOptions,
+  ConnectionStringRotationOptions,
+  ParsedConnectionString,
+} from './databaseService';
 export {
   createRateLimitMiddleware,
   createRateLimitStatusMiddleware,
@@ -39,6 +51,8 @@ export type {
   RateLimitResponse,
   RateLimitMiddlewareOptions,
 } from './rateLimitMiddleware';
+export { TokenBucket, refillRateFromHourlyLimit } from './tokenBucket';
+export type { TokenBucketConfig, TokenBucketSnapshot, ConsumeResult } from './tokenBucket';
 export { apiClient } from './apiClient';
 export {
   ok,
@@ -61,3 +75,12 @@ export type {
 } from './apiResponse';
 export type { TransactionStatus, AlertSeverity, AlertChannel, TransactionEvent, Metric, Alert, AlertRule, AlertChannelConfig, DashboardSnapshot } from './types';
 export { MonitoringService, monitoringService } from './monitoring';
+
+export {
+  JwtAuthStrategy,
+  ApiKeyAuthStrategy,
+  WalletAuthStrategy,
+  CompositeAuthStrategyManager,
+  createUnifiedAuthMiddleware,
+} from './authStrategies';
+export type { IAuthStrategy, AuthUser } from './authStrategies';

@@ -3,7 +3,20 @@
  * In this mobile-first architecture the "cluster" is an in-process index
  * backed by AsyncStorage, mirroring a real ES setup so the service layer
  * can be swapped for a remote cluster without changing callers.
+ *
+ * When remote nodes are configured, reads prefer replica nodes and writes
+ * go to the primary, with automatic failover when a replica is marked down.
  */
+
+export type ElasticsearchNodeRole = 'primary' | 'replica';
+
+export interface ElasticsearchNode {
+  /** Logical name used in routing / metrics (es-primary, es-replica-1, …). */
+  name: string;
+  /** Node HTTP URL, e.g. https://es-replica-1.internal:9200 */
+  url: string;
+  role: ElasticsearchNodeRole;
+}
 
 export interface ElasticsearchConfig {
   indexName: string;
@@ -20,6 +33,57 @@ export interface ElasticsearchConfig {
   minQueryLength: number;
   /** Whether to highlight matching terms in result fields */
   highlightEnabled: boolean;
+  /**
+   * Optional remote cluster nodes. When empty the in-process index is used.
+   * Env: ES_PRIMARY_URL + ES_READ_REPLICA_URLS (comma-separated).
+   */
+  nodes: ElasticsearchNode[];
+  /** Route search/read requests to replica nodes when available. */
+  readWriteSplitting: boolean;
+  /** Fail reads over to primary when no healthy replica remains. */
+  automaticFailover: boolean;
+}
+
+function parsePositiveInt(value: string | undefined, fallback: number): number {
+  if (value === undefined || value === '') return fallback;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+/** Build ES node list from environment variables. */
+export function loadElasticsearchNodes(env: NodeJS.ProcessEnv = process.env): ElasticsearchNode[] {
+  const nodes: ElasticsearchNode[] = [];
+  const primaryUrl = env.ES_PRIMARY_URL?.trim();
+  if (primaryUrl) {
+    nodes.push({ name: 'es-primary', url: primaryUrl, role: 'primary' });
+  }
+
+  const replicaRaw = env.ES_READ_REPLICA_URLS?.trim();
+  if (replicaRaw) {
+    replicaRaw
+      .split(',')
+      .map((u) => u.trim())
+      .filter(Boolean)
+      .forEach((url, index) => {
+        nodes.push({ name: `es-replica-${index + 1}`, url, role: 'replica' });
+      });
+  }
+
+  return nodes;
+}
+
+export function loadElasticsearchConfig(
+  env: NodeJS.ProcessEnv = process.env,
+  overrides: Partial<ElasticsearchConfig> = {},
+): ElasticsearchConfig {
+  return {
+    ...DEFAULT_ES_CONFIG,
+    nodes: loadElasticsearchNodes(env),
+    readWriteSplitting: env.ES_READ_WRITE_SPLITTING !== 'false',
+    automaticFailover: env.ES_AUTOMATIC_FAILOVER !== 'false',
+    maxResults: parsePositiveInt(env.ES_MAX_RESULTS, DEFAULT_ES_CONFIG.maxResults),
+    ...overrides,
+  };
 }
 
 export const DEFAULT_ES_CONFIG: ElasticsearchConfig = {
@@ -38,6 +102,9 @@ export const DEFAULT_ES_CONFIG: ElasticsearchConfig = {
   analyticsBufferSize: 500,
   minQueryLength: 1,
   highlightEnabled: true,
+  nodes: [],
+  readWriteSplitting: true,
+  automaticFailover: true,
 };
 
 export interface FieldMapping {

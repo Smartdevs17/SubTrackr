@@ -49,6 +49,10 @@ export GENERATE_BASELINE="$GENERATE_BASELINE"
 export COMMIT_SHA="$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")"
 export COMMIT_TIME="$(git log -1 --format=%ct 2>/dev/null || date +%s)"
 
-# Run Cargo test in contracts workspace and pipe to Python analyzer
+# Run gas benchmark tests in the subscription package and pipe to Python analyzer.
+# The tests print GAS_BENCHMARK: lines that analyze-gas.py parses.
 cd "$WORKSPACE_DIR/contracts"
-cargo test --package subtrackr-proxy --test integration_soroban test_gas_benchmarks -- --nocapture | python3 "$WORKSPACE_DIR/scripts/analyze-gas.py"
+cargo test \
+    --package subtrackr-subscription \
+    gas_benchmark \
+    -- --nocapture 2>&1 | python3 "$WORKSPACE_DIR/scripts/analyze-gas.py"

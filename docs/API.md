@@ -20,6 +20,11 @@ SubTrackr exposes its backend logic through a **Soroban smart contract** on the 
   - [Stream Creation](#stream-creation)
   - [Wallet Error Codes](#wallet-error-codes)
 - [Notification Service API](#notification-service-api)
+- [Export Service API](#export-service-api)
+  - [Export Formats](#export-formats)
+  - [Frontend Service Functions](#frontend-service-functions)
+  - [REST Endpoints](#rest-endpoints)
+  - [Export Data Types](#export-data-types)
 - [Data Types Reference](#data-types-reference)
   - [API Types](#api-types)
   - [Subscription Types](#subscription-types)
@@ -1009,6 +1014,129 @@ soroban contract deploy \
 
 ---
 
+---
+
 ## Versioning
 
 This API documentation corresponds to the current `main` branch. The Soroban contract does not use semantic versioning on-chain; breaking changes require redeployment to a new contract ID. Client-side services follow the app version in `package.json`.
+
+---
+
+## Export Service API
+
+SubTrackr provides multi-format subscription data export via a client-side TypeScript service (`src/services/accountingExport.ts`) and a backend REST API (`backend/services/billing/exportApi.ts`).
+
+For the full guide including examples, see [docs/export-guide.md](./export-guide.md).
+
+### Export Formats
+
+| Format | Extension | MIME Type | Description |
+|---|---|---|---|
+| `csv` | `.csv` | `text/csv` | Generic tabular export |
+| `json` | `.json` | `application/json` | Full JSON array or schema-wrapped envelope |
+| `quickbooks` | `.csv` | `text/csv` | QuickBooks-compatible CSV |
+| `xero` | `.csv` | `text/csv` | Xero-compatible CSV |
+| `pdf` | `.pdf` | `application/pdf` | Formatted PDF report |
+
+### Frontend Service Functions
+
+| Function | Signature | Description |
+|---|---|---|
+| `export_to_accounting` | `(merchantId, format, options?) => Promise<ExportResult>` | Run an export and record to history |
+| `get_export_history` | `(merchantId?) => Promise<ExportHistoryEntry[]>` | List export history |
+| `get_export_analytics` | `(merchantId?) => Promise<ExportAnalytics>` | Aggregated analytics |
+| `record_export_download` | `(exportId) => Promise<ExportHistoryEntry \| null>` | Increment download counter |
+| `schedule_export` | `(config) => Promise<ExportSchedule>` | Create an automated schedule |
+| `get_export_schedules` | `() => Promise<ExportSchedule[]>` | List schedules |
+| `update_export_schedule` | `(schedule) => Promise<ExportSchedule>` | Update a schedule |
+| `delete_export_schedule` | `(scheduleId) => Promise<void>` | Delete a schedule |
+| `toggle_export_schedule` | `(scheduleId, enabled) => Promise<ExportSchedule \| null>` | Enable/disable a schedule |
+| `run_due_exports` | `(subscriptions, now?) => Promise<ScheduledExportRun[]>` | Execute all due schedules |
+| `run_export_schedule` | `(scheduleId, subscriptions, now?) => Promise<ScheduledExportRun \| null>` | Execute one schedule now |
+| `get_accounting_json_schema` | `() => typeof ACCOUNTING_EXPORT_JSON_SCHEMA` | Retrieve Draft-07 JSON Schema |
+| `getAccountingDefaultMapping` | `(format) => AccountingFieldMapping[]` | Get default field mappings |
+| `buildAccountingExportCsv` | `(subscriptions, merchantId, format, options?) => string` | Build CSV string |
+
+### REST Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/v1/exports` | Trigger an export in any format |
+| `GET` | `/v1/exports/:id` | Get export metadata and status |
+| `GET` | `/v1/exports/:id/download` | Download export file |
+| `PATCH` | `/v1/exports/:id/download` | Record a download event |
+| `POST` | `/v1/exports/schedules` | Create an export schedule |
+| `GET` | `/v1/exports/schedules` | List export schedules |
+| `PATCH` | `/v1/exports/schedules/:id` | Update a schedule |
+| `DELETE` | `/v1/exports/schedules/:id` | Delete a schedule |
+| `GET` | `/v1/exports/analytics` | Get export analytics |
+| `GET` | `/v1/exports/history` | Get export history |
+
+### Export Data Types
+
+```typescript
+type AccountingFormat = 'csv' | 'json' | 'quickbooks' | 'xero' | 'pdf';
+type ExportFrequency = 'daily' | 'weekly' | 'monthly';
+type ExportStatus = 'success' | 'failed';
+type TransactionType = 'revenue' | 'refund' | 'credit' | 'fee';
+
+interface ExportResult {
+  exportId: string;
+  merchantId: string;
+  format: AccountingFormat;
+  status: ExportStatus;
+  fileName: string;
+  mimeType: 'text/csv' | 'application/json' | 'application/pdf';
+  content: string;
+  itemCount: number;
+  checksum: string;
+  historyEntry: ExportHistoryEntry;
+}
+
+interface ExportHistoryEntry {
+  id: string;
+  merchantId: string;
+  format: AccountingFormat;
+  status: ExportStatus;
+  itemCount: number;
+  fileName?: string;
+  checksum?: string;
+  scheduleId?: string;
+  content?: string;          // Stored for re-download
+  downloadCount?: number;
+  lastDownloadedAt?: number;
+  createdAt: number;
+}
+
+interface ExportSchedule {
+  id: string;
+  merchantId: string;
+  format: AccountingFormat;
+  frequency: ExportFrequency;
+  destination: 'download' | 'email' | 'webhook';
+  enabled: boolean;
+  includeInactive: boolean;
+  fieldMappings: AccountingFieldMapping[];
+  customFields: Record<string, string>;
+  nextRunAt: number;
+  lastRunAt?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+interface ExportAnalytics {
+  totalExports: number;
+  totalDownloads: number;
+  successCount: number;
+  failedCount: number;
+  totalItemsExported: number;
+  formatBreakdown: Record<AccountingFormat, number>;
+}
+
+interface AccountingFieldMapping {
+  targetField: string;
+  sourceField: AccountingSourceField;
+  defaultValue?: string;
+  transform?: 'none' | 'uppercase' | 'lowercase' | 'currency' | 'date';
+}
+```
