@@ -14,6 +14,8 @@ export interface Subscription {
   cryptoStreamId?: string;
   cryptoToken?: string;
   cryptoAmount?: number;
+  externalId?: string;
+  externalSource?: string;
   gasBudget?: number;
   totalGasSpent?: number;
   chargeCount?: number;
@@ -80,6 +82,8 @@ export interface SubscriptionFormData {
   isCryptoEnabled: boolean;
   cryptoToken?: string;
   cryptoAmount?: number;
+  externalId?: string;
+  externalSource?: string;
 }
 
 export interface SubscriptionStats {
