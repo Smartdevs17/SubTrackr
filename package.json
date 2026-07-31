@@ -101,7 +101,7 @@
     "@expo/cli": "^0.24.20",
     "@react-native-community/cli": "^20.0.0",
     "@react-native/jest-preset": "0.85.2",
-    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/changelog": "^7.0.0",
     "@semantic-release/commit-analyzer": "^13.0.1",
     "@semantic-release/git": "^10.0.1",
     "@semantic-release/github": "^11.0.6",
