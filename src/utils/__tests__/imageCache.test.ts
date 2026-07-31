@@ -103,14 +103,12 @@ describe('ImageCacheManager', () => {
     it('evicts the LRU entry when at capacity', async () => {
       const cache = makeCache({ maxEntries: 2 });
 
+      // No delays between registrations: eviction order must hold even when
+      // every access lands in the same millisecond.
       await cache.register('https://example.com/a.png');
-      // Small delay to ensure different timestamps
-      await new Promise((r) => setTimeout(r, 1));
       await cache.register('https://example.com/b.png');
-      await new Promise((r) => setTimeout(r, 1));
       // Access 'a' again to make 'b' the LRU
       await cache.register('https://example.com/a.png');
-      await new Promise((r) => setTimeout(r, 1));
       // Adding 'c' should evict 'b' (least recently accessed)
       await cache.register('https://example.com/c.png');
 

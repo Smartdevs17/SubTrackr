@@ -90,6 +90,7 @@ export type RootStackParamList = {
   PauseSubscription: { subscriptionId: string };
   RoleManagement: undefined;
   RevenueReport: undefined;
+  AutomatedCompliance: undefined;
 };
 
 export type TabParamList = {
@@ -98,6 +99,7 @@ export type TabParamList = {
   WalletTab: undefined;
   AnalyticsTab: undefined;
   RevenueTab: undefined;
+  ComplianceTab: undefined;
   SettingsTab: NavigatorScreenParams<RootStackParamList> | undefined;
 };
 

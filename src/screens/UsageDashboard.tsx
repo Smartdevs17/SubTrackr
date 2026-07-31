@@ -1,5 +1,13 @@
 import React, { useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  SafeAreaView,
+  Share,
+} from 'react-native';
 import { useAppRoute, useAppNavigation } from '../navigation/types';
 import { colors, spacing, typography, borderRadius, shadows } from '../utils/constants';
 import { useUsageStore } from '../store/usageStore';
@@ -32,6 +40,20 @@ const UsageDashboard: React.FC = () => {
 
   const softAlerts = consumption.filter((c) => c.status === QuotaStatus.SOFT_LIMIT_REACHED);
   const hardAlerts = consumption.filter((c) => c.status === QuotaStatus.HARD_LIMIT_REACHED);
+
+  const exportAsJson = () => {
+    const data = JSON.stringify(consumption, null, 2);
+    Share.share({ message: data, title: 'Usage Export' }).catch(() => {});
+  };
+
+  const exportAsCsv = () => {
+    if (consumption.length === 0) return;
+    const header = 'Metric,Current,Limit,Status,Percentage\n';
+    const rows = consumption
+      .map((c) => `${c.metric},${c.current},${c.limit},${c.status},${c.percentage}%`)
+      .join('\n');
+    Share.share({ message: header + rows, title: 'Usage Export CSV' }).catch(() => {});
+  };
 
   const renderUsageCard = (
     metric: QuotaMetric,
@@ -131,6 +153,11 @@ const UsageDashboard: React.FC = () => {
         )}
 
         <Button title="Upgrade Plan" onPress={() => {}} style={styles.upgradeButton} />
+
+        <View style={styles.exportContainer}>
+          <Button title="Export JSON" onPress={exportAsJson} style={styles.exportButton} />
+          <Button title="Export CSV" onPress={exportAsCsv} style={styles.exportButton} />
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -239,6 +266,18 @@ const styles = StyleSheet.create({
   },
   upgradeButton: {
     marginTop: spacing.xl,
+  },
+  exportContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: spacing.md,
+  },
+  exportButton: {
+    flex: 1,
+    marginHorizontal: spacing.xs,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderWidth: 1,
   },
 });
 

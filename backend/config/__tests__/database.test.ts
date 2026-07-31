@@ -71,4 +71,26 @@ describe('database config', () => {
     expect(poolConfig.max).toBe(25);
     expect(poolConfig.database).toBe(base.database);
   });
+
+  it('loads primary from DATABASE_URL', () => {
+    const config = loadDatabaseConfig({
+      DATABASE_URL: 'postgresql://app:secret@db.internal:6543/subtrackr?sslmode=require',
+    });
+    expect(config.primary.host).toBe('db.internal');
+    expect(config.primary.port).toBe(6543);
+    expect(config.primary.user).toBe('app');
+    expect(config.primary.password).toBe('secret');
+    expect(config.primary.ssl).toEqual({ rejectUnauthorized: true });
+  });
+
+  it('loads replicas from DATABASE_READ_URLS', () => {
+    const config = loadDatabaseConfig({
+      DATABASE_READ_URLS:
+        'postgresql://app:p@r1.internal:5432/subtrackr,postgresql://app:p@r2.internal:5433/subtrackr',
+    });
+    expect(config.replicas).toEqual([
+      { name: 'replica-1', host: 'r1.internal', port: 5432 },
+      { name: 'replica-2', host: 'r2.internal', port: 5433 },
+    ]);
+  });
 });
