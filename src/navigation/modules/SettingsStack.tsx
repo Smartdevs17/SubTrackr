@@ -5,7 +5,11 @@ import { RootStackParamList } from '../types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-const SettingsScreen = lazyScreen(() => import('../../screens/SettingsScreen'));
+// SettingsScreen has no default export, so the named one is mapped onto the
+// shape `lazyScreen` expects.
+const SettingsScreen = lazyScreen(() =>
+  import('../../screens/SettingsScreen').then((m) => ({ default: m.SettingsScreen }))
+);
 const LanguageSettingsScreen = lazyScreen(() => import('../../screens/LanguageSettingsScreen'));
 const NotificationPreferencesScreen = lazyScreen(
   () => import('../../screens/NotificationPreferencesScreen')

@@ -33,15 +33,8 @@ const PauseResumeScreen: React.FC<Props> = ({ route }) => {
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  const {
-    subscriptions,
-    isLoading,
-    pauseRecords,
-    pauseAnalytics,
-    pauseSubscription,
-    resumeSubscription,
-    getPauseHistory,
-  } = useSubscriptionStore();
+  const { subscriptions, isLoading, pauseSubscription, resumeSubscription, getPauseHistory } =
+    useSubscriptionStore();
 
   const subscription = subscriptions.find((s) => s.id === subscriptionId);
   const pauseHistory = useMemo(
@@ -51,7 +44,7 @@ const PauseResumeScreen: React.FC<Props> = ({ route }) => {
   );
 
   const [selectedDuration, setSelectedDuration] = useState<number | null>(null);
-  const [reason, setReason] = useState('');
+  const [reason] = useState('');
 
   const activePause = pauseHistory.find((p) => p.status === 'active');
 

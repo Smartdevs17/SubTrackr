@@ -12,6 +12,7 @@ const ChangePlanScreen = lazyScreen(() => import('../../screens/ChangePlanScreen
 const CancellationFlowScreen = lazyScreen(() => import('../../screens/CancellationFlowScreen'));
 const PauseSubscriptionScreen = lazyScreen(() => import('../../screens/PauseSubscriptionScreen'));
 const UsageDashboardScreen = lazyScreen(() => import('../../screens/UsageDashboard'));
+const PlanTemplatesScreen = lazyScreen(() => import('../../screens/PlanTemplatesScreen'));
 
 export const SubscriptionStack = () => (
   <Stack.Navigator>
@@ -48,6 +49,11 @@ export const SubscriptionStack = () => (
     <Stack.Screen
       name="UsageDashboard"
       component={UsageDashboardScreen}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="PlanTemplates"
+      component={PlanTemplatesScreen}
       options={{ headerShown: false }}
     />
   </Stack.Navigator>

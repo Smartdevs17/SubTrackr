@@ -19,12 +19,12 @@ export type { Environment, EncryptionKey, EncryptedField, BlindIndex, DecryptedF
 export { keyManager, KeyManager } from './keyManager';
 export type { KeyRotationInfo } from './keyManager';
 export { AuditService, auditService } from './auditService';
-export type { AuditAction, AuditEvent, AuditReport, ExportFormat, RetentionPolicy } from './retentionPolicy' as any;
+export type { AuditAction, AuditEvent, AuditReport, ExportFormat, RetentionPolicy } from './auditTypes';
 export { exportUserData, deleteUserData, anonymizeUserData, updateConsent } from './gdpr';
 export type { UserConsent, ExportResult, DeletionResult, AnonymizationResult } from './gdpr';
 export { piiAuditService, PiiAuditService } from './piiAudit';
 export type { PiiAccessAction, PiiAccessRecord, LineageNode, PiiLineageTrail, PiiAuditReport } from './piiAudit';
-export { PiiClassifier, piiClassifier, redact, isPiiField as isPiiFieldClassifier, DEFAULT_PATTERNS } from './piiClassifier';
+export { PiiClassifier, piiClassifier, redact, isPiiField, DEFAULT_PATTERNS } from './piiClassifier';
 export type { ClassificationLevel, PiiPattern, ClassifyResult, RedactOptions } from './piiClassifier';
 export { redactResponse, createPiiRedactionMiddleware } from './apiResponse';
 export { RateLimitingService, rateLimitingService } from './rateLimitingService';
@@ -62,11 +62,110 @@ export type {
 export type { TransactionStatus, AlertSeverity, AlertChannel, TransactionEvent, Metric, Alert, AlertRule, AlertChannelConfig, DashboardSnapshot } from './types';
 export { MonitoringService, monitoringService } from './monitoring';
 
+// ── Typed Event Bus ────────────────────────────────────────────────────────────
 export {
-  JwtAuthStrategy,
-  ApiKeyAuthStrategy,
-  WalletAuthStrategy,
-  CompositeAuthStrategyManager,
-  createUnifiedAuthMiddleware,
-} from './authStrategies';
-export type { IAuthStrategy, AuthUser } from './authStrategies';
+  EventBus,
+  SpyEventBus,
+  EventCollector,
+  InMemoryEventStore,
+  buildEvent,
+  validateEventPayload,
+  EventValidationError,
+  eventBus,
+  eventStore,
+  eventBusPrometheusMetrics,
+} from './events';
+export type {
+  DomainEvent,
+  AnyDomainEvent,
+  EventPayload,
+  EventHandler,
+  EventFilter,
+  EventSubscription,
+  SubscriptionOptions,
+  EventBusMetrics,
+  IEventBus,
+  EventSourcedStore,
+  EventStoreQuery,
+  AggregateSnapshot,
+  ValidationResult,
+  // Subscription domain payloads
+  SubscriptionCreatedPayload,
+  SubscriptionCancelledPayload,
+  SubscriptionRenewedPayload,
+  SubscriptionUpgradedPayload,
+  SubscriptionPausedPayload,
+  SubscriptionResumedPayload,
+  SubscriptionPaymentFailedPayload,
+  SubscriptionEvent,
+  // Billing domain payloads
+  InvoiceGeneratedPayload,
+  PaymentCapturedPayload,
+  UsageThresholdReachedPayload,
+  ChargebackRaisedPayload,
+  BillingEvent,
+  // Analytics domain payloads
+  ChurnRiskUpdatedPayload,
+  CohortAggregatedPayload,
+  MrrChangedPayload,
+  AnalyticsEvent,
+  // Auth domain payloads
+  ApiKeyRotatedPayload,
+  SsoSessionCreatedPayload,
+  AuthEvent,
+  // Contract domain payloads
+  ContractInvokedPayload,
+  ContractUpgradedPayload,
+  ContractEvent,
+} from './events';
+
+// ── Generic Cache Service ──────────────────────────────────────────────────────
+export { CacheService, NullCacheService, wireInvalidation } from './cache';
+export type {
+  ICacheService,
+  CacheServiceConfig,
+  CacheMetrics,
+  InvalidationRule,
+} from './cache';
+
+// ── Compression Middleware ────────────────────────────────────────────────────
+export {
+  applyCompression,
+  negotiateEncoding,
+  generateETag,
+  isETagMatch,
+  compressionMetrics,
+  compressionPrometheusMetrics,
+} from './compression';
+export type {
+  CompressionConfig,
+  CompressionMetrics,
+  CompressionMiddlewareOptions,
+  Encoding,
+} from './compression';
+
+// ── Cursor Pagination + Field Selection ───────────────────────────────────────
+export {
+  encodeCursor,
+  decodeCursor,
+  buildCursorClause,
+  buildPage,
+  parseFieldSelection,
+  selectFields,
+  selectFieldsAll,
+} from './pagination';
+export type {
+  CursorPayload,
+  PageOptions,
+  PageResult,
+  SqlCursorClause,
+} from './pagination';
+
+// ── Connection Pool Monitor ───────────────────────────────────────────────────
+export { MonitoredPool, wrapWithMonitor } from './poolMonitor';
+export type {
+  PoolMonitorConfig,
+  PoolStats,
+  LeakRecord,
+  PoolTuningRecommendation,
+} from './poolMonitor';

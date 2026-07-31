@@ -729,6 +729,31 @@ pub enum StorageKeyExt {
 
     // ── Cross-Chain (storage version 9) ──
     CrossChainTransfer(u64),
+
+    // ── Added in storage version 10 (Plan templates) ──
+    /// Plan template registry. The whole feature namespaces itself behind one
+    /// variant so a cohesive group of keys costs a single case here.
+    PlanTemplate(TemplateKey),
+}
+
+/// Sub-keys of [`StorageKey::PlanTemplate`].
+///
+/// IMPORTANT: Never reorder existing variants. Append new variants only.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum TemplateKey {
+    /// template_id -> PlanTemplate
+    Template(u64),
+    /// Monotonic template id counter.
+    Count,
+    /// owner -> Vec<u64> of template ids they authored
+    ByOwner(Address),
+    /// root template id -> Vec<u64> of every version's id, oldest first
+    Versions(u64),
+    /// template_id -> TemplateAnalytics
+    Analytics(u64),
+    /// Vec<u64> of template ids published to the shared library.
+    Shared,
 }
 
 #[contracttype]

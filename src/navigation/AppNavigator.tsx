@@ -7,7 +7,6 @@ import {
   NavigationState,
   Route,
 } from '@react-navigation/native';
-import { performanceMonitor } from '../services/performanceMonitor';
 import { navigationRef } from './navigationRef';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -17,13 +16,12 @@ import { RootStackParamList, TabParamList } from './types';
 import { useTheme } from '../theme';
 import { darkNavigationTheme, lightNavigationTheme } from '../theme/navigationTheme';
 
+import HomeScreen from '../screens/HomeScreen';
+import { SettingsScreen } from '../screens/SettingsScreen';
 import { useUserStore } from '../store/userStore';
 import { FeatureId } from '../types/feature';
 import { featureFlagsService } from '../services/featureFlags';
 import type { SubscriptionTier } from '../types/subscription';
-
-const HomeScreen = lazyScreen(() => import('../screens/HomeScreen'));
-const SettingsScreen = lazyScreen(() => import('../screens/SettingsScreen').then(m => ({ default: m.SettingsScreen })));
 
 const AddSubscriptionScreen = lazyScreen(() => import('../screens/AddSubscriptionScreen'));
 const CancellationFlowScreen = lazyScreen(() => import('../screens/CancellationFlowScreen'));
@@ -98,6 +96,7 @@ const PaymentMethodsScreen = lazyScreen(() =>
   }))
 );
 const AnalyticsDashboard = lazyScreen(() => import('../../app/screens/AnalyticsDashboard'));
+const AutomatedComplianceDashboard = lazyScreen(() => import('../screens/AutomatedComplianceDashboard'));
 const TrialDetailsScreen = lazyScreen(() => import('../screens/TrialDetailsScreen'));
 
 // Issue #547: GDPR
@@ -619,7 +618,12 @@ const SettingsStack = () => (
     <Stack.Screen
       name="AnalyticsDashboard"
       component={AnalyticsDashboard}
-      options={{ title: 'Analytics Dashboard', headerShown: true }}
+      options={{ title: 'Analytics', headerShown: true }}
+    />
+    <Stack.Screen
+      name="AutomatedCompliance"
+      component={AutomatedComplianceDashboard}
+      options={{ title: 'Automated Compliance', headerShown: true }}
     />
     {/* Issue #547: GDPR */}
     <Stack.Screen
@@ -756,12 +760,6 @@ export const AppNavigator = () => {
       const activeRoute = getActiveRoute(
         state.routes[state.index ?? 0] as Route<string, object | undefined>
       );
-
-      // Track route transition for performance monitoring
-      if (activeRoute?.name) {
-        performanceMonitor.trackRouteTransition(activeRoute.name);
-      }
-
       const isAuthenticated = Boolean(user);
       if (!isRouteAllowed(activeRoute, isAuthenticated, subscriptionTier)) {
         console.warn(

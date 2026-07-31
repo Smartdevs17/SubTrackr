@@ -1,6 +1,16 @@
 import { UsageMetric, UsageIngestResult } from './meteringService';
 import { AggregationFunction, AggregationWindow, UsageThresholdAlert } from '../../../src/types/usage';
 import { PriceRecommendation, ABTestScenario, PricingContext } from './pricingService';
+import type {
+  PlanTemplate,
+  PlanTemplateDraft,
+  ResolvedPlan,
+  TemplateAnalytics,
+  TemplateFilter,
+  TemplateLibraryAnalytics,
+  TemplateOverrides,
+  TemplateQuote,
+} from '../../../src/types/planTemplate';
 import {
   TaxCalculationResult,
   TaxInvoiceContext,
@@ -14,12 +24,19 @@ import {
   DunningStage,
   DunningCommunication,
   DunningAnalytics,
+  FailureReason,
+  DunningCommunicationTemplate,
+  RetryStrategy
 } from '../../../src/types/dunning';
 import {
   TransactionRecord,
   StreamExportOptions,
   ReconciliationResult,
   TransactionType,
+  ExportSchedule,
+  ExportScheduleInput,
+  ExportHistoryEntry,
+  ExportAnalytics,
 } from './accountingExportService';
 import { SplitConfiguration } from '../../../src/types/partner';
 import type {
@@ -111,6 +128,7 @@ export interface ITaxService {
 
 export interface IDunningService {
   configurePlan(planId: string, config: Partial<DunningConfiguration>): DunningConfiguration;
+  configureABTest(planId: string, enabled: boolean, variants: Array<{ id: string; weight: number; strategy: RetryStrategy }>): void;
   getConfiguration(planId: string): DunningConfiguration | undefined;
   startDunning(subscriptionId: string, subscriberId: string, merchantId: string, planId: string): DunningEntry;
   recordFailedCharge(subscriptionId: string, failureType?: string): DunningEntry | null;
@@ -157,6 +175,18 @@ export interface IAccountingExportService {
     exported: TransactionRecord[],
     expected: Array<{ id: string; amount: number; transactionType: TransactionType }>
   ): ReconciliationResult;
+  createExportSchedule(input: ExportScheduleInput): ExportSchedule;
+  getExportSchedules(merchantId?: string): ExportSchedule[];
+  updateExportSchedule(id: string, patch: Partial<Omit<ExportSchedule, 'id' | 'createdAt'>>): ExportSchedule | null;
+  deleteExportSchedule(id: string): boolean;
+  toggleExportSchedule(id: string, enabled: boolean): ExportSchedule | null;
+  runDueExports(
+    records: TransactionRecord[],
+    now?: number
+  ): Array<{ schedule: ExportSchedule; result: { totalRecords: number; checksum: string } }>;
+  recordExportDownload(exportId: string): ExportHistoryEntry | null;
+  getExportHistory(merchantId?: string): ExportHistoryEntry[];
+  getExportAnalytics(merchantId?: string): ExportAnalytics;
 }
 
 export interface IPartnerService {
@@ -208,4 +238,30 @@ export interface ILoyaltyService {
   getUnreadCount(subscriberId: string): number;
   createApiResponse<T>(data: T): any;
   createErrorResponse(error: string): any;
+}
+
+export interface IPlanTemplateService {
+  createTemplate(ownerId: string, draft: PlanTemplateDraft): Promise<PlanTemplate>;
+  getTemplate(id: string): Promise<PlanTemplate | null>;
+  listTemplates(filter?: TemplateFilter): Promise<PlanTemplate[]>;
+  listAvailableTemplates(callerId: string): Promise<PlanTemplate[]>;
+  publishVersion(
+    ownerId: string,
+    templateId: string,
+    draft: PlanTemplateDraft
+  ): Promise<PlanTemplate>;
+  listVersions(rootId: string): Promise<PlanTemplate[]>;
+  getLatestVersion(rootId: string): Promise<PlanTemplate | null>;
+  setShared(ownerId: string, templateId: string, shared: boolean): Promise<PlanTemplate>;
+  instantiate(
+    callerId: string,
+    templateId: string,
+    overrides?: TemplateOverrides
+  ): Promise<ResolvedPlan>;
+  quote(templateId: string, units: number): Promise<TemplateQuote>;
+  getAnalytics(templateId: string): Promise<TemplateAnalytics>;
+  recordView(templateId: string): Promise<TemplateAnalytics>;
+  recordPlanCreated(templateId: string): Promise<TemplateAnalytics>;
+  recordSubscription(templateId: string, revenue?: number): Promise<TemplateAnalytics>;
+  getLibraryAnalytics(filter?: TemplateFilter): Promise<TemplateLibraryAnalytics>;
 }

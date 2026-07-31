@@ -34,7 +34,8 @@ import { setPlanCacheService } from './subscription/planCacheRegistry';
 import { createPlanController } from './subscription/controller/planController';
 import { rateLimitingService } from './services/shared/rateLimitingService';
 import { createRateLimitMiddleware, RATE_LIMIT_HEADERS } from './services/shared/rateLimitMiddleware';
-import { applyETagToRawHandler } from './shared/middleware/etagMiddleware';
+import { applyCompression, compressionPrometheusMetrics } from './services/shared/compression';
+import { wrapWithMonitor, type MonitoredPool } from './services/shared/poolMonitor';
 import { SubscriptionTier } from '../src/types/subscription';
 
 export interface StartServerOptions {
@@ -51,6 +52,7 @@ export interface RunningServer {
   server: http.Server;
   pool: Pool;
   planBootstrap: PlanCacheBootstrap;
+  monitoredPool: MonitoredPool;
   port: number;
   shutdown: () => Promise<void>;
 }
@@ -145,6 +147,26 @@ function sendJson(
   res.end(JSON.stringify(body));
 }
 
+/** Compressed JSON response — uses Brotli/gzip when the client supports it */
+async function sendJsonCompressed(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  status: number,
+  body: unknown,
+  cacheControl?: string,
+): Promise<void> {
+  const json = JSON.stringify(body);
+  if (status !== 200) {
+    // Non-200 responses skip compression to keep error handling simple
+    res.writeHead(status, { 'Content-Type': 'application/json' });
+    res.end(json);
+    return;
+  }
+  await applyCompression(req, res, json, { 'Content-Type': 'application/json' }, {
+    defaultCacheControl: cacheControl,
+  });
+}
+
 function matchPlanId(pathname: string): string | null {
   const match = pathname.match(/^\/plans\/([^/]+)$/);
   return match?.[1] ?? null;
@@ -154,6 +176,22 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
   const pool = options.pool ?? (await getPool());
   const planBootstrap = options.planBootstrap ?? (await ensurePlanCache(pool));
   const planController = createPlanController({ planCache: planBootstrap.planCache });
+
+  // Wrap pool with monitoring
+  const monitoredPool = wrapWithMonitor(pool, {
+    name: 'primary',
+    maxConnections: Number(process.env['DB_POOL_MAX'] ?? 20),
+    pollIntervalMs: 5_000,
+    exhaustionThreshold: 5,
+    leakThresholdMs: 30_000,
+    queryTimeoutMs: 30_000,
+    onExhaustion: (stats) => {
+      console.warn('[Server] DB pool exhaustion', stats);
+    },
+    onLeak: (leak) => {
+      console.warn('[Server] DB connection leak', leak);
+    },
+  });
 
   const schema = makeExecutableSchema({ typeDefs, resolvers });
   const graphqlHandler = createHandler({
@@ -170,9 +208,6 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
     const { pathname } = url;
     const method = req.method ?? 'GET';
-
-    // Apply ETag caching to all GET requests (auth bypass is built-in)
-    applyETagToRawHandler(req, res);
 
     try {
       // -----------------------------------------------------------------
@@ -197,18 +232,32 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
       }
 
       // -----------------------------------------------------------------
-      // DB performance dashboard  GET /metrics/db-performance
+      // Compression metrics  GET /metrics/compression
       // -----------------------------------------------------------------
-      if (pathname === '/metrics/db-performance' && method === 'GET') {
-        const fmt = url.searchParams.get('format');
-        if (fmt === 'prometheus') {
-          res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4; charset=utf-8' });
-          // If the pool has a QueryPerformanceMonitor attached, use it
-          const monitor = (pool as Pool & { queryMonitor?: { prometheusMetrics(): string } }).queryMonitor;
-          res.end(monitor ? monitor.prometheusMetrics() : '# No query monitor attached\n');
-        } else {
-          sendJson(res, 200, { message: 'Use ?format=prometheus for Prometheus metrics or attach a QueryPerformanceMonitor to pool.queryMonitor' });
-        }
+      if (pathname === '/metrics/compression' && method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4; charset=utf-8' });
+        res.end(compressionPrometheusMetrics());
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // Pool metrics  GET /metrics/pool
+      // -----------------------------------------------------------------
+      if (pathname === '/metrics/pool' && method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4; charset=utf-8' });
+        res.end(monitoredPool.prometheusMetrics());
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // Pool dashboard  GET /pool/stats
+      // -----------------------------------------------------------------
+      if (pathname === '/pool/stats' && method === 'GET') {
+        sendJson(res, 200, {
+          stats: monitoredPool.getStats(),
+          tuning: monitoredPool.getTuningRecommendation(),
+          history: monitoredPool.getHistory().slice(-10),
+        });
         return;
       }
 
@@ -320,7 +369,8 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
 
       if (planId && method === 'GET') {
         const result = await planController.getPlan(planId);
-        sendJson(res, result.success ? 200 : (result.status ?? 400), result);
+        await sendJsonCompressed(req, res, result.success ? 200 : (result.status ?? 400), result,
+          result.success ? 'public, s-maxage=300, stale-while-revalidate=60' : undefined);
         return;
       }
 
@@ -386,7 +436,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
   process.once('SIGTERM', () => handleSignal('SIGTERM'));
   process.once('SIGINT', () => handleSignal('SIGINT'));
 
-  return { server, pool, planBootstrap, port, shutdown };
+  return { server, pool, planBootstrap, monitoredPool, port, shutdown };
 }
 
 if (require.main === module) {

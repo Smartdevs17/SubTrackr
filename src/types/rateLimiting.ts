@@ -1,5 +1,15 @@
 import { SubscriptionTier } from './subscription';
 
+/**
+ * Public rate-limit tiers exposed to clients and the developer portal.
+ * Maps onto SubscriptionTier via {@link mapSubscriptionToRateLimitTier}.
+ */
+export enum RateLimitTier {
+  FREE = 'free',
+  PRO = 'pro',
+  ENTERPRISE = 'enterprise',
+}
+
 export interface TierRateLimit {
   tier: SubscriptionTier;
   hourlyLimit: number;
@@ -7,6 +17,18 @@ export interface TierRateLimit {
   monthlyLimit: number;
   burstLimit: number;
   concurrentLimit: number;
+  /** Sustained token-bucket refill rate (tokens per second). */
+  refillRatePerSecond: number;
+}
+
+export interface RateLimitTierConfig {
+  tier: RateLimitTier;
+  hourlyLimit: number;
+  dailyLimit: number;
+  monthlyLimit: number;
+  burstLimit: number;
+  concurrentLimit: number;
+  refillRatePerSecond: number;
 }
 
 export interface ApiKeyUsage {
@@ -83,6 +105,8 @@ export const TIER_RATE_LIMITS: Record<SubscriptionTier, TierRateLimit> = {
     monthlyLimit: 10_000,
     burstLimit: 20,
     concurrentLimit: 2,
+    // 1 token/sec burst recovery (classic token bucket for short spikes)
+    refillRatePerSecond: 1,
   },
   [SubscriptionTier.BASIC]: {
     tier: SubscriptionTier.BASIC,
@@ -91,6 +115,7 @@ export const TIER_RATE_LIMITS: Record<SubscriptionTier, TierRateLimit> = {
     monthlyLimit: 50_000,
     burstLimit: 50,
     concurrentLimit: 5,
+    refillRatePerSecond: 2,
   },
   [SubscriptionTier.PREMIUM]: {
     tier: SubscriptionTier.PREMIUM,
@@ -99,6 +124,7 @@ export const TIER_RATE_LIMITS: Record<SubscriptionTier, TierRateLimit> = {
     monthlyLimit: 200_000,
     burstLimit: 100,
     concurrentLimit: 10,
+    refillRatePerSecond: 5,
   },
   [SubscriptionTier.ENTERPRISE]: {
     tier: SubscriptionTier.ENTERPRISE,
@@ -107,8 +133,60 @@ export const TIER_RATE_LIMITS: Record<SubscriptionTier, TierRateLimit> = {
     monthlyLimit: 2_000_000,
     burstLimit: 500,
     concurrentLimit: 50,
+    refillRatePerSecond: 20,
   },
 };
+
+/**
+ * Client-facing free / pro / enterprise rate-limit tiers.
+ * BASIC and PREMIUM subscription tiers both map to PRO.
+ */
+export const RATE_LIMIT_TIER_CONFIG: Record<RateLimitTier, RateLimitTierConfig> = {
+  [RateLimitTier.FREE]: {
+    tier: RateLimitTier.FREE,
+    hourlyLimit: 100,
+    dailyLimit: 500,
+    monthlyLimit: 10_000,
+    burstLimit: 20,
+    concurrentLimit: 2,
+    refillRatePerSecond: 1,
+  },
+  [RateLimitTier.PRO]: {
+    tier: RateLimitTier.PRO,
+    hourlyLimit: 1_000,
+    dailyLimit: 10_000,
+    monthlyLimit: 200_000,
+    burstLimit: 100,
+    concurrentLimit: 10,
+    refillRatePerSecond: 5,
+  },
+  [RateLimitTier.ENTERPRISE]: {
+    tier: RateLimitTier.ENTERPRISE,
+    hourlyLimit: 10_000,
+    dailyLimit: 100_000,
+    monthlyLimit: 2_000_000,
+    burstLimit: 500,
+    concurrentLimit: 50,
+    refillRatePerSecond: 20,
+  },
+};
+
+export function mapSubscriptionToRateLimitTier(tier: SubscriptionTier): RateLimitTier {
+  switch (tier) {
+    case SubscriptionTier.ENTERPRISE:
+      return RateLimitTier.ENTERPRISE;
+    case SubscriptionTier.BASIC:
+    case SubscriptionTier.PREMIUM:
+      return RateLimitTier.PRO;
+    case SubscriptionTier.FREE:
+    default:
+      return RateLimitTier.FREE;
+  }
+}
+
+export function getRateLimitTierConfig(tier: RateLimitTier): RateLimitTierConfig {
+  return RATE_LIMIT_TIER_CONFIG[tier];
+}
 
 export const SOFT_LIMIT_WARNINGS = [0.8, 0.95] as const;
 

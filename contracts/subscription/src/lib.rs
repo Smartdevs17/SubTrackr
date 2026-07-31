@@ -4,6 +4,7 @@ mod gas_optimization;
 mod gas_profiler;
 mod gas_storage;
 mod invoice_branding;
+mod plan_templates;
 mod revenue;
 pub mod achievements;
 #[cfg(test)]
@@ -1742,6 +1743,197 @@ impl SubTrackrSubscription {
     ) -> Option<revenue::RevenueSchedule> {
         proxy.require_auth();
         revenue::get_revenue_schedule(&env, &storage, subscription_id)
+    }
+
+    // ── Plan Template API ──
+
+    /// Register the first version of a reusable plan template.
+    pub fn create_plan_template(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        owner: Address,
+        name: String,
+        description: String,
+        base_price: i128,
+        token: Address,
+        interval: Interval,
+        tiers: Vec<plan_templates::PricingTier>,
+        features: Vec<String>,
+    ) -> u64 {
+        proxy.require_auth();
+        owner.require_auth();
+        plan_templates::create_template(
+            &env,
+            &storage,
+            &owner,
+            name,
+            description,
+            base_price,
+            token,
+            interval,
+            tiers,
+            features,
+        )
+    }
+
+    /// Publish a new version of a template, superseding the one given.
+    ///
+    /// Plans already created from the previous version are unaffected.
+    pub fn publish_plan_template_version(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        owner: Address,
+        template_id: u64,
+        name: String,
+        description: String,
+        base_price: i128,
+        tiers: Vec<plan_templates::PricingTier>,
+        features: Vec<String>,
+    ) -> u64 {
+        proxy.require_auth();
+        owner.require_auth();
+        plan_templates::publish_version(
+            &env,
+            &storage,
+            &owner,
+            template_id,
+            name,
+            description,
+            base_price,
+            tiers,
+            features,
+        )
+    }
+
+    /// Publish a template to, or withdraw it from, the shared library.
+    pub fn share_plan_template(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        owner: Address,
+        template_id: u64,
+        shared: bool,
+    ) {
+        proxy.require_auth();
+        owner.require_auth();
+        plan_templates::set_shared(&env, &storage, &owner, template_id, shared);
+    }
+
+    pub fn get_plan_template(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        template_id: u64,
+    ) -> Option<plan_templates::PlanTemplate> {
+        proxy.require_auth();
+        plan_templates::get_template(&env, &storage, template_id)
+    }
+
+    pub fn list_owner_plan_templates(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        owner: Address,
+    ) -> Vec<u64> {
+        proxy.require_auth();
+        plan_templates::get_owner_templates(&env, &storage, &owner)
+    }
+
+    pub fn list_shared_plan_templates(env: Env, proxy: Address, storage: Address) -> Vec<u64> {
+        proxy.require_auth();
+        plan_templates::get_shared_templates(&env, &storage)
+    }
+
+    /// Every version id of a template chain, oldest first.
+    pub fn list_plan_template_versions(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        root_id: u64,
+    ) -> Vec<u64> {
+        proxy.require_auth();
+        plan_templates::get_template_versions(&env, &storage, root_id)
+    }
+
+    pub fn get_latest_plan_template(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        root_id: u64,
+    ) -> Option<plan_templates::PlanTemplate> {
+        proxy.require_auth();
+        plan_templates::get_latest_version(&env, &storage, root_id)
+    }
+
+    /// Price a template for `units` of usage: its pricing ladder when it has
+    /// one, otherwise its flat base price.
+    pub fn quote_plan_template(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        template_id: u64,
+        units: u64,
+    ) -> i128 {
+        proxy.require_auth();
+        let template =
+            plan_templates::get_template(&env, &storage, template_id).expect("Template not found");
+        plan_templates::quote_template(&template, units)
+    }
+
+    /// Create a plan from a template, applying any per-instantiation overrides.
+    pub fn create_plan_from_template(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        merchant: Address,
+        template_id: u64,
+        overrides: plan_templates::TemplateOverrides,
+    ) -> u64 {
+        proxy.require_auth();
+        merchant.require_auth();
+
+        let resolved =
+            plan_templates::instantiate(&env, &storage, &merchant, template_id, overrides);
+
+        Self::create_plan(
+            env,
+            proxy,
+            storage,
+            merchant,
+            resolved.name,
+            resolved.price,
+            resolved.token,
+            resolved.interval,
+        )
+    }
+
+    /// Record that a template was previewed in the library.
+    pub fn record_plan_template_view(env: Env, proxy: Address, storage: Address, template_id: u64) {
+        proxy.require_auth();
+        plan_templates::record_view(&env, &storage, template_id);
+    }
+
+    /// Record that a plan created from a template gained a subscriber.
+    pub fn record_plan_template_subscription(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        template_id: u64,
+    ) {
+        proxy.require_auth();
+        plan_templates::record_subscription(&env, &storage, template_id);
+    }
+
+    pub fn get_plan_template_analytics(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        template_id: u64,
+    ) -> plan_templates::TemplateAnalytics {
+        proxy.require_auth();
+        plan_templates::get_analytics(&env, &storage, template_id)
     }
 
     // ── Quota & Usage API ──
