@@ -208,6 +208,12 @@ describe('Cancellation and Win-Back Flow', () => {
       .withTimeout(10000);
     await element(by.id('cancellation-reason-too-expensive')).tap();
 
+    // Skip the free-text feedback step
+    await waitFor(element(by.id('cancellation-feedback-step')))
+      .toBeVisible()
+      .withTimeout(10000);
+    await element(by.id('cancellation-feedback-continue')).tap();
+
     // Offers step must appear
     await waitFor(element(by.id('cancellation-offers-step')))
       .toBeVisible()
@@ -226,6 +232,11 @@ describe('Cancellation and Win-Back Flow', () => {
       .toBeVisible()
       .withTimeout(10000);
     await element(by.id('cancellation-reason-not-using-it')).tap();
+
+    await waitFor(element(by.id('cancellation-feedback-step')))
+      .toBeVisible()
+      .withTimeout(10000);
+    await element(by.id('cancellation-feedback-continue')).tap();
 
     await waitFor(element(by.id('cancellation-offers-step')))
       .toBeVisible()

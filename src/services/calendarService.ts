@@ -13,6 +13,15 @@ import type {
   ScheduleConflict,
 } from '../types/calendar';
 
+// ── Calendar-Based Billing ─────────────────────────────────────────────────
+
+import type {
+  AdjustmentPolicy,
+  CalendarBilling,
+  CalendarInvoice,
+  MerchantBillingSchedule,
+} from '../types/calendar';
+
 const DEFAULT_REDIRECT_URI = 'subtrackr://calendar/callback';
 const PROVIDER_SCOPES: Record<CalendarProvider, string> = {
   google: 'https://www.googleapis.com/auth/calendar.events',
@@ -258,7 +267,10 @@ function escapeICalText(text: string): string {
 
 function formatICalDate(isoString: string): string {
   const d = new Date(isoString);
-  return d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  return d
+    .toISOString()
+    .replace(/[-:]/g, '')
+    .replace(/\.\d{3}/, '');
 }
 
 export function generateICalendarExport(
@@ -319,7 +331,7 @@ export function generateICalendarExport(
 
 export function detectScheduleConflicts(
   subscriptions: Subscription[],
-  existingEvents: CalendarSyncedEvent[]
+  _existingEvents: CalendarSyncedEvent[]
 ): ScheduleConflict[] {
   const conflictsByDate = new Map<string, ScheduleConflict>();
 
@@ -362,9 +374,7 @@ export function calculateProratedAdjustment(
   const msPerDay = 24 * 60 * 60 * 1000;
   const daysRemaining = Math.max(0, Math.round((nextBilling.getTime() - now.getTime()) / msPerDay));
 
-  const proratedAmount = Number(
-    ((subscription.price / daysInCycle) * daysRemaining).toFixed(2)
-  );
+  const proratedAmount = Number(((subscription.price / daysInCycle) * daysRemaining).toFixed(2));
 
   return {
     originalAmount: subscription.price,
@@ -464,7 +474,10 @@ export function isDSTTransitionPeriod(date: Date, timezone: string): boolean {
   return currentOffset !== laterOffset;
 }
 
-export function adjustForDST(event: CalendarEventTemplate, timezone: string): CalendarEventTemplate {
+export function adjustForDST(
+  event: CalendarEventTemplate,
+  timezone: string
+): CalendarEventTemplate {
   const startDate = new Date(event.startAt);
   if (isDSTTransitionPeriod(startDate, timezone)) {
     const offset = getTimezoneOffset(startDate, timezone);
@@ -478,10 +491,6 @@ export function adjustForDST(event: CalendarEventTemplate, timezone: string): Ca
   }
   return event;
 }
-
-// ── Calendar-Based Billing ─────────────────────────────────────────────────
-
-import type { AdjustmentPolicy, CalendarBilling, CalendarInvoice, MerchantBillingSchedule } from '../types/calendar';
 
 /**
  * Returns the number of days in a given month/year pair.
@@ -573,7 +582,12 @@ export function calculateNextBillingDate(current: Date, config: CalendarBilling)
 
   // Try up to 24 months to find a non-skipped date
   for (let attempt = 0; attempt < 24; attempt++) {
-    const normalized = normalizeBillingDay(day_of_month, candidateMonth, candidateYear, adjustment_policy);
+    const normalized = normalizeBillingDay(
+      day_of_month,
+      candidateMonth,
+      candidateYear,
+      adjustment_policy
+    );
 
     if (normalized !== null) {
       // Build a Date at midnight UTC on the normalized date
@@ -632,9 +646,10 @@ export function generateCalendarInvoice(
   joinDate?: Date
 ): CalendarInvoice {
   const isProratedPeriod = joinDate != null && joinDate > periodStart;
-  const proratedAmount = isProratedPeriod && joinDate
-    ? calculateProRataAmount(amount, periodStart, periodEnd, joinDate)
-    : undefined;
+  const proratedAmount =
+    isProratedPeriod && joinDate
+      ? calculateProRataAmount(amount, periodStart, periodEnd, joinDate)
+      : undefined;
 
   return {
     id: `inv_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,

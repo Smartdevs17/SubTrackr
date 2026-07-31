@@ -19,12 +19,7 @@ import {
   buildSlaDashboardReport,
   SLA_DEFAULTS,
 } from '../slaService';
-import type {
-  SlaAvailabilityEvent,
-  SlaBreach,
-  SlaConfig,
-  SlaStatus,
-} from '../../types/sla';
+import type { SlaAvailabilityEvent, SlaBreach, SlaConfig, SlaStatus } from '../../types/sla';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -118,28 +113,36 @@ describe('normalizeSlaConfig', () => {
 
 describe('calculateAvailabilityImpact', () => {
   it('healthy state has zero impact', () => {
-    const impact = calculateAvailabilityImpact(makeEvent({ state: 'healthy', durationSeconds: 3_600 }));
+    const impact = calculateAvailabilityImpact(
+      makeEvent({ state: 'healthy', durationSeconds: 3_600 })
+    );
     expect(impact.downtimeSeconds).toBe(0);
     expect(impact.partialOutageSeconds).toBe(0);
     expect(impact.maintenanceSeconds).toBe(0);
   });
 
   it('full_outage counts 100% of duration as downtime', () => {
-    const impact = calculateAvailabilityImpact(makeEvent({ state: 'full_outage', durationSeconds: 3_600 }));
+    const impact = calculateAvailabilityImpact(
+      makeEvent({ state: 'full_outage', durationSeconds: 3_600 })
+    );
     expect(impact.downtimeSeconds).toBe(3_600 * 1); // weight = 1
     expect(impact.partialOutageSeconds).toBe(0);
     expect(impact.maintenanceSeconds).toBe(0);
   });
 
   it('partial_outage counts 50% of duration as downtime', () => {
-    const impact = calculateAvailabilityImpact(makeEvent({ state: 'partial_outage', durationSeconds: 3_600 }));
+    const impact = calculateAvailabilityImpact(
+      makeEvent({ state: 'partial_outage', durationSeconds: 3_600 })
+    );
     expect(impact.downtimeSeconds).toBe(3_600 * 0.5); // weight = 0.5
     expect(impact.partialOutageSeconds).toBe(3_600);
     expect(impact.maintenanceSeconds).toBe(0);
   });
 
   it('maintenance window has zero downtime impact (SLA exclusion)', () => {
-    const impact = calculateAvailabilityImpact(makeEvent({ state: 'maintenance', durationSeconds: 7_200 }));
+    const impact = calculateAvailabilityImpact(
+      makeEvent({ state: 'maintenance', durationSeconds: 7_200 })
+    );
     expect(impact.downtimeSeconds).toBe(0);
     expect(impact.partialOutageSeconds).toBe(0);
     expect(impact.maintenanceSeconds).toBe(7_200);

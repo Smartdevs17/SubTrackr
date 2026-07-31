@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { asyncStorageAdapter } from '../utils/storage';
 import type {
   SlaAvailabilityEvent,
   SlaAvailabilityState,
@@ -297,7 +297,7 @@ export const useSlaStore = create<SlaState>()(
     }),
     {
       name: STORAGE_KEY,
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => asyncStorageAdapter),
       version: 1,
       partialize: (state) => ({
         configs: state.configs,

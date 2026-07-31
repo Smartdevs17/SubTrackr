@@ -9,11 +9,11 @@ import { useTheme } from '../theme/useTheme';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { SegmentOverlapAnalysis } from '../components/segments/SegmentOverlapAnalysis';
-import { useNavigation } from '@react-navigation/native';
+import { useAppNavigation } from '../navigation/types';
 
 export const SegmentManagementScreen: React.FC = () => {
   const theme = useTheme();
-  const navigation = useNavigation<any>();
+  const navigation = useAppNavigation<'SegmentManagement'>();
   const { segments, deleteSegment } = useSegmentStore();
   const { subscriptions } = useSubscriptionStore();
   const { user } = useUserStore();
@@ -32,14 +32,18 @@ export const SegmentManagementScreen: React.FC = () => {
       <TouchableOpacity
         onPress={() => navigation.navigate('SegmentDetail', { segmentId: item.id })}>
         <View style={styles.segmentHeader}>
-          <Text style={[styles.segmentName, { color: theme.colors.text.primary }]}>{item.name}</Text>
+          <Text style={[styles.segmentName, { color: theme.colors.text.primary }]}>
+            {item.name}
+          </Text>
           <View style={[styles.logicBadge, { backgroundColor: theme.colors.accent }]}>
             <Text style={[styles.logicBadgeText, { color: theme.colors.onPrimary }]}>
               {item.logic}
             </Text>
           </View>
         </View>
-        <Text style={[styles.segmentDesc, { color: theme.colors.text.secondary }]} numberOfLines={1}>
+        <Text
+          style={[styles.segmentDesc, { color: theme.colors.text.secondary }]}
+          numberOfLines={1}>
           {item.description || 'No description'}
         </Text>
         <View style={styles.segmentFooter}>
@@ -53,7 +57,7 @@ export const SegmentManagementScreen: React.FC = () => {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background.primary }]}>
       <FlashList
         data={segments}
         keyExtractor={(item) => item.id}

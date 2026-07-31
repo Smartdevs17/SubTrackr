@@ -32,6 +32,10 @@
 //! | 19   | InvalidMigrationPath           | Unsupported migration path.                            |
 //! | 20   | RefundExceedsTotalPaid         | Refund amount exceeds total amount paid.               |
 //! | 21   | PlanOwnerMismatch              | Only the plan owner can perform this action.           |
+//! | 22   | EventNotFound                  | The requested event does not exist.                    |
+//! | 23   | EventStoreFull                 | Event store has reached maximum capacity.              |
+//! | 24   | InvalidEventSequence           | Invalid event sequence for subscription state.         |
+//! | 25   | ExportWindowExceeded           | Export range exceeds the maximum allowed window.       |
 
 use soroban_sdk::contracterror;
 
@@ -81,6 +85,14 @@ pub enum ContractError {
     RefundExceedsTotalPaid = 20,
     /// Caller is not the merchant/owner of the plan being modified.
     PlanOwnerMismatch = 21,
+    /// The requested event does not exist in the event store.
+    EventNotFound = 22,
+    /// Event store has reached maximum capacity for this subscription or merchant.
+    EventStoreFull = 23,
+    /// The event sequence is invalid for the current subscription state.
+    InvalidEventSequence = 24,
+    /// Export range exceeds the maximum allowed window.
+    ExportWindowExceeded = 25,
 }
 
 impl ContractError {
@@ -90,27 +102,33 @@ impl ContractError {
     /// discriminant to a localised string in their i18n bundle.
     pub fn user_message(self) -> &'static str {
         match self {
-            Self::Unauthorized             => "You are not authorised to perform this action.",
-            Self::PlanNotFound             => "The requested plan does not exist.",
-            Self::PlanInactive             => "This plan is no longer accepting new subscribers.",
-            Self::SubscriptionNotFound     => "No active subscription found for this account.",
-            Self::AlreadySubscribed        => "You are already subscribed to this plan.",
-            Self::SubscriptionNotActive    => "This subscription is not currently active.",
+            Self::Unauthorized => "You are not authorised to perform this action.",
+            Self::PlanNotFound => "The requested plan does not exist.",
+            Self::PlanInactive => "This plan is no longer accepting new subscribers.",
+            Self::SubscriptionNotFound => "No active subscription found for this account.",
+            Self::AlreadySubscribed => "You are already subscribed to this plan.",
+            Self::SubscriptionNotActive => "This subscription is not currently active.",
             Self::SubscriptionAlreadyCancelled => "This subscription has already been cancelled.",
             Self::SubscriptionAlreadyPaused => "This subscription is already paused.",
-            Self::SubscriptionNotPaused    => "This subscription is not paused.",
-            Self::PaymentNotYetDue         => "The next payment is not due yet.",
-            Self::InsufficientAllowance    => "Insufficient token allowance to process payment.",
-            Self::InvalidAmount            => "Amount must be greater than zero.",
-            Self::InvalidInterval          => "Billing interval must be positive.",
-            Self::InvalidPriceBounds       => "Price bounds are invalid (max must be > min > 0).",
-            Self::MaxPauseDurationExceeded => "Pause duration exceeds the allowed maximum of 30 days.",
-            Self::RateLimited              => "Too many requests. Please wait before retrying.",
-            Self::OracleUnavailable        => "Price oracle is temporarily unavailable.",
-            Self::StorageVersionMismatch   => "Storage schema version mismatch; run migration first.",
-            Self::InvalidMigrationPath     => "Unsupported migration path.",
-            Self::RefundExceedsTotalPaid   => "Refund amount exceeds total amount paid.",
-            Self::PlanOwnerMismatch        => "Only the plan owner can perform this action.",
+            Self::SubscriptionNotPaused => "This subscription is not paused.",
+            Self::PaymentNotYetDue => "The next payment is not due yet.",
+            Self::InsufficientAllowance => "Insufficient token allowance to process payment.",
+            Self::InvalidAmount => "Amount must be greater than zero.",
+            Self::InvalidInterval => "Billing interval must be positive.",
+            Self::InvalidPriceBounds => "Price bounds are invalid (max must be > min > 0).",
+            Self::MaxPauseDurationExceeded => {
+                "Pause duration exceeds the allowed maximum of 30 days."
+            }
+            Self::RateLimited => "Too many requests. Please wait before retrying.",
+            Self::OracleUnavailable => "Price oracle is temporarily unavailable.",
+            Self::StorageVersionMismatch => "Storage schema version mismatch; run migration first.",
+            Self::InvalidMigrationPath => "Unsupported migration path.",
+            Self::RefundExceedsTotalPaid => "Refund amount exceeds total amount paid.",
+            Self::PlanOwnerMismatch => "Only the plan owner can perform this action.",
+            Self::EventNotFound => "The requested event does not exist.",
+            Self::EventStoreFull => "Event store has reached maximum capacity.",
+            Self::InvalidEventSequence => "Invalid event sequence for subscription state.",
+            Self::ExportWindowExceeded => "Export range exceeds the maximum allowed window.",
         }
     }
 
@@ -142,13 +160,31 @@ mod tests {
     fn all_variants_have_user_messages() {
         use ContractError::*;
         let variants = [
-            Unauthorized, PlanNotFound, PlanInactive, SubscriptionNotFound,
-            AlreadySubscribed, SubscriptionNotActive, SubscriptionAlreadyCancelled,
-            SubscriptionAlreadyPaused, SubscriptionNotPaused, PaymentNotYetDue,
-            InsufficientAllowance, InvalidAmount, InvalidInterval, InvalidPriceBounds,
-            MaxPauseDurationExceeded, RateLimited, OracleUnavailable,
-            StorageVersionMismatch, InvalidMigrationPath, RefundExceedsTotalPaid,
+            Unauthorized,
+            PlanNotFound,
+            PlanInactive,
+            SubscriptionNotFound,
+            AlreadySubscribed,
+            SubscriptionNotActive,
+            SubscriptionAlreadyCancelled,
+            SubscriptionAlreadyPaused,
+            SubscriptionNotPaused,
+            PaymentNotYetDue,
+            InsufficientAllowance,
+            InvalidAmount,
+            InvalidInterval,
+            InvalidPriceBounds,
+            MaxPauseDurationExceeded,
+            RateLimited,
+            OracleUnavailable,
+            StorageVersionMismatch,
+            InvalidMigrationPath,
+            RefundExceedsTotalPaid,
             PlanOwnerMismatch,
+            EventNotFound,
+            EventStoreFull,
+            InvalidEventSequence,
+            ExportWindowExceeded,
         ];
         for v in variants {
             let msg = v.user_message();
