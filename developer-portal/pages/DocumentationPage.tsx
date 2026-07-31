@@ -8,7 +8,8 @@ import {
   TextInput,
   FlatList,
 } from 'react-native';
-
+import { useDebounce } from '../../src/hooks/useDebounce';
+import { ApiPlayground } from '../components/ApiPlayground';
 interface DocSection {
   id: string;
   title: string;
@@ -48,13 +49,20 @@ Always use the sandbox URL during development and testing.`,
     id: 'rate-limits',
     title: 'Rate Limits',
     icon: '⚡',
-    content: `Free tier: 30 requests/minute, 5,000/day
-Pro tier: 120 requests/minute, 50,000/day
-Enterprise: 300 requests/minute, 200,000/day
+    content: `SubTrackr uses a token-bucket algorithm with free / pro / enterprise tiers.
 
-Rate limit headers are included in every response:
+Free: 100 requests/hour, burst 20 (1 token/s)
+Pro: 1,000 requests/hour, burst 100 (5 tokens/s)
+Enterprise: 10,000 requests/hour, burst 500 (20 tokens/s)
+
+Rate limit headers on every response:
+- X-RateLimit-Limit
 - X-RateLimit-Remaining
-- X-RateLimit-Reset`,
+- X-RateLimit-Reset
+- X-RateLimit-Policy
+
+HTTP 429 is returned when limits are exceeded (Retry-After included).
+See docs/rate-limiting.md for bypass, analytics, and custom limits.`,
   },
   {
     id: 'errors',
@@ -111,6 +119,23 @@ Events:
 
 Verify webhook signatures using HMAC-SHA256.`,
   },
+  {
+    id: 'versioning',
+    title: 'API Versioning',
+    icon: '🔄',
+    content: `SubTrackr APIs are versioned. The current version is v1.
+Always include the version in your request URL:
+https://api.subtrackr.io/v1/
+
+Backwards-incompatible changes will result in a new API version.`,
+  },
+  {
+    id: 'changelog',
+    title: 'Changelog',
+    icon: '📝',
+    content: `Stay up-to-date with our latest API and SDK releases.
+Check the Changelog documentation for detailed release notes.`,
+  },
 ];
 
 const QUICK_START_GUIDES: QuickStartGuide[] = [
@@ -147,11 +172,12 @@ const QUICK_START_GUIDES: QuickStartGuide[] = [
 export const DocumentationPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSection, setSelectedSection] = useState<DocSection | null>(null);
+  const debouncedSearchQuery = useDebounce(searchQuery);
 
   const filteredSections = DOC_SECTIONS.filter(
     (section) =>
-      section.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      section.content.toLowerCase().includes(searchQuery.toLowerCase())
+      section.title.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+      section.content.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
   );
 
   const getDifficultyColor = (difficulty: string): string => {
@@ -214,6 +240,11 @@ export const DocumentationPage: React.FC = () => {
           placeholder="Search documentation..."
           placeholderTextColor="#9CA3AF"
         />
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionGroupTitle}>Try the API</Text>
+        <ApiPlayground />
       </View>
 
       <View style={styles.section}>

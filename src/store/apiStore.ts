@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { asyncStorageAdapter } from '../utils/storage';
 import { ApiKey, ApiKeyStatus, ApiKeyScope, RateLimitConfig, UsageStats } from '../types/sandbox';
 
 const STORAGE_KEY = 'subtrackr-api-keys';
@@ -160,7 +160,7 @@ export const useApiStore = create<ApiKeyState>()(
     {
       name: STORAGE_KEY,
       version: STORE_VERSION,
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => asyncStorageAdapter),
     }
   )
 );

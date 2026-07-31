@@ -49,8 +49,7 @@
     "backend/",
     "acbu-backend/",
     "src/animations/",
-    "stellarlend/",
-    "stellarlend-pr282/"
+    "scripts/"
   ],
   "settings": {
     "import/resolver": {

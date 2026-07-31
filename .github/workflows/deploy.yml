@@ -1,20 +1,6 @@
 name: Deployment Pipeline
 
-on:
-  push:
-    branches:
-      - main
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: 'Environment to deploy to'
-        required: true
-        default: 'development'
-        type: choice
-        options:
-          - development
-          - staging
-          - production
+on: workflow_dispatch
 
 jobs:
   deploy-dev:
@@ -23,7 +9,7 @@ jobs:
     environment:
       name: development
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v7
       - name: Deploy
         run: echo "Deploying to development environment..."
 
@@ -35,7 +21,7 @@ jobs:
       name: staging
       url: https://staging.subtrackr.app
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v7
       - name: Deploy
         run: echo "Deploying to staging environment with manual approval gate..."
 
@@ -47,6 +33,6 @@ jobs:
       name: production
       url: https://subtrackr.app
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v7
       - name: Deploy
         run: echo "Deploying to production environment with strict manual approval gate..."

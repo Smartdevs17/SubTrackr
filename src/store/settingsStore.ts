@@ -1,17 +1,19 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { asyncStorageAdapter } from '../utils/storage';
 import { currencyService, ExchangeRates } from '../services/currencyService';
 
 interface SettingsState {
   preferredCurrency: string;
   notificationsEnabled: boolean;
   exchangeRates: ExchangeRates | null;
+  healthScoreWeights: Record<string, number> | null;
   isLoading: boolean;
 
   // Actions
   setPreferredCurrency: (currency: string) => void;
   setNotificationsEnabled: (enabled: boolean) => void;
+  setHealthScoreWeights: (weights: Record<string, number>) => void;
   updateExchangeRates: () => Promise<void>;
   initializeSettings: () => Promise<void>;
 }
@@ -22,16 +24,17 @@ export const useSettingsStore = create<SettingsState>()(
       preferredCurrency: 'USD',
       notificationsEnabled: true,
       exchangeRates: null,
+      healthScoreWeights: null,
       isLoading: false,
 
       setPreferredCurrency: (currency) => {
         set({ preferredCurrency: currency });
-        // Optionally update rates immediately if base changed,
-        // but here we keep USD as base for rates to simplify conversion
         void get().updateExchangeRates();
       },
 
       setNotificationsEnabled: (enabled) => set({ notificationsEnabled: enabled }),
+
+      setHealthScoreWeights: (weights) => set({ healthScoreWeights: weights }),
 
       updateExchangeRates: async () => {
         set({ isLoading: true });
@@ -48,7 +51,18 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'subtrackr-settings-store',
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => asyncStorageAdapter),
+      onRehydrateStorage: () => (_state, error) => {
+        if (error) {
+          console.warn('[settingsStore] Hydration error — resetting to defaults:', error);
+          useSettingsStore.setState({
+            preferredCurrency: 'USD',
+            notificationsEnabled: true,
+            exchangeRates: null,
+            isLoading: false,
+          });
+        }
+      },
     }
   )
 );

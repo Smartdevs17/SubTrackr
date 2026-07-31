@@ -1,4 +1,4 @@
-import { UsageMetrics, HourlyUsage, DailyUsage } from '../types/sandbox';
+import { UsageMetrics } from '../types/sandbox';
 
 export class UsageTrackingService {
   private usageData: Map<string, UsageMetrics> = new Map();

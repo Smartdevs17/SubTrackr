@@ -6,6 +6,7 @@ import { AppNavigator } from './src/navigation/AppNavigator';
 import { useNotifications } from './src/hooks/useNotifications';
 import { useTransactionQueue } from './src/hooks/useTransactionQueue';
 import ErrorBoundary from './src/components/ErrorBoundary';
+import { HydrationGate } from './src/components/HydrationGate';
 import { initI18n } from './src/i18n/config';
 import i18n from './src/i18n/config';
 import { I18nextProvider } from 'react-i18next';
@@ -17,6 +18,7 @@ import './src/config/env';
 import '@walletconnect/react-native-compat';
 
 import { initHermesOptimizations } from './src/utils/startupTimeOptimizer';
+import { performanceMonitor } from './src/services/performanceMonitor';
 
 import { createAppKit, defaultConfig, AppKit } from '@reown/appkit-ethers-react-native';
 
@@ -97,6 +99,45 @@ function NotificationBootstrap() {
     }
     initialize();
     void initializeSettings();
+
+    // Configure performance budget from performance-budget.json values
+    performanceMonitor.configureBudget({
+      renderMs: 250,
+      apiLatencyMs: 1200,
+      memoryBytes: 262_144_000,
+      routeTransitionMs: 300,
+      lcpMs: 2500,
+      fidMs: 100,
+      clsFrameDrops: 5,
+      bundleSizeBytes: 5 * 1024 * 1024,
+    });
+
+    // Configure RUM endpoint if provided via environment
+    const rumEndpoint = process.env.RUM_ENDPOINT;
+    if (rumEndpoint) {
+      performanceMonitor.configureRum(rumEndpoint);
+    }
+
+    // Regression alerts forwarded to Sentry in production
+    const unsubRegressions = performanceMonitor.onRegression((regression) => {
+      if (!__DEV__) {
+        try {
+          Sentry.addBreadcrumb({
+            category: 'performance',
+            message: `Regression: ${regression.metric.name}`,
+            level: 'warning',
+            data: {
+              actual: regression.actual,
+              budget: regression.budget,
+              exceedancePercent: regression.exceedancePercent,
+            },
+          });
+        } catch {
+          // Sentry not available
+        }
+      }
+    });
+
     void (async () => {
       const session = await sessionService.initializeCurrentSession();
       try {
@@ -105,6 +146,10 @@ function NotificationBootstrap() {
         // ignore
       }
     })();
+
+    return () => {
+      unsubRegressions();
+    };
   }, [initialize, initializeSettings]);
 
   return null;
@@ -152,8 +197,10 @@ export default function App() {
         <StatusBar style="light" />
         <ErrorBoundary>
           <I18nextProvider i18n={i18n}>
-            <NotificationBootstrap />
-            <AppNavigator />
+            <HydrationGate>
+              <NotificationBootstrap />
+              <AppNavigator />
+            </HydrationGate>
           </I18nextProvider>
         </ErrorBoundary>
         <AppKit />

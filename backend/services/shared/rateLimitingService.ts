@@ -4,6 +4,9 @@ import {
   SOFT_LIMIT_WARNINGS,
   TIER_UPGRADE_THRESHOLDS,
   getNextTier,
+  mapSubscriptionToRateLimitTier,
+  getRateLimitTierConfig,
+  RateLimitTier,
   type ApiKeyUsage,
   type RateLimitExceededError,
   type SoftLimitWarning,
@@ -12,6 +15,7 @@ import {
   type UsageMeteringEntry,
   type TierUpgradeRecommendation,
 } from '../../src/types/rateLimiting';
+import { TokenBucket } from './tokenBucket';
 
 const ONE_HOUR_MS = 3_600_000;
 const ONE_DAY_MS = 86_400_000;
@@ -19,17 +23,201 @@ const ONE_MONTH_MS = 2_592_000_000;
 
 const now = (): number => Date.now();
 
-const createId = (prefix: string): string =>
-  `${prefix}_${now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-
 function computeResetTime(periodMs: number): number {
   return Math.floor((now() + periodMs) / periodMs) * periodMs;
 }
 
+// ---------------------------------------------------------------------------
+// Per-user limit multiplier: users aggregate across all keys they own
+// ---------------------------------------------------------------------------
+const USER_HOURLY_MULTIPLIER = 5; // user gets 5× the per-key hourly limit
+
+// ---------------------------------------------------------------------------
+// Bypass configuration
+// ---------------------------------------------------------------------------
+export interface BypassConfig {
+  /** API keys that are fully exempt from rate limiting. */
+  keys?: Set<string>;
+  /** User IDs that are fully exempt from rate limiting. */
+  userIds?: Set<string>;
+  /** URL path prefixes that skip rate limiting (health, metrics, etc.). */
+  paths?: string[];
+}
+
+// ---------------------------------------------------------------------------
+// Per-key custom limits (override tier defaults)
+// ---------------------------------------------------------------------------
+export interface CustomLimits {
+  hourlyLimit?: number;
+  dailyLimit?: number;
+  monthlyLimit?: number;
+  burstLimit?: number;
+  concurrentLimit?: number;
+  refillRatePerSecond?: number;
+}
+
 export class RateLimitingService {
   private usages = new Map<string, ApiKeyUsage>();
+  /** Separate tracking bucket for per-user aggregated usage */
+  private userUsages = new Map<string, ApiKeyUsage>();
+  /** Token buckets keyed by API key (or IP / user fallback identifier). */
+  private buckets = new Map<string, TokenBucket>();
   private requestLog: UsageMeteringEntry[] = [];
   private readonly maxLogEntries = 100_000;
+
+  /** Bypass configuration — mutate at runtime to add/remove trusted clients */
+  public bypass: BypassConfig = {
+    keys: new Set(),
+    userIds: new Set(),
+    paths: ['/health', '/metrics', '/metrics/plan-cache'],
+  };
+
+  /** Per-key custom limit overrides */
+  private customLimits = new Map<string, CustomLimits>();
+
+  // -------------------------------------------------------------------------
+  // Bypass management
+  // -------------------------------------------------------------------------
+
+  addBypassKey(apiKey: string): void {
+    this.bypass.keys ??= new Set();
+    this.bypass.keys.add(apiKey);
+  }
+
+  removeBypassKey(apiKey: string): boolean {
+    return this.bypass.keys?.delete(apiKey) ?? false;
+  }
+
+  addBypassUser(userId: string): void {
+    this.bypass.userIds ??= new Set();
+    this.bypass.userIds.add(userId);
+  }
+
+  removeBypassUser(userId: string): boolean {
+    return this.bypass.userIds?.delete(userId) ?? false;
+  }
+
+  isBypassed(key: string, isUserId = false): boolean {
+    if (isUserId) return this.bypass.userIds?.has(key) ?? false;
+    return this.bypass.keys?.has(key) ?? false;
+  }
+
+  listBypassKeys(): string[] {
+    return Array.from(this.bypass.keys ?? []);
+  }
+
+  listBypassUsers(): string[] {
+    return Array.from(this.bypass.userIds ?? []);
+  }
+
+  // -------------------------------------------------------------------------
+  // Custom limit configuration
+  // -------------------------------------------------------------------------
+
+  setCustomLimits(apiKey: string, limits: CustomLimits): void {
+    this.customLimits.set(apiKey, limits);
+    const bucket = this.buckets.get(apiKey);
+    if (bucket) {
+      const effective = this.getEffectiveLimits(
+        apiKey,
+        this.usages.get(apiKey)?.tier ?? SubscriptionTier.FREE,
+      );
+      bucket.reconfigure({
+        capacity: effective.burstLimit,
+        refillRatePerSecond: effective.refillRatePerSecond,
+      });
+    }
+  }
+
+  clearCustomLimits(apiKey: string): void {
+    this.customLimits.delete(apiKey);
+    const usage = this.usages.get(apiKey);
+    const bucket = this.buckets.get(apiKey);
+    if (bucket && usage) {
+      const effective = this.getEffectiveLimits(apiKey, usage.tier);
+      bucket.reconfigure({
+        capacity: effective.burstLimit,
+        refillRatePerSecond: effective.refillRatePerSecond,
+      });
+    }
+  }
+
+  getEffectiveLimits(apiKey: string, tier: SubscriptionTier): TierRateLimit {
+    const tierLimits = TIER_RATE_LIMITS[tier];
+    const custom = this.customLimits.get(apiKey);
+    if (!custom) return tierLimits;
+
+    return {
+      tier: tierLimits.tier,
+      hourlyLimit: custom.hourlyLimit ?? tierLimits.hourlyLimit,
+      dailyLimit: custom.dailyLimit ?? tierLimits.dailyLimit,
+      monthlyLimit: custom.monthlyLimit ?? tierLimits.monthlyLimit,
+      burstLimit: custom.burstLimit ?? tierLimits.burstLimit,
+      concurrentLimit: custom.concurrentLimit ?? tierLimits.concurrentLimit,
+      refillRatePerSecond: custom.refillRatePerSecond ?? tierLimits.refillRatePerSecond,
+    };
+  }
+
+  /** Resolve the public free/pro/enterprise tier for a subscription tier. */
+  getRateLimitTier(tier: SubscriptionTier): RateLimitTier {
+    return mapSubscriptionToRateLimitTier(tier);
+  }
+
+  getPublicTierLimits(tier: RateLimitTier) {
+    return getRateLimitTierConfig(tier);
+  }
+
+  // -------------------------------------------------------------------------
+  // Token bucket helpers
+  // -------------------------------------------------------------------------
+
+  private getOrCreateBucket(apiKey: string, limits: TierRateLimit): TokenBucket {
+    let bucket = this.buckets.get(apiKey);
+    if (!bucket) {
+      bucket = new TokenBucket({
+        capacity: limits.burstLimit,
+        refillRatePerSecond: limits.refillRatePerSecond,
+      });
+      this.buckets.set(apiKey, bucket);
+    }
+    return bucket;
+  }
+
+  /**
+   * Refill the token bucket and mirror remaining tokens onto ApiKeyUsage.
+   * The TokenBucket is the source of truth for burst capacity.
+   */
+  private syncAndRefillBucket(
+    apiKey: string,
+    usage: ApiKeyUsage,
+    limits: TierRateLimit,
+  ): TokenBucket {
+    const bucket = this.getOrCreateBucket(apiKey, limits);
+    bucket.reconfigure({
+      capacity: limits.burstLimit,
+      refillRatePerSecond: limits.refillRatePerSecond,
+    });
+    bucket.refill();
+    usage.burstTokens = bucket.getRemaining();
+    usage.lastBurstRefill = now();
+    return bucket;
+  }
+
+  /**
+   * Set burst tokens for a key (admin / tests). Updates the token bucket.
+   */
+  setBurstTokens(apiKey: string, tokens: number, tier: SubscriptionTier = SubscriptionTier.FREE): void {
+    const usage = this.getOrCreateUsage(apiKey, tier);
+    const limits = this.getEffectiveLimits(apiKey, tier);
+    const bucket = this.getOrCreateBucket(apiKey, limits);
+    bucket.setTokens(tokens);
+    usage.burstTokens = Math.floor(Math.max(0, tokens));
+    usage.lastBurstRefill = now();
+  }
+
+  // -------------------------------------------------------------------------
+  // Core: per-API-key usage
+  // -------------------------------------------------------------------------
 
   getOrCreateUsage(apiKey: string, tier: SubscriptionTier): ApiKeyUsage {
     const existing = this.usages.get(apiKey);
@@ -38,6 +226,7 @@ export class RateLimitingService {
       return existing;
     }
 
+    const limits = this.getEffectiveLimits(apiKey, tier);
     const usage: ApiKeyUsage = {
       apiKey,
       tier,
@@ -48,41 +237,47 @@ export class RateLimitingService {
       dailyResetAt: computeResetTime(ONE_DAY_MS),
       monthlyResetAt: computeResetTime(ONE_MONTH_MS),
       lastRequestAt: 0,
-      burstTokens: TIER_RATE_LIMITS[tier].burstLimit,
+      burstTokens: limits.burstLimit,
       lastBurstRefill: now(),
       concurrentRequests: 0,
     };
 
     this.usages.set(apiKey, usage);
+    this.getOrCreateBucket(apiKey, limits);
     return usage;
   }
 
-  checkRateLimit(apiKey: string, tier: SubscriptionTier): { allowed: boolean; retryAfterMs?: number } {
+  checkRateLimit(
+    apiKey: string,
+    tier: SubscriptionTier,
+  ): { allowed: boolean; retryAfterMs?: number } {
+    // Bypass check
+    if (this.isBypassed(apiKey)) return { allowed: true };
+
     const usage = this.getOrCreateUsage(apiKey, tier);
-    const limits = TIER_RATE_LIMITS[tier];
+    const limits = this.getEffectiveLimits(apiKey, tier);
     const now_ts = now();
 
     this.resetIfExpired(usage);
 
-    const hourlyRemaining = limits.hourlyLimit - usage.hourly;
-    const dailyRemaining = limits.dailyLimit - usage.daily;
-    const monthlyRemaining = limits.monthlyLimit - usage.monthly;
-
-    if (monthlyRemaining <= 0) {
+    if (limits.monthlyLimit - usage.monthly <= 0) {
       return { allowed: false, retryAfterMs: usage.monthlyResetAt - now_ts };
     }
-    if (dailyRemaining <= 0) {
+    if (limits.dailyLimit - usage.daily <= 0) {
       return { allowed: false, retryAfterMs: usage.dailyResetAt - now_ts };
     }
-    if (hourlyRemaining <= 0) {
+    if (limits.hourlyLimit - usage.hourly <= 0) {
       return { allowed: false, retryAfterMs: usage.hourlyResetAt - now_ts };
     }
 
-    this.refillBurstTokens(usage, limits);
-    if (usage.burstTokens <= 0) {
-      return { allowed: false, retryAfterMs: 1_000 };
+    // Token-bucket burst check (peek — does not consume)
+    const bucket = this.syncAndRefillBucket(apiKey, usage, limits);
+    const available = bucket.snapshot().tokens;
+    if (available < 1) {
+      const deficit = 1 - available;
+      const retryAfterMs = Math.ceil((deficit / limits.refillRatePerSecond) * 1_000);
+      return { allowed: false, retryAfterMs };
     }
-
     if (usage.concurrentRequests >= limits.concurrentLimit) {
       return { allowed: false, retryAfterMs: 500 };
     }
@@ -95,10 +290,10 @@ export class RateLimitingService {
     tier: SubscriptionTier,
     endpoint: string,
     statusCode: number,
-    latencyMs: number
+    latencyMs: number,
   ): { softWarning?: SoftLimitWarning; rateLimitError?: RateLimitExceededError } {
     const usage = this.getOrCreateUsage(apiKey, tier);
-    const limits = TIER_RATE_LIMITS[tier];
+    const limits = this.getEffectiveLimits(apiKey, tier);
 
     this.resetIfExpired(usage);
 
@@ -106,7 +301,13 @@ export class RateLimitingService {
     usage.daily += 1;
     usage.monthly += 1;
     usage.lastRequestAt = now();
-    usage.burstTokens -= 1;
+
+    // Consume one token from the token bucket
+    const bucket = this.syncAndRefillBucket(apiKey, usage, limits);
+    const consumed = bucket.tryConsume(1);
+    usage.burstTokens = Math.max(0, Math.floor(consumed.remaining));
+    usage.lastBurstRefill = now();
+
     usage.concurrentRequests += 1;
 
     setTimeout(() => {
@@ -128,16 +329,17 @@ export class RateLimitingService {
     }
 
     const hourlyUsagePct = usage.hourly / limits.hourlyLimit;
-    const softWarning = SOFT_LIMIT_WARNINGS.find((w) => hourlyUsagePct >= w)
-      ? {
-          warning: 'soft_limit_reached' as const,
-          usagePercent: Math.round(hourlyUsagePct * 100),
-          limit: limits.hourlyLimit,
-          current: usage.hourly,
-          tier,
-          message: `API usage at ${Math.round(hourlyUsagePct * 100)}% of hourly limit (${usage.hourly}/${limits.hourlyLimit})`,
-        }
-      : undefined;
+    const softWarning =
+      SOFT_LIMIT_WARNINGS.find((w) => hourlyUsagePct >= w) !== undefined
+        ? {
+            warning: 'soft_limit_reached' as const,
+            usagePercent: Math.round(hourlyUsagePct * 100),
+            limit: limits.hourlyLimit,
+            current: usage.hourly,
+            tier,
+            message: `API usage at ${Math.round(hourlyUsagePct * 100)}% of hourly limit (${usage.hourly}/${limits.hourlyLimit})`,
+          }
+        : undefined;
 
     let rateLimitError: RateLimitExceededError | undefined;
     if (hourlyUsagePct >= 1) {
@@ -156,13 +358,171 @@ export class RateLimitingService {
     return { softWarning, rateLimitError };
   }
 
-  getUsage(apiKey: string): ApiKeyUsage | undefined {
-    const usage = this.usages.get(apiKey);
-    if (usage) {
-      this.resetIfExpired(usage);
+  // -------------------------------------------------------------------------
+  // Per-user aggregated rate limiting
+  // -------------------------------------------------------------------------
+
+  private getOrCreateUserUsage(userKey: string, tier: SubscriptionTier): ApiKeyUsage {
+    const existing = this.userUsages.get(userKey);
+    if (existing) {
+      existing.tier = tier;
+      return existing;
     }
+
+    const tierLimits = TIER_RATE_LIMITS[tier];
+    const usage: ApiKeyUsage = {
+      apiKey: userKey,
+      tier,
+      hourly: 0,
+      daily: 0,
+      monthly: 0,
+      hourlyResetAt: computeResetTime(ONE_HOUR_MS),
+      dailyResetAt: computeResetTime(ONE_DAY_MS),
+      monthlyResetAt: computeResetTime(ONE_MONTH_MS),
+      lastRequestAt: 0,
+      burstTokens: tierLimits.burstLimit * USER_HOURLY_MULTIPLIER,
+      lastBurstRefill: now(),
+      concurrentRequests: 0,
+    };
+
+    this.userUsages.set(userKey, usage);
     return usage;
   }
+
+  /**
+   * Check per-user aggregate rate limit.
+   * `userKey` should be prefixed, e.g. `user:abc123`.
+   */
+  checkUserRateLimit(
+    userKey: string,
+    tier: SubscriptionTier,
+  ): { allowed: boolean; retryAfterMs?: number } {
+    const userId = userKey.replace(/^user:/, '');
+    if (this.isBypassed(userId, true)) return { allowed: true };
+
+    const usage = this.getOrCreateUserUsage(userKey, tier);
+    const tierLimits = TIER_RATE_LIMITS[tier];
+    const now_ts = now();
+
+    this.resetIfExpired(usage);
+
+    const userHourlyLimit = tierLimits.hourlyLimit * USER_HOURLY_MULTIPLIER;
+    const userDailyLimit = tierLimits.dailyLimit * USER_HOURLY_MULTIPLIER;
+    const userMonthlyLimit = tierLimits.monthlyLimit * USER_HOURLY_MULTIPLIER;
+
+    if (userMonthlyLimit - usage.monthly <= 0) {
+      return { allowed: false, retryAfterMs: usage.monthlyResetAt - now_ts };
+    }
+    if (userDailyLimit - usage.daily <= 0) {
+      return { allowed: false, retryAfterMs: usage.dailyResetAt - now_ts };
+    }
+    if (userHourlyLimit - usage.hourly <= 0) {
+      return { allowed: false, retryAfterMs: usage.hourlyResetAt - now_ts };
+    }
+
+    return { allowed: true };
+  }
+
+  /** Record a request against per-user aggregate counters. */
+  recordUserRequest(userKey: string, tier: SubscriptionTier, endpoint: string): void {
+    const usage = this.getOrCreateUserUsage(userKey, tier);
+    this.resetIfExpired(usage);
+    usage.hourly += 1;
+    usage.daily += 1;
+    usage.monthly += 1;
+    usage.lastRequestAt = now();
+  }
+
+  getUserRateLimitStatus(
+    userKey: string,
+    tier: SubscriptionTier,
+  ): {
+    limits: { hourlyLimit: number; dailyLimit: number; monthlyLimit: number };
+    current: { hourly: number; daily: number; monthly: number };
+    remaining: { hourly: number; daily: number; monthly: number };
+    resetAt: { hourly: number; daily: number; monthly: number };
+  } {
+    const usage = this.getOrCreateUserUsage(userKey, tier);
+    this.resetIfExpired(usage);
+    const tierLimits = TIER_RATE_LIMITS[tier];
+
+    const userHourlyLimit = tierLimits.hourlyLimit * USER_HOURLY_MULTIPLIER;
+    const userDailyLimit = tierLimits.dailyLimit * USER_HOURLY_MULTIPLIER;
+    const userMonthlyLimit = tierLimits.monthlyLimit * USER_HOURLY_MULTIPLIER;
+
+    return {
+      limits: {
+        hourlyLimit: userHourlyLimit,
+        dailyLimit: userDailyLimit,
+        monthlyLimit: userMonthlyLimit,
+      },
+      current: {
+        hourly: usage.hourly,
+        daily: usage.daily,
+        monthly: usage.monthly,
+      },
+      remaining: {
+        hourly: Math.max(0, userHourlyLimit - usage.hourly),
+        daily: Math.max(0, userDailyLimit - usage.daily),
+        monthly: Math.max(0, userMonthlyLimit - usage.monthly),
+      },
+      resetAt: {
+        hourly: usage.hourlyResetAt,
+        daily: usage.dailyResetAt,
+        monthly: usage.monthlyResetAt,
+      },
+    };
+  }
+
+  // -------------------------------------------------------------------------
+  // Read helpers
+  // -------------------------------------------------------------------------
+
+  getUsage(apiKey: string): ApiKeyUsage | undefined {
+    const usage = this.usages.get(apiKey);
+    if (usage) this.resetIfExpired(usage);
+    return usage;
+  }
+
+  getRateLimitStatus(
+    apiKey: string,
+    tier: SubscriptionTier,
+  ): {
+    limits: TierRateLimit;
+    current: { hourly: number; daily: number; monthly: number; burstTokens: number };
+    remaining: { hourly: number; daily: number; monthly: number; burstTokens: number };
+    resetAt: { hourly: number; daily: number; monthly: number };
+  } {
+    const usage = this.getOrCreateUsage(apiKey, tier);
+    this.resetIfExpired(usage);
+    const limits = this.getEffectiveLimits(apiKey, tier);
+    this.syncAndRefillBucket(apiKey, usage, limits);
+
+    return {
+      limits,
+      current: {
+        hourly: usage.hourly,
+        daily: usage.daily,
+        monthly: usage.monthly,
+        burstTokens: usage.burstTokens,
+      },
+      remaining: {
+        hourly: Math.max(0, limits.hourlyLimit - usage.hourly),
+        daily: Math.max(0, limits.dailyLimit - usage.daily),
+        monthly: Math.max(0, limits.monthlyLimit - usage.monthly),
+        burstTokens: Math.max(0, usage.burstTokens),
+      },
+      resetAt: {
+        hourly: usage.hourlyResetAt,
+        daily: usage.dailyResetAt,
+        monthly: usage.monthlyResetAt,
+      },
+    };
+  }
+
+  // -------------------------------------------------------------------------
+  // Analytics
+  // -------------------------------------------------------------------------
 
   getAnalytics(tier?: SubscriptionTier): UsageAnalytics {
     let entries = this.requestLog;
@@ -201,6 +561,20 @@ export class RateLimitingService {
       .slice(0, 10)
       .map(([endpoint, count]) => ({ endpoint, count }));
 
+    // Hourly breakdown over the last 24 h
+    const hourlyBuckets = new Map<string, number>();
+    const nowTs = now();
+    for (const entry of entries) {
+      const age = nowTs - entry.timestamp;
+      if (age > ONE_DAY_MS) continue;
+      const hourOffset = Math.floor(age / ONE_HOUR_MS);
+      const hourLabel = `${23 - hourOffset}h ago`;
+      hourlyBuckets.set(hourLabel, (hourlyBuckets.get(hourLabel) ?? 0) + 1);
+    }
+    const hourlyBreakdown = Array.from(hourlyBuckets.entries())
+      .map(([hour, count]) => ({ hour, count }))
+      .sort((a, b) => a.hour.localeCompare(b.hour));
+
     return {
       totalRequests,
       requestsByTier,
@@ -211,9 +585,73 @@ export class RateLimitingService {
       errorRate: totalRequests > 0 ? errorCount / totalRequests : 0,
       rateLimitHitCount: rateLimitHits,
       topEndpoints,
-      hourlyBreakdown: [],
+      hourlyBreakdown,
     };
   }
+
+  /**
+   * Returns analytics specifically for rate-limit events.
+   */
+  getRateLimitAnalytics(): {
+    totalRequests: number;
+    rateLimitHits: number;
+    hitRate: number;
+    topThrottledKeys: { key: string; hits: number }[];
+    topThrottledEndpoints: { endpoint: string; hits: number }[];
+    byTier: Record<SubscriptionTier, { requests: number; hits: number; hitRate: number }>;
+  } {
+    const byKey = new Map<string, number>();
+    const byEndpoint = new Map<string, number>();
+    const byTier: Record<
+      SubscriptionTier,
+      { requests: number; hits: number; hitRate: number }
+    > = {
+      [SubscriptionTier.FREE]: { requests: 0, hits: 0, hitRate: 0 },
+      [SubscriptionTier.BASIC]: { requests: 0, hits: 0, hitRate: 0 },
+      [SubscriptionTier.PREMIUM]: { requests: 0, hits: 0, hitRate: 0 },
+      [SubscriptionTier.ENTERPRISE]: { requests: 0, hits: 0, hitRate: 0 },
+    };
+
+    let rateLimitHits = 0;
+
+    for (const entry of this.requestLog) {
+      byTier[entry.tier].requests += 1;
+      if (entry.statusCode === 429) {
+        rateLimitHits += 1;
+        byKey.set(entry.apiKey, (byKey.get(entry.apiKey) ?? 0) + 1);
+        byEndpoint.set(entry.endpoint, (byEndpoint.get(entry.endpoint) ?? 0) + 1);
+        byTier[entry.tier].hits += 1;
+      }
+    }
+
+    for (const t of Object.values(SubscriptionTier)) {
+      const b = byTier[t as SubscriptionTier];
+      b.hitRate = b.requests > 0 ? b.hits / b.requests : 0;
+    }
+
+    const topThrottledKeys = Array.from(byKey.entries())
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 10)
+      .map(([key, hits]) => ({ key, hits }));
+
+    const topThrottledEndpoints = Array.from(byEndpoint.entries())
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 10)
+      .map(([endpoint, hits]) => ({ endpoint, hits }));
+
+    return {
+      totalRequests: this.requestLog.length,
+      rateLimitHits,
+      hitRate: this.requestLog.length > 0 ? rateLimitHits / this.requestLog.length : 0,
+      topThrottledKeys,
+      topThrottledEndpoints,
+      byTier,
+    };
+  }
+
+  // -------------------------------------------------------------------------
+  // Tier upgrade recommendation
+  // -------------------------------------------------------------------------
 
   checkTierUpgrade(apiKey: string): TierUpgradeRecommendation | null {
     const usage = this.usages.get(apiKey);
@@ -223,7 +661,7 @@ export class RateLimitingService {
     const nextTier = getNextTier(usage.tier);
     if (!nextTier) return null;
 
-    const limits = TIER_RATE_LIMITS[usage.tier];
+    const limits = this.getEffectiveLimits(apiKey, usage.tier);
     const threshold = TIER_UPGRADE_THRESHOLDS[usage.tier];
     const hourlyUsagePct = usage.hourly / limits.hourlyLimit;
 
@@ -242,37 +680,9 @@ export class RateLimitingService {
     return null;
   }
 
-  getRateLimitStatus(apiKey: string, tier: SubscriptionTier): {
-    limits: TierRateLimit;
-    current: { hourly: number; daily: number; monthly: number; burstTokens: number };
-    remaining: { hourly: number; daily: number; monthly: number; burstTokens: number };
-    resetAt: { hourly: number; daily: number; monthly: number };
-  } {
-    const usage = this.getOrCreateUsage(apiKey, tier);
-    this.resetIfExpired(usage);
-    const limits = TIER_RATE_LIMITS[tier];
-
-    return {
-      limits,
-      current: {
-        hourly: usage.hourly,
-        daily: usage.daily,
-        monthly: usage.monthly,
-        burstTokens: usage.burstTokens,
-      },
-      remaining: {
-        hourly: Math.max(0, limits.hourlyLimit - usage.hourly),
-        daily: Math.max(0, limits.dailyLimit - usage.daily),
-        monthly: Math.max(0, limits.monthlyLimit - usage.monthly),
-        burstTokens: Math.max(0, usage.burstTokens),
-      },
-      resetAt: {
-        hourly: usage.hourlyResetAt,
-        daily: usage.dailyResetAt,
-        monthly: usage.monthlyResetAt,
-      },
-    };
-  }
+  // -------------------------------------------------------------------------
+  // Private helpers
+  // -------------------------------------------------------------------------
 
   private resetIfExpired(usage: ApiKeyUsage): void {
     const now_ts = now();
@@ -287,16 +697,6 @@ export class RateLimitingService {
     if (now_ts >= usage.monthlyResetAt) {
       usage.monthly = 0;
       usage.monthlyResetAt = computeResetTime(ONE_MONTH_MS);
-    }
-  }
-
-  private refillBurstTokens(usage: ApiKeyUsage, limits: TierRateLimit): void {
-    const now_ts = now();
-    const elapsed = now_ts - usage.lastBurstRefill;
-    const tokensToAdd = Math.floor(elapsed / 1_000);
-    if (tokensToAdd > 0) {
-      usage.burstTokens = Math.min(limits.burstLimit, usage.burstTokens + tokensToAdd);
-      usage.lastBurstRefill = now_ts;
     }
   }
 }

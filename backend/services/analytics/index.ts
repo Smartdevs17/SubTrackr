@@ -12,3 +12,28 @@ export { RetentionService } from './retentionService';
 export { OracleMonitorService, oracleMonitorService } from './oracleMonitorService';
 export type { IPredictionService, IRecommendationService, IComplianceReportService, ICampaignService } from './interfaces';
 export { AnalyticsError, AnalyticsErrorCode } from './errors';
+export { CohortService } from './cohortService';
+export { getChurnRiskForCohort } from './cohortChurnRiskService';
+export { RetentionCalculator, RETENTION_CURVE_DAYS } from './retentionCalculator';
+export { cohortTableToCsv, ltvBreakdownToCsv, cohortTableToPdf, churnBreakdownToPdf, buildSimplePdf } from './cohortReportExport';
+export { SubscriberRecordRepository, subscriberRecordRepository } from './subscriberRecordRepository';
+export { AnalyticsDashboardApi, analyticsDashboardApi } from './analyticsDashboardApi';
+export {
+  analyzeTrend,
+  calculateAccuracy,
+  generateVisualizationData,
+  generateRevenueForecast,
+  generateForecastAlerts,
+} from './revenueForecastService';
+export type {
+  RevenueDataPoint,
+  ForecastPoint as RevenueForecastPoint,
+  TrendAnalysis,
+  ForecastAccuracy,
+  RevenueForecastResult,
+  ForecastVisualizationData,
+  ForecastAlert,
+  ForecastGranularity,
+  TrendDirection,
+  ForecastModel,
+} from './revenueForecastService';

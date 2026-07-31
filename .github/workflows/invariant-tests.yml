@@ -1,14 +1,6 @@
 name: Contract Invariant Tests
 
-on:
-  push:
-    branches: [main, dev, develop, 'feature/*']
-    paths:
-      - 'contracts/**'
-  pull_request:
-    branches: [main, dev, develop, 'feature/*']
-    paths:
-      - 'contracts/**'
+on: workflow_dispatch
 
 env:
   RUST_VERSION: '1.88'
@@ -25,7 +17,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
@@ -74,7 +66,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master

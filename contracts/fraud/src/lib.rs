@@ -239,6 +239,10 @@ fn build_evidence(
             .device_fingerprint
             .clone()
             .unwrap_or_else(|| String::from_str(env, "unknown"));
+        let trusted = profile
+            .trusted_device_fingerprint
+            .clone()
+            .unwrap_or_else(|| String::from_str(env, "unknown"));
         evidence.push_back(subtrackr_types::FraudEvidence {
             label: String::from_str(env, "device mismatch"),
             value: current,
@@ -498,7 +502,7 @@ impl SubTrackrFraud {
 
     pub fn assess_risk(env: Env, subscriber: Address) -> RiskScore {
         let ids = get_subscriptions(&env, &subscriber);
-        if ids.is_empty() {
+        if ids.len() == 0 {
             return RiskScore {
                 subscriber: subscriber.clone(),
                 subscription_id: 0,
@@ -657,7 +661,7 @@ impl SubTrackrFraud {
                 }
 
                 if let Some(case) = review_case_for_subscription(&env, score.subscription_id) {
-                    if case.evidence.is_empty() {
+                    if case.evidence.len() == 0 {
                         pending_evidence += 1;
                     }
                     if case.status == FraudReviewStatus::Dismissed {
@@ -666,7 +670,7 @@ impl SubTrackrFraud {
                     recent_cases.push_back(case);
                 } else if score.total_score >= REVIEW_THRESHOLD {
                     let case = persist_case(&env, &score, FraudReviewStatus::Pending);
-                    if case.evidence.is_empty() {
+                    if case.evidence.len() == 0 {
                         pending_evidence += 1;
                     }
                     recent_cases.push_back(case);
@@ -675,7 +679,7 @@ impl SubTrackrFraud {
             i += 1;
         }
 
-        let average_risk = if ids.is_empty() {
+        let average_risk = if ids.len() == 0 {
             0
         } else {
             total_risk / ids.len()

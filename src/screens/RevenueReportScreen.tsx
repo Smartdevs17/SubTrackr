@@ -9,6 +9,7 @@ import {
   Switch,
   Alert,
   Dimensions,
+  Share,
 } from 'react-native';
 import Svg, { Rect, Text as SvgText, Line, G } from 'react-native-svg';
 import { spacing, typography, borderRadius } from '../utils/constants';
@@ -60,6 +61,7 @@ const RevenueReportScreen: React.FC = () => {
     removeRecognitionRule,
     generateRevenueSchedule,
     getRevenueAnalyticsByPeriod,
+    exportWaterfall,
   } = useAccountingStore();
 
   const [periodRange, setPeriodRange] = useState<PeriodRange>('month');
@@ -149,6 +151,26 @@ const RevenueReportScreen: React.FC = () => {
     [removeRecognitionRule, configSubId]
   );
 
+  const handleExport = useCallback(
+    async (format: 'csv' | 'json') => {
+      const nameMap: Record<string, string> = {};
+      subscriptions.forEach((s) => (nameMap[s.id] = s.name));
+      const content = exportWaterfall(format, undefined, nameMap);
+      const mimeType = format === 'csv' ? 'text/csv' : 'application/json';
+      const filename = `revenue_waterfall.${format}`;
+      try {
+        await Share.share({ message: content, title: filename });
+      } catch {
+        Alert.alert(
+          `Export (${format.toUpperCase()})`,
+          `Content type: ${mimeType}\n\n${content.slice(0, 400)}${content.length > 400 ? '\n…' : ''}`,
+          [{ text: 'Close' }]
+        );
+      }
+    },
+    [subscriptions, exportWaterfall]
+  );
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   if (!subscriptions.length) {
@@ -186,6 +208,23 @@ const RevenueReportScreen: React.FC = () => {
               ${totalDeferred.toFixed(2)}
             </Text>
           </Card>
+        </View>
+
+        {/* Export buttons */}
+        <View style={styles.exportRow}>
+          <Text style={styles.exportLabel}>Export waterfall:</Text>
+          <TouchableOpacity
+            style={styles.exportBtn}
+            onPress={() => void handleExport('csv')}
+            accessibilityLabel="Export revenue waterfall as CSV">
+            <Text style={styles.exportBtnText}>CSV</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.exportBtn}
+            onPress={() => void handleExport('json')}
+            accessibilityLabel="Export revenue waterfall as JSON">
+            <Text style={styles.exportBtnText}>JSON</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Period selector */}
@@ -372,6 +411,23 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     summaryCard: { flex: 1, alignItems: 'center' },
     summaryLabel: { ...typography.caption, color: colors.textSecondary, marginBottom: spacing.xs },
     summaryValue: { ...typography.h2, fontWeight: '700' },
+
+    exportRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: spacing.lg,
+      marginBottom: spacing.md,
+      gap: spacing.sm,
+    },
+    exportLabel: { ...typography.caption, color: colors.textSecondary, flex: 1 },
+    exportBtn: {
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.xs,
+      borderRadius: borderRadius.sm,
+      borderWidth: 1,
+      borderColor: colors.primary,
+    },
+    exportBtnText: { ...typography.caption, color: colors.primary, fontWeight: '600' },
 
     periodRow: {
       flexDirection: 'row',
