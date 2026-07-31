@@ -23,7 +23,7 @@ pub use price::{
 };
 
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, Address, Env, Symbol,
+    contract, contracterror, contractimpl, contracttype, symbol_short, Address, Env, Symbol,
 };
 use subtrackr_types::CoreError;
 
@@ -100,6 +100,11 @@ enum DataKey {
     Cache(Symbol, Symbol),
     Circuit(Symbol, Symbol),
     History(Symbol, Symbol),
+    FeedChain(Symbol, Symbol, u64),
+    LatestChain(Symbol, Symbol, u64, PriceSource),
+    CacheChain(Symbol, Symbol, u64),
+    CircuitChain(Symbol, Symbol, u64),
+    HistoryChain(Symbol, Symbol, u64),
 }
 
 #[contract]
@@ -368,16 +373,12 @@ impl SubTrackrOracle {
         let admin = Self::require_admin(&env)?;
         admin.require_auth();
 
-        // Create a chain-specific symbol from the chain_id
-        let chain_sym = Symbol::new(&env, &format!("chain_{}", chain_id));
-        let pair_token = Symbol::new(&env, &format!("{}_{}", token.to_string(), chain_sym.to_string()));
-
         if max_staleness_secs == 0 || decimals > 18 {
             return Err(OracleError::InvalidConfig);
         }
 
         let cfg = FeedConfig {
-            token: pair_token.clone(),
+            token: token.clone(),
             quote: quote.clone(),
             primary,
             fallback,
@@ -388,10 +389,10 @@ impl SubTrackrOracle {
 
         env.storage()
             .persistent()
-            .set(&DataKey::Feed(pair_token.clone(), quote.clone()), &cfg);
+            .set(&DataKey::FeedChain(token.clone(), quote.clone(), chain_id), &cfg);
         env.storage()
             .persistent()
-            .set(&DataKey::Circuit(pair_token, quote), &CircuitState::closed());
+            .set(&DataKey::CircuitChain(token, quote, chain_id), &CircuitState::closed());
         Ok(())
     }
 
@@ -406,10 +407,68 @@ impl SubTrackrOracle {
         value: i128,
         timestamp: u64,
     ) -> Result<(), OracleError> {
-        let chain_sym_str = format!("chain_{}", chain_id);
-        let chain_sym = Symbol::new(&env, &chain_sym_str);
-        let pair_token = Symbol::new(&env, &format!("{}_{}", token.to_string(), chain_sym.to_string()));
-        Self::submit_price(env, source, pair_token, quote, value, timestamp)
+        source.require_auth();
+        let cfg = Self::load_chain_feed(&env, &token, &quote, chain_id)?;
+
+        let source_kind = if source == cfg.primary {
+            PriceSource::Primary
+        } else if cfg.fallback.as_ref() == Some(&source) {
+            PriceSource::Fallback
+        } else {
+            return Err(OracleError::Unauthorized);
+        };
+
+        if value <= 0 {
+            return Err(OracleError::InvalidPrice);
+        }
+        let now = env.ledger().timestamp();
+        if timestamp > now {
+            return Err(OracleError::InvalidTimestamp);
+        }
+
+        let prev = Self::latest_chain(&env, &token, &quote, chain_id, &source_kind);
+        let observation = Price {
+            token: token.clone(),
+            quote: quote.clone(),
+            value,
+            decimals: cfg.decimals,
+            timestamp,
+            source: source_kind.clone(),
+        };
+
+        let mut circuit = Self::circuit_chain(&env, &token, &quote, chain_id);
+        if let Some(prev_price) = prev {
+            let dev = deviation_bps(prev_price.value, value);
+            if dev > cfg.deviation_threshold_bps {
+                env.events().publish(
+                    (symbol_short!("deviation"), token.clone(), quote.clone()),
+                    (prev_price.value, value, dev),
+                );
+                circuit.consecutive_faults += 1;
+                if circuit.consecutive_faults >= CIRCUIT_FAULT_LIMIT && !circuit.tripped {
+                    circuit.tripped = true;
+                    circuit.tripped_at = now;
+                    env.events().publish(
+                        (symbol_short!("breaker"), token.clone(), quote.clone()),
+                        now,
+                    );
+                }
+            } else {
+                circuit.consecutive_faults = 0;
+            }
+        }
+        Self::save_circuit_chain(&env, &token, &quote, chain_id, &circuit);
+
+        env.storage().persistent().set(
+            &DataKey::LatestChain(token.clone(), quote.clone(), chain_id, source_kind.clone()),
+            &observation,
+        );
+        Self::push_history_chain(&env, &token, &quote, chain_id, &observation);
+        env.events().publish(
+            (symbol_short!("c_price"), token, quote),
+            (value, timestamp, source_kind, chain_id),
+        );
+        Ok(())
     }
 
     /// Get price for a specific chain context.
@@ -419,9 +478,44 @@ impl SubTrackrOracle {
         quote: Symbol,
         chain_id: u64,
     ) -> Result<Price, OracleError> {
-        let chain_sym = Symbol::new(&env, &format!("chain_{}", chain_id));
-        let pair_token = Symbol::new(&env, &format!("{}_{}", token.to_string(), chain_sym.to_string()));
-        Self::get_price(env, pair_token, quote)
+        let cfg = Self::load_chain_feed(&env, &token, &quote, chain_id)?;
+        let now = env.ledger().timestamp();
+        let mut circuit = Self::circuit_chain(&env, &token, &quote, chain_id);
+
+        if circuit.tripped {
+            if now.saturating_sub(circuit.tripped_at) < CIRCUIT_COOLDOWN_SECS {
+                return Err(OracleError::CircuitOpen);
+            }
+            circuit = CircuitState::closed();
+            Self::save_circuit_chain(&env, &token, &quote, chain_id, &circuit);
+        }
+
+        let primary = Self::latest_chain(&env, &token, &quote, chain_id, &PriceSource::Primary);
+        let fallback = Self::latest_chain(&env, &token, &quote, chain_id, &PriceSource::Fallback);
+        let had_any = primary.is_some() || fallback.is_some();
+
+        match select_price(now, cfg.max_staleness_secs, primary, fallback) {
+            Some(price) => {
+                if circuit.consecutive_faults != 0 {
+                    circuit.consecutive_faults = 0;
+                    Self::save_circuit_chain(&env, &token, &quote, chain_id, &circuit);
+                }
+                Ok(price)
+            }
+            None => {
+                circuit.consecutive_faults += 1;
+                if circuit.consecutive_faults >= CIRCUIT_FAULT_LIMIT {
+                    circuit.tripped = true;
+                    circuit.tripped_at = now;
+                }
+                Self::save_circuit_chain(&env, &token, &quote, chain_id, &circuit);
+                if had_any {
+                    Err(OracleError::StalePrice)
+                } else {
+                    Err(OracleError::NoPriceAvailable)
+                }
+            }
+        }
     }
 
     /// Get cached price with chain context.
@@ -432,9 +526,21 @@ impl SubTrackrOracle {
         chain_id: u64,
         ttl: u64,
     ) -> Result<Price, OracleError> {
-        let chain_sym = Symbol::new(&env, &format!("chain_{}", chain_id));
-        let pair_token = Symbol::new(&env, &format!("{}_{}", token.to_string(), chain_sym.to_string()));
-        Self::get_price_with_cache(env, pair_token, quote, ttl)
+        let now = env.ledger().timestamp();
+        if let Some((cached, cached_at)) = env
+            .storage()
+            .persistent()
+            .get::<_, (Price, u64)>(&DataKey::CacheChain(token.clone(), quote.clone(), chain_id))
+        {
+            if now.saturating_sub(cached_at) <= ttl {
+                return Ok(cached);
+            }
+        }
+        let price = Self::get_chain_price(env.clone(), token.clone(), quote.clone(), chain_id)?;
+        env.storage()
+            .persistent()
+            .set(&DataKey::CacheChain(token, quote, chain_id), &(price.clone(), now));
+        Ok(price)
     }
 
     /// Aggregate prices across multiple chains for the same token/quote pair.
@@ -503,6 +609,49 @@ impl SubTrackrOracle {
 
     fn push_history(env: &Env, token: &Symbol, quote: &Symbol, price: &Price) {
         let key = DataKey::History(token.clone(), quote.clone());
+        let mut history = env
+            .storage()
+            .persistent()
+            .get::<_, soroban_sdk::Vec<Price>>(&key)
+            .unwrap_or_else(|| soroban_sdk::Vec::new(env));
+        history.push_back(price.clone());
+        while history.len() > MAX_HISTORY {
+            history.remove(0);
+        }
+        env.storage().persistent().set(&key, &history);
+    }
+
+    fn load_chain_feed(env: &Env, token: &Symbol, quote: &Symbol, chain_id: u64) -> Result<FeedConfig, OracleError> {
+        env.storage()
+            .persistent()
+            .get::<_, FeedConfig>(&DataKey::FeedChain(token.clone(), quote.clone(), chain_id))
+            .ok_or(OracleError::FeedNotFound)
+    }
+
+    fn latest_chain(env: &Env, token: &Symbol, quote: &Symbol, chain_id: u64, source: &PriceSource) -> Option<Price> {
+        env.storage().persistent().get(&DataKey::LatestChain(
+            token.clone(),
+            quote.clone(),
+            chain_id,
+            source.clone(),
+        ))
+    }
+
+    fn circuit_chain(env: &Env, token: &Symbol, quote: &Symbol, chain_id: u64) -> CircuitState {
+        env.storage()
+            .persistent()
+            .get(&DataKey::CircuitChain(token.clone(), quote.clone(), chain_id))
+            .unwrap_or_else(CircuitState::closed)
+    }
+
+    fn save_circuit_chain(env: &Env, token: &Symbol, quote: &Symbol, chain_id: u64, state: &CircuitState) {
+        env.storage()
+            .persistent()
+            .set(&DataKey::CircuitChain(token.clone(), quote.clone(), chain_id), state);
+    }
+
+    fn push_history_chain(env: &Env, token: &Symbol, quote: &Symbol, chain_id: u64, price: &Price) {
+        let key = DataKey::HistoryChain(token.clone(), quote.clone(), chain_id);
         let mut history = env
             .storage()
             .persistent()

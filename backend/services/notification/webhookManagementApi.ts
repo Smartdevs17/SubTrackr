@@ -12,7 +12,7 @@ import {
   webhookDeliveryService,
   RegisterWebhookInput,
 } from './webhook';
-import type { WebhookConfig, WebhookDelivery, WebhookEventInput } from '../../../src/types/webhook';
+import type { WebhookConfig, WebhookDelivery, WebhookEventInput, WebhookEventType } from '../../../src/types/webhook';
 
 export interface ApiResponse<T = unknown> {
   success: boolean;
@@ -136,8 +136,30 @@ export class WebhookManagementApi {
     }
   }
 
-  getAnalytics(webhookId: string) {
+  getAnalytics(webhookId: string): ApiResponse<ReturnType<WebhookDeliveryService['getAnalytics']>> {
     return ok(this.service.getAnalytics(webhookId));
+  }
+
+  /**
+   * Sends a test webhook delivery to the endpoint, generating a realistic sample
+   * payload from the event catalog. Idempotency and rate limiting are bypassed so
+   * developers can rapidly fire test events from the developer portal or CLI.
+   *
+   * @param webhookId  - Target webhook.
+   * @param eventType  - Event type to simulate (defaults to first subscribed event).
+   * @param customPayload - Optional fields to merge over the generated example.
+   */
+  async testWebhook(
+    webhookId: string,
+    eventType?: WebhookEventType,
+    customPayload?: Record<string, unknown>
+  ): Promise<ApiResponse<WebhookDelivery>> {
+    try {
+      const result = await this.service.testWebhook(webhookId, eventType, customPayload);
+      return ok(result.delivery, `Test delivery ${result.delivery.status}`);
+    } catch (error) {
+      return fail(error, 'Failed to send test webhook');
+    }
   }
 }
 

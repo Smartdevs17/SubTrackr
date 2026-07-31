@@ -1038,7 +1038,11 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         }
       },
 
-      recordBillingOutcome: async (id: string, outcome: 'success' | 'failed') => {
+      recordBillingOutcome: async (
+        id: string,
+        outcome: 'success' | 'failed',
+        failureReason?: FailureReason
+      ) => {
         const sub = get().subscriptions.find((s) => s.id === id);
         if (!sub) return;
 
@@ -1051,6 +1055,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
 
           dunningEntries[id] = {
             failedAttempts: attempt,
+            failureReason: failureReason || 'default',
             lastFailureAt: new Date().toISOString(),
             currentStage:
               attempt <= 3 ? 'retry' : attempt <= 5 ? 'warn' : attempt <= 7 ? 'suspend' : 'cancel',
