@@ -13,7 +13,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "amqplib": "^0.10.3",
+    "amqplib": "^2.0.1",
     "zod": "^3.23.8",
     "@sendgrid/mail": "^8.1.1",
     "twilio": "^5.3.4",
