@@ -2,6 +2,32 @@
 export { ConnectionPool, getPool, stellarPool } from './connectionPool';
 export type { PoolConfig, PoolMetrics } from './connectionPool';
 
+// ── Streaming primitives (Issue #768) ─────────────────────────────────────────
+export {
+  createCursorStream,
+  collectStream,
+  encodeOpaqueCursor,
+  decodeOpaqueCursor,
+  MemoryMonitor,
+  toNdjsonLine,
+  parseNdjsonBuffer,
+} from './shared/streaming';
+export type {
+  CursorPage,
+  CursorQueryOptions,
+  PageFetcher,
+  MemorySnapshot,
+  MemoryMonitorConfig,
+} from './shared/streaming';
+export { SseEmitter } from './shared/sseEmitter';
+export type {
+  SseEventName,
+  SseProgressData,
+  SseChunkData,
+  SseCompleteData,
+  SseErrorData,
+} from './shared/sseEmitter';
+
 // ── Repository pattern (#405) ─────────────────────────────────────────────────
 export * from './repositories';
 
@@ -124,6 +150,7 @@ export type {
 } from './subscription/ElasticsearchService';
 export type { ISubscriptionEventStore, IElasticsearchService } from './subscription/interfaces';
 export { SubscriptionError } from './subscription/errors';
+export type { CursorQuery } from './subscription/subscriptionEventStore';
 
 // ── Billing Module ────────────────────────────────────────────────────────────
 export { MeteringService } from './billing/meteringService';
@@ -132,13 +159,15 @@ export { PricingService } from './billing/pricingService';
 export type { PriceRecommendation, ABTestScenario, PricingContext } from './billing/pricingService';
 export { TaxService } from './billing/taxService';
 export { DunningService, dunningService } from './billing/dunningService';
-export { streamExport, reconcile } from './billing/accountingExportService';
+export { streamExport, reconcile, streamExportAsync, streamExportNdjson, streamExportWithProgress } from './billing/accountingExportService';
 export type {
   AccountingFormat,
   TransactionType,
   TransactionRecord,
   ExportFilter,
   StreamExportOptions,
+  AsyncStreamExportOptions,
+  ExportProgressCallback,
   ReconciliationResult,
 } from './billing/accountingExportService';
 export type {
