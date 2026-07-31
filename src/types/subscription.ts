@@ -18,6 +18,7 @@ export interface Subscription {
   totalGasSpent?: number;
   chargeCount?: number;
   lastGasCost?: number;
+  timezone?: string;
   createdAt: Date;
   updatedAt: Date;
 }

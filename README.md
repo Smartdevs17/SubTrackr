@@ -34,6 +34,25 @@ SubTrackr is a mobile application for managing recurring payments and subscripti
 - Price change alerts and spending insights
 - AI-powered savings suggestions
 
+**Invoice Management with Branding**
+
+- Custom invoice branding with company logo and colors
+- Multiple invoice templates (Modern, Classic, Minimal, Professional)
+- PDF generation with full branding customization
+- Comprehensive invoice analytics and revenue tracking
+- Invoice preview before generation
+- Detailed payment history and status tracking
+
+**Fraud Detection with Real-time Monitoring**
+
+- Real-time fraud detection with multiple detection methods
+- Risk scoring system (0-100) with automatic blocking
+- 10+ fraud indicators (velocity, amount anomaly, location mismatch, etc.)
+- Real-time alerts for high-risk transactions
+- Fraud investigation workflow
+- Comprehensive fraud analytics and reporting
+- Prevented loss tracking and false positive monitoring
+
 **Wallet Integration**
 
 - Native Freighter wallet connection for Stellar transactions
@@ -197,6 +216,24 @@ npm run lint
 - Make sure you're connected to the same Stellar network as the app (testnet/public)
 </details>
 
+## Local Development Environment
+
+SubTrackr utilizes a fully containerized local environment orchestrated via Docker Compose, eliminating the need to manually install dependencies like PostgreSQL, Redis, Soroban CLI, Rust, and Node.js.
+
+### Architecture
+* **API Gateway (Backend):** Port 3000
+* **Background Workers:** Billing queues
+* **Webhook Dispatcher:** Payload deliveries
+* **ML Service (Python):** Port 8001
+* **Database & Cache:** PostgreSQL (5432), Redis (6379)
+* **Soroban Node:** Standalone local network (8000)
+
+### Quick Setup
+
+1. **Initialize the Environment**
+   ```bash
+   ./scripts/setup.sh
+   
 ## Contributing
 
 We welcome contributions! SubTrackr participates in the **Stellar Wave Program** via [Drips](https://www.drips.network/). Contributors can earn points and rewards by picking up issues labeled **`Stellar Wave`**.
@@ -240,7 +277,7 @@ SubTrackr prioritizes the security of your subscriptions and on-chain transactio
 
 - **Dependency Scanning**: Powered by GitHub Dependabot and `npm audit`.
 - **Security Monitoring**: Automated workflows run high-level vulnerability scans on every push and pull request.
-- **Reporting**: Found a vulnerability? Please see our [Security Policy](docs/security.md) for reporting guidelines.
+- **Reporting**: Found a vulnerability? Please see our [Security Policy](docs/SECURITY.md) for reporting guidelines.
 
 To run a manual security audit:
 
