@@ -20,6 +20,7 @@ export { useLoyaltyStore } from './loyaltyStore';
 export { useSlaStore } from './slaStore';
 export { useGamificationStore } from './gamificationStore';
 export { useThemeStore } from '../theme/themeStore';
+export { usePlanComparisonStore } from './planComparisonStore';
 
 // Context + Hooks pattern exports (Issue #742)
 export {
