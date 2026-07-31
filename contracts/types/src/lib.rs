@@ -1,7 +1,6 @@
 #![no_std]
 
 use soroban_sdk::{contracttype, Address, BytesN, String, Symbol, Vec};
-
 pub mod errors;
 pub use errors::CoreError;
 
@@ -11,9 +10,13 @@ pub use errors::CoreError;
 pub enum Interval {
     Daily,     // 86400s
     Weekly,    // 604800s
+    BiWeekly,  // 1209600s
     Monthly,   // 2592000s (30 days)
+    BiMonthly, // 5184000s (60 days)
     Quarterly, // 7776000s (90 days)
+    SemiAnnually, // 15552000s (180 days)
     Yearly,    // 31536000s (365 days)
+    Custom(u64),    // user-defined interval in seconds
 }
 
 impl Interval {
@@ -21,9 +24,13 @@ impl Interval {
         match self {
             Interval::Daily => 86_400,
             Interval::Weekly => 604_800,
+            Interval::BiWeekly => 1_209_600,
             Interval::Monthly => 2_592_000,
+            Interval::BiMonthly => 5_184_000,
             Interval::Quarterly => 7_776_000,
+            Interval::SemiAnnually => 15_552_000,
             Interval::Yearly => 31_536_000,
+            Interval::Custom(secs) => *secs,
         }
     }
 }
@@ -626,9 +633,11 @@ pub struct TaxRemittanceLineItem {
 }
 
 // ── Storage Keys ──
-/// Storage keys for the proxy contract state.
+/// Core storage keys for subscription, plan, invoice, and proxy state.
 ///
 /// IMPORTANT: Never reorder existing variants. Append new variants only.
+/// If this enum exceeds the Soroban `#[contracttype]` variant limit, split
+/// additional variants into `StorageKeyExt` and update callers accordingly.
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
 pub enum StorageKey {
@@ -667,11 +676,39 @@ pub enum StorageKey {
     ProxyUpgradeHistoryCount,
     ProxyUpgradeHistoryEntry(u32),
 
+    // ── Access Control & Oracle (shared across subscription + storage) ──
+    AccessControl,
+    OracleContract,
+    PriceBounds(u64),
+    TokenSymbol(Address),
+
     // ── Added in storage version 2 ──
     /// Index: (subscriber, plan_id) -> subscription_id (active/non-cancelled)
     UserPlanIndex(Address, u64),
 
-    // ── Added in storage version 3 ──
+    // ── Transient / Temporary storage ──
+    TmpLastCall(Address, String),
+    TmpProrationScratch(u64),
+    TmpChargeNonce(u64),
+    TmpChargeCommitment(u64),
+
+    // ── Admin-configurable limits ──
+    MaxPlansPerMerchant,
+    LargeChargeThreshold,
+}
+
+/// Extended storage keys for webhooks, revenue, quotas, cross-chain, and
+/// subscription-specific features.  Split from `StorageKey` to stay under the
+/// Soroban `#[contracttype]` variant limit (~50).
+///
+/// IMPORTANT: Never reorder existing variants. Append new variants only.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum StorageKeyExt {
+    // ── Proxy storage pointer ──
+    ProxyStorage,
+
+    // ── Webhooks (storage version 3) ──
     WebhookCount,
     Webhook(u64),
     MerchantWebhooks(Address),
@@ -679,71 +716,18 @@ pub enum StorageKey {
     WebhookDelivery(u64),
     WebhookDeliveriesByWebhook(u64),
 
-    /// Proxy pointer to the state storage contract.
-    ProxyStorage,
-
-    // ── Revenue recognition (added with revenue module) ──
-    /// RevenueRecognitionRule keyed by plan_id.
+    // ── Revenue recognition ──
     RevenueRecognitionRule(u64),
-    /// RevenueSchedule keyed by subscription_id.
     RevenueSchedule(u64),
-    /// Cumulative deferred revenue balance for a merchant.
     RevenueDeferredBalance(Address),
-    /// Cumulative recognised revenue balance for a merchant.
     RevenueRecognisedBalance(Address),
-    /// List of subscription IDs tracked for a merchant (for analytics).
     RevenueMerchantSubscriptions(Address),
 
-    // ── Added in storage version 4 (Quota & Usage) ──
-    /// List of quotas for a given plan (plan_id -> Vec<Quota>)
+    // ── Quota & Usage (storage version 4) ──
     PlanQuotas(u64),
-    /// Usage record for a subscription and metric (sub_id, metric -> UsageRecord)
     SubscriptionUsage(u64, QuotaMetric),
 
-    // ── Added in storage version 5 (Access Control) ──
-    /// Address of the access_control contract for RBAC.
-    AccessControl,
-    // ── Added in storage version 5 (Oracle Integration) ──
-    /// Address of the oracle contract for price feeds.
-    OracleContract,
-    /// Price bounds for slippage protection, keyed by plan_id.
-    PriceBounds(u64),
-    /// Mapping from token address to symbol name (for oracle lookups).
-    TokenSymbol(Address),
-
-    // ── Added in storage version 6 (Transient / Temporary storage) ──
-    //
-    // Keys in this block are stored with env.storage().temporary() so they
-    // auto-expire after a TTL and cost less than persistent storage.
-    //
-    // IMPORTANT: Never use these keys with instance or persistent storage.
-    // The naming prefix "Tmp" makes the intent explicit at the call site.
-    /// Temporary rate-limit timestamp: last time `caller` invoked `function`.
-    /// TTL is set to the configured min_interval_secs for that function.
-    /// Replaces the previous StorageKey::LastCall which used instance storage.
-    TmpLastCall(Address, String),
-
-    /// Temporary computation scratch-pad for a pending plan-change proration.
-    /// Keyed by subscription_id; expires after one billing interval.
-    TmpProrationScratch(u64),
-
-    /// Temporary nonce used to deduplicate rapid charge attempts within a
-    /// single ledger sequence window.  Expires after one ledger close (~5 s).
-    TmpChargeNonce(u64),
-
-    // ── Added in storage version 7 (Plan limits) ──
-    /// Global maximum number of plans a merchant can create.
-    /// Stored in instance storage; if unset, the implementation default applies.
-    MaxPlansPerMerchant,
-
-    // ── Added in storage version 8 (MEV Protection) ──
-    /// Tmp charge commitment hash for a pending large charge (subscription_id -> hash)
-    TmpChargeCommitment(u64),
-    /// Admin-configurable threshold for when a commit-reveal is required.
-    LargeChargeThreshold,
-
-    // ── Added in storage version 9 (Cross-Chain) ──
-    /// Pending cross-chain transfer request (subscription_id -> CrossChainTransferRequest)
+    // ── Cross-Chain (storage version 9) ──
     CrossChainTransfer(u64),
 }
 
@@ -898,4 +882,227 @@ pub struct ApiKeyAuditEntry {
     pub action: String,
     pub changed_by: Address,
     pub timestamp: u64,
+}
+
+// ── Billing ──
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct BillingSchedule {
+    pub interval: Interval,
+    pub start_date: u64,
+    pub custom_invoice_day: u32,
+    pub promotional_duration_days: u32,
+    pub promotional_rate: i128,
+}
+
+// ── Charging / Retry ──
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum ChargeStatus {
+    Pending,
+    Attempting,
+    Completed,
+    Exhausted,
+    Retrying,
+    Failed,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct RetryConfig {
+    pub max_retries: u32,
+    pub base_delay_secs: u64,
+    pub max_delay_secs: u64,
+    pub backoff_factor: u32,
+    pub circuit_breaker_threshold: u32,
+    pub circuit_breaker_cooldown_secs: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ChargeAttempt {
+    pub id: u64,
+    pub subscription_id: u64,
+    pub status: ChargeStatus,
+    pub amount: i128,
+    pub attempted_at: u64,
+    pub completed_at: u64,
+    pub error_message: String,
+    pub retry_count: u32,
+    pub max_retries: u32,
+    pub next_retry_at: u64,
+    pub circuit_breaker_until: u64,
+}
+
+// ── Loyalty & Rewards ──
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct LoyaltyTierConfig {
+    pub points_threshold: u64,
+    pub name: String,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct LoyaltyConfig {
+    pub points_per_dollar: u64,
+    pub expiration_days: u64,
+    pub streak_bonus_threshold: u64,
+    pub tiers: Vec<LoyaltyTierConfig>,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum PointTxType {
+    Earned,
+    Expired,
+    StreakBonus,
+    ReferralBonus,
+    Redeemed,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PointTransaction {
+    pub id: u64,
+    pub subscriber: Address,
+    pub amount: i128,
+    pub tx_type: PointTxType,
+    pub timestamp: u64,
+    pub reference_id: u64,
+    pub description: String,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct RewardsRedemption {
+    pub id: u64,
+    pub subscriber: Address,
+    pub points_cost: u64,
+    pub discount_amount: i128,
+    pub timestamp: u64,
+}
+
+// ── Webhooks ──
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum WebhookEventType {
+    SubscriptionCreated,
+    SubscriptionCancelled,
+    SubscriptionPaused,
+    SubscriptionResumed,
+    SubscriptionCharged,
+    RefundRequested,
+    RefundApproved,
+    RefundRejected,
+    PlanCreated,
+    PlanDeactivated,
+    TransferRequested,
+    TransferAccepted,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum WebhookDeliveryStatus {
+    Paused,
+    Pending,
+    Failed,
+    Retrying,
+    Delivered,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct WebhookRetryPolicy {
+    pub max_retries: u32,
+    pub initial_delay_secs: u64,
+    pub backoff_factor: u32,
+    pub max_delay_secs: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct WebhookConfig {
+    pub id: u64,
+    pub merchant: Address,
+    pub events: Vec<WebhookEventType>,
+    pub is_paused: bool,
+    pub retry_policy: WebhookRetryPolicy,
+    pub created_at: u64,
+    pub updated_at: u64,
+    pub health_check_at: u64,
+    pub healthy: bool,
+    pub success_count: u64,
+    pub failure_count: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct WebhookPlanSnapshot {
+    pub id: u64,
+    pub merchant: Address,
+    pub name: String,
+    pub price: i128,
+    pub token: Address,
+    pub interval: Interval,
+    pub active: bool,
+    pub subscriber_count: u32,
+    pub created_at: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct WebhookSubscriptionSnapshot {
+    pub id: u64,
+    pub plan_id: u64,
+    pub subscriber: Address,
+    pub status: SubscriptionStatus,
+    pub started_at: u64,
+    pub last_charged_at: u64,
+    pub next_charge_at: u64,
+    pub total_paid: i128,
+    pub total_gas_spent: u64,
+    pub charge_count: u32,
+    pub paused_at: u64,
+    pub pause_duration: u64,
+    pub refund_requested_amount: i128,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct WebhookEventPayload {
+    pub id: u64,
+    pub webhook_id: u64,
+    pub event_type: WebhookEventType,
+    pub merchant: Address,
+    pub occurred_at: u64,
+    pub subscription: WebhookSubscriptionSnapshot,
+    pub plan: WebhookPlanSnapshot,
+    pub previous_status: SubscriptionStatus,
+    pub current_status: SubscriptionStatus,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct WebhookDelivery {
+    pub id: u64,
+    pub webhook_id: u64,
+    pub event_id: u64,
+    pub event_type: WebhookEventType,
+    pub payload: WebhookEventPayload,
+    pub status: WebhookDeliveryStatus,
+    pub attempts: u32,
+    pub max_attempts: u32,
+    pub next_retry_at: u64,
+    pub last_attempt_at: u64,
+    pub delivered_at: u64,
+    pub response_code: u32,
+    pub error_message: String,
+    pub signature: String,
+    pub created_at: u64,
+    pub updated_at: u64,
 }

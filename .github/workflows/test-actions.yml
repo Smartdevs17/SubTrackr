@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # Edge case: to pin to a semantic version tag use: Smartdevs17/SubTrackr/.github/actions/setup-node@v1.2.3
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Test setup-node
         uses: ./.github/actions/setup-node
       - name: Test build-contracts

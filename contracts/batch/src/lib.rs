@@ -34,7 +34,6 @@ impl From<CoreError> for BatchError {
         }
     }
 }
-
 #[contracttype]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum OperationType {

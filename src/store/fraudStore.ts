@@ -13,10 +13,16 @@ import {
   FraudSubscriptionRecord,
   FraudSignal,
 } from '../types/fraud';
+import { fraudAlertService } from '../services/fraudAlertService';
 
 const STORAGE_KEY = 'subtrackr-fraud-store';
 
 const nowIso = () => new Date().toISOString();
+
+const emitAssessmentAlert = (assessment: FraudRiskScore): void => {
+  if (assessment.action === 'approve') return;
+  fraudAlertService.triggerAlertForAssessment(assessment);
+};
 
 const merchantSeeds: FraudMerchantRecord[] = [
   {
@@ -607,13 +613,19 @@ export const useFraudStore = create<FraudState>()(
         const { subscriptions, reviewQueue, merchants } = get();
         const rescored = subscriptions.map((item) => {
           const score = scoreSubscription(item, subscriptions);
+          const nextAction = score.action;
+          const previousAction = item.action;
+          if (nextAction !== 'approve' && previousAction !== nextAction) {
+            emitAssessmentAlert(score);
+          }
           return {
             ...item,
+            action: nextAction,
             riskScore: score.totalScore,
             reason: score.reason,
             signals: score.signals,
-            isFlagged: item.action !== 'approve',
-            isBlocked: item.action === 'block',
+            isFlagged: nextAction !== 'approve',
+            isBlocked: nextAction === 'block',
             lastSeenAt: score.assessedAt,
             falsePositiveCount: item.falsePositiveCount ?? 0,
           };
@@ -686,28 +698,41 @@ export const useFraudStore = create<FraudState>()(
           evidence: score.evidence?.map(cloneEvidence),
         };
 
-        set((state) => ({
-          subscriptions: updateSubscription(state.subscriptions, subscriptionId, {
+        set((state) => {
+          const subscriptions = updateSubscription(state.subscriptions, subscriptionId, {
             action: nextCase.action,
             isFlagged: true,
             isBlocked: nextCase.action === 'block',
-          }),
-          reviewQueue: [
-            nextCase,
-            ...state.reviewQueue.filter((entry) => entry.subscriptionId !== subscriptionId),
-          ],
-          analytics: computeAnalytics(
-            updateSubscription(state.subscriptions, subscriptionId, {
-              action: nextCase.action,
-              isFlagged: true,
-              isBlocked: nextCase.action === 'block',
-            }),
-            [
+          });
+          const assessment = score;
+          if (assessment.action !== 'approve') {
+            emitAssessmentAlert({
+              subscriberId: current.subscriberId,
+              subscriptionId: current.id,
+              merchantId: current.merchantId,
+              merchantName: current.merchantName,
+              totalScore: assessment.totalScore,
+              velocityScore: assessment.velocityScore,
+              anomalyScore: assessment.anomalyScore,
+              chargebackScore: assessment.chargebackScore,
+              action: assessment.action,
+              reason: assessment.reason,
+              assessedAt: nowIso(),
+              signals: assessment.signals,
+            });
+          }
+          return {
+            subscriptions,
+            reviewQueue: [
               nextCase,
               ...state.reviewQueue.filter((entry) => entry.subscriptionId !== subscriptionId),
-            ]
-          ),
-        }));
+            ],
+            analytics: computeAnalytics(subscriptions, [
+              nextCase,
+              ...state.reviewQueue.filter((entry) => entry.subscriptionId !== subscriptionId),
+            ]),
+          };
+        });
       },
 
       approveSubscription: (subscriptionId: string) => {
@@ -747,6 +772,26 @@ export const useFraudStore = create<FraudState>()(
             isFlagged: true,
             isBlocked: true,
           });
+          const subject = subscriptions.find((item) => item.id === subscriptionId);
+          if (subject) {
+            emitAssessmentAlert({
+              subscriberId: subject.subscriberId,
+              subscriptionId: subject.id,
+              merchantId: subject.merchantId,
+              merchantName: subject.merchantName,
+              totalScore: subject.riskScore,
+              velocityScore:
+                subject.signals.find((signal) => signal.kind === 'velocity')?.score ?? 0,
+              anomalyScore:
+                subject.signals.find((signal) => signal.kind === 'usage-anomaly')?.score ?? 0,
+              chargebackScore:
+                subject.signals.find((signal) => signal.kind === 'chargeback')?.score ?? 0,
+              action: 'block',
+              reason: subject.reason,
+              assessedAt: nowIso(),
+              signals: subject.signals,
+            });
+          }
           const reviewQueue = state.reviewQueue.map((entry) => {
             if (entry.subscriptionId !== subscriptionId) {
               return entry;
