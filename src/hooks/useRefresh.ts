@@ -25,7 +25,7 @@ export function useRefresh() {
 
   const refresh = useCallback(async (opts: RefreshOptions = {}) => {
     const { fetcher, clearBefore, minDurationMs = 400, onError, fetchBeforeClear = false } = opts;
-    
+
     // Prevent concurrent refreshes
     if (inFlightRef.current) return;
     inFlightRef.current = true;

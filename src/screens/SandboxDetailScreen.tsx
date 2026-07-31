@@ -287,7 +287,7 @@ export default function SandboxDetailScreen() {
             <Text style={styles.keyName}>{key.name}</Text>
             <Text style={styles.keyDescription}>{key.description}</Text>
             <View style={styles.keyMeta}>
-              <Text style={styles.keyMetaItem}>Scopes: {key.scopes.join(', ')}</Text>
+              <Text style={styles.keyMetaItem}>Scopes: {key.scopes?.join(', ') || ''}</Text>
               <Text style={styles.keyMetaItem}>Usage: {key.usageCount}</Text>
             </View>
           </View>

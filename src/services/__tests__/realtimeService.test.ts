@@ -1,5 +1,5 @@
 import { RealtimeService } from '../realtimeService';
-import { SubscriptionEvent } from '../../../backend/services/websocket';
+import { SubscriptionEvent } from '../../../backend/services/notification/websocket';
 
 const makeEvent = (overrides: Partial<SubscriptionEvent> = {}): SubscriptionEvent => ({
   type: 'subscription.created',
@@ -62,9 +62,9 @@ describe('RealtimeService', () => {
   it('does not double-connect if already connected', async () => {
     service.connect();
     await new Promise((r) => setTimeout(r, 10));
-    const ws1 = (service as unknown as { ws: unknown }).ws;
+    const ws1 = (service as unknown as { pooled: { ws: unknown } | null }).pooled?.ws;
     service.connect(); // should no-op
-    expect((service as unknown as { ws: unknown }).ws).toBe(ws1);
+    expect((service as unknown as { pooled: { ws: unknown } | null }).pooled?.ws).toBe(ws1);
   });
 
   // ── Reconnection handling ─────────────────────────────────────────────────
@@ -72,7 +72,7 @@ describe('RealtimeService', () => {
   it('schedules reconnect on close', async () => {
     service.connect();
     await new Promise((r) => setTimeout(r, 10));
-    const ws = (service as unknown as { ws: MockWebSocket }).ws!;
+    const ws = (service as unknown as { pooled: { ws: MockWebSocket } | null }).pooled!.ws;
     ws.onclose?.();
     expect((service as unknown as { reconnectAttempts: number }).reconnectAttempts).toBe(1);
   });
@@ -80,7 +80,7 @@ describe('RealtimeService', () => {
   it('stops reconnecting after maxReconnectAttempts', async () => {
     service.connect();
     await new Promise((r) => setTimeout(r, 10));
-    const ws = (service as unknown as { ws: MockWebSocket }).ws!;
+    const ws = (service as unknown as { pooled: { ws: MockWebSocket } | null }).pooled!.ws;
     ws.onclose?.();
     await new Promise((r) => setTimeout(r, 15));
     ws.onclose?.();
@@ -167,7 +167,7 @@ describe('RealtimeService', () => {
     service.subscribe(handler);
     service.connect();
     await new Promise((r) => setTimeout(r, 10));
-    const ws = (service as unknown as { ws: MockWebSocket }).ws!;
+    const ws = (service as unknown as { pooled: { ws: MockWebSocket } | null }).pooled!.ws;
     ws.onmessage?.({ data: JSON.stringify(makeEvent()) });
     expect(handler).toHaveBeenCalledTimes(1);
   });
@@ -177,7 +177,7 @@ describe('RealtimeService', () => {
     service.subscribe(handler);
     service.connect();
     await new Promise((r) => setTimeout(r, 10));
-    const ws = (service as unknown as { ws: MockWebSocket }).ws!;
+    const ws = (service as unknown as { pooled: { ws: MockWebSocket } | null }).pooled!.ws;
     ws.onmessage?.({ data: 'not-json' });
     expect(handler).not.toHaveBeenCalled();
   });

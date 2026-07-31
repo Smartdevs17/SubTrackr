@@ -3,6 +3,11 @@
 mod gas_optimization;
 mod gas_profiler;
 mod gas_storage;
+use soroban_sdk::{token, Address, Env, IntoVal, String, TryFromVal, Val, Vec};
+use subtrackr_types::{
+    CreditApplicationReceipt, CreditLedgerEntry, CreditLedgerEntryKind, CreditLot,
+    CreditPaymentMethod, CreditPolicy, Interval, Invoice, InvoiceStatus, Plan, StorageKey,
+    Subscription, SubscriptionStatus, TimeRange,
 mod revenue;
 use soroban_sdk::{token, Address, Env, IntoVal, String, Symbol, TryFromVal, Val, Vec};
 use subtrackr_oracle::{OracleError, SubTrackrOracleClient};
@@ -338,6 +343,109 @@ fn invoice_contract(env: &Env, storage: &Address) -> Option<Address> {
     storage_instance_get(env, storage, StorageKey::InvoiceContract)
 }
 
+fn default_credit_policy(_env: &Env) -> CreditPolicy {
+    CreditPolicy {
+        expiration_days: 365,
+        transferable: true,
+        auto_apply: true,
+        allow_partial: true,
+    }
+}
+
+fn credit_policy(env: &Env, storage: &Address, account: &Address) -> CreditPolicy {
+    storage_persistent_get(env, storage, StorageKey::CreditPolicy(account.clone()))
+        .unwrap_or(default_credit_policy(env))
+}
+
+fn persist_credit_policy(env: &Env, storage: &Address, account: &Address, policy: CreditPolicy) {
+    storage_persistent_set(
+        env,
+        storage,
+        StorageKey::CreditPolicy(account.clone()),
+        policy,
+    );
+}
+
+fn credit_balance(env: &Env, storage: &Address, account: &Address) -> i128 {
+    storage_persistent_get(env, storage, StorageKey::CreditBalance(account.clone())).unwrap_or(0)
+}
+
+fn set_credit_balance(env: &Env, storage: &Address, account: &Address, balance: i128) {
+    storage_persistent_set(
+        env,
+        storage,
+        StorageKey::CreditBalance(account.clone()),
+        balance,
+    );
+}
+
+fn credit_lots(env: &Env, storage: &Address, account: &Address) -> Vec<CreditLot> {
+    storage_persistent_get(env, storage, StorageKey::CreditLots(account.clone()))
+        .unwrap_or(Vec::new(env))
+}
+
+fn set_credit_lots(env: &Env, storage: &Address, account: &Address, lots: Vec<CreditLot>) {
+    storage_persistent_set(env, storage, StorageKey::CreditLots(account.clone()), lots);
+}
+
+fn credit_ledger(env: &Env, storage: &Address, account: &Address) -> Vec<CreditLedgerEntry> {
+    storage_persistent_get(env, storage, StorageKey::CreditLedger(account.clone()))
+        .unwrap_or(Vec::new(env))
+}
+
+fn set_credit_ledger(
+    env: &Env,
+    storage: &Address,
+    account: &Address,
+    ledger: Vec<CreditLedgerEntry>,
+) {
+    storage_persistent_set(
+        env,
+        storage,
+        StorageKey::CreditLedger(account.clone()),
+        ledger,
+    );
+}
+
+fn next_credit_entry_id(ledger: &Vec<CreditLedgerEntry>) -> u64 {
+    ledger.len() as u64 + 1
+}
+
+fn next_credit_lot_id(lots: &Vec<CreditLot>) -> u64 {
+    lots.len() as u64 + 1
+}
+
+fn build_credit_ledger_entry(
+    env: &Env,
+    id: u64,
+    account: &Address,
+    kind: CreditLedgerEntryKind,
+    amount: i128,
+    balance_after: i128,
+    subscription_id: u64,
+    invoice_id: String,
+    related_account: Address,
+    payment_method: CreditPaymentMethod,
+    reference: String,
+    note: String,
+    expires_at: u64,
+) -> CreditLedgerEntry {
+    CreditLedgerEntry {
+        id,
+        account: account.clone(),
+        kind,
+        amount,
+        balance_after,
+        running_total: balance_after,
+        created_at: env.ledger().timestamp(),
+        expires_at,
+        subscription_id,
+        invoice_id,
+        related_account,
+        payment_method,
+        reference,
+        note,
+    }
 fn resolve_charge_price(env: &Env, storage: &Address, plan: &Plan) -> i128 {
     let oracle_opt: Option<Address> =
         storage_instance_get(env, storage, StorageKey::OracleContract);
@@ -1083,6 +1191,383 @@ impl SubTrackrSubscription {
             );
             let _ = _invoice;
         }
+    }
+
+    // â”€â”€ Credit Balance API â”€â”€
+
+    pub fn set_credit_policy(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        account: Address,
+        policy: CreditPolicy,
+    ) {
+        proxy.require_auth();
+        account.require_auth();
+        persist_credit_policy(&env, &storage, &account, policy);
+    }
+
+    pub fn purchase_credits(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        account: Address,
+        amount: i128,
+        payment_method: CreditPaymentMethod,
+        expires_in_days: u32,
+        reference: String,
+        note: String,
+    ) -> i128 {
+        proxy.require_auth();
+        account.require_auth();
+        assert!(amount > 0, "Credit amount must be positive");
+
+        let policy = credit_policy(&env, &storage, &account);
+        let expiry_days = if expires_in_days == 0 {
+            policy.expiration_days
+        } else {
+            expires_in_days
+        };
+        let now = env.ledger().timestamp();
+        let expires_at = if expiry_days == 0 {
+            0
+        } else {
+            now + (expiry_days as u64 * 86_400)
+        };
+
+        let mut lots = credit_lots(&env, &storage, &account);
+        let lot = CreditLot {
+            id: next_credit_lot_id(&lots),
+            account: account.clone(),
+            amount_remaining: amount,
+            original_amount: amount,
+            created_at: now,
+            expires_at,
+            payment_method: payment_method.clone(),
+            reference: reference.clone(),
+            note: note.clone(),
+        };
+        lots.push_back(lot);
+        set_credit_lots(&env, &storage, &account, lots);
+
+        let balance = credit_balance(&env, &storage, &account) + amount;
+        set_credit_balance(&env, &storage, &account, balance);
+
+        let mut ledger = credit_ledger(&env, &storage, &account);
+        let entry = build_credit_ledger_entry(
+            &env,
+            next_credit_entry_id(&ledger),
+            &account,
+            CreditLedgerEntryKind::Purchase,
+            amount,
+            balance,
+            0,
+            String::from_str(&env, ""),
+            account.clone(),
+            payment_method,
+            reference,
+            note,
+            expires_at,
+        );
+        ledger.push_back(entry);
+        set_credit_ledger(&env, &storage, &account, ledger);
+
+        env.events().publish(
+            (String::from_str(&env, "credit_purchased"), account.clone()),
+            (amount, balance, expires_at),
+        );
+
+        balance
+    }
+
+    pub fn transfer_credits(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        from: Address,
+        to: Address,
+        amount: i128,
+        reference: String,
+        note: String,
+    ) -> i128 {
+        proxy.require_auth();
+        from.require_auth();
+        assert!(amount > 0, "Transfer amount must be positive");
+        assert!(from != to, "Cannot transfer to self");
+
+        let policy = credit_policy(&env, &storage, &from);
+        assert!(policy.transferable, "Credits are not transferable");
+
+        let balance = credit_balance(&env, &storage, &from);
+        assert!(balance >= amount, "Insufficient credit balance");
+
+        let mut source_lots = credit_lots(&env, &storage, &from);
+        let mut recipient_lots = credit_lots(&env, &storage, &to);
+        let mut remaining = amount;
+        let mut moved = 0i128;
+        let now = env.ledger().timestamp();
+
+        let mut next_source_lots = Vec::new(&env);
+        for lot in source_lots.iter() {
+            let mut next_lot = lot.clone();
+            if remaining > 0 && next_lot.amount_remaining > 0 {
+                let consume = if next_lot.amount_remaining < remaining {
+                    next_lot.amount_remaining
+                } else {
+                    remaining
+                };
+                next_lot.amount_remaining -= consume;
+                remaining -= consume;
+                moved += consume;
+
+                let recipient_lot = CreditLot {
+                    id: next_credit_lot_id(&recipient_lots),
+                    account: to.clone(),
+                    amount_remaining: consume,
+                    original_amount: consume,
+                    created_at: now,
+                    expires_at: next_lot.expires_at,
+                    payment_method: next_lot.payment_method.clone(),
+                    reference: reference.clone(),
+                    note: note.clone(),
+                };
+                recipient_lots.push_back(recipient_lot);
+            }
+            next_source_lots.push_back(next_lot);
+        }
+
+        set_credit_lots(&env, &storage, &from, next_source_lots);
+        set_credit_lots(&env, &storage, &to, recipient_lots);
+
+        let source_balance = balance - moved;
+        let recipient_balance = credit_balance(&env, &storage, &to) + moved;
+        set_credit_balance(&env, &storage, &from, source_balance);
+        set_credit_balance(&env, &storage, &to, recipient_balance);
+
+        let mut source_ledger = credit_ledger(&env, &storage, &from);
+        let source_entry = build_credit_ledger_entry(
+            &env,
+            next_credit_entry_id(&source_ledger),
+            &from,
+            CreditLedgerEntryKind::TransferOut,
+            -moved,
+            source_balance,
+            0,
+            String::from_str(&env, ""),
+            to.clone(),
+            CreditPaymentMethod::Manual,
+            reference.clone(),
+            note.clone(),
+            0,
+        );
+        source_ledger.push_back(source_entry);
+        set_credit_ledger(&env, &storage, &from, source_ledger);
+
+        let mut recipient_ledger = credit_ledger(&env, &storage, &to);
+        let recipient_entry = build_credit_ledger_entry(
+            &env,
+            next_credit_entry_id(&recipient_ledger),
+            &to,
+            CreditLedgerEntryKind::TransferIn,
+            moved,
+            recipient_balance,
+            0,
+            String::from_str(&env, ""),
+            from.clone(),
+            CreditPaymentMethod::Manual,
+            reference,
+            note,
+            0,
+        );
+        recipient_ledger.push_back(recipient_entry);
+        set_credit_ledger(&env, &storage, &to, recipient_ledger);
+
+        env.events().publish(
+            (String::from_str(&env, "credit_transferred"), from.clone()),
+            (to.clone(), moved, source_balance, recipient_balance),
+        );
+
+        recipient_balance
+    }
+
+    pub fn apply_credit_to_invoice(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        account: Address,
+        subscription_id: u64,
+        invoice_id: String,
+        invoice_total: i128,
+    ) -> CreditApplicationReceipt {
+        proxy.require_auth();
+        account.require_auth();
+        assert!(invoice_total > 0, "Invoice total must be positive");
+
+        let policy = credit_policy(&env, &storage, &account);
+        let balance = credit_balance(&env, &storage, &account);
+        let mut applied = if balance < invoice_total {
+            balance
+        } else {
+            invoice_total
+        };
+        if !policy.allow_partial && applied < invoice_total {
+            applied = 0;
+        }
+
+        let mut lots = credit_lots(&env, &storage, &account);
+        let mut remaining = applied;
+        let mut updated_lots = Vec::new(&env);
+        for lot in lots.iter() {
+            let mut next_lot = lot.clone();
+            if remaining > 0 && next_lot.amount_remaining > 0 {
+                let consume = if next_lot.amount_remaining < remaining {
+                    next_lot.amount_remaining
+                } else {
+                    remaining
+                };
+                next_lot.amount_remaining -= consume;
+                remaining -= consume;
+            }
+            updated_lots.push_back(next_lot);
+        }
+
+        if applied > 0 {
+            set_credit_lots(&env, &storage, &account, updated_lots);
+            let new_balance = balance - applied;
+            set_credit_balance(&env, &storage, &account, new_balance);
+
+            let mut ledger = credit_ledger(&env, &storage, &account);
+            let entry = build_credit_ledger_entry(
+                &env,
+                next_credit_entry_id(&ledger),
+                &account,
+                CreditLedgerEntryKind::Application,
+                -applied,
+                new_balance,
+                subscription_id,
+                invoice_id.clone(),
+                account.clone(),
+                CreditPaymentMethod::Manual,
+                String::from_str(&env, "invoice-application"),
+                String::from_str(&env, "Auto-applied to upcoming invoice"),
+                0,
+            );
+            ledger.push_back(entry);
+            set_credit_ledger(&env, &storage, &account, ledger);
+
+            env.events().publish(
+                (String::from_str(&env, "credit_applied"), account.clone()),
+                (subscription_id, invoice_id.clone(), applied, new_balance),
+            );
+        }
+
+        let remaining_due = invoice_total - applied;
+        let status = if applied == 0 {
+            InvoiceStatus::Sent
+        } else if remaining_due > 0 {
+            InvoiceStatus::Partial
+        } else {
+            InvoiceStatus::Paid
+        };
+
+        CreditApplicationReceipt {
+            invoice_id,
+            subscription_id,
+            applied_amount: applied,
+            remaining_due,
+            status,
+        }
+    }
+
+    pub fn expire_credits(env: Env, proxy: Address, storage: Address, account: Address) -> i128 {
+        proxy.require_auth();
+        account.require_auth();
+        let now = env.ledger().timestamp();
+        let policy = credit_policy(&env, &storage, &account);
+        let mut lots = credit_lots(&env, &storage, &account);
+        let mut expired = 0i128;
+        let mut updated = Vec::new(&env);
+        for lot in lots.iter() {
+            let mut next_lot = lot.clone();
+            let is_due = next_lot.expires_at > 0 && next_lot.expires_at <= now;
+            if is_due && next_lot.amount_remaining > 0 {
+                expired += next_lot.amount_remaining;
+                next_lot.amount_remaining = 0;
+            }
+            updated.push_back(next_lot);
+        }
+
+        if expired > 0 {
+            set_credit_lots(&env, &storage, &account, updated);
+            let balance = credit_balance(&env, &storage, &account) - expired;
+            set_credit_balance(&env, &storage, &account, balance);
+
+            let mut ledger = credit_ledger(&env, &storage, &account);
+            let entry = build_credit_ledger_entry(
+                &env,
+                next_credit_entry_id(&ledger),
+                &account,
+                CreditLedgerEntryKind::Expiration,
+                -expired,
+                balance,
+                0,
+                String::from_str(&env, ""),
+                account.clone(),
+                CreditPaymentMethod::Manual,
+                String::from_str(&env, "expiration"),
+                String::from_str(&env, "Credits expired by policy"),
+                0,
+            );
+            ledger.push_back(entry);
+            set_credit_ledger(&env, &storage, &account, ledger);
+
+            env.events().publish(
+                (String::from_str(&env, "credit_expired"), account.clone()),
+                (expired, balance, policy.expiration_days),
+            );
+        }
+
+        expired
+    }
+
+    pub fn get_credit_balance(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        account: Address,
+    ) -> i128 {
+        proxy.require_auth();
+        credit_balance(&env, &storage, &account)
+    }
+
+    pub fn get_credit_policy(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        account: Address,
+    ) -> CreditPolicy {
+        proxy.require_auth();
+        credit_policy(&env, &storage, &account)
+    }
+
+    pub fn get_credit_lots(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        account: Address,
+    ) -> Vec<CreditLot> {
+        proxy.require_auth();
+        credit_lots(&env, &storage, &account)
+    }
+
+    pub fn get_credit_ledger(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        account: Address,
+    ) -> Vec<CreditLedgerEntry> {
+        proxy.require_auth();
+        credit_ledger(&env, &storage, &account)
     }
 
     pub fn request_refund(

@@ -144,7 +144,7 @@ export function signWebhookEvent(payload: unknown, secret: string): string {
 export function verifyWebhookSignature(
   serializedPayload: string,
   signature: string,
-  secret: string,
+  secret: string
 ): boolean {
   const expected = signWebhookPayload(serializedPayload, secret);
   if (expected.length !== signature.length) return false;

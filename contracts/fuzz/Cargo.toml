@@ -13,5 +13,29 @@ soroban-sdk = { version = "21.0.0", features = ["testutils"] }
 subtrackr-subscription = { path = "../subscription" }
 subtrackr-types = { path = "../types" }
 
+[[bin]]
+name = "subscription"
+path = "fuzz_targets/subscription.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "pricing"
+path = "fuzz_targets/pricing.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "rate_limit"
+path = "fuzz_targets/rate_limit.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "state_machine"
+path = "fuzz_targets/state_machine.rs"
+test = false
+doc = false
+
 [workspace]
 members = ["."]

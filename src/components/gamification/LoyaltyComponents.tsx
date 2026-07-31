@@ -28,7 +28,10 @@ export const StreakCard: React.FC<StreakCardProps> = ({ streak, onShare }) => {
   const theme = useTheme();
 
   const handleShare = useCallback(async () => {
-    if (onShare) { onShare(); return; }
+    if (onShare) {
+      onShare();
+      return;
+    }
     await Share.share({
       message: `🔥 I'm on a ${streak.current}-day payment streak on SubTrackr! My longest is ${streak.longest} days. Join me!`,
     });
@@ -47,10 +50,8 @@ export const StreakCard: React.FC<StreakCardProps> = ({ streak, onShare }) => {
           </Text>
         </View>
         <View style={styles.streakBest}>
-          <Text style={[styles.streakBestLabel, { color: theme.colors.textSecondary }]}>
-            Best
-          </Text>
-          <Text style={[styles.streakBestCount, { color: theme.colors.text }]}>
+          <Text style={[styles.streakBestLabel, { color: theme.colors.textSecondary }]}>Best</Text>
+          <Text style={[styles.streakBestCount, { color: theme.colors.text.primary }]}>
             {streak.longest}
           </Text>
         </View>
@@ -83,7 +84,10 @@ export const AchievementCard: React.FC<AchievementCardProps> = ({ achievement, o
   const isUnlocked = !!achievement.unlockedAt;
 
   const handleShare = useCallback(async () => {
-    if (onShare) { onShare(achievement); return; }
+    if (onShare) {
+      onShare(achievement);
+      return;
+    }
     if (!isUnlocked) return;
     await Share.share({
       message: `${achievement.icon} I just unlocked "${achievement.name}" on SubTrackr! ${achievement.description}`,
@@ -95,12 +99,14 @@ export const AchievementCard: React.FC<AchievementCardProps> = ({ achievement, o
       <View
         style={[
           styles.achievementIcon,
-          { backgroundColor: isUnlocked ? theme.colors.primary + '22' : theme.colors.border },
+          {
+            backgroundColor: isUnlocked ? theme.colors.primary + '22' : theme.colors.border.default,
+          },
         ]}>
         <Text style={styles.achievementEmoji}>{achievement.icon}</Text>
       </View>
       <Text
-        style={[styles.achievementName, { color: theme.colors.text }]}
+        style={[styles.achievementName, { color: theme.colors.text.primary }]}
         numberOfLines={1}>
         {achievement.name}
       </Text>
@@ -153,7 +159,7 @@ export const TierProgressBar: React.FC<TierProgressBarProps> = ({
   if (!nextTier) {
     return (
       <View style={styles.progressContainer}>
-        <Text style={[styles.progressLabel, { color: theme.colors.text }]}>
+        <Text style={[styles.progressLabel, { color: theme.colors.text.primary }]}>
           🏆 Maximum tier reached!
         </Text>
       </View>
@@ -167,14 +173,14 @@ export const TierProgressBar: React.FC<TierProgressBarProps> = ({
   return (
     <View style={styles.progressContainer}>
       <View style={styles.progressHeader}>
-        <Text style={[styles.progressLabel, { color: theme.colors.text }]}>
+        <Text style={[styles.progressLabel, { color: theme.colors.text.primary }]}>
           {currentTier.toUpperCase()} → {nextTier.toUpperCase()}
         </Text>
         <Text style={[styles.progressPoints, { color: theme.colors.textSecondary }]}>
           {lifetimePoints.toLocaleString()} / {to.toLocaleString()} pts
         </Text>
       </View>
-      <View style={[styles.barBg, { backgroundColor: theme.colors.border }]}>
+      <View style={[styles.barBg, { backgroundColor: theme.colors.border.default }]}>
         <View
           style={[
             styles.barFg,
@@ -210,7 +216,9 @@ export const RewardsCatalog: React.FC<RewardsCatalogProps> = ({
       return (
         <Card style={styles.rewardCard}>
           <View style={styles.rewardHeader}>
-            <Text style={[styles.rewardName, { color: theme.colors.text }]}>{item.name}</Text>
+            <Text style={[styles.rewardName, { color: theme.colors.text.primary }]}>
+              {item.name}
+            </Text>
             <Text style={[styles.rewardCost, { color: theme.colors.primary }]}>
               {item.pointsCost.toLocaleString()} pts
             </Text>
@@ -222,7 +230,7 @@ export const RewardsCatalog: React.FC<RewardsCatalogProps> = ({
             style={[
               styles.redeemBtn,
               {
-                backgroundColor: canRedeem ? theme.colors.primary : theme.colors.border,
+                backgroundColor: canRedeem ? theme.colors.primary : theme.colors.border.default,
               },
             ]}
             onPress={() => canRedeem && onRedeem(item.id)}
@@ -235,18 +243,22 @@ export const RewardsCatalog: React.FC<RewardsCatalogProps> = ({
                 styles.redeemBtnText,
                 { color: canRedeem ? '#fff' : theme.colors.textSecondary },
               ]}>
-              {canRedeem ? 'Redeem' : `Need ${(item.pointsCost - currentPoints).toLocaleString()} more`}
+              {canRedeem
+                ? 'Redeem'
+                : `Need ${(item.pointsCost - currentPoints).toLocaleString()} more`}
             </Text>
           </TouchableOpacity>
         </Card>
       );
     },
-    [currentPoints, onRedeem, theme],
+    [currentPoints, onRedeem, theme]
   );
 
   return (
     <View>
-      <Text style={[styles.catalogTitle, { color: theme.colors.text }]}>Rewards Catalog</Text>
+      <Text style={[styles.catalogTitle, { color: theme.colors.text.primary }]}>
+        Rewards Catalog
+      </Text>
       <FlatList
         data={rewards.filter((r) => r.isActive)}
         keyExtractor={(r) => r.id}
@@ -267,7 +279,7 @@ export const AchievementsList: React.FC<AchievementsListProps> = ({ achievements
   const theme = useTheme();
   return (
     <View>
-      <Text style={[styles.catalogTitle, { color: theme.colors.text }]}>Achievements</Text>
+      <Text style={[styles.catalogTitle, { color: theme.colors.text.primary }]}>Achievements</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         {achievements.map((a) => (
           <AchievementCard key={a.id} achievement={a} />
@@ -294,7 +306,14 @@ const styles = StyleSheet.create({
   shareBtnText: { fontWeight: '600' },
 
   achievementCard: { width: 110, padding: 12, alignItems: 'center', marginRight: 10 },
-  achievementIcon: { width: 52, height: 52, borderRadius: 26, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
+  achievementIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   achievementEmoji: { fontSize: 26 },
   achievementName: { fontSize: 12, fontWeight: 'bold', textAlign: 'center' },
   achievementDesc: { fontSize: 10, textAlign: 'center', marginTop: 4 },

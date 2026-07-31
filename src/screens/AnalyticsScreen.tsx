@@ -9,6 +9,7 @@ import {
   Dimensions,
 } from 'react-native';
 import Svg, { Rect, Text as SvgText, Line, G } from 'react-native-svg';
+import { useNavigation } from '@react-navigation/native';
 import { spacing, typography, borderRadius } from '../utils/constants';
 import { useSubscriptionStore } from '../store';
 import { SubscriptionCategory, BillingCycle } from '../types/subscription';
@@ -25,6 +26,7 @@ const CHART_HEIGHT = 200;
 type DateRange = 'week' | 'month' | 'year';
 
 const AnalyticsScreen: React.FC = () => {
+  const navigation = useNavigation<any>();
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { subscriptions, stats, calculateStats } = useSubscriptionStore();
@@ -213,18 +215,75 @@ const AnalyticsScreen: React.FC = () => {
         </View>
         <View style={styles.summaryContainer}>
           <Card style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>MRR</Text>
+            <View style={styles.badgeRow}>
+              <Text style={styles.summaryLabel}>MRR</Text>
+              <View
+                style={[
+                  styles.growthBadge,
+                  subscriptionAnalytics.mrrGrowthRate >= 0
+                    ? styles.badgeSuccess
+                    : styles.badgeDanger,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.growthText,
+                    subscriptionAnalytics.mrrGrowthRate >= 0
+                      ? styles.textSuccess
+                      : styles.textDanger,
+                  ]}
+                >
+                  {subscriptionAnalytics.mrrGrowthRate >= 0 ? '+' : ''}
+                  {subscriptionAnalytics.mrrGrowthRate.toFixed(1)}% MoM
+                </Text>
+              </View>
+            </View>
             <Text style={styles.summaryValue}>
               {formatCurrency(subscriptionAnalytics.mrr, preferredCurrency)}
             </Text>
           </Card>
           <Card style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>ARR</Text>
+            <View style={styles.badgeRow}>
+              <Text style={styles.summaryLabel}>ARR</Text>
+              <View
+                style={[
+                  styles.growthBadge,
+                  subscriptionAnalytics.arrGrowthRate >= 0
+                    ? styles.badgeSuccess
+                    : styles.badgeDanger,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.growthText,
+                    subscriptionAnalytics.arrGrowthRate >= 0
+                      ? styles.textSuccess
+                      : styles.textDanger,
+                  ]}
+                >
+                  {subscriptionAnalytics.arrGrowthRate >= 0 ? '+' : ''}
+                  {subscriptionAnalytics.arrGrowthRate.toFixed(1)}% YoY
+                </Text>
+              </View>
+            </View>
             <Text style={styles.summaryValue}>
               {formatCurrency(subscriptionAnalytics.arr, preferredCurrency)}
             </Text>
           </Card>
         </View>
+
+        <TouchableOpacity
+          style={styles.dashboardBanner}
+          onPress={() => navigation?.navigate?.('AnalyticsDashboard')}
+        >
+          <View style={styles.bannerContent}>
+            <Text style={styles.bannerTitle}>🔥 Advanced Cohort & MRR Suite</Text>
+            <Text style={styles.bannerSubtitle}>
+              Interactive retention heatmaps, LTV by channel, linear & exponential forecasting & customizable widgets
+            </Text>
+          </View>
+          <Text style={styles.bannerArrow}>→</Text>
+        </TouchableOpacity>
         <Card style={styles.chartCard}>
           <Text style={styles.chartTitle}>Revenue Health</Text>
           <View style={styles.projectionItem}>
@@ -257,7 +316,7 @@ const AnalyticsScreen: React.FC = () => {
               y1={10}
               x2={30}
               y2={CHART_HEIGHT - 30}
-              stroke={colors.border}
+              stroke={colors.border.default}
               strokeWidth={1}
             />
             <Line
@@ -265,7 +324,7 @@ const AnalyticsScreen: React.FC = () => {
               y1={CHART_HEIGHT - 30}
               x2={CHART_WIDTH - 10}
               y2={CHART_HEIGHT - 30}
-              stroke={colors.border}
+              stroke={colors.border.default}
               strokeWidth={1}
             />
             {monthlyData.map((data, index) => {
@@ -295,7 +354,7 @@ const AnalyticsScreen: React.FC = () => {
                       x={x + barWidth / 2}
                       y={y - 5}
                       fontSize={10}
-                      fill={colors.text}
+                      fill={colors.text.primary}
                       textAnchor="middle">
                       {formatCurrency(data.amount, preferredCurrency)}
                     </SvgText>
@@ -394,89 +453,122 @@ const AnalyticsScreen: React.FC = () => {
 
 function createStyles(colors: ReturnType<typeof useThemeColors>) {
   return StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background.primary },
-  scrollView: { flex: 1 },
-  header: { padding: spacing.lg, paddingBottom: spacing.md },
-  title: { ...typography.h1, color: colors.text, marginBottom: spacing.xs },
-  subtitle: { ...typography.body, color: colors.textSecondary },
-  dateRangeContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.md,
-    gap: spacing.sm,
-  },
-  dateRangeButton: {
-    flex: 1,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-  },
-  dateRangeButtonActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  dateRangeButtonText: { ...typography.body, color: colors.text },
-  dateRangeButtonTextActive: { color: colors.text, fontWeight: '600' },
-  summaryContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.md,
-    gap: spacing.md,
-  },
-  summaryCard: { flex: 1, alignItems: 'center' },
-  summaryLabel: { ...typography.caption, color: colors.textSecondary, marginBottom: spacing.xs },
-  summaryValue: { ...typography.h2, color: colors.text },
-  chartCard: { marginHorizontal: spacing.lg, marginBottom: spacing.md },
-  chartTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.md },
-  categoryList: { gap: spacing.md },
-  categoryItem: { marginBottom: spacing.sm },
-  categoryLeft: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.xs },
-  categoryIcon: { fontSize: 20, marginRight: spacing.sm },
-  categoryName: { ...typography.body, color: colors.text, flex: 1 },
-  categoryRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    position: 'absolute',
-    right: 0,
-    top: 0,
-  },
-  categoryCount: { ...typography.body, color: colors.text, fontWeight: '600' },
-  categoryPercentage: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    width: 50,
-    textAlign: 'right',
-  },
-  categoryBarContainer: {
-    height: 8,
-    backgroundColor: colors.border,
-    borderRadius: borderRadius.full,
-    overflow: 'hidden',
-  },
-  categoryBar: { height: '100%', borderRadius: borderRadius.full },
-  noDataText: {
-    ...typography.body,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    paddingVertical: spacing.lg,
-  },
-  projectionCard: { marginHorizontal: spacing.lg, marginBottom: spacing.lg },
-  projectionItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  projectionItemLast: { borderBottomWidth: 0 },
-  projectionLabel: { ...typography.body, color: colors.textSecondary },
-  projectionValue: { ...typography.body, color: colors.text, fontWeight: '600' },
-  emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.xl },
-  emptyIcon: { fontSize: 64, marginBottom: spacing.md },
-  emptyTitle: { ...typography.h2, color: colors.text, marginBottom: spacing.sm },
-  emptyText: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
+    container: { flex: 1, backgroundColor: colors.background.primary },
+    scrollView: { flex: 1 },
+    header: { padding: spacing.lg, paddingBottom: spacing.md },
+    title: { ...typography.h1, color: colors.text.primary, marginBottom: spacing.xs },
+    subtitle: { ...typography.body, color: colors.textSecondary },
+    dateRangeContainer: {
+      flexDirection: 'row',
+      paddingHorizontal: spacing.lg,
+      marginBottom: spacing.md,
+      gap: spacing.sm,
+    },
+    dateRangeButton: {
+      flex: 1,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      borderRadius: borderRadius.md,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border.default,
+      alignItems: 'center',
+    },
+    dateRangeButtonActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+    dateRangeButtonText: { ...typography.body, color: colors.text.primary },
+    dateRangeButtonTextActive: { color: colors.text.inverse, fontWeight: '600' },
+    summaryContainer: {
+      flexDirection: 'row',
+      paddingHorizontal: spacing.lg,
+      marginBottom: spacing.md,
+      gap: spacing.md,
+    },
+    summaryCard: { flex: 1, alignItems: 'center' },
+    summaryLabel: { ...typography.caption, color: colors.textSecondary, marginBottom: spacing.xs },
+    summaryValue: { ...typography.h2, color: colors.text.primary },
+    chartCard: { marginHorizontal: spacing.lg, marginBottom: spacing.md },
+    chartTitle: { ...typography.h3, color: colors.text.primary, marginBottom: spacing.md },
+    categoryList: { gap: spacing.md },
+    categoryItem: { marginBottom: spacing.sm },
+    categoryLeft: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.xs },
+    categoryIcon: { fontSize: 20, marginRight: spacing.sm },
+    categoryName: { ...typography.body, color: colors.text.primary, flex: 1 },
+    categoryRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      position: 'absolute',
+      right: 0,
+      top: 0,
+    },
+    categoryCount: { ...typography.body, color: colors.text.primary, fontWeight: '600' },
+    categoryPercentage: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      width: 50,
+      textAlign: 'right',
+    },
+    categoryBarContainer: {
+      height: 8,
+      backgroundColor: colors.border.default,
+      borderRadius: borderRadius.full,
+      overflow: 'hidden',
+    },
+    categoryBar: { height: '100%', borderRadius: borderRadius.full },
+    noDataText: {
+      ...typography.body,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      paddingVertical: spacing.lg,
+    },
+    projectionCard: { marginHorizontal: spacing.lg, marginBottom: spacing.lg },
+    projectionItem: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      paddingVertical: spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border.default,
+    },
+    projectionItemLast: { borderBottomWidth: 0 },
+    projectionLabel: { ...typography.body, color: colors.textSecondary },
+    projectionValue: { ...typography.body, color: colors.text.primary, fontWeight: '600' },
+    emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.xl },
+    emptyIcon: { fontSize: 64, marginBottom: spacing.md },
+    emptyTitle: { ...typography.h2, color: colors.text.primary, marginBottom: spacing.sm },
+    emptyText: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
+    badgeRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      width: '100%',
+      marginBottom: spacing.xs,
+    },
+    growthBadge: {
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 10,
+    },
+    badgeSuccess: { backgroundColor: 'rgba(16, 185, 129, 0.15)' },
+    badgeDanger: { backgroundColor: 'rgba(239, 68, 68, 0.15)' },
+    growthText: { fontSize: 10, fontWeight: '700' },
+    textSuccess: { color: '#10B981' },
+    textDanger: { color: '#EF4444' },
+    dashboardBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginHorizontal: spacing.lg,
+      marginBottom: spacing.md,
+      padding: spacing.md,
+      backgroundColor: 'rgba(59, 130, 246, 0.12)',
+      borderRadius: borderRadius.lg,
+      borderWidth: 1,
+      borderColor: 'rgba(59, 130, 246, 0.3)',
+    },
+    bannerContent: { flex: 1, marginRight: spacing.sm },
+    bannerTitle: { ...typography.bodyBold, color: '#60A5FA', marginBottom: 2 },
+    bannerSubtitle: { ...typography.caption, color: colors.textSecondary, fontSize: 11 },
+    bannerArrow: { fontSize: 20, color: '#60A5FA', fontWeight: '700' },
   });
 }
 

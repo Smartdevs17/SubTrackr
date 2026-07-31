@@ -33,11 +33,7 @@ impl SubTrackrApi {
 
     /// Create a new API key. Returns `(key_id, raw_key_bytes)`.
     /// The raw key is returned exactly once and must be stored off-chain.
-    pub fn create_api_key(
-        env: Env,
-        owner: Address,
-        config: ApiKeyConfig,
-    ) -> (ApiKeyId, Bytes) {
+    pub fn create_api_key(env: Env, owner: Address, config: ApiKeyConfig) -> (ApiKeyId, Bytes) {
         owner.require_auth();
         let now = env.ledger().timestamp();
         auth::create_api_key(&env, owner, config, now)

@@ -52,6 +52,33 @@ export interface TimeRange {
   end: number;
 }
 
+export interface UsageAlertEntry {
+  id: string;
+  subscriptionId: string;
+  metric: string;
+  threshold: number;
+  currentUsage: number;
+  message: string;
+  timestamp: number;
+  acknowledged: boolean;
+}
+
+export interface UsageTrend {
+  metric: string;
+  currentPeriod: number;
+  previousPeriod: number;
+  changePercent: number;
+  trend: 'increasing' | 'decreasing' | 'stable';
+}
+
+export interface UsageAnalytics {
+  totalUsage: number;
+  usageByMetric: Record<string, number>;
+  usageBySubscription: Record<string, number>;
+  trends: UsageTrend[];
+  alertsCount: number;
+}
+
 export const DEFAULT_PERIOD_SECS = 86_400;
 const MAX_BUCKETS = 90;
 
@@ -66,7 +93,8 @@ type MeterMap = Record<string, MeterState>;
 interface MeteringStoreState {
   meters: Record<string, MeterMap>; // subscriptionId -> metric -> state
   now: () => number;
-  alerts: { subscriptionId: string; metric: string; total: number }[];
+  alerts: UsageAlertEntry[];
+  usageHistory: { subscriptionId: string; metric: string; value: number; timestamp: number }[];
 
   registerMeter: (
     subscriptionId: string,
@@ -77,6 +105,11 @@ interface MeteringStoreState {
   calculateUsageCharge: (subscriptionId: string, period: TimeRange) => Charge;
   getMeters: (subscriptionId: string) => MeterState[];
   getUsageTotal: (subscriptionId: string, metric: string) => number;
+  getUsageHistory: (subscriptionId: string, metric?: string) => { subscriptionId: string; metric: string; value: number; timestamp: number }[];
+  getUsageTrends: (subscriptionId: string) => UsageTrend[];
+  acknowledgeAlert: (alertId: string) => void;
+  getActiveAlerts: (subscriptionId?: string) => UsageAlertEntry[];
+  getAnalytics: (subscriptionId?: string) => UsageAnalytics;
 }
 
 const newMeter = (metric: string, periodSecs: number): MeterState => ({
@@ -115,6 +148,7 @@ export const useMeteringStore = create<MeteringStoreState>()((set, get) => {
     meters: {},
     now: () => Math.floor(Date.now() / 1000),
     alerts: [],
+    usageHistory: [],
 
     registerMeter: (sub, metric, config) => {
       const map = { ...metersFor(sub) };
@@ -140,9 +174,23 @@ export const useMeteringStore = create<MeteringStoreState>()((set, get) => {
       state.total += value;
       state.lastTimestamp = now;
       addToBucket(state, now, value);
+
+      const historyEntry = { subscriptionId: sub, metric, value, timestamp: now };
+      set((s) => ({ usageHistory: [...s.usageHistory, historyEntry] }));
+
       if (state.alertThreshold !== 0 && !state.alertFired && state.total >= state.alertThreshold) {
         state.alertFired = true;
-        set((s) => ({ alerts: [...s.alerts, { subscriptionId: sub, metric, total: state.total }] }));
+        const alertEntry: UsageAlertEntry = {
+          id: `alert_${now.toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+          subscriptionId: sub,
+          metric,
+          threshold: state.alertThreshold,
+          currentUsage: state.total,
+          message: `Usage for ${metric} has reached ${Math.round((state.total / state.alertThreshold) * 100)}% of limit`,
+          timestamp: now,
+          acknowledged: false,
+        };
+        set((s) => ({ alerts: [...s.alerts, alertEntry] }));
       }
       map[metric] = state;
       commit(sub, map);
@@ -169,5 +217,103 @@ export const useMeteringStore = create<MeteringStoreState>()((set, get) => {
 
     getMeters: (sub) => Object.values(metersFor(sub)),
     getUsageTotal: (sub, metric) => metersFor(sub)[metric]?.total ?? 0,
+
+    getUsageHistory: (sub, metric) => {
+      let history = get().usageHistory.filter((h) => h.subscriptionId === sub);
+      if (metric) {
+        history = history.filter((h) => h.metric === metric);
+      }
+      return history;
+    },
+
+    getUsageTrends: (sub) => {
+      const now = Date.now() / 1000;
+      const thirtyDaysAgo = now - 30 * 86400;
+      const sixtyDaysAgo = now - 60 * 86400;
+
+      const currentHistory = get().usageHistory.filter(
+        (h) => h.subscriptionId === sub && h.timestamp >= thirtyDaysAgo
+      );
+      const previousHistory = get().usageHistory.filter(
+        (h) => h.subscriptionId === sub && h.timestamp >= sixtyDaysAgo && h.timestamp < thirtyDaysAgo
+      );
+
+      const currentByMetric: Record<string, number> = {};
+      const previousByMetric: Record<string, number> = {};
+
+      for (const entry of currentHistory) {
+        currentByMetric[entry.metric] = (currentByMetric[entry.metric] || 0) + entry.value;
+      }
+      for (const entry of previousHistory) {
+        previousByMetric[entry.metric] = (previousByMetric[entry.metric] || 0) + entry.value;
+      }
+
+      const allMetrics = new Set([...Object.keys(currentByMetric), ...Object.keys(previousByMetric)]);
+      const trends: UsageTrend[] = [];
+
+      for (const metric of allMetrics) {
+        const current = currentByMetric[metric] || 0;
+        const previous = previousByMetric[metric] || 0;
+        const changePercent = previous > 0 ? ((current - previous) / previous) * 100 : 0;
+
+        let trend: 'increasing' | 'decreasing' | 'stable';
+        if (changePercent > 5) trend = 'increasing';
+        else if (changePercent < -5) trend = 'decreasing';
+        else trend = 'stable';
+
+        trends.push({
+          metric,
+          currentPeriod: current,
+          previousPeriod: previous,
+          changePercent: Math.round(changePercent * 100) / 100,
+          trend,
+        });
+      }
+
+      return trends;
+    },
+
+    acknowledgeAlert: (alertId) => {
+      set((s) => ({
+        alerts: s.alerts.map((a) => (a.id === alertId ? { ...a, acknowledged: true } : a)),
+      }));
+    },
+
+    getActiveAlerts: (subscriptionId) => {
+      let alerts = get().alerts.filter((a) => !a.acknowledged);
+      if (subscriptionId) {
+        alerts = alerts.filter((a) => a.subscriptionId === subscriptionId);
+      }
+      return alerts;
+    },
+
+    getAnalytics: (subscriptionId) => {
+      const history = subscriptionId
+        ? get().usageHistory.filter((h) => h.subscriptionId === subscriptionId)
+        : get().usageHistory;
+
+      const totalUsage = history.reduce((sum, h) => sum + h.value, 0);
+
+      const usageByMetric: Record<string, number> = {};
+      const usageBySubscription: Record<string, number> = {};
+      for (const entry of history) {
+        usageByMetric[entry.metric] = (usageByMetric[entry.metric] || 0) + entry.value;
+        usageBySubscription[entry.subscriptionId] =
+          (usageBySubscription[entry.subscriptionId] || 0) + entry.value;
+      }
+
+      const trends = subscriptionId ? get().getUsageTrends(subscriptionId) : [];
+      const activeAlerts = subscriptionId
+        ? get().getActiveAlerts(subscriptionId)
+        : get().getActiveAlerts();
+
+      return {
+        totalUsage,
+        usageByMetric,
+        usageBySubscription,
+        trends,
+        alertsCount: activeAlerts.length,
+      };
+    },
   };
 });

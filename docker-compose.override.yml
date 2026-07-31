@@ -1,0 +1,22 @@
+version: '3.8'
+# Maps local directories to containers for instant hot-reloading (ts-node-dev / uvicorn)
+services:
+  backend:
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules
+  workers:
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules
+  webhook-dispatcher:
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules
+  ml-service:
+    volumes:
+      - ./ml-service:/app
+  mobile:
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules

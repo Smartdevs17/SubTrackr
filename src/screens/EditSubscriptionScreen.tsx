@@ -20,8 +20,6 @@ import { Button } from '../components/common/Button';
 import { getCurrencySymbol } from '../utils/formatting';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { BillingCycle, SubscriptionCategory } from '../types/subscription';
-import { errorHandler } from '../services/errorHandler';
-
 type EditSubscriptionRouteProp = RouteProp<RootStackParamList, 'EditSubscription'>;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -33,6 +31,29 @@ const EditSubscriptionScreen: React.FC = () => {
   const { subscriptions, updateSubscription, isLoading } = useSubscriptionStore();
   const subscription = subscriptions.find((s) => s.id === id);
 
+  const [name, setName] = useState(subscription?.name ?? '');
+  const [description, setDescription] = useState(subscription?.description ?? '');
+  const [category, setCategory] = useState<SubscriptionCategory>(
+    subscription?.category ?? SubscriptionCategory.OTHER
+  );
+  const [price, setPrice] = useState(subscription?.price.toString() ?? '0');
+  const [priceError, setPriceError] = useState('');
+  const [currency, setCurrency] = useState(subscription?.currency ?? 'USD');
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>(
+    subscription?.billingCycle ?? BillingCycle.MONTHLY
+  );
+  const [nextBillingDate, setNextBillingDate] = useState(
+    subscription ? new Date(subscription.nextBillingDate) : new Date()
+  );
+  const [notificationsEnabled, setNotificationsEnabled] = useState(
+    subscription?.notificationsEnabled !== false
+  );
+  const [isCryptoEnabled, setIsCryptoEnabled] = useState(subscription?.isCryptoEnabled ?? false);
+  const [cryptoToken, setCryptoToken] = useState(subscription?.cryptoToken ?? '');
+  const [cryptoAmount, setCryptoAmount] = useState(subscription?.cryptoAmount?.toString() ?? '');
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [pickerMode, setPickerMode] = useState<'date' | 'time'>('date');
+
   if (!subscription) {
     return (
       <SafeAreaView style={styles.container}>
@@ -43,26 +64,6 @@ const EditSubscriptionScreen: React.FC = () => {
       </SafeAreaView>
     );
   }
-
-  const [name, setName] = useState(subscription.name);
-  const [description, setDescription] = useState(subscription.description ?? '');
-  const [category, setCategory] = useState<SubscriptionCategory>(subscription.category);
-  const [price, setPrice] = useState(subscription.price.toString());
-  const [priceError, setPriceError] = useState('');
-  const [currency, setCurrency] = useState(subscription.currency);
-  const [billingCycle, setBillingCycle] = useState<BillingCycle>(subscription.billingCycle);
-  const [nextBillingDate, setNextBillingDate] = useState(new Date(subscription.nextBillingDate));
-  const [notificationsEnabled, setNotificationsEnabled] = useState(
-    subscription.notificationsEnabled !== false
-  );
-  const [isCryptoEnabled, setIsCryptoEnabled] = useState(subscription.isCryptoEnabled);
-  const [cryptoToken, setCryptoToken] = useState(subscription.cryptoToken ?? '');
-  const [cryptoAmount, setCryptoAmount] = useState(
-    subscription.cryptoAmount?.toString() ?? ''
-  );
-
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [pickerMode, setPickerMode] = useState<'date' | 'time'>('date');
 
   const onDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
     if (event.type === 'dismissed') {

@@ -5,10 +5,10 @@ import {
   StyleSheet,
   SafeAreaView,
   ScrollView,
+  Switch,
   TouchableOpacity,
   Alert,
   Share,
-  Clipboard,
   Platform,
 } from 'react-native';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
@@ -16,8 +16,25 @@ import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
 import { generateCSV, exportToJSON } from '../utils/importExport';
 import { useSubscriptionStore } from '../store';
+import { export_to_accounting, AccountingFormat } from '../services/accountingExport';
 
-type ExportFormat = 'json' | 'csv';
+type ExportFormat = 'json' | 'csv' | 'pdf' | 'quickbooks' | 'xero';
+
+const FORMAT_LABELS: Record<ExportFormat, string> = {
+  json: 'JSON',
+  csv: 'CSV',
+  pdf: 'PDF',
+  quickbooks: 'QuickBooks',
+  xero: 'Xero',
+};
+
+const FORMAT_DESCRIPTIONS: Record<ExportFormat, string> = {
+  json: 'Full data with metadata. Optionally includes JSON schema envelope.',
+  csv: 'Spreadsheet compatible (Excel, Google Sheets, etc.)',
+  pdf: 'Formatted PDF report for printing and archival.',
+  quickbooks: 'QuickBooks-compatible CSV (Customer, Product/Service, Amount…)',
+  xero: 'Xero-compatible CSV (ContactName, InvoiceNumber, UnitAmount…)',
+};
 
 const ExportScreen: React.FC = () => {
   const { subscriptions } = useSubscriptionStore();
@@ -26,6 +43,7 @@ const ExportScreen: React.FC = () => {
   const [isExporting, setIsExporting] = useState(false);
   const [exportedData, setExportedData] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
+  const [includeSchema, setIncludeSchema] = useState(false);
 
   const handleExport = useCallback(async () => {
     if (subscriptions.length === 0) {
@@ -38,10 +56,20 @@ const ExportScreen: React.FC = () => {
     try {
       let data: string;
 
-      if (exportFormat === 'json') {
-        data = exportToJSON(subscriptions);
+      if (exportFormat === 'json' || exportFormat === 'csv') {
+        // Basic utility exports (preserving existing behaviour)
+        if (exportFormat === 'json') {
+          data = exportToJSON(subscriptions);
+        } else {
+          data = generateCSV(subscriptions);
+        }
       } else {
-        data = generateCSV(subscriptions);
+        // Accounting-format exports (pdf, quickbooks, xero)
+        const result = await export_to_accounting('default-merchant', exportFormat as AccountingFormat, {
+          subscriptions,
+          includeSchema: exportFormat === 'json' ? includeSchema : undefined,
+        });
+        data = result.content;
       }
 
       setExportedData(data);
@@ -49,7 +77,7 @@ const ExportScreen: React.FC = () => {
 
       Alert.alert(
         'Export Ready',
-        `Exported ${subscriptions.length} subscription(s) as ${exportFormat.toUpperCase()}.`,
+        `Exported ${subscriptions.length} subscription(s) as ${FORMAT_LABELS[exportFormat]}.`,
         [
           {
             text: 'Cancel',
@@ -59,10 +87,6 @@ const ExportScreen: React.FC = () => {
             text: 'Share',
             onPress: () => shareData(data),
           },
-          {
-            text: 'Copy to Clipboard',
-            onPress: () => copyToClipboard(data),
-          },
         ]
       );
     } catch (error) {
@@ -70,22 +94,27 @@ const ExportScreen: React.FC = () => {
     } finally {
       setIsExporting(false);
     }
-  }, [subscriptions, exportFormat]);
+  }, [subscriptions, exportFormat, includeSchema]);
 
   const shareData = async (data: string) => {
     try {
       await Share.share({
         message: data,
-        title: `SubTrackr Export (${exportFormat.toUpperCase()})`,
+        title: `SubTrackr Export (${FORMAT_LABELS[exportFormat]})`,
       });
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Failed to share data');
     }
   };
 
-  const copyToClipboard = (data: string) => {
-    Clipboard.setString(data);
-    Alert.alert('Copied', `${exportFormat.toUpperCase()} data copied to clipboard`);
+  const copyToClipboard = async (data: string) => {
+    try {
+      const { default: Clipboard } = await import('expo-clipboard');
+      await Clipboard.setStringAsync(data);
+      Alert.alert('Copied', `${FORMAT_LABELS[exportFormat]} data copied to clipboard`);
+    } catch {
+      Alert.alert('Copy failed', 'Could not copy to clipboard.');
+    }
   };
 
   const downloadFile = () => {
@@ -104,31 +133,38 @@ const ExportScreen: React.FC = () => {
     <View style={styles.formatContainer}>
       <Text style={styles.sectionTitle}>Export Format</Text>
       <View style={styles.formatButtons}>
-        <TouchableOpacity
-          style={[styles.formatButton, exportFormat === 'json' && styles.formatButtonActive]}
-          onPress={() => setExportFormat('json')}>
-          <Text
-            style={[
-              styles.formatButtonText,
-              exportFormat === 'json' && styles.formatButtonTextActive,
-            ]}>
-            JSON
-          </Text>
-          <Text style={styles.formatButtonSubtext}>Full data with metadata</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.formatButton, exportFormat === 'csv' && styles.formatButtonActive]}
-          onPress={() => setExportFormat('csv')}>
-          <Text
-            style={[
-              styles.formatButtonText,
-              exportFormat === 'csv' && styles.formatButtonTextActive,
-            ]}>
-            CSV
-          </Text>
-          <Text style={styles.formatButtonSubtext}>Spreadsheet compatible</Text>
-        </TouchableOpacity>
+        {(Object.keys(FORMAT_LABELS) as ExportFormat[]).map((fmt) => (
+          <TouchableOpacity
+            key={fmt}
+            style={[styles.formatButton, exportFormat === fmt && styles.formatButtonActive]}
+            onPress={() => setExportFormat(fmt)}>
+            <Text
+              style={[
+                styles.formatButtonText,
+                exportFormat === fmt && styles.formatButtonTextActive,
+              ]}>
+              {FORMAT_LABELS[fmt]}
+            </Text>
+            <Text style={styles.formatButtonSubtext}>{FORMAT_DESCRIPTIONS[fmt]}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
+      {exportFormat === 'json' && (
+        <View style={styles.schemaRow}>
+          <View style={styles.schemaCopy}>
+            <Text style={styles.schemaLabel}>Include JSON schema envelope</Text>
+            <Text style={styles.schemaDescription}>
+              Wraps output with `$schema`, `schemaVersion`, `merchantId` per Draft-07.
+            </Text>
+          </View>
+          <Switch
+            value={includeSchema}
+            onValueChange={setIncludeSchema}
+            trackColor={{ false: colors.border, true: colors.primary }}
+            thumbColor={colors.surface}
+          />
+        </View>
+      )}
     </View>
   );
 
@@ -197,7 +233,7 @@ const ExportScreen: React.FC = () => {
   const renderActions = () => (
     <View style={styles.actionsContainer}>
       <Button
-        title={isExporting ? 'Exporting...' : `Export as ${exportFormat.toUpperCase()}`}
+        title={isExporting ? 'Exporting...' : `Export as ${FORMAT_LABELS[exportFormat]}`}
         onPress={handleExport}
         disabled={isExporting || subscriptions.length === 0}
         loading={isExporting}
@@ -213,9 +249,6 @@ const ExportScreen: React.FC = () => {
             onPress={() => copyToClipboard(exportedData)}>
             <Text style={styles.actionButtonText}>Copy</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionButton} onPress={downloadFile}>
-            <Text style={styles.actionButtonText}>Download</Text>
-          </TouchableOpacity>
         </View>
       )}
     </View>
@@ -225,21 +258,29 @@ const ExportScreen: React.FC = () => {
     <Card style={styles.infoCard}>
       <Text style={styles.infoTitle}>Export Information</Text>
       <View style={styles.infoRow}>
-        <Text style={styles.infoLabel}>JSON Format:</Text>
+        <Text style={styles.infoLabel}>JSON:</Text>
         <Text style={styles.infoValue}>
-          Full export with version, timestamp, and all subscription data
+          Full export with version, timestamp, and all subscription data. Supports optional JSON
+          Schema Draft-07 envelope for integration validation.
         </Text>
       </View>
       <View style={styles.infoRow}>
-        <Text style={styles.infoLabel}>CSV Format:</Text>
+        <Text style={styles.infoLabel}>CSV:</Text>
         <Text style={styles.infoValue}>
           Tabular format compatible with Excel, Google Sheets, etc.
         </Text>
       </View>
       <View style={styles.infoRow}>
-        <Text style={styles.infoLabel}>Data Included:</Text>
+        <Text style={styles.infoLabel}>PDF:</Text>
         <Text style={styles.infoValue}>
-          Name, description, category, price, currency, billing cycle, dates, and settings
+          Formatted table report ready for printing or archival storage.
+        </Text>
+      </View>
+      <View style={styles.infoRow}>
+        <Text style={styles.infoLabel}>QuickBooks / Xero:</Text>
+        <Text style={styles.infoValue}>
+          Accounting-ready CSVs with standard column names (Customer, UnitAmount, etc.).
+          For advanced column mapping, use the Accounting Export screen.
         </Text>
       </View>
     </Card>
@@ -346,6 +387,7 @@ const styles = StyleSheet.create({
   },
   formatButtons: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     marginTop: spacing.md,
     gap: spacing.md,
   },
@@ -373,6 +415,18 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
+  schemaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  schemaCopy: { flex: 1, marginRight: spacing.md },
+  schemaLabel: { ...typography.body, color: colors.text, fontWeight: '600' },
+  schemaDescription: { ...typography.caption, color: colors.textSecondary, marginTop: spacing.xs },
   infoCard: {
     margin: spacing.lg,
     marginTop: 0,

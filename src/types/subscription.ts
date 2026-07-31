@@ -2,8 +2,6 @@ export interface Subscription {
   id: string;
   name: string;
   description?: string;
-  /** Optional remote URL for the subscription's icon image */
-  iconUrl?: string;
   category: SubscriptionCategory;
   price: number;
   currency: string;
@@ -16,6 +14,8 @@ export interface Subscription {
   cryptoStreamId?: string;
   cryptoToken?: string;
   cryptoAmount?: number;
+  externalId?: string;
+  externalSource?: string;
   gasBudget?: number;
   totalGasSpent?: number;
   chargeCount?: number;
@@ -82,6 +82,8 @@ export interface SubscriptionFormData {
   isCryptoEnabled: boolean;
   cryptoToken?: string;
   cryptoAmount?: number;
+  externalId?: string;
+  externalSource?: string;
 }
 
 export interface SubscriptionStats {

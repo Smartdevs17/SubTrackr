@@ -24,9 +24,7 @@ import { z } from 'zod';
 const envSchema = z.object({
   // ── App environment ────────────────────────────────────────────────────────
   /** Current deployment environment. Defaults to 'development'. */
-  APP_ENV: z
-    .enum(['development', 'staging', 'production'])
-    .default('development'),
+  APP_ENV: z.enum(['development', 'staging', 'production']).default('development'),
 
   // ── API ────────────────────────────────────────────────────────────────────
   /** Base URL for the SubTrackr REST API. */
@@ -52,6 +50,10 @@ const envSchema = z.object({
   // ── Webhooks ───────────────────────────────────────────────────────────────
   /** HMAC secret used to verify incoming webhook payloads. Backend only. */
   WEBHOOK_SECRET: z.string().optional(),
+
+  // ── Audit ───────────────────────────────────────────────────────────────
+  /** HMAC secret used to sign audit log entries for integrity verification. */
+  AUDIT_HMAC_SECRET: z.string().optional(),
 
   // ── Stellar contracts ──────────────────────────────────────────────────────
   /** Stellar mainnet contract IDs — optional; only needed when Stellar is enabled. */
@@ -91,6 +93,7 @@ export function validateEnv(): Env {
     SUBTRACKR_API_KEY: process.env.SUBTRACKR_API_KEY,
     WALLET_CONNECT_PROJECT_ID: process.env.WALLET_CONNECT_PROJECT_ID,
     WEBHOOK_SECRET: process.env.WEBHOOK_SECRET,
+    AUDIT_HMAC_SECRET: process.env.AUDIT_HMAC_SECRET,
     STELLAR_MAINNET_PROXY_ID: process.env.STELLAR_MAINNET_PROXY_ID,
     STELLAR_MAINNET_STORAGE_ID: process.env.STELLAR_MAINNET_STORAGE_ID,
     STELLAR_MAINNET_SUBSCRIPTION_ID: process.env.STELLAR_MAINNET_SUBSCRIPTION_ID,

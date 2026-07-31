@@ -10,6 +10,8 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  Modal,
+  FlatList,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -21,6 +23,8 @@ import walletServiceManager, { WalletConnection, TokenBalance } from '../service
 import { TICKER_TO_COINGECKO_ID } from '../services/priceService';
 import { useTokenPrices } from '../hooks/useTokenPrices';
 import { useWalletStore } from '../store';
+import { useNetworkStore } from '../store/networkStore';
+import { ALL_NETWORKS, Network } from '../config/networks';
 import { RootStackParamList } from '../navigation/types';
 import { useThemeColors } from '../hooks/useThemeColors';
 
@@ -29,15 +33,18 @@ import * as Clipboard from 'expo-clipboard';
 const WalletConnectScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const colors = useThemeColors();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const { open } = useAppKit();
   const { address, isConnected, chainId } = useAppKitAccount();
   const { walletProvider } = useAppKitProvider();
-  const { connectWallet, disconnect } = useWalletStore();
+  const { disconnect } = useWalletStore();
+  const { currentNetwork, setNetwork: setNetworkStore } = useNetworkStore();
 
   const [isConnecting, setIsConnecting] = useState(false);
   const [connection, setConnection] = useState<WalletConnection | null>(null);
   const [tokenBalances, setTokenBalances] = useState<TokenBalance[]>([]);
   const [isLoadingBalances, setIsLoadingBalances] = useState(false);
+  const [showNetworkPicker, setShowNetworkPicker] = useState(false);
   const tokenPriceIds = tokenBalances.map((token) => token.symbol);
   const {
     prices,
@@ -50,6 +57,18 @@ const WalletConnectScreen: React.FC = () => {
     tokenIds: tokenPriceIds,
     enabled: tokenPriceIds.length > 0,
   });
+
+  const networkMismatch = React.useMemo(() => {
+    if (!connection || !currentNetwork) return null;
+    const connectedNetwork = ALL_NETWORKS.find((n) => n.chainId === connection.chainId);
+    if (connectedNetwork && connectedNetwork.id !== currentNetwork.id) {
+      return {
+        connectedChainId: connection.chainId,
+        preferredNetwork: currentNetwork,
+      };
+    }
+    return null;
+  }, [connection, currentNetwork]);
 
   useEffect(() => {
     initializeWalletService();
@@ -65,7 +84,6 @@ const WalletConnectScreen: React.FC = () => {
       };
       setConnection(realConnection);
       walletServiceManager.setConnection(realConnection);
-      connectWallet();
       loadTokenBalances();
     } else if (!isConnected) {
       void walletServiceManager.disconnectWallet();
@@ -159,6 +177,11 @@ const WalletConnectScreen: React.FC = () => {
     } else {
       Alert.alert('Error', 'Please connect a wallet first');
     }
+  };
+
+  const handleSelectNetwork = async (network: Network) => {
+    setShowNetworkPicker(false);
+    await setNetworkStore(network.id);
   };
 
   const formatAddress = (address: string): string => {
@@ -283,6 +306,46 @@ const WalletConnectScreen: React.FC = () => {
           </View>
         ) : (
           <View style={styles.connectedSection}>
+            {/* Network Mismatch Banner (#69) */}
+            {networkMismatch && (
+              <View style={styles.mismatchBanner}>
+                <Text style={styles.mismatchIcon}>⚠️</Text>
+                <View style={styles.mismatchTextContainer}>
+                  <Text style={styles.mismatchTitle}>Network Mismatch</Text>
+                  <Text style={styles.mismatchBody}>
+                    Wallet is on {getChainName(networkMismatch.connectedChainId)}, but preferred
+                    network is {networkMismatch.preferredNetwork.name}.
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.switchNetworkButton}
+                  onPress={() => setShowNetworkPicker(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Switch preferred network">
+                  <Text style={styles.switchNetworkText}>Switch</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Network Selector (#69) */}
+            <Card variant="elevated" padding="large">
+              <View style={styles.networkSelectorRow}>
+                <View>
+                  <Text style={styles.networkSelectorLabel}>Preferred Network</Text>
+                  <Text style={styles.networkSelectorValue}>
+                    {currentNetwork?.name ?? 'Not set'}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.changeNetworkButton}
+                  onPress={() => setShowNetworkPicker(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Change preferred network">
+                  <Text style={styles.changeNetworkText}>Change</Text>
+                </TouchableOpacity>
+              </View>
+            </Card>
+
             {/* Connection Status */}
             <Card variant="elevated" padding="large">
               <View style={styles.connectionHeader}>
@@ -470,356 +533,530 @@ const WalletConnectScreen: React.FC = () => {
           </Card>
         )}
       </ScrollView>
+
+      {/* Network Picker Modal (#69) */}
+      <Modal
+        visible={showNetworkPicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowNetworkPicker(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Network</Text>
+              <TouchableOpacity
+                onPress={() => setShowNetworkPicker(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Close network picker">
+                <Text style={styles.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={ALL_NETWORKS}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.networkItem,
+                    currentNetwork?.id === item.id && styles.networkItemSelected,
+                  ]}
+                  onPress={() => handleSelectNetwork(item)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Select ${item.name}`}>
+                  <Text style={styles.networkItemIcon}>
+                    {item.type === 'stellar' ? '⭐' : '🔷'}
+                  </Text>
+                  <View style={styles.networkItemInfo}>
+                    <Text style={styles.networkItemName}>{item.name}</Text>
+                    <Text style={styles.networkItemType}>
+                      {item.type.toUpperCase()}
+                      {item.isTestnet ? ' · Testnet' : ''}
+                    </Text>
+                  </View>
+                  {currentNetwork?.id === item.id && <Text style={styles.networkItemCheck}>✓</Text>}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  header: {
-    padding: spacing.lg,
-    paddingBottom: spacing.md,
-  },
-  title: {
-    ...typography.h1,
-    color: colors.text,
-    marginBottom: spacing.xs,
-  },
-  subtitle: {
-    ...typography.body,
-    color: colors.textSecondary,
-  },
-  connectSection: {
-    padding: spacing.lg,
-    paddingTop: 0,
-  },
-  connectedSection: {
-    padding: spacing.lg,
-    paddingTop: 0,
-  },
-  sectionTitle: {
-    ...typography.h3,
-    color: colors.text,
-    marginBottom: spacing.sm,
-  },
-  sectionDescription: {
-    ...typography.body,
-    color: colors.textSecondary,
-    marginBottom: spacing.lg,
-    lineHeight: 22,
-  },
-  connectHeader: {
-    alignItems: 'center',
-    marginBottom: spacing.lg,
-  },
-  connectIcon: {
-    fontSize: 48,
-    marginBottom: spacing.sm,
-  },
-  walletOptions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-around',
-    marginBottom: spacing.lg,
-    gap: spacing.md,
-  },
-  walletOption: {
-    alignItems: 'center',
-    minWidth: 80,
-  },
-  walletIconContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.sm,
-    ...shadows.sm,
-  },
-  walletIcon: {
-    fontSize: 28,
-  },
-  walletName: {
-    ...typography.caption,
-    color: colors.text,
-    textAlign: 'center',
-    fontWeight: '600',
-    marginBottom: spacing.xs,
-  },
-  walletDescription: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    fontSize: 10,
-  },
-  connectButtonContainer: {
-    marginTop: spacing.md,
-    alignItems: 'center',
-  },
-  connectNote: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginTop: spacing.sm,
-    fontStyle: 'italic',
-  },
-  connectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  connectionStatus: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  statusIndicator: {
-    width: 12,
-    height: 12,
-    borderRadius: borderRadius.full,
-    marginRight: spacing.sm,
-  },
-  statusText: {
-    ...typography.body,
-    color: colors.text,
-    fontWeight: '600',
-  },
-  connectionTime: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginLeft: spacing.sm,
-  },
-  disconnectButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.sm,
-    backgroundColor: colors.error,
-    borderRadius: borderRadius.md,
-  },
-  disconnectIcon: {
-    fontSize: 16,
-    marginRight: spacing.xs,
-  },
-  disconnectText: {
-    ...typography.caption,
-    color: colors.text,
-    fontWeight: '600',
-  },
-  walletInfo: {
-    marginBottom: spacing.md,
-  },
-  addressContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.xs,
-  },
-  addressLabel: {
-    ...typography.caption,
-    color: colors.textSecondary,
-  },
-  addressCopyButton: {
-    padding: spacing.xs,
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.sm,
-  },
-  copyIcon: {
-    fontSize: 16,
-    color: colors.textSecondary,
-  },
-  addressText: {
-    ...typography.h3,
-    color: colors.text,
-    fontFamily: 'monospace',
-    marginBottom: spacing.md,
-  },
-  chainInfo: {
-    alignItems: 'flex-start',
-  },
-  chainBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.full,
-    marginBottom: spacing.xs,
-  },
-  chainIcon: {
-    fontSize: 16,
-    marginRight: spacing.xs,
-  },
-  chainText: {
-    ...typography.caption,
-    color: colors.text,
-    fontWeight: '600',
-  },
-  chainDescription: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginLeft: spacing.md,
-  },
-  balancesHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  balancesTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  balancesIcon: {
-    fontSize: 24,
-    marginRight: spacing.sm,
-  },
-  refreshButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.sm,
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.md,
-  },
-  refreshIcon: {
-    fontSize: 16,
-    marginRight: spacing.xs,
-  },
-  refreshText: {
-    ...typography.caption,
-    color: colors.text,
-    fontWeight: '600',
-  },
-  loadingContainer: {
-    alignItems: 'center',
-    paddingVertical: spacing.lg,
-  },
-  loadingText: {
-    ...typography.body,
-    color: colors.textSecondary,
-    marginTop: spacing.md,
-  },
-  balancesList: {
-    gap: spacing.sm,
-  },
-  balanceItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    backgroundColor: colors.background,
-    borderRadius: borderRadius.md,
-    marginBottom: spacing.xs,
-  },
-  tokenInfo: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  tokenIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.sm,
-    ...shadows.sm,
-  },
-  tokenIcon: {
-    fontSize: 20,
-  },
-  tokenDetails: {
-    flex: 1,
-  },
-  tokenSymbol: {
-    ...typography.body,
-    color: colors.text,
-    fontWeight: '600',
-    marginBottom: spacing.xs,
-  },
-  tokenName: {
-    ...typography.caption,
-    color: colors.textSecondary,
-  },
-  balanceInfo: {
-    alignItems: 'flex-end',
-  },
-  tokenBalance: {
-    ...typography.body,
-    color: colors.text,
-    fontWeight: '600',
-    marginBottom: spacing.xs,
-  },
-  tokenValue: {
-    ...typography.caption,
-    color: colors.textSecondary,
-  },
-  tokenPriceChange: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: spacing.xs / 2,
-  },
-  priceWarning: {
-    ...typography.caption,
-    color: colors.warning,
-    marginBottom: spacing.sm,
-  },
-  priceMetaText: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginBottom: spacing.sm,
-  },
-  setupButton: {
-    marginTop: spacing.md,
-  },
-  cryptoHeader: {
-    alignItems: 'center',
-    marginBottom: spacing.lg,
-  },
-  cryptoIcon: {
-    fontSize: 48,
-    marginBottom: spacing.sm,
-  },
-  protocolInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: spacing.lg,
-    gap: spacing.md,
-  },
-  protocolItem: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  protocolIcon: {
-    fontSize: 24,
-    marginBottom: spacing.xs,
-  },
-  protocolName: {
-    ...typography.caption,
-    color: colors.text,
-    fontWeight: '600',
-    marginBottom: spacing.xs,
-  },
-  protocolDesc: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    fontSize: 10,
-  },
-  readyHeader: {
-    alignItems: 'center',
-  },
-  readyIcon: {
-    fontSize: 48,
-    marginBottom: spacing.sm,
-  },
-});
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background.primary,
+    },
+    scrollView: {
+      flex: 1,
+    },
+    header: {
+      padding: spacing.lg,
+      paddingBottom: spacing.md,
+    },
+    title: {
+      ...typography.h1,
+      color: colors.text.primary,
+      marginBottom: spacing.xs,
+    },
+    subtitle: {
+      ...typography.body,
+      color: colors.textSecondary,
+    },
+    connectSection: {
+      padding: spacing.lg,
+      paddingTop: 0,
+    },
+    connectedSection: {
+      padding: spacing.lg,
+      paddingTop: 0,
+    },
+    sectionTitle: {
+      ...typography.h3,
+      color: colors.text.primary,
+      marginBottom: spacing.sm,
+    },
+    sectionDescription: {
+      ...typography.body,
+      color: colors.textSecondary,
+      marginBottom: spacing.lg,
+      lineHeight: 22,
+    },
+    connectHeader: {
+      alignItems: 'center',
+      marginBottom: spacing.lg,
+    },
+    connectIcon: {
+      fontSize: 48,
+      marginBottom: spacing.sm,
+    },
+    walletOptions: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'space-around',
+      marginBottom: spacing.lg,
+      gap: spacing.md,
+    },
+    walletOption: {
+      alignItems: 'center',
+      minWidth: 80,
+    },
+    walletIconContainer: {
+      width: 60,
+      height: 60,
+      borderRadius: borderRadius.full,
+      backgroundColor: colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: spacing.sm,
+      ...shadows.sm,
+    },
+    walletIcon: {
+      fontSize: 28,
+    },
+    walletName: {
+      ...typography.caption,
+      color: colors.text.primary,
+      textAlign: 'center',
+      fontWeight: '600',
+      marginBottom: spacing.xs,
+    },
+    walletDescription: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      fontSize: 10,
+    },
+    connectButtonContainer: {
+      marginTop: spacing.md,
+      alignItems: 'center',
+    },
+    connectNote: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      marginTop: spacing.sm,
+      fontStyle: 'italic',
+    },
+    mismatchBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.warningBackground,
+      borderRadius: borderRadius.md,
+      padding: spacing.md,
+      marginBottom: spacing.md,
+    },
+    mismatchIcon: {
+      fontSize: 24,
+      marginRight: spacing.sm,
+    },
+    mismatchTextContainer: {
+      flex: 1,
+    },
+    mismatchTitle: {
+      ...typography.caption,
+      color: colors.text.primary,
+      fontWeight: '600',
+      marginBottom: spacing.xs,
+    },
+    mismatchBody: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      fontSize: 12,
+    },
+    switchNetworkButton: {
+      backgroundColor: colors.primary,
+      borderRadius: borderRadius.md,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+    },
+    switchNetworkText: {
+      ...typography.caption,
+      color: colors.onPrimary,
+      fontWeight: '600',
+    },
+    networkSelectorRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    networkSelectorLabel: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      marginBottom: spacing.xs,
+    },
+    networkSelectorValue: {
+      ...typography.body,
+      color: colors.text.primary,
+      fontWeight: '600',
+    },
+    changeNetworkButton: {
+      backgroundColor: colors.surfaceVariant,
+      borderRadius: borderRadius.md,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+    },
+    changeNetworkText: {
+      ...typography.caption,
+      color: colors.primary,
+      fontWeight: '600',
+    },
+    connectionHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: spacing.md,
+    },
+    connectionStatus: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    statusIndicator: {
+      width: 12,
+      height: 12,
+      borderRadius: borderRadius.full,
+      marginRight: spacing.sm,
+    },
+    statusText: {
+      ...typography.body,
+      color: colors.text.primary,
+      fontWeight: '600',
+    },
+    connectionTime: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      marginLeft: spacing.sm,
+    },
+    disconnectButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: spacing.sm,
+      backgroundColor: colors.error,
+      borderRadius: borderRadius.md,
+    },
+    disconnectIcon: {
+      fontSize: 16,
+      marginRight: spacing.xs,
+    },
+    disconnectText: {
+      ...typography.caption,
+      color: colors.text.primary,
+      fontWeight: '600',
+    },
+    walletInfo: {
+      marginBottom: spacing.md,
+    },
+    addressContainer: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: spacing.xs,
+    },
+    addressLabel: {
+      ...typography.caption,
+      color: colors.textSecondary,
+    },
+    addressCopyButton: {
+      padding: spacing.xs,
+      backgroundColor: colors.surface,
+      borderRadius: borderRadius.sm,
+    },
+    copyIcon: {
+      fontSize: 16,
+      color: colors.textSecondary,
+    },
+    addressText: {
+      ...typography.h3,
+      color: colors.text.primary,
+      fontFamily: 'monospace',
+      marginBottom: spacing.md,
+    },
+    chainInfo: {
+      alignItems: 'flex-start',
+    },
+    chainBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderRadius: borderRadius.full,
+      marginBottom: spacing.xs,
+    },
+    chainIcon: {
+      fontSize: 16,
+      marginRight: spacing.xs,
+    },
+    chainText: {
+      ...typography.caption,
+      color: colors.text.primary,
+      fontWeight: '600',
+    },
+    chainDescription: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      marginLeft: spacing.md,
+    },
+    balancesHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: spacing.md,
+    },
+    balancesTitleContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    balancesIcon: {
+      fontSize: 24,
+      marginRight: spacing.sm,
+    },
+    refreshButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: spacing.sm,
+      backgroundColor: colors.primary,
+      borderRadius: borderRadius.md,
+    },
+    refreshIcon: {
+      fontSize: 16,
+      marginRight: spacing.xs,
+    },
+    refreshText: {
+      ...typography.caption,
+      color: colors.text.primary,
+      fontWeight: '600',
+    },
+    loadingContainer: {
+      alignItems: 'center',
+      paddingVertical: spacing.lg,
+    },
+    loadingText: {
+      ...typography.body,
+      color: colors.textSecondary,
+      marginTop: spacing.md,
+    },
+    balancesList: {
+      gap: spacing.sm,
+    },
+    balanceItem: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      backgroundColor: colors.background.primary,
+      borderRadius: borderRadius.md,
+      marginBottom: spacing.xs,
+    },
+    tokenInfo: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    tokenIconContainer: {
+      width: 40,
+      height: 40,
+      borderRadius: borderRadius.full,
+      backgroundColor: colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: spacing.sm,
+      ...shadows.sm,
+    },
+    tokenIcon: {
+      fontSize: 20,
+    },
+    tokenDetails: {
+      flex: 1,
+    },
+    tokenSymbol: {
+      ...typography.body,
+      color: colors.text.primary,
+      fontWeight: '600',
+      marginBottom: spacing.xs,
+    },
+    tokenName: {
+      ...typography.caption,
+      color: colors.textSecondary,
+    },
+    balanceInfo: {
+      alignItems: 'flex-end',
+    },
+    tokenBalance: {
+      ...typography.body,
+      color: colors.text.primary,
+      fontWeight: '600',
+      marginBottom: spacing.xs,
+    },
+    tokenValue: {
+      ...typography.caption,
+      color: colors.textSecondary,
+    },
+    tokenPriceChange: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      marginTop: spacing.xs / 2,
+    },
+    priceWarning: {
+      ...typography.caption,
+      color: colors.warning,
+      marginBottom: spacing.sm,
+    },
+    priceMetaText: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      marginBottom: spacing.sm,
+    },
+    setupButton: {
+      marginTop: spacing.md,
+    },
+    cryptoHeader: {
+      alignItems: 'center',
+      marginBottom: spacing.lg,
+    },
+    cryptoIcon: {
+      fontSize: 48,
+      marginBottom: spacing.sm,
+    },
+    protocolInfo: {
+      flexDirection: 'row',
+      justifyContent: 'space-around',
+      marginBottom: spacing.lg,
+      gap: spacing.md,
+    },
+    protocolItem: {
+      alignItems: 'center',
+      flex: 1,
+    },
+    protocolIcon: {
+      fontSize: 24,
+      marginBottom: spacing.xs,
+    },
+    protocolName: {
+      ...typography.caption,
+      color: colors.text.primary,
+      fontWeight: '600',
+      marginBottom: spacing.xs,
+    },
+    protocolDesc: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      fontSize: 10,
+    },
+    readyHeader: {
+      alignItems: 'center',
+    },
+    readyIcon: {
+      fontSize: 48,
+      marginBottom: spacing.sm,
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: colors.overlay,
+      justifyContent: 'flex-end',
+    },
+    modalContainer: {
+      backgroundColor: colors.background.primary,
+      borderTopLeftRadius: borderRadius.xl,
+      borderTopRightRadius: borderRadius.xl,
+      maxHeight: '60%',
+      paddingBottom: spacing.xl,
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: spacing.lg,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border.default,
+    },
+    modalTitle: {
+      ...typography.h3,
+      color: colors.text.primary,
+    },
+    modalClose: {
+      fontSize: 20,
+      color: colors.textSecondary,
+      padding: spacing.sm,
+    },
+    networkItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.lg,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border.default,
+    },
+    networkItemSelected: {
+      backgroundColor: colors.surfaceVariant,
+    },
+    networkItemIcon: {
+      fontSize: 24,
+      marginRight: spacing.md,
+    },
+    networkItemInfo: {
+      flex: 1,
+    },
+    networkItemName: {
+      ...typography.body,
+      color: colors.text.primary,
+      fontWeight: '600',
+      marginBottom: spacing.xs,
+    },
+    networkItemType: {
+      ...typography.caption,
+      color: colors.textSecondary,
+    },
+    networkItemCheck: {
+      fontSize: 18,
+      color: colors.primary,
+      fontWeight: '600',
+    },
+  });
+}
 
 export default WalletConnectScreen;

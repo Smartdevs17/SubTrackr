@@ -20,7 +20,10 @@ fn put<V: soroban_sdk::IntoVal<Env, soroban_sdk::Val>>(env: &Env, key: ChargeSto
     env.storage().persistent().set(&key, &val);
 }
 
-fn get<V: soroban_sdk::TryFromVal<Env, soroban_sdk::Val>>(env: &Env, key: ChargeStoreKey) -> Option<V> {
+fn get<V: soroban_sdk::TryFromVal<Env, soroban_sdk::Val>>(
+    env: &Env,
+    key: ChargeStoreKey,
+) -> Option<V> {
     env.storage().persistent().get(&key)
 }
 
@@ -52,11 +55,7 @@ pub(crate) fn default_retry_config() -> RetryConfig {
 }
 
 /// Start a new charge attempt for a subscription.
-pub(crate) fn start_charge(
-    env: &Env,
-    subscription_id: u64,
-    amount: i128,
-) -> ChargeAttempt {
+pub(crate) fn start_charge(env: &Env, subscription_id: u64, amount: i128) -> ChargeAttempt {
     let id = next_charge_id(env);
     let attempt = ChargeAttempt {
         id,
@@ -183,8 +182,7 @@ fn compute_backoff_delay(retry_count: u32, config: &RetryConfig) -> u64 {
 
 /// Check if a retry is due (the retry window has elapsed).
 pub(crate) fn is_retry_due(env: &Env, attempt: &ChargeAttempt) -> bool {
-    attempt.status == ChargeStatus::Retrying
-        && env.ledger().timestamp() >= attempt.next_retry_at
+    attempt.status == ChargeStatus::Retrying && env.ledger().timestamp() >= attempt.next_retry_at
 }
 
 /// Retry a failed charge attempt. Returns the updated attempt.

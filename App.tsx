@@ -1,17 +1,24 @@
 import React from 'react';
-import { View } from 'react-native';
+import { View, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { useNotifications } from './src/hooks/useNotifications';
 import { useTransactionQueue } from './src/hooks/useTransactionQueue';
 import ErrorBoundary from './src/components/ErrorBoundary';
+import { HydrationGate } from './src/components/HydrationGate';
 import { initI18n } from './src/i18n/config';
 import i18n from './src/i18n/config';
 import { I18nextProvider } from 'react-i18next';
+import { crashReporter, CrashRecord } from './src/services/crashReporter';
+import * as Sentry from '@sentry/react-native';
 
-// Import WalletConnect compatibility layer
+import './src/config/env';
+
 import '@walletconnect/react-native-compat';
+
+import { initHermesOptimizations } from './src/utils/startupTimeOptimizer';
+import { performanceMonitor } from './src/services/performanceMonitor';
 
 import { createAppKit, defaultConfig, AppKit } from '@reown/appkit-ethers-react-native';
 
@@ -22,7 +29,17 @@ import { sessionService } from './src/services/auth/session';
 // Get projectId from environment variable
 const projectId = process.env.WALLET_CONNECT_PROJECT_ID || 'YOUR_PROJECT_ID';
 
-// Create metadata
+try {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN || '',
+    enableAutoSessionTracking: true,
+    tracesSampleRate: Number(process.env.SENTRY_TRACES_SAMPLE_RATE || 0.05),
+    environment: process.env.NODE_ENV || 'production',
+  });
+} catch (e) {
+  console.warn('Sentry init failed', e);
+}
+
 const metadata = {
   name: 'SubTrackr',
   description: 'Subscription Management with Crypto Payments',
@@ -35,7 +52,6 @@ const metadata = {
 
 const config = defaultConfig({ metadata });
 
-// Define supported chains
 const mainnet = {
   chainId: 1,
   name: 'Ethereum',
@@ -62,7 +78,6 @@ const arbitrum = {
 
 const chains = [mainnet, polygon, arbitrum];
 
-// Create AppKit
 createAppKit({
   projectId,
   metadata,
@@ -79,9 +94,62 @@ function NotificationBootstrap() {
   const { initializeSettings } = useSettingsStore();
 
   React.useEffect(() => {
+    if (Platform.OS === 'android') {
+      initHermesOptimizations();
+    }
     initialize();
     void initializeSettings();
-    void sessionService.initializeCurrentSession();
+
+    // Configure performance budget from performance-budget.json values
+    performanceMonitor.configureBudget({
+      renderMs: 250,
+      apiLatencyMs: 1200,
+      memoryBytes: 262_144_000,
+      routeTransitionMs: 300,
+      lcpMs: 2500,
+      fidMs: 100,
+      clsFrameDrops: 5,
+      bundleSizeBytes: 5 * 1024 * 1024,
+    });
+
+    // Configure RUM endpoint if provided via environment
+    const rumEndpoint = process.env.RUM_ENDPOINT;
+    if (rumEndpoint) {
+      performanceMonitor.configureRum(rumEndpoint);
+    }
+
+    // Regression alerts forwarded to Sentry in production
+    const unsubRegressions = performanceMonitor.onRegression((regression) => {
+      if (!__DEV__) {
+        try {
+          Sentry.addBreadcrumb({
+            category: 'performance',
+            message: `Regression: ${regression.metric.name}`,
+            level: 'warning',
+            data: {
+              actual: regression.actual,
+              budget: regression.budget,
+              exceedancePercent: regression.exceedancePercent,
+            },
+          });
+        } catch {
+          // Sentry not available
+        }
+      }
+    });
+
+    void (async () => {
+      const session = await sessionService.initializeCurrentSession();
+      try {
+        Sentry.setContext('session', { id: session.id, deviceName: session.deviceName });
+      } catch (e) {
+        // ignore
+      }
+    })();
+
+    return () => {
+      unsubRegressions();
+    };
   }, [initialize, initializeSettings]);
 
   return null;
@@ -89,12 +157,28 @@ function NotificationBootstrap() {
 
 export default function App() {
   const [i18nReady, setI18nReady] = React.useState(false);
+  const [, setPendingCrash] = React.useState<CrashRecord | null>(null);
+  const [, setShowRecoveryModal] = React.useState(false);
 
   React.useEffect(() => {
     let cancelled = false;
     const run = async () => {
       try {
         await initI18n();
+
+        const previousCrash = await crashReporter.initialize({
+          preservedStorageKeys: [
+            '@subtrackr/settings',
+            '@subtrackr/auth_token',
+            '@subtrackr/preferred_currency',
+          ],
+          installGlobalHandler: true,
+        });
+
+        if (previousCrash && !cancelled) {
+          setPendingCrash(previousCrash);
+          setShowRecoveryModal(true);
+        }
       } finally {
         if (!cancelled) setI18nReady(true);
       }
@@ -113,8 +197,10 @@ export default function App() {
         <StatusBar style="light" />
         <ErrorBoundary>
           <I18nextProvider i18n={i18n}>
-            <NotificationBootstrap />
-            <AppNavigator />
+            <HydrationGate>
+              <NotificationBootstrap />
+              <AppNavigator />
+            </HydrationGate>
           </I18nextProvider>
         </ErrorBoundary>
         <AppKit />
