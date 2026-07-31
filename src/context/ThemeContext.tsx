@@ -1,11 +1,4 @@
-import React, {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Appearance, ColorSchemeName } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { darkColors, lightColors, ColorTokens } from '../theme/colors';
@@ -30,17 +23,16 @@ function resolveSystemScheme(scheme: ColorSchemeName): boolean {
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [mode, setModeState] = useState<ThemeMode>('system');
-  const [systemScheme, setSystemScheme] = useState<ColorSchemeName>(Appearance.getColorScheme());
+  const [systemScheme, setSystemScheme] = useState<ColorSchemeName>(
+    Appearance.getColorScheme() || 'light'
+  );
 
   useEffect(() => {
     let mounted = true;
 
     AsyncStorage.getItem(STORAGE_KEY)
       .then((saved) => {
-        if (
-          mounted &&
-          (saved === 'light' || saved === 'dark' || saved === 'system')
-        ) {
+        if (mounted && (saved === 'light' || saved === 'dark' || saved === 'system')) {
           setModeState(saved);
         }
       })

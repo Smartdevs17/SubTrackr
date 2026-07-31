@@ -24,6 +24,7 @@ import walletServiceManager, { WalletConnection, TokenBalance } from '../service
 import { TICKER_TO_COINGECKO_ID } from '../services/priceService';
 import { useTokenPrices } from '../hooks/useTokenPrices';
 import { useWalletStore } from '../store';
+import useRefresh from '../hooks/useRefresh';
 import { RootStackParamList } from '../navigation/types';
 import { getWalletConnectChain, WALLETCONNECT_CHAINS } from '../services/walletconnect/chains';
 import {
@@ -37,7 +38,7 @@ const WalletConnectV2Screen: React.FC = () => {
   const { open } = useAppKit();
   const { address, isConnected, chainId } = useAppKitAccount();
   const { walletProvider } = useAppKitProvider();
-  const { syncWalletConnection, disconnect } = useWalletStore();
+  const { disconnect } = useWalletStore();
 
   const previousConnectionRef = useRef(false);
 
@@ -79,11 +80,6 @@ const WalletConnectV2Screen: React.FC = () => {
 
         previousConnectionRef.current = true;
         walletServiceManager.setConnection(nextConnection);
-        await syncWalletConnection({
-          address,
-          chainId: nextConnection.chainId,
-          network: getChainName(nextConnection.chainId),
-        });
 
         const nextSession = await walletConnectSessionManager.markConnected(
           address,
@@ -125,7 +121,7 @@ const WalletConnectV2Screen: React.FC = () => {
     return () => {
       active = false;
     };
-  }, [isConnected, address, chainId, walletProvider, syncWalletConnection, disconnect]);
+  }, [isConnected, address, chainId, walletProvider, disconnect]);
 
   const initializeWalletService = async () => {
     try {
@@ -199,10 +195,16 @@ const WalletConnectV2Screen: React.FC = () => {
     }
   };
 
+  const { refreshing: pullRefreshing, refresh: doPullRefresh } = useRefresh();
+
   const handleRefreshBalances = async () => {
-    const balances = await loadTokenBalances();
-    setTokenBalances(balances);
-    await refresh();
+    await doPullRefresh({
+      fetcher: async () => {
+        const balances = await loadTokenBalances();
+        setTokenBalances(balances);
+        await refresh();
+      },
+    });
   };
 
   const handleCopyAddress = async () => {
@@ -291,7 +293,7 @@ const WalletConnectV2Screen: React.FC = () => {
         style={styles.scrollView}
         refreshControl={
           <RefreshControl
-            refreshing={isLoadingBalances || isRefreshing}
+            refreshing={pullRefreshing || isLoadingBalances || isRefreshing}
             onRefresh={handleRefreshBalances}
           />
         }>
