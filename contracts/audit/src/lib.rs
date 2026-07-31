@@ -57,7 +57,7 @@ impl AuditContract {
         env.storage().instance().set(&AuditDataKey::Anchor(count), &entry);
 
         env.events().publish(
-            symbol_short!("anchor"),
+            (symbol_short!("anchor"),),
             (entry.anchor_nonce, entry.chain_head_hash.clone()),
         );
 

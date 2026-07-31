@@ -27,7 +27,11 @@ const SegmentDetailScreen = lazyScreen(() =>
 const GroupManagementScreen = lazyScreen(() => import('../../screens/GroupManagementScreen'));
 const SupportDashboardScreen = lazyScreen(() => import('../../screens/SupportDashboardScreen'));
 const TrialDetailsScreen = lazyScreen(() => import('../../screens/TrialDetailsScreen'));
-const NotFoundScreen = lazyScreen(() => import('../../screens/NotFoundScreen'));
+// NotFoundScreen has no default export, so the named one is mapped onto the
+// shape `lazyScreen` expects.
+const NotFoundScreen = lazyScreen(() =>
+  import('../../screens/NotFoundScreen').then((m) => ({ default: m.NotFoundScreen }))
+);
 
 export const SocialStack = () => (
   <Stack.Navigator>

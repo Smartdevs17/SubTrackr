@@ -13,7 +13,12 @@ import {
   type RateLimitResponse,
 } from '../rateLimitMiddleware';
 import { SubscriptionTier } from '../../../../src/types/subscription';
-import { TIER_RATE_LIMITS } from '../../../../src/types/rateLimiting';
+import {
+  TIER_RATE_LIMITS,
+  RateLimitTier,
+  mapSubscriptionToRateLimitTier,
+  RATE_LIMIT_TIER_CONFIG,
+} from '../../../../src/types/rateLimiting';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -118,12 +123,13 @@ describe('RateLimitingService', () => {
 
     it('blocks when burst tokens are exhausted', () => {
       const tier = SubscriptionTier.FREE;
-      const usage = service.getOrCreateUsage('key1', tier);
-      usage.burstTokens = 0;
+      service.setBurstTokens('key1', 0, tier);
 
       const result = service.checkRateLimit('key1', tier);
       expect(result.allowed).toBe(false);
-      expect(result.retryAfterMs).toBe(1_000);
+      // ~1s at FREE refill rate (1 token/s); allow tiny elapsed-time drift
+      expect(result.retryAfterMs).toBeGreaterThan(0);
+      expect(result.retryAfterMs).toBeLessThanOrEqual(1_000);
     });
 
     it('blocks when concurrency limit is exceeded', () => {
@@ -307,6 +313,30 @@ describe('RateLimitingService', () => {
       const status = service.getRateLimitStatus('key1', tier);
       expect(status.current.hourly).toBe(2);
       expect(status.remaining.hourly).toBe(TIER_RATE_LIMITS[tier].hourlyLimit - 2);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  describe('free/pro/enterprise rate limit tiers', () => {
+    it('maps subscription tiers to free/pro/enterprise', () => {
+      expect(mapSubscriptionToRateLimitTier(SubscriptionTier.FREE)).toBe(RateLimitTier.FREE);
+      expect(mapSubscriptionToRateLimitTier(SubscriptionTier.BASIC)).toBe(RateLimitTier.PRO);
+      expect(mapSubscriptionToRateLimitTier(SubscriptionTier.PREMIUM)).toBe(RateLimitTier.PRO);
+      expect(mapSubscriptionToRateLimitTier(SubscriptionTier.ENTERPRISE)).toBe(
+        RateLimitTier.ENTERPRISE,
+      );
+    });
+
+    it('exposes public tier configs via the service', () => {
+      expect(service.getRateLimitTier(SubscriptionTier.PREMIUM)).toBe(RateLimitTier.PRO);
+      const pro = service.getPublicTierLimits(RateLimitTier.PRO);
+      expect(pro.hourlyLimit).toBe(RATE_LIMIT_TIER_CONFIG[RateLimitTier.PRO].hourlyLimit);
+      expect(pro.refillRatePerSecond).toBeGreaterThan(0);
+    });
+
+    it('includes refillRatePerSecond in effective limits', () => {
+      const limits = service.getEffectiveLimits('key1', SubscriptionTier.FREE);
+      expect(limits.refillRatePerSecond).toBe(TIER_RATE_LIMITS[SubscriptionTier.FREE].refillRatePerSecond);
     });
   });
 });

@@ -4,6 +4,9 @@ import {
   SOFT_LIMIT_WARNINGS,
   TIER_UPGRADE_THRESHOLDS,
   getNextTier,
+  mapSubscriptionToRateLimitTier,
+  getRateLimitTierConfig,
+  RateLimitTier,
   type ApiKeyUsage,
   type RateLimitExceededError,
   type SoftLimitWarning,
@@ -12,6 +15,7 @@ import {
   type UsageMeteringEntry,
   type TierUpgradeRecommendation,
 } from '../../src/types/rateLimiting';
+import { TokenBucket } from './tokenBucket';
 
 const ONE_HOUR_MS = 3_600_000;
 const ONE_DAY_MS = 86_400_000;
@@ -49,12 +53,15 @@ export interface CustomLimits {
   monthlyLimit?: number;
   burstLimit?: number;
   concurrentLimit?: number;
+  refillRatePerSecond?: number;
 }
 
 export class RateLimitingService {
   private usages = new Map<string, ApiKeyUsage>();
   /** Separate tracking bucket for per-user aggregated usage */
   private userUsages = new Map<string, ApiKeyUsage>();
+  /** Token buckets keyed by API key (or IP / user fallback identifier). */
+  private buckets = new Map<string, TokenBucket>();
   private requestLog: UsageMeteringEntry[] = [];
   private readonly maxLogEntries = 100_000;
 
@@ -109,10 +116,30 @@ export class RateLimitingService {
 
   setCustomLimits(apiKey: string, limits: CustomLimits): void {
     this.customLimits.set(apiKey, limits);
+    const bucket = this.buckets.get(apiKey);
+    if (bucket) {
+      const effective = this.getEffectiveLimits(
+        apiKey,
+        this.usages.get(apiKey)?.tier ?? SubscriptionTier.FREE,
+      );
+      bucket.reconfigure({
+        capacity: effective.burstLimit,
+        refillRatePerSecond: effective.refillRatePerSecond,
+      });
+    }
   }
 
   clearCustomLimits(apiKey: string): void {
     this.customLimits.delete(apiKey);
+    const usage = this.usages.get(apiKey);
+    const bucket = this.buckets.get(apiKey);
+    if (bucket && usage) {
+      const effective = this.getEffectiveLimits(apiKey, usage.tier);
+      bucket.reconfigure({
+        capacity: effective.burstLimit,
+        refillRatePerSecond: effective.refillRatePerSecond,
+      });
+    }
   }
 
   getEffectiveLimits(apiKey: string, tier: SubscriptionTier): TierRateLimit {
@@ -127,7 +154,65 @@ export class RateLimitingService {
       monthlyLimit: custom.monthlyLimit ?? tierLimits.monthlyLimit,
       burstLimit: custom.burstLimit ?? tierLimits.burstLimit,
       concurrentLimit: custom.concurrentLimit ?? tierLimits.concurrentLimit,
+      refillRatePerSecond: custom.refillRatePerSecond ?? tierLimits.refillRatePerSecond,
     };
+  }
+
+  /** Resolve the public free/pro/enterprise tier for a subscription tier. */
+  getRateLimitTier(tier: SubscriptionTier): RateLimitTier {
+    return mapSubscriptionToRateLimitTier(tier);
+  }
+
+  getPublicTierLimits(tier: RateLimitTier) {
+    return getRateLimitTierConfig(tier);
+  }
+
+  // -------------------------------------------------------------------------
+  // Token bucket helpers
+  // -------------------------------------------------------------------------
+
+  private getOrCreateBucket(apiKey: string, limits: TierRateLimit): TokenBucket {
+    let bucket = this.buckets.get(apiKey);
+    if (!bucket) {
+      bucket = new TokenBucket({
+        capacity: limits.burstLimit,
+        refillRatePerSecond: limits.refillRatePerSecond,
+      });
+      this.buckets.set(apiKey, bucket);
+    }
+    return bucket;
+  }
+
+  /**
+   * Refill the token bucket and mirror remaining tokens onto ApiKeyUsage.
+   * The TokenBucket is the source of truth for burst capacity.
+   */
+  private syncAndRefillBucket(
+    apiKey: string,
+    usage: ApiKeyUsage,
+    limits: TierRateLimit,
+  ): TokenBucket {
+    const bucket = this.getOrCreateBucket(apiKey, limits);
+    bucket.reconfigure({
+      capacity: limits.burstLimit,
+      refillRatePerSecond: limits.refillRatePerSecond,
+    });
+    bucket.refill();
+    usage.burstTokens = bucket.getRemaining();
+    usage.lastBurstRefill = now();
+    return bucket;
+  }
+
+  /**
+   * Set burst tokens for a key (admin / tests). Updates the token bucket.
+   */
+  setBurstTokens(apiKey: string, tokens: number, tier: SubscriptionTier = SubscriptionTier.FREE): void {
+    const usage = this.getOrCreateUsage(apiKey, tier);
+    const limits = this.getEffectiveLimits(apiKey, tier);
+    const bucket = this.getOrCreateBucket(apiKey, limits);
+    bucket.setTokens(tokens);
+    usage.burstTokens = Math.floor(Math.max(0, tokens));
+    usage.lastBurstRefill = now();
   }
 
   // -------------------------------------------------------------------------
@@ -158,6 +243,7 @@ export class RateLimitingService {
     };
 
     this.usages.set(apiKey, usage);
+    this.getOrCreateBucket(apiKey, limits);
     return usage;
   }
 
@@ -184,9 +270,13 @@ export class RateLimitingService {
       return { allowed: false, retryAfterMs: usage.hourlyResetAt - now_ts };
     }
 
-    this.refillBurstTokens(usage, limits);
-    if (usage.burstTokens <= 0) {
-      return { allowed: false, retryAfterMs: 1_000 };
+    // Token-bucket burst check (peek — does not consume)
+    const bucket = this.syncAndRefillBucket(apiKey, usage, limits);
+    const available = bucket.snapshot().tokens;
+    if (available < 1) {
+      const deficit = 1 - available;
+      const retryAfterMs = Math.ceil((deficit / limits.refillRatePerSecond) * 1_000);
+      return { allowed: false, retryAfterMs };
     }
     if (usage.concurrentRequests >= limits.concurrentLimit) {
       return { allowed: false, retryAfterMs: 500 };
@@ -211,7 +301,13 @@ export class RateLimitingService {
     usage.daily += 1;
     usage.monthly += 1;
     usage.lastRequestAt = now();
-    usage.burstTokens = Math.max(0, usage.burstTokens - 1);
+
+    // Consume one token from the token bucket
+    const bucket = this.syncAndRefillBucket(apiKey, usage, limits);
+    const consumed = bucket.tryConsume(1);
+    usage.burstTokens = Math.max(0, Math.floor(consumed.remaining));
+    usage.lastBurstRefill = now();
+
     usage.concurrentRequests += 1;
 
     setTimeout(() => {
@@ -400,6 +496,7 @@ export class RateLimitingService {
     const usage = this.getOrCreateUsage(apiKey, tier);
     this.resetIfExpired(usage);
     const limits = this.getEffectiveLimits(apiKey, tier);
+    this.syncAndRefillBucket(apiKey, usage, limits);
 
     return {
       limits,
@@ -600,16 +697,6 @@ export class RateLimitingService {
     if (now_ts >= usage.monthlyResetAt) {
       usage.monthly = 0;
       usage.monthlyResetAt = computeResetTime(ONE_MONTH_MS);
-    }
-  }
-
-  private refillBurstTokens(usage: ApiKeyUsage, limits: TierRateLimit): void {
-    const now_ts = now();
-    const elapsed = now_ts - usage.lastBurstRefill;
-    const tokensToAdd = Math.floor(elapsed / 1_000);
-    if (tokensToAdd > 0) {
-      usage.burstTokens = Math.min(limits.burstLimit, usage.burstTokens + tokensToAdd);
-      usage.lastBurstRefill = now_ts;
     }
   }
 }

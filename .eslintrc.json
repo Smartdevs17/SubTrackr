@@ -48,7 +48,8 @@
     "app/",
     "backend/",
     "acbu-backend/",
-    "src/animations/"
+    "src/animations/",
+    "scripts/"
   ],
   "settings": {
     "import/resolver": {

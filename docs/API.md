@@ -1035,3 +1035,24 @@ soroban contract deploy \
 ## Versioning
 
 This API documentation corresponds to the current `main` branch. The Soroban contract does not use semantic versioning on-chain; breaking changes require redeployment to a new contract ID. Client-side services follow the app version in `package.json`.
+
+---
+
+## Trial Optimization & Conversion Tracking API
+
+The `TrialOptimizationService` provides conversion tracking, trial-to-paid automated triggers, trial extension rules, notification templates, and analytics.
+
+### Methods
+
+#### `processTrials(subscriptions)` & `getAnalyticsSummary(subscriptions)`
+Calculates trial conversion rate, active/converted/extended trial counts, and generated conversion revenue.
+
+#### `applyExtension(trialId, ruleId)`
+Applies trial extension rules (e.g. high engagement bonus days).
+
+#### `convertTrialToPaid(trialId, trigger)`
+Triggers automated or manual trial-to-paid conversion with designated trigger type.
+
+#### `generateReport(format)`
+Exports full trial conversion logs and analytics in `json` or `csv`.
+

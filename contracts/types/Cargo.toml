@@ -8,7 +8,13 @@ description = "Shared contract types for SubTrackr (Soroban)"
 [lib]
 name = "subtrackr_types"
 path = "src/lib.rs"
+# rlib only — no WASM binary produced; shared as a library dependency
 crate-type = ["rlib"]
 
 [dependencies]
-soroban-sdk = "21.0.0"
+soroban-sdk = { workspace = true }
+
+[features]
+default = []
+# Enable testutils on the SDK for use in test code
+testutils = ["soroban-sdk/testutils"]
