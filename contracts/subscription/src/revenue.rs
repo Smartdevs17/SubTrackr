@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 /// Revenue recognition module for SubTrackr subscriptions.
 ///
 /// Implements ASC 606 / IFRS 15 compliant revenue recognition:
@@ -7,7 +8,7 @@
 /// All storage is delegated to the shared storage contract via the
 /// `storage_persistent_*` helpers defined in the parent module.
 use soroban_sdk::{contracttype, Address, Env, Vec};
-use subtrackr_types::StorageKey;
+use subtrackr_types::StorageKeyExt;
 
 use crate::{storage_persistent_get, storage_persistent_set};
 
@@ -152,7 +153,7 @@ pub fn set_recognition_rule(env: &Env, storage: &Address, rule: RevenueRecogniti
     storage_persistent_set(
         env,
         storage,
-        StorageKey::RevenueRecognitionRule(rule.plan_id),
+        StorageKeyExt::RevenueRecognitionRule(rule.plan_id),
         rule,
     );
 }
@@ -162,7 +163,7 @@ pub fn get_recognition_rule(
     storage: &Address,
     plan_id: u64,
 ) -> Option<RevenueRecognitionRule> {
-    storage_persistent_get(env, storage, StorageKey::RevenueRecognitionRule(plan_id))
+    storage_persistent_get(env, storage, StorageKeyExt::RevenueRecognitionRule(plan_id))
 }
 
 pub fn get_revenue_schedule(
@@ -170,14 +171,14 @@ pub fn get_revenue_schedule(
     storage: &Address,
     subscription_id: u64,
 ) -> Option<RevenueSchedule> {
-    storage_persistent_get(env, storage, StorageKey::RevenueSchedule(subscription_id))
+    storage_persistent_get(env, storage, StorageKeyExt::RevenueSchedule(subscription_id))
 }
 
 pub fn get_deferred_revenue(env: &Env, storage: &Address, merchant: &Address) -> i128 {
     storage_persistent_get(
         env,
         storage,
-        StorageKey::RevenueDeferredBalance(merchant.clone()),
+        StorageKeyExt::RevenueDeferredBalance(merchant.clone()),
     )
     .unwrap_or(0i128)
 }
@@ -232,7 +233,7 @@ pub fn generate_revenue_schedule(
     storage_persistent_set(
         env,
         storage,
-        StorageKey::RevenueSchedule(subscription_id),
+        StorageKeyExt::RevenueSchedule(subscription_id),
         schedule.clone(),
     );
     schedule
@@ -278,26 +279,26 @@ pub fn update_merchant_revenue_balances(
     let prev_rec: i128 = storage_persistent_get(
         env,
         storage,
-        StorageKey::RevenueRecognisedBalance(merchant.clone()),
+        StorageKeyExt::RevenueRecognisedBalance(merchant.clone()),
     )
     .unwrap_or(0i128);
     let prev_def: i128 = storage_persistent_get(
         env,
         storage,
-        StorageKey::RevenueDeferredBalance(merchant.clone()),
+        StorageKeyExt::RevenueDeferredBalance(merchant.clone()),
     )
     .unwrap_or(0i128);
 
     storage_persistent_set(
         env,
         storage,
-        StorageKey::RevenueRecognisedBalance(merchant.clone()),
+        StorageKeyExt::RevenueRecognisedBalance(merchant.clone()),
         prev_rec + recognised_delta,
     );
     storage_persistent_set(
         env,
         storage,
-        StorageKey::RevenueDeferredBalance(merchant.clone()),
+        StorageKeyExt::RevenueDeferredBalance(merchant.clone()),
         prev_def + deferred_delta,
     );
 }
@@ -312,7 +313,7 @@ pub fn track_merchant_subscription(
     let mut ids: Vec<u64> = storage_persistent_get(
         env,
         storage,
-        StorageKey::RevenueMerchantSubscriptions(merchant.clone()),
+        StorageKeyExt::RevenueMerchantSubscriptions(merchant.clone()),
     )
     .unwrap_or(Vec::new(env));
     for existing in ids.iter() {
@@ -324,7 +325,7 @@ pub fn track_merchant_subscription(
     storage_persistent_set(
         env,
         storage,
-        StorageKey::RevenueMerchantSubscriptions(merchant.clone()),
+        StorageKeyExt::RevenueMerchantSubscriptions(merchant.clone()),
         ids,
     );
 }
@@ -344,7 +345,7 @@ pub fn get_revenue_analytics_by_period(
     let sub_ids: Vec<u64> = storage_persistent_get(
         env,
         storage,
-        StorageKey::RevenueMerchantSubscriptions(merchant.clone()),
+        StorageKeyExt::RevenueMerchantSubscriptions(merchant.clone()),
     )
     .unwrap_or(Vec::new(env));
 
@@ -362,7 +363,7 @@ pub fn get_revenue_analytics_by_period(
 
     for sub_id in sub_ids.iter() {
         let maybe: Option<RevenueSchedule> =
-            storage_persistent_get(env, storage, StorageKey::RevenueSchedule(sub_id));
+            storage_persistent_get(env, storage, StorageKeyExt::RevenueSchedule(sub_id));
         if let Some(schedule) = maybe {
             let mut contributed = false;
             for entry in schedule.entries.iter() {

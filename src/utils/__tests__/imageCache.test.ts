@@ -32,7 +32,7 @@ beforeEach(() => {
   mockStorage.setItem.mockResolvedValue(undefined);
   mockStorage.removeItem.mockResolvedValue(undefined);
   mockImage.prefetch.mockResolvedValue(true);
-  mockImage.clearDiskCache.mockResolvedValue(undefined);
+  mockImage.clearDiskCache.mockResolvedValue(true);
 });
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -41,7 +41,12 @@ describe('ImageCacheManager', () => {
   describe('hydrate', () => {
     it('loads existing entries from AsyncStorage', async () => {
       const now = Date.now();
-      const entry = { url: 'https://example.com/icon.png', cachedAt: now, expiresAt: now + 10000, lastAccessedAt: now };
+      const entry = {
+        url: 'https://example.com/icon.png',
+        cachedAt: now,
+        expiresAt: now + 10000,
+        lastAccessedAt: now,
+      };
       mockStorage.getItem.mockResolvedValueOnce(JSON.stringify([entry]));
 
       const cache = makeCache();
@@ -98,14 +103,12 @@ describe('ImageCacheManager', () => {
     it('evicts the LRU entry when at capacity', async () => {
       const cache = makeCache({ maxEntries: 2 });
 
+      // No delays between registrations: eviction order must hold even when
+      // every access lands in the same millisecond.
       await cache.register('https://example.com/a.png');
-      // Small delay to ensure different timestamps
-      await new Promise((r) => setTimeout(r, 1));
       await cache.register('https://example.com/b.png');
-      await new Promise((r) => setTimeout(r, 1));
       // Access 'a' again to make 'b' the LRU
       await cache.register('https://example.com/a.png');
-      await new Promise((r) => setTimeout(r, 1));
       // Adding 'c' should evict 'b' (least recently accessed)
       await cache.register('https://example.com/c.png');
 
@@ -130,7 +133,12 @@ describe('ImageCacheManager', () => {
 
     it('returns false for an expired entry', async () => {
       const now = Date.now();
-      const expired = { url: 'https://example.com/old.png', cachedAt: now - 20000, expiresAt: now - 1, lastAccessedAt: now - 20000 };
+      const expired = {
+        url: 'https://example.com/old.png',
+        cachedAt: now - 20000,
+        expiresAt: now - 1,
+        lastAccessedAt: now - 20000,
+      };
       mockStorage.getItem.mockResolvedValueOnce(JSON.stringify([expired]));
 
       const cache = makeCache();

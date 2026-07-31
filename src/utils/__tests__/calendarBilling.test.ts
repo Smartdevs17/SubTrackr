@@ -50,53 +50,97 @@ describe('daysInMonth', () => {
 describe('normalizeBillingDay', () => {
   describe('day exists in month', () => {
     it('returns the day unchanged when it fits', () => {
-      expect(normalizeBillingDay(15, 3, 2025, 'last_day')).toEqual({ year: 2025, month: 3, day: 15 });
+      expect(normalizeBillingDay(15, 3, 2025, 'last_day')).toEqual({
+        year: 2025,
+        month: 3,
+        day: 15,
+      });
     });
 
     it('returns day 28 in February non-leap year when target is 28', () => {
-      expect(normalizeBillingDay(28, 2, 2025, 'last_day')).toEqual({ year: 2025, month: 2, day: 28 });
+      expect(normalizeBillingDay(28, 2, 2025, 'last_day')).toEqual({
+        year: 2025,
+        month: 2,
+        day: 28,
+      });
     });
 
     it('returns day 29 in February leap year when target is 29', () => {
-      expect(normalizeBillingDay(29, 2, 2024, 'last_day')).toEqual({ year: 2024, month: 2, day: 29 });
+      expect(normalizeBillingDay(29, 2, 2024, 'last_day')).toEqual({
+        year: 2024,
+        month: 2,
+        day: 29,
+      });
     });
   });
 
   describe('policy: last_day', () => {
     it('Jan 31 → Feb: returns Feb 28 in non-leap year', () => {
-      expect(normalizeBillingDay(31, 2, 2025, 'last_day')).toEqual({ year: 2025, month: 2, day: 28 });
+      expect(normalizeBillingDay(31, 2, 2025, 'last_day')).toEqual({
+        year: 2025,
+        month: 2,
+        day: 28,
+      });
     });
 
     it('Jan 31 → Feb: returns Feb 29 in leap year', () => {
-      expect(normalizeBillingDay(31, 2, 2024, 'last_day')).toEqual({ year: 2024, month: 2, day: 29 });
+      expect(normalizeBillingDay(31, 2, 2024, 'last_day')).toEqual({
+        year: 2024,
+        month: 2,
+        day: 29,
+      });
     });
 
     it('31st → April: returns April 30', () => {
-      expect(normalizeBillingDay(31, 4, 2025, 'last_day')).toEqual({ year: 2025, month: 4, day: 30 });
+      expect(normalizeBillingDay(31, 4, 2025, 'last_day')).toEqual({
+        year: 2025,
+        month: 4,
+        day: 30,
+      });
     });
 
     it('30th → February: returns Feb 28', () => {
-      expect(normalizeBillingDay(30, 2, 2025, 'last_day')).toEqual({ year: 2025, month: 2, day: 28 });
+      expect(normalizeBillingDay(30, 2, 2025, 'last_day')).toEqual({
+        year: 2025,
+        month: 2,
+        day: 28,
+      });
     });
   });
 
   describe('policy: first_day_next', () => {
     it('Jan 31 → Feb: returns March 1', () => {
-      expect(normalizeBillingDay(31, 2, 2025, 'first_day_next')).toEqual({ year: 2025, month: 3, day: 1 });
+      expect(normalizeBillingDay(31, 2, 2025, 'first_day_next')).toEqual({
+        year: 2025,
+        month: 3,
+        day: 1,
+      });
     });
 
     it('31st → April: returns May 1', () => {
-      expect(normalizeBillingDay(31, 4, 2025, 'first_day_next')).toEqual({ year: 2025, month: 5, day: 1 });
+      expect(normalizeBillingDay(31, 4, 2025, 'first_day_next')).toEqual({
+        year: 2025,
+        month: 5,
+        day: 1,
+      });
     });
 
     it('rolls over year boundary: Dec 31 → Feb: returns March 1 next year', () => {
       // February doesn't have 31 days; first_day_next → March 1
-      expect(normalizeBillingDay(31, 2, 2025, 'first_day_next')).toEqual({ year: 2025, month: 3, day: 1 });
+      expect(normalizeBillingDay(31, 2, 2025, 'first_day_next')).toEqual({
+        year: 2025,
+        month: 3,
+        day: 1,
+      });
     });
 
     it('handles December → January year rollover', () => {
       // 31st in a 30-day month with first_day_next
-      expect(normalizeBillingDay(31, 11, 2025, 'first_day_next')).toEqual({ year: 2025, month: 12, day: 1 });
+      expect(normalizeBillingDay(31, 11, 2025, 'first_day_next')).toEqual({
+        year: 2025,
+        month: 12,
+        day: 1,
+      });
     });
   });
 
@@ -349,8 +393,24 @@ describe('generateCalendarInvoice', () => {
   });
 
   it('generates unique IDs for each invoice', () => {
-    const inv1 = generateCalendarInvoice('sub_1', 'merchant_1', periodStart, periodEnd, billingDate, 100, 'USD');
-    const inv2 = generateCalendarInvoice('sub_1', 'merchant_1', periodStart, periodEnd, billingDate, 100, 'USD');
+    const inv1 = generateCalendarInvoice(
+      'sub_1',
+      'merchant_1',
+      periodStart,
+      periodEnd,
+      billingDate,
+      100,
+      'USD'
+    );
+    const inv2 = generateCalendarInvoice(
+      'sub_1',
+      'merchant_1',
+      periodStart,
+      periodEnd,
+      billingDate,
+      100,
+      'USD'
+    );
     expect(inv1.id).not.toBe(inv2.id);
   });
 });

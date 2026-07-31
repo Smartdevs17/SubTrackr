@@ -23,15 +23,8 @@ const USAGE_TIERS = [
 ] as const;
 
 const ApiKeysScreen: React.FC = () => {
-  const {
-    apiKeys,
-    createApiKey,
-    revokeApiKey,
-    rotateApiKey,
-    deleteApiKey,
-    getKeyStats,
-    maskKey,
-  } = useApiStore();
+  const { apiKeys, createApiKey, revokeApiKey, rotateApiKey, deleteApiKey, getKeyStats, maskKey } =
+    useApiStore();
 
   const [newKeyName, setNewKeyName] = useState('');
   const [selectedTier, setSelectedTier] = useState<string>('free');
@@ -45,7 +38,10 @@ const ApiKeysScreen: React.FC = () => {
       return;
     }
 
-    const key = createApiKey(newKeyName.trim(), selectedTier as 'free' | 'basic' | 'pro' | 'enterprise');
+    const key = createApiKey(
+      newKeyName.trim(),
+      selectedTier as 'free' | 'basic' | 'pro' | 'enterprise'
+    );
     setShowNewKey(key.key);
     setNewKeyName('');
     Alert.alert(
@@ -60,10 +56,14 @@ const ApiKeysScreen: React.FC = () => {
   };
 
   const handleRevokeKey = (keyId: string, keyName: string) => {
-    Alert.alert('Revoke API Key', `Revoke "${keyName}"? This will immediately invalidate the key.`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Revoke', style: 'destructive', onPress: () => revokeApiKey(keyId) },
-    ]);
+    Alert.alert(
+      'Revoke API Key',
+      `Revoke "${keyName}"? This will immediately invalidate the key.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Revoke', style: 'destructive', onPress: () => revokeApiKey(keyId) },
+      ]
+    );
   };
 
   const handleRotateKey = (keyId: string, keyName: string) => {
@@ -94,9 +94,7 @@ const ApiKeysScreen: React.FC = () => {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <Text style={styles.title}>API Keys</Text>
-          <Text style={styles.subtitle}>
-            Manage API keys with rate limiting and usage metering
-          </Text>
+          <Text style={styles.subtitle}>Manage API keys with rate limiting and usage metering</Text>
         </View>
 
         <View style={styles.statsGrid}>
@@ -135,18 +133,10 @@ const ApiKeysScreen: React.FC = () => {
             {USAGE_TIERS.map((tier) => (
               <TouchableOpacity
                 key={tier.key}
-                style={[
-                  styles.tierCard,
-                  selectedTier === tier.key && styles.tierCardSelected,
-                ]}
-                onPress={() => setSelectedTier(tier.key)}
-              >
+                style={[styles.tierCard, selectedTier === tier.key && styles.tierCardSelected]}
+                onPress={() => setSelectedTier(tier.key)}>
                 <Text
-                  style={[
-                    styles.tierLabel,
-                    selectedTier === tier.key && styles.tierLabelSelected,
-                  ]}
-                >
+                  style={[styles.tierLabel, selectedTier === tier.key && styles.tierLabelSelected]}>
                   {tier.label}
                 </Text>
                 <Text style={styles.tierDesc}>{tier.desc}</Text>
@@ -171,16 +161,10 @@ const ApiKeysScreen: React.FC = () => {
               </Text>
             </View>
             <View style={styles.keyActions}>
-              <TouchableOpacity
-                style={styles.copyButton}
-                onPress={() => handleCopyKey(showNewKey)}
-              >
+              <TouchableOpacity style={styles.copyButton} onPress={() => handleCopyKey(showNewKey)}>
                 <Text style={styles.copyButtonText}>Copy Key</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.dismissButton}
-                onPress={() => setShowNewKey(null)}
-              >
+              <TouchableOpacity style={styles.dismissButton} onPress={() => setShowNewKey(null)}>
                 <Text style={styles.dismissButtonText}>Dismiss</Text>
               </TouchableOpacity>
             </View>
@@ -192,9 +176,7 @@ const ApiKeysScreen: React.FC = () => {
           {apiKeys.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyText}>No API keys yet</Text>
-              <Text style={styles.emptySubtext}>
-                Generate an API key above to get started
-              </Text>
+              <Text style={styles.emptySubtext}>Generate an API key above to get started</Text>
             </View>
           ) : (
             apiKeys.map((key) => (
@@ -210,11 +192,10 @@ const ApiKeysScreen: React.FC = () => {
                             key.status === ApiKeyStatus.ACTIVE
                               ? colors.success
                               : key.status === ApiKeyStatus.REVOKED
-                              ? colors.error
-                              : colors.warning,
+                                ? colors.error
+                                : colors.warning,
                         },
-                      ]}
-                    >
+                      ]}>
                       <Text style={styles.statusText}>{key.status}</Text>
                     </View>
                   </View>
@@ -242,20 +223,17 @@ const ApiKeysScreen: React.FC = () => {
                     <>
                       <TouchableOpacity
                         style={styles.actionButton}
-                        onPress={() => handleCopyKey(key.key)}
-                      >
+                        onPress={() => handleCopyKey(key.key)}>
                         <Text style={styles.actionButtonText}>Copy</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={styles.actionButton}
-                        onPress={() => handleRotateKey(key.id, key.name)}
-                      >
+                        onPress={() => handleRotateKey(key.id, key.name)}>
                         <Text style={styles.actionButtonText}>Rotate</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={[styles.actionButton, styles.actionButtonDanger]}
-                        onPress={() => handleRevokeKey(key.id, key.name)}
-                      >
+                        onPress={() => handleRevokeKey(key.id, key.name)}>
                         <Text style={[styles.actionButtonText, { color: colors.error }]}>
                           Revoke
                         </Text>
@@ -264,8 +242,7 @@ const ApiKeysScreen: React.FC = () => {
                   )}
                   <TouchableOpacity
                     style={styles.actionButton}
-                    onPress={() => handleDeleteKey(key.id, key.name)}
-                  >
+                    onPress={() => handleDeleteKey(key.id, key.name)}>
                     <Text style={styles.actionButtonText}>Delete</Text>
                   </TouchableOpacity>
                 </View>

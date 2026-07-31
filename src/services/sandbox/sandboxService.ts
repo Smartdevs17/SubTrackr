@@ -4,6 +4,7 @@ import {
   SandboxEnvironment,
   TestSubscription,
   RateLimitConfig,
+  SandboxStatus,
 } from '../../types/sandbox';
 
 const SANDBOX_STORAGE_KEY = '@subtrackr_sandbox_config';
@@ -57,10 +58,7 @@ const ENV_FEATURES: Record<SandboxEnvironment, string[]> = {
     'invoice_generate',
     'export_data',
   ],
-  [SandboxEnvironment.TESTING]: [
-    'subscription_read',
-    'analytics_read',
-  ],
+  [SandboxEnvironment.TESTING]: ['subscription_read', 'analytics_read'],
   [SandboxEnvironment.PRODUCTION]: [
     'subscription_create',
     'subscription_read',
@@ -82,6 +80,7 @@ const DEFAULT_SANDBOX_CONFIG: SandboxConfig = {
   name: 'Development Sandbox',
   description: 'Isolated sandbox environment for testing integrations',
   isActive: true,
+  status: SandboxStatus.ACTIVE,
   dataIsolation: true,
   rateLimit: ENV_RATE_LIMITS[SandboxEnvironment.DEVELOPMENT],
   dataResetInterval: 'weekly',
@@ -161,7 +160,10 @@ class SandboxService {
     try {
       const stored = await AsyncStorage.getItem(SANDBOX_DATA_KEY);
       if (stored) {
-        const parsed = JSON.parse(stored) as Record<string, { testSubscriptions: TestSubscription[] }>;
+        const parsed = JSON.parse(stored) as Record<
+          string,
+          { testSubscriptions: TestSubscription[] }
+        >;
         for (const [env, data] of Object.entries(parsed)) {
           const envData = this.environmentData.get(env as SandboxEnvironment);
           if (envData && data.testSubscriptions) {
@@ -246,30 +248,52 @@ class SandboxService {
   private generateTestDataForEnvironment(environment: SandboxEnvironment): TestSubscription[] {
     const testNames: Record<SandboxEnvironment, string[]> = {
       [SandboxEnvironment.DEVELOPMENT]: [
-        'Netflix Premium', 'Spotify Family', 'Adobe Creative Cloud',
-        'GitHub Teams', 'Figma Professional', 'Notion Team',
-        'Slack Business+', 'Zoom Pro', 'Dropbox Business', 'Microsoft 365',
+        'Netflix Premium',
+        'Spotify Family',
+        'Adobe Creative Cloud',
+        'GitHub Teams',
+        'Figma Professional',
+        'Notion Team',
+        'Slack Business+',
+        'Zoom Pro',
+        'Dropbox Business',
+        'Microsoft 365',
       ],
       [SandboxEnvironment.STAGING]: [
-        'Disney+ Bundle', 'Apple One', 'YouTube Premium',
-        'Atlassian Cloud', 'Linear Pro', 'Vercel Pro',
-        'Netlify Pro', 'Heroku Basic', 'DigitalOcean', 'AWS Free Tier',
+        'Disney+ Bundle',
+        'Apple One',
+        'YouTube Premium',
+        'Atlassian Cloud',
+        'Linear Pro',
+        'Vercel Pro',
+        'Netlify Pro',
+        'Heroku Basic',
+        'DigitalOcean',
+        'AWS Free Tier',
       ],
       [SandboxEnvironment.TESTING]: [
-        'Test Service A', 'Test Service B', 'Test Service C',
-        'Test Service D', 'Test Service E',
+        'Test Service A',
+        'Test Service B',
+        'Test Service C',
+        'Test Service D',
+        'Test Service E',
       ],
       [SandboxEnvironment.PRODUCTION]: [
-        'Netflix Premium', 'Spotify Family', 'Adobe Creative Cloud',
-        'GitHub Teams', 'Figma Professional',
+        'Netflix Premium',
+        'Spotify Family',
+        'Adobe Creative Cloud',
+        'GitHub Teams',
+        'Figma Professional',
       ],
     };
 
     const prices: Record<SandboxEnvironment, number[]> = {
-      [SandboxEnvironment.DEVELOPMENT]: [15.99, 14.99, 54.99, 4.00, 12.00, 8.00, 12.50, 13.33, 9.99, 6.00],
-      [SandboxEnvironment.STAGING]: [13.99, 16.95, 11.99, 7.75, 8.00, 20.00, 19.00, 7.00, 5.00, 0.00],
+      [SandboxEnvironment.DEVELOPMENT]: [
+        15.99, 14.99, 54.99, 4.0, 12.0, 8.0, 12.5, 13.33, 9.99, 6.0,
+      ],
+      [SandboxEnvironment.STAGING]: [13.99, 16.95, 11.99, 7.75, 8.0, 20.0, 19.0, 7.0, 5.0, 0.0],
       [SandboxEnvironment.TESTING]: [9.99, 19.99, 29.99, 4.99, 14.99],
-      [SandboxEnvironment.PRODUCTION]: [15.99, 14.99, 54.99, 4.00, 12.00],
+      [SandboxEnvironment.PRODUCTION]: [15.99, 14.99, 54.99, 4.0, 12.0],
     };
 
     const names = testNames[environment];
@@ -367,7 +391,9 @@ class SandboxService {
     this.getCurrentEnvData().isolatedStorage.clear();
   }
 
-  async checkRateLimit(apiKeyId: string): Promise<{ allowed: boolean; remaining: number; retryAfter?: number }> {
+  async checkRateLimit(
+    apiKeyId: string
+  ): Promise<{ allowed: boolean; remaining: number; retryAfter?: number }> {
     const envData = this.getCurrentEnvData();
     const rateLimit = this.config.rateLimit;
     const now = Date.now();
@@ -406,7 +432,10 @@ class SandboxService {
     return { valid: true };
   }
 
-  getEnvironmentStats(): Record<SandboxEnvironment, { subscriptionCount: number; storageKeys: number }> {
+  getEnvironmentStats(): Record<
+    SandboxEnvironment,
+    { subscriptionCount: number; storageKeys: number }
+  > {
     const stats: Record<string, { subscriptionCount: number; storageKeys: number }> = {};
     for (const [env, envData] of this.environmentData.entries()) {
       stats[env] = {

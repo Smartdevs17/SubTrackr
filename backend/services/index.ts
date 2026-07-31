@@ -1,4 +1,3 @@
-feat/issues-394-405-414-386
 // ── Connection pool (#414) ────────────────────────────────────────────────────
 export { ConnectionPool, getPool, stellarPool } from './connectionPool';
 export type { PoolConfig, PoolMetrics } from './connectionPool';
@@ -6,8 +5,7 @@ export type { PoolConfig, PoolMetrics } from './connectionPool';
 // ── Repository pattern (#405) ─────────────────────────────────────────────────
 export * from './repositories';
 
-// ── Existing services ─────────────────────────────────────────────────────────
-// ── API Response Envelope (Issue #401) ──────────────────────────────────────
+// ── API Response Envelope & Infrastructure (Issue #401) ───────────────────────
 export {
   ok,
   fail,
@@ -17,7 +15,7 @@ export {
   API_VERSION_HEADER,
   API_VERSION_VALUE,
   REQUEST_ID_HEADER,
-} from './apiResponse';
+} from './shared/apiResponse';
 export type {
   ApiResponse,
   ApiSuccessResponse,
@@ -26,16 +24,47 @@ export type {
   ErrorCode,
   ResponseMeta,
   PaginationMeta,
-} from './apiResponse';
+} from './shared/apiResponse';
 
-main
-export { AuditService } from './auditService';
-export { CampaignService } from './campaignService';
-export { DunningService, dunningService } from './dunningService';
+export { DomainError } from './shared/errors';
+export { logger } from './shared/logging';
+export type { LogLevel, LogContext } from './shared/logging';
+export {
+  generateKey,
+  generateEncryptionKey,
+  isPiiField,
+  getPiiFields,
+  encryptField,
+  decryptField,
+  generateBlindIndexToken,
+  generateBlindIndexTokens,
+  searchBlindIndex,
+  maskField,
+  maskObject,
+  reEncryptField,
+} from './shared/encryption';
+export type {
+  Environment,
+  EncryptionKey,
+  EncryptedField,
+  BlindIndex,
+  DecryptedField,
+} from './shared/encryption';
+export { keyManager, KeyManager } from './shared/keyManager';
+export type { KeyRotationInfo } from './shared/keyManager';
+export { exportUserData, deleteUserData, anonymizeUserData, updateConsent } from './shared/gdpr';
+export type { UserConsent, ExportResult, DeletionResult, AnonymizationResult } from './shared/gdpr';
+export { piiAuditService, PiiAuditService } from './shared/piiAudit';
+export type { PiiAccessAction, PiiAccessRecord } from './shared/piiAudit';
+
+// ── Shared Services ───────────────────────────────────────────────────────────
+export { AuditService, auditService } from './shared/auditService';
+export { RateLimitingService, rateLimitingService } from './shared/rateLimitingService';
+export { MonitoringService, monitoringService } from './shared/monitoring';
+export { apiClient } from './shared/apiClient';
+
+// ── Upstream additions ────────────────────────────────────────────────────────
 export { ExportService, exportService } from './exportService';
-export { PricingService } from './pricingService';
-export { OracleMonitorService, oracleMonitorService } from './oracleMonitorService';
-export { RateLimitingService, rateLimitingService } from './rateLimitingService';
 export type {
   AuditAction,
   AuditArchiveEntry,
@@ -49,7 +78,59 @@ export type {
   ComplianceAuditReport,
   ExportFormat,
   RetentionPolicy,
-} from './auditTypes';
+} from './shared/auditTypes';
+export type {
+  TransactionStatus,
+  AlertSeverity,
+  AlertChannel,
+  TransactionEvent,
+  Metric,
+  Alert,
+  AlertRule,
+  AlertChannelConfig,
+  DashboardSnapshot,
+} from './shared/types';
+
+// ── Subscription Module ───────────────────────────────────────────────────────
+export {
+  SubscriptionEventStore,
+  subscriptionEventStore,
+} from './subscription/subscriptionEventStore';
+export type {
+  SubscriptionEvent,
+  SubscriptionEventPage,
+  SubscriptionEventQuery,
+  SubscriptionEventType,
+} from './subscription/subscriptionEventStore';
+export { ElasticsearchService, elasticsearchService } from './search/ElasticsearchService';
+export type {
+  SearchQuery,
+  SearchHit,
+  FacetResult,
+  SearchResult,
+  SearchAnalyticsEvent,
+  SavedSearchDefinition,
+  SavedSearchMatchNotification,
+} from './search/ElasticsearchService';
+export type { ISubscriptionEventStore, IElasticsearchService } from './subscription/interfaces';
+export { SubscriptionError } from './subscription/errors';
+
+// ── Billing Module ────────────────────────────────────────────────────────────
+export { MeteringService } from './billing/meteringService';
+export type { UsageMetric } from './billing/meteringService';
+export { PricingService } from './billing/pricingService';
+export type { PriceRecommendation, ABTestScenario, PricingContext } from './billing/pricingService';
+export { TaxService } from './billing/taxService';
+export { DunningService, dunningService } from './billing/dunningService';
+export { streamExport, reconcile } from './billing/accountingExportService';
+export type {
+  AccountingFormat,
+  TransactionType,
+  TransactionRecord,
+  ExportFilter,
+  StreamExportOptions,
+  ReconciliationResult,
+} from './billing/accountingExportService';
 export type {
   TaxType,
   TaxJurisdiction,
@@ -65,7 +146,21 @@ export type {
   DigitalGoodsClass,
   DigitalGoodsTaxRule,
   TaxRemittanceReportRequest,
-} from './taxTypes';
+} from './billing/taxTypes';
+export type {
+  IMeteringService,
+  IPricingService,
+  ITaxService,
+  IDunningService,
+  IAccountingExportService,
+} from './billing/interfaces';
+export { BillingError } from './billing/errors';
+
+// ── Notification Module ───────────────────────────────────────────────────────
+export { NotificationPreferenceService } from './notification/preferenceService';
+export type { NotificationPreferences } from './notification/preferenceService';
+export { AlertingService } from './notification/alerting';
+export type { AlertDispatcher } from './notification/alerting';
 export {
   WebhookDeliveryService,
   webhookDeliveryService,
@@ -73,25 +168,88 @@ export {
   signWebhookPayload,
   verifyWebhookSignature,
   isWebhookEventAllowed,
-} from './webhook';
-export type { RegisterWebhookInput, WebhookDeliveryResult, WebhookEventInput } from './webhook';
-export {
-  SubscriptionEventStore,
-  subscriptionEventStore,
-} from './subscriptionEventStore';
+} from './notification/webhook';
 export type {
-  SubscriptionEvent,
-  SubscriptionEventPage,
-  SubscriptionEventQuery,
-  SubscriptionEventType,
-} from './subscriptionEventStore';
+  RegisterWebhookInput,
+  WebhookDeliveryResult,
+  WebhookEventInput,
+} from './notification/webhook';
+export { WebSocketServer, webSocketServer } from './notification/websocket';
+export type {
+  SubscriptionEventType as WSSubscriptionEventType,
+  SubscriptionEvent as WSSubscriptionEvent,
+  EventFilter as WSEventFilter,
+  ClientInfo as WSClientInfo,
+} from './notification/websocket';
+export type {
+  INotificationPreferenceService,
+  IAlertingService,
+  IWebhookDeliveryService,
+  IWebsocketService,
+} from './notification/interfaces';
+export { NotificationError } from './notification/errors';
 
+// ── Support Automation additions ──────────────────────────────────────────────
+export type {
+  SupportActionRecord,
+  SupportActionType,
+  SupportIssueType,
+  SupportProvider,
+  SupportSlaSnapshot,
+  SupportTicketContext,
+  SupportTicketRecord,
+} from './supportAutomation';
 
-
+// ── Analytics Module ──────────────────────────────────────────────────────────
+export { CampaignService } from './analytics/campaignService';
+export type {
+  Campaign,
+  CouponCode,
+  PromotionRule,
+  CampaignTargeting,
+  StackingConfig,
+  CampaignAnalytics,
+  CampaignOverlap,
+  CouponValidation,
+} from './analytics/campaignService';
 export {
-  SubscriptionCacheService,
-} from './subscriptionCacheService';
+  generateComplianceReport,
+  formatComplianceReport,
+} from './analytics/complianceReport';
+export type {
+  ComplianceReport,
+  EncryptionStatus,
+  KeyManagementStatus,
+  PiiAccessSummary,
+  DataMaskingStatus,
+} from './analytics/complianceReport';
+export { DataPipelineService } from './analytics/dataPipeline';
+export { DataWarehouseService } from './analytics/dataWarehouse';
+export { PredictionService } from './analytics/predictionService';
+export type {
+  ChurnPrediction,
+  RiskFactor,
+  UserChurnData,
+  ForecastPoint,
+  RevenueObservation,
+} from './analytics/predictionService';
+export { RecommendationService } from './analytics/recommendationService';
+export type { Recommendation, RecommendationContext } from './analytics/recommendationService';
+export { RetentionService } from './analytics/retentionService';
+export { OracleMonitorService, oracleMonitorService } from './analytics/oracleMonitorService';
+export type {
+  IPredictionService,
+  IRecommendationService,
+  IComplianceReportService,
+  ICampaignService,
+} from './analytics/interfaces';
+export { AnalyticsError } from './analytics/errors';
 
+// ── Affiliate Module ──────────────────────────────────────────────────────────
+export { AffiliateService } from './affiliate/AffiliateService';
+export type { ReferralClick, AttributionEvent } from './affiliate/AffiliateService';
+
+export { SubscriptionCacheService } from './subscriptionCacheService';
 export type {
   RedisClient,
   SubscriptionCacheConfig,
@@ -99,6 +257,19 @@ export type {
 } from './subscriptionCacheService';
 export { BatchChargeService } from './batchChargeService';
 export type { BatchChargeCandidate, BatchChargeOptions, BatchChargeResult } from './batchChargeService';
+
+// ── Idempotency (Issue #425) ─────────────────────────────────────────────────
+export {
+  IdempotencyService,
+  idempotencyService,
+  IdempotencyKeyCollisionError,
+  IdempotencyRequestInFlightError,
+  hashRequest,
+  generateIdempotencyKey,
+  IDEMPOTENCY_KEY_HEADER,
+} from './idempotencyService';
+export type { IdempotencyRecord, IdempotencyResult, IdempotencyStatus } from './idempotencyService';
+export { idempotencyMiddleware } from './idempotencyMiddleware';
 
 // ── Payment Timeout & Recovery (Issue #427) ─────────────────────────────────
 export {
@@ -189,3 +360,45 @@ export type {
   UnauthorizedAccessEvent,
   AccessCheckOptions,
 } from './accessControl';
+
+// ── DI Container ──────────────────────────────────────────────────────────────
+export { container, Container } from './container';
+
+// ── Soroban Node Reputation (#612) ───────────────────────────────────────────
+export {
+  SorobanNodeRegistry,
+  sorobanNodeRegistry,
+  DEFAULT_SOROBAN_NODES,
+} from '../config/sorobanNodeRegistry';
+export type { SorobanNodeConfig, SorobanNetwork } from '../config/sorobanNodeRegistry';
+export { NodeScoreCache } from '../shared/cache/nodeScoreCache';
+export type { NodeScoreRecord, NodeScoreCacheConfig } from '../shared/cache/nodeScoreCache';
+export {
+  NodeReputationService,
+  nodeReputationService,
+  NodeSelector,
+  nodeSelector,
+  REPUTATION_WEIGHTS,
+  REPUTATION_THRESHOLDS,
+} from '../shared/soroban';
+export type {
+  LivenessProvider,
+  OpsAlertDispatcher,
+  RandomSource,
+  LatencyPercentiles,
+  NodeMetrics,
+  NodeReputationScore,
+  NodeSelectionResult,
+  CircuitBreakerState,
+  RpcRequestOutcome,
+  NodeHealthSnapshot,
+  ReputationDashboardSnapshot,
+} from '../shared/soroban';
+export {
+  NodeReputationMetrics,
+  nodeReputationMetrics,
+} from '../monitoring/nodeReputationMetrics';
+export type {
+  NodeMetricEntry,
+  NodeReputationMetricsSnapshot,
+} from '../monitoring/nodeReputationMetrics';

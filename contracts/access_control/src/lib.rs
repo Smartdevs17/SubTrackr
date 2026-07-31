@@ -209,7 +209,7 @@ impl RoleManager {
             .unwrap_or(Vec::new(&env));
         let mut new_members: Vec<Address> = Vec::new(&env);
         for m in members.iter() {
-            if &m != &user {
+            if m != user {
                 new_members.push_back(m);
             }
         }
@@ -224,7 +224,7 @@ impl RoleManager {
             .unwrap_or(Vec::new(&env));
         let mut new_roles: Vec<Role> = Vec::new(&env);
         for r in user_roles.iter() {
-            if &r != &role {
+            if r != role {
                 new_roles.push_back(r);
             }
         }
@@ -594,7 +594,7 @@ impl RoleManager {
             .unwrap_or(DEFAULT_MULTISIG_THRESHOLD);
 
         assert!(
-            proposal.approvals.len() >= threshold as u32,
+            proposal.approvals.len() >= threshold,
             "Insufficient approvals"
         );
 

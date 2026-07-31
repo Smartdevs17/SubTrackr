@@ -21,6 +21,114 @@ updates:
       - 'dependencies'
       - 'security'
 
+  - package-ecosystem: 'npm'
+    directory: '/services/notification'
+    schedule:
+      interval: 'daily'
+    open-pull-requests-limit: 5
+    reviewers:
+      - 'Smartdevs17'
+    commit-message:
+      prefix: 'fix(deps)'
+      include: 'scope'
+    labels:
+      - 'dependencies'
+      - 'security'
+
+  - package-ecosystem: 'cargo'
+    directory: '/contracts'
+    schedule:
+      interval: 'daily'
+    open-pull-requests-limit: 10
+    reviewers:
+      - 'Smartdevs17'
+    commit-message:
+      prefix: 'fix(deps)'
+      include: 'scope'
+    labels:
+      - 'dependencies'
+      - 'security'
+
+  - package-ecosystem: 'pip'
+    directory: '/ml-service'
+    schedule:
+      interval: 'daily'
+    open-pull-requests-limit: 5
+    reviewers:
+      - 'Smartdevs17'
+    commit-message:
+      prefix: 'fix(deps)'
+      include: 'scope'
+    labels:
+      - 'dependencies'
+      - 'security'
+
+  - package-ecosystem: 'pip'
+    directory: '/ml-service/onnx-serving'
+    schedule:
+      interval: 'daily'
+    open-pull-requests-limit: 5
+    reviewers:
+      - 'Smartdevs17'
+    commit-message:
+      prefix: 'fix(deps)'
+      include: 'scope'
+    labels:
+      - 'dependencies'
+      - 'security'
+
+  - package-ecosystem: 'docker'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+    reviewers:
+      - 'Smartdevs17'
+    commit-message:
+      prefix: 'fix(deps)'
+      include: 'scope'
+    labels:
+      - 'dependencies'
+      - 'security'
+
+  - package-ecosystem: 'docker'
+    directory: '/ml-service'
+    schedule:
+      interval: 'weekly'
+    reviewers:
+      - 'Smartdevs17'
+    commit-message:
+      prefix: 'fix(deps)'
+      include: 'scope'
+    labels:
+      - 'dependencies'
+      - 'security'
+
+  - package-ecosystem: 'docker'
+    directory: '/ml-service/onnx-serving'
+    schedule:
+      interval: 'weekly'
+    reviewers:
+      - 'Smartdevs17'
+    commit-message:
+      prefix: 'fix(deps)'
+      include: 'scope'
+    labels:
+      - 'dependencies'
+      - 'security'
+
+  - package-ecosystem: 'docker'
+    directory: '/services/notification'
+    schedule:
+      interval: 'weekly'
+    reviewers:
+      - 'Smartdevs17'
+    commit-message:
+      prefix: 'fix(deps)'
+      include: 'scope'
+    labels:
+      - 'dependencies'
+      - 'security'
+
   - package-ecosystem: 'github-actions'
     directory: '/'
     schedule:

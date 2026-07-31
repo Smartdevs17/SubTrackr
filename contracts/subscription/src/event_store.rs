@@ -148,7 +148,7 @@ pub(crate) fn get_events(env: &Env, filter: EventFilter) -> Vec<StoredEvent> {
             let mut matched = true;
 
             if let Some(ref types) = filter.event_types {
-                matched = types.iter().any(|t| *t == event.event_type);
+                matched = types.iter().any(|t| t == event.event_type);
             }
 
             if matched {
@@ -176,7 +176,7 @@ pub(crate) fn get_events(env: &Env, filter: EventFilter) -> Vec<StoredEvent> {
 
 pub(crate) fn get_event_count(env: &Env, subscription_id: u64) -> u64 {
     let ids = subscription_event_ids(env, subscription_id);
-    ids.len()
+    ids.len() as u64
 }
 
 pub(crate) fn export_events(

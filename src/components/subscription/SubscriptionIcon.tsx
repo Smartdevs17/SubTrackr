@@ -11,7 +11,7 @@
 import React, { useEffect, useState } from 'react';
 import { Text, View, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
-import { borderRadius, colors } from '../../utils/constants';
+import { colors } from '../../utils/constants';
 import { imageCache } from '../../utils/imageCache';
 
 // ── Types ─────────────────────────────────────────────────────────────────────

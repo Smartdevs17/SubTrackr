@@ -9,8 +9,8 @@
  *  - Stuck transaction alerting
  */
 
-import type { AlertingService } from './alerting';
-import type { Alert } from './types';
+import type { AlertingService } from './notification/alerting';
+import type { Alert } from './shared/types';
 
 // ── Chain timeout configuration ───────────────────────────────────────────────
 

@@ -13,6 +13,7 @@
       "resizeMode": "contain",
       "backgroundColor": "#1a1a1a"
     },
+    "assetBundlePatterns": ["assets/**", "src/assets/**"],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.subtrackr.app",
@@ -40,7 +41,9 @@
           ],
           "category": ["BROWSABLE", "DEFAULT"]
         }
-      ]
+      ],
+      "jsEngine": "hermes",
+      "hermesFlags": ["-g", "--minify", "--inline-store-on-put", "--allocation-profile"]
     },
     "web": {
       "favicon": "./assets/subtrackr-icon.png",
@@ -50,6 +53,21 @@
     "extra": {
       "eas": {
         "projectId": "your-project-id"
+      },
+      "cdn": {
+        "enabled": true,
+        "provider": "fastly",
+        "originShield": {
+          "enabled": true,
+          "pop": "us-east-1"
+        },
+        "staticTtlSeconds": 31536000,
+        "publicApiTtlSeconds": 300,
+        "staleWhileRevalidateSeconds": 60,
+        "cacheWarmPaths": ["/plans", "/pricing", "/features", "/public/config"],
+        "regions": ["us-east-1", "eu-west-1", "ap-southeast-1"],
+        "surrogateKeyHeader": "Surrogate-Key",
+        "cacheTagHeader": "Cache-Tag"
       }
     },
     "owner": "subtrackr",
