@@ -64,7 +64,7 @@ describe('previewProration', () => {
     const sub = makeSub({ price: 30 });
     const remaining = getRemainingDays(sub);
     const preview = previewProration(sub, 60, 'immediate');
-    const expected = Math.round(((60 - 30) * remaining) / 30 * 100) / 100;
+    const expected = Math.round((((60 - 30) * remaining) / 30) * 100) / 100;
     expect(preview.amount).toBeCloseTo(expected);
   });
 

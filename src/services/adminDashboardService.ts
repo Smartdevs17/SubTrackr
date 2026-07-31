@@ -1,6 +1,6 @@
-import { MonitoringService } from '../../backend/services/monitoring';
-import type { DashboardSnapshot, TransactionEvent } from '../../backend/services/types';
-import type { AuditEvent } from '../../backend/services/auditTypes';
+import { MonitoringService } from '../../backend/services/shared/monitoring';
+import type { DashboardSnapshot, TransactionEvent } from '../../backend/services/shared/types';
+import type { AuditEvent } from '../../backend/services/shared/auditTypes';
 
 export type DashboardRole = 'admin' | 'analyst' | 'support';
 export type MerchantStatus = 'active' | 'at-risk' | 'suspended';

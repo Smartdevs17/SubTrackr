@@ -1,11 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import bcrypt from 'bcryptjs';
-import {
-  ApiKey,
-  ApiKeyStatus,
-  SandboxEnvironment,
-  ApiKeyAuditEntry,
-} from '../../types/sandbox';
+import { ApiKey, ApiKeyStatus, SandboxEnvironment, ApiKeyAuditEntry } from '../../types/sandbox';
 
 const API_KEYS_STORAGE_KEY = '@subtrackr_api_keys';
 const KEY_PREFIX_LENGTH = 8;
@@ -98,7 +93,8 @@ class ApiKeyService {
 
             loadedKey.auditLogs = loadedKey.auditLogs ?? [];
             loadedKey.usageCount = loadedKey.usageCount ?? 0;
-            loadedKey.keyPrefix = loadedKey.keyPrefix ?? loadedKey.key.substring(0, KEY_PREFIX_LENGTH);
+            loadedKey.keyPrefix =
+              loadedKey.keyPrefix ?? loadedKey.key.substring(0, KEY_PREFIX_LENGTH);
             return loadedKey;
           })
         );

@@ -1,5 +1,5 @@
-import { AuditService } from '../../backend/services/auditService';
-import { AlertingService } from '../../backend/services/alerting';
+import { AuditService } from '../../backend/services/shared/auditService';
+import { AlertingService } from '../../backend/services/notification/alerting';
 import type {
   AuditAction,
   AuditContext,
@@ -9,9 +9,20 @@ import type {
   AuditReport,
   AuditSeverity,
   ComplianceAuditReport,
-} from '../../backend/services/auditTypes';
+} from '../../backend/services/shared/auditTypes';
+import { env } from '../config/env';
+import { randomBytes } from 'crypto';
 
-const AUDIT_HMAC_SECRET = process.env['AUDIT_HMAC_SECRET'] ?? 'subtrackr-audit-secret';
+function getAuditSecret(): string {
+  if (env.AUDIT_HMAC_SECRET) {
+    return env.AUDIT_HMAC_SECRET;
+  }
+  // Generate a random secret for development if not provided
+  // This secret will be regenerated on each app restart, which is fine for dev
+  return randomBytes(32).toString('hex');
+}
+
+const AUDIT_HMAC_SECRET = getAuditSecret();
 
 const alertingService = new AlertingService();
 

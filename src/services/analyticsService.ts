@@ -28,10 +28,21 @@ export interface RevenueForecastPoint {
   upperBound: number;
 }
 
+export interface RetentionPoint {
+  day: number;
+  retainedCount: number;
+  cohortSize: number;
+  retentionRate: number;
+}
+
 export interface SubscriptionAnalyticsReport {
   mrr: number;
   arr: number;
+  mrrGrowthRate: number;
+  arrGrowthRate: number;
   ltv: number;
+  arpu: number;
+  subscriberCount: number;
   churn: ChurnMetrics;
   revenueTrend: RevenuePoint[];
   cohorts: CohortMetric[];
@@ -54,9 +65,43 @@ export const toMonthlyRevenue = (
 const monthKey = (date: Date): string =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 
-export const calculateSubscriptionAnalytics = (
+export const calculateRetentionCurve = (
   subscriptions: Subscription[],
   asOf = new Date()
+): RetentionPoint[] => {
+  const intervals = [1, 7, 30, 60, 90];
+  const total = subscriptions.length;
+  if (total === 0) {
+    return intervals.map((day) => ({ day, retainedCount: 0, cohortSize: 0, retentionRate: 0 }));
+  }
+
+  const nowMs = asOf.getTime();
+  const dayMs = 24 * 60 * 60 * 1000;
+
+  return intervals.map((day) => {
+    const thresholdMs = nowMs - day * dayMs;
+    const eligibleSubs = subscriptions.filter(
+      (sub) => new Date(sub.createdAt).getTime() <= thresholdMs
+    );
+    const retainedCount = eligibleSubs.filter((sub) => sub.isActive).length;
+    const retentionRate =
+      eligibleSubs.length > 0
+        ? retainedCount / eligibleSubs.length
+        : subscriptions.filter((s) => s.isActive).length / total;
+    return {
+      day,
+      retainedCount,
+      cohortSize: eligibleSubs.length > 0 ? eligibleSubs.length : total,
+      retentionRate,
+    };
+  });
+};
+
+export const calculateSubscriptionAnalytics = (
+  subscriptions: Subscription[],
+  asOf = new Date(),
+  forecastModel: 'linear' | 'exponential' = 'exponential',
+  monthsAhead = 3
 ): SubscriptionAnalyticsReport => {
   const active = subscriptions.filter((subscription) => subscription.isActive);
   const inactive = subscriptions.filter((subscription) => !subscription.isActive);
@@ -109,13 +154,45 @@ export const calculateSubscriptionAnalytics = (
     arr: cohort.revenue * MONTHS_PER_YEAR,
   }));
 
+  // Calculate MRR/ARR growth rate compared to previous period
+  let mrrGrowthRate = 0;
+  let arrGrowthRate = 0;
+  if (revenueTrend.length >= 2) {
+    const prevMrr = revenueTrend[revenueTrend.length - 2].mrr;
+    const currMrr = revenueTrend[revenueTrend.length - 1].mrr;
+    if (prevMrr > 0) {
+      mrrGrowthRate = ((currMrr - prevMrr) / prevMrr) * 100;
+      arrGrowthRate = mrrGrowthRate;
+    }
+  }
+
   const retention = cohorts.length
     ? cohorts.reduce((sum, cohort) => sum + cohort.retentionRate, 0) / cohorts.length
     : 1;
   const confidenceBand = Math.max(0.1, 1 - Math.min(subscriptions.length / 50, 0.8));
-  const forecast = Array.from({ length: 3 }, (_, index) => {
+
+  // Compute linear regression slope if model is 'linear'
+  let linearSlope = 0;
+  if (forecastModel === 'linear' && revenueTrend.length >= 2) {
+    const n = revenueTrend.length;
+    const sumX = revenueTrend.reduce((sum, _, i) => sum + i, 0);
+    const sumY = revenueTrend.reduce((sum, point) => sum + point.mrr, 0);
+    const sumXY = revenueTrend.reduce((sum, point, i) => sum + i * point.mrr, 0);
+    const sumXX = revenueTrend.reduce((sum, _, i) => sum + i * i, 0);
+    const denominator = n * sumXX - sumX * sumX;
+    if (denominator !== 0) {
+      linearSlope = (n * sumXY - sumX * sumY) / denominator;
+    }
+  }
+
+  const forecast = Array.from({ length: monthsAhead }, (_, index) => {
     const monthAhead = index + 1;
-    const expectedRevenue = mrr * Math.pow(retention || 0.95, monthAhead);
+    let expectedRevenue = 0;
+    if (forecastModel === 'linear') {
+      expectedRevenue = Math.max(0, mrr + linearSlope * monthAhead);
+    } else {
+      expectedRevenue = mrr * Math.pow(retention || 0.95, monthAhead);
+    }
     return {
       label: `M+${monthAhead}`,
       expectedRevenue,
@@ -127,7 +204,11 @@ export const calculateSubscriptionAnalytics = (
   return {
     mrr,
     arr,
+    mrrGrowthRate,
+    arrGrowthRate,
     ltv,
+    arpu: averageMonthlyRevenue,
+    subscriberCount: active.length,
     churn: {
       grossChurnRate,
       netChurnRate,

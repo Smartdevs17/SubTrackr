@@ -1,8 +1,8 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
-import { colors, spacing, typography, borderRadius, shadows } from '../../utils/constants';
-import { SubscriptionCard } from '../subscription/SubscriptionCard';
+import { colors, spacing, typography, borderRadius } from '../../utils/constants';
+import { SubscriptionListItem } from '../common/SubscriptionListItem';
 import { Subscription } from '../../types/subscription';
 import { usePerformanceProfiler } from '../../hooks/usePerformanceProfiler';
 import { EmptyState } from '../common/EmptyState';
@@ -40,9 +40,19 @@ export const SubscriptionList: React.FC<SubscriptionListProps> = React.memo(
       upcomingCount: upcomingSubscriptions.length,
     });
 
+    const sortedUpcoming = useMemo(
+      () =>
+        upcomingSubscriptions
+          ?.slice()
+          .sort(
+            (a, b) => new Date(a.nextBillingDate).getTime() - new Date(b.nextBillingDate).getTime()
+          ) ?? [],
+      [upcomingSubscriptions]
+    );
+
     const renderItem = useCallback(
       ({ item }: { item: Subscription }) => (
-        <SubscriptionCard
+        <SubscriptionListItem
           subscription={item}
           onPress={onSubscriptionPress}
           onToggleStatus={onToggleStatus}
@@ -56,18 +66,17 @@ export const SubscriptionList: React.FC<SubscriptionListProps> = React.memo(
 
     return (
       <View testID="subscription-list-root">
-        {/* Upcoming Billing Section */}
-        {upcomingSubscriptions && upcomingSubscriptions.length > 0 && (
+        {sortedUpcoming.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle} accessibilityRole="header">
               Upcoming Billing
             </Text>
             <Text style={styles.sectionSubtitle}>
-              {upcomingSubscriptions.length} subscription
-              {upcomingSubscriptions.length !== 1 ? 's' : ''} due this week
+              {sortedUpcoming.length} subscription
+              {sortedUpcoming.length !== 1 ? 's' : ''} due this week
             </Text>
             <View style={styles.upcomingContainer} accessible={false}>
-              {upcomingSubscriptions.slice(0, 3).map((subscription) => (
+              {sortedUpcoming.slice(0, 3).map((subscription) => (
                 <View
                   key={subscription.id}
                   style={styles.upcomingItem}
@@ -92,7 +101,6 @@ export const SubscriptionList: React.FC<SubscriptionListProps> = React.memo(
           </View>
         )}
 
-        {/* Main List Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle} accessibilityRole="header">
@@ -117,7 +125,6 @@ export const SubscriptionList: React.FC<SubscriptionListProps> = React.memo(
           </View>
 
           {!hasSubscriptions ? (
-            /* Context 1: Absolute empty state (no tracking items exist) */
             <EmptyState
               icon="📱"
               title="No subscriptions yet"
@@ -126,7 +133,6 @@ export const SubscriptionList: React.FC<SubscriptionListProps> = React.memo(
               onAction={onAddFirstPress}
             />
           ) : activeSubscriptions.length === 0 ? (
-            /* Context 2: Active filter empty state (subscriptions exist but filtered out) */
             <EmptyState
               icon="🔍"
               title="No matches found"
@@ -188,7 +194,6 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     padding: spacing.md,
     marginBottom: spacing.lg,
-    ...shadows.sm,
   },
   upcomingItem: {
     flexDirection: 'row',

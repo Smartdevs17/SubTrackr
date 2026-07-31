@@ -106,7 +106,7 @@ export class DeveloperPortalService {
 
     this.developers.set(developerId, developer);
 
-    await this.createApiKey(developerId, 'Default API Key', 'test', [
+    const _apiKey = await this.createApiKey(developerId, 'Default API Key', 'test', [
       'subscriptions:read',
       'subscriptions:write',
       'payments:read',

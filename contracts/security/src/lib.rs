@@ -141,7 +141,12 @@ impl SubTrackrSecurity {
         Self::require_authorized(&env, &caller);
 
         let key = Self::load_key(&env, encrypted.key_version);
-        let plaintext = xor_crypt(&env, &key.key_material, &encrypted.nonce, &encrypted.ciphertext);
+        let plaintext = xor_crypt(
+            &env,
+            &key.key_material,
+            &encrypted.nonce,
+            &encrypted.ciphertext,
+        );
         let mac = compute_mac(&env, &key.key_material, &encrypted.nonce, &plaintext);
         assert!(
             mac == encrypted.mac,
@@ -251,8 +256,12 @@ impl SubTrackrSecurity {
 
         // Decrypt under the original key version (verifying integrity)...
         let old_key = Self::load_key(&env, encrypted.key_version);
-        let plaintext =
-            xor_crypt(&env, &old_key.key_material, &encrypted.nonce, &encrypted.ciphertext);
+        let plaintext = xor_crypt(
+            &env,
+            &old_key.key_material,
+            &encrypted.nonce,
+            &encrypted.ciphertext,
+        );
         let check = compute_mac(&env, &old_key.key_material, &encrypted.nonce, &plaintext);
         assert!(
             check == encrypted.mac,

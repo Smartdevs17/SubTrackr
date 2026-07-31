@@ -44,7 +44,10 @@ const ApiKeyManagementScreen: React.FC = () => {
 
   const handleCopyKey = (key?: string) => {
     if (!key) {
-      Alert.alert('Key unavailable', 'This API key is only visible once and cannot be copied again.');
+      Alert.alert(
+        'Key unavailable',
+        'This API key is only visible once and cannot be copied again.'
+      );
       return;
     }
     Clipboard.setString(key);

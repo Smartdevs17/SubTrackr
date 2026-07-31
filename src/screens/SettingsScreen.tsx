@@ -33,11 +33,7 @@ export const SettingsScreen = () => {
             onPress={() => setMode(option)}>
             <View style={styles.modeTextWrap}>
               <Text style={styles.modeLabel}>
-                {option === 'system'
-                  ? 'Follow System'
-                  : option === 'light'
-                    ? 'Light'
-                    : 'Dark'}
+                {option === 'system' ? 'Follow System' : option === 'light' ? 'Light' : 'Dark'}
               </Text>
               <Text style={styles.modeSubLabel}>
                 {option === 'system'
@@ -96,6 +92,16 @@ export const SettingsScreen = () => {
             thumbColor={colors.background.card}
           />
         </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Search</Text>
+        <TouchableOpacity
+          style={styles.linkButton}
+          testID="advanced-search-link"
+          onPress={() => navigation.navigate('AdvancedSearch')}>
+          <Text style={styles.linkButtonText}>Advanced Subscription Search</Text>
+        </TouchableOpacity>
       </View>
 
       {__DEV__ && (
@@ -195,5 +201,14 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
       paddingVertical: 12,
     },
     debugButtonText: { color: colors.onPrimary, fontWeight: '700' },
+    linkButton: {
+      backgroundColor: colors.background.card,
+      borderRadius: 8,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      borderWidth: 1,
+      borderColor: colors.border.default,
+    },
+    linkButtonText: { color: colors.text.primary, fontWeight: '600' },
   });
 }

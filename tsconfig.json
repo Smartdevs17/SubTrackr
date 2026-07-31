@@ -9,5 +9,18 @@
     "moduleResolution": "bundler"
   },
   "include": ["index.ts", "App.tsx", "src/**/*.ts", "src/**/*.tsx"],
-  "exclude": ["app", "backend", "developer-portal", "sdks", "contracts", "chaos"]
+  "exclude": [
+    "app",
+    "backend",
+    "developer-portal",
+    "sdks",
+    "contracts",
+    "**/__tests__/**",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.spec.ts",
+    "**/*.spec.tsx",
+    "**/__mocks__/**",
+    "**/__fixtures__/**"
+  ]
 }

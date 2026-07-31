@@ -38,7 +38,7 @@ const WalletConnectV2Screen: React.FC = () => {
   const { open } = useAppKit();
   const { address, isConnected, chainId } = useAppKitAccount();
   const { walletProvider } = useAppKitProvider();
-  const { syncWalletConnection, disconnect } = useWalletStore();
+  const { disconnect } = useWalletStore();
 
   const previousConnectionRef = useRef(false);
 
@@ -80,11 +80,6 @@ const WalletConnectV2Screen: React.FC = () => {
 
         previousConnectionRef.current = true;
         walletServiceManager.setConnection(nextConnection);
-        await syncWalletConnection({
-          address,
-          chainId: nextConnection.chainId,
-          network: getChainName(nextConnection.chainId),
-        });
 
         const nextSession = await walletConnectSessionManager.markConnected(
           address,
@@ -126,7 +121,7 @@ const WalletConnectV2Screen: React.FC = () => {
     return () => {
       active = false;
     };
-  }, [isConnected, address, chainId, walletProvider, syncWalletConnection, disconnect]);
+  }, [isConnected, address, chainId, walletProvider, disconnect]);
 
   const initializeWalletService = async () => {
     try {

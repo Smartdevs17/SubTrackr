@@ -8,16 +8,15 @@ import {
   TouchableOpacity,
   Alert,
   TextInput,
+  FlatList,
   Modal,
 } from 'react-native';
-import { FlashList } from '@shopify/flash-list';
 import { useNavigation } from '@react-navigation/native';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
 import {
   parseCSV,
-  parseCSVWithMapping,
   parseJSON,
   validateImport,
   processImport,
@@ -26,16 +25,12 @@ import {
   getCSVTemplate,
   getJSONTemplate,
   detectFormat,
-  takeImportSnapshot,
+  CSV_COLUMN_MAPPING,
   ImportMode,
   ImportResult,
   ValidationResult,
   ImportHistoryEntry,
   SubscriptionInput,
-  ImportPlatform,
-  ImportProgress,
-  PLATFORM_COLUMN_MAPPINGS,
-  PlatformColumnMapping,
 } from '../utils/importExport';
 import { useSubscriptionStore } from '../store';
 
@@ -51,8 +46,10 @@ const ImportScreen: React.FC = () => {
   const [showHistory, setShowHistory] = useState(false);
   const [importHistory, setImportHistory] = useState<ImportHistoryEntry[]>([]);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
-  const [platform, setPlatform] = useState<ImportPlatform>('generic');
-  const [importProgress, setImportProgress] = useState<ImportProgress | null>(null);
+  const [showMappingModal, setShowMappingModal] = useState(false);
+  const [detectedHeaders, setDetectedHeaders] = useState<string[]>([]);
+  const [columnMapping, setColumnMapping] = useState<Record<string, keyof SubscriptionInput | ''>>({});
+  const [progress, setProgress] = useState<{ current: number; total: number; message?: string } | null>(null);
 
   const handleImport = useCallback(async () => {
     if (!importText.trim()) {
@@ -63,18 +60,25 @@ const ImportScreen: React.FC = () => {
     setIsProcessing(true);
     setValidationResult(null);
     setImportResult(null);
-    setImportProgress(null);
-
-    const snapshot = takeImportSnapshot(subscriptions);
 
     try {
       const format = detectFormat(importText);
       let parsedData: SubscriptionInput[];
-      const selectedMapping = PLATFORM_COLUMN_MAPPINGS.find((m) => m.platform === platform)!;
 
       if (format === 'csv') {
-        parsedData =
-          platform === 'generic' ? parseCSV(importText) : parseCSVWithMapping(importText, selectedMapping);
+        // Detect headers for optional mapping
+        const firstLine = importText.split(/\r?\n/).find((l) => l && l.trim());
+        if (firstLine) {
+          const rawHeaders = firstLine.split(',').map((h) => h.replace(/^\"|\"$/g, '').trim());
+          setDetectedHeaders(rawHeaders);
+        }
+
+        // If a mapping exists, transform CSV using mapping, else use parseCSV fallback
+        if (Object.keys(columnMapping).length > 0) {
+          parsedData = parseCSVWithMapping(importText, columnMapping);
+        } else {
+          parsedData = parseCSV(importText);
+        }
       } else if (format === 'json') {
         parsedData = parseJSON(importText);
       } else {
@@ -83,11 +87,9 @@ const ImportScreen: React.FC = () => {
         return;
       }
 
-      setImportProgress({ step: 'parsing', totalRows: parsedData.length, processedRows: parsedData.length, percentage: 33 });
-
+      // Validate the data
       const validation = validateImport({ subscriptions: parsedData, mode: importMode });
       setValidationResult(validation);
-      setImportProgress({ step: 'validating', totalRows: parsedData.length, processedRows: validation.validRows.length, percentage: 66 });
 
       if (validation.validRows.length === 0) {
         Alert.alert(
@@ -98,6 +100,7 @@ const ImportScreen: React.FC = () => {
         return;
       }
 
+      // Show preview and ask for confirmation
       Alert.alert(
         'Import Preview',
         `Found ${validation.validRows.length} valid subscription(s).\n\n${
@@ -112,88 +115,205 @@ const ImportScreen: React.FC = () => {
           {
             text: 'Import',
             onPress: async () => {
-              await executeImport(parsedData, snapshot);
+              await executeImport(parsedData);
             },
           },
         ]
       );
     } catch (error) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Failed to parse import data');
+    } finally {
       setIsProcessing(false);
     }
-  }, [importText, importMode, platform, subscriptions]);
+  }, [importText, importMode]);
 
-  const executeImport = async (parsedData: SubscriptionInput[], snapshot: ReturnType<typeof takeImportSnapshot>) => {
+  // Simple CSV line parser (handles quoted fields)
+  function parseLine(line: string): string[] {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      if (char === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    result.push(current.trim());
+    return result;
+  }
+
+  function parseCSVWithMapping(content: string, mapping: Record<string, keyof SubscriptionInput | ''>): SubscriptionInput[] {
+    const lines = content.split(/\r?\n/).filter((l) => l.trim());
+    if (lines.length < 2) return [];
+    const rawHeaders = parseLine(lines[0]);
+    const headerIndex: Record<string, number> = {};
+    rawHeaders.forEach((h, i) => (headerIndex[h.toLowerCase()] = i));
+
+    const result: SubscriptionInput[] = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const values = parseLine(lines[i]);
+      if (values.every((v) => !v)) continue;
+
+      const row: Partial<SubscriptionInput> = {};
+
+      for (const raw of Object.keys(mapping)) {
+        const target = mapping[raw];
+        if (!target) continue;
+        const idx = headerIndex[raw.toLowerCase()];
+        const rawValue = typeof idx === 'number' && values[idx] ? values[idx] : '';
+        let value: unknown = rawValue;
+
+        if (target === 'price' || target === 'cryptoAmount') {
+          value = Number(rawValue) || 0;
+        } else if (
+          target === 'isActive' ||
+          target === 'notificationsEnabled' ||
+          target === 'isCryptoEnabled'
+        ) {
+          const normalized = rawValue.toString().trim().toLowerCase();
+          value = normalized === 'true' || normalized === '1' || normalized === 'yes';
+        }
+
+        (row as any)[target] = value;
+      }
+
+      // ensure required defaults
+      if (!row.name && values[0]) row.name = values[0];
+
+      if (row.nextBillingDate && typeof row.nextBillingDate !== 'string') {
+        row.nextBillingDate = String(row.nextBillingDate);
+      }
+
+      result.push(row as SubscriptionInput);
+    }
+
+    return result;
+  }
+
+  const openMappingModal = () => {
+    if (detectedHeaders.length === 0) {
+      Alert.alert('No headers detected', 'Please paste a CSV with headers first');
+      return;
+    }
+
+    const initial: Record<string, keyof SubscriptionInput | ''> = {};
+    detectedHeaders.forEach((h) => {
+      initial[h] = columnMapping[h] ?? '';
+    });
+    setColumnMapping(initial);
+    setShowMappingModal(true);
+  };
+
+  const cycleMappingFor = (header: string) => {
+    const options = ['','name','description','category','price','currency','billingCycle','nextBillingDate','isActive','notificationsEnabled','isCryptoEnabled','cryptoToken','cryptoAmount','externalId','externalSource'] as (keyof SubscriptionInput | '')[];
+    const current = columnMapping[header] ?? '';
+    const idx = options.indexOf(current);
+    const next = options[(idx + 1) % options.length];
+    setColumnMapping((m) => ({ ...m, [header]: next }));
+  };
+
+  const executeImport = async (parsedData: SubscriptionInput[]) => {
     setIsProcessing(true);
-    const preImportIds = new Set(subscriptions.map((s) => s.id));
-
     try {
       const result = processImport({ subscriptions: parsedData, mode: importMode }, subscriptions);
-
       setImportResult(result);
 
-      if (result.imported > 0 || result.updated > 0) {
-        for (const sub of parsedData) {
-          const existing = subscriptions.find(
-            (s) => s.name.toLowerCase() === sub.name.toLowerCase()
-          );
+      const actions = result.actions ?? [];
 
-          if (existing) {
-            await updateSubscription(existing.id, {
-              name: sub.name,
-              description: sub.description,
-              category: sub.category as any,
-              price: sub.price,
-              currency: sub.currency,
-              billingCycle: sub.billingCycle as any,
-              nextBillingDate: new Date(sub.nextBillingDate),
-              isActive: sub.isActive ?? true,
-              notificationsEnabled: sub.notificationsEnabled ?? true,
-              isCryptoEnabled: sub.isCryptoEnabled ?? false,
-              cryptoToken: sub.cryptoToken,
-              cryptoAmount: sub.cryptoAmount,
-            });
-          } else {
-            await addSubscription({
-              name: sub.name,
-              description: sub.description,
-              category: sub.category as any,
-              price: sub.price,
-              currency: sub.currency,
-              billingCycle: sub.billingCycle as any,
-              nextBillingDate: new Date(sub.nextBillingDate),
-              notificationsEnabled: sub.notificationsEnabled ?? true,
-              isCryptoEnabled: sub.isCryptoEnabled ?? false,
-              cryptoToken: sub.cryptoToken,
-              cryptoAmount: sub.cryptoAmount,
-            });
+      // Apply the import with progress and rollback support
+      if (actions.length > 0) {
+        const snapshot = useSubscriptionStore.getState().subscriptions.map((s) => ({ ...s }));
+        let processed = 0;
+        const appliedIds = new Set<string>();
+
+        try {
+          for (const action of actions) {
+            const subscription = action.subscription;
+            if (!subscription) continue;
+
+            setProgress({ current: processed + 1, total: actions.length, message: `Processing ${subscription.name}` });
+
+            if (action.type === 'update' && action.existingId) {
+              await updateSubscription(action.existingId, {
+                name: subscription.name,
+                description: subscription.description,
+                category: subscription.category as any,
+                price: subscription.price,
+                currency: subscription.currency,
+                billingCycle: subscription.billingCycle as any,
+                nextBillingDate: new Date(subscription.nextBillingDate),
+                isActive: subscription.isActive,
+                notificationsEnabled: subscription.notificationsEnabled,
+                isCryptoEnabled: subscription.isCryptoEnabled,
+                cryptoToken: subscription.cryptoToken,
+                cryptoAmount: subscription.cryptoAmount,
+                externalId: subscription.externalId,
+                externalSource: subscription.externalSource,
+              });
+              appliedIds.add(action.existingId);
+            } else if (action.type === 'create') {
+              await addSubscription({
+                id: subscription.id,
+                name: subscription.name,
+                description: subscription.description,
+                category: subscription.category as any,
+                price: subscription.price,
+                currency: subscription.currency,
+                billingCycle: subscription.billingCycle as any,
+                nextBillingDate: new Date(subscription.nextBillingDate),
+                notificationsEnabled: subscription.notificationsEnabled ?? true,
+                isCryptoEnabled: subscription.isCryptoEnabled ?? false,
+                cryptoToken: subscription.cryptoToken,
+                cryptoAmount: subscription.cryptoAmount,
+                externalId: subscription.externalId,
+                externalSource: subscription.externalSource,
+              });
+              appliedIds.add(subscription.id);
+            }
+
+            processed += 1;
+            setProgress({ current: processed, total: actions.length, message: `Processed ${processed}/${actions.length}` });
           }
+
+          if (importMode === 'replace') {
+            const currentSubscriptions = useSubscriptionStore.getState().subscriptions;
+            const toDelete = currentSubscriptions.filter((sub) => !appliedIds.has(sub.id));
+            for (const sub of toDelete) {
+              await deleteSubscription(sub.id);
+            }
+          }
+        } catch (applyErr) {
+          // Rollback to snapshot on failure
+          useSubscriptionStore.setState({ subscriptions: snapshot });
+          useSubscriptionStore.getState().calculateStats();
+          throw applyErr;
         }
       }
 
-      setImportProgress({ step: 'done', totalRows: parsedData.length, processedRows: result.imported + result.updated, percentage: 100 });
-
-      const sourceName = platform === 'generic' ? 'Manual Import' : `${platform.charAt(0).toUpperCase() + platform.slice(1)} Import`;
-      await recordImport(sourceName, importMode, parsedData.length, result);
+      // Record in history
+      await recordImport('Manual Import', importMode, parsedData.length, result);
 
       Alert.alert(
         'Import Complete',
         `Imported: ${result.imported}\nUpdated: ${result.updated}\nFailed: ${result.failed}`
       );
     } catch (error) {
-      // Rollback: remove subscriptions added during this import
-      const currentSubs = useSubscriptionStore.getState().subscriptions;
-      const toRemove = currentSubs.filter((s) => !preImportIds.has(s.id));
-      for (const sub of toRemove) {
-        await deleteSubscription(sub.id);
-      }
-      setImportProgress({ step: 'error', totalRows: 0, processedRows: 0, percentage: 0 });
-      Alert.alert(
-        'Import Failed',
-        `Error: ${error instanceof Error ? error.message : 'Unknown error'}. Changes have been rolled back.`
-      );
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to complete import');
     } finally {
       setIsProcessing(false);
+      setProgress(null);
     }
   };
 
@@ -213,56 +333,6 @@ const ImportScreen: React.FC = () => {
     setImportText(type === 'csv' ? getCSVTemplate() : getJSONTemplate());
     setShowTemplateModal(false);
   }, []);
-
-  const renderPlatformSelector = () => (
-    <View style={styles.modeContainer}>
-      <Text style={styles.sectionTitle}>Source Platform</Text>
-      <View style={styles.modeButtons}>
-        {PLATFORM_COLUMN_MAPPINGS.map((mapping: PlatformColumnMapping) => (
-          <TouchableOpacity
-            key={mapping.platform}
-            style={[styles.modeButton, platform === mapping.platform && styles.modeButtonActive]}
-            onPress={() => setPlatform(mapping.platform)}>
-            <Text
-              style={[
-                styles.modeButtonText,
-                platform === mapping.platform && styles.modeButtonTextActive,
-              ]}>
-              {mapping.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-    </View>
-  );
-
-  const renderProgressBar = () => {
-    if (!importProgress || importProgress.step === 'idle') return null;
-    return (
-      <View style={styles.progressContainer}>
-        <Text style={styles.progressLabel}>
-          {importProgress.step === 'parsing' && 'Parsing data...'}
-          {importProgress.step === 'validating' && 'Validating rows...'}
-          {importProgress.step === 'processing' && 'Processing...'}
-          {importProgress.step === 'done' &&
-            `Done: ${importProgress.processedRows} rows processed`}
-          {importProgress.step === 'error' && 'Import failed — changes rolled back'}
-        </Text>
-        <View style={styles.progressTrack}>
-          <View
-            style={[
-              styles.progressFill,
-              {
-                width: `${importProgress.percentage}%` as any,
-                backgroundColor:
-                  importProgress.step === 'error' ? colors.error : colors.primary,
-              },
-            ]}
-          />
-        </View>
-      </View>
-    );
-  };
 
   const renderModeSelector = () => (
     <View style={styles.modeContainer}>
@@ -368,7 +438,7 @@ const ImportScreen: React.FC = () => {
             <Text style={styles.closeButton}>Close</Text>
           </TouchableOpacity>
         </View>
-        <FlashList
+        <FlatList
           data={importHistory}
           keyExtractor={(item: ImportHistoryEntry) => item.id}
           renderItem={({ item }: { item: ImportHistoryEntry }) => (
@@ -441,16 +511,19 @@ const ImportScreen: React.FC = () => {
           </Text>
         </TouchableOpacity>
 
-        {renderPlatformSelector()}
-
         {renderModeSelector()}
 
         <Card style={styles.inputCard}>
           <View style={styles.inputHeader}>
             <Text style={styles.sectionTitle}>Import Data</Text>
-            <TouchableOpacity onPress={() => setShowTemplateModal(true)}>
-              <Text style={styles.templateLink}>Load Template</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity onPress={() => setShowTemplateModal(true)}>
+                <Text style={styles.templateLink}>Load Template</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => openMappingModal()}>
+                <Text style={styles.templateLink}>Map Columns</Text>
+              </TouchableOpacity>
+            </View>
           </View>
           <TextInput
             style={styles.textArea}
@@ -464,7 +537,6 @@ const ImportScreen: React.FC = () => {
           />
         </Card>
 
-        {renderProgressBar()}
         {renderValidationResults()}
         {renderImportResults()}
 
@@ -483,6 +555,14 @@ const ImportScreen: React.FC = () => {
           />
         </View>
 
+        {progress && (
+          <Card style={[styles.resultCard, { marginHorizontal: spacing.lg }]}> 
+            <Text style={styles.resultTitle}>Import Progress</Text>
+            <Text style={styles.resultLabel}>{progress.message}</Text>
+            <Text style={styles.resultValue}>{progress.current} / {progress.total}</Text>
+          </Card>
+        )}
+
         <TouchableOpacity style={styles.historyLink} onPress={loadHistory}>
           <Text style={styles.historyLinkText}>View Import History</Text>
         </TouchableOpacity>
@@ -490,6 +570,42 @@ const ImportScreen: React.FC = () => {
 
       {renderHistoryModal()}
       {renderTemplateModal()}
+      {/* Column mapping modal */}
+      <Modal
+        visible={showMappingModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowMappingModal(false)}>
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Map CSV Columns</Text>
+            <TouchableOpacity onPress={() => setShowMappingModal(false)}>
+              <Text style={styles.closeButton}>Close</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={{ padding: spacing.lg }}>
+            <Text style={styles.sectionTitle}>Detected Headers</Text>
+            <FlatList
+              data={detectedHeaders}
+              keyExtractor={(item) => item}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={{ padding: spacing.md, borderBottomWidth: 1, borderColor: colors.border }}
+                  onPress={() => cycleMappingFor(item)}>
+                  <Text style={typography.body}>{item}</Text>
+                  <Text style={[typography.caption, { color: colors.textSecondary }]}>Mapping: {String(columnMapping[item] || '(none)')}</Text>
+                </TouchableOpacity>
+              )}
+            />
+            <View style={{ marginTop: spacing.md }}>
+              <Button title="Apply Mapping" onPress={() => setShowMappingModal(false)} />
+            </View>
+            <View style={{ marginTop: spacing.sm }}>
+              <Text style={typography.caption}>Tap a header to cycle through target fields.</Text>
+            </View>
+          </View>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -753,25 +869,6 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.textSecondary,
     marginTop: spacing.xs,
-  },
-  progressContainer: {
-    margin: spacing.lg,
-    marginTop: 0,
-  },
-  progressLabel: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginBottom: spacing.xs,
-  },
-  progressTrack: {
-    height: 6,
-    backgroundColor: colors.border,
-    borderRadius: borderRadius.full,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: borderRadius.full,
   },
 });
 
