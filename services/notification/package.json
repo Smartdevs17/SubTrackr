@@ -16,7 +16,7 @@
     "amqplib": "^0.10.3",
     "zod": "^3.23.8",
     "@sendgrid/mail": "^8.1.1",
-    "twilio": "^5.3.4",
+    "twilio": "^6.0.2",
     "expo-server-sdk": "^6.1.0",
     "pino": "^10.3.1",
     "pino-pretty": "^13.0.0"
