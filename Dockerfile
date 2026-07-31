@@ -1,11 +1,11 @@
-FROM node:20-alpine AS dependencies
+FROM node:25-alpine AS dependencies
 
 WORKDIR /app
 
 COPY package.json package-lock.json ./
 RUN npm ci --legacy-peer-deps && npm cache clean --force
 
-FROM node:20-alpine
+FROM node:25-alpine
 
 ENV NODE_ENV=production
 ENV PORT=3000
