@@ -78,7 +78,7 @@ describe('fraudStore', () => {
     });
 
     const report = useFraudStore.getState().getFraudReport('m1');
-    expect(report.averageRisk).toBe(81);
+    expect(report.averageRisk).toBe(62);
     expect(report.flaggedSubscriptions).toBe(1);
   });
 

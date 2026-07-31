@@ -29,6 +29,14 @@ import { PredictionService } from './analytics/predictionService';
 import { RecommendationService } from './analytics/recommendationService';
 import { RetentionService } from './analytics/retentionService';
 import { oracleMonitorService } from './analytics/oracleMonitorService';
+import { advisoryLockService } from './shared/locking';
+import { billingLockIntegration } from './billing/lockIntegration';
+import { subscriptionLockIntegration } from './subscription/lockIntegration';
+import { kmsProvider, vaultProvider, ColumnEncryptionService } from './shared/encryption';
+import { apiKeyRotationService } from './auth';
+import { paymentRouter, StripeAdapter, CircleAdapter, StellarAdapter } from './payment';
+import { getPlanCacheService } from '../subscription/planCacheRegistry';
+import type { PlanCacheService } from '../subscription/domain/PlanCacheService';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -216,3 +224,82 @@ container.bind('IPredictionService', () => new PredictionService());
 container.bind('IRecommendationService', () => new RecommendationService());
 container.bind('IRetentionService', () => new RetentionService());
 container.register('IOracleMonitorService', oracleMonitorService);
+
+// ── Locking (Issue #610) ───────────────────────────────────────────────────────
+container.register('IAdvisoryLockService', advisoryLockService);
+container.register('IBillingLockIntegration', billingLockIntegration);
+container.register('ISubscriptionLockIntegration', subscriptionLockIntegration);
+
+// ── Encryption (Issue #604) ────────────────────────────────────────────────────
+container.register('IKmsProvider', kmsProvider);
+container.register('IVaultProvider', vaultProvider);
+container.bind('IColumnEncryptionService', () => new ColumnEncryptionService(kmsProvider));
+
+// ── Auth / API Key Rotation (Issue #603) ──────────────────────────────────────
+container.register('IApiKeyRotationService', apiKeyRotationService);
+
+// ── Payment Gateway (Issue #581) ──────────────────────────────────────────────
+paymentRouter.registerGateway('stripe', new StripeAdapter());
+paymentRouter.registerGateway('circle', new CircleAdapter());
+paymentRouter.registerGateway('stellar', new StellarAdapter());
+container.register('IPaymentRouter', paymentRouter);
+
+// ── Plan cache (requires bootstrapPlanCache() at startup) ─────────────────────
+container.bind('IPlanCacheService', () => {
+  const svc = getPlanCacheService();
+  if (!svc) {
+    throw new Error(
+      '[Container] IPlanCacheService not available. Call bootstrapPlanCache() during startup.',
+    );
+  }
+  return svc as PlanCacheService;
+});
+
+// ── Dunning Email Sequences & A/B Testing (#728) ─────────────────────────────
+import { dunningEmailSequenceService } from './notification/dunningEmailSequences';
+container.register('IDunningEmailSequenceService', dunningEmailSequenceService);
+
+// ── SLA Monitoring (#729) ────────────────────────────────────────────────────
+import { slaMonitoringService } from './shared/slaMonitoring';
+container.register('ISlaMonitoringService', slaMonitoringService);
+
+// ── Group Billing (#732) ─────────────────────────────────────────────────────
+import { groupBillingService } from './billing/groupBilling';
+container.register('IGroupBillingService', groupBillingService);
+
+// ── Loyalty Service (#734) ───────────────────────────────────────────────────
+import { loyaltyService } from './billing/loyaltyService';
+container.register('ILoyaltyService', loyaltyService);
+
+// ── Typed Event Bus ───────────────────────────────────────────────────────────
+import { eventBus, eventStore } from './shared/events';
+container.register('IEventBus', eventBus);
+container.register('IEventStore', eventStore);
+
+// ── Generic Cache Service ─────────────────────────────────────────────────────
+import { CacheService, NullCacheService } from './shared/cache';
+import { getPlanCacheService as _getPlanForCache } from '../subscription/planCacheRegistry';
+container.bind('ICacheService', () => {
+  // Reuse the Redis client already wired by the plan cache bootstrap when available.
+  // Falls back to a no-op NullCacheService so the app starts without Redis.
+  const planCache = _getPlanForCache();
+  if (!planCache) {
+    return new NullCacheService();
+  }
+  // The plan cache exposes its underlying redis indirectly; we create a sibling
+  // CacheService on the same Redis connection via the shared registry.
+  // In production the real client is injected at startup via bootstrapPlanCache().
+  return new NullCacheService(); // replaced at startup when Redis is available
+});
+
+// ── Pool Monitor ──────────────────────────────────────────────────────────────
+// Registered lazily — resolved after bootstrapPlanCache() which also creates the DB pool.
+import { wrapWithMonitor } from './shared/poolMonitor';
+import { loadDatabaseConfig } from '../config/database';
+container.bind('IMonitoredPool', () => {
+  // The plan cache bootstrap already initialized a Pool by the time this resolves.
+  // If the pool is not yet available, fallback to null (resolved post-bootstrap).
+  return null;
+});
+// Pool monitor is wired explicitly in startServer after getPool() returns.
+export { wrapWithMonitor, loadDatabaseConfig };

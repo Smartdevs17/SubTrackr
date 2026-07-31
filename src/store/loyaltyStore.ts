@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { asyncStorageAdapter } from '../utils/storage';
 import {
   LoyaltyStatus,
   LoyaltyTier,
@@ -282,7 +282,7 @@ export const useLoyaltyStore = create<LoyaltyState>()(
     {
       name: STORAGE_KEY,
       version: STORE_VERSION,
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => asyncStorageAdapter),
       partialize: (state) => ({
         loyaltyStatus: state.loyaltyStatus,
         transactions: state.transactions,

@@ -9,9 +9,8 @@ import {
   FraudMerchantRecord,
   FraudReport,
   FraudRiskScore,
-  FraudReviewStatus,
-  FraudSubscriptionRecord,
   FraudSignal,
+  FraudSubscriptionRecord,
 } from '../types/fraud';
 
 const STORAGE_KEY = 'subtrackr-fraud-store';
@@ -667,8 +666,6 @@ export const useFraudStore = create<FraudState>()(
         if (!current) return;
 
         const score = scoreSubscription(current, subscriptions);
-        const action: FraudAction = score.totalScore >= 80 ? 'block' : 'flag';
-        const status: FraudReviewStatus = score.totalScore >= 80 ? 'escalated' : 'pending';
         const nextCase: FraudCase = {
           caseId: subscriptionId,
           subscriptionId,
@@ -677,8 +674,8 @@ export const useFraudStore = create<FraudState>()(
           merchantName: current.merchantName,
           subscriptionName: current.subscriptionName,
           riskScore: score.totalScore,
-          action,
-          status,
+          action: score.totalScore >= 80 ? 'block' : 'flag',
+          status: score.totalScore >= 80 ? 'escalated' : 'pending',
           reason: score.reason,
           createdAt: nowIso(),
           updatedAt: nowIso(),
@@ -825,6 +822,7 @@ export const useFraudStore = create<FraudState>()(
             };
             return dismissedCase;
           });
+
           return {
             subscriptions,
             reviewQueue,

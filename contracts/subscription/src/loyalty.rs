@@ -2,14 +2,33 @@
 ///
 /// On-chain points, tiered benefits, streaks, referral bonuses, and
 /// points redemption — all stored in the shared storage contract.
-use soroban_sdk::{Address, Env, String, Vec};
+use soroban_sdk::{contracttype, Address, Env, String, Vec};
 use subtrackr_types::{
     LoyaltyConfig, LoyaltyTierConfig, PointTransaction, PointTxType, RewardsRedemption,
-    StorageKey,
 };
 
 use crate::{storage_persistent_get, storage_persistent_set};
 
+/// Local storage keys for loyalty & rewards state.
+///
+/// These are intentionally kept separate from the central `StorageKey`
+/// enum to avoid exceeding the Soroban `#[contracttype]` variant limit.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+enum LoyaltyKey {
+    LoyaltyConfig,
+    LoyaltyPoints(Address),
+    LifetimePoints(Address),
+    TotalSpent(Address),
+    MemberSince(Address),
+    PointsExpiration(Address),
+    Streak(Address),
+    LastChargeAt(Address),
+    Redemption(u64),
+    PointTxCount,
+    PointTx(u64),
+    RedemptionCount,
+}
 // ── Constants ──────────────────────────────────────────────────────────────────
 
 /// Maximum points a single subscriber can hold (anti-inflation).
@@ -20,28 +39,28 @@ const MIN_CHARGE_FOR_POINTS: i128 = 100_000;
 // ── Config ─────────────────────────────────────────────────────────────────────
 
 pub fn set_loyalty_config(env: &Env, storage: &Address, config: &LoyaltyConfig) {
-    storage_persistent_set(env, storage, StorageKey::LoyaltyConfig, config);
+    storage_persistent_set(env, storage, LoyaltyKey::LoyaltyConfig, config.clone());
 }
 
 pub fn get_loyalty_config(env: &Env, storage: &Address) -> Option<LoyaltyConfig> {
-    storage_persistent_get(env, storage, StorageKey::LoyaltyConfig)
+    storage_persistent_get(env, storage, LoyaltyKey::LoyaltyConfig)
 }
 
 // ── Points ─────────────────────────────────────────────────────────────────────
 
 pub fn get_points(env: &Env, storage: &Address, subscriber: &Address) -> u64 {
-    storage_persistent_get::<u64>(env, storage, StorageKey::LoyaltyPoints(subscriber.clone()))
-        .unwrap_or(0)
+    let pts: Option<u64> = storage_persistent_get(env, storage, LoyaltyKey::LoyaltyPoints(subscriber.clone()));
+    pts.unwrap_or(0)
 }
 
 pub fn get_lifetime_points(env: &Env, storage: &Address, subscriber: &Address) -> u64 {
-    storage_persistent_get::<u64>(env, storage, StorageKey::LifetimePoints(subscriber.clone()))
-        .unwrap_or(0)
+    let pts: Option<u64> = storage_persistent_get(env, storage, LoyaltyKey::LifetimePoints(subscriber.clone()));
+    pts.unwrap_or(0)
 }
 
 pub fn get_total_spent(env: &Env, storage: &Address, subscriber: &Address) -> i128 {
-    storage_persistent_get::<i128>(env, storage, StorageKey::TotalSpent(subscriber.clone()))
-        .unwrap_or(0)
+    let val: Option<i128> = storage_persistent_get(env, storage, LoyaltyKey::TotalSpent(subscriber.clone()));
+    val.unwrap_or(0)
 }
 
 /// Accumulate points after a successful charge.
@@ -74,22 +93,24 @@ pub fn accumulate_points(
     let new_points = (current + points_earned).min(MAX_POINTS);
     let new_lifetime = lifetime + points_earned;
 
-    storage_persistent_set(env, storage, StorageKey::LoyaltyPoints(subscriber.clone()), new_points);
-    storage_persistent_set(env, storage, StorageKey::LifetimePoints(subscriber.clone()), new_lifetime);
-    storage_persistent_set(env, storage, StorageKey::TotalSpent(subscriber.clone()), total_spent + charge_amount);
+    storage_persistent_set(env, storage, LoyaltyKey::LoyaltyPoints(subscriber.clone()), new_points);
+    storage_persistent_set(env, storage, LoyaltyKey::LifetimePoints(subscriber.clone()), new_lifetime);
+    storage_persistent_set(env, storage, LoyaltyKey::TotalSpent(subscriber.clone()), total_spent + charge_amount);
 
     // Track first participation as "member since"
-    if storage_persistent_get::<u64>(env, storage, StorageKey::MemberSince(subscriber.clone())).is_none() {
-        storage_persistent_set(env, storage, StorageKey::MemberSince(subscriber.clone()), charge_time);
+    let member_since: Option<u64> = storage_persistent_get(env, storage, LoyaltyKey::MemberSince(subscriber.clone()));
+    if member_since.is_none() {
+        storage_persistent_set(env, storage, LoyaltyKey::MemberSince(subscriber.clone()), charge_time);
     }
 
     // Update streak
     update_streak(env, storage, subscriber, charge_time);
 
     // Set points expiration if not set
-    if storage_persistent_get::<u64>(env, storage, StorageKey::PointsExpiration(subscriber.clone())).is_none() {
+    let points_exp: Option<u64> = storage_persistent_get(env, storage, LoyaltyKey::PointsExpiration(subscriber.clone()));
+    if points_exp.is_none() {
         let expires_at = charge_time + config.expiration_days * 86_400;
-        storage_persistent_set(env, storage, StorageKey::PointsExpiration(subscriber.clone()), expires_at);
+        storage_persistent_set(env, storage, LoyaltyKey::PointsExpiration(subscriber.clone()), expires_at);
     }
 
     // Record transaction
@@ -101,7 +122,7 @@ pub fn accumulate_points(
         PointTxType::Earned,
         charge_time,
         0,
-        String::from_slice(env, b"points earned from charge"),
+        String::from_str(env, "points earned from charge"),
     );
 }
 
@@ -109,7 +130,7 @@ pub fn accumulate_points(
 pub fn get_eligible_points(env: &Env, storage: &Address, subscriber: &Address) -> u64 {
     let now = env.ledger().timestamp();
     let expires_at: Option<u64> =
-        storage_persistent_get(env, storage, StorageKey::PointsExpiration(subscriber.clone()));
+        storage_persistent_get(env, storage, LoyaltyKey::PointsExpiration(subscriber.clone()));
     let expired = expires_at.map_or(false, |exp| now >= exp);
 
     if expired {
@@ -123,10 +144,10 @@ pub fn get_eligible_points(env: &Env, storage: &Address, subscriber: &Address) -
                 PointTxType::Expired,
                 now,
                 0,
-                String::from_slice(env, b"points expired"),
+                String::from_str(env, "points expired"),
             );
-            storage_persistent_set(env, storage, StorageKey::LoyaltyPoints(subscriber.clone()), 0u64);
-            storage_persistent_set::<Option<u64>>(env, storage, StorageKey::PointsExpiration(subscriber.clone()), None);
+            storage_persistent_set(env, storage, LoyaltyKey::LoyaltyPoints(subscriber.clone()), 0u64);
+            storage_persistent_set(env, storage, LoyaltyKey::PointsExpiration(subscriber.clone()), None::<u64>);
         }
         0
     } else {
@@ -137,12 +158,13 @@ pub fn get_eligible_points(env: &Env, storage: &Address, subscriber: &Address) -
 // ── Streaks ────────────────────────────────────────────────────────────────────
 
 pub fn get_streak(env: &Env, storage: &Address, subscriber: &Address) -> u64 {
-    storage_persistent_get::<u64>(env, storage, StorageKey::Streak(subscriber.clone())).unwrap_or(0)
+    let streak: Option<u64> = storage_persistent_get(env, storage, LoyaltyKey::Streak(subscriber.clone()));
+    streak.unwrap_or(0)
 }
 
 fn update_streak(env: &Env, storage: &Address, subscriber: &Address, charge_time: u64) {
     let last_charge: Option<u64> =
-        storage_persistent_get(env, storage, StorageKey::LastChargeAt(subscriber.clone()));
+        storage_persistent_get(env, storage, LoyaltyKey::LastChargeAt(subscriber.clone()));
     let current_streak = get_streak(env, storage, subscriber);
 
     let new_streak = match last_charge {
@@ -158,15 +180,15 @@ fn update_streak(env: &Env, storage: &Address, subscriber: &Address, charge_time
         None => 1,
     };
 
-    storage_persistent_set(env, storage, StorageKey::Streak(subscriber.clone()), new_streak);
-    storage_persistent_set(env, storage, StorageKey::LastChargeAt(subscriber.clone()), charge_time);
+    storage_persistent_set(env, storage, LoyaltyKey::Streak(subscriber.clone()), new_streak);
+    storage_persistent_set(env, storage, LoyaltyKey::LastChargeAt(subscriber.clone()), charge_time);
 
     // Award streak bonus points at milestones
     if new_streak > 0 && new_streak % 10 == 0 {
         let bonus = (new_streak / 10) * 100;
         let current = get_points(env, storage, subscriber);
         let new = (current + bonus).min(MAX_POINTS);
-        storage_persistent_set(env, storage, StorageKey::LoyaltyPoints(subscriber.clone()), new);
+        storage_persistent_set(env, storage, LoyaltyKey::LoyaltyPoints(subscriber.clone()), new);
         record_tx(
             env,
             storage,
@@ -175,7 +197,7 @@ fn update_streak(env: &Env, storage: &Address, subscriber: &Address, charge_time
             PointTxType::StreakBonus,
             charge_time,
             0,
-            &String::from_slice(env, b"streak bonus"),
+            String::from_str(env, "streak bonus"),
         );
     }
 }
@@ -217,8 +239,8 @@ pub fn earn_referral_bonus(
     let lifetime = get_lifetime_points(env, storage, referrer);
     let new_points = (current + bonus).min(MAX_POINTS);
 
-    storage_persistent_set(env, storage, StorageKey::LoyaltyPoints(referrer.clone()), new_points);
-    storage_persistent_set(env, storage, StorageKey::LifetimePoints(referrer.clone()), lifetime + bonus);
+    storage_persistent_set(env, storage, LoyaltyKey::LoyaltyPoints(referrer.clone()), new_points);
+    storage_persistent_set(env, storage, LoyaltyKey::LifetimePoints(referrer.clone()), lifetime + bonus);
 
     record_tx(
         env,
@@ -228,7 +250,7 @@ pub fn earn_referral_bonus(
         PointTxType::ReferralBonus,
         charge_time,
         0,
-        String::from_slice(env, b"referral bonus"),
+        String::from_str(env, "referral bonus"),
     );
 }
 
@@ -263,14 +285,14 @@ pub fn redeem_points(
 
     // Deduct points
     let remaining = get_points(env, storage, subscriber) - actual;
-    storage_persistent_set(env, storage, StorageKey::LoyaltyPoints(subscriber.clone()), remaining);
+    storage_persistent_set(env, storage, LoyaltyKey::LoyaltyPoints(subscriber.clone()), remaining);
 
     // Record redemption
     let redemption_id = next_redemption_id(env, storage);
     storage_persistent_set(
         env,
         storage,
-        StorageKey::Redemption(redemption_id),
+        LoyaltyKey::Redemption(redemption_id),
         RewardsRedemption {
             id: redemption_id,
             subscriber: subscriber.clone(),
@@ -288,7 +310,7 @@ pub fn redeem_points(
         PointTxType::Redeemed,
         charge_time,
         redemption_id,
-        String::from_slice(env, b"points redeemed for discount"),
+        String::from_str(env, "points redeemed for discount"),
     );
 
     discount
@@ -299,7 +321,7 @@ pub fn get_redemption(
     storage: &Address,
     redemption_id: u64,
 ) -> Option<RewardsRedemption> {
-    storage_persistent_get(env, storage, StorageKey::Redemption(redemption_id))
+    storage_persistent_get(env, storage, LoyaltyKey::Redemption(redemption_id))
 }
 
 // ── History ────────────────────────────────────────────────────────────────────
@@ -310,12 +332,11 @@ pub fn get_point_transactions(
     subscriber: &Address,
 ) -> Vec<PointTransaction> {
     let count: u64 =
-        storage_persistent_get(env, storage, StorageKey::PointTxCount).unwrap_or(0);
+        storage_persistent_get(env, storage, LoyaltyKey::PointTxCount).unwrap_or(0);
     let mut txs: Vec<PointTransaction> = Vec::new(env);
     for i in 1..=count {
-        if let Some(tx) =
-            storage_persistent_get::<PointTransaction>(env, storage, StorageKey::PointTx(i))
-        {
+        let tx_opt: Option<PointTransaction> = storage_persistent_get(env, storage, LoyaltyKey::PointTx(i));
+        if let Some(tx) = tx_opt {
             if tx.subscriber == *subscriber {
                 txs.push_back(tx);
             }
@@ -339,26 +360,26 @@ pub fn expire_points(env: &Env, storage: &Address, subscriber: &Address) {
             PointTxType::Expired,
             now,
             0,
-            String::from_slice(env, b"admin-forced expiry"),
+            String::from_str(env, "admin-forced expiry"),
         );
-        storage_persistent_set(env, storage, StorageKey::LoyaltyPoints(subscriber.clone()), 0u64);
-        storage_persistent_set::<Option<u64>>(env, storage, StorageKey::PointsExpiration(subscriber.clone()), None);
+        storage_persistent_set(env, storage, LoyaltyKey::LoyaltyPoints(subscriber.clone()), 0u64);
+        storage_persistent_set(env, storage, LoyaltyKey::PointsExpiration(subscriber.clone()), None::<u64>);
     }
 }
 
 // ── Internal helpers ───────────────────────────────────────────────────────────
 
 fn next_tx_id(env: &Env, storage: &Address) -> u64 {
-    let count: u64 = storage_persistent_get(env, storage, StorageKey::PointTxCount).unwrap_or(0);
+    let count: u64 = storage_persistent_get(env, storage, LoyaltyKey::PointTxCount).unwrap_or(0);
     let next = count + 1;
-    storage_persistent_set(env, storage, StorageKey::PointTxCount, next);
+    storage_persistent_set(env, storage, LoyaltyKey::PointTxCount, next);
     next
 }
 
 fn next_redemption_id(env: &Env, storage: &Address) -> u64 {
-    let count: u64 = storage_persistent_get(env, storage, StorageKey::RedemptionCount).unwrap_or(0);
+    let count: u64 = storage_persistent_get(env, storage, LoyaltyKey::RedemptionCount).unwrap_or(0);
     let next = count + 1;
-    storage_persistent_set(env, storage, StorageKey::RedemptionCount, next);
+    storage_persistent_set(env, storage, LoyaltyKey::RedemptionCount, next);
     next
 }
 
@@ -382,5 +403,5 @@ fn record_tx(
         reference_id,
         description,
     };
-    storage_persistent_set(env, storage, StorageKey::PointTx(id), tx);
+    storage_persistent_set(env, storage, LoyaltyKey::PointTx(id), tx);
 }

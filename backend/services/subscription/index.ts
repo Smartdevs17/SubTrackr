@@ -4,3 +4,10 @@ export { ElasticsearchService, elasticsearchService } from './ElasticsearchServi
 export type { SearchQuery, SearchHit, FacetResult, SearchResult, SearchAnalyticsEvent } from './ElasticsearchService';
 export type { ISubscriptionEventStore, IElasticsearchService } from './interfaces';
 export { SubscriptionError, SubscriptionErrorCode } from './errors';
+export { searchService } from './search';
+export type {
+  PagedSearchRequest,
+  PagedSearchResponse,
+  SuggestionRequest,
+  SearchAnalyticsSummary,
+} from './search';

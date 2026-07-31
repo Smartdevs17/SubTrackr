@@ -21,6 +21,7 @@ import {
 } from '../store/communityStore';
 import { useWalletStore } from '../store';
 import { borderRadius, colors, spacing, typography } from '../utils/constants';
+import { useDebounce } from '../hooks/useDebounce';
 
 type CommunityNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type CommunityTab = 'directory' | 'forum' | 'moderation';
@@ -109,6 +110,7 @@ const CommunityScreen: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<CommunityTab>('directory');
   const [query, setQuery] = useState('');
+  const debouncedQuery = useDebounce(query);
   const [privacyFilter, setPrivacyFilter] = useState<CommunityPrivacy | 'all'>('all');
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('General');
@@ -116,8 +118,8 @@ const CommunityScreen: React.FC = () => {
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
 
   const subscribers = useMemo(
-    () => getSubscribers({ query, privacy: privacyFilter }),
-    [getSubscribers, privacyFilter, query]
+    () => getSubscribers({ query: debouncedQuery, privacy: privacyFilter }),
+    [getSubscribers, privacyFilter, debouncedQuery]
   );
 
   const visibleThreads = useMemo(

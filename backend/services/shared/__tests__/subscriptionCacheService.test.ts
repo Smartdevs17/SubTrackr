@@ -2,9 +2,9 @@ import {
   SubscriptionCacheService,
   type RedisClient,
   type SubscriptionCacheConfig,
-} from '../subscriptionCacheService';
-import type { Subscription } from '../../../src/types/subscription';
-import { SubscriptionCategory, BillingCycle } from '../../../src/types/subscription';
+} from '../../subscriptionCacheService';
+import type { Subscription } from '../../../../src/types/subscription';
+import { SubscriptionCategory, BillingCycle } from '../../../../src/types/subscription';
 
 // ── Test doubles ──────────────────────────────────────────────────────────────
 
