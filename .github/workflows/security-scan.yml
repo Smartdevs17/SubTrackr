@@ -151,7 +151,7 @@ jobs:
         run: mkdir -p "$SECURITY_REPORT_DIR"
 
       - name: Scan container image for vulnerable OS packages
-        uses: aquasecurity/trivy-action@0.30.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: subtrackr-api:${{ github.sha }}
           format: json
@@ -160,7 +160,7 @@ jobs:
           exit-code: '0'
 
       - name: Scan Dockerfile and IaC configuration
-        uses: aquasecurity/trivy-action@0.30.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: config
           scan-ref: .
