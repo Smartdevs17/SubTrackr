@@ -407,4 +407,331 @@ pub enum StorageKey {
     ChargeCommitment(u64),
     MevAlertCount,
     MevAlert(u64),
+
+    // Plan and payment method storage keys
+    MaxPlansPerMerchant,
+    UserPaymentMethods(Address),
+    PaymentMethodEntry(Address, u64),
+    PaymentMethodCount(Address),
 }
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum Role {
+    Admin,
+    Merchant,
+    Subscriber,
+    Auditor,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum Permission {
+    GrantRole,
+    RevokeRole,
+    DelegatePermission,
+    CreatePlan,
+    DeactivatePlan,
+    SetPlanQuotas,
+    SetRevenueRule,
+    Subscribe,
+    CancelSubscription,
+    PauseSubscription,
+    ResumeSubscription,
+    ChargeSubscription,
+    RequestRefund,
+    ApproveRefund,
+    RejectRefund,
+    RequestTransfer,
+    AcceptTransfer,
+    SetRateLimit,
+    RemoveRateLimit,
+    SetInvoiceContract,
+    ClearInvoiceContract,
+    UpgradeContract,
+    MigrateContract,
+    ViewAnalytics,
+    ViewAuditLog,
+    ViewPlans,
+    ViewSubscriptions,
+    SetEmergencyAdmin,
+    PauseEmergency,
+    SetAccessControl,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum RoleChangeAction {
+    Granted,
+    Revoked,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct RoleChangeEntry {
+    pub id: u64,
+    pub user: Address,
+    pub role: Role,
+    pub action: RoleChangeAction,
+    pub changed_by: Address,
+    pub timestamp: Timestamp,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PriceBounds {
+    pub min_price_bps: u32,
+    pub max_price_bps: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct BillingSchedule {
+    pub subscription_id: u64,
+    pub interval: Interval,
+    pub start_date: u64,
+    pub custom_invoice_day: u32,
+    pub promotional_duration_days: u32,
+    pub promotional_rate: i128,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum ChargeStatus {
+    Pending,
+    Attempting,
+    Completed,
+    Failed,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ChargeAttempt {
+    pub id: u64,
+    pub subscription_id: u64,
+    pub status: ChargeStatus,
+    pub amount: i128,
+    pub attempted_at: u64,
+    pub completed_at: u64,
+    pub error_message: String,
+    pub retry_count: u32,
+    pub max_retries: u32,
+    pub next_retry_at: u64,
+    pub circuit_breaker_until: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct RetryConfig {
+    pub max_retries: u32,
+    pub base_delay_secs: u64,
+    pub max_delay_secs: u64,
+    pub backoff_factor: u32,
+    pub circuit_breaker_threshold: u32,
+    pub circuit_breaker_cooldown_secs: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum WebhookEventType {
+    SubscriptionCreated,
+    SubscriptionUpdated,
+    SubscriptionCancelled,
+    SubscriptionRenewed,
+    PaymentFailed,
+    ChargeSucceeded,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct WebhookSubscriptionSnapshot {
+    pub id: u64,
+    pub plan_id: u64,
+    pub subscriber: Address,
+    pub status: SubscriptionStatus,
+    pub started_at: u64,
+    pub last_charged_at: u64,
+    pub next_charge_at: u64,
+    pub total_paid: i128,
+    pub total_gas_spent: u64,
+    pub charge_count: u32,
+    pub paused_at: u64,
+    pub pause_duration: u64,
+    pub refund_requested_amount: i128,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct WebhookPlanSnapshot {
+    pub id: u64,
+    pub merchant: Address,
+    pub name: String,
+    pub price: i128,
+    pub token: Address,
+    pub interval: Interval,
+    pub active: bool,
+    pub subscriber_count: u32,
+    pub created_at: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct WebhookEventPayload {
+    pub id: u64,
+    pub webhook_id: u64,
+    pub event_type: WebhookEventType,
+    pub merchant: Address,
+    pub occurred_at: u64,
+    pub subscription: WebhookSubscriptionSnapshot,
+    pub plan: WebhookPlanSnapshot,
+    pub previous_status: SubscriptionStatus,
+    pub current_status: SubscriptionStatus,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct LoyaltyTierConfig {
+    pub name: String,
+    pub min_points: u64,
+    pub discount_bps: u32,
+    pub multiplier: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct LoyaltyConfig {
+    pub enabled: bool,
+    pub points_per_stroop: u64,
+    pub streak_bonus_pct: u32,
+    pub referral_points: u64,
+    pub min_redemption_points: u64,
+    pub points_expiry_days: u32,
+    pub tiers: Vec<LoyaltyTierConfig>,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum PointTxType {
+    Earned,
+    Redeemed,
+    Expired,
+    Bonus,
+    Referral,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PointTransaction {
+    pub id: u64,
+    pub subscriber: Address,
+    pub tx_type: PointTxType,
+    pub amount: u64,
+    pub timestamp: u64,
+    pub description: String,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct RewardsRedemption {
+    pub id: u64,
+    pub subscriber: Address,
+    pub points_used: u64,
+    pub discount_applied: i128,
+    pub redeemed_at: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum TokenType {
+    StellarAsset,
+    NativeXLM,
+    Custom,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum PaymentPriority {
+    Primary,
+    Backup,
+    Fallback,
+}
+
+pub type PaymentMethodId = u64;
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PaymentMethod {
+    pub id: u64,
+    pub user: Address,
+    pub token_type: TokenType,
+    pub token_address: Address,
+    pub chain_id: u64,
+    pub label: String,
+    pub priority: PaymentPriority,
+    pub max_spend_per_interval: i128,
+    pub is_verified: bool,
+    pub is_active: bool,
+    pub expires_at: u64,
+    pub last_used_at: u64,
+    pub created_at: u64,
+    pub updated_at: u64,
+    pub metadata: Vec<String>,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum TemplateKey {
+    Template(u64),
+    TemplateCount,
+    MerchantTemplates(Address),
+    SharedTemplates,
+    TemplateAnalytics(u64),
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum WebhookDeliveryStatus {
+    Pending,
+    Delivered,
+    Failed,
+    Retrying,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct WebhookRetryPolicy {
+    pub max_retries: u32,
+    pub backoff_seconds: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct WebhookConfig {
+    pub id: u64,
+    pub merchant: Address,
+    pub url: String,
+    pub secret: String,
+    pub events: Vec<WebhookEventType>,
+    pub is_paused: bool,
+    pub created_at: u64,
+    pub failure_count: u32,
+    pub retry_policy: WebhookRetryPolicy,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct WebhookDelivery {
+    pub id: u64,
+    pub webhook_id: u64,
+    pub event_type: WebhookEventType,
+    pub payload_hash: String,
+    pub status: WebhookDeliveryStatus,
+    pub attempts: u32,
+    pub next_attempt_at: u64,
+    pub last_attempt_at: u64,
+    pub response_status: u32,
+}
+
+
+
+

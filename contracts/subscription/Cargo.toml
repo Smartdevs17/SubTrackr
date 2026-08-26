@@ -10,13 +10,12 @@ name = "subtrackr_subscription"
 path = "src/lib.rs"
 crate-type = ["cdylib", "rlib"]
 
-serde = "1.0"
-
 [dependencies]
-soroban-sdk = "21.0.0"
+soroban-sdk = { workspace = true }
 subtrackr-types = { path = "../types" }
+serde = { version = "1.0", default-features = false }
 
 [dev-dependencies]
-soroban-sdk = { version = "21.0.0", features = ["testutils"] }
+soroban-sdk = { workspace = true, features = ["testutils"] }
 subtrackr-proxy = { path = "../proxy" }
 subtrackr-storage = { path = "../storage" }

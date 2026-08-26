@@ -1,13 +1,8 @@
-use crate::gas_profiler::GasProfile;
-/// Gas Storage Module
-/// Manages storage and retrieval of gas profiling metrics
-use soroban_sdk::{Address, Env, IntoVal, String as SorobanString, TryFromVal, Val, Vec};
-#![allow(dead_code)]
-#![allow(unused_variables)]
 //! Gas Storage Module
 //! Manages storage and retrieval of gas profiling metrics.
-use soroban_sdk::{Address, Env, String as SorobanString};
-use crate::gas_profiler::{GasProfile};
+
+use crate::gas_profiler::GasProfile;
+use soroban_sdk::{Address, Env, IntoVal, String as SorobanString, TryFromVal, Val, Vec};
 
 /// Storage keys for gas metrics
 #[derive(Clone)]

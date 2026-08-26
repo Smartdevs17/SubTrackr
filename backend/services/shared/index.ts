@@ -169,3 +169,17 @@ export type {
   LeakRecord,
   PoolTuningRecommendation,
 } from './poolMonitor';
+
+// ── Auth Strategies ───────────────────────────────────────────────────────────
+export {
+  JwtAuthStrategy,
+  ApiKeyAuthStrategy,
+  WalletAuthStrategy,
+  OAuthSessionAuthStrategy,
+  CompositeAuthStrategyManager,
+  createUnifiedAuthMiddleware,
+  createRequireRoleMiddleware,
+  createRequireStrategyMiddleware,
+} from './authStrategies';
+export type { AuthUser, IAuthStrategy } from './authStrategies';
+

@@ -15,11 +15,6 @@ import { RootStackParamList } from '../navigation/types';
 import { useCancellationStore } from '../store/cancellationStore';
 import { useSubscriptionStore } from '../store';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'CancellationFlow'>;
-
-const CancellationFlowScreen: React.FC<Props> = ({ route, navigation }) => {
-  const { currentStep, setReason, setStep, acceptOffer, reset } = useCancellationStore();
-  const { deleteSubscription } = useSubscriptionStore();
 import { useCancellationStore, CANCELLATION_REASONS } from '../store/cancellationStore';
 import { RetentionOffer } from '../../backend/services/retentionService';
 

@@ -126,6 +126,8 @@ const SupportDashboardScreen: React.FC = () => {
       <Text style={styles.metricValue}>{value}</Text>
       <Text style={styles.metricLabel}>{label}</Text>
       <Text style={styles.metricHint}>{hint}</Text>
+    </Card>
+  );
   const renderTicket = (ticket: SupportTicket) => (
     <Card style={styles.card}>
       <Text style={styles.cardTitle}>{ticket.title}</Text>
