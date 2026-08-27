@@ -169,3 +169,27 @@ export type {
   LeakRecord,
   PoolTuningRecommendation,
 } from './poolMonitor';
+
+// ── CORS Policy Management ────────────────────────────────────────────────────
+export {
+  upsertPolicy,
+  getPolicy,
+  getAllPolicies,
+  deletePolicy,
+  testOrigin,
+  processCorsRequest,
+  recordViolation,
+  getCorsAnalytics,
+  getViolations,
+  clearPreflightCache,
+  createCorsMiddleware,
+  resetAnalytics,
+} from './corsMiddleware';
+export type {
+  CorsOrigin,
+  CorsPolicy,
+  CorsViolation,
+  CorsAnalytics,
+  CorsTestResult,
+  CorsHeadersResult,
+} from './corsMiddleware';

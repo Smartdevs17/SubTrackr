@@ -37,6 +37,12 @@ import { createRateLimitMiddleware, RATE_LIMIT_HEADERS } from './services/shared
 import { applyCompression, compressionPrometheusMetrics } from './services/shared/compression';
 import { wrapWithMonitor, type MonitoredPool } from './services/shared/poolMonitor';
 import { SubscriptionTier } from '../src/types/subscription';
+import {
+  processCorsRequest,
+  upsertPolicy,
+  getCorsAnalytics,
+  getViolations,
+} from './services/shared/corsMiddleware';
 
 export interface StartServerOptions {
   port?: number;
@@ -204,12 +210,57 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
 
   const rateLimitMw = buildRateLimitMiddleware();
 
+  // Seed a default permissive CORS policy for the server's own tenant.
+  // In production, policies should be loaded from the database per-tenant.
+  upsertPolicy('default', {
+    allowedOrigins: [
+      { origin: process.env['CORS_ALLOWED_ORIGIN'] ?? '*', isWildcard: true },
+    ],
+    allowCredentials: false,
+    exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
+    maxAge: 86400,
+    allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Api-Key',
+      'X-Request-Id',
+      'X-Subscription-Tier',
+    ],
+    active: true,
+  });
+
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
     const { pathname } = url;
     const method = req.method ?? 'GET';
 
     try {
+      // -----------------------------------------------------------------
+      // CORS – applied to every request before routing
+      // -----------------------------------------------------------------
+      const origin = typeof req.headers['origin'] === 'string' ? req.headers['origin'] : undefined;
+      const requestHeaders = typeof req.headers['access-control-request-headers'] === 'string'
+        ? req.headers['access-control-request-headers']
+        : undefined;
+      const { headers: corsHeaders, allowed: corsAllowed } = processCorsRequest({
+        origin,
+        method,
+        requestHeaders,
+        tenantId: 'default',
+      });
+
+      for (const [name, value] of Object.entries(corsHeaders)) {
+        if (value !== null) res.setHeader(name, value);
+      }
+
+      // Short-circuit OPTIONS preflight
+      if (method === 'OPTIONS') {
+        res.writeHead(corsAllowed ? 204 : 403);
+        res.end();
+        return;
+      }
+
       // -----------------------------------------------------------------
       // Health (bypass rate limiting)
       // -----------------------------------------------------------------
@@ -258,6 +309,26 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
           tuning: monitoredPool.getTuningRecommendation(),
           history: monitoredPool.getHistory().slice(-10),
         });
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // CORS analytics  GET /cors/analytics
+      // -----------------------------------------------------------------
+      if (pathname === '/cors/analytics' && method === 'GET') {
+        sendJson(res, 200, getCorsAnalytics());
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // CORS violations  GET /cors/violations
+      // -----------------------------------------------------------------
+      if (pathname === '/cors/violations' && method === 'GET') {
+        const tenantId = url.searchParams.get('tenantId') ?? undefined;
+        const origin = url.searchParams.get('origin') ?? undefined;
+        const limit = url.searchParams.get('limit') ? Number(url.searchParams.get('limit')) : 100;
+        const since = url.searchParams.get('since') ?? undefined;
+        sendJson(res, 200, getViolations({ tenantId, origin, limit, since }));
         return;
       }
 
@@ -418,6 +489,8 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
         console.info(`[Server] RateLimit → GET /rate-limits/status?apiKey=...`);
         console.info(`[Server] RateLimit → POST /rate-limits/bypass`);
         console.info(`[Server] RateLimit → POST /rate-limits/config`);
+        console.info(`[Server] CORS     → GET /cors/analytics`);
+        console.info(`[Server] CORS     → GET /cors/violations`);
         resolve();
       });
     });
