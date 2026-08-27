@@ -1,0 +1,15 @@
+{
+  "name": "@subtrackr/sdk",
+  "version": "1.0.0",
+  "description": "Official SubTrackr JavaScript SDK",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "tsc --noEmit"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

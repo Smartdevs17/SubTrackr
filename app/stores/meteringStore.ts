@@ -1,316 +1,319 @@
+// ════════════════════════════════════════════════════════════════
+// METERING STORE - real-time usage tracking and usage-based billing
+// ════════════════════════════════════════════════════════════════
+//
+// Mirrors the `subtrackr-metering` Soroban contract: reporters push usage
+// increments per (subscription, metric); the store aggregates into period
+// buckets, fires alerts on thresholds, exposes trends, and computes usage
+// charges over a time range.
+
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import {
-  UsageMetric,
-  UsageEvent,
-  UsageAlert,
-  RegisterMetricParams,
-  RecordUsageParams,
-} from '../types/metering';
 
-const STORAGE_KEY = 'subtrackr-metering-storage';
-const STORE_VERSION = 1;
-
-export interface MeteringState {
-  metrics: Record<string, UsageMetric>;
-  events: UsageEvent[];
-  alerts: UsageAlert[];
-  subscriptionMetricsMap: Record<string, string[]>;
-
-  // Actions
-  registerMetric: (params: RegisterMetricParams) => UsageMetric;
-  recordUsage: (params: RecordUsageParams) => { metric: UsageMetric; newAlerts: UsageAlert[] };
-  setUsageLimit: (subscriptionId: string, metricId: string, limit: number) => UsageMetric | undefined;
-  resetCycleUsage: (subscriptionId: string, metricId?: string) => void;
-  getAccruedBill: (subscriptionId: string) => number;
-  getSubscriptionMetrics: (subscriptionId: string) => UsageMetric[];
-  getUsageHistory: (subscriptionId: string, metricId?: string) => UsageEvent[];
-  getAlerts: (subscriptionId?: string, unacknowledgedOnly?: boolean) => UsageAlert[];
-  acknowledgeAlert: (alertId: string) => void;
-  clearUsageHistory: (subscriptionId?: string) => void;
-  simulateTelemetry: (subscriptionId: string, metricId: string, quantity?: number) => UsageEvent;
-  resetStore: () => void;
+export interface MeteredUsage {
+  metric: string;
+  value: number;
+  timestamp: number;
 }
 
-const generateId = (prefix: string): string => {
-  const timestamp = Date.now().toString(36);
-  const randomStr = Math.random().toString(36).substring(2, 8);
-  return `${prefix}-${timestamp}-${randomStr}`;
-};
+export interface UsageBucket {
+  start: number;
+  units: number;
+}
 
-const calculateAccruedCost = (metric: UsageMetric): number => {
-  if (metric.currentUsage <= metric.includedUnits) {
-    return 0;
-  }
-  const excessUnits = metric.currentUsage - metric.includedUnits;
-  return Number((excessUnits * metric.unitRate).toFixed(2));
-};
+export interface MeterState {
+  metric: string;
+  total: number;
+  lastTimestamp: number;
+  periodSecs: number;
+  includedUnits: number;
+  unitPrice: number;
+  alertThreshold: number;
+  alertFired: boolean;
+  buckets: UsageBucket[];
+}
 
-const checkThresholdAlerts = (
-  metric: UsageMetric,
-  prevUsage: number,
-  newUsage: number
-): UsageAlert[] => {
-  if (!metric.usageLimit || metric.usageLimit <= 0) return [];
+export interface ChargeLine {
+  metric: string;
+  units: number;
+  billableUnits: number;
+  unitPrice: number;
+  amount: number;
+}
 
-  const prevPercent = (prevUsage / metric.usageLimit) * 100;
-  const newPercent = (newUsage / metric.usageLimit) * 100;
+export interface Charge {
+  subscriptionId: string;
+  currency: string;
+  total: number;
+  lines: ChargeLine[];
+}
 
-  const thresholds = [80, 90, 100];
-  const newAlerts: UsageAlert[] = [];
+export interface TimeRange {
+  start: number;
+  end: number;
+}
 
-  for (const threshold of thresholds) {
-    if (prevPercent < threshold && newPercent >= threshold) {
-      newAlerts.push({
-        id: generateId('alert'),
-        subscriptionId: metric.subscriptionId,
-        metricId: metric.id,
-        thresholdPercent: threshold,
-        message:
-          threshold >= 100
-            ? `Usage limit (100%) reached for ${metric.metricName} on subscription ${metric.subscriptionId}`
-            : `Usage reached ${threshold}% of limit for ${metric.metricName} on subscription ${metric.subscriptionId}`,
-        triggeredAt: new Date().toISOString(),
-        acknowledged: false,
-      });
+export interface UsageAlertEntry {
+  id: string;
+  subscriptionId: string;
+  metric: string;
+  threshold: number;
+  currentUsage: number;
+  message: string;
+  timestamp: number;
+  acknowledged: boolean;
+}
+
+export interface UsageTrend {
+  metric: string;
+  currentPeriod: number;
+  previousPeriod: number;
+  changePercent: number;
+  trend: 'increasing' | 'decreasing' | 'stable';
+}
+
+export interface UsageAnalytics {
+  totalUsage: number;
+  usageByMetric: Record<string, number>;
+  usageBySubscription: Record<string, number>;
+  trends: UsageTrend[];
+  alertsCount: number;
+}
+
+export const DEFAULT_PERIOD_SECS = 86_400;
+const MAX_BUCKETS = 90;
+
+export const bucketStart = (now: number, periodSecs: number): number =>
+  periodSecs === 0 ? now : now - (now % periodSecs);
+
+export const billableUnits = (used: number, included: number): number => Math.max(0, used - included);
+
+/** A subscription's meters, keyed by metric. */
+type MeterMap = Record<string, MeterState>;
+
+interface MeteringStoreState {
+  meters: Record<string, MeterMap>; // subscriptionId -> metric -> state
+  now: () => number;
+  alerts: UsageAlertEntry[];
+  usageHistory: { subscriptionId: string; metric: string; value: number; timestamp: number }[];
+
+  registerMeter: (
+    subscriptionId: string,
+    metric: string,
+    config: { unitPrice: number; includedUnits: number; periodSecs?: number; alertThreshold?: number },
+  ) => void;
+  recordUsage: (subscriptionId: string, metric: string, value: number) => MeteredUsage | null;
+  calculateUsageCharge: (subscriptionId: string, period: TimeRange) => Charge;
+  getMeters: (subscriptionId: string) => MeterState[];
+  getUsageTotal: (subscriptionId: string, metric: string) => number;
+  getUsageHistory: (subscriptionId: string, metric?: string) => { subscriptionId: string; metric: string; value: number; timestamp: number }[];
+  getUsageTrends: (subscriptionId: string) => UsageTrend[];
+  acknowledgeAlert: (alertId: string) => void;
+  getActiveAlerts: (subscriptionId?: string) => UsageAlertEntry[];
+  getAnalytics: (subscriptionId?: string) => UsageAnalytics;
+}
+
+const newMeter = (metric: string, periodSecs: number): MeterState => ({
+  metric,
+  total: 0,
+  lastTimestamp: 0,
+  periodSecs,
+  includedUnits: 0,
+  unitPrice: 0,
+  alertThreshold: 0,
+  alertFired: false,
+  buckets: [],
+});
+
+export const useMeteringStore = create<MeteringStoreState>()((set, get) => {
+  const metersFor = (sub: string): MeterMap => get().meters[sub] ?? {};
+
+  const commit = (sub: string, map: MeterMap) =>
+    set((s) => ({ meters: { ...s.meters, [sub]: map } }));
+
+  const addToBucket = (state: MeterState, now: number, value: number) => {
+    const start = bucketStart(now, state.periodSecs);
+    const last = state.buckets[state.buckets.length - 1];
+    if (last && last.start === start) {
+      state.buckets = [
+        ...state.buckets.slice(0, -1),
+        { start, units: last.units + value },
+      ];
+    } else {
+      state.buckets = [...state.buckets, { start, units: value }];
+      if (state.buckets.length > MAX_BUCKETS) state.buckets = state.buckets.slice(-MAX_BUCKETS);
     }
-  }
+  };
 
-  return newAlerts;
-};
+  return {
+    meters: {},
+    now: () => Math.floor(Date.now() / 1000),
+    alerts: [],
+    usageHistory: [],
 
-export const useMeteringStore = create<MeteringState>()(
-  persist(
-    (set, get) => ({
-      metrics: {},
-      events: [],
-      alerts: [],
-      subscriptionMetricsMap: {},
+    registerMeter: (sub, metric, config) => {
+      const map = { ...metersFor(sub) };
+      const existing = map[metric] ?? newMeter(metric, config.periodSecs ?? DEFAULT_PERIOD_SECS);
+      const state: MeterState = {
+        ...existing,
+        periodSecs: config.periodSecs ?? existing.periodSecs ?? DEFAULT_PERIOD_SECS,
+        includedUnits: config.includedUnits,
+        unitPrice: config.unitPrice,
+        alertThreshold: config.alertThreshold ?? 0,
+        alertFired:
+          (config.alertThreshold ?? 0) !== 0 && existing.total >= (config.alertThreshold ?? 0),
+      };
+      map[metric] = state;
+      commit(sub, map);
+    },
 
-      registerMetric: (params: RegisterMetricParams): UsageMetric => {
-        const now = new Date();
-        const cycleEnd = new Date(now);
-        cycleEnd.setDate(cycleEnd.getDate() + (params.billingCycleDays ?? 30));
+    recordUsage: (sub, metric, value) => {
+      if (value <= 0) return null;
+      const now = get().now();
+      const map = { ...metersFor(sub) };
+      const state: MeterState = { ...(map[metric] ?? newMeter(metric, DEFAULT_PERIOD_SECS)) };
+      state.total += value;
+      state.lastTimestamp = now;
+      addToBucket(state, now, value);
 
-        const id = generateId('metric');
-        const newMetric: UsageMetric = {
-          id,
-          subscriptionId: params.subscriptionId,
-          metricType: params.metricType,
-          metricName: params.metricName,
-          unitName: params.unitName,
-          unitRate: params.unitRate,
-          includedUnits: params.includedUnits ?? 0,
-          currentUsage: 0,
-          cumulativeUsage: 0,
-          usageLimit: params.usageLimit ?? 0,
-          accruedCost: 0,
-          lastUpdated: now.toISOString(),
-          billingCycleStart: now.toISOString(),
-          billingCycleEnd: cycleEnd.toISOString(),
+      const historyEntry = { subscriptionId: sub, metric, value, timestamp: now };
+      set((s) => ({ usageHistory: [...s.usageHistory, historyEntry] }));
+
+      if (state.alertThreshold !== 0 && !state.alertFired && state.total >= state.alertThreshold) {
+        state.alertFired = true;
+        const alertEntry: UsageAlertEntry = {
+          id: `alert_${now.toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+          subscriptionId: sub,
+          metric,
+          threshold: state.alertThreshold,
+          currentUsage: state.total,
+          message: `Usage for ${metric} has reached ${Math.round((state.total / state.alertThreshold) * 100)}% of limit`,
+          timestamp: now,
+          acknowledged: false,
         };
+        set((s) => ({ alerts: [...s.alerts, alertEntry] }));
+      }
+      map[metric] = state;
+      commit(sub, map);
+      return { metric, value, timestamp: now };
+    },
 
-        set((state) => {
-          const currentMap = state.subscriptionMetricsMap[params.subscriptionId] ?? [];
-          return {
-            metrics: { ...state.metrics, [id]: newMetric },
-            subscriptionMetricsMap: {
-              ...state.subscriptionMetricsMap,
-              [params.subscriptionId]: [...currentMap, id],
-            },
-          };
-        });
-
-        return newMetric;
-      },
-
-      recordUsage: (params: RecordUsageParams) => {
-        const { metrics, events, alerts } = get();
-        const targetMetric = metrics[params.metricId];
-
-        if (!targetMetric) {
-          throw new Error(`Metric with ID ${params.metricId} not found`);
-        }
-
-        if (params.quantity <= 0) {
-          throw new Error('Quantity must be greater than zero');
-        }
-
-        const prevUsage = targetMetric.currentUsage;
-        const newCurrentUsage = prevUsage + params.quantity;
-
-        if (targetMetric.usageLimit > 0 && newCurrentUsage > targetMetric.usageLimit) {
-          throw new Error(
-            `Recording ${params.quantity} ${targetMetric.unitName} exceeds usage limit of ${targetMetric.usageLimit}`
-          );
-        }
-
-        const nowIso = new Date().toISOString();
-        const updatedMetric: UsageMetric = {
-          ...targetMetric,
-          currentUsage: newCurrentUsage,
-          cumulativeUsage: targetMetric.cumulativeUsage + params.quantity,
-          lastUpdated: nowIso,
-          accruedCost: calculateAccruedCost({
-            ...targetMetric,
-            currentUsage: newCurrentUsage,
-          }),
-        };
-
-        const newAlerts = checkThresholdAlerts(targetMetric, prevUsage, newCurrentUsage);
-
-        const newEvent: UsageEvent = {
-          id: generateId('event'),
-          subscriptionId: params.subscriptionId,
-          metricId: params.metricId,
-          quantity: params.quantity,
-          timestamp: nowIso,
-          reportedBy: params.reportedBy ?? 'user',
-          metadata: params.metadata,
-        };
-
-        set((state) => ({
-          metrics: { ...state.metrics, [params.metricId]: updatedMetric },
-          events: [newEvent, ...state.events],
-          alerts: [...newAlerts, ...state.alerts],
-        }));
-
-        return { metric: updatedMetric, newAlerts };
-      },
-
-      setUsageLimit: (subscriptionId: string, metricId: string, limit: number) => {
-        const { metrics } = get();
-        const targetMetric = metrics[metricId];
-        if (!targetMetric || targetMetric.subscriptionId !== subscriptionId) {
-          return undefined;
-        }
-
-        if (limit < 0) {
-          throw new Error('Usage limit cannot be negative');
-        }
-
-        const updatedMetric: UsageMetric = {
-          ...targetMetric,
-          usageLimit: limit,
-          lastUpdated: new Date().toISOString(),
-        };
-
-        set((state) => ({
-          metrics: { ...state.metrics, [metricId]: updatedMetric },
-        }));
-
-        return updatedMetric;
-      },
-
-      resetCycleUsage: (subscriptionId: string, metricId?: string) => {
-        const { metrics, subscriptionMetricsMap } = get();
-        const targetMetricIds = metricId
-          ? [metricId]
-          : subscriptionMetricsMap[subscriptionId] ?? [];
-
-        const now = new Date();
-        const nextEnd = new Date(now);
-        nextEnd.setDate(nextEnd.getDate() + 30);
-
-        const updatedMetrics = { ...metrics };
-        for (const id of targetMetricIds) {
-          if (updatedMetrics[id]) {
-            updatedMetrics[id] = {
-              ...updatedMetrics[id],
-              currentUsage: 0,
-              accruedCost: 0,
-              billingCycleStart: now.toISOString(),
-              billingCycleEnd: nextEnd.toISOString(),
-              lastUpdated: now.toISOString(),
-            };
-          }
-        }
-
-        set({ metrics: updatedMetrics });
-      },
-
-      getAccruedBill: (subscriptionId: string): number => {
-        const metrics = get().getSubscriptionMetrics(subscriptionId);
-        const totalMeteredCost = metrics.reduce((sum, m) => sum + m.accruedCost, 0);
-        return Number(totalMeteredCost.toFixed(2));
-      },
-
-      getSubscriptionMetrics: (subscriptionId: string): UsageMetric[] => {
-        const { metrics, subscriptionMetricsMap } = get();
-        const ids = subscriptionMetricsMap[subscriptionId] ?? [];
-        return ids.map((id) => metrics[id]).filter(Boolean);
-      },
-
-      getUsageHistory: (subscriptionId: string, metricId?: string): UsageEvent[] => {
-        const { events } = get();
-        return events.filter(
-          (e) =>
-            e.subscriptionId === subscriptionId &&
-            (!metricId || e.metricId === metricId)
+    calculateUsageCharge: (sub, period) => {
+      const map = metersFor(sub);
+      const lines: ChargeLine[] = [];
+      let total = 0;
+      for (const metric of Object.keys(map)) {
+        const state = map[metric];
+        const used = state.buckets.reduce(
+          (sum, b) => (b.start >= period.start && b.start <= period.end ? sum + b.units : sum),
+          0,
         );
-      },
+        const billable = billableUnits(used, state.includedUnits);
+        const amount = billable * state.unitPrice;
+        total += amount;
+        lines.push({ metric, units: used, billableUnits: billable, unitPrice: state.unitPrice, amount });
+      }
+      return { subscriptionId: sub, currency: 'USD', total, lines };
+    },
 
-      getAlerts: (subscriptionId?: string, unacknowledgedOnly = false): UsageAlert[] => {
-        const { alerts } = get();
-        return alerts.filter((alert) => {
-          if (subscriptionId && alert.subscriptionId !== subscriptionId) {
-            return false;
-          }
-          if (unacknowledgedOnly && alert.acknowledged) {
-            return false;
-          }
-          return true;
+    getMeters: (sub) => Object.values(metersFor(sub)),
+    getUsageTotal: (sub, metric) => metersFor(sub)[metric]?.total ?? 0,
+
+    getUsageHistory: (sub, metric) => {
+      let history = get().usageHistory.filter((h) => h.subscriptionId === sub);
+      if (metric) {
+        history = history.filter((h) => h.metric === metric);
+      }
+      return history;
+    },
+
+    getUsageTrends: (sub) => {
+      const now = Date.now() / 1000;
+      const thirtyDaysAgo = now - 30 * 86400;
+      const sixtyDaysAgo = now - 60 * 86400;
+
+      const currentHistory = get().usageHistory.filter(
+        (h) => h.subscriptionId === sub && h.timestamp >= thirtyDaysAgo
+      );
+      const previousHistory = get().usageHistory.filter(
+        (h) => h.subscriptionId === sub && h.timestamp >= sixtyDaysAgo && h.timestamp < thirtyDaysAgo
+      );
+
+      const currentByMetric: Record<string, number> = {};
+      const previousByMetric: Record<string, number> = {};
+
+      for (const entry of currentHistory) {
+        currentByMetric[entry.metric] = (currentByMetric[entry.metric] || 0) + entry.value;
+      }
+      for (const entry of previousHistory) {
+        previousByMetric[entry.metric] = (previousByMetric[entry.metric] || 0) + entry.value;
+      }
+
+      const allMetrics = new Set([...Object.keys(currentByMetric), ...Object.keys(previousByMetric)]);
+      const trends: UsageTrend[] = [];
+
+      for (const metric of allMetrics) {
+        const current = currentByMetric[metric] || 0;
+        const previous = previousByMetric[metric] || 0;
+        const changePercent = previous > 0 ? ((current - previous) / previous) * 100 : 0;
+
+        let trend: 'increasing' | 'decreasing' | 'stable';
+        if (changePercent > 5) trend = 'increasing';
+        else if (changePercent < -5) trend = 'decreasing';
+        else trend = 'stable';
+
+        trends.push({
+          metric,
+          currentPeriod: current,
+          previousPeriod: previous,
+          changePercent: Math.round(changePercent * 100) / 100,
+          trend,
         });
-      },
+      }
 
-      acknowledgeAlert: (alertId: string) => {
-        set((state) => ({
-          alerts: state.alerts.map((alert) =>
-            alert.id === alertId ? { ...alert, acknowledged: true } : alert
-          ),
-        }));
-      },
+      return trends;
+    },
 
-      clearUsageHistory: (subscriptionId?: string) => {
-        set((state) => ({
-          events: subscriptionId
-            ? state.events.filter((e) => e.subscriptionId !== subscriptionId)
-            : [],
-        }));
-      },
+    acknowledgeAlert: (alertId) => {
+      set((s) => ({
+        alerts: s.alerts.map((a) => (a.id === alertId ? { ...a, acknowledged: true } : a)),
+      }));
+    },
 
-      simulateTelemetry: (subscriptionId: string, metricId: string, quantity = 1): UsageEvent => {
-        const result = get().recordUsage({
-          subscriptionId,
-          metricId,
-          quantity,
-          reportedBy: 'telemetry_simulator',
-          metadata: { simulated: true },
-        });
-        return get().events.find((e) => e.metricId === metricId) ?? {
-          id: generateId('event'),
-          subscriptionId,
-          metricId,
-          quantity,
-          timestamp: new Date().toISOString(),
-          reportedBy: 'telemetry_simulator',
-        };
-      },
+    getActiveAlerts: (subscriptionId) => {
+      let alerts = get().alerts.filter((a) => !a.acknowledged);
+      if (subscriptionId) {
+        alerts = alerts.filter((a) => a.subscriptionId === subscriptionId);
+      }
+      return alerts;
+    },
 
-      resetStore: () => {
-        set({
-          metrics: {},
-          events: [],
-          alerts: [],
-          subscriptionMetricsMap: {},
-        });
-      },
-    }),
-    {
-      name: STORAGE_KEY,
-      version: STORE_VERSION,
-      storage: createJSONStorage(() => AsyncStorage),
-    }
-  )
-);
+    getAnalytics: (subscriptionId) => {
+      const history = subscriptionId
+        ? get().usageHistory.filter((h) => h.subscriptionId === subscriptionId)
+        : get().usageHistory;
+
+      const totalUsage = history.reduce((sum, h) => sum + h.value, 0);
+
+      const usageByMetric: Record<string, number> = {};
+      const usageBySubscription: Record<string, number> = {};
+      for (const entry of history) {
+        usageByMetric[entry.metric] = (usageByMetric[entry.metric] || 0) + entry.value;
+        usageBySubscription[entry.subscriptionId] =
+          (usageBySubscription[entry.subscriptionId] || 0) + entry.value;
+      }
+
+      const trends = subscriptionId ? get().getUsageTrends(subscriptionId) : [];
+      const activeAlerts = subscriptionId
+        ? get().getActiveAlerts(subscriptionId)
+        : get().getActiveAlerts();
+
+      return {
+        totalUsage,
+        usageByMetric,
+        usageBySubscription,
+        trends,
+        alertsCount: activeAlerts.length,
+      };
+    },
+  };
+});

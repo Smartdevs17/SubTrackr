@@ -9,10 +9,16 @@ import {
   Dimensions,
 } from 'react-native';
 import Svg, { Rect, Text as SvgText, Line, G } from 'react-native-svg';
-import { colors, spacing, typography, borderRadius } from '../utils/constants';
+import { useNavigation } from '@react-navigation/native';
+import { spacing, typography, borderRadius } from '../utils/constants';
 import { useSubscriptionStore } from '../store';
 import { SubscriptionCategory, BillingCycle } from '../types/subscription';
 import { Card } from '../components/common/Card';
+import { useSettingsStore } from '../store/settingsStore';
+import { currencyService } from '../services/currencyService';
+import { calculateSubscriptionAnalytics } from '../services/analyticsService';
+import { formatCurrency } from '../utils/formatting';
+import { useThemeColors } from '../hooks/useThemeColors';
 
 const { width: screenWidth } = Dimensions.get('window');
 const CHART_WIDTH = screenWidth - spacing.xl * 2;
@@ -20,12 +26,17 @@ const CHART_HEIGHT = 200;
 type DateRange = 'week' | 'month' | 'year';
 
 const AnalyticsScreen: React.FC = () => {
+  const navigation = useNavigation<any>();
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { subscriptions, stats, calculateStats } = useSubscriptionStore();
+  const { preferredCurrency, exchangeRates } = useSettingsStore();
+  const rates = exchangeRates?.rates || {};
   const [dateRange, setDateRange] = useState<DateRange>('month');
 
   useEffect(() => {
     calculateStats();
-  }, [subscriptions, calculateStats]);
+  }, [subscriptions, calculateStats, preferredCurrency, exchangeRates]);
 
   const categoryData = useMemo(() => {
     const categories = Object.values(SubscriptionCategory);
@@ -40,6 +51,11 @@ const AnalyticsScreen: React.FC = () => {
       }))
       .filter((d) => d.count > 0);
   }, [stats]);
+
+  const subscriptionAnalytics = useMemo(
+    () => calculateSubscriptionAnalytics(subscriptions || []),
+    [subscriptions]
+  );
 
   const monthlyData = useMemo(() => {
     if (!subscriptions?.length)
@@ -80,9 +96,15 @@ const AnalyticsScreen: React.FC = () => {
           const monthIndex =
             dateRange === 'week' ? Math.floor(createdAt.getDate() / 7) : createdAt.getMonth();
           if (dateRange === 'year' || monthIndex === index) {
-            if (sub.billingCycle === BillingCycle.MONTHLY) total += sub.price;
-            else if (sub.billingCycle === BillingCycle.YEARLY) total += sub.price / 12;
-            else if (sub.billingCycle === BillingCycle.WEEKLY) total += sub.price * 4;
+            const priceInPreferred = currencyService.convert(
+              sub.price,
+              sub.currency,
+              preferredCurrency,
+              rates
+            );
+            if (sub.billingCycle === BillingCycle.MONTHLY) total += priceInPreferred;
+            else if (sub.billingCycle === BillingCycle.YEARLY) total += priceInPreferred / 12;
+            else if (sub.billingCycle === BillingCycle.WEEKLY) total += priceInPreferred * 4;
           }
         }
       });
@@ -109,16 +131,16 @@ const AnalyticsScreen: React.FC = () => {
 
   const getCategoryColor = (category: SubscriptionCategory): string => {
     const categoryColors: Record<SubscriptionCategory, string> = {
-      [SubscriptionCategory.STREAMING]: '#E91E63',
-      [SubscriptionCategory.SOFTWARE]: '#2196F3',
-      [SubscriptionCategory.GAMING]: '#9C27B0',
-      [SubscriptionCategory.PRODUCTIVITY]: '#4CAF50',
-      [SubscriptionCategory.FITNESS]: '#FF9800',
-      [SubscriptionCategory.EDUCATION]: '#00BCD4',
-      [SubscriptionCategory.FINANCE]: '#FFD700',
-      [SubscriptionCategory.OTHER]: '#607D8B',
+      [SubscriptionCategory.STREAMING]: colors.brand.primary,
+      [SubscriptionCategory.SOFTWARE]: colors.brand.secondary,
+      [SubscriptionCategory.GAMING]: colors.accent,
+      [SubscriptionCategory.PRODUCTIVITY]: colors.status.success,
+      [SubscriptionCategory.FITNESS]: colors.status.warning,
+      [SubscriptionCategory.EDUCATION]: colors.brand.primaryDark,
+      [SubscriptionCategory.FINANCE]: colors.status.info,
+      [SubscriptionCategory.OTHER]: colors.textSecondary,
     };
-    return categoryColors[category] || '#607D8B';
+    return categoryColors[category] || colors.textSecondary;
   };
 
   if (!subscriptions?.length) {
@@ -142,12 +164,15 @@ const AnalyticsScreen: React.FC = () => {
           <Text style={styles.title}>Analytics</Text>
           <Text style={styles.subtitle}>Your spending insights</Text>
         </View>
-        <View style={styles.dateRangeContainer}>
+        <View style={styles.dateRangeContainer} accessibilityRole="tablist">
           {(['week', 'month', 'year'] as DateRange[]).map((range) => (
             <TouchableOpacity
               key={range}
               style={[styles.dateRangeButton, dateRange === range && styles.dateRangeButtonActive]}
-              onPress={() => setDateRange(range)}>
+              onPress={() => setDateRange(range)}
+              accessibilityRole="tab"
+              accessibilityLabel={`${range.charAt(0).toUpperCase() + range.slice(1)} view`}
+              accessibilityState={{ selected: dateRange === range }}>
               <Text
                 style={[
                   styles.dateRangeButtonText,
@@ -160,14 +185,126 @@ const AnalyticsScreen: React.FC = () => {
         </View>
         <View style={styles.summaryContainer}>
           <Card style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>Monthly Spend</Text>
-            <Text style={styles.summaryValue}>${stats.totalMonthlySpend.toFixed(2)}</Text>
+            <Text
+              style={styles.summaryLabel}
+              accessibilityElementsHidden={true}
+              importantForAccessibility="no">
+              Monthly Spend
+            </Text>
+            <Text
+              style={styles.summaryValue}
+              accessibilityElementsHidden={true}
+              importantForAccessibility="no">
+              {formatCurrency(stats.totalMonthlySpend, preferredCurrency)}
+            </Text>
           </Card>
           <Card style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>Yearly Estimate</Text>
-            <Text style={styles.summaryValue}>${stats.totalYearlySpend.toFixed(2)}</Text>
+            <Text
+              style={styles.summaryLabel}
+              accessibilityElementsHidden={true}
+              importantForAccessibility="no">
+              Yearly Estimate
+            </Text>
+            <Text
+              style={styles.summaryValue}
+              accessibilityElementsHidden={true}
+              importantForAccessibility="no">
+              {formatCurrency(stats.totalYearlySpend, preferredCurrency)}
+            </Text>
           </Card>
         </View>
+        <View style={styles.summaryContainer}>
+          <Card style={styles.summaryCard}>
+            <View style={styles.badgeRow}>
+              <Text style={styles.summaryLabel}>MRR</Text>
+              <View
+                style={[
+                  styles.growthBadge,
+                  subscriptionAnalytics.mrrGrowthRate >= 0
+                    ? styles.badgeSuccess
+                    : styles.badgeDanger,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.growthText,
+                    subscriptionAnalytics.mrrGrowthRate >= 0
+                      ? styles.textSuccess
+                      : styles.textDanger,
+                  ]}
+                >
+                  {subscriptionAnalytics.mrrGrowthRate >= 0 ? '+' : ''}
+                  {subscriptionAnalytics.mrrGrowthRate.toFixed(1)}% MoM
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.summaryValue}>
+              {formatCurrency(subscriptionAnalytics.mrr, preferredCurrency)}
+            </Text>
+          </Card>
+          <Card style={styles.summaryCard}>
+            <View style={styles.badgeRow}>
+              <Text style={styles.summaryLabel}>ARR</Text>
+              <View
+                style={[
+                  styles.growthBadge,
+                  subscriptionAnalytics.arrGrowthRate >= 0
+                    ? styles.badgeSuccess
+                    : styles.badgeDanger,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.growthText,
+                    subscriptionAnalytics.arrGrowthRate >= 0
+                      ? styles.textSuccess
+                      : styles.textDanger,
+                  ]}
+                >
+                  {subscriptionAnalytics.arrGrowthRate >= 0 ? '+' : ''}
+                  {subscriptionAnalytics.arrGrowthRate.toFixed(1)}% YoY
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.summaryValue}>
+              {formatCurrency(subscriptionAnalytics.arr, preferredCurrency)}
+            </Text>
+          </Card>
+        </View>
+
+        <TouchableOpacity
+          style={styles.dashboardBanner}
+          onPress={() => navigation?.navigate?.('AnalyticsDashboard')}
+        >
+          <View style={styles.bannerContent}>
+            <Text style={styles.bannerTitle}>🔥 Advanced Cohort & MRR Suite</Text>
+            <Text style={styles.bannerSubtitle}>
+              Interactive retention heatmaps, LTV by channel, linear & exponential forecasting & customizable widgets
+            </Text>
+          </View>
+          <Text style={styles.bannerArrow}>→</Text>
+        </TouchableOpacity>
+        <Card style={styles.chartCard}>
+          <Text style={styles.chartTitle}>Revenue Health</Text>
+          <View style={styles.projectionItem}>
+            <Text style={styles.projectionLabel}>Gross churn</Text>
+            <Text style={styles.projectionValue}>
+              {(subscriptionAnalytics.churn.grossChurnRate * 100).toFixed(1)}%
+            </Text>
+          </View>
+          <View style={styles.projectionItem}>
+            <Text style={styles.projectionLabel}>Net churn</Text>
+            <Text style={styles.projectionValue}>
+              {(subscriptionAnalytics.churn.netChurnRate * 100).toFixed(1)}%
+            </Text>
+          </View>
+          <View style={[styles.projectionItem, styles.projectionItemLast]}>
+            <Text style={styles.projectionLabel}>LTV</Text>
+            <Text style={styles.projectionValue}>
+              {formatCurrency(subscriptionAnalytics.ltv, preferredCurrency)}
+            </Text>
+          </View>
+        </Card>
         <Card style={styles.chartCard}>
           <Text style={styles.chartTitle}>
             {dateRange === 'week' ? 'Weekly' : dateRange === 'month' ? 'Monthly' : 'Yearly'}{' '}
@@ -179,7 +316,7 @@ const AnalyticsScreen: React.FC = () => {
               y1={10}
               x2={30}
               y2={CHART_HEIGHT - 30}
-              stroke={colors.border}
+              stroke={colors.border.default}
               strokeWidth={1}
             />
             <Line
@@ -187,7 +324,7 @@ const AnalyticsScreen: React.FC = () => {
               y1={CHART_HEIGHT - 30}
               x2={CHART_WIDTH - 10}
               y2={CHART_HEIGHT - 30}
-              stroke={colors.border}
+              stroke={colors.border.default}
               strokeWidth={1}
             />
             {monthlyData.map((data, index) => {
@@ -217,15 +354,42 @@ const AnalyticsScreen: React.FC = () => {
                       x={x + barWidth / 2}
                       y={y - 5}
                       fontSize={10}
-                      fill={colors.text}
+                      fill={colors.text.primary}
                       textAnchor="middle">
-                      ${data.amount.toFixed(0)}
+                      {formatCurrency(data.amount, preferredCurrency)}
                     </SvgText>
                   )}
                 </G>
               );
             })}
           </Svg>
+        </Card>
+        <Card style={styles.chartCard}>
+          <Text style={styles.chartTitle}>Cohorts</Text>
+          {subscriptionAnalytics.cohorts.slice(-4).map((cohort) => (
+            <View key={cohort.cohort} style={styles.projectionItem}>
+              <Text style={styles.projectionLabel}>{cohort.cohort}</Text>
+              <Text style={styles.projectionValue}>
+                {(cohort.retentionRate * 100).toFixed(0)}% retained
+              </Text>
+            </View>
+          ))}
+        </Card>
+        <Card style={styles.chartCard}>
+          <Text style={styles.chartTitle}>Forecast</Text>
+          {subscriptionAnalytics.forecast.map((point, index) => (
+            <View
+              key={point.label}
+              style={[
+                styles.projectionItem,
+                index === subscriptionAnalytics.forecast.length - 1 && styles.projectionItemLast,
+              ]}>
+              <Text style={styles.projectionLabel}>{point.label}</Text>
+              <Text style={styles.projectionValue}>
+                {formatCurrency(point.expectedRevenue, preferredCurrency)}
+              </Text>
+            </View>
+          ))}
         </Card>
         <Card style={styles.chartCard}>
           <Text style={styles.chartTitle}>Category Breakdown</Text>
@@ -263,15 +427,23 @@ const AnalyticsScreen: React.FC = () => {
           <Text style={styles.chartTitle}>Upcoming Renewals</Text>
           <View style={styles.projectionItem}>
             <Text style={styles.projectionLabel}>Next 30 Days</Text>
-            <Text style={styles.projectionValue}>${stats.totalMonthlySpend.toFixed(2)}</Text>
+            <Text style={styles.projectionValue}>
+              {formatCurrency(stats.totalMonthlySpend, preferredCurrency)}
+            </Text>
           </View>
+
           <View style={styles.projectionItem}>
             <Text style={styles.projectionLabel}>Next 90 Days</Text>
-            <Text style={styles.projectionValue}>${(stats.totalMonthlySpend * 3).toFixed(2)}</Text>
+            <Text style={styles.projectionValue}>
+              {formatCurrency(stats.totalMonthlySpend * 3, preferredCurrency)}
+            </Text>
           </View>
+
           <View style={[styles.projectionItem, styles.projectionItemLast]}>
             <Text style={styles.projectionLabel}>Next 12 Months</Text>
-            <Text style={styles.projectionValue}>${stats.totalYearlySpend.toFixed(2)}</Text>
+            <Text style={styles.projectionValue}>
+              {formatCurrency(stats.totalYearlySpend, preferredCurrency)}
+            </Text>
           </View>
         </Card>
       </ScrollView>
@@ -279,90 +451,125 @@ const AnalyticsScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  scrollView: { flex: 1 },
-  header: { padding: spacing.lg, paddingBottom: spacing.md },
-  title: { ...typography.h1, color: colors.text, marginBottom: spacing.xs },
-  subtitle: { ...typography.body, color: colors.textSecondary },
-  dateRangeContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.md,
-    gap: spacing.sm,
-  },
-  dateRangeButton: {
-    flex: 1,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-  },
-  dateRangeButtonActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  dateRangeButtonText: { ...typography.body, color: colors.text },
-  dateRangeButtonTextActive: { color: colors.text, fontWeight: '600' },
-  summaryContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.md,
-    gap: spacing.md,
-  },
-  summaryCard: { flex: 1, alignItems: 'center' },
-  summaryLabel: { ...typography.caption, color: colors.textSecondary, marginBottom: spacing.xs },
-  summaryValue: { ...typography.h2, color: colors.text },
-  chartCard: { marginHorizontal: spacing.lg, marginBottom: spacing.md },
-  chartTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.md },
-  categoryList: { gap: spacing.md },
-  categoryItem: { marginBottom: spacing.sm },
-  categoryLeft: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.xs },
-  categoryIcon: { fontSize: 20, marginRight: spacing.sm },
-  categoryName: { ...typography.body, color: colors.text, flex: 1 },
-  categoryRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    position: 'absolute',
-    right: 0,
-    top: 0,
-  },
-  categoryCount: { ...typography.body, color: colors.text, fontWeight: '600' },
-  categoryPercentage: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    width: 50,
-    textAlign: 'right',
-  },
-  categoryBarContainer: {
-    height: 8,
-    backgroundColor: colors.border,
-    borderRadius: borderRadius.full,
-    overflow: 'hidden',
-  },
-  categoryBar: { height: '100%', borderRadius: borderRadius.full },
-  noDataText: {
-    ...typography.body,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    paddingVertical: spacing.lg,
-  },
-  projectionCard: { marginHorizontal: spacing.lg, marginBottom: spacing.lg },
-  projectionItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  projectionItemLast: { borderBottomWidth: 0 },
-  projectionLabel: { ...typography.body, color: colors.textSecondary },
-  projectionValue: { ...typography.body, color: colors.text, fontWeight: '600' },
-  emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.xl },
-  emptyIcon: { fontSize: 64, marginBottom: spacing.md },
-  emptyTitle: { ...typography.h2, color: colors.text, marginBottom: spacing.sm },
-  emptyText: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
-});
+function createStyles(colors: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background.primary },
+    scrollView: { flex: 1 },
+    header: { padding: spacing.lg, paddingBottom: spacing.md },
+    title: { ...typography.h1, color: colors.text.primary, marginBottom: spacing.xs },
+    subtitle: { ...typography.body, color: colors.textSecondary },
+    dateRangeContainer: {
+      flexDirection: 'row',
+      paddingHorizontal: spacing.lg,
+      marginBottom: spacing.md,
+      gap: spacing.sm,
+    },
+    dateRangeButton: {
+      flex: 1,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      borderRadius: borderRadius.md,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border.default,
+      alignItems: 'center',
+    },
+    dateRangeButtonActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+    dateRangeButtonText: { ...typography.body, color: colors.text.primary },
+    dateRangeButtonTextActive: { color: colors.text.inverse, fontWeight: '600' },
+    summaryContainer: {
+      flexDirection: 'row',
+      paddingHorizontal: spacing.lg,
+      marginBottom: spacing.md,
+      gap: spacing.md,
+    },
+    summaryCard: { flex: 1, alignItems: 'center' },
+    summaryLabel: { ...typography.caption, color: colors.textSecondary, marginBottom: spacing.xs },
+    summaryValue: { ...typography.h2, color: colors.text.primary },
+    chartCard: { marginHorizontal: spacing.lg, marginBottom: spacing.md },
+    chartTitle: { ...typography.h3, color: colors.text.primary, marginBottom: spacing.md },
+    categoryList: { gap: spacing.md },
+    categoryItem: { marginBottom: spacing.sm },
+    categoryLeft: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.xs },
+    categoryIcon: { fontSize: 20, marginRight: spacing.sm },
+    categoryName: { ...typography.body, color: colors.text.primary, flex: 1 },
+    categoryRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      position: 'absolute',
+      right: 0,
+      top: 0,
+    },
+    categoryCount: { ...typography.body, color: colors.text.primary, fontWeight: '600' },
+    categoryPercentage: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      width: 50,
+      textAlign: 'right',
+    },
+    categoryBarContainer: {
+      height: 8,
+      backgroundColor: colors.border.default,
+      borderRadius: borderRadius.full,
+      overflow: 'hidden',
+    },
+    categoryBar: { height: '100%', borderRadius: borderRadius.full },
+    noDataText: {
+      ...typography.body,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      paddingVertical: spacing.lg,
+    },
+    projectionCard: { marginHorizontal: spacing.lg, marginBottom: spacing.lg },
+    projectionItem: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      paddingVertical: spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border.default,
+    },
+    projectionItemLast: { borderBottomWidth: 0 },
+    projectionLabel: { ...typography.body, color: colors.textSecondary },
+    projectionValue: { ...typography.body, color: colors.text.primary, fontWeight: '600' },
+    emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.xl },
+    emptyIcon: { fontSize: 64, marginBottom: spacing.md },
+    emptyTitle: { ...typography.h2, color: colors.text.primary, marginBottom: spacing.sm },
+    emptyText: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
+    badgeRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      width: '100%',
+      marginBottom: spacing.xs,
+    },
+    growthBadge: {
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 10,
+    },
+    badgeSuccess: { backgroundColor: 'rgba(16, 185, 129, 0.15)' },
+    badgeDanger: { backgroundColor: 'rgba(239, 68, 68, 0.15)' },
+    growthText: { fontSize: 10, fontWeight: '700' },
+    textSuccess: { color: '#10B981' },
+    textDanger: { color: '#EF4444' },
+    dashboardBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginHorizontal: spacing.lg,
+      marginBottom: spacing.md,
+      padding: spacing.md,
+      backgroundColor: 'rgba(59, 130, 246, 0.12)',
+      borderRadius: borderRadius.lg,
+      borderWidth: 1,
+      borderColor: 'rgba(59, 130, 246, 0.3)',
+    },
+    bannerContent: { flex: 1, marginRight: spacing.sm },
+    bannerTitle: { ...typography.bodyBold, color: '#60A5FA', marginBottom: 2 },
+    bannerSubtitle: { ...typography.caption, color: colors.textSecondary, fontSize: 11 },
+    bannerArrow: { fontSize: 20, color: '#60A5FA', fontWeight: '700' },
+  });
+}
 
 export default AnalyticsScreen;

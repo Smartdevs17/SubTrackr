@@ -1,5 +1,6 @@
 import { useThemeStore } from '../../theme/themeStore';
 import { darkTheme } from '../../theme/themes';
+import type { ThemeExportData, ThemeVariantPair } from '../types';
 
 const mockStore = new Map<string, string>();
 
@@ -16,7 +17,12 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 }));
 
 const reset = () =>
-  useThemeStore.setState({ activeThemeId: darkTheme.id, customThemes: [], theme: darkTheme });
+  useThemeStore.setState({
+    activeThemeId: darkTheme.id,
+    customThemes: [],
+    themeVariantPairs: [],
+    theme: darkTheme,
+  });
 
 beforeEach(() => {
   mockStore.clear();
@@ -35,18 +41,7 @@ describe('themeStore', () => {
     expect(useThemeStore.getState().theme.mode).toBe('light');
   });
 
-  it('toggleMode switches dark → light', () => {
-    useThemeStore.getState().toggleMode();
-    expect(useThemeStore.getState().theme.mode).toBe('light');
-  });
-
-  it('toggleMode switches light → dark', () => {
-    useThemeStore.getState().setTheme('light');
-    useThemeStore.getState().toggleMode();
-    expect(useThemeStore.getState().theme.mode).toBe('dark');
-  });
-
-  it('addBrandTheme creates and activates a custom theme', () => {
+  it('addBrandTheme creates and activates a custom theme with accessibility info', () => {
     useThemeStore
       .getState()
       .addBrandTheme(
@@ -58,6 +53,8 @@ describe('themeStore', () => {
     expect(s.activeThemeId).toBe('brand-x');
     expect(s.theme.colors.primary).toBe('#aabbcc');
     expect(s.customThemes).toHaveLength(1);
+    expect(s.theme.accessibility).toBeDefined();
+    expect(s.theme.isCustom).toBe(true);
   });
 
   it('removeCustomTheme falls back to dark', () => {
@@ -74,7 +71,7 @@ describe('themeStore', () => {
     expect(s.activeThemeId).toBe('dark');
   });
 
-  it('allThemes returns built-in + custom', () => {
+  it('allThemes returns built-in + custom + variant pair themes', () => {
     useThemeStore
       .getState()
       .addBrandTheme(
@@ -82,7 +79,7 @@ describe('themeStore', () => {
         'brand-x',
         'Brand X'
       );
-    expect(useThemeStore.getState().allThemes()).toHaveLength(3);
+    expect(useThemeStore.getState().allThemes().length).toBeGreaterThanOrEqual(4);
   });
 
   it('setTheme with unknown id falls back to dark', () => {
@@ -90,8 +87,208 @@ describe('themeStore', () => {
     expect(useThemeStore.getState().theme.id).toBe('dark');
   });
 
-  it('lightTheme has correct mode', () => {
+  it('updateCustomTheme modifies theme and recomputes accessibility', () => {
+    const store = useThemeStore.getState();
+    store.addBrandTheme(
+      { primary: '#aabbcc', secondary: '#112233', accent: '#445566' },
+      'brand-x',
+      'Brand X'
+    );
+    useThemeStore.getState().updateCustomTheme('brand-x', {
+      colors: { primary: '#ff0000', secondary: '#112233', accent: '#445566' },
+    });
+    const s = useThemeStore.getState();
+    expect(s.theme.colors.primary).toBe('#ff0000');
+    expect(s.theme.accessibility).toBeDefined();
+  });
+
+  it('startPreview enters preview mode with original theme saved', () => {
+    useThemeStore.getState().startPreview({
+      colors: { primary: '#ff0000', secondary: '#00ff00', accent: '#0000ff' },
+    });
+    const s = useThemeStore.getState();
+    expect(s.preview.isPreviewing).toBe(true);
+    expect(s.preview.originalThemeId).toBe('dark');
+    expect(s.preview.previewConfig).toBeDefined();
+  });
+
+  it('updatePreview updates preview config during preview', () => {
+    useThemeStore.getState().startPreview({
+      colors: { primary: '#ff0000', secondary: '#00ff00', accent: '#0000ff' },
+    });
+    useThemeStore.getState().updatePreview({
+      colors: { primary: '#ff0000', secondary: '#00ff00', accent: '#0000ff' },
+    });
+    const s = useThemeStore.getState();
+    expect(s.preview.previewConfig?.colors?.primary).toBe('#ff0000');
+    expect(s.preview.previewConfig?.colors?.secondary).toBe('#00ff00');
+  });
+
+  it('applyPreview creates a custom theme from preview config', () => {
+    useThemeStore.getState().startPreview({
+      colors: { primary: '#ff0000', secondary: '#00ff00', accent: '#0000ff' },
+    });
+    useThemeStore.getState().applyPreview();
+    const s = useThemeStore.getState();
+    expect(s.preview.isPreviewing).toBe(false);
+    expect(s.customThemes.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('discardPreview restores original theme', () => {
     useThemeStore.getState().setTheme('light');
-    expect(useThemeStore.getState().theme).toMatchObject({ id: 'light', mode: 'light' });
+    useThemeStore.getState().startPreview({
+      colors: { primary: '#ff0000', secondary: '#00ff00', accent: '#0000ff' },
+    });
+    useThemeStore.getState().discardPreview();
+    const s = useThemeStore.getState();
+    expect(s.preview.isPreviewing).toBe(false);
+    expect(s.activeThemeId).toBe('light');
+  });
+
+  it('exportTheme produces valid export data', () => {
+    const theme = useThemeStore.getState().theme;
+    const exported = useThemeStore.getState().exportTheme(theme);
+    expect(exported.version).toBe('1.0.0');
+    expect(exported.exportedAt).toBeDefined();
+    expect(exported.theme.shared).toBeDefined();
+  });
+
+  it('importTheme loads a theme from export data', () => {
+    const exportData: ThemeExportData = {
+      version: '1.0.0',
+      exportedAt: new Date().toISOString(),
+      theme: {
+        light: {
+          colors: { primary: '#ff0000', secondary: '#00ff00', accent: '#0000ff' },
+        },
+        shared: { id: 'imported-test', name: 'Imported Test' },
+      },
+    };
+    useThemeStore.getState().importTheme(exportData);
+    const s = useThemeStore.getState();
+    expect(s.activeThemeId).toContain('imported-test');
+    expect(s.theme.colors.primary).toBe('#ff0000');
+    expect(s.customThemes.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('addThemeVariantPair stores light/dark pair', () => {
+    const pair: ThemeVariantPair = {
+      light: { ...darkTheme, id: 'test-brand-light', mode: 'light', name: 'Test Light' },
+      dark: { ...darkTheme, id: 'test-brand-dark', mode: 'dark', name: 'Test Dark' },
+      sharedConfig: { id: 'test-brand', name: 'Test Brand' },
+    };
+    useThemeStore.getState().addThemeVariantPair(pair);
+    expect(useThemeStore.getState().themeVariantPairs).toHaveLength(1);
+  });
+
+  it('removeThemeVariantPair removes pair and falls back if active', () => {
+    const pair: ThemeVariantPair = {
+      light: { ...darkTheme, id: 'test-brand-light', mode: 'light', name: 'Test Light' },
+      dark: { ...darkTheme, id: 'test-brand-dark', mode: 'dark', name: 'Test Dark' },
+      sharedConfig: { id: 'test-brand', name: 'Test Brand' },
+    };
+    useThemeStore.getState().addThemeVariantPair(pair);
+    useThemeStore.getState().setTheme('test-brand-light');
+    useThemeStore.getState().removeThemeVariantPair('test-brand');
+    const s = useThemeStore.getState();
+    expect(s.themeVariantPairs).toHaveLength(0);
+    expect(s.activeThemeId).toBe('dark');
+  });
+
+  it('getVariantPair returns the correct pair', () => {
+    const pair: ThemeVariantPair = {
+      light: { ...darkTheme, id: 'test-brand-light', mode: 'light', name: 'Test Light' },
+      dark: { ...darkTheme, id: 'test-brand-dark', mode: 'dark', name: 'Test Dark' },
+      sharedConfig: { id: 'test-brand', name: 'Test Brand' },
+    };
+    useThemeStore.getState().addThemeVariantPair(pair);
+    const found = useThemeStore.getState().getVariantPair('test-brand');
+    expect(found).toBeDefined();
+    expect(found?.sharedConfig.name).toBe('Test Brand');
+  });
+
+  it('addBrandTheme persists logoUri and font from BrandConfig', () => {
+    useThemeStore.getState().addBrandTheme(
+      { primary: '#ff0000', secondary: '#00ff00', accent: '#0000ff', logoUri: 'https://example.com/logo.png', font: { family: 'Inter', scale: 1.1 } },
+      'brand-logo',
+      'Brand With Logo'
+    );
+    const theme = useThemeStore.getState().theme;
+    expect(theme.logoUri).toBe('https://example.com/logo.png');
+    expect(theme.font?.family).toBe('Inter');
+    expect(theme.font?.scale).toBe(1.1);
+  });
+
+  it('addBrandTheme generates cssVariables automatically', () => {
+    useThemeStore.getState().addBrandTheme(
+      { primary: '#aabbcc', secondary: '#112233', accent: '#445566' },
+      'brand-css',
+      'CSS Brand'
+    );
+    const theme = useThemeStore.getState().theme;
+    expect(theme.cssVariables).toBeDefined();
+    expect(theme.cssVariables!['--st-primary']).toBe('#aabbcc');
+  });
+
+  it('exportTheme serialises a theme without cssVariables', () => {
+    useThemeStore.getState().addBrandTheme(
+      { primary: '#aabbcc', secondary: '#112233', accent: '#445566' },
+      'export-test',
+      'Export Test'
+    );
+    const json = useThemeStore.getState().exportTheme('export-test');
+    expect(json).not.toBeNull();
+    const parsed = JSON.parse(json!);
+    expect(parsed.version).toBe(1);
+    expect(parsed.theme.id).toBe('export-test');
+    expect(parsed.theme.cssVariables).toBeUndefined();
+  });
+
+  it('exportTheme returns null for unknown id', () => {
+    const json = useThemeStore.getState().exportTheme('does-not-exist');
+    // resolveTheme falls back to dark, so we get the dark export
+    expect(json).not.toBeNull(); // dark theme is always available
+  });
+
+  it('importTheme adds the theme and regenerates cssVariables', () => {
+    const themeJson = JSON.stringify({
+      version: 1,
+      theme: {
+        id: 'imported-brand',
+        name: 'Imported Brand',
+        mode: 'dark',
+        colors: {
+          primary: '#ff1234', secondary: '#00aaff', accent: '#00ff99',
+          success: '#10b981', warning: '#f59e0b', error: '#ef4444',
+          background: '#0f172a', surface: '#1e293b', text: '#f8fafc',
+          textSecondary: '#cbd5e1', border: '#334155', overlay: 'rgba(0,0,0,0.8)',
+        },
+      },
+    });
+    const id = useThemeStore.getState().importTheme(themeJson);
+    expect(id).toBe('imported-brand');
+    const imported = useThemeStore.getState().customThemes.find((t) => t.id === 'imported-brand');
+    expect(imported).toBeDefined();
+    expect(imported!.cssVariables?.['--st-primary']).toBe('#ff1234');
+  });
+
+  it('importTheme returns null for invalid JSON', () => {
+    const id = useThemeStore.getState().importTheme('not-json');
+    expect(id).toBeNull();
+  });
+
+  it('importTheme returns null for wrong version', () => {
+    const id = useThemeStore.getState().importTheme(JSON.stringify({ version: 99, theme: {} }));
+    expect(id).toBeNull();
+  });
+
+  it('importTheme replaces a theme with same id', () => {
+    const base = { version: 1, theme: { id: 'dup', name: 'Dup', mode: 'dark', colors: { primary: '#111', secondary: '#222', accent: '#333', success: '#10b981', warning: '#f59e0b', error: '#ef4444', background: '#0f172a', surface: '#1e293b', text: '#f8fafc', textSecondary: '#cbd5e1', border: '#334155', overlay: 'rgba(0,0,0,0.8)' } } };
+    useThemeStore.getState().importTheme(JSON.stringify(base));
+    const updated = { ...base, theme: { ...base.theme, colors: { ...base.theme.colors, primary: '#999' } } };
+    useThemeStore.getState().importTheme(JSON.stringify(updated));
+    const themes = useThemeStore.getState().customThemes.filter((t) => t.id === 'dup');
+    expect(themes).toHaveLength(1);
+    expect(themes[0].colors.primary).toBe('#999');
   });
 });

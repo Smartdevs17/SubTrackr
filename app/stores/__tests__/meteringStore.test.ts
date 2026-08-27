@@ -1,313 +1,79 @@
-import { expect, describe, it, beforeEach, jest } from '@jest/globals';
-import { useMeteringStore } from '../meteringStore';
+import { useMeteringStore, bucketStart, billableUnits } from '../meteringStore';
 
-// Mock AsyncStorage
-jest.mock('@react-native-async-storage/async-storage', () => ({
-  setItem: jest.fn(() => Promise.resolve()),
-  getItem: jest.fn(() => Promise.resolve(null)),
-  removeItem: jest.fn(() => Promise.resolve()),
-}));
+let clock = 1000;
+const reset = () => useMeteringStore.setState({ meters: {}, alerts: [], now: () => clock });
 
-describe('meteringStore', () => {
-  beforeEach(() => {
-    useMeteringStore.getState().resetStore();
+beforeEach(() => {
+  clock = 1000;
+  reset();
+});
+
+const s = () => useMeteringStore.getState();
+
+describe('metering helpers', () => {
+  it('computes bucket starts', () => {
+    expect(bucketStart(7300, 3600)).toBe(7200);
+    expect(bucketStart(3600, 3600)).toBe(3600);
+  });
+  it('computes billable units over the free tier', () => {
+    expect(billableUnits(150, 100)).toBe(50);
+    expect(billableUnits(80, 100)).toBe(0);
+  });
+});
+
+describe('useMeteringStore', () => {
+  it('ingests usage and tracks the total', () => {
+    s().registerMeter('1', 'api_calls', { unitPrice: 2, includedUnits: 0 });
+    s().recordUsage('1', 'api_calls', 10);
+    s().recordUsage('1', 'api_calls', 5);
+    expect(s().getUsageTotal('1', 'api_calls')).toBe(15);
   });
 
-  describe('Metric Registration', () => {
-    it('registers a new usage metric successfully', () => {
-      const metric = useMeteringStore.getState().registerMetric({
-        subscriptionId: 'sub-123',
-        metricType: 'api_calls',
-        metricName: 'API Requests',
-        unitName: 'calls',
-        unitRate: 0.05,
-        includedUnits: 100,
-        usageLimit: 1000,
-      });
-
-      expect(metric.id).toBeDefined();
-      expect(metric.subscriptionId).toBe('sub-123');
-      expect(metric.metricType).toBe('api_calls');
-      expect(metric.unitRate).toBe(0.05);
-      expect(metric.includedUnits).toBe(100);
-      expect(metric.currentUsage).toBe(0);
-
-      const subMetrics = useMeteringStore.getState().getSubscriptionMetrics('sub-123');
-      expect(subMetrics.length).toBe(1);
-      expect(subMetrics[0].id).toBe(metric.id);
-    });
+  it('ignores non-positive values', () => {
+    expect(s().recordUsage('1', 'api_calls', 0)).toBeNull();
   });
 
-  describe('Usage Recording & Accrued Cost Calculation', () => {
-    it('records usage within included units with zero accrued cost', () => {
-      const metric = useMeteringStore.getState().registerMetric({
-        subscriptionId: 'sub-100',
-        metricType: 'storage_gb',
-        metricName: 'Cloud Storage',
-        unitName: 'GB',
-        unitRate: 2.0,
-        includedUnits: 50,
-      });
-
-      const { metric: updated } = useMeteringStore.getState().recordUsage({
-        subscriptionId: 'sub-100',
-        metricId: metric.id,
-        quantity: 30,
-      });
-
-      expect(updated.currentUsage).toBe(30);
-      expect(updated.cumulativeUsage).toBe(30);
-      expect(updated.accruedCost).toBe(0);
-    });
-
-    it('accrues cost correctly when usage exceeds included units', () => {
-      const metric = useMeteringStore.getState().registerMetric({
-        subscriptionId: 'sub-101',
-        metricType: 'compute_minutes',
-        metricName: 'GPU Compute',
-        unitName: 'minutes',
-        unitRate: 0.1,
-        includedUnits: 100,
-      });
-
-      // Record 150 minutes -> 50 excess minutes * 0.10 = $5.00 accrued cost
-      const { metric: updated } = useMeteringStore.getState().recordUsage({
-        subscriptionId: 'sub-101',
-        metricId: metric.id,
-        quantity: 150,
-      });
-
-      expect(updated.currentUsage).toBe(150);
-      expect(updated.accruedCost).toBe(5.0);
-
-      const bill = useMeteringStore.getState().getAccruedBill('sub-101');
-      expect(bill).toBe(5.0);
-    });
-
-    it('throws error when recording negative or zero quantity', () => {
-      const metric = useMeteringStore.getState().registerMetric({
-        subscriptionId: 'sub-102',
-        metricType: 'custom',
-        metricName: 'Custom Units',
-        unitName: 'units',
-        unitRate: 1.0,
-      });
-
-      expect(() => {
-        useMeteringStore.getState().recordUsage({
-          subscriptionId: 'sub-102',
-          metricId: metric.id,
-          quantity: 0,
-        });
-      }).toThrow('Quantity must be greater than zero');
-    });
-
-    it('throws error when metric ID is not found', () => {
-      expect(() => {
-        useMeteringStore.getState().recordUsage({
-          subscriptionId: 'sub-999',
-          metricId: 'invalid-id',
-          quantity: 10,
-        });
-      }).toThrow('Metric with ID invalid-id not found');
-    });
+  it('aggregates into period buckets', () => {
+    s().registerMeter('1', 'api_calls', { unitPrice: 1, includedUnits: 0, periodSecs: 3600 });
+    clock = 3600;
+    s().recordUsage('1', 'api_calls', 4);
+    s().recordUsage('1', 'api_calls', 6);
+    clock = 7300;
+    s().recordUsage('1', 'api_calls', 3);
+    const meter = s().getMeters('1')[0];
+    expect(meter.buckets).toHaveLength(2);
+    expect(meter.buckets[0].units).toBe(10);
+    expect(meter.buckets[1].units).toBe(3);
   });
 
-  describe('Usage Limit Enforcement & Threshold Alerts', () => {
-    it('throws error when usage exceeds hard cap limit', () => {
-      const metric = useMeteringStore.getState().registerMetric({
-        subscriptionId: 'sub-200',
-        metricType: 'data_transfer_gb',
-        metricName: 'Bandwidth',
-        unitName: 'GB',
-        unitRate: 0.5,
-        includedUnits: 10,
-        usageLimit: 100,
-      });
-
-      expect(() => {
-        useMeteringStore.getState().recordUsage({
-          subscriptionId: 'sub-200',
-          metricId: metric.id,
-          quantity: 110,
-        });
-      }).toThrow(/exceeds usage limit/);
-    });
-
-    it('triggers alerts at 80%, 90%, and 100% threshold crossings', () => {
-      const metric = useMeteringStore.getState().registerMetric({
-        subscriptionId: 'sub-300',
-        metricType: 'api_calls',
-        metricName: 'API Tier',
-        unitName: 'calls',
-        unitRate: 0.01,
-        includedUnits: 0,
-        usageLimit: 100,
-      });
-
-      // Jump directly to 85 units (85%)
-      const { newAlerts: alerts1 } = useMeteringStore.getState().recordUsage({
-        subscriptionId: 'sub-300',
-        metricId: metric.id,
-        quantity: 85,
-      });
-
-      expect(alerts1.length).toBe(1);
-      expect(alerts1[0].thresholdPercent).toBe(80);
-
-      // Jump from 85 to 95 units (crosses 90%)
-      const { newAlerts: alerts2 } = useMeteringStore.getState().recordUsage({
-        subscriptionId: 'sub-300',
-        metricId: metric.id,
-        quantity: 10,
-      });
-
-      expect(alerts2.length).toBe(1);
-      expect(alerts2[0].thresholdPercent).toBe(90);
-
-      // Jump to 100 units (crosses 100%)
-      const { newAlerts: alerts3 } = useMeteringStore.getState().recordUsage({
-        subscriptionId: 'sub-300',
-        metricId: metric.id,
-        quantity: 5,
-      });
-
-      expect(alerts3.length).toBe(1);
-      expect(alerts3[0].thresholdPercent).toBe(100);
-
-      const unacknowledged = useMeteringStore.getState().getAlerts('sub-300', true);
-      expect(unacknowledged.length).toBe(3);
-    });
-
-    it('allows updating usage limit dynamically', () => {
-      const metric = useMeteringStore.getState().registerMetric({
-        subscriptionId: 'sub-400',
-        metricType: 'api_calls',
-        metricName: 'API Calls',
-        unitName: 'calls',
-        unitRate: 0.01,
-        usageLimit: 50,
-      });
-
-      useMeteringStore.getState().setUsageLimit('sub-400', metric.id, 200);
-
-      const updated = useMeteringStore.getState().metrics[metric.id];
-      expect(updated.usageLimit).toBe(200);
-
-      // Should now allow recording 100 units without throwing
-      const { metric: recorded } = useMeteringStore.getState().recordUsage({
-        subscriptionId: 'sub-400',
-        metricId: metric.id,
-        quantity: 100,
-      });
-      expect(recorded.currentUsage).toBe(100);
-    });
+  it('charges across multiple meters with free tiers', () => {
+    s().registerMeter('7', 'api_calls', { unitPrice: 2, includedUnits: 100 });
+    s().registerMeter('7', 'gb_egress', { unitPrice: 5, includedUnits: 0 });
+    s().recordUsage('7', 'api_calls', 150); // 50 * 2 = 100
+    s().recordUsage('7', 'gb_egress', 4); // 4 * 5 = 20
+    const charge = s().calculateUsageCharge('7', { start: 0, end: 100000 });
+    expect(charge.total).toBe(120);
+    expect(charge.lines).toHaveLength(2);
   });
 
-  describe('Cycle Reset & History', () => {
-    it('resets current cycle usage while preserving cumulative usage', () => {
-      const metric = useMeteringStore.getState().registerMetric({
-        subscriptionId: 'sub-500',
-        metricType: 'storage_gb',
-        metricName: 'Storage',
-        unitName: 'GB',
-        unitRate: 1.0,
-        includedUnits: 10,
-      });
-
-      useMeteringStore.getState().recordUsage({
-        subscriptionId: 'sub-500',
-        metricId: metric.id,
-        quantity: 25,
-      });
-
-      useMeteringStore.getState().resetCycleUsage('sub-500');
-
-      const resetMetric = useMeteringStore.getState().metrics[metric.id];
-      expect(resetMetric.currentUsage).toBe(0);
-      expect(resetMetric.accruedCost).toBe(0);
-      expect(resetMetric.cumulativeUsage).toBe(25);
-    });
-
-    it('tracks and filters usage history logs correctly', () => {
-      const metric1 = useMeteringStore.getState().registerMetric({
-        subscriptionId: 'sub-600',
-        metricType: 'api_calls',
-        metricName: 'API Calls',
-        unitName: 'calls',
-        unitRate: 0.01,
-      });
-
-      const metric2 = useMeteringStore.getState().registerMetric({
-        subscriptionId: 'sub-600',
-        metricType: 'compute_minutes',
-        metricName: 'Compute',
-        unitName: 'min',
-        unitRate: 0.1,
-      });
-
-      useMeteringStore.getState().recordUsage({
-        subscriptionId: 'sub-600',
-        metricId: metric1.id,
-        quantity: 10,
-      });
-
-      useMeteringStore.getState().recordUsage({
-        subscriptionId: 'sub-600',
-        metricId: metric2.id,
-        quantity: 5,
-      });
-
-      const allHistory = useMeteringStore.getState().getUsageHistory('sub-600');
-      expect(allHistory.length).toBe(2);
-
-      const metric1History = useMeteringStore.getState().getUsageHistory('sub-600', metric1.id);
-      expect(metric1History.length).toBe(1);
-      expect(metric1History[0].quantity).toBe(10);
-    });
+  it('excludes usage outside the charge period', () => {
+    s().registerMeter('1', 'api_calls', { unitPrice: 1, includedUnits: 0, periodSecs: 3600 });
+    clock = 3600;
+    s().recordUsage('1', 'api_calls', 10);
+    clock = 100000;
+    s().recordUsage('1', 'api_calls', 7);
+    const charge = s().calculateUsageCharge('1', { start: 0, end: 50000 });
+    expect(charge.total).toBe(10);
   });
 
-  describe('Telemetry & Alerts Management', () => {
-    it('simulates telemetry input correctly', () => {
-      const metric = useMeteringStore.getState().registerMetric({
-        subscriptionId: 'sub-700',
-        metricType: 'api_calls',
-        metricName: 'API Requests',
-        unitName: 'calls',
-        unitRate: 0.01,
-      });
-
-      const event = useMeteringStore.getState().simulateTelemetry('sub-700', metric.id, 15);
-      expect(event.quantity).toBe(15);
-      expect(event.reportedBy).toBe('telemetry_simulator');
-
-      const updated = useMeteringStore.getState().metrics[metric.id];
-      expect(updated.currentUsage).toBe(15);
-    });
-
-    it('acknowledges alerts', () => {
-      const metric = useMeteringStore.getState().registerMetric({
-        subscriptionId: 'sub-800',
-        metricType: 'api_calls',
-        metricName: 'Calls',
-        unitName: 'calls',
-        unitRate: 0.01,
-        usageLimit: 10,
-      });
-
-      useMeteringStore.getState().recordUsage({
-        subscriptionId: 'sub-800',
-        metricId: metric.id,
-        quantity: 9,
-      });
-
-      const alerts = useMeteringStore.getState().getAlerts('sub-800', true);
-      expect(alerts.length).toBe(1);
-
-      useMeteringStore.getState().acknowledgeAlert(alerts[0].id);
-
-      const unackAfter = useMeteringStore.getState().getAlerts('sub-800', true);
-      expect(unackAfter.length).toBe(0);
-    });
+  it('fires a usage alert once past the threshold', () => {
+    s().registerMeter('1', 'api_calls', { unitPrice: 1, includedUnits: 0, alertThreshold: 100 });
+    s().recordUsage('1', 'api_calls', 60);
+    expect(s().alerts).toHaveLength(0);
+    s().recordUsage('1', 'api_calls', 60);
+    expect(s().alerts).toHaveLength(1);
+    // Does not re-fire.
+    s().recordUsage('1', 'api_calls', 60);
+    expect(s().alerts).toHaveLength(1);
   });
 });
