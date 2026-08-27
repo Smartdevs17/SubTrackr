@@ -169,3 +169,62 @@ export type {
   LeakRecord,
   PoolTuningRecommendation,
 } from './poolMonitor';
+
+// ── Security Headers ─────────────────────────────────────────────────────────
+export {
+  getSecurityHeaders,
+  createSecurityHeadersMiddleware,
+  getHstsHeader,
+  getCspHeader,
+} from './securityHeaders';
+export type { SecurityHeadersConfig } from './securityHeaders';
+
+// ── Account Lockout ──────────────────────────────────────────────────────────
+export { AccountLockoutService, accountLockoutService } from './accountLockout';
+export type { LockoutConfig, LockoutRecord, LockoutCheckResult } from './accountLockout';
+
+// ── API Versioning ───────────────────────────────────────────────────────────
+export {
+  registerDeprecation,
+  getVersions,
+  getLatestVersion,
+  negotiateVersion,
+  getVersionHeaders,
+  createVersionMiddleware,
+  getDeprecationNotice,
+  getActiveVersions,
+  getDeprecatedVersions,
+} from './apiVersioning';
+export type { ApiVersion, VersionNegotiationResult, DeprecationNotice } from './apiVersioning';
+
+// ── CSRF Protection ──────────────────────────────────────────────────────────
+export { CsrfProtection, csrfProtection } from './csrfProtection';
+export type { CsrfConfig, CsrfTokenPair } from './csrfProtection';
+
+// ── CSP Middleware ────────────────────────────────────────────────────────────
+export { CspMiddleware, cspMiddleware } from './cspMiddleware';
+export type { CspConfig } from './cspMiddleware';
+
+// ── Webhook Verification ─────────────────────────────────────────────────────
+export { WebhookVerifier, webhookVerifier } from './webhookVerification';
+export type { WebhookSecret, WebhookVerificationConfig, WebhookSignatureHeader } from './webhookVerification';
+
+// ── Read Replica Router ──────────────────────────────────────────────────────
+export { ReadReplicaRouter } from './readReplicaRouter';
+export type { ReplicaConfig, ReplicaHealth, ReadRouteOptions, QueryRoute } from './readReplicaRouter';
+
+// ── Query Optimizer ──────────────────────────────────────────────────────────
+export { QueryOptimizer, queryOptimizer } from './queryOptimizer';
+export type { QueryAnalysis, QueryIssue, IndexRecommendation, TableStats, IndexStats } from './queryOptimizer';
+
+// ── Background Job Queue ─────────────────────────────────────────────────────
+export { PriorityQueue, jobQueue } from './jobQueue';
+export type { Job, JobHandler, QueueConfig, QueueMetrics, JobStatus, JobPriority } from './jobQueue';
+
+// ── WebSocket Connection Pool ────────────────────────────────────────────────
+export { WsConnectionPool } from './wsConnectionPool';
+export type { WsPoolConfig, WsConnection, WsMessage, WsPoolMetrics } from './wsConnectionPool';
+
+// ── CDN Service ──────────────────────────────────────────────────────────────
+export { CdnService, cdnService } from './cdnService';
+export type { CdnConfig, CacheEntry, PurgeRequest, PurgeResult, CdnMetrics } from './cdnService';

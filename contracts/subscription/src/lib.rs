@@ -1,7 +1,8 @@
 #![no_std]
-mod gas_optimization;
-mod gas_profiler;
-mod gas_storage;
+pub mod gas_optimization;
+pub mod gas_profiler;
+pub mod gas_storage;
+pub mod lazy_loading;
 mod quota;
 mod revenue;
 mod usage;

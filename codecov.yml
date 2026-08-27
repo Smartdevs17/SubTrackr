@@ -1,0 +1,53 @@
+codecov:
+  require_ci_to_pass: true
+  notify:
+    wait_for_ci: true
+
+coverage:
+  status:
+    project:
+      default:
+        target: 80%
+        threshold: 2%
+        flags:
+          - frontend
+          - backend
+    patch:
+      default:
+        target: 80%
+        threshold: 5%
+
+flags:
+  frontend:
+    paths:
+      - src/
+      - app/
+    carryforward: true
+  backend:
+    paths:
+      - backend/
+    carryforward: true
+
+comment:
+  layout: "reach,diff,flags,files,footer"
+  behavior: default
+  require_changes: false
+  require_base: false
+  require_head: true
+
+ignore:
+  - "**/__tests__/**"
+  - "**/*.test.ts"
+  - "**/*.test.tsx"
+  - "**/*.spec.ts"
+  - "**/*.spec.tsx"
+  - "**/__mocks__/**"
+  - "**/__fixtures__/**"
+  - "coverage/**"
+  - "dist/**"
+  - "node_modules/**"
+  - "contracts/**"
+  - "e2e/**"
+  - "developer-portal/**"
+  - "sdks/**"
+  - "ml-service/**"

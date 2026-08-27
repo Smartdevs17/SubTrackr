@@ -1,0 +1,28 @@
+image: gitpod/workspace-full
+
+tasks:
+  - name: Setup
+    init: |
+      npm install
+      git config core.hooksPath .husky
+    command: |
+      echo "SubTrackr development environment ready!"
+      echo "Run 'npm start' to launch the Expo dev server"
+
+ports:
+  - port: 8081
+    name: Expo Dev Server
+    onOpen: open-preview
+  - port: 3000
+    name: Backend API
+    onOpen: open-preview
+  - port: 19000
+    name: Expo Web
+    onOpen: open-preview
+
+vscode:
+  extensions:
+    - dbaeumer.vscode-eslint
+    - esbenp.prettier-vscode
+    - rust-lang.rust-analyzer
+    - expo.vscode-expo-tools

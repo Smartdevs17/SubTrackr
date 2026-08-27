@@ -1,0 +1,60 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    "group:monorepos",
+    "group:recommended",
+    "replacements:all",
+    "workarounds:all"
+  ],
+  "labels": ["dependencies", "renovate"],
+  "packageRules": [
+    {
+      "matchUpdateTypes": ["patch"],
+      "labels": ["dependencies", "patch"]
+    },
+    {
+      "matchUpdateTypes": ["minor"],
+      "labels": ["dependencies", "minor"]
+    },
+    {
+      "matchUpdateTypes": ["major"],
+      "labels": ["dependencies", "major", "breaking"]
+    },
+    {
+      "matchPackagePatterns": ["*eslint*", "*prettier*", "*lint*"],
+      "groupName": "linting",
+      "automerge": true
+    },
+    {
+      "matchPackagePatterns": ["*test*", "*jest*", "*vitest*"],
+      "groupName": "testing",
+      "automerge": true
+    },
+    {
+      "matchPackagePatterns": ["*expo*"],
+      "groupName": "expo",
+      "automerge": false
+    },
+    {
+      "matchPackagePatterns": ["*react*", "*react-native*"],
+      "groupName": "react",
+      "automerge": false
+    }
+  ],
+  "cargo": {
+    "enabled": true
+  },
+  "pip_requirements": {
+    "enabled": true
+  },
+  "regexManagers": [
+    {
+      "fileMatch": ["contracts/Cargo\\.toml$"],
+      "matchStrings": ["(?<depName>[a-zA-Z0-9-_]+)\\s*=\\s*[\"'](?<currentValue>[^\"']+)[\"']"],
+      "datasourceTemplate": "crates-io"
+    }
+  ]
+}
