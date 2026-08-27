@@ -94,3 +94,7 @@ export { PricingStrategyFactory, PlanType } from './strategyFactory';
 export { BillingEngine, BillingEngineConfig } from './billingEngine';
 export { PricingAnalyticsService, RevenueMetrics } from './billingAnalytics';
 
+
+// Trial Management exports (Issue #958)
+export { TrialManagementService, trialManagementService, DEFAULT_TRIAL_POLICY } from './trialManagementService';
+export type { TrialPolicy, TrialSubscriptionRecord, ConversionIncentive, TrialReminderItem, TrialConversionFunnel, UserActivitySignals, PropensityCategory } from './trialManagementService';
