@@ -75,7 +75,7 @@
     "expo-dev-client": "~5.2.4",
     "expo-haptics": "~14.1.4",
     "expo-image": "~2.3.0",
-    "expo-notifications": "^0.31.5",
+    "expo-notifications": "^57.0.14",
     "expo-status-bar": "~2.2.3",
     "graphql": "^16.13.2",
     "i18next": "^26.0.8",
