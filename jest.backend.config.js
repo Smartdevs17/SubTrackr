@@ -9,10 +9,16 @@ module.exports = {
   testMatch: [
     '**/backend/**/__tests__/**/*.test.ts',
     '**/backend/tests/**/*.test.ts',
+    '**/backend/billing/tests/**/*.test.ts',
+    '**/backend/billing/tests/**/*.spec.ts',
     '**/developer-portal/__tests__/**/*.test.ts',
   ],
   transform: {
     '^.+\\.tsx?$': ['ts-jest', { tsconfig: { strict: false, skipLibCheck: true } }],
   },
   moduleFileExtensions: ['ts', 'js', 'json'],
+  testPathIgnorePatterns: [
+    '/node_modules/',
+    '<rootDir>/backend/tests/load/',
+  ],
 };
