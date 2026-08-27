@@ -447,8 +447,6 @@ impl SubTrackrCredit {
         wallet.balance += amount;
         wallet.total_deposited += amount;
         wallet.updated_at = now;
-        let transaction_id =
-            Self::record_wallet_transaction(&env, &mut wallet, PrepaymentTxKind::Deposit, amount);
         env.storage()
             .persistent()
             .set(&DataKey::Wallet(wallet_id), &wallet);
@@ -485,8 +483,6 @@ impl SubTrackrCredit {
         wallet.balance -= amount;
         wallet.total_withdrawn += amount;
         wallet.updated_at = now;
-        let transaction_id =
-            Self::record_wallet_transaction(&env, &mut wallet, PrepaymentTxKind::Withdraw, amount);
         env.storage()
             .persistent()
             .set(&DataKey::Wallet(wallet_id), &wallet);
@@ -636,6 +632,18 @@ impl SubTrackrCredit {
     }
 
     fn next_wallet_id(env: &Env) -> u64 {
+        let base: u64 = env
+            .storage()
+            .instance()
+            .get(&symbol_short!("NWID"))
+            .unwrap_or(0);
+        env.storage()
+            .instance()
+            .set(&symbol_short!("NWID"), &(base + 1));
+        base
+    }
+
+    fn next_tx_id(env: &Env, _wallet_id: u64) -> u64 {
         let base: u64 = env
             .storage()
             .instance()

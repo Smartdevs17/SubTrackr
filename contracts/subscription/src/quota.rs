@@ -7,5 +7,6 @@ pub fn set_plan_quotas(env: &Env, storage: &Address, plan_id: u64, quotas: Vec<Q
 }
 
 pub fn get_plan_quotas(env: &Env, storage: &Address, plan_id: u64) -> Vec<Quota> {
-    storage_persistent_get(env, storage, StorageKeyExt::PlanQuotas(plan_id)).unwrap_or(Vec::new(env))
+    storage_persistent_get(env, storage, StorageKeyExt::PlanQuotas(plan_id))
+        .unwrap_or(Vec::new(env))
 }
