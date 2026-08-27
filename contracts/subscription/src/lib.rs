@@ -11,6 +11,8 @@ use subtrackr_types::{
     Subscription, SubscriptionStatus, TimeRange,
 };
 
+mod plan_templates;
+
 /// Billing interval in seconds.
 const MAX_PAUSE_DURATION: u64 = 2_592_000; // 30 days
 const DEFAULT_COMMIT_REVEAL_THRESHOLD: i128 = i128::MAX;
@@ -644,6 +646,126 @@ impl SubTrackrSubscription {
             private_mempool,
             true,
         );
+    }
+
+    // ── Plan Templates ──
+
+    pub fn create_plan_template(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        owner: Address,
+        name: String,
+        description: String,
+        base_price: i128,
+        token: Address,
+        interval: Interval,
+        tiers: Vec<plan_templates::PricingTier>,
+        features: Vec<String>,
+    ) -> u64 {
+        proxy.require_auth();
+        owner.require_auth();
+        plan_templates::create_template(
+            &env, &storage, &owner, name, description, base_price, token, interval, tiers, features,
+        )
+    }
+
+    pub fn publish_plan_template_version(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        owner: Address,
+        template_id: u64,
+        name: String,
+        description: String,
+        base_price: i128,
+        tiers: Vec<plan_templates::PricingTier>,
+        features: Vec<String>,
+    ) -> u64 {
+        proxy.require_auth();
+        owner.require_auth();
+        plan_templates::publish_version(
+            &env, &storage, &owner, template_id, name, description, base_price, tiers, features,
+        )
+    }
+
+    pub fn set_plan_template_shared(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        owner: Address,
+        template_id: u64,
+        shared: bool,
+    ) {
+        proxy.require_auth();
+        owner.require_auth();
+        plan_templates::set_shared(&env, &storage, &owner, template_id, shared);
+    }
+
+    pub fn instantiate_plan_template(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        caller: Address,
+        template_id: u64,
+        overrides: plan_templates::TemplateOverrides,
+    ) -> plan_templates::ResolvedPlan {
+        proxy.require_auth();
+        caller.require_auth();
+        plan_templates::instantiate(&env, &storage, &caller, template_id, overrides)
+    }
+
+    pub fn quote_plan_template(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        template_id: u64,
+        units: u64,
+    ) -> i128 {
+        proxy.require_auth();
+        let template = plan_templates::get_template(&env, &storage, template_id)
+            .expect("Template not found");
+        plan_templates::quote_template(&template, units)
+    }
+
+    pub fn get_plan_template(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        template_id: u64,
+    ) -> Option<plan_templates::PlanTemplate> {
+        proxy.require_auth();
+        plan_templates::get_template(&env, &storage, template_id)
+    }
+
+    pub fn get_plan_template_analytics(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        template_id: u64,
+    ) -> plan_templates::TemplateAnalytics {
+        proxy.require_auth();
+        plan_templates::get_analytics(&env, &storage, template_id)
+    }
+
+    pub fn record_plan_template_view(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        template_id: u64,
+    ) {
+        proxy.require_auth();
+        plan_templates::record_view(&env, &storage, template_id);
+    }
+
+    pub fn record_plan_template_subscription(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        template_id: u64,
+    ) {
+        proxy.require_auth();
+        plan_templates::record_subscription(&env, &storage, template_id);
     }
 
     // ── Plan Management ──
