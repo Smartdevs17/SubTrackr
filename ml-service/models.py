@@ -15,24 +15,37 @@ class ChurnPredictionModel:
 
     def _extract_features(self, user_data: Dict) -> Dict:
         """
-        Extract normalized features from raw user data.
+        Extract normalized features from raw user data using ETL extractor module.
         """
+        from etl.extractors import ChurnSignalExtractor
+
+        # Format input for ETL ChurnSignalExtractor if raw format passed
+        signal_data = {
+            "subscriber": user_data.get("subscriber", ""),
+            "recentPaymentFailures": user_data.get("recent_payment_failures", 0),
+            "baselineLoginsPerMonth": user_data.get("baseline_logins_per_month", 1),
+            "recentLogins": user_data.get("recent_logins", 0),
+            "openSupportTickets": user_data.get("open_support_tickets", 0),
+            "priceSensitivityIndex": user_data.get("price_sensitivity_index", 0.5),
+        }
+        
+        extractor = ChurnSignalExtractor()
+        extracted_list = extractor.extract({"churn_signals": [signal_data]})
+        extracted = extracted_list[0] if extracted_list else user_data
+
         features = {}
         # Normalize payment failures (0 to 1)
-        features["payment_failures"] = min(user_data.get("recent_payment_failures", 0) / 3.0, 1.0)
+        features["payment_failures"] = min(extracted.get("recent_payment_failures", 0) / 3.0, 1.0)
         
-        # Normalize login frequency drop (e.g., 50% drop -> 0.5)
-        baseline_logins = max(user_data.get("baseline_logins_per_month", 1), 1)
-        recent_logins = user_data.get("recent_logins", baseline_logins)
-        drop = max(0, (baseline_logins - recent_logins) / baseline_logins)
-        features["login_frequency_drop"] = drop
+        # Login frequency drop calculated by ETL extractor
+        features["login_frequency_drop"] = extracted.get("login_frequency_drop", 0.0)
         
         # Normalize support tickets
-        features["support_tickets"] = min(user_data.get("open_support_tickets", 0) / 2.0, 1.0)
+        features["support_tickets"] = min(extracted.get("open_support_tickets", 0) / 2.0, 1.0)
         
         # Add random noise for simulation
         features["app_crashes"] = random.uniform(0, 0.2)
-        features["price_sensitivity"] = user_data.get("price_sensitivity_index", 0.5)
+        features["price_sensitivity"] = extracted.get("price_sensitivity_index", 0.5)
         
         return features
 

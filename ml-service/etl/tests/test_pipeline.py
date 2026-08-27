@@ -1,22 +1,40 @@
 """Tests for the ETL pipeline module."""
 
 import unittest
-from ml_service.etl.config import ETLConfig, FeatureStoreConfig, FeatureStoreType
-from ml_service.etl.extractors import (
-    SubscriptionExtractor,
-    PaymentExtractor,
-    UsageExtractor,
-    ChurnSignalExtractor,
-)
-from ml_service.etl.transformers import (
-    NormalizationTransformer,
-    AggregationTransformer,
-    FeatureDerivationTransformer,
-    DeduplicationTransformer,
-)
-from ml_service.etl.loaders import InMemoryFeatureStore, create_feature_store
-from ml_service.etl.pipeline import ETLPipeline
-from ml_service.etl.monitoring import ETLMonitor
+try:
+    from ml_service.etl.config import ETLConfig, FeatureStoreConfig, FeatureStoreType
+    from ml_service.etl.extractors import (
+        SubscriptionExtractor,
+        PaymentExtractor,
+        UsageExtractor,
+        ChurnSignalExtractor,
+    )
+    from ml_service.etl.transformers import (
+        NormalizationTransformer,
+        AggregationTransformer,
+        FeatureDerivationTransformer,
+        DeduplicationTransformer,
+    )
+    from ml_service.etl.loaders import InMemoryFeatureStore, create_feature_store
+    from ml_service.etl.pipeline import ETLPipeline
+    from ml_service.etl.monitoring import ETLMonitor
+except ModuleNotFoundError:
+    from etl.config import ETLConfig, FeatureStoreConfig, FeatureStoreType
+    from etl.extractors import (
+        SubscriptionExtractor,
+        PaymentExtractor,
+        UsageExtractor,
+        ChurnSignalExtractor,
+    )
+    from etl.transformers import (
+        NormalizationTransformer,
+        AggregationTransformer,
+        FeatureDerivationTransformer,
+        DeduplicationTransformer,
+    )
+    from etl.loaders import InMemoryFeatureStore, create_feature_store
+    from etl.pipeline import ETLPipeline
+    from etl.monitoring import ETLMonitor
 
 
 class TestExtractors(unittest.TestCase):

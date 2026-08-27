@@ -20,7 +20,14 @@ class ModelRegistry:
             return json.load(f)
             
     def retrain_model(self, new_data: list):
-        """Simulate a retraining pipeline updating feature weights"""
+        """Simulate a retraining pipeline updating feature weights via ETL module"""
+        try:
+            from etl.pipeline import ETLPipeline
+            pipeline = ETLPipeline()
+            pipeline.run(source_data={"churn_signals": new_data} if new_data else None)
+        except Exception:
+            pass
+
         new_version = "v1.1"
         self.save_model(new_version, {
             "version": new_version,
