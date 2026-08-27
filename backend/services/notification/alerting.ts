@@ -3,12 +3,8 @@
  * Channels are pluggable; add as many as needed.
  */
 
-<<<<<<< HEAD:backend/services/alerting.ts
-import { logger } from './logging';
-import type { Alert, AlertChannelConfig } from './types';
-=======
+import { logger } from '../services/logging';
 import type { Alert, AlertChannelConfig } from '../shared/types';
->>>>>>> main:backend/services/notification/alerting.ts
 
 export interface AlertDispatcher {
   send(alert: Alert): Promise<void>;
