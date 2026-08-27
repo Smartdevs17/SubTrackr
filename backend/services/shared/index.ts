@@ -169,3 +169,29 @@ export type {
   LeakRecord,
   PoolTuningRecommendation,
 } from './poolMonitor';
+
+// ── RPC Timeout & Resilience Middleware ──────────────────────────────────────
+export {
+  withRpcTimeout,
+  wrapWithTimeout,
+  isRpcTimeout,
+  isRpcCancelled,
+  defaultTimeoutForChain,
+  RpcCallTimeoutError,
+  RpcCallCancelledError,
+} from './rpcTimeout';
+export type { RpcTimeoutOptions } from './rpcTimeout';
+
+export {
+  ResilientEthersProvider,
+  createResilientProvider,
+  getOrCreateResilientProvider,
+  clearProviderRegistry,
+  RpcAllProvidersFailedError as ResilientRpcAllProvidersFailedError,
+  RpcCallTimeoutError as ResilientRpcCallTimeoutError,
+} from './rpcResilienceMiddleware';
+export type {
+  ResilientProviderOptions,
+  EndpointHealth,
+  ProviderHealthSnapshot,
+} from './rpcResilienceMiddleware';

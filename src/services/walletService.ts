@@ -3,7 +3,8 @@ import { Framework, SFError } from '@superfluid-finance/sdk-core';
 
 import { logger } from './logging';
 import { ERC20__factory, getContractAddress } from '../contracts';
-import { getEvmRpcUrl } from '../config/evm';
+import { getEvmRpcUrl, getEvmRpcUrls } from '../config/evm';
+import { getOrCreateResilientProvider } from './rpcProvider';
 import {
   TIME_CONSTANTS,
   CRYPTO_CONSTANTS,
@@ -674,7 +675,15 @@ export class WalletServiceManager {
   }
 
   private getProvider(chainId: number): ethers.providers.JsonRpcProvider {
-    return new ethers.providers.JsonRpcProvider(getEvmRpcUrl(chainId));
+    // Use resilient provider with timeout + circuit breaker + multi-URL fallback.
+    // Falls back to getEvmRpcUrl for chains not in EVM_RPC_URLS (unknown chains).
+    let urls: string[];
+    try {
+      urls = getEvmRpcUrls(chainId);
+    } catch {
+      urls = [getEvmRpcUrl(chainId)];
+    }
+    return getOrCreateResilientProvider(chainId, urls) as unknown as ethers.providers.JsonRpcProvider;
   }
 
   private async resolveGasPrice(
