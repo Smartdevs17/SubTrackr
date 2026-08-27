@@ -23,7 +23,7 @@
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, symbol_short, Address, Env, String, Vec,
 };
-use subtrackr_types::{SubscriptionId, CoreError};
+use subtrackr_types::{CoreError, SubscriptionId};
 
 /// Maximum retained transaction-history and lot entries per account.
 const MAX_HISTORY: u32 = 128;
@@ -391,7 +391,9 @@ impl SubTrackrCredit {
             created_at: now,
             updated_at: now,
         };
-        env.storage().persistent().set(&DataKey::Wallet(wallet_id), &wallet);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Wallet(wallet_id), &wallet);
         env.events()
             .publish((symbol_short!("wallet"), subscriber), wallet_id);
         wallet_id
@@ -420,7 +422,9 @@ impl SubTrackrCredit {
         wallet.balance += amount;
         wallet.total_deposited += amount;
         wallet.updated_at = now;
-        env.storage().persistent().set(&DataKey::Wallet(wallet_id), &wallet);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Wallet(wallet_id), &wallet);
         Ok(PrepaymentSnapshot {
             wallet_id,
             balance: wallet.balance,
@@ -454,7 +458,9 @@ impl SubTrackrCredit {
         wallet.balance -= amount;
         wallet.total_withdrawn += amount;
         wallet.updated_at = now;
-        env.storage().persistent().set(&DataKey::Wallet(wallet_id), &wallet);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Wallet(wallet_id), &wallet);
         Ok(PrepaymentSnapshot {
             wallet_id,
             balance: wallet.balance,
@@ -533,7 +539,11 @@ impl SubTrackrCredit {
     }
 
     fn next_wallet_id(env: &Env) -> u64 {
-        let base: u64 = env.storage().instance().get(&symbol_short!("NWID")).unwrap_or(0);
+        let base: u64 = env
+            .storage()
+            .instance()
+            .get(&symbol_short!("NWID"))
+            .unwrap_or(0);
         env.storage()
             .instance()
             .set(&symbol_short!("NWID"), &(base + 1));
