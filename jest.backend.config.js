@@ -8,7 +8,13 @@ module.exports = {
   setupFilesAfterEnv: ['<rootDir>/backend/__tests__/setup.ts'],
   testMatch: ['**/backend/**/__tests__/**/*.test.ts', '**/backend/tests/**/*.test.ts'],
   transform: {
-    '^.+\\.tsx?$': ['ts-jest', { tsconfig: { strict: false, skipLibCheck: true } }],
+    '^.+\\.tsx?$': [
+      'ts-jest',
+      {
+        diagnostics: false,
+        tsconfig: { strict: false, skipLibCheck: true },
+      },
+    ],
   },
   moduleFileExtensions: ['ts', 'js', 'json'],
 };
