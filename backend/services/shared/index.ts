@@ -50,3 +50,22 @@ export type {
 } from './apiResponse';
 export type { TransactionStatus, AlertSeverity, AlertChannel, TransactionEvent, Metric, Alert, AlertRule, AlertChannelConfig, DashboardSnapshot } from './types';
 export { MonitoringService, monitoringService } from './monitoring';
+export {
+  generateCsrfToken,
+  verifyCsrfToken,
+  parseCookies,
+  buildCsrfCookieValue,
+  CsrfService,
+  csrfService,
+  createCsrfMiddleware,
+  issueCsrfToken,
+  CSRF_COOKIE_NAME,
+  CSRF_HEADER_NAME,
+  CSRF_TOKEN_RESPONSE_HEADER,
+} from './csrfService';
+export type {
+  CsrfCookieOptions,
+  CsrfMiddlewareOptions,
+  CsrfRequest,
+  CsrfResponse,
+} from './csrfService';
