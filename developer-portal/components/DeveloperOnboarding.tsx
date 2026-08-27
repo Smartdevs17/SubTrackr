@@ -42,7 +42,7 @@ export const DeveloperOnboarding: React.FC<DeveloperOnboardingProps> = ({
     [onStepComplete]
   );
 
-  const allCompleted = steps.every(step => step.completed);
+  const allCompleted = steps.every((step) => step.completed);
 
   return (
     <ScrollView style={styles.container}>
@@ -59,13 +59,13 @@ export const DeveloperOnboarding: React.FC<DeveloperOnboardingProps> = ({
             style={[
               styles.progressFill,
               {
-                width: `${(steps.filter(s => s.completed).length / steps.length) * 100}%`,
+                width: `${(steps.filter((s) => s.completed).length / steps.length) * 100}%`,
               },
             ]}
           />
         </View>
         <Text style={styles.progressText}>
-          {steps.filter(s => s.completed).length} of {steps.length} completed
+          {steps.filter((s) => s.completed).length} of {steps.length} completed
         </Text>
       </View>
 
@@ -79,15 +79,9 @@ export const DeveloperOnboarding: React.FC<DeveloperOnboardingProps> = ({
               index === currentStep && styles.stepCardActive,
             ]}
             onPress={() => !step.completed && handleStepPress(step.id)}
-            disabled={step.completed || loading}
-          >
+            disabled={step.completed || loading}>
             <View style={styles.stepHeader}>
-              <View
-                style={[
-                  styles.stepNumber,
-                  step.completed && styles.stepNumberCompleted,
-                ]}
-              >
+              <View style={[styles.stepNumber, step.completed && styles.stepNumberCompleted]}>
                 {step.completed ? (
                   <Text style={styles.checkmark}>✓</Text>
                 ) : (
@@ -95,12 +89,7 @@ export const DeveloperOnboarding: React.FC<DeveloperOnboardingProps> = ({
                 )}
               </View>
               <View style={styles.stepContent}>
-                <Text
-                  style={[
-                    styles.stepTitle,
-                    step.completed && styles.stepTitleCompleted,
-                  ]}
-                >
+                <Text style={[styles.stepTitle, step.completed && styles.stepTitleCompleted]}>
                   {step.title}
                 </Text>
                 <Text style={styles.stepDescription}>{step.description}</Text>

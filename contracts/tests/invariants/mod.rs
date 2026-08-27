@@ -153,3 +153,5 @@ fn invariant_user_subs_index_consistency(handler: &ContractHandler) {
         }
     }
 }
+
+pub mod pricing_properties;

@@ -1,4 +1,5 @@
 import { Alert } from 'react-native';
+import { logger } from './logging';
 
 export interface ConsentPreferences {
   analytics: boolean;
@@ -23,13 +24,18 @@ const API_BASE = 'https://api.subtrackr.example.com/gdpr';
 export const gdprService = {
   async exportData(): Promise<ExportResponse> {
     try {
-      return {
+      const response = {
         url: `${API_BASE}/download/export-user-123.json`,
         timestamp: new Date().toISOString(),
         encryptedFields: ['email', 'name'],
       };
+      logger.info('GDPR export data requested', {
+        url: response.url,
+        encryptedFields: response.encryptedFields,
+      });
+      return response;
     } catch (error) {
-      console.error('Failed to export data', error);
+      logger.error('Failed to export data', { error });
       throw error;
     }
   },
@@ -37,30 +43,38 @@ export const gdprService = {
   async requestDeletion(permanent: boolean): Promise<DeletionResponse> {
     try {
       if (!permanent) {
-        return {
+        const result = {
           success: true,
           message: 'User data has been anonymized',
           anonymizedFields: ['email', 'name', 'phoneNumber', 'address'],
         };
+        logger.info('GDPR deletion requested', {
+          permanent,
+          anonymizedFields: result.anonymizedFields,
+        });
+        return result;
       }
-      return { success: true, message: 'User data permanently deleted', anonymizedFields: [] };
+      const result = { success: true, message: 'User data permanently deleted', anonymizedFields: [] };
+      logger.info('GDPR permanent deletion requested', { permanent });
+      return result;
     } catch (error) {
-      console.error('Failed to delete account', error);
+      logger.error('Failed to delete account', { error });
       throw error;
     }
   },
 
   async updateConsent(preferences: ConsentPreferences): Promise<ConsentPreferences> {
     try {
+      logger.info('GDPR consent update requested', { preferences });
       return preferences;
     } catch (error) {
-      console.error('Failed to update consent', error);
+      logger.error('Failed to update consent', { error });
       throw error;
     }
   },
 
   async downloadData(data: unknown): Promise<void> {
-    console.log('Triggering download for:', data);
+    logger.info('Triggering GDPR data download', { data });
     Alert.alert('Success', 'Your data export has been prepared and will be sent to your email.');
   },
 };

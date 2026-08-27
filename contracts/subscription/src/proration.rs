@@ -2,7 +2,8 @@ use soroban_sdk::{Address, Env, String};
 use subtrackr_types::{Interval, Subscription};
 
 /// Proration calculation result
-#[derive(Clone, Debug)]
+#[soroban_sdk::contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProrationResult {
     /// Amount to charge (positive) or credit (negative)
     pub amount: i128,
@@ -39,22 +40,22 @@ fn interval_days(interval: &Interval) -> u64 {
         Interval::BiMonthly => 60,
         Interval::Quarterly => 90,
         Interval::SemiAnnually => 182,
-        Interval::Annually => 365,
-        Interval::Custom(seconds) => *seconds / 86400,
+        Interval::Yearly => 365,
+        Interval::Custom(secs) => *secs / 86400,
     }
 }
 
 /// Calculate proration for a plan change
-/// 
+///
 /// Formula: (new_rate - old_rate) * remaining_days / period_days
-/// 
+///
 /// # Arguments
 /// * `env` — Soroban environment for timestamp access
 /// * `subscription` — Current subscription state
 /// * `old_price` — Current plan price
 /// * `new_price` — New plan price
 /// * `effective_date` — When the change takes effect
-/// 
+///
 /// # Returns
 /// ProrationResult with calculated amounts
 pub fn calculate_proration(
@@ -67,26 +68,26 @@ pub fn calculate_proration(
     let now = env.ledger().timestamp();
     let period_seconds = subscription.next_charge_at - subscription.last_charged_at;
     let period_days = period_seconds / 86400;
-    
+
     let remaining_seconds = if effective_date == EffectiveDate::EndOfPeriod {
         0 // No proration if effective at end of period
     } else {
         subscription.next_charge_at.saturating_sub(now)
     };
     let remaining_days = remaining_seconds / 86400;
-    
+
     let old_daily_rate = old_price / period_days as i128;
     let new_daily_rate = new_price / period_days as i128;
-    
+
     let amount = if effective_date == EffectiveDate::EndOfPeriod {
         0
     } else {
         (new_price - old_price) * remaining_days as i128 / period_days as i128
     };
-    
+
     let is_credit = amount < 0;
     let abs_amount = amount.abs();
-    
+
     let description = if is_credit {
         String::from_str(env, "Prorated credit for plan downgrade")
     } else if amount > 0 {
@@ -94,7 +95,7 @@ pub fn calculate_proration(
     } else {
         String::from_str(env, "No proration required")
     };
-    
+
     ProrationResult {
         amount: abs_amount,
         remaining_days,
@@ -107,7 +108,7 @@ pub fn calculate_proration(
 }
 
 /// Preview proration without applying changes
-/// 
+///
 /// Returns the ProrationResult for display to the user before confirmation
 pub fn preview_proration(
     env: &Env,
@@ -120,7 +121,7 @@ pub fn preview_proration(
 }
 
 /// Generate a credit memo for downgrade credits
-/// 
+///
 /// Credit memos are stored on-chain and can be applied to future invoices
 pub fn generate_credit_memo(
     env: &Env,
@@ -138,7 +139,8 @@ pub fn generate_credit_memo(
 }
 
 /// Credit memo structure for on-chain storage
-#[derive(Clone, Debug)]
+#[soroban_sdk::contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CreditMemo {
     pub subscription_id: u64,
     pub amount: i128,
@@ -148,25 +150,22 @@ pub struct CreditMemo {
 }
 
 /// Apply a credit memo to reduce a charge amount
-/// 
+///
 /// Returns the remaining charge after credit application
-pub fn apply_credit_memo(
-    charge_amount: i128,
-    credit_memo: &mut CreditMemo,
-) -> i128 {
+pub fn apply_credit_memo(charge_amount: i128, credit_memo: &mut CreditMemo) -> i128 {
     if credit_memo.applied || credit_memo.amount <= 0 {
         return charge_amount;
     }
-    
+
     let credit_to_apply = charge_amount.min(credit_memo.amount);
     credit_memo.amount -= credit_to_apply;
     credit_memo.applied = credit_memo.amount == 0;
-    
+
     charge_amount - credit_to_apply
 }
 
 /// Handle edge case: multiple changes within one cycle
-/// 
+///
 /// When a user changes plans multiple times in one billing period,
 /// we track the net proration across all changes
 pub fn calculate_net_proration(
@@ -175,19 +174,25 @@ pub fn calculate_net_proration(
     price_changes: &[(i128, i128, EffectiveDate)], // (old_price, new_price, effective_date)
 ) -> ProrationResult {
     let mut total_amount: i128 = 0;
-    
+
     for (old_price, new_price, effective_date) in price_changes {
-        let result = calculate_proration(env, subscription, *old_price, *new_price, effective_date.clone());
+        let result = calculate_proration(
+            env,
+            subscription,
+            *old_price,
+            *new_price,
+            effective_date.clone(),
+        );
         if result.is_credit {
             total_amount -= result.amount;
         } else {
             total_amount += result.amount;
         }
     }
-    
+
     let is_credit = total_amount < 0;
     let abs_amount = total_amount.abs();
-    
+
     let description = if is_credit {
         String::from_str(env, "Net prorated credit for multiple plan changes")
     } else if total_amount > 0 {
@@ -195,7 +200,7 @@ pub fn calculate_net_proration(
     } else {
         String::from_str(env, "No net proration for plan changes")
     };
-    
+
     ProrationResult {
         amount: abs_amount,
         remaining_days: 0, // Aggregate doesn't have a single remaining period
@@ -208,75 +213,16 @@ pub fn calculate_net_proration(
 }
 
 /// Handle zero-dollar prorations
-/// 
+///
 /// Returns true if the proration rounds to zero
 pub fn is_zero_proration(result: &ProrationResult) -> bool {
     result.amount == 0
 }
 
 /// Rounding accuracy helper
-/// 
+///
 /// Ensures consistent rounding across the system
 pub fn round_proration_amount(amount: i128, decimals: u32) -> i128 {
     let factor = 10i128.pow(decimals);
     (amount + factor / 2) / factor * factor
-}
-
-/// Result of a pause/resume billing adjustment calculation
-#[derive(Clone, Debug)]
-pub struct PauseAdjustmentResult {
-    /// The adjusted timestamp when the next charge will occur
-    pub adjusted_next_charge_at: u64,
-    /// Total duration in seconds the subscription was paused
-    pub elapsed_pause_seconds: u64,
-    /// Prorated credit amount credited for the paused time (if applicable)
-    pub prorated_credit: i128,
-    /// Description of the adjustment
-    pub description: String,
-}
-
-/// Calculate billing adjustment for pause and resume
-///
-/// Returns `PauseAdjustmentResult` containing the shifted `next_charge_at`
-/// and prorated credit details.
-pub fn calculate_pause_adjustment(
-    env: &Env,
-    subscription: &Subscription,
-    plan_price: i128,
-    resume_timestamp: u64,
-) -> PauseAdjustmentResult {
-    let paused_at = subscription.paused_at;
-    let max_duration = subscription.pause_duration;
-
-    // Effective pause time cannot exceed max pause duration or start before paused_at
-    let raw_elapsed = if resume_timestamp > paused_at && paused_at > 0 {
-        resume_timestamp - paused_at
-    } else {
-        0
-    };
-
-    let elapsed_pause_seconds = if max_duration > 0 {
-        raw_elapsed.min(max_duration)
-    } else {
-        raw_elapsed
-    };
-
-    let adjusted_next_charge_at = subscription.next_charge_at.saturating_add(elapsed_pause_seconds);
-
-    // Prorated credit value of paused time based on subscription period duration
-    let period_seconds = subscription.next_charge_at.saturating_sub(subscription.last_charged_at);
-    let prorated_credit = if period_seconds > 0 && plan_price > 0 {
-        (plan_price * elapsed_pause_seconds as i128) / period_seconds as i128
-    } else {
-        0
-    };
-
-    let description = String::from_str(env, "Billing cycle adjusted for subscription pause duration");
-
-    PauseAdjustmentResult {
-        adjusted_next_charge_at,
-        elapsed_pause_seconds,
-        prorated_credit,
-        description,
-    }
 }

@@ -46,7 +46,7 @@ Consent preferences for analytics and marketing can be toggled at any time in th
 
 - Data encryption at rest and in transit.
 - Secure wallet-based authentication.
-- Regular security audits (see [Security Policy](security.md)).
+- Regular security audits (see [Security Policy](SECURITY.md)).
 
 ---
 

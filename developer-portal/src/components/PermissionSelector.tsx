@@ -58,7 +58,8 @@ export const PermissionSelector: React.FC<PermissionSelectorProps> = ({
             <View style={styles.permissionHeader}>
               <Text style={styles.permissionIcon}>{permission.icon}</Text>
               <View style={styles.permissionInfo}>
-                <Text style={[styles.permissionLabel, isSelected && styles.permissionLabelSelected]}>
+                <Text
+                  style={[styles.permissionLabel, isSelected && styles.permissionLabelSelected]}>
                   {permission.label}
                 </Text>
                 <Text style={styles.permissionDescription}>{permission.description}</Text>
