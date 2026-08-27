@@ -1,4 +1,4 @@
-import { calculateSubscriptionAnalytics, toMonthlyRevenue, calculateRetentionCurve } from '../analyticsService';
+import { calculateSubscriptionAnalytics, toMonthlyRevenue, calculateRetentionCurve, calculateDetailedMrrBreakdown, calculateCohortRetentionMatrix, calculateCustomerUnitEconomics } from '../analyticsService';
 import { Subscription, SubscriptionCategory, BillingCycle } from '../../types/subscription';
 
 const makeSubscription = (overrides: Partial<Subscription> = {}): Subscription => ({
@@ -135,5 +135,64 @@ describe('calculateRetentionCurve', () => {
     const curve = calculateRetentionCurve([sub], new Date('2026-06-01'));
     expect(curve).toHaveLength(5);
     expect(curve[0].retentionRate).toBe(1);
+  });
+});
+
+describe('calculateDetailedMrrBreakdown (Issue #952)', () => {
+  it('calculates starting, new, expansion, churned and ending MRR correctly', () => {
+    const prevSub1 = makeSubscription({ id: 's1', price: 50, isActive: true });
+    const prevSub2 = makeSubscription({ id: 's2', price: 100, isActive: true });
+
+    // In current period: s1 upgraded to 80 (expansion +30), s2 cancelled (churn 100), s3 newly created (new +70)
+    const currSub1 = makeSubscription({ id: 's1', price: 80, isActive: true });
+    const currSub2 = makeSubscription({ id: 's2', price: 100, isActive: false });
+    const currSub3 = makeSubscription({ id: 's3', price: 70, isActive: true });
+
+    const breakdown = calculateDetailedMrrBreakdown(
+      [currSub1, currSub2, currSub3],
+      [prevSub1, prevSub2]
+    );
+
+    expect(breakdown.startingMrr).toBe(150);
+    expect(breakdown.expansionMrr).toBe(30);
+    expect(breakdown.churnedMrr).toBe(100);
+    expect(breakdown.newMrr).toBe(70);
+    expect(breakdown.netNewMrr).toBe(0); // (70 + 30) - 100 = 0
+    expect(breakdown.endingMrr).toBe(150);
+    expect(breakdown.endingArr).toBe(1800);
+  });
+});
+
+describe('calculateCohortRetentionMatrix (Issue #952)', () => {
+  it('generates multi-period cohort matrix and calculates average retention', () => {
+    const jan1 = makeSubscription({ id: 'j1', createdAt: new Date('2026-01-10'), isActive: true });
+    const jan2 = makeSubscription({ id: 'j2', createdAt: new Date('2026-01-15'), isActive: false });
+    const feb1 = makeSubscription({ id: 'f1', createdAt: new Date('2026-02-05'), isActive: true });
+
+    const result = calculateCohortRetentionMatrix([jan1, jan2, feb1], new Date('2026-03-15'), 3);
+
+    expect(result.cohortRows.length).toBe(2);
+    expect(result.cohortRows[0].cohort).toBe('2026-01');
+    expect(result.cohortRows[0].cohortSize).toBe(2);
+    expect(result.cohortRows[0].periods[0]).toBe(100);
+    expect(result.averagePeriodRetention.length).toBeGreaterThan(0);
+  });
+});
+
+describe('calculateCustomerUnitEconomics (Issue #952)', () => {
+  it('computes ARPU, LTV, and CAC payback period', () => {
+    const subs = [
+      makeSubscription({ id: '1', price: 40, isActive: true }),
+      makeSubscription({ id: '2', price: 60, isActive: true }),
+      makeSubscription({ id: '3', price: 50, isActive: false }),
+    ];
+
+    const economics = calculateCustomerUnitEconomics(subs, 100);
+
+    expect(economics.arpu).toBe(50); // (40 + 60) / 2
+    expect(economics.cac).toBe(100);
+    expect(economics.cacPaybackMonths).toBe(2.0); // 100 / 50 = 2 months
+    expect(economics.ltv).toBeGreaterThan(0);
+    expect(economics.ltvToCacRatio).toBeGreaterThan(0);
   });
 });
