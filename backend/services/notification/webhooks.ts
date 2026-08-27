@@ -53,3 +53,18 @@ export type {
 // ── Event Schema Validator ────────────────────────────────────────────────────
 export { EventSchemaValidator, eventSchemaValidator } from '../webhook/eventSchemaValidator';
 export type { ValidationResult } from '../webhook/eventSchemaValidator';
+
+// ── Webhook Event Filtering Engine (Issue #955) ──────────────────────────────
+export {
+  WebhookEventFilterEngine,
+  webhookFilterEngine,
+  matchEventPattern,
+  evaluateAttributeRule,
+  getNestedProperty,
+} from './webhookFilterEngine';
+export type {
+  FilterOperator,
+  AttributeRule,
+  WebhookFilterConfig,
+  FilterEvaluationResult,
+} from './webhookFilterEngine';
