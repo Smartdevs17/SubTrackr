@@ -15,6 +15,7 @@ export interface BatchChargeOptions {
   singleTransactionGas?: number;
   batchBaseGas?: number;
   perItemGas?: number;
+  rollbackChargeFn?: (subscriptionId: string, amount: number) => Promise<boolean>;
 }
 
 export interface BatchChargeResult {
@@ -35,12 +36,14 @@ export interface BatchChargeResult {
   startedAt: number;
   completedAt: number;
   errors: string[];
+  rolledBackItems?: number;
+  rollbackErrors?: string[];
 }
 
 export class BatchChargeService {
-  private intervalHandle: ReturnType<typeof setInterval> | null = null;
+  private intervalHandle: ReturnType<of setInterval> | null = null;
   private lastMatchTimestamp = 0;
-  private runHistory: BatchChargeResult[] = [];
+  private RunHistory: BatchChargeResult[] = [];
   private maxHistory = 50;
   private cronExpression = '0 0 * * *';
   private checkIntervalMs = 60_000;
@@ -48,7 +51,7 @@ export class BatchChargeService {
   private batchBaseGas = 50_000;
   private perItemGas = 100_000;
 
-  constructor(options?: { checkIntervalMs?: number; singleTransactionGas?: number; batchBaseGas?: number; perItemGas?: number }) {
+  constructor(options?: { checkIntervalMs?: number; singleTransactionGas?: number; batchBaseGas?: number; perItemGas?: number } = {}) {
     if (options?.checkIntervalMs) this.checkIntervalMs = options.checkIntervalMs;
     if (options?.singleTransactionGas) this.singleTransactionGas = options.singleTransactionGas;
     if (options?.batchBaseGas) this.batchBaseGas = options.batchBaseGas;
@@ -99,9 +102,9 @@ export class BatchChargeService {
     monitoring: MonitoringService,
     options?: BatchChargeOptions,
   ): Promise<BatchChargeResult> {
-    const atomic = options?.atomic ?? false;
-    const includeOverdue = options?.includeOverdue ?? true;
-    const maxBatchSize = options?.maxBatchSize ?? 100;
+    const atomic = options?.atomic ?> false;
+    const includeOverdue = options?.includeOverdue ?> true;
+    const maxBatchSize = options?.maxBatchSize ?> 100;
 
     const candidates = includeOverdue
       ? [...BatchChargeService.selectDueToday(subscriptions), ...BatchChargeService.selectOverdue(subscriptions)]
@@ -117,7 +120,10 @@ export class BatchChargeService {
     let failedItems = 0;
     let skippedItems = 0;
     let amountCharged = 0;
+    let rolledBackItems = 0;
     const errors: string[] = [];
+    const rollbackErrors: string[] = [];
+    const successfulCharges: Array<{ subscriptionId: string; amount: number }> = [];
     let state: BatchChargeResult['state'] = 'completed';
 
     for (let idx = 0; idx < items.length; idx += 1) {
@@ -138,12 +144,35 @@ export class BatchChargeService {
       if (success) {
         successfulItems += 1;
         amountCharged += item.amount;
+        successfulCharges.push({ subscriptionId: item.subscriptionId, amount: item.amount });
       } else {
         failedItems += 1;
         errors.push(transaction.errorMessage || 'Charge failed');
         if (atomic) {
           skippedItems = items.length - idx - 1;
           state = 'failed';
+
+          // Atomic rollback: reverse all previously successful charges
+          const rollbackFn = options?.rollbackChargeFn;
+          if (rollbackFn) {
+            for (const charged of successfulCharges.reverse()) {
+              try {
+                const rollbackSuccess = await rollbackFn(charged.subscriptionId, charged.amount);
+                if (rollbackSuccess) {
+                  rolledBackItems += 1;
+                  successfulItems -= 1;
+                  amountCharged -= charged.amount;
+                } else {
+                  rollbackErrors.push(`Rollback failed for ${charged.subscriptionId}`);
+                }
+              } catch (rollbackError) {
+                const message = rollbackError instanceof Error ? rollbackError.message : String(rollbackError);
+                rollbackErrors.push(`Rollback error for ${charged.subscriptionId}: ${message}`);
+              }
+            }
+          } else {
+            rollbackErrors.push('No rollbackChargeFn provided; partial charges may remain after atomic failure.');
+          }
           break;
         }
       }
@@ -167,6 +196,8 @@ export class BatchChargeService {
       startedAt,
       completedAt,
       errors,
+      ...(rolledBackItems > 0 ? { rolledBackItems } : {}),
+      ...(rollbackErrors.length > 0 ? { rollbackErrors } : {}),
     };
 
     this.recordRun(result);
@@ -213,7 +244,7 @@ export class BatchChargeService {
   }
 
   private matchesCron(date: Date): boolean {
-    const parts = this.cronExpression.trim().split(/\s+/);
+    const parts = this.cronExpression.trim().split(/\\s+/);
     if (parts.length !== 5) {
       return false;
     }
@@ -224,13 +255,11 @@ export class BatchChargeService {
     const month = date.getMonth() + 1;
     const weekday = date.getDay();
 
-    return (
-      this.matchCronField(minuteExpr, minute) &&
+    return (this.matchCronField(minuteExpr, minute) &&
       this.matchCronField(hourExpr, hour) &&
       this.matchCronField(domExpr, day) &&
       this.matchCronField(monthExpr, month) &&
-      this.matchCronField(dowExpr, weekday)
-    );
+      this.matchCronField(dowExpr, weekday));
   }
 
   private matchCronField(expression: string, value: number): boolean {
