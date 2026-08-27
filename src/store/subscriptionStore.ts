@@ -321,7 +321,7 @@ const debouncedAsyncStorage: StateStorage = {
   },
 };
 
-interface SubscriptionState {
+export interface SubscriptionState {
   subscriptions: Subscription[];
   creditAccounts: Record<string, CreditAccountState>;
   stats: SubscriptionStats;

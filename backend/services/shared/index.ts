@@ -170,16 +170,7 @@ export type {
   PoolTuningRecommendation,
 } from './poolMonitor';
 
-// ── Auth Strategies ───────────────────────────────────────────────────────────
-export {
-  JwtAuthStrategy,
-  ApiKeyAuthStrategy,
-  WalletAuthStrategy,
-  OAuthSessionAuthStrategy,
-  CompositeAuthStrategyManager,
-  createUnifiedAuthMiddleware,
-  createRequireRoleMiddleware,
-  createRequireStrategyMiddleware,
-} from './authStrategies';
-export type { AuthUser, IAuthStrategy } from './authStrategies';
+export { KycService, kycService } from './kycService';
+export type { KycVerificationOptions, ProcessingResult } from './kycService';
+
 
