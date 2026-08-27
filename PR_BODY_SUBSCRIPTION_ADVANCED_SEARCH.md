@@ -21,7 +21,7 @@
 ### Reviewers
 
 - At least 1 approval required for merge
-- All CI checks must be green
+- All CI checks must be gree
 
 ---
 
