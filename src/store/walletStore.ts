@@ -17,14 +17,14 @@ import {
 } from '../types/wallet';
 import {
   WalletServiceManager,
+  WalletConnection,
+} from '../services/walletService';
+import {
   PaymentMethodService,
   PaymentMethodError,
   PaymentMethodErrorCode,
-  WalletConnection,
-} from '../services/walletService';
-import type {
-  ChainPaymentResult,
-  PaymentMethodExpiryCheck,
+  type ChainPaymentResult,
+  type PaymentMethodExpiryCheck,
 } from '../services/paymentMethodService';
 import { Network } from '../config/networks';
 
