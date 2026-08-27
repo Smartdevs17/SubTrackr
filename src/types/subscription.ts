@@ -8,6 +8,11 @@ export interface Subscription {
   billingCycle: BillingCycle;
   nextBillingDate: Date;
   isActive: boolean;
+  isPaused?: boolean;
+  pausedAt?: Date;
+  pauseDurationDays?: number;
+  pausedUntil?: Date;
+  billingAdjustmentAmount?: number;
   /** When false, skip renewal reminders and charge alerts for this subscription */
   notificationsEnabled?: boolean;
   isCryptoEnabled: boolean;

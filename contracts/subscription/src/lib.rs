@@ -283,6 +283,7 @@ fn check_and_resume_internal(env: &Env, sub: &mut Subscription) -> bool {
         let now = env.ledger().timestamp();
         if now >= sub.paused_at + sub.pause_duration {
             sub.status = SubscriptionStatus::Active;
+            sub.next_charge_at = sub.next_charge_at.saturating_add(sub.pause_duration);
             sub.paused_at = 0;
             sub.pause_duration = 0;
             return true;
@@ -935,11 +936,17 @@ impl SubTrackrSubscription {
         );
 
         let now = env.ledger().timestamp();
-        let plan: Plan = storage_persistent_get(&env, &storage, StorageKey::Plan(sub.plan_id))
-            .expect("Plan not found");
+
+        let elapsed_pause = if sub.paused_at > 0 && now > sub.paused_at {
+            (now - sub.paused_at).min(sub.pause_duration)
+        } else {
+            0
+        };
 
         sub.status = SubscriptionStatus::Active;
-        sub.next_charge_at = now + plan.interval.seconds();
+        if elapsed_pause > 0 {
+            sub.next_charge_at = sub.next_charge_at.saturating_add(elapsed_pause);
+        }
         sub.paused_at = 0;
         sub.pause_duration = 0;
 
@@ -1652,6 +1659,39 @@ pub fn preview_proration(
     };
 
     proration::preview_proration(&env, &sub, old_plan.price, new_plan.price, effective)
+}
+
+/// Preview pause adjustment before resuming or pausing a subscription
+pub fn preview_pause_adjustment(
+    env: Env,
+    proxy: Address,
+    storage: Address,
+    subscription_id: u64,
+    resume_timestamp: u64,
+) -> ProrationResult {
+    proxy.require_auth();
+
+    let sub: Subscription =
+        storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
+            .expect("Subscription not found");
+
+    let plan: Plan = storage_persistent_get(&env, &storage, StorageKey::Plan(sub.plan_id))
+        .expect("Plan not found");
+
+    let adjustment = proration::calculate_pause_adjustment(&env, &sub, plan.price, resume_timestamp);
+
+    let period_days = (plan.interval.seconds() / 86400).max(1);
+    let old_daily_rate = plan.price / period_days as i128;
+
+    ProrationResult {
+        amount: adjustment.prorated_credit,
+        remaining_days: (adjustment.adjusted_next_charge_at.saturating_sub(resume_timestamp)) / 86400,
+        period_days,
+        old_daily_rate,
+        new_daily_rate: old_daily_rate,
+        is_credit: adjustment.prorated_credit > 0,
+        description: adjustment.description,
+    }
 }
 
 /// Execute a plan change with proration

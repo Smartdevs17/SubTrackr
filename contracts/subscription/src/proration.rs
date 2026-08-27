@@ -221,3 +221,62 @@ pub fn round_proration_amount(amount: i128, decimals: u32) -> i128 {
     let factor = 10i128.pow(decimals);
     (amount + factor / 2) / factor * factor
 }
+
+/// Result of a pause/resume billing adjustment calculation
+#[derive(Clone, Debug)]
+pub struct PauseAdjustmentResult {
+    /// The adjusted timestamp when the next charge will occur
+    pub adjusted_next_charge_at: u64,
+    /// Total duration in seconds the subscription was paused
+    pub elapsed_pause_seconds: u64,
+    /// Prorated credit amount credited for the paused time (if applicable)
+    pub prorated_credit: i128,
+    /// Description of the adjustment
+    pub description: String,
+}
+
+/// Calculate billing adjustment for pause and resume
+///
+/// Returns `PauseAdjustmentResult` containing the shifted `next_charge_at`
+/// and prorated credit details.
+pub fn calculate_pause_adjustment(
+    env: &Env,
+    subscription: &Subscription,
+    plan_price: i128,
+    resume_timestamp: u64,
+) -> PauseAdjustmentResult {
+    let paused_at = subscription.paused_at;
+    let max_duration = subscription.pause_duration;
+
+    // Effective pause time cannot exceed max pause duration or start before paused_at
+    let raw_elapsed = if resume_timestamp > paused_at && paused_at > 0 {
+        resume_timestamp - paused_at
+    } else {
+        0
+    };
+
+    let elapsed_pause_seconds = if max_duration > 0 {
+        raw_elapsed.min(max_duration)
+    } else {
+        raw_elapsed
+    };
+
+    let adjusted_next_charge_at = subscription.next_charge_at.saturating_add(elapsed_pause_seconds);
+
+    // Prorated credit value of paused time based on subscription period duration
+    let period_seconds = subscription.next_charge_at.saturating_sub(subscription.last_charged_at);
+    let prorated_credit = if period_seconds > 0 && plan_price > 0 {
+        (plan_price * elapsed_pause_seconds as i128) / period_seconds as i128
+    } else {
+        0
+    };
+
+    let description = String::from_str(env, "Billing cycle adjusted for subscription pause duration");
+
+    PauseAdjustmentResult {
+        adjusted_next_charge_at,
+        elapsed_pause_seconds,
+        prorated_credit,
+        description,
+    }
+}
