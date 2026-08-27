@@ -11,7 +11,6 @@ module.exports = {
     '/node_modules/',
     '<rootDir>/e2e/',
     '<rootDir>/src/animations/',
-    '<rootDir>/app/',
     '<rootDir>/backend/',
     '<rootDir>/developer-portal/',
     '<rootDir>/contracts/',

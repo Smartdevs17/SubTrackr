@@ -23,7 +23,7 @@
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, symbol_short, Address, Env, String, Vec,
 };
-use subtrackr_types::{SubscriptionId, CoreError};
+use subtrackr_types::{CoreError, SubscriptionId};
 
 /// Maximum retained transaction-history and lot entries per account.
 const MAX_HISTORY: u32 = 128;
@@ -147,8 +147,28 @@ pub struct PrepaymentWallet {
     pub balance: i128,
     pub total_deposited: i128,
     pub total_withdrawn: i128,
+    pub total_drawn: i128,
+    pub transactions: Vec<PrepaymentTransaction>,
     pub created_at: u64,
     pub updated_at: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PrepaymentTxKind {
+    Deposit,
+    Withdraw,
+    Drawdown,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PrepaymentTransaction {
+    pub id: u64,
+    pub kind: PrepaymentTxKind,
+    pub amount: i128,
+    pub balance_after: i128,
+    pub timestamp: u64,
 }
 
 /// Prepayment summary returned after a deposit or withdrawal.
@@ -167,7 +187,10 @@ enum DataKey {
     NextId,
     Account(Address),
     Wallet(u64),
+    WalletTx(u64),
     Counter(u64),
+    AccountCount,
+    AccountIndex(Address),
 }
 
 #[contract]
@@ -388,10 +411,14 @@ impl SubTrackrCredit {
             balance: 0,
             total_deposited: 0,
             total_withdrawn: 0,
+            total_drawn: 0,
+            transactions: Vec::new(&env),
             created_at: now,
             updated_at: now,
         };
-        env.storage().persistent().set(&DataKey::Wallet(wallet_id), &wallet);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Wallet(wallet_id), &wallet);
         env.events()
             .publish((symbol_short!("wallet"), subscriber), wallet_id);
         wallet_id
@@ -420,11 +447,15 @@ impl SubTrackrCredit {
         wallet.balance += amount;
         wallet.total_deposited += amount;
         wallet.updated_at = now;
-        env.storage().persistent().set(&DataKey::Wallet(wallet_id), &wallet);
+        let transaction_id =
+            Self::record_wallet_transaction(&env, &mut wallet, PrepaymentTxKind::Deposit, amount);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Wallet(wallet_id), &wallet);
         Ok(PrepaymentSnapshot {
             wallet_id,
             balance: wallet.balance,
-            transaction_id: Self::next_tx_id(&env, wallet_id),
+            transaction_id,
         })
     }
 
@@ -454,12 +485,59 @@ impl SubTrackrCredit {
         wallet.balance -= amount;
         wallet.total_withdrawn += amount;
         wallet.updated_at = now;
-        env.storage().persistent().set(&DataKey::Wallet(wallet_id), &wallet);
+        let transaction_id =
+            Self::record_wallet_transaction(&env, &mut wallet, PrepaymentTxKind::Withdraw, amount);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Wallet(wallet_id), &wallet);
         Ok(PrepaymentSnapshot {
             wallet_id,
             balance: wallet.balance,
-            transaction_id: Self::next_tx_id(&env, wallet_id),
+            transaction_id,
         })
+    }
+
+    /// Draws funds from a prepayment wallet to settle a subscription charge.
+    /// The subscriber authorizes the draw and the wallet can never go negative.
+    pub fn drawdown(
+        env: Env,
+        caller: Address,
+        wallet_id: u64,
+        amount: i128,
+    ) -> Result<PrepaymentSnapshot, CreditError> {
+        caller.require_auth();
+        if amount <= 0 {
+            return Err(CreditError::InvalidAmount);
+        }
+        let mut wallet: PrepaymentWallet = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Wallet(wallet_id))
+            .ok_or(CreditError::WalletNotFound)?;
+        if wallet.subscriber != caller {
+            return Err(CreditError::Unauthorized);
+        }
+        if wallet.balance < amount {
+            return Err(CreditError::InsufficientCredit);
+        }
+        wallet.balance -= amount;
+        wallet.total_drawn += amount;
+        wallet.updated_at = env.ledger().timestamp();
+        let transaction_id =
+            Self::record_wallet_transaction(&env, &mut wallet, PrepaymentTxKind::Drawdown, amount);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Wallet(wallet_id), &wallet);
+        Ok(PrepaymentSnapshot {
+            wallet_id,
+            balance: wallet.balance,
+            transaction_id,
+        })
+    }
+
+    /// Returns a wallet when it exists.
+    pub fn get_wallet(env: Env, wallet_id: u64) -> Option<PrepaymentWallet> {
+        env.storage().persistent().get(&DataKey::Wallet(wallet_id))
     }
 
     /// Returns the current balance of a prepayment wallet.
@@ -475,14 +553,24 @@ impl SubTrackrCredit {
     /// applies credit lot expiry, and returns total expired amounts. Caller
     /// must be admin.
     pub fn expire_credits_with_cron(env: Env, admin: Address) -> Vec<(Address, i128)> {
+        let configured_admin = Self::require_admin(&env).expect("admin required");
+        if configured_admin != admin {
+            panic!("unauthorized");
+        }
         admin.require_auth();
         let now = env.ledger().timestamp();
         let mut results: Vec<(Address, i128)> = Vec::new(&env);
+        let count: u32 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::AccountCount)
+            .unwrap_or(0);
         let mut i: u32 = 0;
-        while i < MAX_HISTORY {
+        while i < count {
             let key = DataKey::Counter(i as u64);
             if !env.storage().persistent().has(&key) {
-                break;
+                i += 1;
+                continue;
             }
             let subscriber: Address = env.storage().persistent().get(&key).unwrap();
             let mut account = Self::account(&env, &subscriber);
@@ -521,6 +609,21 @@ impl SubTrackrCredit {
     }
 
     fn save(env: &Env, account: &AccountCredit) {
+        let account_index = DataKey::AccountIndex(account.subscriber.clone());
+        if !env.storage().persistent().has(&account_index) {
+            let index: u32 = env
+                .storage()
+                .persistent()
+                .get(&DataKey::AccountCount)
+                .unwrap_or(0);
+            env.storage()
+                .persistent()
+                .set(&DataKey::Counter(index as u64), &account.subscriber);
+            env.storage().persistent().set(&account_index, &index);
+            env.storage()
+                .persistent()
+                .set(&DataKey::AccountCount, &(index + 1));
+        }
         env.storage()
             .persistent()
             .set(&DataKey::Account(account.subscriber.clone()), account);
@@ -533,20 +636,42 @@ impl SubTrackrCredit {
     }
 
     fn next_wallet_id(env: &Env) -> u64 {
-        let base: u64 = env.storage().instance().get(&symbol_short!("NWID")).unwrap_or(0);
+        let base: u64 = env
+            .storage()
+            .instance()
+            .get(&symbol_short!("NWID"))
+            .unwrap_or(0);
         env.storage()
             .instance()
             .set(&symbol_short!("NWID"), &(base + 1));
         base
     }
 
-    fn next_tx_id(env: &Env, _wallet_id: u64) -> u64 {
-        let base: u64 = env
-            .storage()
-            .instance()
-            .get(&symbol_short!("NWID"))
-            .unwrap_or(0);
-        base
+    fn next_wallet_tx_id(env: &Env, wallet_id: u64) -> u64 {
+        let key = DataKey::WalletTx(wallet_id);
+        let id: u64 = env.storage().persistent().get(&key).unwrap_or(0);
+        env.storage().persistent().set(&key, &(id + 1));
+        id
+    }
+
+    fn record_wallet_transaction(
+        env: &Env,
+        wallet: &mut PrepaymentWallet,
+        kind: PrepaymentTxKind,
+        amount: i128,
+    ) -> u64 {
+        let id = Self::next_wallet_tx_id(env, wallet.id);
+        wallet.transactions.push_back(PrepaymentTransaction {
+            id,
+            kind,
+            amount,
+            balance_after: wallet.balance,
+            timestamp: env.ledger().timestamp(),
+        });
+        while wallet.transactions.len() > MAX_HISTORY {
+            wallet.transactions.remove(0);
+        }
+        id
     }
 
     /// Sum of unexpired lot balances.
