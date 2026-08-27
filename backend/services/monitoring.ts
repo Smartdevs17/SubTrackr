@@ -4,6 +4,7 @@
  */
 
 import type { TransactionEvent, Metric, AlertRule, Alert, DashboardSnapshot } from './types';
+export * from './shared/monitoring';
 
 export class MonitoringService {
   private events: TransactionEvent[] = [];
