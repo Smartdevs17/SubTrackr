@@ -1,15 +1,9 @@
-[workspace]
-members = [
-    ".",
-    "metering",
-]
-
 [package]
-name = "subtrackr"
+name = "subtrackr-metering"
 version = "0.1.0"
 edition = "2021"
 authors = ["SubTrackr Team"]
-description = "On-chain subscription management on Stellar/Soroban"
+description = "On-chain subscription metering with real-time usage tracking on Stellar/Soroban"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
