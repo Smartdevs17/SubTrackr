@@ -50,3 +50,23 @@ export type {
 } from './apiResponse';
 export type { TransactionStatus, AlertSeverity, AlertChannel, TransactionEvent, Metric, Alert, AlertRule, AlertChannelConfig, DashboardSnapshot } from './types';
 export { MonitoringService, monitoringService } from './monitoring';
+export {
+  buildCspHeader,
+  buildSecurityHeaders,
+  createCspMiddleware,
+  sanitizeHtml,
+  sanitizeObject,
+  createXssSanitizerMiddleware,
+  generateCspNonce,
+  buildNoncePolicy,
+  DEFAULT_CSP_POLICY,
+  HTML_CSP_POLICY,
+} from './cspMiddleware';
+export type {
+  CspPolicy,
+  SanitizeOptions,
+  SecurityHeaders,
+  SecurityMiddleware,
+  SanitizableRequest,
+  XssSanitizerMiddlewareOptions,
+} from './cspMiddleware';
