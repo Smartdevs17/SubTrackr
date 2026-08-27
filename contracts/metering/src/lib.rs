@@ -1,4 +1,5 @@
 #![no_std]
+#![allow(clippy::too_many_arguments)]
 //! SubTrackr usage-metering contract.
 //!
 //! Real-time usage-based billing (issue: metered billing). Reporters push
@@ -35,6 +36,8 @@ const DEFAULT_PERIOD_SECS: u64 = 86_400;
 /// Maximum number of retained period buckets per meter (~one quarter of days).
 const MAX_BUCKETS: u32 = 90;
 
+use subtrackr_types::CoreError;
+
 #[contracterror]
 #[derive(Clone, Debug, Copy, PartialEq, Eq)]
 #[repr(u32)]
@@ -42,6 +45,27 @@ pub enum MeteringError {
     InvalidValue = 1,
     InvalidPeriod = 2,
     MeterNotFound = 3,
+}
+
+impl From<MeteringError> for CoreError {
+    fn from(err: MeteringError) -> Self {
+        match err {
+            MeteringError::InvalidValue => CoreError::InvalidAmount,
+            MeteringError::InvalidPeriod => CoreError::InvalidInterval,
+            MeteringError::MeterNotFound => CoreError::NotFound,
+        }
+    }
+}
+
+impl From<CoreError> for MeteringError {
+    fn from(err: CoreError) -> Self {
+        match err {
+            CoreError::InvalidAmount => MeteringError::InvalidValue,
+            CoreError::InvalidInterval => MeteringError::InvalidPeriod,
+            CoreError::NotFound => MeteringError::MeterNotFound,
+            _ => MeteringError::InvalidValue,
+        }
+    }
 }
 
 #[contracttype]
@@ -125,7 +149,8 @@ impl SubTrackrMetering {
         state.last_timestamp = now;
         Self::add_to_bucket(&mut state, now, value);
 
-        if state.alert_threshold != 0 && !state.alert_fired && state.total >= state.alert_threshold {
+        if state.alert_threshold != 0 && !state.alert_fired && state.total >= state.alert_threshold
+        {
             state.alert_fired = true;
             env.events().publish(
                 (symbol_short!("usage_alt"), subscription_id, meter.clone()),
@@ -141,8 +166,10 @@ impl SubTrackrMetering {
             value,
             timestamp: now,
         };
-        env.events()
-            .publish((symbol_short!("usage"), subscription_id), observation.clone());
+        env.events().publish(
+            (symbol_short!("usage"), subscription_id),
+            observation.clone(),
+        );
         Ok(observation)
     }
 
@@ -226,7 +253,10 @@ impl SubTrackrMetering {
                 return;
             }
         }
-        state.buckets.push_back(UsageBucket { start, units: value });
+        state.buckets.push_back(UsageBucket {
+            start,
+            units: value,
+        });
         while state.buckets.len() > MAX_BUCKETS {
             state.buckets.remove(0);
         }
@@ -274,6 +304,8 @@ impl SubTrackrMetering {
             i += 1;
         }
         metrics.push_back(metric.clone());
-        env.storage().persistent().set(&DataKey::Meters(sub), &metrics);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Meters(sub), &metrics);
     }
 }

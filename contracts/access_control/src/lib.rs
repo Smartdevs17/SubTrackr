@@ -2,7 +2,9 @@
 
 mod roles;
 
-use roles::{contains_permission, role_permissions, DataKey, Delegation, MultisigAction, MultisigProposal};
+use roles::{
+    contains_permission, role_permissions, DataKey, Delegation, MultisigAction, MultisigProposal,
+};
 use soroban_sdk::{contract, contractimpl, Address, Env, Symbol, Vec};
 use subtrackr_types::{Permission, Role, RoleChangeAction, RoleChangeEntry};
 
@@ -41,7 +43,10 @@ fn save_role_change(
 }
 
 fn get_user_permissions(env: &Env, user: &Address) -> Vec<Permission> {
-    let roles_opt: Option<Vec<Role>> = env.storage().instance().get(&DataKey::UserRoles(user.clone()));
+    let roles_opt: Option<Vec<Role>> = env
+        .storage()
+        .instance()
+        .get(&DataKey::UserRoles(user.clone()));
     let mut all_perms: Vec<Permission> = Vec::new(env);
 
     if let Some(roles) = roles_opt {
@@ -108,7 +113,13 @@ impl RoleManager {
             .instance()
             .set(&DataKey::MultisigProposalCount, &0u64);
 
-        save_role_change(&env, &admin, &Role::Admin, RoleChangeAction::Granted, &admin);
+        save_role_change(
+            &env,
+            &admin,
+            &Role::Admin,
+            RoleChangeAction::Granted,
+            &admin,
+        );
 
         env.events().publish(
             (Symbol::new(&env, "access_control_initialized"),),
@@ -157,18 +168,10 @@ impl RoleManager {
             .instance()
             .set(&DataKey::UserRoles(user.clone()), &user_roles);
 
-        save_role_change(
-            &env,
-            &user,
-            &role,
-            RoleChangeAction::Granted,
-            &caller,
-        );
+        save_role_change(&env, &user, &role, RoleChangeAction::Granted, &caller);
 
-        env.events().publish(
-            (Symbol::new(&env, "role_granted"),),
-            (caller, user, role),
-        );
+        env.events()
+            .publish((Symbol::new(&env, "role_granted"),), (caller, user, role));
     }
 
     pub fn revoke_role(env: Env, caller: Address, user: Address, role: Role) {
@@ -206,7 +209,7 @@ impl RoleManager {
             .unwrap_or(Vec::new(&env));
         let mut new_members: Vec<Address> = Vec::new(&env);
         for m in members.iter() {
-            if &m != &user {
+            if m != user {
                 new_members.push_back(m);
             }
         }
@@ -221,7 +224,7 @@ impl RoleManager {
             .unwrap_or(Vec::new(&env));
         let mut new_roles: Vec<Role> = Vec::new(&env);
         for r in user_roles.iter() {
-            if &r != &role {
+            if r != role {
                 new_roles.push_back(r);
             }
         }
@@ -273,22 +276,15 @@ impl RoleManager {
             }
         }
 
-        save_role_change(
-            &env,
-            &user,
-            &role,
-            RoleChangeAction::Revoked,
-            &caller,
-        );
+        save_role_change(&env, &user, &role, RoleChangeAction::Revoked, &caller);
 
-        env.events().publish(
-            (Symbol::new(&env, "role_revoked"),),
-            (caller, user, role),
-        );
+        env.events()
+            .publish((Symbol::new(&env, "role_revoked"),), (caller, user, role));
     }
 
     pub fn has_permission(env: Env, user: Address, permission: Permission) -> bool {
-        if env.storage()
+        if env
+            .storage()
             .instance()
             .get::<_, bool>(&DataKey::EmergencyPaused)
             .unwrap_or(false)
@@ -367,10 +363,7 @@ impl RoleManager {
             "Unauthorized: missing DelegatePermission"
         );
 
-        let expires_at = env
-            .ledger()
-            .timestamp()
-            .saturating_add(duration_secs);
+        let expires_at = env.ledger().timestamp().saturating_add(duration_secs);
 
         let delegation = Delegation {
             delegator: delegator.clone(),
@@ -388,7 +381,12 @@ impl RoleManager {
         );
     }
 
-    pub fn revoke_delegation(env: Env, delegator: Address, delegate: Address, permission: Permission) {
+    pub fn revoke_delegation(
+        env: Env,
+        delegator: Address,
+        delegate: Address,
+        permission: Permission,
+    ) {
         delegator.require_auth();
 
         let key = DataKey::Delegation(delegate.clone(), permission.clone());
@@ -490,11 +488,7 @@ impl RoleManager {
         entries
     }
 
-    pub fn propose_multisig_action(
-        env: Env,
-        proposer: Address,
-        action: MultisigAction,
-    ) -> u64 {
+    pub fn propose_multisig_action(env: Env, proposer: Address, action: MultisigAction) -> u64 {
         proposer.require_auth();
         assert!(
             !env.storage()
@@ -600,15 +594,12 @@ impl RoleManager {
             .unwrap_or(DEFAULT_MULTISIG_THRESHOLD);
 
         assert!(
-            proposal.approvals.len() >= threshold as u32,
+            proposal.approvals.len() >= threshold,
             "Insufficient approvals"
         );
 
         let now = env.ledger().timestamp();
-        assert!(
-            now >= proposal.execute_after,
-            "Timelock not yet elapsed"
-        );
+        assert!(now >= proposal.execute_after, "Timelock not yet elapsed");
 
         match proposal.action {
             MultisigAction::SetEmergencyAdmin(ref new_admin) => {

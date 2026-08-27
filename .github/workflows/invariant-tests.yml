@@ -11,7 +11,7 @@ on:
       - 'contracts/**'
 
 env:
-  RUST_VERSION: '1.85'
+  RUST_VERSION: '1.88'
   # Number of proptest cases per property. Increase for deeper fuzzing.
   PROPTEST_CASES: 200
 
@@ -58,7 +58,7 @@ jobs:
       # ── Upload test results as artifact ───────────────────────────────
       - name: Upload invariant test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: invariant-test-results
           path: contracts/invariant-test-results.txt
@@ -95,7 +95,7 @@ jobs:
 
       - name: Upload extended fuzz results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: extended-fuzz-results
           path: contracts/extended-fuzz-results.txt

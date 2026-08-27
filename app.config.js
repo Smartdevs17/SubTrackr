@@ -15,6 +15,8 @@ module.exports = ({ config }) => ({
   android: {
     ...appJson.expo.android,
     package: isProduction ? 'com.subtrackr.app' : `com.subtrackr.app.${env}`,
+    jsEngine: 'hermes',
+    hermesFlags: ['-g', '--minify', '--inline-store-on-put', '--allocation-profile'],
   },
   plugins: ['expo-dev-client', ...(appJson.expo.plugins || [])],
   extra: {
@@ -22,5 +24,11 @@ module.exports = ({ config }) => ({
     appEnv: env,
     apiUrl: process.env.EXPO_PUBLIC_API_URL || 'https://sandbox.api.subtrackr.app',
     nativeDebuggingEnabled: !isProduction,
+    hermesOptimizations: {
+      enabled: true,
+      inlineStoreOnPut: true,
+      allocationProfile: true,
+      bytecodeCache: true,
+    },
   },
 });

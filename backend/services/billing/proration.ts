@@ -1,256 +1,283 @@
-import { BillingCycle, Subscription } from '../../../src/types/subscription';
+import {
+  ProrationPreview,
+  CreditMemo,
+  getPeriodDays,
+  getRemainingDays,
+  previewProration as clientPreviewProration,
+  generateCreditMemo as clientGenerateCreditMemo,
+  applyCreditMemo as clientApplyCreditMemo,
+} from '../../../src/utils/proration';
+import type { Subscription } from '../../../src/types/subscription';
 
-export interface ProrationResult {
-  /** Charge amount (positive) or credit amount (positive value representing credit) */
-  amount: number;
-  /** True if this proration yields a credit to the subscriber */
-  isCredit: boolean;
-  /** Remaining days left in the current billing cycle */
-  remainingDays: number;
-  /** Remaining seconds left in current billing cycle */
-  remainingSeconds: number;
-  /** Total days in current billing period */
-  periodDays: number;
-  /** Total seconds in current billing period */
-  periodSeconds: number;
-  /** Unused value of old plan */
-  unusedOldValue: number;
-  /** Prorated value of new plan for remaining period */
-  proratedNewValue: number;
-  /** Daily rate of old plan */
-  oldDailyRate: number;
-  /** Daily rate of new plan */
-  newDailyRate: number;
-  /** Human-readable explanation */
-  description: string;
-  /** Effective timing of change */
-  effectiveDate: 'immediate' | 'end_of_period';
+export interface ProrationConfiguration {
+  planId: string;
+  method: 'daily' | 'hourly' | 'none';
+  allowMidCycleChanges: boolean;
+  maxChangesPerCycle: number;
+  creditExpirationDays: number;
+  prorationPrecision: number;
 }
 
-export interface CreditMemo {
+export interface ProrationAnalytics {
+  totalProrations: number;
+  totalCreditsIssued: number;
+  totalChargesApplied: number;
+  netProrationAmount: number;
+  averageProrationAmount: number;
+  prorationCount: number;
+  creditsUsedCount: number;
+  chargesCount: number;
+  disputesCount: number;
+  disputesResolved: number;
+  averageResolutionDays: number;
+}
+
+export interface ProrationDispute {
   id: string;
   subscriptionId: string;
+  prorationId: string;
   amount: number;
-  remainingBalance: number;
   reason: string;
+  status: 'pending' | 'investigating' | 'resolved' | 'rejected';
   createdAt: Date;
-  applied: boolean;
+  resolvedAt?: Date;
+  resolution?: string;
 }
 
 export interface MidCycleChangeRequest {
-  subscription: Subscription;
+  subscriptionId: string;
+  oldPrice: number;
   newPrice: number;
-  newBillingCycle?: BillingCycle;
-  effectiveDate?: 'immediate' | 'end_of_period';
-  customPeriodDays?: number;
+  effectiveDate: 'immediate' | 'end_of_period' | Date;
+  reason?: string;
+  requestedBy: string;
 }
 
-const CYCLE_DAYS: Record<string, number> = {
-  [BillingCycle.DAILY]: 1,
-  [BillingCycle.WEEKLY]: 7,
-  [BillingCycle.BIWEEKLY]: 14,
-  [BillingCycle.MONTHLY]: 30,
-  [BillingCycle.BIMONTHLY]: 60,
-  [BillingCycle.QUARTERLY]: 90,
-  [BillingCycle.SEMI_ANNUALLY]: 182,
-  [BillingCycle.ANNUALLY]: 365,
-  [BillingCycle.CUSTOM]: 30,
+const DEFAULT_CONFIG: ProrationConfiguration = {
+  planId: 'default',
+  method: 'daily',
+  allowMidCycleChanges: true,
+  maxChangesPerCycle: 3,
+  creditExpirationDays: 90,
+  prorationPrecision: 2,
 };
 
-/**
-  * Calculate duration of a billing cycle in days
-  */
-export function getCycleDays(cycle: BillingCycle): number {
-  return CYCLE_DAYS[cycle] ?? 30;
-}
+export class ProrationService {
+  private configurations = new Map<string, ProrationConfiguration>();
+  private disputes: ProrationDispute[] = [];
+  private prorationHistory: Array<{
+    subscriptionId: string;
+    preview: ProrationPreview;
+    timestamp: Date;
+    applied: boolean;
+  }> = [];
 
-/**
-  * Calculate duration of a billing cycle in seconds
-  */
-export function getCycleSeconds(cycle: BillingCycle): number {
-  return getCycleDays(cycle) * 86400;
-}
+  configurePlan(planId: string, config: Partial<ProrationConfiguration>): ProrationConfiguration {
+    const existing = this.configurations.get(planId);
+    const merged: ProrationConfiguration = {
+      ...DEFAULT_CONFIG,
+      ...existing,
+      ...config,
+      planId,
+    };
+    this.configurations.set(planId, merged);
+    return merged;
+  }
 
-/**
-  * Generate a unique credit memo ID
-  */
-function generateMemoId(): string {
-  return `cm_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 8)}`;
-}
+  getConfiguration(planId: string): ProrationConfiguration {
+    return this.configurations.get(planId) ?? DEFAULT_CONFIG;
+  }
 
-export class ProrationEngine {
-  /**
-    * Calculate proration for mid-cycle plan or interval changes
-    *
-    * Formula:
-    * Unused Old Value = (Old Price / Total Period) * Remaining Period
-    * Prorated New Value = (New Price / Total Period) * Remaining Period
-    * Net Adjustment = Prorated New Value - Unused Old Value
-    */
-  public static calculateMidCycleProration(request: MidCycleChangeRequest): ProrationResult {
-    const { subscription, newPrice, newBillingCycle, effectiveDate = 'immediate' } = request;
+  calculateProration(
+    subscription: Subscription,
+    newPrice: number,
+    effectiveDate: 'immediate' | 'end_of_period' | Date,
+    planId?: string
+  ): ProrationPreview {
+    const config = this.getConfiguration(planId ?? subscription.id);
 
-    const now = new Date();
-    const nextBilling = new Date(subscription.nextBillingDate);
-    const targetCycle = newBillingCycle ?? subscription.billingCycle;
-
-    const periodDays = request.customPeriodDays ?? getCycleDays(subscription.billingCycle);
-    const periodSeconds = periodDays * 86400;
-
-    if (effectiveDate === 'end_of_period' || nextBilling <= now) {
+    if (config.method === 'none') {
       return {
         amount: 0,
         isCredit: false,
         remainingDays: 0,
-        remainingSeconds: 0,
-        periodDays,
-        periodSeconds,
-        unusedOldValue: 0,
-        proratedNewValue: 0,
-        oldDailyRate: Math.round((subscription.price / periodDays) * 100) / 100,
-        newDailyRate: Math.round((newPrice / getCycleDays(targetCycle)) * 100) / 100,
-        description: 'Plan change takes effect at the end of current billing period (no proration)',
+        periodDays: 0,
+        oldDailyRate: 0,
+        newDailyRate: 0,
+        description: 'Proration disabled for this plan',
         effectiveDate: 'end_of_period',
       };
     }
 
-    const remainingMs = Math.max(0, nextBilling.getTime() - now.getTime());
-    const remainingSeconds = Math.floor(remainingMs / 1000);
-    const remainingDays = Math.ceil(remainingMs / (1000 * 60 * 60 * 24));
-
-    const oldDailyRate = subscription.price / periodDays;
-    const newCycleDays = getCycleDays(targetCycle);
-    const newDailyRate = newPrice / newCycleDays;
-
-    // Proration math based on exact second ratio
-    const fractionRemaining = remainingSeconds / periodSeconds;
-    const unusedOldValue = subscription.price * fractionRemaining;
-    const proratedNewValue = newPrice * fractionRemaining;
-
-    const netAdjustment = proratedNewValue - unusedOldValue;
-    const isCredit = netAdjustment < 0;
-    const rawAmount = Math.abs(netAdjustment);
-    const amount = Math.round(rawAmount * 100) / 100;
-
-    let description: string;
-    if (amount === 0) {
-      description = 'No net proration required for this plan change';
-    } else if (isCredit) {
-      description = `Prorated credit of $${amount.toFixed(2)} applied for plan downgrade (${remainingDays} days remaining)`;
-    } else {
-      description = `Prorated charge of $${amount.toFixed(2)} for mid-cycle plan upgrade (${remainingDays} days remaining)`;
+    let effectiveType: 'immediate' | 'end_of_period' = 'immediate';
+    if (effectiveDate === 'end_of_period') {
+      effectiveType = 'end_of_period';
+    } else if (effectiveDate instanceof Date) {
+      const now = new Date();
+      const nextBilling = new Date(subscription.nextBillingDate);
+      if (effectiveDate.getTime() > now.getTime() && effectiveDate.getTime() <= nextBilling.getTime()) {
+        effectiveType = 'immediate';
+      } else {
+        effectiveType = 'end_of_period';
+      }
     }
 
-    return {
-      amount,
-      isCredit,
-      remainingDays,
-      remainingSeconds,
-      periodDays,
-      periodSeconds,
-      unusedOldValue: Math.round(unusedOldValue * 100) / 100,
-      proratedNewValue: Math.round(proratedNewValue * 100) / 100,
-      oldDailyRate: Math.round(oldDailyRate * 100) / 100,
-      newDailyRate: Math.round(newDailyRate * 100) / 100,
-      description,
-      effectiveDate: 'immediate',
-    };
+    const preview = clientPreviewProration(subscription, newPrice, effectiveType);
+
+    if (config.method === 'hourly') {
+      const hoursRemaining = preview.remainingDays * 24;
+      const hoursInPeriod = preview.periodDays * 24;
+      const amount = effectiveType === 'end_of_period'
+        ? 0
+        : ((newPrice - subscription.price) * hoursRemaining) / hoursInPeriod;
+
+      const roundedAmount = Math.round(Math.abs(amount) * Math.pow(10, config.prorationPrecision))
+        / Math.pow(10, config.prorationPrecision);
+
+      return {
+        ...preview,
+        amount: roundedAmount,
+        isCredit: amount < 0,
+        description: amount < 0
+          ? `Prorated credit of ${roundedAmount} for plan downgrade (${hoursRemaining} hours remaining)`
+          : amount > 0
+            ? `Prorated charge of ${roundedAmount} for plan upgrade (${hoursRemaining} hours remaining)`
+            : 'No proration required',
+      };
+    }
+
+    return preview;
   }
 
-  /**
-    * Create a credit memo for downgrade credits or unused balances
-    */
-  public static generateCreditMemo(
+  executeMidCycleChange(
+    subscription: Subscription,
+    newPrice: number,
+    effectiveDate: 'immediate' | 'end_of_period' | Date,
+    planId?: string
+  ): { preview: ProrationPreview; creditMemo?: CreditMemo } {
+    const config = this.getConfiguration(planId ?? subscription.id);
+
+    if (!config.allowMidCycleChanges) {
+      throw new Error('Mid-cycle changes are not allowed for this plan');
+    }
+
+    const recentChanges = this.prorationHistory.filter(
+      (h) =>
+        h.subscriptionId === subscription.id &&
+        h.applied &&
+        h.timestamp.getTime() > Date.now() - 30 * 24 * 60 * 60 * 1000
+    );
+
+    if (recentChanges.length >= config.maxChangesPerCycle) {
+      throw new Error(`Maximum ${config.maxChangesPerCycle} plan changes per cycle reached`);
+    }
+
+    const preview = this.calculateProration(subscription, newPrice, effectiveDate, planId);
+
+    let creditMemo: CreditMemo | undefined;
+    if (preview.isCredit && preview.amount > 0) {
+      creditMemo = clientGenerateCreditMemo(subscription.id, preview.amount, preview.description);
+    }
+
+    this.prorationHistory.push({
+      subscriptionId: subscription.id,
+      preview,
+      timestamp: new Date(),
+      applied: true,
+    });
+
+    return { preview, creditMemo };
+  }
+
+  createDispute(
     subscriptionId: string,
+    prorationId: string,
     amount: number,
     reason: string
-  ): CreditMemo {
-    const roundedAmount = Math.round(Math.abs(amount) * 100) / 100;
-    return {
-      id: generateMemoId(),
+  ): ProrationDispute {
+    const dispute: ProrationDispute = {
+      id: `disp_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
       subscriptionId,
-      amount: roundedAmount,
-      remainingBalance: roundedAmount,
-      reason,
-      createdAt: new Date(),
-      applied: roundedAmount <= 0,
-    };
-  }
-
-  /**
-    * Apply credit memo balance to reduce upcoming charge
-    */
-  public static applyCreditBalance(
-    chargeAmount: number,
-    creditMemo: CreditMemo
-  ): { finalCharge: number; updatedMemo: CreditMemo; creditApplied: number } {
-    if (creditMemo.applied || creditMemo.remainingBalance <= 0) {
-      return { finalCharge: chargeAmount, updatedMemo: creditMemo, creditApplied: 0 };
-    }
-
-    const creditApplied = Math.min(chargeAmount, creditMemo.remainingBalance);
-    const remainingBalance = creditMemo.remainingBalance - creditApplied;
-    const finalCharge = Math.round((chargeAmount - creditApplied) * 100) / 100;
-    const roundedRemaining = Math.round(remainingBalance * 100) / 100;
-
-    return {
-      finalCharge,
-      creditApplied: Math.round(creditApplied * 100) / 100,
-      updatedMemo: {
-        ...creditMemo,
-        remainingBalance: roundedRemaining,
-        applied: roundedRemaining <= 0,
-      },
-    };
-  }
-
-  /**
-    * Calculate aggregate net proration for multiple sequential changes in one cycle
-    */
-  public static calculateNetProration(
-    subscription: Subscription,
-    changes: Array<{ newPrice: number; newBillingCycle?: BillingCycle; effectiveDate?: 'immediate' | 'end_of_period' }>
-  ): ProrationResult {
-    let currentSub = { ...subscription };
-    let totalAdjustment = 0;
-    let lastResult: ProrationResult | null = null;
-
-    for (const change of changes) {
-      const res = this.calculateMidCycleProration({
-        subscription: currentSub,
-        newPrice: change.newPrice,
-        newBillingCycle: change.newBillingCycle,
-        effectiveDate: change.effectiveDate,
-      });
-
-      totalAdjustment += res.isCredit ? -res.amount : res.amount;
-      currentSub = { ...currentSub, price: change.newPrice };
-      if (change.newBillingCycle) {
-        currentSub.billingCycle = change.newBillingCycle;
-      }
-      lastResult = res;
-    }
-
-    const isCredit = totalAdjustment < 0;
-    const amount = Math.round(Math.abs(totalAdjustment) * 100) / 100;
-
-    return {
+      prorationId,
       amount,
-      isCredit,
-      remainingDays: lastResult?.remainingDays ?? 0,
-      remainingSeconds: lastResult?.remainingSeconds ?? 0,
-      periodDays: lastResult?.periodDays ?? 30,
-      periodSeconds: lastResult?.periodSeconds ?? 2592000,
-      unusedOldValue: lastResult?.unusedOldValue ?? 0,
-      proratedNewValue: lastResult?.proratedNewValue ?? 0,
-      oldDailyRate: lastResult?.oldDailyRate ?? 0,
-      newDailyRate: lastResult?.newDailyRate ?? 0,
-      description: amount === 0
-        ? 'No net proration for multiple mid-cycle plan changes'
-        : isCredit
-        ? `Net prorated credit of $${amount.toFixed(2)} for multiple mid-cycle changes`
-        : `Net prorated charge of $${amount.toFixed(2)} for multiple mid-cycle changes`,
-      effectiveDate: 'immediate',
+      reason,
+      status: 'pending',
+      createdAt: new Date(),
     };
+    this.disputes.push(dispute);
+    return dispute;
+  }
+
+  resolveDispute(disputeId: string, resolution: string, approved: boolean): ProrationDispute | null {
+    const dispute = this.disputes.find((d) => d.id === disputeId);
+    if (!dispute) return null;
+
+    dispute.status = approved ? 'resolved' : 'rejected';
+    dispute.resolvedAt = new Date();
+    dispute.resolution = resolution;
+    return dispute;
+  }
+
+  getDisputes(subscriptionId?: string): ProrationDispute[] {
+    if (subscriptionId) {
+      return this.disputes.filter((d) => d.subscriptionId === subscriptionId);
+    }
+    return [...this.disputes];
+  }
+
+  getAnalytics(subscriptionId?: string): ProrationAnalytics {
+    const history = subscriptionId
+      ? this.prorationHistory.filter((h) => h.subscriptionId === subscriptionId)
+      : this.prorationHistory;
+
+    const disputes = subscriptionId
+      ? this.disputes.filter((d) => d.subscriptionId === subscriptionId)
+      : this.disputes;
+
+    const totalCredits = history
+      .filter((h) => h.preview.isCredit)
+      .reduce((sum, h) => sum + h.preview.amount, 0);
+
+    const totalCharges = history
+      .filter((h) => !h.preview.isCredit && h.preview.amount > 0)
+      .reduce((sum, h) => sum + h.preview.amount, 0);
+
+    const allProrationAmounts = history.map((h) => h.preview.amount).filter((a) => a > 0);
+    const averageAmount = allProrationAmounts.length > 0
+      ? allProrationAmounts.reduce((s, a) => s + a, 0) / allProrationAmounts.length
+      : 0;
+
+    const resolvedDisputes = disputes.filter((d) => d.status === 'resolved' || d.status === 'rejected');
+    const avgResolutionDays = resolvedDisputes.length > 0
+      ? resolvedDisputes.reduce((sum, d) => {
+          const days = d.resolvedAt
+            ? (d.resolvedAt.getTime() - d.createdAt.getTime()) / (1000 * 60 * 60 * 24)
+            : 0;
+          return sum + days;
+        }, 0) / resolvedDisputes.length
+      : 0;
+
+    return {
+      totalProrations: history.length,
+      totalCreditsIssued: totalCredits,
+      totalChargesApplied: totalCharges,
+      netProrationAmount: totalCharges - totalCredits,
+      averageProrationAmount: Math.round(averageAmount * 100) / 100,
+      prorationCount: history.length,
+      creditsUsedCount: history.filter((h) => h.preview.isCredit).length,
+      chargesCount: history.filter((h) => !h.preview.isCredit).length,
+      disputesCount: disputes.length,
+      disputesResolved: resolvedDisputes.length,
+      averageResolutionDays: Math.round(avgResolutionDays * 10) / 10,
+    };
+  }
+
+  getHistory(subscriptionId?: string) {
+    if (subscriptionId) {
+      return this.prorationHistory.filter((h) => h.subscriptionId === subscriptionId);
+    }
+    return [...this.prorationHistory];
   }
 }
+
+export const prorationService = new ProrationService();
