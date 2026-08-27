@@ -120,6 +120,20 @@ export interface GasEstimate {
   estimatedCost: string;
 }
 
+/** Balances for one chain within a multi-chain fetch, or why that chain failed. */
+export interface ChainBalanceResult {
+  chainId: number;
+  balances: TokenBalance[];
+  error?: string;
+}
+
+export interface MultiChainBalances {
+  address: string;
+  results: ChainBalanceResult[];
+  /** Chains whose balances could not be read; their results are empty. */
+  failedChainIds: number[];
+}
+
 /** Result after an on-chain Superfluid CFA stream is created */
 export interface SuperfluidStreamResult {
   txHash: string;
@@ -712,6 +726,62 @@ export class WalletServiceManager {
 
   isConnected(): boolean {
     return this.connection?.isConnected || false;
+  }
+
+  /**
+   * Fetches balances across several chains at once, for the unified
+   * multi-chain view (see `multiChainSubscriptionService`).
+   *
+   * One unreachable chain must not blank the whole view, so failures are
+   * reported per chain instead of rejecting the call. Requests run in parallel
+   * because a serial walk over a handful of RPCs is the slowest thing on the
+   * balances screen.
+   */
+  async getBalancesAcrossChains(
+    address: string,
+    chainIds: number[]
+  ): Promise<MultiChainBalances> {
+    const settled = await Promise.all(
+      chainIds.map(async (chainId): Promise<ChainBalanceResult> => {
+        try {
+          return { chainId, balances: await this.getTokenBalances(address, chainId) };
+        } catch (error) {
+          return {
+            chainId,
+            balances: [],
+            error: error instanceof Error ? error.message : String(error),
+          };
+        }
+      })
+    );
+
+    return {
+      address,
+      results: settled,
+      failedChainIds: settled.filter((r) => r.error !== undefined).map((r) => r.chainId),
+    };
+  }
+
+  /**
+   * Total holdings of one token across chains, keyed by chain id.
+   *
+   * Balances stay per chain rather than being summed: the same symbol on two
+   * chains is not fungible, and a single figure would imply it is.
+   */
+  static totalsBySymbol(
+    balances: MultiChainBalances,
+    symbol: string
+  ): Record<number, number> {
+    const wanted = symbol.toUpperCase();
+    const totals: Record<number, number> = {};
+    for (const result of balances.results) {
+      const match = result.balances.find((b) => b.symbol.toUpperCase() === wanted);
+      if (match) {
+        const parsed = Number(match.balance);
+        totals[result.chainId] = Number.isFinite(parsed) ? parsed : 0;
+      }
+    }
+    return totals;
   }
 }
 
