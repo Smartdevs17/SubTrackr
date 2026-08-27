@@ -48,7 +48,21 @@
     "web": {
       "favicon": "./assets/subtrackr-icon.png",
       "name": "SubTrackr - Subscription Management with Crypto Payments",
-      "description": "Manage your subscriptions with Web3 crypto payments"
+      "description": "Manage your subscriptions with Web3 crypto payments",
+      "security": {
+        "hsts": {
+          "maxAgeSeconds": 63072000,
+          "includeSubDomains": true,
+          "preload": true
+        },
+        "permissionsPolicy": {
+          "geolocation": "none",
+          "microphone": "none",
+          "camera": "none",
+          "payment": "none",
+          "usb": "none"
+        }
+      }
     },
     "extra": {
       "eas": {
