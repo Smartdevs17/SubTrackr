@@ -6,7 +6,11 @@ module.exports = {
     '^bullmq$': '<rootDir>/backend/shared/queue/__mocks__/bullmq.ts',
   },
   setupFilesAfterEnv: ['<rootDir>/backend/__tests__/setup.ts'],
-  testMatch: ['**/backend/**/__tests__/**/*.test.ts', '**/backend/tests/**/*.test.ts'],
+  testMatch: [
+    '**/backend/**/__tests__/**/*.test.ts',
+    '**/backend/tests/**/*.test.ts',
+    '**/developer-portal/__tests__/**/*.test.ts',
+  ],
   transform: {
     '^.+\\.tsx?$': [
       'ts-jest',
