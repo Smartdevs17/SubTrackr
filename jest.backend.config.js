@@ -21,4 +21,24 @@ module.exports = {
     ],
   },
   moduleFileExtensions: ['ts', 'js', 'json'],
+  // Coverage settings — aligned with Stryker break threshold (issue #914)
+  collectCoverageFrom: [
+    'backend/**/*.ts',
+    '!backend/**/*.test.ts',
+    '!backend/**/*.spec.ts',
+    '!backend/**/__tests__/**',
+    '!backend/**/*.d.ts',
+    '!backend/migrations/**',
+    '!backend/server.ts',
+    '!backend/server/**',
+  ],
+  coverageThreshold: {
+    global: {
+      branches: 50,
+      functions: 60,
+      lines: 60,
+      statements: 60,
+    },
+  },
+  coverageReporters: ['text', 'lcov', 'json-summary'],
 };
