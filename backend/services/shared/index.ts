@@ -185,3 +185,16 @@ export type { WsPoolConfig, WsConnection, WsMessage, WsPoolMetrics } from './wsC
 // ── Read Replica Router (#997) ────────────────────────────────────────────────
 export { ReadReplicaRouter } from './readReplicaRouter';
 export type { ReplicaConfig, ReplicaHealth, ReadRouteOptions, QueryRoute } from './readReplicaRouter';
+
+// ── API Key Rotation with Grace Period (#1009) ────────────────────────────────
+export { ApiKeyRotationService, apiKeyRotationService } from './apiKeyRotation';
+export type {
+  ManagedApiKey,
+  ApiKeyEnvironment,
+  ApiKeyStatus,
+  RotationOptions,
+  RotationResult,
+  RotationRecord,
+  ApiKeyValidationResult,
+  ApiKeyRotationMetrics,
+} from './apiKeyRotation';
