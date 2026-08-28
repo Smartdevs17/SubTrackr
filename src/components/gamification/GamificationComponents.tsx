@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -142,13 +142,19 @@ export const RewardCard: React.FC<RewardCardProps> = ({ item, onClaim, onRedeem 
       <View style={styles.rewardHeader}>
         <View style={styles.rewardTypeBadge}>
           <Text style={styles.rewardTypeText}>
-            {item.type === 'discount' ? '🏷️ Discount' : item.type === 'credit' ? '💰 Credits' : '🎖️ Badge'}
+            {item.type === 'discount'
+              ? '🏷️ Discount'
+              : item.type === 'credit'
+                ? '💰 Credits'
+                : '🎖️ Badge'}
           </Text>
         </View>
         {getStatusBadge()}
       </View>
       <Text style={[styles.rewardTitle, { color: theme.colors.text.primary }]}>{item.title}</Text>
-      <Text style={[styles.rewardDesc, { color: theme.colors.text.secondary }]}>{item.description}</Text>
+      <Text style={[styles.rewardDesc, { color: theme.colors.text.secondary }]}>
+        {item.description}
+      </Text>
 
       {item.isClaimed && !item.isRedeemed && item.code && (
         <TouchableOpacity
@@ -213,7 +219,9 @@ interface GamificationAnalyticsCardProps {
   analytics: GamificationAnalytics;
 }
 
-export const GamificationAnalyticsCard: React.FC<GamificationAnalyticsCardProps> = ({ analytics }) => {
+export const GamificationAnalyticsCard: React.FC<GamificationAnalyticsCardProps> = ({
+  analytics,
+}) => {
   const theme = useTheme();
 
   return (
@@ -221,7 +229,7 @@ export const GamificationAnalyticsCard: React.FC<GamificationAnalyticsCardProps>
       <Text style={[styles.analyticsTitle, { color: theme.colors.text.primary }]}>
         📊 Engagement & Progress
       </Text>
-      
+
       <View style={styles.statsGrid}>
         <View style={[styles.statBox, { backgroundColor: theme.colors.background.secondary }]}>
           <Text style={[styles.statValue, { color: theme.colors.brand.primary }]}>
@@ -230,16 +238,16 @@ export const GamificationAnalyticsCard: React.FC<GamificationAnalyticsCardProps>
           <Text style={[styles.statLabel, { color: theme.colors.text.secondary }]}>Total XP</Text>
         </View>
         <View style={[styles.statBox, { backgroundColor: theme.colors.background.secondary }]}>
-          <Text style={[styles.statValue, { color: '#f59e0b' }]}>
-            {analytics.longestStreak} 🔥
-          </Text>
+          <Text style={[styles.statValue, { color: '#f59e0b' }]}>{analytics.longestStreak} 🔥</Text>
           <Text style={[styles.statLabel, { color: theme.colors.text.secondary }]}>Max Streak</Text>
         </View>
         <View style={[styles.statBox, { backgroundColor: theme.colors.background.secondary }]}>
           <Text style={[styles.statValue, { color: '#10b981' }]}>
             {analytics.totalAchievementsUnlocked}
           </Text>
-          <Text style={[styles.statLabel, { color: theme.colors.text.secondary }]}>Achievements</Text>
+          <Text style={[styles.statLabel, { color: theme.colors.text.secondary }]}>
+            Achievements
+          </Text>
         </View>
         <View style={[styles.statBox, { backgroundColor: theme.colors.background.secondary }]}>
           <Text style={[styles.statValue, { color: '#8b5cf6' }]}>
@@ -343,7 +351,11 @@ export const LeaderboardList: React.FC<LeaderboardListProps> = ({
               key={cat}
               style={[styles.tabItem, isActive && { backgroundColor: theme.colors.brand.primary }]}
               onPress={() => onSelectCategory(cat)}>
-              <Text style={[styles.tabText, { color: isActive ? '#fff' : theme.colors.text.secondary }]}>
+              <Text
+                style={[
+                  styles.tabText,
+                  { color: isActive ? '#fff' : theme.colors.text.secondary },
+                ]}>
                 {label}
               </Text>
             </TouchableOpacity>

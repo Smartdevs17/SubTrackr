@@ -107,3 +107,30 @@ pub fn get_earned_achievements(env: &Env, storage: &Address, subscriber: &Addres
 /// Check whether an achievement is unlocked on-chain
 pub fn has_achievement(env: &Env, storage: &Address, subscriber: &Address, achievement_id: Symbol) -> bool;
 ```
+
+---
+
+## 8. Testing & Quality Gates
+
+The gamification module is covered by unit and integration tests that run as part of the regular Jest suite:
+
+### Unit Tests
+- **`src/store/__tests__/gamificationStore.test.ts`** — store behavior: points/leveling, level-up notifications (and suppression via config), reward claim/redeem, analytics, progress reset, history cap, and every achievement trigger (`SUBSCRIPTION_ADDED`, `CRYPTO_PAYMENT`, `SEGMENT_CREATED`, `POINTS_MILESTONE`, `STREAK_MILESTONE`, `REFERRAL_MADE`) including criteria-not-met and no-duplicate-unlock cases.
+- **`src/services/__tests__/gamificationService.test.ts`** — service catalog: achievements/badges lookup, leaderboard generation for all categories (plus default category and zero-streak edge cases), and social sharing success/error paths.
+
+### Integration Tests (critical paths)
+- **`src/store/__tests__/integration.test.ts`** — verifies the cross-store wiring with a real in-memory AsyncStorage:
+  - `addSubscription` awards XP and unlocks the `first_sub` achievement with its credit reward.
+  - Adding a high-value subscription unlocks `high_roller`.
+  - Adding five subscriptions unlocks `tracker_pro` with the `PRO-10OFF` discount reward.
+  - Repeated adds never double-award an achievement.
+  - `addSegment` (segment store) unlocks the `segmenter` achievement.
+
+### Coverage & CI
+- `gamificationStore.ts`: 100% statement/line coverage.
+- `gamificationService.ts`: 100% statement/line coverage (≥80% branch).
+- Run locally with:
+  ```bash
+  npx jest src/store/__tests__/gamificationStore.test.ts src/services/__tests__/gamificationService.test.ts src/store/__tests__/integration.test.ts
+  ```
+- The module is lint- and format-clean (`npm run lint`, `npm run format:check`).

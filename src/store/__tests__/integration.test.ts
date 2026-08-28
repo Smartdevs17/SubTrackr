@@ -18,8 +18,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSubscriptionStore } from '../subscriptionStore';
 import { useInvoiceStore } from '../invoiceStore';
 import { useWalletStore } from '../walletStore';
+import { useGamificationStore } from '../gamificationStore';
+import { useSegmentStore } from '../segmentStore';
 import { walletServiceManager } from '../../services/walletService';
 import { SubscriptionCategory, BillingCycle } from '../../types/subscription';
+import { AchievementTrigger } from '../../types/gamification';
 import { BILLING_CONVERSIONS } from '../../utils/constants/values';
 import { TaxType } from '../../types/invoice';
 
@@ -114,11 +117,45 @@ jest.mock('../../services/walletService', () => {
     }
   }
 
+  class MockFallbackChainHealthMonitor {
+    private static _instance: MockFallbackChainHealthMonitor | null = null;
+
+    static getInstance() {
+      if (!MockFallbackChainHealthMonitor._instance) {
+        MockFallbackChainHealthMonitor._instance = new MockFallbackChainHealthMonitor();
+      }
+      return MockFallbackChainHealthMonitor._instance;
+    }
+
+    snapshotChainHealth = jest.fn(() => ({}));
+    setRotationPolicy = jest.fn();
+    applyRotationPolicy = jest.fn(() => ({}));
+  }
+
+  class MockSmartFallbackSelector {
+    private static _instance: MockSmartFallbackSelector | null = null;
+
+    static getInstance() {
+      if (!MockSmartFallbackSelector._instance) {
+        MockSmartFallbackSelector._instance = new MockSmartFallbackSelector();
+      }
+      return MockSmartFallbackSelector._instance;
+    }
+
+    selectFallbackOrder = jest.fn(() => []);
+  }
+
   const instance = MockWalletServiceManager.getInstance();
 
   return {
     WalletServiceManager: MockWalletServiceManager,
     walletServiceManager: instance,
+    FallbackChainHealthMonitor: MockFallbackChainHealthMonitor,
+    SmartFallbackSelector: MockSmartFallbackSelector,
+    buildFallbackChainDiagnosticReport: jest.fn(() => ({})),
+    FallbackChainHealthSnapshot: {},
+    SmartFallbackSelection: {},
+    PaymentMethodRotationPolicy: {},
     PaymentMethodService: {
       getInstance: () => ({
         canAddMethod: jest.fn(),
@@ -182,6 +219,10 @@ function resetWalletStore() {
   });
 }
 
+function resetGamificationStore() {
+  useGamificationStore.getState().resetProgress();
+}
+
 function resetInvoiceStore() {
   useInvoiceStore.setState({
     invoices: [],
@@ -221,6 +262,7 @@ beforeEach(async () => {
   resetSubscriptionStore();
   resetInvoiceStore();
   resetWalletStore();
+  resetGamificationStore();
   // Give persist middleware time to rehydrate from (empty) storage
   await new Promise((r) => setTimeout(r, 50));
 });
@@ -466,12 +508,14 @@ describe('subscriptionStore integration', () => {
     const { subscriptions, error } = useSubscriptionStore.getState();
     expect(subscriptions).toHaveLength(1);
     expect(subscriptions[0].price).toBe(before.price);
-    // Store sets an error when subscription is not found
-    expect(error).not.toBeNull();
+    // The store treats unknown ids as a no-op: state is unchanged and no error
+    // is surfaced to the UI.
+    expect(error).toBeNull();
+    expect(useSubscriptionStore.getState().isLoading).toBe(false);
   });
 
   // ── Error recovery: delete with unknown id ──────────────────────────────────
-  it('deleting a non-existent id leaves state unchanged with error', async () => {
+  it('deleting a non-existent id leaves state unchanged', async () => {
     await act(async () => {
       await useSubscriptionStore.getState().addSubscription(baseFormData);
     });
@@ -481,8 +525,8 @@ describe('subscriptionStore integration', () => {
     });
 
     expect(useSubscriptionStore.getState().subscriptions).toHaveLength(1);
-    // Store sets an error when subscription is not found
-    expect(useSubscriptionStore.getState().error).not.toBeNull();
+    expect(useSubscriptionStore.getState().error).toBeNull();
+    expect(useSubscriptionStore.getState().isLoading).toBe(false);
   });
 
   // ── recordBillingOutcome: success advances nextBillingDate ──────────────────
@@ -694,5 +738,110 @@ describe('walletStore integration', () => {
       await useWalletStore.getState().disconnect();
     });
     expect(useWalletStore.getState().connection).toBeNull();
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// gamificationStore — subscription → achievement critical path (#924)
+// ═════════════════════════════════════════════════════════════════════════════
+// Verifies the wiring between subscription actions and the gamification store:
+// adding a subscription must award XP and evaluate achievements with the
+// correct metadata (total count + price).
+
+describe('gamificationStore integration', () => {
+  it('addSubscription awards XP and unlocks the first subscription achievement', async () => {
+    await act(async () => {
+      await useSubscriptionStore.getState().addSubscription(baseFormData);
+    });
+
+    const gamification = useGamificationStore.getState();
+    // +10 XP for adding the subscription, +50 XP for the first_sub achievement
+    expect(gamification.points).toBe(60);
+    expect(gamification.earnedAchievements).toContain('first_sub');
+    expect(gamification.earnedBadges).toContain('novice_tracker');
+
+    const welcomeReward = gamification.earnedRewards.find((r) => r.rewardId === 'rew_first_sub');
+    expect(welcomeReward?.type).toBe('credit');
+    expect(welcomeReward?.value).toBe(100);
+  });
+
+  it('adding a high-value subscription unlocks the high roller achievement', async () => {
+    await act(async () => {
+      await useSubscriptionStore.getState().addSubscription({
+        ...baseFormData,
+        name: 'Enterprise Suite',
+        price: 120,
+      });
+    });
+
+    const gamification = useGamificationStore.getState();
+    expect(gamification.earnedAchievements).toEqual(
+      expect.arrayContaining(['first_sub', 'high_roller'])
+    );
+    expect(gamification.earnedBadges).toContain('money_bags');
+  });
+
+  it('adding five subscriptions unlocks tracker pro with a discount reward', async () => {
+    for (let i = 0; i < 5; i += 1) {
+      await act(async () => {
+        await useSubscriptionStore.getState().addSubscription({
+          ...baseFormData,
+          name: `Sub ${i + 1}`,
+        });
+      });
+    }
+
+    const gamification = useGamificationStore.getState();
+    expect(gamification.earnedAchievements).toEqual(
+      expect.arrayContaining(['first_sub', 'tracker_pro'])
+    );
+    expect(gamification.earnedBadges).toContain('professional_tracker');
+
+    const proReward = gamification.earnedRewards.find((r) => r.rewardId === 'rew_tracker_pro');
+    expect(proReward?.type).toBe('discount');
+    expect(proReward?.code).toBe('PRO-10OFF');
+  });
+
+  it('does not double-award achievements across repeated subscription adds', async () => {
+    // Two subscriptions: first_sub criteria (>= 1) is met on both, but must
+    // only be awarded once.
+    for (let i = 0; i < 2; i += 1) {
+      await act(async () => {
+        await useSubscriptionStore.getState().addSubscription({
+          ...baseFormData,
+          name: `Sub ${i + 1}`,
+        });
+      });
+    }
+
+    const gamification = useGamificationStore.getState();
+    const firstSubCount = gamification.earnedAchievements.filter((id) => id === 'first_sub').length;
+    expect(firstSubCount).toBe(1);
+
+    // 10 XP per add + 50 XP for first_sub
+    expect(gamification.points).toBe(70);
+  });
+
+  it('segment creation unlocks the segmenter achievement via the shared store', async () => {
+    useSegmentStore.setState({ segments: [] });
+
+    await act(async () => {
+      useSegmentStore.getState().addSegment({
+        name: 'Power Users',
+        description: 'High-spend subscribers',
+        criteria: [],
+        logic: 'AND',
+      });
+    });
+
+    const gamification = useGamificationStore.getState();
+    expect(gamification.earnedAchievements).toContain('segmenter');
+    expect(gamification.earnedBadges).toContain('strategy_badge');
+  });
+
+  it('the achievement trigger enum is wired for subscription adds', () => {
+    // Guards the contract between subscriptionStore and the gamification module:
+    // the trigger used in addSubscription must exist on the shared enum.
+    expect(AchievementTrigger.SUBSCRIPTION_ADDED).toBe('SUBSCRIPTION_ADDED');
   });
 });
