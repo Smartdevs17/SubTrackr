@@ -52,7 +52,7 @@ The bottom tab navigator provides 6 primary entry points:
 
 ## Lazy Loading
 
-All screens except the Home screen use lazy loading via `dynamic import()` wrapped in `lazyScreen()`. This ensures:
+All screens except the Home screen use lazy loading via `dynamic import()` wrapped in `lazyScreen()`. Metro dynamic import support is enabled in `metro.config.js` and `inlineRequires` keeps non-visible modules off the startup path. This ensures:
 
 - Faster initial load time
 - Reduced memory footprint
@@ -60,9 +60,26 @@ All screens except the Home screen use lazy loading via `dynamic import()` wrapp
 
 ```typescript
 const SubscriptionDetailScreen = lazyScreen(
-  () => import('../screens/SubscriptionDetailScreen')
+  () => import('../screens/SubscriptionDetailScreen'),
+  { displayName: 'LazyRoute(SubscriptionDetail)' }
 );
 ```
+
+High-frequency routes can be warmed after first paint through the exported
+preload plan in `AppNavigator.tsx`:
+
+```typescript
+export const routePreloadPlan = [
+  { name: 'AddSubscription', load: () => import('../screens/AddSubscriptionScreen') },
+  { name: 'WalletConnect', load: () => import('../screens/WalletConnectV2Screen') },
+];
+
+prefetchRouteChunks(routePreloadPlan);
+```
+
+Keep prefetch lists short. Add routes that users commonly open in the first
+session; leave admin/reporting screens fully lazy unless performance profiling
+shows repeated cold-load pain.
 
 ## Feature Gating
 
@@ -131,6 +148,7 @@ Navigation tests verify:
 - Screen metric calculations
 - Navigation path building
 - Event limits and clearing
+- Lazy route fallback and stable display names
 
 ## Adding a New Screen
 

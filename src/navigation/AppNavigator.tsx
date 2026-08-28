@@ -12,19 +12,36 @@ import { darkNavigationTheme, lightNavigationTheme } from '../theme/navigationTh
 
 // Eagerly loaded primary entrypoints for instant rendering
 import HomeScreen from '../screens/HomeScreen';
-import { SettingsScreen } from '../screens/SettingsScreen';
+
+// Route components carry different navigation prop shapes, so the loader keeps them generic.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type LazyScreenLoader<T extends React.ComponentType<any>> = () => Promise<{ default: T }>;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const lazyRoute = <T extends React.ComponentType<any>>(
+  routeName: string,
+  importFn: LazyScreenLoader<T>
+) => lazyScreen(importFn, { displayName: `LazyRoute(${routeName})` });
+
+const loadAddSubscriptionScreen = () => import('../screens/AddSubscriptionScreen');
+const loadWalletConnectScreen = () => import('../screens/WalletConnectV2Screen');
+const loadAnalyticsScreen = () => import('../screens/AnalyticsScreen');
+const loadSubscriptionDetailScreen = () => import('../screens/SubscriptionDetailScreen');
 
 // Lazy loaded auxiliary and heavy screens with suspense/retry support
-const AddSubscriptionScreen = lazyScreen(() => import('../screens/AddSubscriptionScreen'));
+const AddSubscriptionScreen = lazyRoute('AddSubscription', loadAddSubscriptionScreen);
 const CancellationFlowScreen = lazyScreen(() => import('../screens/CancellationFlowScreen'));
-const WalletConnectScreen = lazyScreen(() => import('../screens/WalletConnectV2Screen'));
+const WalletConnectScreen = lazyRoute('WalletConnect', loadWalletConnectScreen);
 const CryptoPaymentScreen = lazyScreen(() => import('../screens/CryptoPaymentScreen'));
 const CommunityScreen = lazyScreen(() => import('../screens/CommunityScreen'));
 const ProfileScreen = lazyScreen(() => import('../screens/ProfileScreen'));
-const SubscriptionDetailScreen = lazyScreen(() => import('../screens/SubscriptionDetailScreen'));
+const SubscriptionDetailScreen = lazyRoute('SubscriptionDetail', loadSubscriptionDetailScreen);
 const InvoiceListScreen = lazyScreen(() => import('../screens/InvoiceListScreen'));
 const InvoiceDetailScreen = lazyScreen(() => import('../screens/InvoiceDetailScreen'));
-const AnalyticsScreen = lazyScreen(() => import('../screens/AnalyticsScreen'));
+const AnalyticsScreen = lazyRoute('Analytics', loadAnalyticsScreen);
+const SettingsScreen = lazyRoute('Settings', () =>
+  import('../screens/SettingsScreen').then((m) => ({ default: m.SettingsScreen }))
+);
 const SlaDashboard = lazyScreen(() => import('../screens/SlaDashboard'));
 const GDPRSettingsScreen = lazyScreen(() => import('../screens/GDPRSettingsScreen'));
 const LanguageSettingsScreen = lazyScreen(() => import('../screens/LanguageSettingsScreen'));
@@ -82,6 +99,22 @@ const AdvancedSearchScreen = lazyScreen(() =>
     default: m.AdvancedSearchScreen,
   }))
 );
+
+export interface RoutePreloadDefinition {
+  name: string;
+  load: () => Promise<unknown>;
+}
+
+export const routePreloadPlan: RoutePreloadDefinition[] = [
+  { name: 'AddSubscription', load: loadAddSubscriptionScreen },
+  { name: 'WalletConnect', load: loadWalletConnectScreen },
+  { name: 'Analytics', load: loadAnalyticsScreen },
+  { name: 'SubscriptionDetail', load: loadSubscriptionDetailScreen },
+];
+
+export function prefetchRouteChunks(plan: RoutePreloadDefinition[] = routePreloadPlan): void {
+  plan.forEach(({ name, load }) => prefetchModule(name, load));
+}
 
 const Tab = createBottomTabNavigator<TabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -450,10 +483,7 @@ const TabNavigator = () => {
 
 export const AppNavigator = () => {
   React.useEffect(() => {
-    prefetchModule('AddSubscription', () => import('../screens/AddSubscriptionScreen'));
-    prefetchModule('WalletConnect', () => import('../screens/WalletConnectV2Screen'));
-    prefetchModule('Analytics', () => import('../screens/AnalyticsScreen'));
-    prefetchModule('SubscriptionDetail', () => import('../screens/SubscriptionDetailScreen'));
+    prefetchRouteChunks();
   }, []);
 
   const { isDark } = useTheme();

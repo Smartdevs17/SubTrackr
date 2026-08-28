@@ -1,4 +1,9 @@
-export { PaymentRouter, paymentRouter } from './domain/PaymentRouter';
+export {
+  MultiChainPaymentRoutingStrategy,
+  PaymentRouter,
+  paymentRouter,
+} from './domain/PaymentRouter';
+export type { PaymentRoutingContext, PaymentRoutingStrategy } from './domain/PaymentRouter';
 export { StripeAdapter } from './domain/gateways/StripeAdapter';
 export { CircleAdapter } from './domain/gateways/CircleAdapter';
 export { StellarAdapter } from './domain/gateways/StellarAdapter';

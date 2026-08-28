@@ -31,24 +31,11 @@ const OFFER_TYPE_ICONS: Record<string, string> = {
   downgrade: '⬇️',
   trial_extension: '⏱️',
   feature_unlock: '🔓',
-};
-
-type Props = NativeStackScreenProps<RootStackParamList, 'CancellationFlow'>;
-
-const CancellationFlowScreen: React.FC<Props> = ({ route, navigation }) => {
-  const { currentStep, setReason, setStep, acceptOffer, reset } = useCancellationStore();
-  const { deleteSubscription } = useSubscriptionStore();
-import { useCancellationStore, CANCELLATION_REASONS } from '../store/cancellationStore';
-import { RetentionOffer } from '../../backend/services/retentionService';
-
-type Props = NativeStackScreenProps<RootStackParamList, 'CancellationFlow'>;
-
-const OFFER_TYPE_ICONS: Record<string, string> = {
-  discount: '💰',
-  pause: '⏸️',
   feature_upgrade: '⭐',
   plan_change: '🔄',
 };
+
+type Props = NativeStackScreenProps<RootStackParamList, 'CancellationFlow'>;
 
 const CancellationFlowScreen: React.FC<Props> = ({ route, navigation }) => {
   const { subscriptionId } = route.params;
@@ -71,7 +58,7 @@ const CancellationFlowScreen: React.FC<Props> = ({ route, navigation }) => {
   useEffect(() => {
     initFlow(subscriptionId);
     return () => reset();
-  }, [subscriptionId]);
+  }, [initFlow, reset, subscriptionId]);
 
   const handleAcceptOffer = async (offerId: string) => {
     await acceptOffer(offerId);

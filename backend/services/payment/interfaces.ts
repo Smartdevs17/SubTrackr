@@ -4,6 +4,8 @@ export interface PaymentRequest {
   customerId: string;
   paymentMethodId: string;
   idempotencyKey: string;
+  chainId?: number;
+  chainType?: 'evm' | 'stellar' | 'fiat';
   metadata?: Record<string, string>;
 }
 
@@ -81,6 +83,7 @@ export interface GatewayConfig {
   primary: string;
   secondary: string;
   tertiary?: string;
+  chainOverrides?: Partial<Record<'evm' | 'stellar' | 'fiat', string[]>>;
 }
 
 export interface IPaymentRouter {

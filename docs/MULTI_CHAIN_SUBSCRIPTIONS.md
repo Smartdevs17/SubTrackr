@@ -126,9 +126,60 @@ Two deliberate choices:
 Requests run in parallel — a serial walk over a handful of RPCs is the slowest
 thing on that screen.
 
+## Payment Strategy Pattern
+
+Wallet payment operations are dispatched through
+`WalletChainStrategyRegistry` in `src/services/walletService.ts`. Each strategy
+owns chain-specific behavior: balance lookup, gas estimation, wallet switching,
+and connection setup.
+
+```ts
+import {
+  WalletChainStrategyRegistry,
+  EvmWalletChainStrategy,
+  StellarWalletChainStrategy,
+} from '../src/services/walletService';
+
+const registry = new WalletChainStrategyRegistry([
+  new EvmWalletChainStrategy(),
+  new StellarWalletChainStrategy(),
+]);
+
+const strategy = registry.getStrategyForChain(137);
+```
+
+The app service keeps its existing public API:
+
+```ts
+await walletServiceManager.switchChain(ChainType.EVM, 137);
+const balances = await walletServiceManager.getBalancesAcrossChains('0x...', [1, 137, 42161]);
+```
+
+Server-side gateway routing uses
+`MultiChainPaymentRoutingStrategy` in `backend/services/payment/domain/PaymentRouter.ts`.
+Merchant configs still work, but chain-specific overrides can take priority for
+Stellar or EVM settlement:
+
+```ts
+paymentRouter.setMerchantConfig('merchant_1', {
+  primary: 'stripe',
+  secondary: 'circle',
+  chainOverrides: {
+    stellar: ['stellar', 'circle'],
+    evm: ['circle', 'stripe'],
+  },
+});
+```
+
+Contract deployments do not need a router change when a new chain strategy is
+added. The app should add the deployed network IDs to the environment profile
+and register the corresponding strategy.
+
 ## Testing
 
 - `src/services/__tests__/multiChainSubscriptionService.test.ts`
 - `src/services/__tests__/walletMultiChain.test.ts`
+- `src/services/__tests__/walletChainStrategies.test.ts`
+- `backend/services/payment/__tests__/PaymentRouter.test.ts`
 
 `MultiChainSubscriptionService` is a singleton; call `reset()` in `beforeEach`.
