@@ -10,7 +10,14 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { asyncStorageAdapter } from '../../src/utils/storage';
 
-export type CreditTxKind = 'issue' | 'apply' | 'transfer_in' | 'transfer_out' | 'expire';
+export type CreditTxKind =
+  | 'issue'
+  | 'apply'
+  | 'transfer_in'
+  | 'transfer_out'
+  | 'expire'
+  | 'deposit'
+  | 'withdraw';
 
 export type ExpirationPolicy = { kind: 'never' } | { kind: 'after_secs'; seconds: number };
 
@@ -46,6 +53,26 @@ export interface CreditApplied {
   balanceAfter: number;
 }
 
+/**
+ * Consolidated account-balance summary for a subscriber, combining on-book
+ * credit (available/issued/expired/applied/transferred) with any prepayment
+ * wallet funds. Used for high-level balance display and reconciliation.
+ */
+export interface AccountBalance {
+  subscriber: string;
+  availableCredit: number;
+  totalIssued: number;
+  totalApplied: number;
+  totalExpired: number;
+  totalTransferredIn: number;
+  totalTransferredOut: number;
+  totalDeposited: number;
+  totalWithdrawn: number;
+  prepaymentBalance: number;
+  netBalance: number;
+  nextExpirationAt?: number;
+}
+
 const isExpired = (lot: CreditLot, now: number): boolean =>
   lot.expiresAt !== undefined && lot.expiresAt <= now;
 
@@ -57,6 +84,7 @@ const availableOf = (account: AccountCredit, now: number): number =>
 
 interface CreditStoreState {
   accounts: Record<string, AccountCredit>;
+  wallets: Record<string, CreditWallet>;
   nextId: number;
   now: () => number;
 
@@ -64,9 +92,23 @@ interface CreditStoreState {
   setExpirationPolicy: (subscriber: string, policy: ExpirationPolicy) => void;
   applyCredit: (subscriber: string, subscriptionId: string, amountDue: number) => CreditApplied;
   transferCredit: (from: string, to: string, amount: number, reason: string) => boolean;
+  depositCredit: (subscriber: string, amount: number, reason: string) => void;
+  withdrawCredit: (subscriber: string, amount: number, reason: string) => boolean;
   expireCredits: (subscriber: string) => number;
   getBalance: (subscriber: string) => number;
   getAccount: (subscriber: string) => AccountCredit;
+  getAccountBalance: (subscriber: string) => AccountBalance;
+  getAccountBalances: () => AccountBalance[];
+}
+
+/** Prepayment wallet tracked alongside credit accounts. */
+export interface CreditWallet {
+  id: string;
+  subscriber: string;
+  currency: string;
+  balance: number;
+  totalDeposited: number;
+  totalWithdrawn: number;
 }
 
 const blankAccount = (subscriber: string): AccountCredit => ({
@@ -141,6 +183,7 @@ export const useCreditStore = create<CreditStoreState>()(
 
       return {
         accounts: {},
+        wallets: {},
         nextId: 0,
         now: () => Math.floor(Date.now() / 1000),
 
@@ -217,6 +260,81 @@ export const useCreditStore = create<CreditStoreState>()(
 
         getBalance: (subscriber) => availableOf(account(subscriber), get().now()),
         getAccount: (subscriber) => account(subscriber),
+
+        depositCredit: (subscriber, amount, reason) => {
+          if (amount <= 0) return;
+          const now = get().now();
+          const acc = cloneAccount(account(subscriber));
+          realizeExpiry(acc, now);
+          acc.balance += amount;
+          acc.lots.push({ id: nextId(), remaining: amount, issuedAt: now });
+          record(acc, 'deposit', amount, reason);
+          commit(acc);
+        },
+
+        withdrawCredit: (subscriber, amount, reason) => {
+          if (amount <= 0) return false;
+          const now = get().now();
+          const acc = cloneAccount(account(subscriber));
+          realizeExpiry(acc, now);
+          if (availableOf(acc, now) < amount) return false;
+          const moved = consume(acc, now, amount);
+          acc.balance -= moved;
+          record(acc, 'withdraw', -moved, reason);
+          commit(acc);
+          return true;
+        },
+
+        getAccountBalance: (subscriber): AccountBalance => {
+          const now = get().now();
+          const acc = account(subscriber);
+          const availableCredit = availableOf(acc, now);
+          const totalApplied = acc.transactions
+            .filter((t) => t.kind === 'apply')
+            .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+          const totalExpired = acc.transactions
+            .filter((t) => t.kind === 'expire')
+            .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+          const totalTransferredIn = acc.transactions
+            .filter((t) => t.kind === 'transfer_in')
+            .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+          const totalTransferredOut = acc.transactions
+            .filter((t) => t.kind === 'transfer_out')
+            .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+          const totalIssued = acc.transactions
+            .filter((t) => t.kind === 'issue' || t.kind === 'deposit')
+            .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+
+          const wallets = Object.values(get().wallets).filter(
+            (w) => w.subscriber === subscriber
+          );
+          const totalDeposited = wallets.reduce((s, w) => s + w.totalDeposited, 0);
+          const totalWithdrawn = wallets.reduce((s, w) => s + w.totalWithdrawn, 0);
+          const prepaymentBalance = wallets.reduce((s, w) => s + w.balance, 0);
+
+          const expiringLots = acc.lots
+            .filter((lot) => lot.remaining > 0 && lot.expiresAt !== undefined && lot.expiresAt > now)
+            .sort((a, b) => (a.expiresAt ?? 0) - (b.expiresAt ?? 0));
+
+          return {
+            subscriber,
+            availableCredit,
+            totalIssued,
+            totalApplied,
+            totalExpired,
+            totalTransferredIn,
+            totalTransferredOut,
+            totalDeposited,
+            totalWithdrawn,
+            prepaymentBalance,
+            netBalance: availableCredit + prepaymentBalance,
+            nextExpirationAt: expiringLots[0]?.expiresAt,
+          };
+        },
+
+        getAccountBalances: () =>
+          [...new Set([...Object.keys(get().accounts), ...Object.keys(get().wallets)])]
+            .map((sub) => get().getAccountBalance(sub)),
       };
     },
     {
@@ -224,6 +342,7 @@ export const useCreditStore = create<CreditStoreState>()(
       storage: createJSONStorage(() => asyncStorageAdapter),
       partialize: (state) => ({
         accounts: state.accounts,
+        wallets: state.wallets,
         nextId: state.nextId,
       }),
     }
