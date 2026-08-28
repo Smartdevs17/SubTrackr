@@ -73,7 +73,22 @@ export type {
   ProrationDispute,
   MidCycleChangeRequest,
 } from './proration';
-export { streamExport, reconcile } from './accountingExportService';
+export {
+  streamExport,
+  reconcile,
+  streamExportAsync,
+  streamExportNdjson,
+  streamExportWithProgress,
+  createExportSchedule,
+  getExportSchedules,
+  updateExportSchedule,
+  deleteExportSchedule,
+  toggleExportSchedule,
+  runDueExports,
+  recordExportDownload,
+  getExportHistory,
+  getExportAnalytics,
+} from './accountingExportService';
 export type {
   AccountingFormat,
   TransactionType,
@@ -81,6 +96,13 @@ export type {
   ExportFilter,
   StreamExportOptions,
   ReconciliationResult,
+  AsyncStreamExportOptions,
+  ExportProgressCallback,
+  CustomFieldMapping,
+  ExportSchedule,
+  ExportScheduleInput,
+  ExportHistoryEntry,
+  ExportAnalytics,
 } from './accountingExportService';
 export {
   BackendPartnerService,
