@@ -12,7 +12,13 @@ module.exports = {
     '**/developer-portal/__tests__/**/*.test.ts',
   ],
   transform: {
-    '^.+\\.tsx?$': ['ts-jest', { tsconfig: { strict: false, skipLibCheck: true } }],
+    '^.+\\.tsx?$': [
+      'ts-jest',
+      {
+        diagnostics: false,
+        tsconfig: { strict: false, skipLibCheck: true },
+      },
+    ],
   },
   moduleFileExtensions: ['ts', 'js', 'json'],
 };
