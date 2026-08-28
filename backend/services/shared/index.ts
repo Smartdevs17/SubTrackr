@@ -185,3 +185,41 @@ export type { WsPoolConfig, WsConnection, WsMessage, WsPoolMetrics } from './wsC
 // ── Read Replica Router (#997) ────────────────────────────────────────────────
 export { ReadReplicaRouter } from './readReplicaRouter';
 export type { ReplicaConfig, ReplicaHealth, ReadRouteOptions, QueryRoute } from './readReplicaRouter';
+
+// ── Composable Middleware Chain ───────────────────────────────────────────────
+export {
+  chain,
+  MiddlewareChain,
+  toExpressMiddleware,
+  skipPaths,
+  authHandler,
+  corsHandler,
+  rateLimitHandler,
+  sanitizationHandler,
+  validationHandler,
+  securityHeadersHandler,
+  publicApiChain,
+  authenticatedApiChain,
+} from './middlewareChain';
+export type {
+  MiddlewareFn,
+  MiddlewareErrorHandler,
+  MiddlewareMetadata,
+  ChainExecutionResult,
+  ExpressContext,
+} from './middlewareChain';
+
+// ── Intelligent Redis Cache ───────────────────────────────────────────────────
+export {
+  IntelligentCacheService,
+  createIntelligentCache,
+  TIER_TTL,
+  SUBSCRIPTION_INVALIDATION_RULES,
+} from './intelligentCache';
+export type {
+  CacheTier,
+  CacheSetOptions,
+  IntelligentCacheConfig,
+  CacheInvalidationRule,
+  IntelligentCacheMetrics,
+} from './intelligentCache';
