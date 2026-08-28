@@ -130,11 +130,19 @@ export interface IDunningService {
   configurePlan(planId: string, config: Partial<DunningConfiguration>): DunningConfiguration;
   configureABTest(planId: string, enabled: boolean, variants: Array<{ id: string; weight: number; strategy: RetryStrategy }>): void;
   getConfiguration(planId: string): DunningConfiguration | undefined;
-  startDunning(subscriptionId: string, subscriberId: string, merchantId: string, planId: string): DunningEntry;
+  getStrategy(planId: string, failureReason: FailureReason, abTestVariant?: string): RetryStrategy;
+  startDunning(
+    subscriptionId: string,
+    subscriberId: string,
+    merchantId: string,
+    planId: string,
+    failureReason?: FailureReason
+  ): DunningEntry;
   recordFailedCharge(subscriptionId: string, failureType?: string): DunningEntry | null;
-  recordSuccessfulCharge(subscriptionId: string): void;
+  recordSuccessfulCharge(subscriptionId: string): DunningEntry | null;
   getDunningEntry(subscriptionId: string): DunningEntry | undefined;
   listActiveDunning(merchantId?: string): DunningEntry[];
+  listRecoveredDunning(merchantId?: string): DunningEntry[];
   pauseDunning(subscriptionId: string): DunningEntry | null;
   resumeDunning(subscriptionId: string): DunningEntry | null;
   overrideStage(subscriptionId: string, stage: DunningStage): DunningEntry | null;
@@ -147,6 +155,9 @@ export interface IDunningService {
     maxRetries?: number;
     backoffMultiplier?: number;
     maxDelayHours?: number;
+    backoffPolicy?: string;
+    jitterRatio?: number;
+    retryable?: boolean;
   }): void;
   getRetrySchedule(failureType: string): {
     failureType: string;
@@ -154,6 +165,9 @@ export interface IDunningService {
     maxRetries: number;
     backoffMultiplier: number;
     maxDelayHours: number;
+    backoffPolicy: string;
+    jitterRatio: number;
+    retryable: boolean;
   };
   calculateRetryDelay(failureType: string, attempt: number): number;
   getRetryAnalytics(merchantId?: string): {
