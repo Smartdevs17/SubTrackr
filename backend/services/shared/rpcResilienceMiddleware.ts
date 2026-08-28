@@ -1,5 +1,5 @@
 /**
- * rpcResilienceMiddleware.ts — Issue #941
+ * rpcResilienceMiddleware.ts — Issue #912
  *
  * Higher-level integration layer that wires together:
  *   - RpcCircuitBreakerService  (backend/services/rpcCircuitBreaker.ts)

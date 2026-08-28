@@ -1,7 +1,7 @@
 /**
  * Rate Limit Middleware — SubTrackr
  *
- * Issue #998: Implement rate limiting with token bucket algorithm
+ * Issue #913: Implement rate limiting per user and per API key
  *
  * Express / Fastify-compatible middleware that integrates RateLimitingService
  * (token bucket + sliding-window counters) with standard HTTP headers.
@@ -280,4 +280,68 @@ export function createIpRateLimitMiddleware(opts: Omit<RateLimitMiddlewareOption
       return `ip:${ip}`;
     },
   });
+}
+
+// ---------------------------------------------------------------------------
+// Named header constants (issue #913)
+// ---------------------------------------------------------------------------
+
+export const RATE_LIMIT_HEADERS = {
+  LIMIT: 'X-RateLimit-Limit',
+  REMAINING: 'X-RateLimit-Remaining',
+  RESET: 'X-RateLimit-Reset',
+  BURST_REMAINING: 'X-RateLimit-Burst-Remaining',
+  WARNING: 'X-RateLimit-Warning',
+  RETRY_AFTER: 'Retry-After',
+  RETRY_AFTER_MS: 'X-RateLimit-Retry-After-Ms',
+} as const;
+
+// ---------------------------------------------------------------------------
+// Request / Response type aliases (issue #913)
+// ---------------------------------------------------------------------------
+
+/** Alias for MinimalRequest — for consumers that prefer the typed name. */
+export type RateLimitRequest = MinimalRequest;
+
+/** Alias for MinimalResponse — for consumers that prefer the typed name. */
+export type RateLimitResponse = MinimalResponse;
+
+// ---------------------------------------------------------------------------
+// Status-only middleware (read-only — attaches headers without blocking)
+// ---------------------------------------------------------------------------
+
+/**
+ * Attach X-RateLimit-* headers without enforcing limits.
+ * Useful on endpoints that only need observability, not enforcement.
+ */
+export function createRateLimitStatusMiddleware(
+  opts: Pick<RateLimitMiddlewareOptions, 'service' | 'getApiKey' | 'getTier'>,
+) {
+  const {
+    service,
+    getApiKey = (req) => {
+      const auth = req.headers['authorization'];
+      if (typeof auth === 'string' && auth.startsWith('Bearer ')) return auth.slice(7).trim();
+      const xKey = req.headers['x-api-key'];
+      return typeof xKey === 'string' ? xKey.trim() : undefined;
+    },
+    getTier = () => SubscriptionTier.FREE,
+  } = opts;
+
+  return async function rateLimitStatusMiddleware(
+    req: MinimalRequest,
+    res: MinimalResponse,
+    next: NextFn,
+  ): Promise<void> {
+    const apiKey = getApiKey(req);
+    if (apiKey) {
+      const tier = await getTier(apiKey, req);
+      const status = service.getRateLimitStatus(apiKey, tier);
+      setHeader(res, RATE_LIMIT_HEADERS.LIMIT, String(status.limits.hourlyLimit));
+      setHeader(res, RATE_LIMIT_HEADERS.REMAINING, String(status.remaining.hourly));
+      setHeader(res, RATE_LIMIT_HEADERS.RESET, String(Math.ceil(status.resetAt.hourly / 1_000)));
+      setHeader(res, RATE_LIMIT_HEADERS.BURST_REMAINING, String(status.remaining.burstTokens));
+    }
+    next();
+  };
 }
