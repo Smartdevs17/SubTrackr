@@ -3,10 +3,13 @@
   "info": {
     "title": "SubTrackr API",
     "version": "1.0.0",
-    "description": "API specification for SubTrackr subscription management, notifications, and payments.",
+    "description": "API specification for SubTrackr subscription management, billing, webhooks, and payments.\n\nBase paths are versioned under `/v1` and authenticated with a Bearer token (`sk_test_...` for sandbox, `sk_live_...` for production).",
     "contact": {
       "name": "SubTrackr Support",
       "email": "support@subtrackr.io"
+    },
+    "license": {
+      "name": "MIT"
     }
   },
   "servers": [
@@ -15,15 +18,30 @@
       "description": "Production Server"
     },
     {
+      "url": "https://sandbox.api.subtrackr.io/v1",
+      "description": "Sandbox Server"
+    },
+    {
       "url": "http://localhost:3000/v1",
       "description": "Local Development Server"
     }
+  ],
+  "tags": [
+    { "name": "Auth", "description": "Authentication" },
+    { "name": "Subscriptions", "description": "Manage subscriptions" },
+    { "name": "Plans", "description": "Plans and pricing" },
+    { "name": "Payments", "description": "Payment records" },
+    { "name": "Invoices", "description": "Invoices and billing" },
+    { "name": "Webhooks", "description": "Webhook configuration and delivery" },
+    { "name": "Analytics", "description": "Usage and subscription analytics" },
+    { "name": "Themes", "description": "Theme management for merchants" }
   ],
   "paths": {
     "/auth/login": {
       "post": {
         "summary": "Authenticate user",
         "operationId": "loginUser",
+        "tags": ["Auth"],
         "requestBody": {
           "required": true,
           "content": {
@@ -34,7 +52,8 @@
                   "email": { "type": "string", "format": "email" },
                   "password": { "type": "string" }
                 },
-                "required": ["email", "password"]
+                "required": ["email", "password"],
+                "example": { "email": "dev@example.com", "password": "secret" }
               }
             }
           }
@@ -53,7 +72,8 @@
                 }
               }
             }
-          }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
         }
       }
     },
@@ -61,20 +81,328 @@
       "get": {
         "summary": "List subscriptions",
         "operationId": "listSubscriptions",
+        "tags": ["Subscriptions"],
         "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "status", "in": "query", "schema": { "type": "string", "enum": ["active", "cancelled", "paused"] } },
+          { "name": "category", "in": "query", "schema": { "type": "string" } },
+          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 20, "maximum": 100 } }
+        ],
         "responses": {
           "200": {
-            "description": "List of active user subscriptions"
+            "description": "List of subscriptions",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SubscriptionList" }
+              }
+            }
           }
         }
       },
       "post": {
         "summary": "Create subscription",
         "operationId": "createSubscription",
+        "tags": ["Subscriptions"],
         "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SubscriptionInput" }
+            }
+          }
+        },
         "responses": {
           "201": {
-            "description": "Subscription created"
+            "description": "Subscription created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Subscription" }
+              }
+            }
+          },
+          "400": { "description": "Invalid request body" }
+        }
+      }
+    },
+    "/subscriptions/{id}": {
+      "get": {
+        "summary": "Get subscription",
+        "operationId": "getSubscription",
+        "tags": ["Subscriptions"],
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": {
+            "description": "Subscription",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Subscription" }
+              }
+            }
+          },
+          "404": { "description": "Subscription not found" }
+        }
+      },
+      "put": {
+        "summary": "Update subscription",
+        "operationId": "updateSubscription",
+        "tags": ["Subscriptions"],
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SubscriptionInput" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated subscription",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Subscription" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete subscription",
+        "operationId": "deleteSubscription",
+        "tags": ["Subscriptions"],
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "204": { "description": "Subscription deleted" }
+        }
+      }
+    },
+    "/subscriptions/{id}/cancel": {
+      "post": {
+        "summary": "Cancel subscription",
+        "operationId": "cancelSubscription",
+        "tags": ["Subscriptions"],
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": { "type": "string" },
+                  "atPeriodEnd": { "type": "boolean", "default": true }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Subscription cancelled",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Subscription" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/plans": {
+      "get": {
+        "summary": "List plans",
+        "operationId": "listPlans",
+        "tags": ["Plans"],
+        "security": [{ "ApiKeyAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "List of plans",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Plan" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/payments": {
+      "get": {
+        "summary": "List payments",
+        "operationId": "listPayments",
+        "tags": ["Payments"],
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "List of payments",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Payment" }
+                    },
+                    "pagination": { "$ref": "#/components/schemas/Pagination" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/invoices": {
+      "get": {
+        "summary": "List invoices",
+        "operationId": "listInvoices",
+        "tags": ["Invoices"],
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "List of invoices",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Invoice" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/webhooks": {
+      "get": {
+        "summary": "List webhooks",
+        "operationId": "listWebhooks",
+        "tags": ["Webhooks"],
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "List of webhook endpoints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "type": "array", "items": { "$ref": "#/components/schemas/Webhook" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create webhook",
+        "operationId": "createWebhook",
+        "tags": ["Webhooks"],
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/WebhookInput" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Webhook created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/Webhook" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/analytics/usage": {
+      "get": {
+        "summary": "Get usage analytics",
+        "operationId": "getUsageAnalytics",
+        "tags": ["Analytics"],
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Usage analytics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "requests": { "type": "object" },
+                        "credits": { "type": "object" },
+                        "rateLimit": { "type": "object" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/themes": {
+      "get": {
+        "summary": "List themes",
+        "operationId": "listThemes",
+        "tags": ["Themes"],
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "List of themes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Theme" }
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -85,12 +413,139 @@
       "BearerAuth": {
         "type": "http",
         "scheme": "bearer",
-        "bearerFormat": "JWT"
+        "bearerFormat": "JWT",
+        "description": "Bearer token (sk_test_... or sk_live_...)"
       },
       "ApiKeyAuth": {
         "type": "apiKey",
         "in": "header",
         "name": "X-API-Key"
+      }
+    },
+    "schemas": {
+      "Subscription": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "category": { "type": "string" },
+          "price": { "type": "number" },
+          "currency": { "type": "string" },
+          "billingCycle": { "type": "string", "enum": ["monthly", "yearly"] },
+          "status": { "type": "string", "enum": ["active", "paused", "cancelled"] },
+          "nextBillingDate": { "type": "string", "format": "date-time" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "SubscriptionInput": {
+        "type": "object",
+        "required": ["name", "price", "currency", "billingCycle"],
+        "properties": {
+          "name": { "type": "string" },
+          "category": { "type": "string" },
+          "price": { "type": "number", "exclusiveMinimum": 0 },
+          "currency": { "type": "string" },
+          "billingCycle": { "type": "string", "enum": ["monthly", "yearly"] },
+          "startDate": { "type": "string", "format": "date-time" }
+        }
+      },
+      "SubscriptionList": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" },
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/Subscription" } },
+          "pagination": { "$ref": "#/components/schemas/Pagination" }
+        }
+      },
+      "Pagination": {
+        "type": "object",
+        "properties": {
+          "page": { "type": "integer" },
+          "limit": { "type": "integer" },
+          "total": { "type": "integer" },
+          "hasNext": { "type": "boolean" }
+        }
+      },
+      "Plan": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "price": { "type": "number" },
+          "currency": { "type": "string" },
+          "interval": { "type": "string", "enum": ["monthly", "yearly"] }
+        }
+      },
+      "Payment": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "subscriptionId": { "type": "string" },
+          "amount": { "type": "number" },
+          "currency": { "type": "string" },
+          "status": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Invoice": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "subscriptionId": { "type": "string" },
+          "total": { "type": "number" },
+          "currency": { "type": "string" },
+          "status": { "type": "string", "enum": ["draft", "open", "paid", "partial"] },
+          "dueAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Webhook": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "url": { "type": "string", "format": "uri" },
+          "events": { "type": "array", "items": { "type": "string" } },
+          "status": { "type": "string", "enum": ["enabled", "disabled"] },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "WebhookInput": {
+        "type": "object",
+        "required": ["url", "events"],
+        "properties": {
+          "url": { "type": "string", "format": "uri" },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["subscription.created", "subscription.updated", "subscription.cancelled", "payment.completed", "payment.failed", "invoice.generated"]
+            }
+          }
+        }
+      },
+      "Theme": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "primaryColor": { "type": "string" },
+          "status": { "type": "string", "enum": ["active", "draft"] }
+        }
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "Missing or invalid authorization",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "success": { "type": "boolean", "const": false },
+                "error": { "type": "object", "properties": { "code": { "type": "string" }, "message": { "type": "string" } } }
+              }
+            }
+          }
+        }
       }
     }
   }
