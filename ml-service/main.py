@@ -9,7 +9,6 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from pydantic import BaseModel
 from typing import List, Dict, Optional
 from models import ChurnPredictionModel, RevenueForecastModel
-from model_registry import registry
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Structured logging with correlation IDs  (issue #939)
@@ -131,7 +130,11 @@ class PredictRequest(BaseModel):
 
 class BatchPredictItem(BaseModel):
     subscriber: str
-    user_data: UserData
+    user_data: UserChurnData
+
+
+class BatchChurnPredictRequest(BaseModel):
+    items: List[BatchChurnPredictItem] = Field(..., min_length=1, max_length=500)
 
 
 class BatchPredictRequest(BaseModel):
@@ -144,8 +147,23 @@ class Observation(BaseModel):
 
 
 class ForecastRequest(BaseModel):
-    observations: List[Observation]
-    horizon: int = 3
+    observations: List[RevenueObservation] = Field(..., min_length=2)
+    horizon: int = Field(3, ge=1, le=24, description="Number of periods to forecast")
+
+
+class InterventionRequest(BaseModel):
+    subscribers: List[str] = Field(..., min_length=1, max_length=500, description="List of subscriber IDs to evaluate")
+    user_data_map: Dict[str, UserChurnData] = Field(
+        ..., description="Map of subscriber_id -> user data"
+    )
+    risk_threshold: str = Field("High", description="Minimum risk level that triggers an intervention ('High' or 'Medium')")
+
+
+class RetrainRequest(BaseModel):
+    training_samples: Optional[List[Dict[str, Any]]] = Field(
+        None, description="Optional training rows; omit to use registry defaults"
+    )
+
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -233,4 +251,11 @@ async def health():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", "8000")),
+        reload=os.getenv("ENV", "production") == "development",
+        log_level="info",
+    )
