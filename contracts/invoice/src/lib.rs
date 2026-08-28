@@ -10,9 +10,9 @@ use alloc::vec;
 use soroban_sdk::{Address, Bytes, Env, IntoVal, String, TryFromVal, Val, Vec};
 use subtrackr_types::{
     CustomerTaxStatus, DigitalGoodsClass, Invoice, InvoiceConfig, InvoiceLineItem, InvoiceStatus,
-    MaybeDigitalGoodsClass, Plan, StorageKey, Subscription, TaxRateChangeEvent, TaxRateEntry,
-    TaxRemittanceLineItem, TaxRemittanceReport, TaxType, TaxJurisdiction, TimeRange,
-    TaxReportLineItem, RemittanceStatus,
+    MaybeDigitalGoodsClass, Plan, RemittanceStatus, StorageKey, Subscription, TaxJurisdiction,
+    TaxRateChangeEvent, TaxRateEntry, TaxRemittanceLineItem, TaxRemittanceReport,
+    TaxReportLineItem, TaxType, TimeRange,
 };
 
 const DEFAULT_RATE_SCALE: i128 = 1_000_000;
@@ -118,7 +118,12 @@ fn calculate_tax(subtotal: i128, tax_rate_bps: u32) -> i128 {
 
 fn build_jurisdiction_key(country: &str, state: &str, city: &str) -> String {
     if !city.is_empty() {
-        format!("{country}-{state}-{city}", country = country, state = state, city = city)
+        format!(
+            "{country}-{state}-{city}",
+            country = country,
+            state = state,
+            city = city
+        )
     } else if !state.is_empty() {
         format!("{country}-{state}", country = country, state = state)
     } else {
@@ -126,7 +131,12 @@ fn build_jurisdiction_key(country: &str, state: &str, city: &str) -> String {
     }
 }
 
-fn resolve_tax_rate_entry(env: &Env, country: &String, state: &String, city: &String) -> TaxRateEntry {
+fn resolve_tax_rate_entry(
+    env: &Env,
+    country: &String,
+    state: &String,
+    city: &String,
+) -> TaxRateEntry {
     let mut lookup_keys = Vec::new(env);
 
     if !city.is_empty() && !state.is_empty() && !country.is_empty() {
@@ -173,15 +183,16 @@ fn resolve_tax_rate_entry(env: &Env, country: &String, state: &String, city: &St
 }
 
 fn get_customer_tax_status(env: &Env, subscriber: &Address) -> CustomerTaxStatus {
-    storage_persistent_get(env, StorageKey::CustomerTaxStatus(subscriber.clone()))
-        .unwrap_or(CustomerTaxStatus {
+    storage_persistent_get(env, StorageKey::CustomerTaxStatus(subscriber.clone())).unwrap_or(
+        CustomerTaxStatus {
             is_exempt: false,
             certificate_id: String::from_str(env, ""),
             certificate_expiry: 0,
             issuing_authority: String::from_str(env, ""),
             exempt_jurisdictions: Vec::new(env),
             digital_goods_override: MaybeDigitalGoodsClass::None,
-        })
+        },
+    )
 }
 
 fn is_customer_tax_exempt(env: &Env, subscriber: &Address, jurisdiction_key: &String) -> bool {
@@ -349,7 +360,35 @@ fn build_line_item(
     }
 }
 
+fn validate_invoice_period(period: &TimeRange) {
+    assert!(
+        period.start < period.end,
+        "Invoice period must be non-empty"
+    );
+}
+
+fn validate_invoice_amounts(invoice: &Invoice) {
+    assert!(invoice.subtotal >= 0, "Invoice subtotal cannot be negative");
+    assert!(invoice.tax >= 0, "Invoice tax cannot be negative");
+    assert!(invoice.total >= 0, "Invoice total cannot be negative");
+    assert!(
+        invoice.total == invoice.subtotal.saturating_add(invoice.tax),
+        "Invoice total does not equal subtotal plus tax"
+    );
+}
+
 fn store_invoice(env: &Env, invoice: &Invoice) {
+    validate_invoice_period(&invoice.period);
+    validate_invoice_amounts(invoice);
+    assert!(
+        invoice.status == InvoiceStatus::Draft,
+        "New invoices must be drafts"
+    );
+    assert!(
+        invoice.line_items.len() > 0,
+        "Invoice must contain at least one line item"
+    );
+
     storage_persistent_set(env, StorageKey::Invoice(invoice.id), invoice.clone());
     let mut list: Vec<u64> = storage_instance_get(
         env,
@@ -364,10 +403,29 @@ fn store_invoice(env: &Env, invoice: &Invoice) {
     );
 }
 
+fn can_transition(from: &InvoiceStatus, to: &InvoiceStatus) -> bool {
+    matches!(
+        (from, to),
+        (InvoiceStatus::Draft, InvoiceStatus::Sent)
+            | (InvoiceStatus::Draft, InvoiceStatus::Void)
+            | (InvoiceStatus::Sent, InvoiceStatus::Partial)
+            | (InvoiceStatus::Sent, InvoiceStatus::Paid)
+            | (InvoiceStatus::Sent, InvoiceStatus::Void)
+            | (InvoiceStatus::Partial, InvoiceStatus::Paid)
+            | (InvoiceStatus::Partial, InvoiceStatus::Void)
+    )
+}
+
 fn update_invoice_status(env: &Env, invoice_id: u64, status: InvoiceStatus) -> Invoice {
     let mut invoice: Invoice =
         storage_persistent_get(env, StorageKey::Invoice(invoice_id)).expect("Invoice not found");
+    assert!(
+        can_transition(&invoice.status, &status),
+        "Invalid invoice state transition"
+    );
     invoice.status = status;
+    validate_invoice_period(&invoice.period);
+    validate_invoice_amounts(&invoice);
     storage_persistent_set(env, StorageKey::Invoice(invoice_id), invoice.clone());
     invoice
 }
@@ -429,8 +487,14 @@ impl SubTrackrInvoice {
         state: String,
         city: String,
     ) -> Invoice {
+        validate_invoice_period(&period);
         let subscription = get_subscription(&env, &storage, subscription_id);
+        assert!(
+            subscription.status != subtrackr_types::SubscriptionStatus::Cancelled,
+            "Cannot create an invoice for a cancelled subscription"
+        );
         let plan = get_plan(&env, &storage, subscription.plan_id);
+        assert!(plan.active, "Cannot create an invoice for an inactive plan");
         let config = invoice_config(&env);
         let effective_currency = if currency.is_empty() {
             config.default_currency.clone()
@@ -443,11 +507,8 @@ impl SubTrackrInvoice {
             region.clone()
         };
 
-        let jurisdiction_key_str = build_jurisdiction_key(
-            &country.to_string(),
-            &state.to_string(),
-            &city.to_string(),
-        );
+        let jurisdiction_key_str =
+            build_jurisdiction_key(&country.to_string(), &state.to_string(), &city.to_string());
         let jurisdiction_key = String::from_str(&env, &jurisdiction_key_str);
 
         let is_exempt = is_customer_tax_exempt(&env, &subscription.subscriber, &jurisdiction_key);
@@ -494,6 +555,8 @@ impl SubTrackrInvoice {
             currency: effective_currency,
             region: display_region,
         };
+        validate_invoice_period(&invoice.period);
+        validate_invoice_amounts(&invoice);
         store_invoice(&env, &invoice);
         store_tax_remittance_line(&env, &invoice, &jurisdiction_key, &tax_type);
         invoice
@@ -520,6 +583,13 @@ impl SubTrackrInvoice {
         assert!(admin == stored_admin, "Admin mismatch");
         stored_admin.require_auth();
         update_invoice_status(&env, invoice_id, InvoiceStatus::Sent)
+    }
+
+    pub fn mark_partial(env: Env, admin: Address, invoice_id: u64) -> Invoice {
+        let stored_admin = get_admin(&env);
+        assert!(admin == stored_admin, "Admin mismatch");
+        stored_admin.require_auth();
+        update_invoice_status(&env, invoice_id, InvoiceStatus::Partial)
     }
 
     pub fn mark_paid(env: Env, admin: Address, invoice_id: u64) -> Invoice {
@@ -559,11 +629,8 @@ impl SubTrackrInvoice {
         assert!(admin == stored_admin, "Admin mismatch");
         stored_admin.require_auth();
 
-        let jurisdiction_key_str = build_jurisdiction_key(
-            &country.to_string(),
-            &state.to_string(),
-            &city.to_string(),
-        );
+        let jurisdiction_key_str =
+            build_jurisdiction_key(&country.to_string(), &state.to_string(), &city.to_string());
         let key = String::from_str(&env, &jurisdiction_key_str);
 
         let old_rate_bps = storage_persistent_get::<TaxRateEntry>(
@@ -706,11 +773,8 @@ impl SubTrackrInvoice {
         state: String,
         city: String,
     ) -> bool {
-        let jurisdiction_key_str = build_jurisdiction_key(
-            &country.to_string(),
-            &state.to_string(),
-            &city.to_string(),
-        );
+        let jurisdiction_key_str =
+            build_jurisdiction_key(&country.to_string(), &state.to_string(), &city.to_string());
         let key = String::from_str(&env, &jurisdiction_key_str);
         let entry: Option<TaxRateEntry> =
             storage_persistent_get(&env, StorageKey::TaxRateEntry(key.clone()));
@@ -1235,6 +1299,135 @@ mod tests {
 
         assert!(contract.validate_tax_certificate(&subscriber, &String::from_str(&env, "CERT-VALID")));
         assert!(!contract.validate_tax_certificate(&subscriber, &String::from_str(&env, "CERT-FAKE")));
+    }
+
+    #[test]
+    fn invoice_lifecycle_rejects_skipped_repeated_and_terminal_transitions() {
+        let (env, admin, storage, invoice_contract) = setup_env();
+        let contract = SubTrackrInvoiceClient::new(&env, &invoice_contract);
+        contract.initialize(&admin);
+
+        let merchant = Address::generate(&env);
+        let subscriber = Address::generate(&env);
+        setup_subscription(&env, &storage, &merchant, &subscriber);
+        let invoice = contract.generate_invoice(
+            &storage,
+            &1u64,
+            &TimeRange {
+                start: 1_750_000_000,
+                end: 1_752_592_000,
+            },
+            &str_empty(&env),
+            &String::from_str(&env, "USD"),
+            &str_empty(&env),
+            &str_empty(&env),
+            &str_empty(&env),
+        );
+
+        assert!(contract.try_mark_paid(&admin, &invoice.id).is_err());
+        assert_eq!(
+            contract.get_invoice(&invoice.id).status,
+            InvoiceStatus::Draft
+        );
+        assert_eq!(
+            contract.send_invoice(&admin, &invoice.id).status,
+            InvoiceStatus::Sent
+        );
+        assert!(contract.try_send_invoice(&admin, &invoice.id).is_err());
+        assert_eq!(
+            contract.mark_paid(&admin, &invoice.id).status,
+            InvoiceStatus::Paid
+        );
+        assert!(contract.try_void_invoice(&admin, &invoice.id).is_err());
+        assert_eq!(
+            contract.get_invoice(&invoice.id).status,
+            InvoiceStatus::Paid
+        );
+    }
+
+    #[test]
+    fn invoice_creation_rejects_invalid_period_and_cancelled_subscription() {
+        let (env, admin, storage, invoice_contract) = setup_env();
+        let contract = SubTrackrInvoiceClient::new(&env, &invoice_contract);
+        contract.initialize(&admin);
+
+        let merchant = Address::generate(&env);
+        let subscriber = Address::generate(&env);
+        setup_subscription(&env, &storage, &merchant, &subscriber);
+
+        let invalid_period = TimeRange { start: 10, end: 10 };
+        assert!(contract
+            .try_generate_invoice(
+                &storage,
+                &1u64,
+                &invalid_period,
+                &str_empty(&env),
+                &String::from_str(&env, "USD"),
+                &str_empty(&env),
+                &str_empty(&env),
+                &str_empty(&env),
+            )
+            .is_err());
+
+        let storage_client = SubTrackrStorageClient::new(&env, &storage);
+        let mut subscription: Subscription = storage_client
+            .persistent_get(&StorageKey::Subscription(1))
+            .unwrap()
+            .try_into_val(&env)
+            .unwrap();
+        subscription.status = subtrackr_types::SubscriptionStatus::Cancelled;
+        storage_client.persistent_set(
+            &StorageKey::Subscription(1),
+            &subscription.into_val(&env),
+        );
+
+        assert!(contract
+            .try_generate_invoice(
+                &storage,
+                &1u64,
+                &TimeRange { start: 10, end: 11 },
+                &str_empty(&env),
+                &String::from_str(&env, "USD"),
+                &str_empty(&env),
+                &str_empty(&env),
+                &str_empty(&env),
+            )
+            .is_err());
+        assert_eq!(contract.get_invoice_ids(&1u64).len(), 0);
+    }
+
+    #[test]
+    fn invoice_lifecycle_supports_partial_payment_only_after_sending() {
+        let (env, admin, storage, invoice_contract) = setup_env();
+        let contract = SubTrackrInvoiceClient::new(&env, &invoice_contract);
+        contract.initialize(&admin);
+
+        let merchant = Address::generate(&env);
+        let subscriber = Address::generate(&env);
+        setup_subscription(&env, &storage, &merchant, &subscriber);
+        let invoice = contract.generate_invoice(
+            &storage,
+            &1u64,
+            &TimeRange {
+                start: 1_750_000_000,
+                end: 1_752_592_000,
+            },
+            &str_empty(&env),
+            &String::from_str(&env, "USD"),
+            &str_empty(&env),
+            &str_empty(&env),
+            &str_empty(&env),
+        );
+
+        contract.send_invoice(&admin, &invoice.id);
+        assert_eq!(
+            contract.mark_partial(&admin, &invoice.id).status,
+            InvoiceStatus::Partial
+        );
+        assert_eq!(
+            contract.mark_paid(&admin, &invoice.id).status,
+            InvoiceStatus::Paid
+        );
     }
 
     #[test]
