@@ -407,4 +407,18 @@ pub enum StorageKey {
     ChargeCommitment(u64),
     MevAlertCount,
     MevAlert(u64),
+
+    // ── Plan Templates ──
+    PlanTemplate(TemplateKey),
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum TemplateKey {
+    Template(u64),
+    ByOwner(Address),
+    Shared,
+    Versions(u64),
+    Analytics(u64),
+    Count,
 }

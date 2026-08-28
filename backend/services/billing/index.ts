@@ -131,3 +131,18 @@ export { PricingStrategyFactory, PlanType } from './strategyFactory';
 export { BillingEngine, BillingEngineConfig } from './billingEngine';
 export { PricingAnalyticsService, RevenueMetrics } from './billingAnalytics';
 
+// Plan Templates and Dynamic Pricing Tiers
+export {
+  PlanTemplateService,
+  validateTiers,
+  validateTemplateDraft,
+  quoteTemplate,
+  resolvePlan
+} from './planTemplateService';
+export type {
+  PricingTier,
+  PlanTemplate,
+  TemplateOverrides,
+  ResolvedPlan,
+  TemplateAnalytics
+} from './planTemplateService';

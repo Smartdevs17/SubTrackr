@@ -5,6 +5,7 @@ mod gas_storage;
 mod quota;
 mod revenue;
 mod usage;
+mod plan_templates;
 use soroban_sdk::{token, Address, Bytes, BytesN, Env, IntoVal, String, TryFromVal, Val, Vec};
 use subtrackr_types::{
     ChargeCommitment, Interval, Invoice, MevAlert, MevProtectionConfig, Plan, StorageKey,
@@ -1404,5 +1405,144 @@ impl SubTrackrSubscription {
             storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
                 .expect("Subscription not found");
         usage::check_quota(&env, &storage, subscription_id, sub.plan_id, metric)
+    }
+
+    // ── Plan Templates ──
+
+    pub fn create_template(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        owner: Address,
+        name: String,
+        description: String,
+        base_price: i128,
+        token: Address,
+        interval: Interval,
+        tiers: Vec<plan_templates::PricingTier>,
+        features: Vec<String>,
+    ) -> u64 {
+        proxy.require_auth();
+        owner.require_auth();
+        plan_templates::create_template(
+            &env,
+            &storage,
+            &owner,
+            name,
+            description,
+            base_price,
+            token,
+            interval,
+            tiers,
+            features,
+        )
+    }
+
+    pub fn publish_template_version(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        caller: Address,
+        template_id: u64,
+        name: String,
+        description: String,
+        base_price: i128,
+        tiers: Vec<plan_templates::PricingTier>,
+        features: Vec<String>,
+    ) -> u64 {
+        proxy.require_auth();
+        caller.require_auth();
+        plan_templates::publish_version(
+            &env,
+            &storage,
+            &caller,
+            template_id,
+            name,
+            description,
+            base_price,
+            tiers,
+            features,
+        )
+    }
+
+    pub fn set_template_shared(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        caller: Address,
+        template_id: u64,
+        shared: bool,
+    ) {
+        proxy.require_auth();
+        caller.require_auth();
+        plan_templates::set_shared(&env, &storage, &caller, template_id, shared)
+    }
+
+    pub fn instantiate_template(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        caller: Address,
+        template_id: u64,
+        overrides: plan_templates::TemplateOverrides,
+    ) -> plan_templates::ResolvedPlan {
+        proxy.require_auth();
+        caller.require_auth();
+        plan_templates::instantiate(&env, &storage, &caller, template_id, overrides)
+    }
+
+    pub fn get_template(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        template_id: u64,
+    ) -> Option<plan_templates::PlanTemplate> {
+        proxy.require_auth();
+        plan_templates::get_template(&env, &storage, template_id)
+    }
+
+    pub fn get_owner_templates(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        owner: Address,
+    ) -> Vec<u64> {
+        proxy.require_auth();
+        plan_templates::get_owner_templates(&env, &storage, &owner)
+    }
+
+    pub fn get_shared_templates(env: Env, proxy: Address, storage: Address) -> Vec<u64> {
+        proxy.require_auth();
+        plan_templates::get_shared_templates(&env, &storage)
+    }
+
+    pub fn get_template_versions(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        root_id: u64,
+    ) -> Vec<u64> {
+        proxy.require_auth();
+        plan_templates::get_template_versions(&env, &storage, root_id)
+    }
+
+    pub fn get_latest_template_version(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        root_id: u64,
+    ) -> Option<plan_templates::PlanTemplate> {
+        proxy.require_auth();
+        plan_templates::get_latest_version(&env, &storage, root_id)
+    }
+
+    pub fn get_template_analytics(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        template_id: u64,
+    ) -> plan_templates::TemplateAnalytics {
+        proxy.require_auth();
+        plan_templates::get_analytics(&env, &storage, template_id)
     }
 }
