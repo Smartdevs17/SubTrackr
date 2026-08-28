@@ -170,28 +170,18 @@ export type {
   PoolTuningRecommendation,
 } from './poolMonitor';
 
-// ── RPC Timeout & Resilience Middleware ──────────────────────────────────────
-export {
-  withRpcTimeout,
-  wrapWithTimeout,
-  isRpcTimeout,
-  isRpcCancelled,
-  defaultTimeoutForChain,
-  RpcCallTimeoutError,
-  RpcCallCancelledError,
-} from './rpcTimeout';
-export type { RpcTimeoutOptions } from './rpcTimeout';
+// ── Background Job Queue (#990) ──────────────────────────────────────────────
+export { PriorityQueue, jobQueue } from './jobQueue';
+export type { Job, JobHandler, QueueConfig, QueueMetrics, JobStatus, JobPriority } from './jobQueue';
 
-export {
-  ResilientEthersProvider,
-  createResilientProvider,
-  getOrCreateResilientProvider,
-  clearProviderRegistry,
-  RpcAllProvidersFailedError as ResilientRpcAllProvidersFailedError,
-  RpcCallTimeoutError as ResilientRpcCallTimeoutError,
-} from './rpcResilienceMiddleware';
-export type {
-  ResilientProviderOptions,
-  EndpointHealth,
-  ProviderHealthSnapshot,
-} from './rpcResilienceMiddleware';
+// ── CDN Edge Caching (#991) ──────────────────────────────────────────────────
+export { CdnService, cdnService } from './cdnService';
+export type { CdnConfig, CacheEntry, PurgeRequest, PurgeResult, CdnMetrics } from './cdnService';
+
+// ── WebSocket Connection Pool (#994) ──────────────────────────────────────────
+export { WsConnectionPool } from './wsConnectionPool';
+export type { WsPoolConfig, WsConnection, WsMessage, WsPoolMetrics } from './wsConnectionPool';
+
+// ── Read Replica Router (#997) ────────────────────────────────────────────────
+export { ReadReplicaRouter } from './readReplicaRouter';
+export type { ReplicaConfig, ReplicaHealth, ReadRouteOptions, QueryRoute } from './readReplicaRouter';
