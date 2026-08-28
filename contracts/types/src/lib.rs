@@ -32,6 +32,7 @@ pub enum SubscriptionStatus {
     Paused,
     Cancelled,
     PastDue,
+    Trialing,
 }
 
 #[contracttype]
@@ -129,6 +130,13 @@ pub struct Subscription {
 }
 
 pub type Timestamp = u64;
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct TrialConfig {
+    pub has_trial: bool,
+    pub duration_seconds: u64,
+}
 
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
@@ -410,6 +418,9 @@ pub enum StorageKey {
 
     // ── Plan Templates ──
     PlanTemplate(TemplateKey),
+
+    // ── Trials ──
+    PlanTrial(u64),
 }
 
 #[contracttype]

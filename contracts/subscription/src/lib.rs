@@ -6,6 +6,7 @@ mod quota;
 mod revenue;
 mod usage;
 mod plan_templates;
+mod trial;
 use soroban_sdk::{token, Address, Bytes, BytesN, Env, IntoVal, String, TryFromVal, Val, Vec};
 use subtrackr_types::{
     ChargeCommitment, Interval, Invoice, MevAlert, MevProtectionConfig, Plan, StorageKey,
@@ -1544,5 +1545,16 @@ impl SubTrackrSubscription {
     ) -> plan_templates::TemplateAnalytics {
         proxy.require_auth();
         plan_templates::get_analytics(&env, &storage, template_id)
+    }
+
+    // ── Trial Management ──
+    pub fn set_plan_trial(env: Env, proxy: Address, storage: Address, merchant: Address, plan_id: u64, has_trial: bool, duration_seconds: u64) {
+        proxy.require_auth();
+        trial::set_plan_trial(&env, &storage, &merchant, plan_id, has_trial, duration_seconds);
+    }
+
+    pub fn get_plan_trial(env: Env, proxy: Address, storage: Address, plan_id: u64) -> Option<subtrackr_types::TrialConfig> {
+        proxy.require_auth();
+        trial::get_plan_trial(&env, &storage, plan_id)
     }
 }
