@@ -2,8 +2,10 @@
 mod gas_optimization;
 mod gas_profiler;
 mod gas_storage;
+mod lazy_modules;
 mod quota;
 mod revenue;
+mod storage_packing;
 mod usage;
 use soroban_sdk::{token, Address, Bytes, BytesN, Env, IntoVal, String, TryFromVal, Val, Vec};
 use subtrackr_types::{

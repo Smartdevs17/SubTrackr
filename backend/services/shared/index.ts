@@ -185,3 +185,7 @@ export type { WsPoolConfig, WsConnection, WsMessage, WsPoolMetrics } from './wsC
 // ── Read Replica Router (#997) ────────────────────────────────────────────────
 export { ReadReplicaRouter } from './readReplicaRouter';
 export type { ReplicaConfig, ReplicaHealth, ReadRouteOptions, QueryRoute } from './readReplicaRouter';
+
+// ── ETag-based API Response Cache ─────────────────────────────────────────────
+export { ETagCacheService, createETagCache, computeETag, parseIfNoneMatch, isETagMatch } from './etagCache';
+export type { ETagCacheConfig, ETagCacheMetrics } from './etagCache';
