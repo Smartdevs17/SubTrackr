@@ -21,7 +21,7 @@ module.exports = {
       'expo(nent)?|@expo(nent)?/|@expo-google-fonts/|' +
       '@unimodules/|react-navigation|@react-navigation/|' +
       '@sentry/react-native|native-base|react-native-svg|@walletconnect/' +
-    '))',
+      '))',
   ],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
   collectCoverageFrom: ['src/**/*.{ts,tsx}', '!src/**/*.d.ts', '!src/**/index.ts'],
@@ -41,8 +41,6 @@ module.exports = {
   moduleNameMapper: {
     '^bullmq$': '<rootDir>/backend/shared/queue/__mocks__/bullmq.ts',
     '^@/(.*)$': '<rootDir>/src/$1',
-    '^@testing-library/react-native$':
-      '<rootDir>/src/__mocks__/@testing-library/react-native.js',
     '^@react-native-community/netinfo$':
       '<rootDir>/src/__mocks__/@react-native-community/netinfo.js',
     '^@react-native-async-storage/async-storage$':

@@ -90,7 +90,9 @@ describe('checkContrast', () => {
 
   it('rounds ratio to 2 decimal places', () => {
     const result = checkContrast('#6366f1', '#0f172a');
-    expect(String(result.ratio)).toMatch(/^\d+\.\d{1,2}$/);
+    // ratio is a finite number rounded to at most 2 decimal places
+    expect(Number.isFinite(result.ratio)).toBe(true);
+    expect(Math.round(result.ratio * 100) / 100).toBe(result.ratio);
   });
 });
 
