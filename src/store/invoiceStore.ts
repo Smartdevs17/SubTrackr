@@ -15,6 +15,8 @@ import {
   DigitalGoodsCategory,
   InvoiceBranding,
   InvoiceTemplate,
+  TenantBrandingProfile,
+  ResolvedInvoiceBranding,
   RemittanceStatus,
   TaxRateEntry,
   MidCycleTaxChange,
@@ -27,7 +29,7 @@ import { errorHandler, AppError } from '../services/errorHandler';
 import { presentLocalNotification } from '../services/notificationService';
 
 const STORAGE_KEY = 'subtrackr-invoices';
-const STORE_VERSION = 1;
+const STORE_VERSION = 2;
 
 type PersistedInvoiceSlice = Pick<
   InvoiceState,
@@ -39,6 +41,8 @@ type PersistedInvoiceSlice = Pick<
   | 'taxRemittanceLines'
   | 'taxRemittanceReports'
   | 'digitalGoodsClasses'
+  | 'brandingProfiles'
+  | 'templates'
 >;
 
 const toValidDate = (value: unknown, fallback = new Date()): Date => {
@@ -77,7 +81,59 @@ const normalizeInvoice = (raw: Partial<Invoice>): Invoice => {
     notes: raw.notes,
     branding: raw.branding,
     templateId: raw.templateId,
+    tenantId: raw.tenantId,
   };
+};
+
+const DEFAULT_TEMPLATES: InvoiceTemplate[] = [
+  { id: 'tpl-1', name: 'Standard', layout: 'standard' },
+  { id: 'tpl-2', name: 'Modern', layout: 'modern' },
+  { id: 'tpl-3', name: 'Minimalist', layout: 'minimalist' },
+];
+
+const HEX_COLOR = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+
+/** Only http(s) and data-image URLs may be embedded in a rendered invoice. */
+const isSafeLogoUrl = (url: string): boolean =>
+  /^https?:\/\//i.test(url) || /^data:image\//i.test(url);
+
+/**
+ * Reports every problem with a branding payload rather than throwing on the
+ * first, so the branding editor can highlight all offending fields at once.
+ */
+export const validateInvoiceBranding = (branding: InvoiceBranding): string[] => {
+  const errors: string[] = [];
+  const colorFields: [keyof InvoiceBranding, string][] = [
+    ['primaryColor', 'primaryColor'],
+    ['secondaryColor', 'secondaryColor'],
+    ['accentColor', 'accentColor'],
+    ['textColor', 'textColor'],
+  ];
+  for (const [field, label] of colorFields) {
+    const value = branding[field];
+    if (value !== undefined && !HEX_COLOR.test(String(value))) {
+      errors.push(`${label} must be a hex colour such as #1a73e8`);
+    }
+  }
+  if (branding.logoUrl !== undefined && !isSafeLogoUrl(branding.logoUrl)) {
+    errors.push('logoUrl must be an http(s) or data:image URL');
+  }
+  if (
+    branding.logoWidth !== undefined &&
+    (!Number.isFinite(branding.logoWidth) || branding.logoWidth <= 0)
+  ) {
+    errors.push('logoWidth must be a positive number');
+  }
+  if (
+    branding.supportEmail !== undefined &&
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(branding.supportEmail)
+  ) {
+    errors.push('supportEmail must be a valid email address');
+  }
+  if (branding.websiteUrl !== undefined && !/^https?:\/\//i.test(branding.websiteUrl)) {
+    errors.push('websiteUrl must be an http(s) URL');
+  }
+  return errors;
 };
 
 const serializeForStorage = (state: PersistedInvoiceSlice): PersistedInvoiceSlice => ({
@@ -98,6 +154,8 @@ const serializeForStorage = (state: PersistedInvoiceSlice): PersistedInvoiceSlic
   taxRemittanceLines: state.taxRemittanceLines,
   taxRemittanceReports: state.taxRemittanceReports,
   digitalGoodsClasses: state.digitalGoodsClasses,
+  brandingProfiles: state.brandingProfiles,
+  templates: state.templates,
 });
 
 const migratePersistedState = (persisted: unknown): PersistedInvoiceSlice => {
@@ -111,6 +169,8 @@ const migratePersistedState = (persisted: unknown): PersistedInvoiceSlice => {
       taxRemittanceLines: [],
       taxRemittanceReports: [],
       digitalGoodsClasses: {},
+      brandingProfiles: {},
+      templates: DEFAULT_TEMPLATES,
     };
   }
 
@@ -128,6 +188,13 @@ const migratePersistedState = (persisted: unknown): PersistedInvoiceSlice => {
     taxRemittanceLines: maybeState.taxRemittanceLines ?? [],
     taxRemittanceReports: maybeState.taxRemittanceReports ?? [],
     digitalGoodsClasses: maybeState.digitalGoodsClasses ?? {},
+    // v1 stores predate per-tenant branding; an empty registry falls back to
+    // the platform defaults, which is exactly the v1 behaviour.
+    brandingProfiles: maybeState.brandingProfiles ?? {},
+    templates:
+      Array.isArray(maybeState.templates) && maybeState.templates.length > 0
+        ? maybeState.templates
+        : DEFAULT_TEMPLATES,
   };
 };
 
@@ -150,10 +217,27 @@ interface InvoiceState {
   digitalGoodsClasses: Record<string, DigitalGoodsCategory>;
 
   templates: InvoiceTemplate[];
+  /** Per-tenant invoice presentation, keyed by tenant (merchant) id. */
+  brandingProfiles: Record<string, TenantBrandingProfile>;
 
   setInvoiceBranding: (branding: InvoiceBranding) => void;
   setDefaultTemplate: (templateId: string) => void;
   addTemplate: (template: InvoiceTemplate) => void;
+  removeTemplate: (templateId: string) => void;
+
+  setTenantBranding: (
+    tenantId: string,
+    profile: Omit<TenantBrandingProfile, 'tenantId' | 'updatedAt'>
+  ) => TenantBrandingProfile;
+  updateTenantBranding: (
+    tenantId: string,
+    patch: Partial<Omit<TenantBrandingProfile, 'tenantId'>>
+  ) => TenantBrandingProfile | null;
+  removeTenantBranding: (tenantId: string) => void;
+  getTenantBranding: (tenantId: string) => TenantBrandingProfile | undefined;
+  listTenantBranding: () => TenantBrandingProfile[];
+  resolveBranding: (tenantId?: string) => ResolvedInvoiceBranding;
+  applyBrandingToInvoice: (invoiceId: string, tenantId?: string) => Invoice | null;
 
   generateInvoiceFromSubscription: (
     data: InvoiceFormData,
@@ -242,10 +326,8 @@ export const useInvoiceStore = create<InvoiceState>()(
       taxRemittanceReports: [],
       digitalGoodsClasses: {},
 
-      templates: [
-        { id: 'tpl-1', name: 'Standard', layout: 'standard' },
-        { id: 'tpl-2', name: 'Modern', layout: 'modern' },
-      ],
+      templates: DEFAULT_TEMPLATES,
+      brandingProfiles: {},
 
       setInvoiceBranding: (branding) => {
         set((state) => ({
@@ -261,8 +343,132 @@ export const useInvoiceStore = create<InvoiceState>()(
 
       addTemplate: (template) => {
         set((state) => ({
-          templates: [...state.templates, template],
+          templates: state.templates.some((t) => t.id === template.id)
+            ? state.templates.map((t) => (t.id === template.id ? template : t))
+            : [...state.templates, template],
         }));
+      },
+
+      removeTemplate: (templateId) => {
+        set((state) => ({
+          templates: state.templates.filter((t) => t.id !== templateId),
+          // Never leave the config pointing at a template that no longer exists.
+          config:
+            state.config.defaultTemplateId === templateId
+              ? { ...state.config, defaultTemplateId: undefined }
+              : state.config,
+        }));
+      },
+
+      setTenantBranding: (tenantId, profile) => {
+        const errors = validateInvoiceBranding(profile.branding);
+        if (errors.length > 0) {
+          throw new Error(`Invalid branding for tenant ${tenantId}: ${errors.join('; ')}`);
+        }
+        const stored: TenantBrandingProfile = {
+          ...profile,
+          tenantId,
+          updatedAt: new Date(),
+        };
+        set((state) => ({
+          brandingProfiles: { ...state.brandingProfiles, [tenantId]: stored },
+        }));
+        return stored;
+      },
+
+      updateTenantBranding: (tenantId, patch) => {
+        const existing = get().brandingProfiles[tenantId];
+        if (!existing) return null;
+
+        const branding = patch.branding
+          ? { ...existing.branding, ...patch.branding }
+          : existing.branding;
+        const errors = validateInvoiceBranding(branding);
+        if (errors.length > 0) {
+          throw new Error(`Invalid branding for tenant ${tenantId}: ${errors.join('; ')}`);
+        }
+
+        const merged: TenantBrandingProfile = {
+          ...existing,
+          ...patch,
+          branding,
+          tenantId,
+          updatedAt: new Date(),
+        };
+        set((state) => ({
+          brandingProfiles: { ...state.brandingProfiles, [tenantId]: merged },
+        }));
+        return merged;
+      },
+
+      removeTenantBranding: (tenantId) => {
+        set((state) => {
+          if (!state.brandingProfiles[tenantId]) return state;
+          const updated = { ...state.brandingProfiles };
+          delete updated[tenantId];
+          return { brandingProfiles: updated };
+        });
+      },
+
+      getTenantBranding: (tenantId) => get().brandingProfiles[tenantId],
+
+      listTenantBranding: () => Object.values(get().brandingProfiles),
+
+      resolveBranding: (tenantId) => {
+        const state = get();
+        const platformBranding = state.config.defaultBranding;
+        const platformTemplate =
+          state.config.defaultTemplateId ?? state.templates[0]?.id ?? DEFAULT_TEMPLATES[0].id;
+        const profile = tenantId ? state.brandingProfiles[tenantId] : undefined;
+
+        if (!profile) {
+          return {
+            branding: platformBranding ?? {},
+            templateId: platformTemplate,
+            numberingPrefix: state.config.numberingPrefix,
+            source: platformBranding ? 'platform' : 'fallback',
+          };
+        }
+
+        // Tenant values win field by field, so a tenant that only overrides its
+        // logo still inherits the platform palette.
+        const branding: InvoiceBranding = { ...(platformBranding ?? {}), ...profile.branding };
+
+        // A tenant pointing at a template that has since been deleted falls
+        // back rather than rendering nothing.
+        const templateId =
+          profile.templateId && state.templates.some((t) => t.id === profile.templateId)
+            ? profile.templateId
+            : platformTemplate;
+
+        return {
+          branding,
+          templateId,
+          displayName: profile.displayName,
+          numberingPrefix: profile.numberingPrefix ?? state.config.numberingPrefix,
+          source: 'tenant',
+        };
+      },
+
+      applyBrandingToInvoice: (invoiceId, tenantId) => {
+        const invoice = get().invoices.find((entry) => entry.id === invoiceId);
+        if (!invoice) return null;
+
+        const effectiveTenantId = tenantId ?? invoice.tenantId;
+        const resolved = get().resolveBranding(effectiveTenantId);
+        const updated: Invoice = {
+          ...invoice,
+          tenantId: effectiveTenantId,
+          branding: resolved.branding,
+          templateId: resolved.templateId,
+          merchantName: resolved.displayName ?? invoice.merchantName,
+          updatedAt: new Date(),
+        };
+
+        set((state) => ({
+          invoices: state.invoices.map((entry) => (entry.id === invoiceId ? updated : entry)),
+        }));
+        return updated;
       },
 
       generateInvoiceFromSubscription: async (data, taxRateBps, exchangeRate) => {
@@ -287,8 +493,19 @@ export const useInvoiceStore = create<InvoiceState>()(
             invoice.taxJurisdiction = data.taxJurisdiction;
           }
 
-          invoice.branding = state.config.defaultBranding;
-          invoice.templateId = state.config.defaultTemplateId || state.templates[0]?.id;
+          const resolved = get().resolveBranding(data.tenantId);
+          invoice.tenantId = data.tenantId;
+          invoice.branding = resolved.branding;
+          invoice.templateId = resolved.templateId;
+          if (resolved.displayName) {
+            invoice.merchantName = resolved.displayName;
+          }
+          if (resolved.numberingPrefix !== state.config.numberingPrefix) {
+            invoice.invoiceNumber = invoice.invoiceNumber.replace(
+              state.config.numberingPrefix,
+              resolved.numberingPrefix
+            );
+          }
 
           set((current) => ({
             invoices: [...current.invoices, invoice],
@@ -667,6 +884,8 @@ export const useInvoiceStore = create<InvoiceState>()(
           taxRemittanceLines: state.taxRemittanceLines,
           taxRemittanceReports: state.taxRemittanceReports,
           digitalGoodsClasses: state.digitalGoodsClasses,
+          brandingProfiles: state.brandingProfiles,
+          templates: state.templates,
         }),
       migrate: (persistedState) => migratePersistedState(persistedState),
       merge: (persistedState, currentState) => ({
@@ -689,6 +908,8 @@ export const useInvoiceStore = create<InvoiceState>()(
             taxRemittanceLines: [],
             taxRemittanceReports: [],
             digitalGoodsClasses: {},
+            brandingProfiles: {},
+            templates: DEFAULT_TEMPLATES,
             isLoading: false,
           });
           return;
@@ -703,6 +924,9 @@ export const useInvoiceStore = create<InvoiceState>()(
           taxRemittanceLines: state?.taxRemittanceLines ?? [],
           taxRemittanceReports: state?.taxRemittanceReports ?? [],
           digitalGoodsClasses: state?.digitalGoodsClasses ?? {},
+          brandingProfiles: state?.brandingProfiles ?? {},
+          templates:
+            state?.templates && state.templates.length > 0 ? state.templates : DEFAULT_TEMPLATES,
           isLoading: false,
           error: null,
         });

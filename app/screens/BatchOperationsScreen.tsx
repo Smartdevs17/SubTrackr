@@ -25,6 +25,299 @@ import {
   exportBatchResultToCsv as exportCsv,
 } from '../stores/batchStore';
 import { colors, spacing, typography, borderRadius } from '../../src/utils/constants';
+import {
+  useAtomicBatch,
+  validateAtomicBatch,
+  type AtomicBatchItem,
+  type AtomicBatchReport,
+  type AtomicBatchStatus,
+} from '../services/atomicBatchService';
+
+// ── Atomic status colour map ──────────────────────────────────────────────
+
+const ATOMIC_STATUS_COLORS: Record<AtomicBatchStatus, string> = {
+  idle: colors.textSecondary,
+  validating: colors.warning,
+  snapshotting: colors.warning,
+  executing: colors.primary,
+  committing: colors.primary,
+  rolling_back: colors.error,
+  committed: colors.success,
+  rolled_back: colors.error,
+  failed: colors.error,
+};
+
+// ── AtomicExecutionPanel ──────────────────────────────────────────────────
+
+interface AtomicExecutionPanelProps {
+  operationType: BatchOperationType;
+  subscriptionIds: string[];
+}
+
+const AtomicExecutionPanel: React.FC<AtomicExecutionPanelProps> = ({
+  operationType,
+  subscriptionIds,
+}) => {
+  const { runAtomic, isBusy } = useAtomicBatch();
+  const [report, setReport] = React.useState<AtomicBatchReport | null>(null);
+  const [status, setStatus] = React.useState<AtomicBatchStatus>('idle');
+  const [validationErrors, setValidationErrors] = React.useState<string[]>([]);
+
+  const items: AtomicBatchItem[] = subscriptionIds.map((sid, idx) => ({
+    id: `item_${idx}`,
+    subscriptionId: sid,
+    operation: operationType,
+    payload: {},
+  }));
+
+  const handleRunAtomic = React.useCallback(async () => {
+    setValidationErrors([]);
+    const validation = validateAtomicBatch(items);
+    if (!validation.valid) {
+      setValidationErrors(validation.errors);
+      return;
+    }
+    setStatus('executing');
+    try {
+      const result = await runAtomic(`batch_${Date.now()}`, items, {
+        failFast: true,
+        concurrency: 1,
+        timeoutPerItemMs: 10_000,
+      });
+      setReport(result);
+      setStatus(result.status);
+    } catch {
+      setStatus('failed');
+    }
+  }, [items, runAtomic]);
+
+  const handleReset = () => {
+    setReport(null);
+    setStatus('idle');
+    setValidationErrors([]);
+  };
+
+  const statusColor = ATOMIC_STATUS_COLORS[status];
+
+  return (
+    <View style={atomicStyles.panel}>
+      <View style={atomicStyles.panelHeader}>
+        <Text style={atomicStyles.panelTitle}>⚛  Atomic Execution</Text>
+        <View style={[atomicStyles.statusBadge, { backgroundColor: statusColor + '22', borderColor: statusColor }]}>
+          <Text style={[atomicStyles.statusText, { color: statusColor }]}>
+            {status.toUpperCase().replace('_', ' ')}
+          </Text>
+        </View>
+      </View>
+
+      <Text style={atomicStyles.description}>
+        Atomic mode executes all {subscriptionIds.length} item
+        {subscriptionIds.length !== 1 ? 's' : ''} as a single unit. Any failure
+        will automatically roll back all previously applied changes.
+      </Text>
+
+      {validationErrors.length > 0 && (
+        <View style={atomicStyles.errorBox}>
+          {validationErrors.map((e, i) => (
+            <Text key={i} style={atomicStyles.errorText}>• {e}</Text>
+          ))}
+        </View>
+      )}
+
+      {report && (
+        <View style={atomicStyles.reportBox}>
+          <View style={atomicStyles.reportRow}>
+            <Text style={atomicStyles.reportLabel}>Total items</Text>
+            <Text style={atomicStyles.reportValue}>{report.totalItems}</Text>
+          </View>
+          <View style={atomicStyles.reportRow}>
+            <Text style={atomicStyles.reportLabel}>Succeeded</Text>
+            <Text style={[atomicStyles.reportValue, { color: colors.success }]}>
+              {report.succeededItems}
+            </Text>
+          </View>
+          <View style={atomicStyles.reportRow}>
+            <Text style={atomicStyles.reportLabel}>Failed</Text>
+            <Text style={[atomicStyles.reportValue, { color: colors.error }]}>
+              {report.failedItems}
+            </Text>
+          </View>
+          {report.rolledBackItems > 0 && (
+            <View style={atomicStyles.reportRow}>
+              <Text style={atomicStyles.reportLabel}>Rolled back</Text>
+              <Text style={[atomicStyles.reportValue, { color: colors.warning }]}>
+                {report.rolledBackItems}
+              </Text>
+            </View>
+          )}
+          {report.durationMs !== undefined && (
+            <View style={atomicStyles.reportRow}>
+              <Text style={atomicStyles.reportLabel}>Duration</Text>
+              <Text style={atomicStyles.reportValue}>
+                {report.durationMs < 1000
+                  ? `${report.durationMs} ms`
+                  : `${(report.durationMs / 1000).toFixed(2)} s`}
+              </Text>
+            </View>
+          )}
+          {report.rollbackReason && (
+            <View style={atomicStyles.rollbackBox}>
+              <Text style={atomicStyles.rollbackLabel}>Rollback reason:</Text>
+              <Text style={atomicStyles.rollbackReason}>{report.rollbackReason}</Text>
+            </View>
+          )}
+          <Text style={atomicStyles.idempotencyKey}>
+            Key: {report.idempotencyKey}
+          </Text>
+        </View>
+      )}
+
+      <View style={atomicStyles.buttonRow}>
+        {status === 'idle' || status === 'failed' || status === 'committed' || status === 'rolled_back' ? (
+          <>
+            <TouchableOpacity
+              style={[
+                atomicStyles.runButton,
+                (isBusy || subscriptionIds.length === 0) && atomicStyles.disabledButton,
+              ]}
+              onPress={handleRunAtomic}
+              disabled={isBusy || subscriptionIds.length === 0}>
+              <Text style={atomicStyles.runButtonText}>
+                {status === 'idle' ? '▶  Run Atomically' : '↺  Re-run'}
+              </Text>
+            </TouchableOpacity>
+            {report && (
+              <TouchableOpacity style={atomicStyles.resetButton} onPress={handleReset}>
+                <Text style={atomicStyles.resetButtonText}>Reset</Text>
+              </TouchableOpacity>
+            )}
+          </>
+        ) : (
+          <ActivityIndicator color={colors.primary} />
+        )}
+      </View>
+    </View>
+  );
+};
+
+// ── Styles for AtomicExecutionPanel ───────────────────────────────────────
+
+const atomicStyles = StyleSheet.create({
+  panel: {
+    margin: spacing.md,
+    padding: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.primary + '44',
+  },
+  panelHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
+  },
+  panelTitle: {
+    ...typography.h3,
+    color: colors.text,
+    fontWeight: '700',
+  },
+  statusBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.round,
+    borderWidth: 1,
+  },
+  statusText: {
+    ...typography.small,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  description: {
+    ...typography.body,
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
+  },
+  errorBox: {
+    backgroundColor: colors.error + '18',
+    padding: spacing.sm,
+    borderRadius: borderRadius.sm,
+    marginBottom: spacing.sm,
+  },
+  errorText: {
+    ...typography.caption,
+    color: colors.error,
+  },
+  reportBox: {
+    backgroundColor: colors.surfaceVariant,
+    padding: spacing.sm,
+    borderRadius: borderRadius.sm,
+    marginBottom: spacing.sm,
+    gap: spacing.xs,
+  },
+  reportRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  reportLabel: {
+    ...typography.caption,
+    color: colors.textSecondary,
+  },
+  reportValue: {
+    ...typography.caption,
+    color: colors.text,
+    fontWeight: '600',
+  },
+  rollbackBox: {
+    marginTop: spacing.xs,
+  },
+  rollbackLabel: {
+    ...typography.small,
+    color: colors.error,
+    fontWeight: '600',
+  },
+  rollbackReason: {
+    ...typography.small,
+    color: colors.textSecondary,
+  },
+  idempotencyKey: {
+    ...typography.small,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+    fontFamily: 'monospace',
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  runButton: {
+    flex: 1,
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    alignItems: 'center',
+  },
+  runButtonText: {
+    ...typography.button,
+    color: colors.onPrimary,
+  },
+  resetButton: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    alignItems: 'center',
+  },
+  resetButtonText: {
+    ...typography.button,
+    color: colors.text,
+  },
+  disabledButton: {
+    opacity: 0.45,
+  },
+});
 
 // ════════════════════════════════════════════════════════════════
 // Constants
@@ -875,6 +1168,20 @@ export const BatchOperationsScreen: React.FC = () => {
         {renderProgress()}
         {renderResults()}
         {renderAnalytics()}
+
+        {/* Issue #919 — Atomic Execution Panel */}
+        <AtomicExecutionPanel
+          operationType={draft.operationType}
+          subscriptionIds={
+            draft.csvContent
+              ? draft.csvContent
+                  .split('\n')
+                  .map((l) => l.trim().split(',')[0])
+                  .filter(Boolean)
+                  .slice(0, 100)
+              : []
+          }
+        />
 
         <View style={styles.bottomPad} />
       </ScrollView>

@@ -11,7 +11,7 @@ import {
 
 interface Endpoint {
   id: string;
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   path: string;
   name: string;
   hasBody?: boolean;
@@ -39,7 +39,46 @@ const ENDPOINTS: Endpoint[] = [
       2
     ),
   },
+  { id: 'get_sub', method: 'GET', path: '/v1/subscriptions/:id', name: 'Get Subscription' },
+  {
+    id: 'cancel_sub',
+    method: 'POST',
+    path: '/v1/subscriptions/:id/cancel',
+    name: 'Cancel Subscription',
+    hasBody: true,
+    defaultBody: JSON.stringify({ reason: 'user_requested', atPeriodEnd: true }, null, 2),
+  },
+  { id: 'list_plans', method: 'GET', path: '/v1/plans', name: 'List Plans' },
   { id: 'list_pay', method: 'GET', path: '/v1/payments', name: 'List Payments' },
+  {
+    id: 'list_invoices',
+    method: 'GET',
+    path: '/v1/invoices',
+    name: 'List Invoices',
+  },
+  { id: 'list_webhooks', method: 'GET', path: '/v1/webhooks', name: 'List Webhooks' },
+  {
+    id: 'create_webhook',
+    method: 'POST',
+    path: '/v1/webhooks',
+    name: 'Create Webhook',
+    hasBody: true,
+    defaultBody: JSON.stringify(
+      {
+        url: 'https://your-app.com/webhook',
+        events: ['subscription.created', 'payment.completed'],
+      },
+      null,
+      2
+    ),
+  },
+  {
+    id: 'usage_analytics',
+    method: 'GET',
+    path: '/v1/analytics/usage',
+    name: 'Usage Analytics',
+  },
+  { id: 'list_themes', method: 'GET', path: '/v1/themes', name: 'List Themes' },
 ];
 
 const LANGUAGES = ['cURL', 'JavaScript', 'Python', 'Go'];
@@ -131,8 +170,29 @@ func main() {
       if (selectedEndpoint.id === 'list_sub') {
         mockResponse = {
           success: true,
-          data: [{ id: 'sub_123', name: 'Netflix', price: 15.99, status: 'active' }],
-          pagination: { page: 1, limit: 20, total: 1 },
+          data: [
+            {
+              id: 'sub_123',
+              name: 'Netflix',
+              category: 'streaming',
+              price: 15.99,
+              currency: 'USD',
+              billingCycle: 'monthly',
+              status: 'active',
+              nextBillingDate: '2026-09-01T00:00:00Z',
+            },
+            {
+              id: 'sub_124',
+              name: 'Spotify',
+              category: 'music',
+              price: 9.99,
+              currency: 'USD',
+              billingCycle: 'monthly',
+              status: 'active',
+              nextBillingDate: '2026-09-04T00:00:00Z',
+            },
+          ],
+          pagination: { page: 1, limit: 20, total: 2, hasNext: false },
         };
       } else if (selectedEndpoint.id === 'create_sub') {
         try {
@@ -154,6 +214,120 @@ func main() {
           };
           mockStatus = 400;
         }
+      } else if (selectedEndpoint.id === 'get_sub') {
+        mockResponse = {
+          success: true,
+          data: {
+            id: 'sub_123',
+            name: 'Netflix',
+            category: 'streaming',
+            price: 15.99,
+            currency: 'USD',
+            billingCycle: 'monthly',
+            status: 'active',
+            nextBillingDate: '2026-09-01T00:00:00Z',
+          },
+        };
+      } else if (selectedEndpoint.id === 'cancel_sub') {
+        mockResponse = {
+          success: true,
+          data: {
+            id: 'sub_123',
+            status: 'cancelled',
+            cancelAtPeriodEnd: true,
+            effectiveAt: '2026-09-30T00:00:00Z',
+          },
+        };
+      } else if (selectedEndpoint.id === 'list_plans') {
+        mockResponse = {
+          success: true,
+          data: [
+            { id: 'plan_free', name: 'Free', price: 0, currency: 'USD', interval: 'monthly' },
+            { id: 'plan_pro', name: 'Pro', price: 19, currency: 'USD', interval: 'monthly' },
+            { id: 'plan_ent', name: 'Enterprise', price: 99, currency: 'USD', interval: 'monthly' },
+          ],
+        };
+      } else if (selectedEndpoint.id === 'list_pay') {
+        mockResponse = {
+          success: true,
+          data: [
+            {
+              id: 'pay_1',
+              subscriptionId: 'sub_123',
+              amount: 15.99,
+              currency: 'USD',
+              status: 'succeeded',
+              createdAt: '2026-08-01T00:00:00Z',
+            },
+          ],
+          pagination: { page: 1, limit: 20, total: 1, hasNext: false },
+        };
+      } else if (selectedEndpoint.id === 'list_invoices') {
+        mockResponse = {
+          success: true,
+          data: [
+            {
+              id: 'inv_1',
+              subscriptionId: 'sub_123',
+              total: 15.99,
+              currency: 'USD',
+              status: 'paid',
+              dueAt: '2026-08-01T00:00:00Z',
+            },
+            {
+              id: 'inv_2',
+              subscriptionId: 'sub_124',
+              total: 9.99,
+              currency: 'USD',
+              status: 'open',
+              dueAt: '2026-09-01T00:00:00Z',
+            },
+          ],
+        };
+      } else if (selectedEndpoint.id === 'list_webhooks') {
+        mockResponse = {
+          success: true,
+          data: [
+            {
+              id: 'wh_1',
+              url: 'https://your-app.com/webhook',
+              events: ['subscription.created'],
+              status: 'enabled',
+            },
+          ],
+        };
+      } else if (selectedEndpoint.id === 'create_webhook') {
+        try {
+          const body = JSON.parse(requestBody);
+          mockResponse = {
+            success: true,
+            data: { id: 'wh_new', ...body, status: 'enabled', createdAt: new Date().toISOString() },
+          };
+          mockStatus = 201;
+        } catch (e) {
+          mockResponse = {
+            success: false,
+            error: { code: 'INVALID_REQUEST', message: 'Invalid JSON body' },
+          };
+          mockStatus = 400;
+        }
+      } else if (selectedEndpoint.id === 'usage_analytics') {
+        mockResponse = {
+          success: true,
+          data: {
+            requests: { total: 1234, window: 'daily' },
+            credits: { used: 340, remaining: 660 },
+            rateLimit: { short: 78, long: 340 },
+          },
+        };
+      } else if (selectedEndpoint.id === 'list_themes') {
+        mockResponse = {
+          success: true,
+          data: [
+            { id: 'theme_1', name: 'Midnight', primaryColor: '#6C5CE7', status: 'active' },
+            { id: 'theme_2', name: 'Ocean', primaryColor: '#0984E3', status: 'draft' },
+          ],
+        };
       } else {
         mockResponse = { success: true, data: [] };
       }
