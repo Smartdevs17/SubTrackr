@@ -203,16 +203,28 @@ console.log('Drill passed:', result.passed, 'RTO compliant:', result.rtoComplian
 
 ### CI Integration
 
-Add to `package.json`:
+The DR routine is automated by the `.github/workflows/disaster-recovery.yml` GitHub Actions
+workflow. On every run it:
+
+1. Executes a full DR drill (`node scripts/dr-test.js` — backup → verify → restore + health).
+2. Creates a DR backup with a pre-check (`./scripts/dr-backup.sh --pre-check`).
+3. Captures DR status as JSON (`./scripts/dr-status.sh --json`) and uploads it as a build artefact.
+
+Schedule:
+- **Automated daily** at `03:17 UTC` (cron `17 3 * * *`) — backups/status on a routine cadence with no human action required.
+- **Manual** via `workflow_dispatch` for on-demand runs.
+
+Add the local (non-CI) equivalents to `package.json` for ad-hoc checks:
 
 ```json
 "dr:drill": "jest backend/dr/__tests__/DisasterRecoveryService.test.ts --no-coverage",
+"dr:backup": "bash scripts/dr-backup.sh --pre-check",
 "chaos": "jest chaos/__tests__/ --no-coverage"
 ```
 
-Recommended schedule:
+Recommended full schedule:
 - **CI per PR**: Chaos experiments (network partition, service degradation, failure injection, geo partition, backup consistency)
-- **Daily**: DR drill
+- **Daily (automated)**: DR drill + backup + status via `disaster-recovery.yml`
 - **Pre-release**: Full DR drill + chaos suite
 
 ---

@@ -33,12 +33,29 @@ export type FailureType =
   | 'auth_required'
   | 'unknown';
 
+/**
+ * Shape of the delay curve applied between retries of the same stage.
+ *
+ * - `fixed`       — every attempt waits `baseDelayHours`.
+ * - `linear`      — attempt N waits `baseDelayHours * N`.
+ * - `exponential` — attempt N waits `baseDelayHours * multiplier^(N-1)`.
+ * - `exponential_jitter` — as `exponential`, with a random ± `jitterRatio`
+ *   spread so a batch of failures caused by one upstream outage does not
+ *   retry in lockstep.
+ */
+export type BackoffPolicy = 'fixed' | 'linear' | 'exponential' | 'exponential_jitter';
+
 export interface RetryScheduleConfig {
   failureType: FailureType;
   baseDelayHours: number;
   maxRetries: number;
   backoffMultiplier: number;
   maxDelayHours: number;
+  backoffPolicy: BackoffPolicy;
+  /** Fraction of the computed delay used as jitter spread, e.g. 0.2 = ±20%. */
+  jitterRatio: number;
+  /** When false the failure type is treated as terminal and is never retried. */
+  retryable: boolean;
 }
 
 export interface RetryAnalytics {
@@ -53,29 +70,80 @@ export interface RetryAnalytics {
   averageTimeToRecovery: number;
 }
 
-const DEFAULT_RETRY_SCHEDULES: RetryScheduleConfig[] = [
-  { failureType: 'insufficient_funds', baseDelayHours: 1, maxRetries: 5, backoffMultiplier: 2, maxDelayHours: 48 },
-  { failureType: 'card_declined', baseDelayHours: 2, maxRetries: 3, backoffMultiplier: 3, maxDelayHours: 72 },
-  { failureType: 'expired_card', baseDelayHours: 24, maxRetries: 2, backoffMultiplier: 1, maxDelayHours: 24 },
-  { failureType: 'network_error', baseDelayHours: 0.5, maxRetries: 6, backoffMultiplier: 1.5, maxDelayHours: 12 },
-  { failureType: 'processing_error', baseDelayHours: 1, maxRetries: 4, backoffMultiplier: 2, maxDelayHours: 24 },
-  { failureType: 'auth_required', baseDelayHours: 0.25, maxRetries: 3, backoffMultiplier: 1, maxDelayHours: 1 },
-  { failureType: 'unknown', baseDelayHours: 1, maxRetries: 3, backoffMultiplier: 2, maxDelayHours: 24 },
+const FAILURE_TYPES: FailureType[] = [
+  'insufficient_funds',
+  'card_declined',
+  'expired_card',
+  'network_error',
+  'processing_error',
+  'auth_required',
+  'unknown',
 ];
+
+const DEFAULT_RETRY_SCHEDULES: RetryScheduleConfig[] = [
+  { failureType: 'insufficient_funds', baseDelayHours: 1, maxRetries: 5, backoffMultiplier: 2, maxDelayHours: 48, backoffPolicy: 'exponential_jitter', jitterRatio: 0.2, retryable: true },
+  { failureType: 'card_declined', baseDelayHours: 2, maxRetries: 3, backoffMultiplier: 3, maxDelayHours: 72, backoffPolicy: 'exponential', jitterRatio: 0, retryable: true },
+  // A card that has expired will keep failing until the payer acts, so a flat
+  // daily nudge beats an escalating backoff here.
+  { failureType: 'expired_card', baseDelayHours: 24, maxRetries: 2, backoffMultiplier: 1, maxDelayHours: 24, backoffPolicy: 'fixed', jitterRatio: 0, retryable: true },
+  { failureType: 'network_error', baseDelayHours: 0.5, maxRetries: 6, backoffMultiplier: 1.5, maxDelayHours: 12, backoffPolicy: 'exponential_jitter', jitterRatio: 0.3, retryable: true },
+  { failureType: 'processing_error', baseDelayHours: 1, maxRetries: 4, backoffMultiplier: 2, maxDelayHours: 24, backoffPolicy: 'exponential', jitterRatio: 0, retryable: true },
+  { failureType: 'auth_required', baseDelayHours: 0.25, maxRetries: 3, backoffMultiplier: 1, maxDelayHours: 1, backoffPolicy: 'linear', jitterRatio: 0, retryable: true },
+  { failureType: 'unknown', baseDelayHours: 1, maxRetries: 3, backoffMultiplier: 2, maxDelayHours: 24, backoffPolicy: 'exponential', jitterRatio: 0, retryable: true },
+];
+
+/** Failure types share names with `FailureReason` only partially; map them across. */
+const FAILURE_TYPE_TO_REASON: Record<FailureType, FailureReason> = {
+  insufficient_funds: 'insufficient_funds',
+  card_declined: 'default',
+  expired_card: 'expired_card',
+  network_error: 'network',
+  processing_error: 'default',
+  auth_required: 'default',
+  unknown: 'default',
+};
+
+const emptyStageRecord = (): Record<DunningStage, number> => ({
+  retry: 0,
+  warn: 0,
+  suspend: 0,
+  cancel: 0,
+});
+
+const emptyFailureTypeRecord = (): Record<FailureType, number> =>
+  FAILURE_TYPES.reduce((acc, type) => {
+    acc[type] = 0;
+    return acc;
+  }, {} as Record<FailureType, number>);
+
+const FALLBACK_STRATEGY: RetryStrategy = {
+  stages: DEFAULT_DUNNING_STAGES,
+  maxRetries: 3,
+  retryIntervalHours: 1,
+  warnAfterFailures: 3,
+  suspendAfterDays: 3,
+  cancelAfterDays: 7,
+  communicationChannels: ['email', 'push'],
+};
+
+interface RetryHistoryRecord {
+  subscriptionId: string;
+  merchantId: string;
+  failureType: FailureType;
+  attempt: number;
+  success: boolean;
+  timestamp: number;
+  delayHours: number;
+}
 
 export class DunningService {
   private entries = new Map<string, DunningEntry>();
   private configurations = new Map<string, DunningConfiguration>();
   private communicationLog = new Map<string, DunningCommunication[]>();
+  private templates: DunningCommunicationTemplate[] = [...DUNNING_TEMPLATES];
   private retrySchedules: RetryScheduleConfig[] = [...DEFAULT_RETRY_SCHEDULES];
-  private retryHistory: Array<{
-    subscriptionId: string;
-    failureType: FailureType;
-    attempt: number;
-    success: boolean;
-    timestamp: number;
-    delayHours: number;
-  }> = [];
+  private retryHistory: RetryHistoryRecord[] = [];
+  private recoveredEntries: DunningEntry[] = [];
   private progressiveEngine: ProgressiveDunningEngine;
 
   constructor(engine: ProgressiveDunningEngine = progressiveDunningEngine) {
@@ -84,16 +152,9 @@ export class DunningService {
 
   configurePlan(planId: string, config: Partial<DunningConfiguration>): DunningConfiguration {
     const existing = this.configurations.get(planId);
-    
-    const defaultStrategy: RetryStrategy = config.defaultStrategy ?? existing?.defaultStrategy ?? {
-      stages: DEFAULT_DUNNING_STAGES,
-      maxRetries: 3,
-      retryIntervalHours: 1,
-      warnAfterFailures: 3,
-      suspendAfterDays: 3,
-      cancelAfterDays: 7,
-      communicationChannels: ['email', 'push'],
-    };
+
+    const defaultStrategy: RetryStrategy =
+      config.defaultStrategy ?? existing?.defaultStrategy ?? { ...FALLBACK_STRATEGY };
 
     const merged: DunningConfiguration = {
       planId,
@@ -101,7 +162,7 @@ export class DunningService {
       strategies: config.strategies ?? existing?.strategies ?? {},
       abTestConfig: config.abTestConfig ?? existing?.abTestConfig,
     };
-    
+
     this.configurations.set(planId, merged);
     return merged;
   }
@@ -120,6 +181,22 @@ export class DunningService {
     return this.configurations.get(planId);
   }
 
+  /**
+   * Resolves the retry strategy in force for a subscription, most specific
+   * first: A/B variant → failure-reason override → plan default → built-in.
+   */
+  getStrategy(planId: string, failureReason: FailureReason, abTestVariant?: string): RetryStrategy {
+    const config = this.configurations.get(planId);
+    if (!config) return FALLBACK_STRATEGY;
+
+    if (abTestVariant && config.abTestConfig?.enabled) {
+      const variant = config.abTestConfig.variants.find((v) => v.id === abTestVariant);
+      if (variant) return variant.strategy;
+    }
+
+    return config.strategies?.[failureReason] ?? config.defaultStrategy ?? FALLBACK_STRATEGY;
+  }
+
   configureRetrySchedule(schedule: Partial<RetryScheduleConfig> & { failureType: FailureType }): void {
     const existingIdx = this.retrySchedules.findIndex((s) => s.failureType === schedule.failureType);
     const existing = existingIdx >= 0 ? this.retrySchedules[existingIdx] : undefined;
@@ -130,6 +207,9 @@ export class DunningService {
       maxRetries: schedule.maxRetries ?? existing?.maxRetries ?? 3,
       backoffMultiplier: schedule.backoffMultiplier ?? existing?.backoffMultiplier ?? 2,
       maxDelayHours: schedule.maxDelayHours ?? existing?.maxDelayHours ?? 24,
+      backoffPolicy: schedule.backoffPolicy ?? existing?.backoffPolicy ?? 'exponential',
+      jitterRatio: schedule.jitterRatio ?? existing?.jitterRatio ?? 0,
+      retryable: schedule.retryable ?? existing?.retryable ?? true,
     };
 
     if (existingIdx >= 0) {
@@ -142,15 +222,46 @@ export class DunningService {
   getRetrySchedule(failureType: FailureType): RetryScheduleConfig {
     return (
       this.retrySchedules.find((s) => s.failureType === failureType) ??
-      this.retrySchedules.find((s) => s.failureType === 'unknown')!
+      this.retrySchedules.find((s) => s.failureType === 'unknown') ??
+      DEFAULT_RETRY_SCHEDULES[DEFAULT_RETRY_SCHEDULES.length - 1]
     );
   }
 
+  listRetrySchedules(): RetryScheduleConfig[] {
+    return this.retrySchedules.map((s) => ({ ...s }));
+  }
+
+  /** Delay in hours before attempt `attemptNumber` (1-based), capped at `maxDelayHours`. */
   calculateRetryDelay(failureType: FailureType, attemptNumber: number): number {
     const schedule = this.getRetrySchedule(failureType);
-    const delay =
-      schedule.baseDelayHours * Math.pow(schedule.backoffMultiplier, attemptNumber - 1);
-    return Math.min(delay, schedule.maxDelayHours);
+    const attempt = Math.max(1, attemptNumber);
+
+    let delay: number;
+    switch (schedule.backoffPolicy) {
+      case 'fixed':
+        delay = schedule.baseDelayHours;
+        break;
+      case 'linear':
+        delay = schedule.baseDelayHours * attempt;
+        break;
+      case 'exponential':
+      case 'exponential_jitter':
+      default:
+        delay = schedule.baseDelayHours * Math.pow(schedule.backoffMultiplier, attempt - 1);
+        break;
+    }
+
+    delay = Math.min(delay, schedule.maxDelayHours);
+
+    if (schedule.backoffPolicy === 'exponential_jitter' && schedule.jitterRatio > 0) {
+      const spread = delay * schedule.jitterRatio;
+      // Jitter both directions, then clamp so the delay stays inside the
+      // configured envelope.
+      delay = delay + (Math.random() * 2 - 1) * spread;
+      delay = Math.min(Math.max(delay, 0), schedule.maxDelayHours);
+    }
+
+    return delay;
   }
 
   startDunning(
@@ -228,12 +339,13 @@ export class DunningService {
     const { entry: updated, event } = this.progressiveEngine.applyEscalation(entry, rule);
     this.entries.set(subscriptionId, updated);
 
+    const strategy = this.getStrategy(updated.planId, updated.failureReason, updated.abTestVariant);
     const stageConfig =
-      this.configurations.get(updated.planId)?.stages.find((s) => s.stage === updated.currentStage) ??
+      strategy.stages.find((s) => s.stage === updated.currentStage) ??
       DEFAULT_DUNNING_STAGES.find((s) => s.stage === updated.currentStage);
 
     if (stageConfig) {
-      this.sendCommunication(updated, stageConfig);
+      this.sendCommunication(updated, stageConfig, strategy);
     }
 
     return { entry: updated, event };
@@ -250,7 +362,7 @@ export class DunningService {
     const entry = this.entries.get(subscriptionId);
     if (!entry || entry.isPaused) return null;
 
-    const config = this.configurations.get(entry.planId);
+    const strategy = this.getStrategy(entry.planId, entry.failureReason, entry.abTestVariant);
     const schedule = this.getRetrySchedule(failureType);
     const now_ts = now();
 
@@ -260,65 +372,81 @@ export class DunningService {
     entry.lastAttemptAt = now_ts;
     entry.updatedAt = now_ts;
 
-    this.retryHistory.push({
-      subscriptionId,
-      failureType,
-      attempt: entry.failedAttempts,
-      success: false,
-      timestamp: now_ts,
-      delayHours: 0,
-    });
+    const stages = strategy.stages.length > 0 ? strategy.stages : DEFAULT_DUNNING_STAGES;
+    const currentStageIndex = stages.findIndex((s) => s.stage === entry.currentStage);
+    const stageConfig = currentStageIndex >= 0 ? stages[currentStageIndex] : undefined;
 
-    const shouldAdvanceStage = (): boolean => {
-      if (entry.failedAttempts >= schedule.maxRetries) return true;
-      const currentStageIndex = config
-        ? config.stages.findIndex((s) => s.stage === entry.currentStage)
-        : -1;
-      if (currentStageIndex < 0 || !config) return false;
-      const stageConfig = config.stages[currentStageIndex];
-      return entry.failedAttempts >= stageConfig.maxAttempts;
-    };
+    // A non-retryable failure (e.g. a hard decline) skips the retry budget and
+    // escalates on the first occurrence.
+    const budgetExhausted =
+      !schedule.retryable ||
+      entry.failedAttempts >= schedule.maxRetries ||
+      (stageConfig !== undefined && entry.failedAttempts >= stageConfig.maxAttempts);
 
-    if (shouldAdvanceStage() && config) {
-      const currentStageIndex = config.stages.findIndex((s) => s.stage === entry.currentStage);
+    let delayHours = 0;
+
+    if (budgetExhausted) {
       const nextStageIndex = currentStageIndex + 1;
-      if (nextStageIndex < strategy.stages.length) {
-        const nextStage = strategy.stages[nextStageIndex];
+      if (currentStageIndex >= 0 && nextStageIndex < stages.length) {
+        const nextStage = stages[nextStageIndex];
         entry.currentStage = nextStage.stage;
         entry.failedAttempts = 0;
-        entry.nextActionAt = now_ts + nextStage.delayHours * ONE_HOUR_MS;
-        this.sendCommunication(entry, nextStage);
+        delayHours = nextStage.delayHours;
+        entry.nextActionAt = now_ts + delayHours * ONE_HOUR_MS;
+        this.progressiveEngine.trackStageEntry(entry, now_ts);
+        this.sendCommunication(entry, nextStage, strategy);
       } else {
         entry.currentStage = 'cancel';
-        entry.nextActionAt = now_ts + 24 * ONE_HOUR_MS;
+        entry.failedAttempts = 0;
+        delayHours = 24;
+        entry.nextActionAt = now_ts + delayHours * ONE_HOUR_MS;
+        this.progressiveEngine.trackStageEntry(entry, now_ts);
+        const cancelStage =
+          stages.find((s) => s.stage === 'cancel') ??
+          DEFAULT_DUNNING_STAGES.find((s) => s.stage === 'cancel');
+        if (cancelStage) {
+          this.sendCommunication(entry, cancelStage, strategy);
+        }
       }
     } else {
-      const delay = this.calculateRetryDelay(failureType, entry.failedAttempts);
-      entry.nextActionAt = now_ts + delay * ONE_HOUR_MS;
+      delayHours = this.calculateRetryDelay(failureType, entry.failedAttempts);
+      entry.nextActionAt = now_ts + delayHours * ONE_HOUR_MS;
     }
+
+    this.retryHistory.push({
+      subscriptionId,
+      merchantId: entry.merchantId,
+      failureType,
+      attempt: entry.totalFailedCharges,
+      success: false,
+      timestamp: now_ts,
+      delayHours,
+    });
 
     this.entries.set(subscriptionId, entry);
     return entry;
   }
 
-  recordSuccessfulCharge(subscriptionId: string): void {
+  recordSuccessfulCharge(subscriptionId: string): DunningEntry | null {
     const entry = this.entries.get(subscriptionId);
-    if (entry) {
-      this.retryHistory.push({
-        subscriptionId,
-        failureType: 'unknown',
-        attempt: entry.failedAttempts,
-        success: true,
-        timestamp: now(),
-        delayHours: 0,
-      });
-      this.progressiveEngine.recordRecovery(entry);
-    }
+    if (!entry) return null;
 
-    entry.updatedAt = now();
+    const now_ts = now();
+    this.retryHistory.push({
+      subscriptionId,
+      merchantId: entry.merchantId,
+      failureType: FAILURE_TYPES.find((t) => FAILURE_TYPE_TO_REASON[t] === entry.failureReason) ?? 'unknown',
+      attempt: entry.totalFailedCharges + 1,
+      success: true,
+      timestamp: now_ts,
+      delayHours: 0,
+    });
+    this.progressiveEngine.recordRecovery(entry, now_ts);
+
+    entry.updatedAt = now_ts;
     this.recoveredEntries.push(entry);
-
     this.entries.delete(subscriptionId);
+    return entry;
   }
 
   getDunningEntry(subscriptionId: string): DunningEntry | undefined {
@@ -331,6 +459,13 @@ export class DunningService {
       return all.filter((e) => e.merchantId === merchantId);
     }
     return all;
+  }
+
+  listRecoveredDunning(merchantId?: string): DunningEntry[] {
+    if (merchantId) {
+      return this.recoveredEntries.filter((e) => e.merchantId === merchantId);
+    }
+    return [...this.recoveredEntries];
   }
 
   pauseDunning(subscriptionId: string): DunningEntry | null {
@@ -366,6 +501,7 @@ export class DunningService {
     entry.nextActionAt = now() + (stageConfig?.delayHours ?? 24) * ONE_HOUR_MS;
     entry.updatedAt = now();
     this.entries.set(subscriptionId, entry);
+    this.progressiveEngine.trackStageEntry(entry);
     return entry;
   }
 
@@ -374,35 +510,18 @@ export class DunningService {
   }
 
   getRetryAnalytics(merchantId?: string): RetryAnalytics {
-    const entries = this.listActiveDunning(merchantId);
     const relevantHistory = merchantId
-      ? this.retryHistory.filter((h) =>
-          entries.some((e) => e.subscriptionId === h.subscriptionId)
-        )
+      ? this.retryHistory.filter((h) => h.merchantId === merchantId)
       : this.retryHistory;
 
     const totalRetries = relevantHistory.length;
     const successfulRetries = relevantHistory.filter((h) => h.success).length;
     const failedRetries = totalRetries - successfulRetries;
 
-    const retriesByFailureType: Record<FailureType, number> = {
-      insufficient_funds: 0,
-      card_declined: 0,
-      expired_card: 0,
-      network_error: 0,
-      processing_error: 0,
-      auth_required: 0,
-      unknown: 0,
-    };
+    const retriesByFailureType = emptyFailureTypeRecord();
+    const retriesByStage = emptyStageRecord();
 
-    const retriesByStage: Record<DunningStage, number> = {
-      retry: 0,
-      warn: 0,
-      suspend: 0,
-      cancel: 0,
-    };
-
-    for (const entry of entries) {
+    for (const entry of this.listActiveDunning(merchantId)) {
       retriesByStage[entry.currentStage] = (retriesByStage[entry.currentStage] ?? 0) + 1;
     }
 
@@ -415,8 +534,10 @@ export class DunningService {
     );
 
     const recoveryTimes: number[] = [];
+    const attemptsPerSuccess: number[] = [];
     for (const subId of successfulSubscriptionIds) {
       const subHistory = relevantHistory.filter((h) => h.subscriptionId === subId);
+      attemptsPerSuccess.push(subHistory.length);
       if (subHistory.length >= 2) {
         const first = subHistory[0];
         const last = subHistory[subHistory.length - 1];
@@ -428,12 +549,6 @@ export class DunningService {
       recoveryTimes.length > 0
         ? recoveryTimes.reduce((s, t) => s + t, 0) / recoveryTimes.length
         : 0;
-
-    const attemptsPerSuccess: number[] = [];
-    for (const subId of successfulSubscriptionIds) {
-      const subHistory = relevantHistory.filter((h) => h.subscriptionId === subId);
-      attemptsPerSuccess.push(subHistory.length);
-    }
 
     return {
       totalRetries,
@@ -453,49 +568,50 @@ export class DunningService {
 
   getAnalytics(merchantId?: string): DunningAnalytics {
     const allEntries = this.listActiveDunning(merchantId);
-    const recovered = merchantId 
-      ? this.recoveredEntries.filter(e => e.merchantId === merchantId)
-      : this.recoveredEntries;
+    const recovered = this.listRecoveredDunning(merchantId);
 
-    const stageBreakdown: Record<DunningStage, number> = {
-      retry: 0,
-      warn: 0,
-      suspend: 0,
-      cancel: 0,
-    };
-
-    let totalLost = 0;
+    const stageBreakdown = emptyStageRecord();
     for (const entry of allEntries) {
       stageBreakdown[entry.currentStage] = (stageBreakdown[entry.currentStage] ?? 0) + 1;
-      if (entry.currentStage === 'cancel') {
-        totalLost++;
-      }
     }
 
     const retryAnalytics = this.getRetryAnalytics(merchantId);
 
+    // Recovery rate is measured over closed outcomes only: entries that were
+    // recovered versus entries that reached `cancel`.
+    const closed = recovered.length + stageBreakdown.cancel;
+    const recoveryRate = closed > 0 ? Math.round((recovered.length / closed) * 100) : 0;
+
+    const recoveryDays = recovered
+      .map((e) => (e.updatedAt - e.firstFailureAt) / ONE_DAY_MS)
+      .filter((d) => d >= 0);
+    const averageDaysToRecovery =
+      recoveryDays.length > 0
+        ? Math.round((recoveryDays.reduce((s, d) => s + d, 0) / recoveryDays.length) * 10) / 10
+        : 0;
+
     return {
       totalActiveDunning: allEntries.length,
       stageBreakdown,
-      recoveryRate: retryAnalytics.successRate,
-      totalRecovered: retryAnalytics.successfulRetries,
+      recoveryRate,
+      totalRecovered: recovered.length,
       totalLost: stageBreakdown.cancel,
-      averageDaysToRecovery: retryAnalytics.averageTimeToRecovery,
-      stageSuccessRates: {
-        retry: retryAnalytics.retriesByStage.retry,
-        warn: retryAnalytics.retriesByStage.warn,
-        suspend: retryAnalytics.retriesByStage.suspend,
-        cancel: retryAnalytics.retriesByStage.cancel,
-      },
+      averageDaysToRecovery,
+      stageSuccessRates: retryAnalytics.retriesByStage,
     };
   }
 
-  private sendCommunication(entry: DunningEntry, stageConfig: DunningStageConfig): DunningCommunication {
+  private sendCommunication(
+    entry: DunningEntry,
+    stageConfig: DunningStageConfig,
+    strategy?: RetryStrategy
+  ): DunningCommunication {
     const template = this.templates.find((t) => t.id === stageConfig.templateId);
+    const channel = strategy?.communicationChannels?.[0] ?? 'push';
     const comm: DunningCommunication = {
       id: createId('dcom'),
       stage: stageConfig.stage,
-      channel: 'push',
+      channel,
       templateId: stageConfig.templateId,
       sentAt: now(),
       status: 'sent',
@@ -521,24 +637,35 @@ export class DunningService {
   }
 
   addTemplate(template: DunningCommunicationTemplate): void {
-    if (!this.templates.find(t => t.id === template.id)) {
+    if (!this.templates.find((t) => t.id === template.id)) {
       this.templates.push(template);
     }
   }
 
   updateTemplate(id: string, template: Partial<DunningCommunicationTemplate>): void {
-    const index = this.templates.findIndex(t => t.id === id);
+    const index = this.templates.findIndex((t) => t.id === id);
     if (index !== -1) {
       this.templates[index] = { ...this.templates[index], ...template };
     }
   }
 
   removeTemplate(id: string): void {
-    this.templates = this.templates.filter(t => t.id !== id);
+    this.templates = this.templates.filter((t) => t.id !== id);
   }
 
   getTemplates(): DunningCommunicationTemplate[] {
     return [...this.templates];
+  }
+
+  /** Clears all in-memory state. Intended for tests and worker restarts. */
+  reset(): void {
+    this.entries.clear();
+    this.configurations.clear();
+    this.communicationLog.clear();
+    this.templates = [...DUNNING_TEMPLATES];
+    this.retrySchedules = [...DEFAULT_RETRY_SCHEDULES];
+    this.retryHistory = [];
+    this.recoveredEntries = [];
   }
 }
 
