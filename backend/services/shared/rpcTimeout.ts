@@ -1,5 +1,5 @@
 /**
- * rpcTimeout.ts — Issue #941
+ * rpcTimeout.ts — Issue #912
  *
  * Production-grade timeout primitives for external blockchain RPC calls.
  *
