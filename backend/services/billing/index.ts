@@ -28,7 +28,44 @@ export type {
   TaxRemittanceReportRequest,
 } from './taxTypes';
 export { DunningService, dunningService } from './dunningService';
-export type { FailureType, RetryScheduleConfig, RetryAnalytics } from './dunningService';
+export type {
+  BackoffPolicy,
+  FailureType,
+  RetryScheduleConfig,
+  RetryAnalytics,
+} from './dunningService';
+
+// Metered pricing and tiered overage rating (issue #935). Mirrors the
+// `subtrackr-metering` Soroban contract; see metering.ts for why.
+export {
+  MeteringPricingError,
+  buildOverageLadder,
+  marginalUnitPrice,
+  quoteMeter,
+  rateMeter,
+  rateUsage,
+  toContractTiers,
+  validateMeterPricingPlan,
+  validateOverageTiers,
+} from './metering';
+export type {
+  MeteredPricingModel,
+  MeterPricingPlan,
+  OverageTier,
+  RateUsageInput,
+  RatedMeterLine,
+  RatedTierLine,
+  RatedUsageBill,
+} from './metering';
+
+// Per-tenant invoice branding and rendering (issue #937).
+export {
+  FALLBACK_BRANDING,
+  InvoiceCustomizationService,
+  escapeHtml,
+  normalizeBranding,
+} from './invoiceCustomizationService';
+export type { DeliveryResult, RenderedInvoice } from './invoiceCustomizationService';
 export { ProrationService, prorationService } from './proration';
 export type {
   ProrationConfiguration,

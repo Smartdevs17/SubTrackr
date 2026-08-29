@@ -1,6 +1,7 @@
 {
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
   "schemaVersion": "1.0",
+
   "mutate": [
     "src/**/*.{ts,tsx}",
     "!src/**/*.test.{ts,tsx}",
@@ -8,32 +9,61 @@
     "!src/**/__tests__/**",
     "!src/**/__mocks__/**",
     "!src/**/__fixtures__/**",
-    "!src/**/*.d.ts"
+    "!src/**/*.d.ts",
+    "!src/**/index.ts",
+    "!src/animations/**",
+    "!src/i18n/**"
   ],
+
   "testRunner": "jest",
   "jest": {
     "projectType": "custom",
-    "configFile": "jest.config.js"
+    "configFile": "jest.config.js",
+    "enableFindRelatedTests": true
   },
+
   "checkers": ["typescript"],
   "typescriptChecker": {
     "tsconfigFile": "tsconfig.json"
   },
-  "reporters": ["progress", "clear-text", "html", "dashboard"],
+
+  "reporters": ["progress", "clear-text", "html", "json", "dashboard"],
+  "htmlReporter": {
+    "fileName": "reports/mutation/frontend/mutation.html"
+  },
+  "jsonReporter": {
+    "fileName": "reports/mutation/frontend/mutation.json"
+  },
+
   "coverageAnalysis": "perTest",
   "concurrency": 4,
+
   "thresholds": {
     "high": 80,
     "low": 60,
     "break": 50
   },
+
   "tempDirName": ".stryker-tmp",
   "cleanTempDir": true,
+
   "dashboard": {
     "project": "github.com/Smartdevs17/SubTrackr",
     "version": "main",
     "module": "frontend"
   },
+
   "timeoutMS": 60000,
-  "plugins": ["@stryker-mutator/jest-runner", "@stryker-mutator/typescript-checker"]
+  "timeoutFactor": 2.0,
+  "maxTestRunnerReuse": 50,
+
+  "ignorePatterns": [
+    ".stryker-tmp",
+    "node_modules"
+  ],
+
+  "plugins": [
+    "@stryker-mutator/jest-runner",
+    "@stryker-mutator/typescript-checker"
+  ]
 }
