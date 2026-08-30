@@ -3,7 +3,59 @@
  * In this mobile-first architecture the "cluster" is an in-process index
  * backed by AsyncStorage, mirroring a real ES setup so the service layer
  * can be swapped for a remote cluster without changing callers.
+ *
+ * Issue #986: Extended with connection pool settings.
  */
+
+// ---------------------------------------------------------------------------
+// Connection pool config (Issue #986)
+// ---------------------------------------------------------------------------
+
+export interface ElasticsearchPoolConfig {
+  /** Primary node host. Default: localhost */
+  primaryHost: string;
+  /** Primary node port. Default: 9200 */
+  primaryPort: number;
+  /** Optional read replicas for query routing. */
+  replicas?: { host: string; port: number }[];
+  /**
+   * Total connections in pool across primary + replicas.
+   * Recommended: (vCPUs * 2) for IO-bound ES workloads.
+   * Default: 10
+   */
+  poolSize: number;
+  /** Milliseconds to wait for a free connection. Default: 5000 */
+  acquireTimeoutMs: number;
+  /** Idle connection teardown threshold (ms). Default: 60_000 */
+  idleTimeoutMs: number;
+  /** Connection-held-too-long leak threshold (ms). Default: 30_000 */
+  leakThresholdMs: number;
+  /** DNS cache TTL (ms). Default: 30_000 */
+  dnsCacheTtlMs: number;
+  /** Maintenance sweep interval (ms). Default: 10_000 */
+  maintenanceIntervalMs: number;
+}
+
+export const DEFAULT_POOL_CONFIG: ElasticsearchPoolConfig = {
+  primaryHost: process.env['ES_PRIMARY_HOST'] ?? 'localhost',
+  primaryPort: Number(process.env['ES_PRIMARY_PORT'] ?? 9200),
+  replicas: process.env['ES_REPLICA_HOSTS']
+    ? process.env['ES_REPLICA_HOSTS'].split(',').map((h) => {
+        const [host, port] = h.split(':');
+        return { host: host ?? 'localhost', port: Number(port ?? 9200) };
+      })
+    : [],
+  poolSize: Number(process.env['ES_POOL_SIZE'] ?? 10),
+  acquireTimeoutMs: Number(process.env['ES_ACQUIRE_TIMEOUT_MS'] ?? 5_000),
+  idleTimeoutMs: Number(process.env['ES_IDLE_TIMEOUT_MS'] ?? 60_000),
+  leakThresholdMs: Number(process.env['ES_LEAK_THRESHOLD_MS'] ?? 30_000),
+  dnsCacheTtlMs: Number(process.env['ES_DNS_CACHE_TTL_MS'] ?? 30_000),
+  maintenanceIntervalMs: Number(process.env['ES_MAINTENANCE_INTERVAL_MS'] ?? 10_000),
+};
+
+// ---------------------------------------------------------------------------
+// Index / Search config
+// ---------------------------------------------------------------------------
 
 export interface ElasticsearchConfig {
   indexName: string;
@@ -14,6 +66,8 @@ export interface ElasticsearchConfig {
   analyticsEnabled: boolean;
   /** Analyzer locales used for multilingual tokenization */
   analyzerLocales: string[];
+  /** Connection pool settings (Issue #986) */
+  pool?: ElasticsearchPoolConfig;
 }
 
 export const DEFAULT_ES_CONFIG: ElasticsearchConfig = {
@@ -33,6 +87,7 @@ export const DEFAULT_ES_CONFIG: ElasticsearchConfig = {
   maxResults: 100,
   analyticsEnabled: true,
   analyzerLocales: ['en', 'fr', 'de', 'es'],
+  pool: DEFAULT_POOL_CONFIG,
 };
 
 export interface IndexMapping {

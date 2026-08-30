@@ -1,5 +1,7 @@
 export { useTrialStore } from './trialStore';
 export { useSubscriptionStore } from './subscriptionStore';
+// Combined slices pattern store (Issue #915)
+export { useAppStore } from './slices';
 export { useInvoiceStore } from './invoiceStore';
 export { useCreditStore } from './creditStore';
 export { useTransactionQueueStore } from './transactionQueueStore';

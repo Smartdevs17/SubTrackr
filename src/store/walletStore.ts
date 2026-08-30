@@ -17,14 +17,14 @@ import {
 } from '../types/wallet';
 import {
   WalletServiceManager,
+  WalletConnection,
+} from '../services/walletService';
+import {
   PaymentMethodService,
   PaymentMethodError,
   PaymentMethodErrorCode,
-  WalletConnection,
-} from '../services/walletService';
-import type {
-  ChainPaymentResult,
-  PaymentMethodExpiryCheck,
+  type ChainPaymentResult,
+  type PaymentMethodExpiryCheck,
 } from '../services/paymentMethodService';
 import { Network } from '../config/networks';
 
@@ -284,6 +284,32 @@ export const useWalletStore = create<WalletState>()(
               );
             }
 
+            if (process.env.DEBUG_STORE) {
+              // eslint-disable-next-line no-console
+              console.log(
+                'CANADD_T',
+                typeof (paymentService as any).canAddMethod,
+                'CTOR',
+                JSON.stringify((paymentService as any).constructor?.name ?? 'plain'),
+                'PROTO_KEYS',
+                Object.getOwnPropertyNames(Object.getPrototypeOf(paymentService) ?? {}).length,
+                'OWN_KEYS',
+                JSON.stringify(Object.keys(paymentService))
+              );
+            }
+            if (process.env.DEBUG_STORE) {
+              // eslint-disable-next-line no-console
+              console.log(
+                'CANADD_T',
+                typeof (paymentService as any).canAddMethod,
+                'CTOR',
+                JSON.stringify((paymentService as any).constructor?.name ?? 'plain'),
+                'PROTO_KEYS',
+                Object.getOwnPropertyNames(Object.getPrototypeOf(paymentService) ?? {}).length,
+                'OWN_KEYS',
+                JSON.stringify(Object.keys(paymentService))
+              );
+            }
             const canAdd = paymentService.canAddMethod(paymentMethods.length);
             if (!canAdd.canAdd) {
               throw new PaymentMethodError(
@@ -335,8 +361,8 @@ export const useWalletStore = create<WalletState>()(
             };
 
             if (!newMethod.isVerified) {
-              await paymentService.verifyPaymentMethod(newMethod);
-              newMethod.isVerified = true;
+              const verified = await paymentService.verifyPaymentMethod(newMethod);
+              newMethod.isVerified = verified;
             }
 
             const updatedMethods = [...paymentMethods, newMethod];
@@ -764,6 +790,99 @@ export const useWalletStore = create<WalletState>()(
             get().paymentMethodShares,
             granteeId
           ),
+
+        // ── Issue #922: Chain health & smart fallback selection ──────────
+
+        rotationPolicies: [] as PaymentMethodRotationPolicy[],
+
+        getChainHealthSnapshot: (chainId: string) => {
+          const chain = get().fallbackChains.find((c) => c.id === chainId);
+          if (!chain) return null;
+
+          // Build lightweight attempt objects from stored PaymentAttempts.
+          const recentAttempts = get().paymentAttempts.map((a) => ({
+            paymentMethodId: a.paymentMethodId,
+            success: a.success,
+            timestamp: new Date(a.createdAt),
+            latencyMs: undefined as number | undefined,
+          }));
+
+          return _chainHealthMonitor.snapshotChainHealth(
+            chainId,
+            chain.methodIds,
+            recentAttempts
+          );
+        },
+
+        getSmartFallbackSelection: (chainId: string) => {
+          const snapshot = get().getChainHealthSnapshot(chainId);
+          if (!snapshot) return null;
+
+          const chain = get().fallbackChains.find((c) => c.id === chainId);
+          if (!chain) return null;
+
+          const policy =
+            get().rotationPolicies.find((p) => p.chainId === chainId) ?? null;
+
+          return _smartSelector.selectFallbackOrder(chain.methodIds, snapshot, policy);
+        },
+
+        getChainDiagnosticReport: (chainId: string) => {
+          const snapshot = get().getChainHealthSnapshot(chainId);
+          const selection = get().getSmartFallbackSelection(chainId);
+          if (!snapshot || !selection) return null;
+          return buildFallbackChainDiagnosticReport(snapshot, selection);
+        },
+
+        setRotationPolicy: (policy: PaymentMethodRotationPolicy) => {
+          _chainHealthMonitor.setRotationPolicy(policy);
+          set((state) => {
+            const existing = state.rotationPolicies.findIndex(
+              (p) => p.chainId === policy.chainId
+            );
+            const updated = [...state.rotationPolicies];
+            if (existing >= 0) {
+              updated[existing] = policy;
+            } else {
+              updated.push(policy);
+            }
+            return { rotationPolicies: updated };
+          });
+        },
+
+        removeRotationPolicy: (chainId: string) =>
+          set((state) => ({
+            rotationPolicies: state.rotationPolicies.filter((p) => p.chainId !== chainId),
+          })),
+
+        applyAllRotationPolicies: () => {
+          const { rotationPolicies, fallbackChains, paymentAttempts } = get();
+          const updatedPolicies: PaymentMethodRotationPolicy[] = [];
+
+          for (const policy of rotationPolicies) {
+            const chain = fallbackChains.find((c) => c.id === policy.chainId);
+            if (!chain) {
+              updatedPolicies.push(policy);
+              continue;
+            }
+
+            const recentAttempts = paymentAttempts.map((a) => ({
+              paymentMethodId: a.paymentMethodId,
+              success: a.success,
+              timestamp: new Date(a.createdAt),
+            }));
+
+            const snapshot = _chainHealthMonitor.snapshotChainHealth(
+              chain.id,
+              chain.methodIds,
+              recentAttempts
+            );
+            const applied = _chainHealthMonitor.applyRotationPolicy(policy, snapshot);
+            updatedPolicies.push(applied);
+          }
+
+          set({ rotationPolicies: updatedPolicies });
+        },
       };
     },
     {
@@ -776,6 +895,7 @@ export const useWalletStore = create<WalletState>()(
         paymentAttempts: state.paymentAttempts,
         fallbackChains: state.fallbackChains,
         paymentMethodShares: state.paymentMethodShares,
+        rotationPolicies: state.rotationPolicies,
       }),
       onRehydrateStorage: () => (_state, error) => {
         if (error) {
@@ -796,3 +916,41 @@ export const useWalletStore = create<WalletState>()(
 export const selectAddress = (state: WalletState) => state.connection?.address ?? null;
 export const selectChainId = (state: WalletState) => state.connection?.chainId ?? null;
 export const selectIsConnected = (state: WalletState) => state.connection?.isConnected ?? false;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Issue #922 enhancements — Fallback chain health & smart selection
+// ═══════════════════════════════════════════════════════════════════════════
+import {
+  FallbackChainHealthMonitor,
+  FallbackChainHealthSnapshot,
+  SmartFallbackSelector,
+  SmartFallbackSelection,
+  PaymentMethodRotationPolicy,
+  buildFallbackChainDiagnosticReport,
+} from '../services/walletService';
+
+const _chainHealthMonitor = FallbackChainHealthMonitor.getInstance();
+const _smartSelector = SmartFallbackSelector.getInstance();
+
+/**
+ * Extend the WalletState interface with chain health & smart selection.
+ *
+ * These are computed on demand (not persisted) so they live outside the
+ * persisted slice.
+ */
+declare module './walletStore' {
+  interface WalletState {
+    // ── Chain health ─────────────────────────────────────────────────────
+    /** Compute and return the health snapshot for a specific chain. */
+    getChainHealthSnapshot: (chainId: string) => FallbackChainHealthSnapshot | null;
+    /** Return a smart-selected fallback order for a chain execution. */
+    getSmartFallbackSelection: (chainId: string) => SmartFallbackSelection | null;
+    /** Build a human-readable diagnostic report for a chain. */
+    getChainDiagnosticReport: (chainId: string) => string | null;
+    // ── Rotation policies ────────────────────────────────────────────────
+    rotationPolicies: PaymentMethodRotationPolicy[];
+    setRotationPolicy: (policy: PaymentMethodRotationPolicy) => void;
+    removeRotationPolicy: (chainId: string) => void;
+    applyAllRotationPolicies: () => void;
+  }
+}

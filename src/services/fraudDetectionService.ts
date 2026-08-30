@@ -1,11 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type {
+import {
   FraudDetection,
   FraudAlert,
   FraudAnalytics,
   FraudInvestigation,
   FraudRule,
-  FraudReport,
+  FraudGeneratedReport,
   FraudCheckRequest,
   FraudCheckResponse,
   FraudIndicator,
@@ -15,6 +15,7 @@ import type {
   FraudIndicatorType,
   FraudFilters,
   RealTimeMonitoring,
+  DetectionStats,
 } from '../types/fraud';
 
 const STORAGE_KEYS = {
@@ -58,13 +59,18 @@ export async function performFraudCheck(request: FraudCheckRequest): Promise<Fra
 
   // Check 3: Location mismatch
   if (request.metadata.location) {
-    const locationCheck = await checkLocationAnomaly(request.userId, request.metadata.location);
+    const loc = typeof request.metadata.location === 'string'
+      ? { country: request.metadata.location }
+      : request.metadata.location;
+    const locationCheck = await checkLocationAnomaly(request.userId, loc);
     if (locationCheck.isSuspicious) {
       indicators.push({
         type: FraudIndicatorType.LOCATION_MISMATCH,
         severity: 'medium',
         description: locationCheck.reason,
-        value: request.metadata.location,
+        value: typeof request.metadata.location === 'string'
+          ? request.metadata.location
+          : request.metadata.location.country,
       });
       riskScore += 20;
     }
@@ -462,7 +468,7 @@ export async function getAllInvestigations(): Promise<FraudInvestigation[]> {
 export async function generateFraudReport(
   reportType: 'daily' | 'weekly' | 'monthly' | 'custom',
   period: { start: Date; end: Date }
-): Promise<FraudReport> {
+): Promise<FraudGeneratedReport> {
   const analytics = await getFraudAnalytics();
   const detections = await getAllDetections({
     dateFrom: period.start,
@@ -540,7 +546,7 @@ export async function getMonitoringStatus(): Promise<RealTimeMonitoring> {
     const monitoring: RealTimeMonitoring = JSON.parse(data);
     return {
       ...monitoring,
-      lastCheckTimestamp: new Date(monitoring.lastCheckTimestamp),
+      lastCheckTimestamp: monitoring.lastCheckTimestamp ? new Date(monitoring.lastCheckTimestamp) : undefined,
     };
   } catch (error) {
     console.error('Failed to load monitoring status:', error);
@@ -552,7 +558,7 @@ async function updateMonitoringStats(): Promise<void> {
   const monitoring = await getMonitoringStatus();
   const detections = await getAllDetections();
   
-  monitoring.transactionsMonitored++;
+  monitoring.transactionsMonitored = (monitoring.transactionsMonitored ?? 0) + 1;
   monitoring.activeDetections = detections.filter(d => d.status === FraudStatus.PENDING).length;
   monitoring.lastCheckTimestamp = new Date();
   
@@ -620,19 +626,21 @@ async function checkLocationAnomaly(
     return { isSuspicious: false, reason: '' };
   }
 
-  const recentLocation = detections[detections.length - 1].metadata.location;
-  if (!recentLocation) {
+  const rawLocation = detections[detections.length - 1].metadata.location;
+  if (!rawLocation) {
     return { isSuspicious: false, reason: '' };
   }
 
-  if (recentLocation.country !== location.country) {
+  const recentCountry = typeof rawLocation === 'string' ? rawLocation : rawLocation.country;
+
+  if (recentCountry !== location.country) {
     const timeDiff = Date.now() - detections[detections.length - 1].timestamp.getTime();
     const hoursDiff = timeDiff / (1000 * 60 * 60);
     
     if (hoursDiff < 2) {
       return {
         isSuspicious: true,
-        reason: `Location changed from ${recentLocation.country} to ${location.country} in ${hoursDiff.toFixed(1)} hours`,
+        reason: `Location changed from ${recentCountry} to ${location.country} in ${hoursDiff.toFixed(1)} hours`,
       };
     }
   }
@@ -773,11 +781,11 @@ function generateReportRecommendations(
     recommendations.push('Average risk score is rising. Consider implementing additional verification steps.');
   }
 
-  if (analytics.falsePositiveRate > 20) {
+  if (analytics.falsePositiveRate && analytics.falsePositiveRate > 20) {
     recommendations.push(`False positive rate is ${analytics.falsePositiveRate.toFixed(1)}%. Review and adjust fraud detection thresholds.`);
   }
 
-  if (analytics.preventedLoss > 1000) {
+  if (analytics.preventedLoss && analytics.preventedLoss > 1000) {
     recommendations.push(`Successfully prevented $${analytics.preventedLoss.toFixed(2)} in potential fraud.`);
   }
 
@@ -787,3 +795,41 @@ function generateReportRecommendations(
 
   return recommendations;
 }
+
+// ── Synchronous service singleton ──────────────────────────────────────────────
+// Provides a lightweight synchronous facade for hooks that need immediate values.
+
+class FraudDetectionService {
+  private stats: DetectionStats = {
+    total: 0,
+    blocked: 0,
+    flagged: 0,
+    approved: 0,
+    avgRiskScore: 0,
+  };
+
+  getDetectionStats(): DetectionStats {
+    return { ...this.stats };
+  }
+
+  updateStats(partial: Partial<DetectionStats>): void {
+    this.stats = { ...this.stats, ...partial };
+  }
+}
+
+export const fraudDetectionService = new FraudDetectionService();
+
+// ── Prevention recommendation type ─────────────────────────────────────────────
+
+export interface PreventionRecommendation {
+  id: string;
+  category: 'velocity' | 'geo' | 'device' | 'chargeback' | 'account' | 'monitoring';
+  severity: 'critical' | 'high' | 'medium' | 'low';
+  title: string;
+  description: string;
+  impactScore: number;
+  effort: 'low' | 'medium' | 'high';
+}
+
+// Re-export DetectionStats so callers can import it from this module
+export type { DetectionStats };
