@@ -14,6 +14,7 @@ import {
   SubscriptionEvent as WSEvent,
   EventFilter as WSEventFilter,
   ClientInfo as WSClientInfo,
+  WebSocketMetrics,
 } from './websocket';
 
 export interface INotificationPreferenceService {
@@ -34,6 +35,7 @@ export interface IWebhookDeliveryService {
   deleteWebhook(id: string): void;
   pauseWebhook(id: string): WebhookConfig;
   resumeWebhook(id: string): WebhookConfig;
+  rotateSecret(id: string, newSecret: string, overlapMs?: number): WebhookConfig;
   listWebhooks(merchantId: string): WebhookConfig[];
   getWebhook(id: string): WebhookConfig | undefined;
   getWebhookDeliveries(webhookId: string, limit: number): WebhookDelivery[];
@@ -42,6 +44,11 @@ export interface IWebhookDeliveryService {
   checkWebhookHealth(id: string): Promise<WebhookConfig>;
   deliverEvent(input: WebhookEventInput): Promise<WebhookDeliveryResult | null>;
   retryWebhookDelivery(deliveryId: string): Promise<WebhookDeliveryResult>;
+  listDeadLetters(webhookId?: string): WebhookDelivery[];
+  replayDeadLetter(deliveryId: string): Promise<WebhookDeliveryResult>;
+  cleanupDeadLetters(maxAgeMs?: number): number;
+  cleanupExpiredIdempotencyKeys(windowMs?: number): number;
+  testWebhook(webhookId: string, eventType?: string, customPayload?: Record<string, unknown>): Promise<WebhookDeliveryResult>;
 }
 
 export interface IWebsocketService {
@@ -52,9 +59,15 @@ export interface IWebsocketService {
     filter?: WSEventFilter
   ): WSClientInfo;
   disconnect(clientId: string): void;
+  /** Acknowledge a pong frame received from a client */
+  clientPong(clientId: string): void;
   getPresence(): WSClientInfo[];
   isConnected(clientId: string): boolean;
   broadcast(event: WSEvent): number;
   setFilter(clientId: string, filter: WSEventFilter): void;
+  /** Returns aggregated throughput and health metrics */
+  getMetrics(): WebSocketMetrics;
+  /** Flush pending batches and close all connections */
+  shutdown(): void;
   readonly clientCount: number;
 }

@@ -3,9 +3,7 @@ use alloc::format;
 use alloc::string::ToString;
 
 use soroban_sdk::{token, Address, Env, String, Symbol, Vec};
-use subtrackr_types::{
-    PaymentMethod, PaymentMethodId, PaymentPriority, TokenType,
-};
+use subtrackr_types::{PaymentMethod, PaymentMethodId, PaymentPriority, TokenType};
 
 const MAX_PAYMENT_METHODS: u32 = 10;
 const DEFAULT_EXPIRY_WARNING_DAYS: u64 = 30 * 24 * 60 * 60;
@@ -41,7 +39,9 @@ fn get_user_count(env: &Env, user: &Address) -> u64 {
 }
 
 fn set_user_count(env: &Env, user: &Address, count: u64) {
-    env.storage().persistent().set(&user_count_key(env, user), &count);
+    env.storage()
+        .persistent()
+        .set(&user_count_key(env, user), &count);
 }
 
 fn get_user_method_ids(env: &Env, user: &Address) -> Vec<PaymentMethodId> {
@@ -177,21 +177,19 @@ pub(crate) fn add_payment_method(
     set_user_count(env, user, new_id);
 
     env.events().publish(
+        (String::from_str(env, "payment_method_added"), user.clone()),
         (
-            String::from_str(env, "payment_method_added"),
-            user.clone(),
+            new_id,
+            method.token_type,
+            priority_weight(&method.priority),
+            now,
         ),
-        (new_id, method.token_type, priority_weight(&method.priority), now),
     );
 
     new_id
 }
 
-pub(crate) fn remove_payment_method(
-    env: &Env,
-    user: &Address,
-    method_id: PaymentMethodId,
-) {
+pub(crate) fn remove_payment_method(env: &Env, user: &Address, method_id: PaymentMethodId) {
     let method = get_method(env, user, method_id).expect("Payment method not found");
     assert!(method.user == *user, "Only owner can remove payment method");
 
@@ -215,11 +213,7 @@ pub(crate) fn remove_payment_method(
     );
 }
 
-pub(crate) fn verify_payment_method(
-    env: &Env,
-    user: &Address,
-    method_id: PaymentMethodId,
-) {
+pub(crate) fn verify_payment_method(env: &Env, user: &Address, method_id: PaymentMethodId) {
     let mut method = get_method(env, user, method_id).expect("Payment method not found");
     assert!(method.user == *user, "Only owner can verify");
 
@@ -298,7 +292,10 @@ pub(crate) fn charge_with_fallback(
 
     if sorted.len() == 0 {
         env.events().publish(
-            (String::from_str(env, "payment_fallback_exhausted"), user.clone()),
+            (
+                String::from_str(env, "payment_fallback_exhausted"),
+                user.clone(),
+            ),
             (subscription_id, amount),
         );
         return false;
@@ -312,7 +309,10 @@ pub(crate) fn charge_with_fallback(
 
         if check_expired(&method, env) {
             env.events().publish(
-                (String::from_str(env, "payment_method_expired_skipped"), user.clone()),
+                (
+                    String::from_str(env, "payment_method_expired_skipped"),
+                    user.clone(),
+                ),
                 (method.id, subscription_id),
             );
             i += 1;
@@ -321,7 +321,10 @@ pub(crate) fn charge_with_fallback(
 
         if amount > method.max_spend_per_interval {
             env.events().publish(
-                (String::from_str(env, "payment_method_limit_exceeded"), user.clone()),
+                (
+                    String::from_str(env, "payment_method_limit_exceeded"),
+                    user.clone(),
+                ),
                 (method.id, amount, method.max_spend_per_interval),
             );
             i += 1;
@@ -331,18 +334,17 @@ pub(crate) fn charge_with_fallback(
         let balance = token::Client::new(env, &method.token_address).balance(user);
         if balance < amount {
             env.events().publish(
-                (String::from_str(env, "payment_method_insufficient_balance"), user.clone()),
+                (
+                    String::from_str(env, "payment_method_insufficient_balance"),
+                    user.clone(),
+                ),
                 (method.id, subscription_id, balance, amount),
             );
             i += 1;
             continue;
         }
 
-        token::Client::new(env, &method.token_address).transfer(
-            user,
-            merchant,
-            &amount,
-        );
+        token::Client::new(env, &method.token_address).transfer(user, merchant, &amount);
 
         let mut updated = get_method(env, user, method.id).unwrap_or(method.clone());
         updated.last_used_at = now;
@@ -350,15 +352,27 @@ pub(crate) fn charge_with_fallback(
         set_method(env, user, method.id, &updated);
 
         env.events().publish(
-            (String::from_str(env, "payment_charge_success"), user.clone()),
-            (subscription_id, amount, method.id, method.token_type.clone(), now),
+            (
+                String::from_str(env, "payment_charge_success"),
+                user.clone(),
+            ),
+            (
+                subscription_id,
+                amount,
+                method.id,
+                method.token_type.clone(),
+                now,
+            ),
         );
 
         return true;
     }
 
     env.events().publish(
-        (String::from_str(env, "payment_fallback_exhausted"), user.clone()),
+        (
+            String::from_str(env, "payment_fallback_exhausted"),
+            user.clone(),
+        ),
         (subscription_id, amount),
     );
 
@@ -373,17 +387,11 @@ pub(crate) fn get_payment_method(
     get_method(env, user, method_id).expect("Payment method not found")
 }
 
-pub(crate) fn list_payment_methods(
-    env: &Env,
-    user: &Address,
-) -> Vec<PaymentMethod> {
+pub(crate) fn list_payment_methods(env: &Env, user: &Address) -> Vec<PaymentMethod> {
     sort_by_priority(env, &user.clone(), user)
 }
 
-pub(crate) fn get_expired_methods(
-    env: &Env,
-    user: &Address,
-) -> Vec<PaymentMethodId> {
+pub(crate) fn get_expired_methods(env: &Env, user: &Address) -> Vec<PaymentMethodId> {
     let method_ids = get_user_method_ids(env, user);
     let mut expired: Vec<PaymentMethodId> = Vec::new(env);
 
@@ -398,10 +406,7 @@ pub(crate) fn get_expired_methods(
     expired
 }
 
-pub(crate) fn get_expiring_soon_methods(
-    env: &Env,
-    user: &Address,
-) -> Vec<PaymentMethodId> {
+pub(crate) fn get_expiring_soon_methods(env: &Env, user: &Address) -> Vec<PaymentMethodId> {
     let method_ids = get_user_method_ids(env, user);
     let mut expiring: Vec<PaymentMethodId> = Vec::new(env);
 
@@ -416,10 +421,7 @@ pub(crate) fn get_expiring_soon_methods(
     expiring
 }
 
-pub(crate) fn deactivate_expired_methods(
-    env: &Env,
-    user: &Address,
-) -> u32 {
+pub(crate) fn deactivate_expired_methods(env: &Env, user: &Address) -> u32 {
     let expired_ids = get_expired_methods(env, user);
     let count = expired_ids.len() as u32;
     let now = env.ledger().timestamp();

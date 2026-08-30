@@ -76,8 +76,12 @@ export class ImageCacheManager {
     const existing = this.index.get(url);
 
     if (existing && existing.expiresAt > now) {
-      // Update LRU timestamp
       existing.lastAccessedAt = now;
+      // Re-insert so the Map's own ordering tracks recency. Date.now() only has
+      // millisecond resolution, so two accesses in the same tick would otherwise
+      // tie and make eviction order arbitrary.
+      this.index.delete(url);
+      this.index.set(url, existing);
       await this._persist();
       return url;
     }
@@ -153,15 +157,18 @@ export class ImageCacheManager {
 
   // ── Internal ───────────────────────────────────────────────────────────────
 
+  /**
+   * Drop the least recently used entry.
+   *
+   * The index is kept in recency order — `register` re-inserts on access and
+   * `hydrate` restores the persisted order — so the first key is the LRU. That
+   * makes eviction deterministic even when several accesses land in the same
+   * millisecond, which comparing `lastAccessedAt` could not guarantee.
+   */
   private _evictLRU(): void {
-    let oldest: ImageCacheEntry | null = null;
-    for (const entry of this.index.values()) {
-      if (!oldest || entry.lastAccessedAt < oldest.lastAccessedAt) {
-        oldest = entry;
-      }
-    }
-    if (oldest) {
-      this.index.delete(oldest.url);
+    const oldest = this.index.keys().next();
+    if (!oldest.done) {
+      this.index.delete(oldest.value);
     }
   }
 

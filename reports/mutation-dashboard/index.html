@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SubTrackr - Mutation Testing Dashboard</title>
+  <style>
+    :root {
+      --bg-primary: #0f172a;
+      --bg-secondary: #1e293b;
+      --bg-card: #334155;
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --accent-green: #22c55e;
+      --accent-yellow: #eab308;
+      --accent-red: #ef4444;
+      --accent-blue: #3b82f6;
+      --border: #475569;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    header {
+      margin-bottom: 2rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    header h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    header p {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+    }
+
+    .score-overview {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .score-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      transition: transform 0.2s ease;
+    }
+
+    .score-card:hover {
+      transform: translateY(-2px);
+    }
+
+    .score-card .module-name {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-secondary);
+      margin-bottom: 0.75rem;
+    }
+
+    .score-card .score-display {
+      display: flex;
+      align-items: baseline;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
+    .score-card .score-value {
+      font-size: 2.5rem;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .score-card .score-label {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+    }
+
+    .score-card .score-bar {
+      width: 100%;
+      height: 8px;
+      background: var(--bg-card);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 1rem;
+    }
+
+    .score-card .score-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 1s ease;
+    }
+
+    .score-card .score-bar-fill.green { background: var(--accent-green); }
+    .score-card .score-bar-fill.yellow { background: var(--accent-yellow); }
+    .score-card .score-bar-fill.red { background: var(--accent-red); }
+
+    .score-card .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem;
+    }
+
+    .score-card .stat {
+      text-align: center;
+    }
+
+    .score-card .stat-value {
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+
+    .score-card .stat-label {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .status-badge.pass {
+      background: rgba(34, 197, 94, 0.15);
+      color: var(--accent-green);
+    }
+
+    .status-badge.fail {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--accent-red);
+    }
+
+    .section {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .section h2 {
+      font-size: 1.15rem;
+      margin-bottom: 1rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .thresholds-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      text-align: center;
+    }
+
+    .threshold-item .threshold-value {
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+
+    .threshold-item .threshold-label {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+
+    .threshold-item .threshold-value.high { color: var(--accent-green); }
+    .threshold-item .threshold-value.low { color: var(--accent-yellow); }
+    .threshold-item .threshold-value.break { color: var(--accent-red); }
+
+    .weak-tests-list {
+      list-style: none;
+    }
+
+    .weak-tests-list li {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .weak-tests-list li:last-child {
+      border-bottom: none;
+    }
+
+    .weak-tests-list .file-path {
+      font-family: 'SF Mono', 'Fira Code', 'Fira Mono', monospace;
+      font-size: 0.85rem;
+      color: var(--accent-blue);
+    }
+
+    .weak-tests-list .file-score {
+      font-weight: 600;
+    }
+
+    .weak-tests-list .file-score.low { color: var(--accent-red); }
+    .weak-tests-list .file-score.medium { color: var(--accent-yellow); }
+
+    .empty-state {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-secondary);
+    }
+
+    .empty-state .icon {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .last-updated {
+      text-align: center;
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+    }
+
+    @media (max-width: 768px) {
+      .container { padding: 1rem; }
+      .score-overview { grid-template-columns: 1fr; }
+      .thresholds-grid { grid-template-columns: 1fr; }
+    }
+
+    .color-score-green { color: var(--accent-green); }
+    .color-score-yellow { color: var(--accent-yellow); }
+    .color-score-red { color: var(--accent-red); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🧬 Mutation Testing Dashboard</h1>
+      <p>Stryker mutation score tracking for SubTrackr — frontend &amp; backend</p>
+    </header>
+
+    <div class="score-overview" id="scores">
+      <p class="empty-state" id="loading">
+        <span class="icon">⏳</span><br />
+        Loading mutation scores...
+      </p>
+    </div>
+
+    <div class="section" id="thresholds-section">
+      <h2>Thresholds</h2>
+      <div class="thresholds-grid">
+        <div class="threshold-item">
+          <div class="threshold-value high">80%</div>
+          <div class="threshold-label">High (Target)</div>
+        </div>
+        <div class="threshold-item">
+          <div class="threshold-value low">60%</div>
+          <div class="threshold-label">Low (Warning)</div>
+        </div>
+        <div class="threshold-item">
+          <div class="threshold-value break">50%</div>
+          <div class="threshold-label">Break (Fail)</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="weak-tests-section">
+      <h2>Weak Tests</h2>
+      <div id="weak-tests-content">
+        <p class="empty-state" id="weak-loading">
+          <span class="icon">⏳</span><br />
+          Analyzing weak tests...
+        </p>
+      </div>
+    </div>
+
+    <div class="last-updated" id="last-updated">Loading...</div>
+  </div>
+
+  <script>
+    async function loadDashboard() {
+      try {
+        const resp = await fetch('./dashboard.json');
+        if (!resp.ok) throw new Error('Dashboard JSON not found');
+        const data = await resp.json();
+
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('weak-loading').style.display = 'none';
+
+        renderScores(data);
+        renderWeakTests(data);
+        document.getElementById('last-updated').textContent =
+          `Last updated: ${new Date(data.generatedAt).toLocaleString()}`;
+      } catch (err) {
+        document.getElementById('loading').innerHTML = `
+          <span class="icon">📁</span><br />
+          No mutation report data available. Run mutation tests first.<br />
+          <small style="color: var(--text-secondary);">
+            npm run mutation:all
+          </small>
+        `;
+        document.getElementById('weak-loading').textContent =
+          'Run mutation tests to see weak test analysis.';
+        document.getElementById('last-updated').textContent =
+          'No data available';
+      }
+    }
+
+    function getScoreColor(score) {
+      if (score >= 80) return 'green';
+      if (score >= 60) return 'yellow';
+      return 'red';
+    }
+
+    function getScoreTextColor(score) {
+      if (score >= 80) return 'color-score-green';
+      if (score >= 60) return 'color-score-yellow';
+      return 'color-score-red';
+    }
+
+    function renderScores(data) {
+      const container = document.getElementById('scores');
+      container.innerHTML = '';
+
+      const modules = data.modules || {};
+
+      if (Object.keys(modules).length === 0) {
+        container.innerHTML = `<p class="empty-state">
+          <span class="icon">📭</span><br />
+          No module scores available.
+        </p>`;
+        return;
+      }
+
+      for (const [name, mod] of Object.entries(modules)) {
+        const score = mod.score !== undefined ? mod.score : 0;
+        const color = getScoreColor(score);
+        const passed = mod.passed !== undefined ? mod.passed : score >= 50;
+
+        const card = document.createElement('div');
+        card.className = 'score-card';
+        card.innerHTML = `
+          <div class="module-name">${name}</div>
+          <div class="score-display">
+            <span class="score-value ${getScoreTextColor(score)}">
+              ${score.toFixed(1)}%
+            </span>
+            <span class="status-badge ${passed ? 'pass' : 'fail'}">
+              ${passed ? '✓ PASS' : '✗ FAIL'}
+            </span>
+          </div>
+          <div class="score-bar">
+            <div class="score-bar-fill ${color}" style="width: ${Math.min(score, 100)}%"></div>
+          </div>
+          <div class="stats">
+            <div class="stat">
+              <div class="stat-value">${mod.killed || 0}</div>
+              <div class="stat-label">Killed</div>
+            </div>
+            <div class="stat">
+              <div class="stat-value">${mod.survived || 0}</div>
+              <div class="stat-label">Survived</div>
+            </div>
+            <div class="stat">
+              <div class="stat-value">${mod.total || 0}</div>
+              <div class="stat-label">Total</div>
+            </div>
+          </div>
+        `;
+        container.appendChild(card);
+      }
+    }
+
+    function renderWeakTests(data) {
+      const container = document.getElementById('weak-tests-content');
+      const weak = data.weakTests || [];
+
+      if (weak.length === 0) {
+        container.innerHTML = `<p class="empty-state">
+          <span class="icon">🎉</span><br />
+          No weak tests detected! All files meet the minimum score threshold.
+        </p>`;
+        return;
+      }
+
+      const list = document.createElement('ul');
+      list.className = 'weak-tests-list';
+
+      weak.sort((a, b) => a.score - b.score).forEach((w) => {
+        const li = document.createElement('li');
+        const scoreClass = w.score >= 60 ? 'medium' : 'low';
+        const moduleTag = w.module ? `[${w.module}]` : '';
+        li.innerHTML = `
+          <span class="file-path">${moduleTag} ${w.file}</span>
+          <span class="file-score ${scoreClass}">${w.score.toFixed(1)}%</span>
+        `;
+        list.appendChild(li);
+      });
+
+      container.innerHTML = '';
+      container.appendChild(list);
+      container.insertAdjacentHTML('beforebegin',
+        `<p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 0.75rem;">
+          ⚠ ${weak.length} file(s) with below-target mutation scores
+        </p>`
+      );
+    }
+
+    loadDashboard();
+  </script>
+</body>
+</html>

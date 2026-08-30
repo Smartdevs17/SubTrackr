@@ -1,3 +1,33 @@
+// ── Churn prediction + intervention automation (ML-powered) ──────────────────
+export { PredictionService as MlPredictionService } from './prediction';
+export type {
+  UserChurnData as MlUserChurnData,
+  ChurnPrediction as MlChurnPrediction,
+  RiskFactor as MlRiskFactor,
+  RevenueObservation as MlRevenueObservation,
+  ForecastPoint as MlForecastPoint,
+  BatchPredictionItem,
+  BatchPredictionResult,
+  InterventionRecommendation,
+  InterventionEvaluationResult,
+  MlServiceHealth,
+} from './prediction';
+export {
+  InterventionService,
+  LogDispatcher,
+  CompositeDispatcher,
+  legacyRunAutomatedInterventions,
+} from './interventionService';
+export type {
+  InterventionType,
+  InterventionStatus,
+  InterventionRecord,
+  RunInterventionsOptions,
+  RunInterventionsResult,
+  InterventionDispatcher,
+} from './interventionService';
+
+// ── Existing exports ──────────────────────────────────────────────────────────
 export { CampaignService } from './campaignService';
 export type { Campaign, CouponCode, PromotionRule, CampaignTargeting, StackingConfig, CampaignAnalytics, CampaignOverlap, CouponValidation } from './campaignService';
 export { generateComplianceReport, formatComplianceReport } from './complianceReport';
@@ -18,3 +48,22 @@ export { RetentionCalculator, RETENTION_CURVE_DAYS } from './retentionCalculator
 export { cohortTableToCsv, ltvBreakdownToCsv, cohortTableToPdf, churnBreakdownToPdf, buildSimplePdf } from './cohortReportExport';
 export { SubscriberRecordRepository, subscriberRecordRepository } from './subscriberRecordRepository';
 export { AnalyticsDashboardApi, analyticsDashboardApi } from './analyticsDashboardApi';
+export {
+  analyzeTrend,
+  calculateAccuracy,
+  generateVisualizationData,
+  generateRevenueForecast,
+  generateForecastAlerts,
+} from './revenueForecastService';
+export type {
+  RevenueDataPoint,
+  ForecastPoint as RevenueForecastPoint,
+  TrendAnalysis,
+  ForecastAccuracy,
+  RevenueForecastResult,
+  ForecastVisualizationData,
+  ForecastAlert,
+  ForecastGranularity,
+  TrendDirection,
+  ForecastModel,
+} from './revenueForecastService';

@@ -1,6 +1,10 @@
 name: E2E Detox Tests
 
-on: workflow_dispatch
+on:
+  push:
+    branches: ['main']
+  pull_request:
+    branches: ['main']
 
 jobs:
   test-ios:
@@ -15,7 +19,7 @@ jobs:
       - name: Install dependencies
         run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
       - name: Expo Prebuild
-        run: npx expo prebuild -p ios
+        run: APP_ENV=production npx expo prebuild -p ios
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
@@ -72,26 +76,12 @@ jobs:
       - name: Install dependencies
         run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
       - name: Setup Java
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v5
         with:
           distribution: 'zulu'
           java-version: '17'
       - name: Expo Prebuild
-        run: npx expo prebuild -p android
-      - name: Patch Kotlin 1.9 to 2.1.20 in expo Gradle included builds
-        run: |
-          for f in \
-            node_modules/expo-dev-launcher/expo-dev-launcher-gradle-plugin/build.gradle.kts \
-            node_modules/expo-modules-autolinking/android/expo-gradle-plugin/build.gradle.kts \
-            node_modules/expo-modules-autolinking/android/expo-gradle-plugin/expo-autolinking-plugin-shared/build.gradle.kts \
-            node_modules/expo-modules-core/expo-module-gradle-plugin/build.gradle.kts; do
-            if [ -f "$f" ]; then
-              sed -i 's/version "1\.[0-9][^"]*"/version "2.1.20"/g' "$f"
-              echo "Patched $f: $(grep -E 'version \"[0-9]' $f | head -2)"
-            fi
-          done
-          [ -f android/build.gradle ] && \
-            sed -i 's/kotlinVersion = "1\.[0-9][^"]*"/kotlinVersion = "2.1.20"/' android/build.gradle || true
+        run: APP_ENV=production npx expo prebuild -p android
       - name: Build Detox Android
         run: npm run e2e:build-android
       - name: Detox Android — core lifecycle
