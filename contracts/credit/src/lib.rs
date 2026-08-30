@@ -23,7 +23,7 @@
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, symbol_short, Address, Env, String, Vec,
 };
-use subtrackr_types::{SubscriptionId, CoreError};
+use subtrackr_types::{CoreError, SubscriptionId};
 
 /// Maximum retained transaction-history and lot entries per account.
 const MAX_HISTORY: u32 = 128;
@@ -50,6 +50,7 @@ impl From<CreditError> for CoreError {
             CreditError::InvalidAmount => CoreError::InvalidAmount,
             CreditError::InsufficientCredit => CoreError::InsufficientCredit,
             CreditError::SelfTransfer => CoreError::SelfTransfer,
+            CreditError::WalletNotFound => CoreError::NotFound,
         }
     }
 }
@@ -63,6 +64,7 @@ impl From<CoreError> for CreditError {
             CoreError::InvalidAmount => CreditError::InvalidAmount,
             CoreError::InsufficientCredit => CreditError::InsufficientCredit,
             CoreError::SelfTransfer => CreditError::SelfTransfer,
+            CoreError::NotFound => CreditError::WalletNotFound,
             _ => CreditError::InvalidAmount,
         }
     }
@@ -156,6 +158,19 @@ pub struct PrepaymentSnapshot {
     pub wallet_id: u64,
     pub balance: i128,
     pub transaction_id: u64,
+}
+
+/// Consolidated balance summary for a subscriber combining on-book credit and
+/// prepayment-wallet funds. Returned by [`SubTrackrCredit::get_account_balance_summary`].
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct AccountBalanceSummary {
+    pub subscriber: Address,
+    pub credit_balance: i128,
+    pub wallet_balance: i128,
+    pub net_balance: i128,
+    pub expiration_policy: ExpirationPolicy,
+    pub next_expiration_at: Option<u64>,
 }
 
 #[contracttype]
@@ -389,7 +404,9 @@ impl SubTrackrCredit {
             created_at: now,
             updated_at: now,
         };
-        env.storage().persistent().set(&DataKey::Wallet(wallet_id), &wallet);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Wallet(wallet_id), &wallet);
         env.events()
             .publish((symbol_short!("wallet"), subscriber), wallet_id);
         wallet_id
@@ -418,7 +435,9 @@ impl SubTrackrCredit {
         wallet.balance += amount;
         wallet.total_deposited += amount;
         wallet.updated_at = now;
-        env.storage().persistent().set(&DataKey::Wallet(wallet_id), &wallet);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Wallet(wallet_id), &wallet);
         Ok(PrepaymentSnapshot {
             wallet_id,
             balance: wallet.balance,
@@ -452,7 +471,9 @@ impl SubTrackrCredit {
         wallet.balance -= amount;
         wallet.total_withdrawn += amount;
         wallet.updated_at = now;
-        env.storage().persistent().set(&DataKey::Wallet(wallet_id), &wallet);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Wallet(wallet_id), &wallet);
         Ok(PrepaymentSnapshot {
             wallet_id,
             balance: wallet.balance,
@@ -469,6 +490,55 @@ impl SubTrackrCredit {
             .unwrap_or(0)
     }
 
+    /// Returns a consolidated account-balance summary for a subscriber,
+    /// combining on-book credit with prepayment-wallet funds. Read-only view.
+    pub fn get_account_balance_summary(env: Env, subscriber: Address) -> AccountBalanceSummary {
+        let now = env.ledger().timestamp();
+        let account = Self::account(&env, &subscriber);
+        let credit_balance = Self::available(now, &account);
+
+        // Sum prepayment wallets owned by the subscriber.
+        let mut wallet_balance: i128 = 0;
+        let mut i: u64 = 0;
+        while i < 1024 {
+            let key = DataKey::Wallet(i);
+            if !env.storage().persistent().has(&key) {
+                break;
+            }
+            if let Some(wallet): Option<PrepaymentWallet> = env.storage().persistent().get(&key) {
+                if wallet.subscriber == subscriber {
+                    wallet_balance += wallet.balance;
+                }
+            }
+            i += 1;
+        }
+
+        // First non-expired lot expiry (earliest future expiry).
+        let mut next_expiration_at: Option<u64> = None;
+        let mut j: u32 = 0;
+        while j < account.lots.len() {
+            let lot = account.lots.get(j).unwrap();
+            if lot.remaining > 0 && !Self::is_expired(now, &lot) {
+                if let Some(exp) = lot.expires_at {
+                    next_expiration_at = Some(match next_expiration_at {
+                        Some(cur) if cur < exp => cur,
+                        _ => exp,
+                    });
+                }
+            }
+            j += 1;
+        }
+
+        AccountBalanceSummary {
+            subscriber: subscriber.clone(),
+            credit_balance,
+            wallet_balance,
+            net_balance: credit_balance + wallet_balance,
+            expiration_policy: account.expiration_policy,
+            next_expiration_at,
+        }
+    }
+
     /// Batch expiry processor for cron keepers. Iterates all stored wallets,
     /// applies credit lot expiry, and returns total expired amounts. Caller
     /// must be admin.
@@ -478,7 +548,7 @@ impl SubTrackrCredit {
         let mut results: Vec<(Address, i128)> = Vec::new(&env);
         let mut i: u32 = 0;
         while i < MAX_HISTORY {
-            let key = DataKey::Counter(i);
+            let key = DataKey::Counter(i as u64);
             if !env.storage().persistent().has(&key) {
                 break;
             }
@@ -531,8 +601,11 @@ impl SubTrackrCredit {
     }
 
     fn next_wallet_id(env: &Env) -> u64 {
-        let id: u64 = env.storage().instance().get(&DataKey::Admin).map(|_| id).unwrap_or(0);
-        let base: u64 = env.storage().instance().get(&symbol_short!("NWID")).unwrap_or(0);
+        let base: u64 = env
+            .storage()
+            .instance()
+            .get(&symbol_short!("NWID"))
+            .unwrap_or(0);
         env.storage()
             .instance()
             .set(&symbol_short!("NWID"), &(base + 1));

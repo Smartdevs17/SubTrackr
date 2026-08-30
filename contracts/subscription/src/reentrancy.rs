@@ -8,7 +8,11 @@ pub struct ReentrancyGuard<'a> {
 
 impl<'a> ReentrancyGuard<'a> {
     pub fn new(env: &'a Env) -> Self {
-        let is_locked: bool = env.storage().instance().get(&REENTRANCY_KEY).unwrap_or(false);
+        let is_locked: bool = env
+            .storage()
+            .instance()
+            .get(&REENTRANCY_KEY)
+            .unwrap_or(false);
         if is_locked {
             panic!("Reentrancy detected: Execution locked");
         }

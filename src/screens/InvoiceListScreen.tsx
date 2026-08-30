@@ -38,9 +38,7 @@ const InvoiceListScreen: React.FC = () => {
 
   const onRefresh = async () => {
     await refresh({
-      clearBefore: () => {
-        useInvoiceStore.setState({ invoices: [] });
-      },
+      clearBefore: () => useInvoiceStore.setState({ invoices: [] }),
       fetcher: async () => {
         // invoiceStore has no remote fetcher in this build; keep UX smooth
         await new Promise((r) => setTimeout(r, 350));
@@ -69,12 +67,8 @@ const InvoiceListScreen: React.FC = () => {
         {sortedInvoices.length === 0 ? (
           <EmptyState
             title="No invoices yet"
-            message="Invoices are created automatically after successful billing events occur on tracked plans."
+            message="Invoices are created automatically after successful billing events."
             icon="🧾"
-            actionText="Go to Dashboard"
-            onAction={() => {
-              navigation.navigate('Home');
-            }}
           />
         ) : (
           sortedInvoices.map((invoice) => (
@@ -94,16 +88,14 @@ const InvoiceListScreen: React.FC = () => {
                 </View>
 
                 <View style={styles.detailsRow}>
-                  <View>
-                    <Text style={styles.detailLabel}>Total</Text>
-                    <Text style={styles.totalValue}>
-                      {formatCurrency(invoice.total, invoice.currency)}
-                    </Text>
-                  </View>
-                  <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={styles.detailLabel}>Due</Text>
-                    <Text style={styles.detailValue}>{formatDate(invoice.dueDate)}</Text>
-                  </View>
+                  <Text style={styles.detailLabel}>Total</Text>
+                  <Text style={styles.totalValue}>
+                    {formatCurrency(invoice.total, invoice.currency)}
+                  </Text>
+                </View>
+                <View style={styles.detailsRow}>
+                  <Text style={styles.detailLabel}>Due</Text>
+                  <Text style={styles.detailValue}>{formatDate(invoice.dueDate)}</Text>
                 </View>
               </Card>
             </TouchableOpacity>
@@ -119,12 +111,12 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     container: { flex: 1, backgroundColor: colors.background.primary },
     content: { padding: spacing.lg, gap: spacing.md },
     header: { marginBottom: spacing.xs },
-    title: { ...typography.h1, color: colors.text.primary },
+    title: { ...typography.h1, color: colors.text },
     subtitle: { ...typography.body, color: colors.textSecondary, marginTop: spacing.xs },
     invoiceCard: { marginBottom: spacing.sm },
     row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     meta: { flex: 1, paddingRight: spacing.md },
-    invoiceNumber: { ...typography.h3, color: colors.text.primary },
+    invoiceNumber: { ...typography.h3, color: colors.text },
     invoiceName: { ...typography.body, color: colors.textSecondary, marginTop: 2 },
     statusBadge: {
       borderRadius: borderRadius.full,
@@ -132,20 +124,15 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       paddingVertical: 4,
       alignSelf: 'flex-start',
     },
-    statusText: { ...typography.caption, color: colors.text.inverse, fontWeight: '700' },
+    statusText: { ...typography.caption, color: colors.text, fontWeight: '700' },
     detailsRow: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
       marginTop: spacing.sm,
     },
-    detailLabel: {
-      ...typography.caption,
-      color: colors.textSecondary,
-      textTransform: 'uppercase',
-      marginBottom: 2,
-    },
-    detailValue: { ...typography.body, color: colors.text.primary },
+    detailLabel: { ...typography.caption, color: colors.textSecondary, textTransform: 'uppercase' },
+    detailValue: { ...typography.body, color: colors.text },
     totalValue: { ...typography.h3, color: colors.accent },
   });
 }

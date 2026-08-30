@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Share } from 'react-native';
 import { colors, spacing, typography, borderRadius, shadows } from '../../utils/constants';
 import { Subscription } from '../../types/subscription';
 import {
@@ -17,7 +17,6 @@ import {
 import { useSettingsStore } from '../../store/settingsStore';
 import { currencyService } from '../../services/currencyService';
 import { SubscriptionIcon } from './SubscriptionIcon';
-import { useAccessibilityAnnouncement } from '../../hooks/useAccessibilityAnnouncement';
 
 export interface SubscriptionCardProps {
   subscription: Subscription;
@@ -28,25 +27,33 @@ export interface SubscriptionCardProps {
 
 export const SubscriptionCard: React.FC<SubscriptionCardProps> = React.memo(
   ({ subscription, onPress, onToggleStatus, onDelete }) => {
-    const { announce } = useAccessibilityAnnouncement();
+    const handleShare = async () => {
+      const billingCycle =
+        subscription.billingCycle.charAt(0).toUpperCase() + subscription.billingCycle.slice(1);
+      const price = formatCurrency(subscription.price, subscription.currency);
+      const deepLink = `subtrackr://subscription/${subscription.id}`;
+
+      const message =
+        `📋 ${subscription.name}\n` + `💰 ${price} / ${billingCycle}\n` + `🔗 ${deepLink}`;
+
+      try {
+        const result = await Share.share({ message, title: subscription.name });
+        if (result.action === Share.dismissedAction) {
+          // User dismissed — no action needed
+        }
+      } catch {
+        Alert.alert('Error', 'Unable to open the share sheet. Please try again.');
+      }
+    };
 
     const handleToggleStatus = () => {
       if (onToggleStatus) {
-        const newStatus = subscription.isActive ? 'paused' : 'activated';
-        announce(`${subscription.name} has been ${newStatus}`);
-
         Alert.alert(
           subscription.isActive ? 'Pause Subscription' : 'Activate Subscription',
           `Are you sure you want to ${subscription.isActive ? 'pause' : 'activate'} ${subscription.name}?`,
           [
             { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Confirm',
-              onPress: () => {
-                onToggleStatus(subscription.id);
-                announce(`${subscription.name} ${newStatus} successfully`);
-              },
-            },
+            { text: 'Confirm', onPress: () => onToggleStatus(subscription.id) },
           ]
         );
       }
@@ -57,21 +64,12 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = React.memo(
         const cryptoWarning = subscription.isCryptoEnabled
           ? '\n\nThis subscription has an active crypto stream. On-chain cancellation cannot be undone.'
           : '';
-        announce(`Deleting ${subscription.name}`);
-
         Alert.alert(
           'Delete Subscription',
           `Remove "${subscription.name}" from your subscriptions?${cryptoWarning}`,
           [
             { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Delete',
-              style: 'destructive',
-              onPress: () => {
-                onDelete(subscription.id);
-                announce(`${subscription.name} deleted successfully`);
-              },
-            },
+            { text: 'Delete', style: 'destructive', onPress: () => onDelete(subscription.id) },
           ]
         );
       }
@@ -116,16 +114,10 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = React.memo(
             <Text
               testID={`subscription-name-${subscription.id}`}
               style={styles.name}
-              numberOfLines={1}
-              maxFontSizeMultiplier={1.5}
-              allowFontScaling={true}>
+              numberOfLines={1}>
               {subscription.name}
             </Text>
-            <Text
-              style={styles.category}
-              numberOfLines={1}
-              maxFontSizeMultiplier={1.3}
-              allowFontScaling={true}>
+            <Text style={styles.category} numberOfLines={1}>
               {formatCategory(subscription.category)}
             </Text>
           </View>
@@ -158,14 +150,9 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = React.memo(
               preferredCurrency
             )} per ${formatBillingCycle(subscription.billingCycle)}`}
             style={styles.priceContainer}>
-            <Text style={styles.price} maxFontSizeMultiplier={1.5} allowFontScaling={true}>
-              {formatCurrency(convertedPrice, preferredCurrency)}
-            </Text>
+            <Text style={styles.price}>{formatCurrency(convertedPrice, preferredCurrency)}</Text>
             {subscription.currency !== preferredCurrency && (
-              <Text
-                style={styles.originalPrice}
-                maxFontSizeMultiplier={1.2}
-                allowFontScaling={true}>
+              <Text style={styles.originalPrice}>
                 ({formatCurrency(subscription.price, subscription.currency)})
               </Text>
             )}
@@ -173,24 +160,18 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = React.memo(
               style={[
                 styles.billingCycle,
                 { color: getBillingCycleColor(subscription.billingCycle) },
-              ]}
-              maxFontSizeMultiplier={1.3}
-              allowFontScaling={true}>
+              ]}>
               /{formatBillingCycle(subscription.billingCycle)}
             </Text>
           </View>
 
           <View style={styles.billingInfo}>
-            <Text style={styles.billingLabel} maxFontSizeMultiplier={1.2} allowFontScaling={true}>
-              Next billing:
-            </Text>
+            <Text style={styles.billingLabel}>Next billing:</Text>
             <Text
               style={[styles.billingDate, upcoming && styles.upcomingDate]}
               accessibilityLabel={`Next billing date ${formatRelativeDate(
                 new Date(subscription.nextBillingDate)
-              )}`}
-              maxFontSizeMultiplier={1.3}
-              allowFontScaling={true}>
+              )}`}>
               {formatRelativeDate(new Date(subscription.nextBillingDate))}
             </Text>
           </View>
@@ -203,6 +184,15 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = React.memo(
         )}
 
         <View style={styles.actionsRow}>
+          <TouchableOpacity
+            style={styles.shareButton}
+            onPress={handleShare}
+            activeOpacity={0.7}
+            testID={`subscription-share-${subscription.id}`}
+            accessibilityRole="button"
+            accessibilityLabel={`Share ${subscription.name}`}>
+            <Text style={styles.shareText}>Share</Text>
+          </TouchableOpacity>
           {onToggleStatus && (
             <TouchableOpacity
               style={styles.toggleButton}
@@ -360,6 +350,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: spacing.sm,
+  },
+  shareButton: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    marginRight: 'auto',
+  },
+  shareText: {
+    ...typography.caption,
+    color: colors.primary,
+    fontWeight: '500',
   },
   deleteButton: {
     paddingVertical: spacing.sm,

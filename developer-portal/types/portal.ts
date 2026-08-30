@@ -72,3 +72,21 @@ export interface IntegrationStep {
   language?: string;
   notes?: string[];
 }
+
+export interface DocumentationArticle {
+  id: string;
+  title: string;
+  slug: string;
+  content: string;
+  category: string;
+  tags: string[];
+  readTime: number;
+  lastUpdated: Date;
+}
+
+export interface DocumentationSection {
+  id: string;
+  title: string;
+  description: string;
+  articles: DocumentationArticle[];
+}

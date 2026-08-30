@@ -16,13 +16,16 @@ export const BillingErrorCode = {
   EXPORT_FAILED: 'BILL_EXPORT_FAILED' as ErrorCode,
   OVERAGE_EXCEEDED: 'BILL_OVERAGE_EXCEEDED' as ErrorCode,
   INVALID_PLAN: 'BILL_INVALID_PLAN' as ErrorCode,
+  // Credit-specific codes — kept here so HTTP handlers can map them to
+  // status codes without reaching into the service implementation.
+  CREDIT_INVALID_AMOUNT: 'BILL_CREDIT_INVALID_AMOUNT' as ErrorCode,
+  CREDIT_INSUFFICIENT: 'BILL_CREDIT_INSUFFICIENT' as ErrorCode,
+  CREDIT_SELF_TRANSFER: 'BILL_CREDIT_SELF_TRANSFER' as ErrorCode,
+  CREDIT_EXPIRED: 'BILL_CREDIT_EXPIRED' as ErrorCode,
+  WALLET_NOT_FOUND: 'BILL_WALLET_NOT_FOUND' as ErrorCode,
 } as const;
 
 export class BillingError extends DomainError {
-  constructor(code: ErrorCode, message: string, details?: Record<string, string>) {
-    super(code, message, details);
-  }
-
   static paymentFailed(subscriptionId: string, reason: string): BillingError {
     return new BillingError(
       BillingErrorCode.PAYMENT_FAILED,
@@ -44,6 +47,38 @@ export class BillingError extends DomainError {
       BillingErrorCode.DUNNING_FAILED,
       `Dunning failed for subscription ${subscriptionId} at stage ${stage}`,
       { subscriptionId, stage }
+    );
+  }
+
+  static creditInvalidAmount(reason: string): BillingError {
+    return new BillingError(
+      BillingErrorCode.CREDIT_INVALID_AMOUNT,
+      `Credit amount invalid: ${reason}`,
+      { reason }
+    );
+  }
+
+  static creditInsufficient(accountId: string, attempted: number, available: number): BillingError {
+    return new BillingError(
+      BillingErrorCode.CREDIT_INSUFFICIENT,
+      `Account ${accountId} has insufficient credit: requested ${attempted}, available ${available}`,
+      { accountId, attempted: String(attempted), available: String(available) }
+    );
+  }
+
+  static creditSelfTransfer(accountId: string): BillingError {
+    return new BillingError(
+      BillingErrorCode.CREDIT_SELF_TRANSFER,
+      `Account ${accountId} cannot transfer credit to itself`,
+      { accountId }
+    );
+  }
+
+  static walletNotFound(walletId: number): BillingError {
+    return new BillingError(
+      BillingErrorCode.WALLET_NOT_FOUND,
+      `Prepayment wallet ${walletId} not found`,
+      { walletId: String(walletId) }
     );
   }
 }
