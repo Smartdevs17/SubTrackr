@@ -2,7 +2,7 @@ import { useCreditStore } from '../creditStore';
 
 let clock = 1000;
 const reset = () =>
-  useCreditStore.setState({ accounts: {}, nextId: 0, now: () => clock });
+  useCreditStore.setState({ accounts: {}, wallets: {}, nextId: 0, now: () => clock });
 
 beforeEach(() => {
   clock = 1000;
@@ -65,5 +65,55 @@ describe('useCreditStore', () => {
     expect(s().getBalance('alice')).toBe(200);
     clock = 1200;
     expect(s().getBalance('alice')).toBe(0);
+  });
+
+  it('deposits credit into an account balance', () => {
+    s().depositCredit('alice', 200, 'prepaid top-up');
+    expect(s().getBalance('alice')).toBe(200);
+    expect(
+      s()
+        .getAccount('alice')
+        .transactions.some((t) => t.kind === 'deposit' && t.amount === 200)
+    ).toBe(true);
+  });
+
+  it('withdraws available credit and rejects overdrafts', () => {
+    s().issueCredit('alice', 300, 'promo');
+    expect(s().withdrawCredit('alice', 100, 'cash-out')).toBe(true);
+    expect(s().getBalance('alice')).toBe(200);
+    expect(s().withdrawCredit('alice', 500, 'cash-out')).toBe(false);
+    expect(s().getBalance('alice')).toBe(200);
+  });
+
+  it('computes a consolidated account balance summary', () => {
+    useCreditStore.getState().wallets = {
+      'w-1': {
+        id: 'w-1',
+        subscriber: 'alice',
+        currency: 'USD',
+        balance: 75,
+        totalDeposited: 100,
+        totalWithdrawn: 25,
+      },
+    };
+
+    s().issueCredit('alice', 250, 'refund');
+    s().applyCredit('alice', 'sub_1', 50);
+
+    const balance = s().getAccountBalance('alice');
+    expect(balance.subscriber).toBe('alice');
+    expect(balance.availableCredit).toBe(200);
+    expect(balance.totalIssued).toBe(250);
+    expect(balance.totalApplied).toBe(50);
+    expect(balance.prepaymentBalance).toBe(75);
+    expect(balance.netBalance).toBe(275);
+  });
+
+  it('returns account balances for all known subscribers', () => {
+    s().issueCredit('alice', 100, 'promo');
+    s().issueCredit('bob', 200, 'promo');
+    const balances = s().getAccountBalances();
+    expect(balances).toHaveLength(2);
+    expect(balances.map((b) => b.subscriber).sort()).toEqual(['alice', 'bob']);
   });
 });

@@ -1,13 +1,6 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { debouncedAsyncStorageAdapter } from '../utils/storage';
-import {
-  SubscriptionMetadata,
-  CRDTSubscriptionState,
-  SubscriptionCRDT,
-} from '../services/cache/crdt';
-import { networkMonitor } from '../services/network/networkMonitor';
 import {
   Subscription, // eslint-disable-line
   SubscriptionFormData,
@@ -15,14 +8,23 @@ import {
   SubscriptionCategory, // eslint-disable-line
   BillingCycle, // eslint-disable-line
 } from '../types/subscription';
+import {
+  CreditAccountState,
+  CreditApplicationResult,
+  CreditPolicy,
+  CreditPurchaseInput,
+  CreditTransferInput,
+} from '../types/credit';
+import { InvoiceStatus, isOpenInvoice } from '../types/invoice';
 import { dummySubscriptions } from '../utils/dummyData'; // eslint-disable-line
 import { advanceBillingDate } from '../utils/billingDate';
 import { buildBillingPeriod } from '../utils/invoice';
-import { BILLING_CONVERSIONS } from '../utils/constants/values';
+import { BILLING_CONVERSIONS, CACHE_CONSTANTS } from '../utils/constants/values';
 import {
   syncRenewalReminders,
   presentChargeSuccessNotification,
   presentChargeFailedNotification,
+  presentLocalNotification,
   presentDunningRetryNotification,
   presentDunningWarningNotification,
   presentDunningSuspendedNotification,
@@ -40,6 +42,15 @@ import { useSupportStore } from './supportStore';
 import { buildSupportEventMessage } from '../services/ticketingService';
 import { SubscriptionSupportContext, TicketIssueType } from '../types/support';
 import {
+  applyCreditToInvoice,
+  buildCreditAccount,
+  expireCredits,
+  normalizeCreditAccount,
+  purchaseCredit,
+  transferCredit,
+} from '../services/creditService';
+import { useUserStore } from './userStore';
+import {
   previewProration,
   generateCreditMemo,
   applyCreditMemo,
@@ -48,7 +59,8 @@ import {
 } from '../utils/proration';
 
 const STORAGE_KEY = 'subtrackr-subscriptions';
-const STORE_VERSION = 1;
+const STORE_VERSION = 2;
+const WRITE_DEBOUNCE_MS = CACHE_CONSTANTS.WRITE_DEBOUNCE_MS;
 
 /**
  * Generate a unique ID for subscriptions
@@ -59,6 +71,8 @@ const generateUniqueId = (): string => {
   const randomComponent = Math.random().toString(36).substring(2, 8);
   return `${timestamp}-${randomComponent}`;
 };
+
+type PersistedSubscriptionSlice = Pick<SubscriptionState, 'subscriptions' | 'creditAccounts'>;
 
 const toValidDate = (value: unknown, fallback = new Date()): Date => {
   if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
@@ -88,6 +102,29 @@ const normalizeSubscription = (raw: Partial<Subscription>): Subscription => {
     cryptoAmount: raw.cryptoAmount,
     createdAt: toValidDate(raw.createdAt, now),
     updatedAt: toValidDate(raw.updatedAt, now),
+  };
+};
+
+const getDefaultAccountId = (): string => {
+  const { user } = useUserStore.getState();
+  return user?.id ?? user?.email ?? 'local-user';
+};
+
+const getDefaultCurrency = (): string => {
+  const { preferredCurrency } = useSettingsStore.getState();
+  return preferredCurrency ?? 'USD';
+};
+
+const ensureCreditAccount = (
+  accounts: Record<string, CreditAccountState>,
+  accountId: string,
+  currency = getDefaultCurrency(),
+  policy?: Partial<CreditPolicy>
+): Record<string, CreditAccountState> => {
+  if (accounts[accountId]) return accounts;
+  return {
+    ...accounts,
+    [accountId]: buildCreditAccount(accountId, currency, policy),
   };
 };
 
@@ -129,37 +166,169 @@ const createSupportEvent = (
   };
 };
 
-// Debounced writes are provided by the shared debouncedAsyncStorageAdapter
-// (see src/utils/storage.ts). This removes the copy-pasted boilerplate.
+const applyCreditsAcrossOpenInvoices = async (
+  state: SubscriptionState,
+  accountId: string,
+  subscriptionId?: string
+): Promise<{ applications: CreditApplicationResult[]; account: CreditAccountState }> => {
+  const invoiceStore = useInvoiceStore.getState();
+  const account =
+    state.creditAccounts[accountId] ?? buildCreditAccount(accountId, getDefaultCurrency());
+  if (!subscriptionId) {
+    return {
+      applications: [],
+      account,
+    };
+  }
+  const openInvoices = invoiceStore.invoices
+    .filter((invoice) => invoice.subscriptionId === subscriptionId && isOpenInvoice(invoice.status))
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
-export type ProrationEffectiveType = 'immediate' | 'end_of_period' | 'custom_date';
+  let workingAccount = account;
+  const applications: CreditApplicationResult[] = [];
 
-export interface SubscriptionChange {
-  id: string;
-  subscriptionId: string;
-  fromPrice: number;
-  toPrice: number;
-  effectiveType: ProrationEffectiveType;
-  status: 'pending' | 'executed' | 'rejected';
-  proration: ProrationPreview;
-  createdAt: Date;
-  newPlanData: Partial<Subscription>;
-}
+  for (const invoice of openInvoices) {
+    if (workingAccount.balance <= 0) break;
+
+    const result = applyCreditToInvoice(workingAccount, {
+      invoiceId: invoice.id,
+      subscriptionId,
+      invoiceTotal: invoice.total,
+      currency: invoice.currency,
+      reference: `auto-apply:${invoice.invoiceNumber}`,
+      note: 'Auto-applied to open invoice',
+      expectedRevision: workingAccount.revision,
+    });
+
+    if (!result.application || result.appliedAmount <= 0) continue;
+
+    workingAccount = result.account;
+    applications.push(result);
+    await invoiceStore.updateInvoiceStatus(
+      invoice.id,
+      result.remainingDue > 0 ? InvoiceStatus.PARTIAL : InvoiceStatus.PAID
+    );
+  }
+
+  return {
+    applications,
+    account: workingAccount,
+  };
+};
+
+const serializeForStorage = (state: PersistedSubscriptionSlice): PersistedSubscriptionSlice => ({
+  subscriptions: state.subscriptions.map((sub) => ({
+    ...sub,
+    nextBillingDate: new Date(sub.nextBillingDate),
+    createdAt: new Date(sub.createdAt),
+    updatedAt: new Date(sub.updatedAt),
+  })),
+  creditAccounts: Object.fromEntries(
+    Object.entries(state.creditAccounts ?? {}).map(([accountId, account]) => [
+      accountId,
+      {
+        ...account,
+        nextExpirationAt: account.nextExpirationAt ? new Date(account.nextExpirationAt) : null,
+        lots: account.lots.map((lot) => ({
+          ...lot,
+          createdAt: new Date(lot.createdAt),
+          expiresAt: lot.expiresAt ? new Date(lot.expiresAt) : null,
+        })),
+        ledger: account.ledger.map((entry) => ({
+          ...entry,
+          createdAt: new Date(entry.createdAt),
+          expiresAt: entry.expiresAt ? new Date(entry.expiresAt) : null,
+        })),
+        applications: account.applications.map((entry) => ({
+          ...entry,
+          createdAt: new Date(entry.createdAt),
+        })),
+      },
+    ])
+  ) as Record<string, CreditAccountState>,
+});
+
+const migratePersistedState = (
+  persisted: unknown,
+  _version: number
+): PersistedSubscriptionSlice => {
+  if (!persisted || typeof persisted !== 'object') {
+    return { subscriptions: [], creditAccounts: {} };
+  }
+
+  const maybeState = persisted as Partial<PersistedSubscriptionSlice>;
+  const subscriptions = Array.isArray(maybeState.subscriptions)
+    ? maybeState.subscriptions.map((entry) => normalizeSubscription(entry as Partial<Subscription>))
+    : [];
+  const creditAccounts =
+    maybeState.creditAccounts && typeof maybeState.creditAccounts === 'object'
+      ? Object.entries(maybeState.creditAccounts as Record<string, CreditAccountState>).reduce<
+          Record<string, CreditAccountState>
+        >((acc, [accountId, account]) => {
+          acc[accountId] = normalizeCreditAccount({
+            ...account,
+            accountId,
+          });
+          return acc;
+        }, {})
+      : {};
+
+  return { subscriptions, creditAccounts };
+};
+
+const pendingWrites = new Map<string, string>();
+let writeTimer: ReturnType<typeof setTimeout> | null = null;
+let writeQueue = Promise.resolve();
+
+const flushPendingWrites = async (): Promise<void> => {
+  if (pendingWrites.size === 0) return;
+
+  const writes = Array.from(pendingWrites.entries());
+  pendingWrites.clear();
+
+  writeQueue = writeQueue.then(async () => {
+    await Promise.all(writes.map(([key, value]) => AsyncStorage.setItem(key, value)));
+  });
+
+  try {
+    await writeQueue;
+  } catch (error) {
+    console.warn('Failed to persist subscriptions:', error);
+  }
+};
+
+const debouncedAsyncStorage: StateStorage = {
+  getItem: async (name) => {
+    if (pendingWrites.has(name)) return pendingWrites.get(name) ?? null;
+    await writeQueue;
+    return AsyncStorage.getItem(name);
+  },
+  setItem: async (name, value) => {
+    pendingWrites.set(name, value);
+    if (writeTimer) clearTimeout(writeTimer);
+    writeTimer = setTimeout(() => {
+      void flushPendingWrites();
+    }, WRITE_DEBOUNCE_MS);
+  },
+  removeItem: async (name) => {
+    pendingWrites.delete(name);
+    if (writeTimer && pendingWrites.size === 0) {
+      clearTimeout(writeTimer);
+      writeTimer = null;
+    }
+    await writeQueue;
+    await AsyncStorage.removeItem(name);
+  },
+};
 
 interface SubscriptionState {
   subscriptions: Subscription[];
+  creditAccounts: Record<string, CreditAccountState>;
   stats: SubscriptionStats;
   isLoading: boolean;
   error: AppError | null;
   prorationPreview: ProrationPreview | null;
   creditMemos: Record<string, CreditMemo>;
-  planChanges: SubscriptionChange[];
-
-  // Offline-first & CRDT Sync
-  syncStatus: 'idle' | 'pending' | 'syncing' | 'conflict' | 'error';
-  crdtMetadata: Record<string, SubscriptionMetadata>;
-  syncWithServer: () => Promise<void>;
-  setSyncStatus: (status: 'idle' | 'pending' | 'syncing' | 'conflict' | 'error') => void;
 
   // Actions
   addSubscription: (data: SubscriptionFormData) => Promise<void>;
@@ -180,83 +349,29 @@ interface SubscriptionState {
   applyCreditToSubscription: (id: string) => Promise<void>;
   /** Simulate or record a billing result (fires local notifications when enabled for this sub). */
   recordBillingOutcome: (id: string, outcome: 'success' | 'failed') => Promise<void>;
+  getCreditAccount: (accountId?: string) => CreditAccountState;
+  setCreditPolicy: (policy: Partial<CreditPolicy>, accountId?: string) => Promise<void>;
+  purchaseCredit: (input: CreditPurchaseInput, accountId?: string) => Promise<void>;
+  transferCredit: (
+    input: CreditTransferInput,
+    recipientAccountId: string,
+    accountId?: string
+  ) => Promise<void>;
+  applyCreditToInvoice: (
+    invoiceId: string,
+    subscriptionId: string,
+    accountId?: string
+  ) => Promise<CreditApplicationResult | null>;
+  expireCredits: (accountId?: string) => Promise<void>;
   fetchSubscriptions: () => Promise<void>;
   calculateStats: () => void;
-  queuePlanChange: (
-    id: string,
-    newPlanData: Partial<Subscription>,
-    effectiveDate: ProrationEffectiveType
-  ) => void;
-  approvePlanChange: (changeId: string) => Promise<void>;
-  rejectPlanChange: (changeId: string) => void;
-  getChangeHistory: (subscriptionId: string) => SubscriptionChange[];
-}
-
-type PersistedSubscriptionSlice = Pick<
-  SubscriptionState,
-  'subscriptions' | 'planChanges' | 'crdtMetadata' | 'syncStatus'
->;
-
-const serializeForStorage = (state: PersistedSubscriptionSlice): PersistedSubscriptionSlice => ({
-  subscriptions: (state.subscriptions || []).map((sub) => ({
-    ...sub,
-    nextBillingDate: new Date(sub.nextBillingDate),
-    createdAt: new Date(sub.createdAt),
-    updatedAt: new Date(sub.updatedAt),
-  })),
-  planChanges: (state.planChanges || []).map((change) => ({
-    ...change,
-    createdAt: new Date(change.createdAt),
-  })),
-  crdtMetadata: state.crdtMetadata || {},
-  syncStatus: state.syncStatus || 'idle',
-});
-
-const migratePersistedState = (
-  persisted: unknown,
-  _version: number
-): PersistedSubscriptionSlice => {
-  if (!persisted || typeof persisted !== 'object') {
-    return { subscriptions: [], planChanges: [], crdtMetadata: {}, syncStatus: 'idle' };
-  }
-
-  const maybeState = persisted as Partial<PersistedSubscriptionSlice>;
-  const subscriptions = Array.isArray(maybeState.subscriptions)
-    ? maybeState.subscriptions.map((entry) => normalizeSubscription(entry as Partial<Subscription>))
-    : [];
-
-  const planChanges = Array.isArray(maybeState.planChanges)
-    ? maybeState.planChanges.map((entry) => ({
-        ...entry,
-        createdAt: new Date(entry.createdAt),
-      }))
-    : [];
-
-  const crdtMetadata = maybeState.crdtMetadata || {};
-  const syncStatus = maybeState.syncStatus || 'idle';
-
-  return { subscriptions, planChanges, crdtMetadata, syncStatus };
-};
-
-// Simulated backend sync endpoint using AsyncStorage
-async function mockSyncApiCall(localState: CRDTSubscriptionState): Promise<CRDTSubscriptionState> {
-  await new Promise((resolve) => setTimeout(resolve, 300));
-
-  const serverStateRaw = await AsyncStorage.getItem('subtrackr-server-db');
-  const serverState: CRDTSubscriptionState = serverStateRaw
-    ? JSON.parse(serverStateRaw)
-    : { subscriptions: {}, metadata: {} };
-
-  const mergedServerState = SubscriptionCRDT.merge(serverState, localState);
-  await AsyncStorage.setItem('subtrackr-server-db', JSON.stringify(mergedServerState));
-
-  return mergedServerState;
 }
 
 export const useSubscriptionStore = create<SubscriptionState>()(
   persist(
     (set, get) => ({
       subscriptions: dummySubscriptions,
+      creditAccounts: {},
       stats: {
         totalActive: 0,
         totalMonthlySpend: 0,
@@ -267,58 +382,6 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       error: null,
       prorationPreview: null,
       creditMemos: {},
-      planChanges: [],
-
-      // Offline-first & CRDT Sync State
-      syncStatus: 'idle',
-      crdtMetadata: {},
-
-      setSyncStatus: (status) => set({ syncStatus: status }),
-
-      syncWithServer: async () => {
-        if (!networkMonitor.isOnline()) {
-          set({ syncStatus: 'pending' });
-          return;
-        }
-        if (get().syncStatus === 'syncing') return;
-
-        set({ syncStatus: 'syncing', error: null });
-
-        try {
-          const localState: CRDTSubscriptionState = {
-            subscriptions: get().subscriptions.reduce(
-              (acc, sub) => {
-                acc[sub.id] = sub;
-                return acc;
-              },
-              {} as Record<string, Subscription>
-            ),
-            metadata: get().crdtMetadata || {},
-          };
-
-          const mergedState = await mockSyncApiCall(localState);
-          const subscriptionsArray = Object.values(mergedState.subscriptions);
-
-          set({
-            subscriptions: subscriptionsArray,
-            crdtMetadata: mergedState.metadata,
-            syncStatus: 'idle',
-            isLoading: false,
-          });
-
-          get().calculateStats();
-          await syncRenewalReminders(get().subscriptions);
-          await useCalendarStore.getState().syncSubscriptions(get().subscriptions);
-        } catch (err) {
-          const appError = errorHandler.handleError(err as Error, {
-            action: 'syncWithServer',
-          });
-          set({
-            syncStatus: 'error',
-            error: appError,
-          });
-        }
-      },
 
       previewPlanChange: (
         id: string,
@@ -347,40 +410,26 @@ export const useSubscriptionStore = create<SubscriptionState>()(
 
           const preview = previewProration(sub, newPlanData.price ?? sub.price, effectiveDate);
 
-          // Generate credit memo if downgrade
           const updatedCreditMemos = { ...get().creditMemos };
           if (preview.isCredit && preview.amount > 0) {
             const memo = generateCreditMemo(id, preview.amount, preview.description);
             updatedCreditMemos[id] = memo;
           }
 
-          // Update subscription
           const updates: Partial<Subscription> = {
             ...newPlanData,
             updatedAt: new Date(),
           };
 
           if (effectiveDate === 'immediate') {
-            // Reset billing cycle
             updates.nextBillingDate = advanceBillingDate(
               new Date(),
               newPlanData.billingCycle ?? sub.billingCycle
             );
           }
 
-          const timestamp = Date.now();
-          const currentMeta =
-            (get().crdtMetadata || {})[id] ||
-            SubscriptionCRDT.createMetadata(sub, timestamp - 1000);
-          const updatedMetadata = SubscriptionCRDT.updateMetadata(currentMeta, updates, timestamp);
-
           set((state) => ({
             subscriptions: state.subscriptions.map((s) => (s.id === id ? { ...s, ...updates } : s)),
-            crdtMetadata: {
-              ...(state.crdtMetadata || {}),
-              [id]: updatedMetadata,
-            },
-            syncStatus: 'pending',
             creditMemos: updatedCreditMemos,
             prorationPreview: null,
             isLoading: false,
@@ -388,10 +437,6 @@ export const useSubscriptionStore = create<SubscriptionState>()(
 
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
-
-          if (networkMonitor.isOnline()) {
-            await get().syncWithServer();
-          }
         } catch (error) {
           const appError = errorHandler.handleError(error as Error, {
             action: 'executePlanChange',
@@ -415,66 +460,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           },
         }));
 
-        // Could trigger a reduced charge here
         console.log(`Applied credit: final charge ${finalCharge}`);
-      },
-
-      queuePlanChange: (
-        id: string,
-        newPlanData: Partial<Subscription>,
-        effectiveDate: ProrationEffectiveType
-      ) => {
-        const sub = get().subscriptions.find((s) => s.id === id);
-        if (!sub) throw new Error('Subscription not found');
-        const preview = previewProration(
-          sub,
-          newPlanData.price ?? sub.price,
-          effectiveDate === 'end_of_period' ? 'end_of_period' : 'immediate'
-        );
-        const change: SubscriptionChange = {
-          id: generateUniqueId(),
-          subscriptionId: id,
-          fromPrice: sub.price,
-          toPrice: newPlanData.price ?? sub.price,
-          effectiveType: effectiveDate,
-          status: 'pending',
-          proration: preview,
-          createdAt: new Date(),
-          newPlanData,
-        };
-        set((state) => ({
-          planChanges: [...(state.planChanges || []), change],
-        }));
-      },
-
-      approvePlanChange: async (changeId: string) => {
-        const change = (get().planChanges || []).find((c) => c.id === changeId);
-        if (!change) throw new Error('Change request not found');
-        if (change.status !== 'pending') throw new Error('Change request is not pending');
-
-        await get().executePlanChange(
-          change.subscriptionId,
-          change.newPlanData,
-          change.effectiveType === 'end_of_period' ? 'end_of_period' : 'immediate'
-        );
-
-        set((state) => ({
-          planChanges: (state.planChanges || []).map((c) =>
-            c.id === changeId ? { ...c, status: 'executed' } : c
-          ),
-        }));
-      },
-
-      rejectPlanChange: (changeId: string) => {
-        set((state) => ({
-          planChanges: (state.planChanges || []).map((c) =>
-            c.id === changeId ? { ...c, status: 'rejected' } : c
-          ),
-        }));
-      },
-
-      getChangeHistory: (subscriptionId: string) => {
-        return (get().planChanges || []).filter((c) => c.subscriptionId === subscriptionId);
       },
 
       addSubscription: async (data: SubscriptionFormData) => {
@@ -489,16 +475,8 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             updatedAt: new Date(),
           };
 
-          const timestamp = Date.now();
-          const newMetadata = SubscriptionCRDT.createMetadata(newSubscription, timestamp);
-
           set((state) => ({
             subscriptions: [...state.subscriptions, newSubscription],
-            crdtMetadata: {
-              ...(state.crdtMetadata || {}),
-              [newSubscription.id]: newMetadata,
-            },
-            syncStatus: 'pending',
             isLoading: false,
           }));
 
@@ -514,10 +492,6 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             price: data.price,
             category: data.category,
           });
-
-          if (networkMonitor.isOnline()) {
-            await get().syncWithServer();
-          }
         } catch (error) {
           const appError = errorHandler.handleError(error as Error, {
             action: 'addSubscription',
@@ -534,40 +508,18 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       updateSubscription: async (id: string, data: Partial<Subscription>) => {
         set({ isLoading: true, error: null });
         try {
-          const sub = get().subscriptions.find((s) => s.id === id);
-          if (!sub) throw new Error('Subscription not found');
-
-          const updatedSubscription = {
-            ...sub,
-            ...data,
-            updatedAt: new Date(),
-          };
-
-          const timestamp = Date.now();
-          const currentMeta =
-            (get().crdtMetadata || {})[id] ||
-            SubscriptionCRDT.createMetadata(sub, timestamp - 1000);
-          const updatedMetadata = SubscriptionCRDT.updateMetadata(currentMeta, data, timestamp);
-
           set((state) => ({
-            subscriptions: state.subscriptions.map((s) => (s.id === id ? updatedSubscription : s)),
-            crdtMetadata: {
-              ...(state.crdtMetadata || {}),
-              [id]: updatedMetadata,
-            },
-            syncStatus: 'pending',
+            subscriptions: state.subscriptions.map((sub) =>
+              sub.id === id ? { ...sub, ...data, updatedAt: new Date() } : sub
+            ),
             isLoading: false,
           }));
 
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
-          const updated = get().subscriptions.find((s) => s.id === id);
-          if (updated) {
-            await useCalendarStore.getState().syncSubscriptionToCalendars(updated);
-          }
-
-          if (networkMonitor.isOnline()) {
-            await get().syncWithServer();
+          const updatedSubscription = get().subscriptions.find((sub) => sub.id === id);
+          if (updatedSubscription) {
+            await useCalendarStore.getState().syncSubscriptionToCalendars(updatedSubscription);
           }
         } catch (error) {
           const appError = errorHandler.handleError(error as Error, {
@@ -586,43 +538,25 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         set({ isLoading: true, error: null });
         try {
           const current = get().subscriptions.find((sub) => sub.id === id);
-          if (!current) throw new Error('Subscription not found');
-
-          const timestamp = Date.now();
-          const currentMeta =
-            (get().crdtMetadata || {})[id] ||
-            SubscriptionCRDT.createMetadata(current, timestamp - 1000);
-          const updatedMetadata = {
-            ...currentMeta,
-            deletedAt: timestamp,
-          };
-
-          useSupportStore
-            .getState()
-            .createTicket(
-              createSupportEvent(current, 'cancellation', [
-                'Cancellation requested from subscription management',
-                'Subscription marked for removal',
-              ])
-            );
+          if (current) {
+            useSupportStore
+              .getState()
+              .createTicket(
+                createSupportEvent(current, 'cancellation', [
+                  'Cancellation requested from subscription management',
+                  'Subscription marked for removal',
+                ])
+              );
+          }
 
           set((state) => ({
             subscriptions: state.subscriptions.filter((sub) => sub.id !== id),
-            crdtMetadata: {
-              ...(state.crdtMetadata || {}),
-              [id]: updatedMetadata,
-            },
-            syncStatus: 'pending',
             isLoading: false,
           }));
 
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
           await useCalendarStore.getState().removeSubscriptionFromCalendars(id);
-
-          if (networkMonitor.isOnline()) {
-            await get().syncWithServer();
-          }
         } catch (error) {
           const appError = errorHandler.handleError(error as Error, {
             action: 'deleteSubscription',
@@ -638,44 +572,18 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       toggleSubscriptionStatus: async (id: string) => {
         set({ isLoading: true, error: null });
         try {
-          const sub = get().subscriptions.find((s) => s.id === id);
-          if (!sub) throw new Error('Subscription not found');
-
-          const updatedSubscription = {
-            ...sub,
-            isActive: !sub.isActive,
-            updatedAt: new Date(),
-          };
-
-          const timestamp = Date.now();
-          const currentMeta =
-            (get().crdtMetadata || {})[id] ||
-            SubscriptionCRDT.createMetadata(sub, timestamp - 1000);
-          const updatedMetadata = SubscriptionCRDT.updateMetadata(
-            currentMeta,
-            { isActive: !sub.isActive },
-            timestamp
-          );
-
           set((state) => ({
-            subscriptions: state.subscriptions.map((s) => (s.id === id ? updatedSubscription : s)),
-            crdtMetadata: {
-              ...(state.crdtMetadata || {}),
-              [id]: updatedMetadata,
-            },
-            syncStatus: 'pending',
+            subscriptions: state.subscriptions.map((sub) =>
+              sub.id === id ? { ...sub, isActive: !sub.isActive, updatedAt: new Date() } : sub
+            ),
             isLoading: false,
           }));
 
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
-          const updated = get().subscriptions.find((s) => s.id === id);
-          if (updated) {
-            await useCalendarStore.getState().syncSubscriptionToCalendars(updated);
-          }
-
-          if (networkMonitor.isOnline()) {
-            await get().syncWithServer();
+          const updatedSubscription = get().subscriptions.find((sub) => sub.id === id);
+          if (updatedSubscription) {
+            await useCalendarStore.getState().syncSubscriptionToCalendars(updatedSubscription);
           }
         } catch (error) {
           const appError = errorHandler.handleError(error as Error, {
@@ -692,6 +600,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       recordBillingOutcome: async (id: string, outcome: 'success' | 'failed') => {
         const sub = get().subscriptions.find((s) => s.id === id);
         if (!sub) return;
+        const accountId = getDefaultAccountId();
 
         if (outcome === 'failed') {
           const dunningEntries = JSON.parse(
@@ -759,7 +668,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             await useCalendarStore.getState().syncSubscriptionToCalendars(updatedSubscription);
           }
 
-          await useInvoiceStore.getState().generateInvoiceFromSubscription(
+          const invoice = await useInvoiceStore.getState().generateInvoiceFromSubscription(
             {
               subscription: sub,
               period: billingPeriod,
@@ -769,6 +678,13 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             },
             0
           );
+
+          const creditApplication = await get().applyCreditToInvoice(invoice.id, sub.id, accountId);
+          if (creditApplication?.remainingDue > 0) {
+            await useInvoiceStore.getState().updateInvoiceStatus(invoice.id, InvoiceStatus.PARTIAL);
+          } else if (creditApplication?.appliedAmount && creditApplication.appliedAmount > 0) {
+            await useInvoiceStore.getState().updateInvoiceStatus(invoice.id, InvoiceStatus.PAID);
+          }
         } else {
           useSupportStore
             .getState()
@@ -779,6 +695,202 @@ export const useSubscriptionStore = create<SubscriptionState>()(
                 `Notifications ${sub.notificationsEnabled === false ? 'disabled' : 'enabled'}`,
               ])
             );
+        }
+      },
+
+      getCreditAccount: (accountId) => {
+        const resolvedAccountId = accountId ?? getDefaultAccountId();
+        const accounts = get().creditAccounts;
+        return (
+          accounts[resolvedAccountId] ?? buildCreditAccount(resolvedAccountId, getDefaultCurrency())
+        );
+      },
+
+      setCreditPolicy: async (policy, accountId) => {
+        set({ isLoading: true, error: null });
+        try {
+          const resolvedAccountId = accountId ?? getDefaultAccountId();
+          set((state) => {
+            const accounts = ensureCreditAccount(state.creditAccounts, resolvedAccountId);
+            const current = accounts[resolvedAccountId];
+            return {
+              creditAccounts: {
+                ...accounts,
+                [resolvedAccountId]: {
+                  ...current,
+                  policy: {
+                    ...current.policy,
+                    ...policy,
+                  },
+                  revision: current.revision + 1,
+                },
+              },
+              isLoading: false,
+            };
+          });
+        } catch (error) {
+          set({
+            error: errorHandler.handleError(error as Error, {
+              action: 'setCreditPolicy',
+              metadata: { policy, accountId },
+            }),
+            isLoading: false,
+          });
+        }
+      },
+
+      purchaseCredit: async (input, accountId) => {
+        set({ isLoading: true, error: null });
+        try {
+          const resolvedAccountId = accountId ?? getDefaultAccountId();
+          set((state) => {
+            const accounts = ensureCreditAccount(state.creditAccounts, resolvedAccountId);
+            const current = accounts[resolvedAccountId];
+            const nextAccount = purchaseCredit(current, {
+              ...input,
+              currency: input.currency ?? current.currency,
+              expectedRevision: input.expectedRevision ?? current.revision,
+            });
+            return {
+              creditAccounts: {
+                ...accounts,
+                [resolvedAccountId]: nextAccount,
+              },
+              isLoading: false,
+            };
+          });
+
+          if (input.subscriptionId) {
+            const applied = await applyCreditsAcrossOpenInvoices(
+              get(),
+              resolvedAccountId,
+              input.subscriptionId
+            );
+            set((state) => ({
+              creditAccounts: {
+                ...state.creditAccounts,
+                [resolvedAccountId]: applied.account,
+              },
+            }));
+          }
+        } catch (error) {
+          set({
+            error: errorHandler.handleError(error as Error, {
+              action: 'purchaseCredit',
+              metadata: { input, accountId },
+            }),
+            isLoading: false,
+          });
+        }
+      },
+
+      transferCredit: async (input, recipientAccountId, accountId) => {
+        set({ isLoading: true, error: null });
+        try {
+          const sourceAccountId = accountId ?? getDefaultAccountId();
+          set((state) => {
+            const accounts = ensureCreditAccount(
+              ensureCreditAccount(state.creditAccounts, sourceAccountId),
+              recipientAccountId
+            );
+            const source = accounts[sourceAccountId];
+            const target = accounts[recipientAccountId];
+            const next = transferCredit(source, target, {
+              ...input,
+              currency: input.currency ?? source.currency,
+              expectedRevision: input.expectedRevision ?? source.revision,
+            });
+            return {
+              creditAccounts: {
+                ...accounts,
+                [sourceAccountId]: next.source,
+                [recipientAccountId]: next.target,
+              },
+              isLoading: false,
+            };
+          });
+        } catch (error) {
+          set({
+            error: errorHandler.handleError(error as Error, {
+              action: 'transferCredit',
+              metadata: { input, recipientAccountId, accountId },
+            }),
+            isLoading: false,
+          });
+        }
+      },
+
+      applyCreditToInvoice: async (invoiceId, subscriptionId, accountId) => {
+        const resolvedAccountId = accountId ?? getDefaultAccountId();
+        const invoices = useInvoiceStore.getState().invoices;
+        const invoice = invoices.find((entry) => entry.id === invoiceId);
+        if (!invoice) return null;
+
+        const state = get();
+        const accounts = ensureCreditAccount(state.creditAccounts, resolvedAccountId);
+        const current = accounts[resolvedAccountId];
+        const result = applyCreditToInvoice(current, {
+          invoiceId,
+          subscriptionId,
+          invoiceTotal: invoice.total,
+          currency: invoice.currency,
+          reference: `invoice:${invoice.invoiceNumber}`,
+          note: 'Manual or automatic credit application',
+          expectedRevision: current.revision,
+        });
+
+        if (!result.application || result.appliedAmount <= 0) return result;
+
+        set((currentState) => ({
+          creditAccounts: {
+            ...currentState.creditAccounts,
+            [resolvedAccountId]: result.account,
+          },
+        }));
+
+        await useInvoiceStore
+          .getState()
+          .updateInvoiceStatus(
+            invoice.id,
+            result.remainingDue > 0 ? InvoiceStatus.PARTIAL : InvoiceStatus.PAID
+          );
+
+        return result;
+      },
+
+      expireCredits: async (accountId) => {
+        set({ isLoading: true, error: null });
+        try {
+          const resolvedAccountId = accountId ?? getDefaultAccountId();
+          const state = get();
+          const accounts = ensureCreditAccount(state.creditAccounts, resolvedAccountId);
+          const current = accounts[resolvedAccountId];
+          const result = expireCredits(current);
+          set((currentState) => ({
+            creditAccounts: {
+              ...currentState.creditAccounts,
+              [resolvedAccountId]: result.account,
+            },
+            isLoading: false,
+          }));
+          if (result.notificationMessage) {
+            await presentLocalNotification({
+              title: 'Credits expired',
+              body: result.notificationMessage,
+              data: {
+                accountId: resolvedAccountId,
+                expiredAmount: result.expiredAmount,
+              },
+            });
+          }
+        } catch (error) {
+          set({
+            error: errorHandler.handleError(error as Error, {
+              action: 'expireCredits',
+              metadata: { accountId },
+            }),
+            isLoading: false,
+          });
         }
       },
 
@@ -877,31 +989,52 @@ export const useSubscriptionStore = create<SubscriptionState>()(
     {
       name: STORAGE_KEY,
       version: STORE_VERSION,
-      storage: createJSONStorage(() => debouncedAsyncStorageAdapter),
+      storage: createJSONStorage(() => debouncedAsyncStorage),
       partialize: (state) =>
         serializeForStorage({
           subscriptions: state.subscriptions,
-          planChanges: state.planChanges,
-          crdtMetadata: state.crdtMetadata,
-          syncStatus: state.syncStatus,
+          creditAccounts: state.creditAccounts,
         }),
       migrate: (persistedState, version) => migratePersistedState(persistedState, version),
       merge: (persistedState, currentState) => ({
         ...currentState,
         ...migratePersistedState(persistedState, STORE_VERSION),
       }),
-      onRehydrateStorage: () => (_state, error) => {
+      onRehydrateStorage: () => (state, error) => {
         if (error) {
-          console.warn('[subscriptionStore] Hydration error — resetting to defaults:', error);
           useSubscriptionStore.setState({
-            subscriptions: [],
-            planChanges: [],
+            error: errorHandler.createError(
+              new Error('Stored subscription data is corrupted. Loaded fallback data.'),
+              { action: 'rehydrateSubscriptions' },
+              true
+            ),
+            subscriptions: [...dummySubscriptions],
+            creditAccounts: {},
             isLoading: false,
-            error: null,
-            prorationPreview: null,
-            creditMemos: {},
           });
+          useSubscriptionStore.getState().calculateStats();
+          void syncRenewalReminders(useSubscriptionStore.getState().subscriptions);
+          return;
         }
+
+        const subscriptions = Array.isArray(state?.subscriptions)
+          ? state.subscriptions
+          : [...dummySubscriptions];
+        const creditAccounts =
+          state?.creditAccounts && typeof state.creditAccounts === 'object'
+            ? state.creditAccounts
+            : {};
+        useSubscriptionStore.setState({
+          subscriptions,
+          creditAccounts,
+          isLoading: false,
+          error: null,
+        });
+        useSubscriptionStore.getState().calculateStats();
+        void syncRenewalReminders(useSubscriptionStore.getState().subscriptions);
+        void useCalendarStore
+          .getState()
+          .syncSubscriptions(useSubscriptionStore.getState().subscriptions);
       },
     }
   )

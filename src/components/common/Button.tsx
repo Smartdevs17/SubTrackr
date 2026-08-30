@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   TouchableOpacity,
   Text,
@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { spacing, typography, borderRadius } from '../../utils/constants';
 import { useThemeColors } from '../../hooks/useThemeColors';
+import { useHaptics } from '../../hooks/useHaptics';
 
 export interface ButtonProps {
   title: string;
@@ -23,6 +24,16 @@ export interface ButtonProps {
   accessibilityHint?: string;
   accessibilitySelected?: boolean;
   testID?: string;
+  /**
+   * Controls which haptic pattern fires when the button is pressed.
+   * - 'light'   (default) — standard tap feedback
+   * - 'medium'  — confirmations / selections
+   * - 'heavy'   — destructive actions
+   * - 'success' — use after a successful async operation completes
+   * - 'error'   — use when the action is known to have failed
+   * - 'none'    — opt out of haptics entirely
+   */
+  hapticVariant?: 'light' | 'medium' | 'heavy' | 'success' | 'error' | 'none';
 }
 
 export const Button: React.FC<ButtonProps> = ({
@@ -38,9 +49,41 @@ export const Button: React.FC<ButtonProps> = ({
   accessibilityHint,
   accessibilitySelected = false,
   testID,
+  hapticVariant = 'light',
 }) => {
   const colors = useThemeColors();
   const styles = React.useMemo(() => createStyles(colors), [colors]);
+  const { triggerLight, triggerMedium, triggerHeavy, triggerSuccess, triggerError } = useHaptics();
+
+  const handlePress = useCallback(() => {
+    switch (hapticVariant) {
+      case 'medium':
+        triggerMedium();
+        break;
+      case 'heavy':
+        triggerHeavy();
+        break;
+      case 'success':
+        triggerSuccess();
+        break;
+      case 'error':
+        triggerError();
+        break;
+      case 'none':
+        break;
+      default:
+        triggerLight();
+    }
+    onPress();
+  }, [
+    hapticVariant,
+    onPress,
+    triggerLight,
+    triggerMedium,
+    triggerHeavy,
+    triggerSuccess,
+    triggerError,
+  ]);
 
   const buttonStyle = [
     styles.button,
@@ -61,7 +104,7 @@ export const Button: React.FC<ButtonProps> = ({
   return (
     <TouchableOpacity
       style={buttonStyle}
-      onPress={onPress}
+      onPress={handlePress}
       disabled={disabled || loading}
       activeOpacity={0.8}
       accessibilityRole="button"

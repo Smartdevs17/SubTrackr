@@ -13,9 +13,8 @@ members = [
     "metering",
     "access_control",
     "security",
-    "audit",
-    "utils",
 ]
+exclude = ["fuzz"]
 
 [profile.release]
 opt-level = "z"
@@ -28,5 +27,5 @@ codegen-units = 1
 lto = true
 
 [workspace.dependencies]
-soroban-sdk = "21.0.0"
+soroban-sdk = "21.7.7"
 arbitrary = { version = "1.3", features = ["derive"] }

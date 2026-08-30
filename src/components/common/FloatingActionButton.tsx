@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { TouchableOpacity, Text, StyleSheet, ViewStyle } from 'react-native';
 import { spacing, typography, borderRadius, shadows } from '../../utils/constants';
 import { useThemeColors } from '../../hooks/useThemeColors';
+import { useHaptics } from '../../hooks/useHaptics';
 
 export interface FloatingActionButtonProps {
   onPress: () => void;
@@ -26,12 +27,18 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
 }) => {
   const colors = useThemeColors();
   const styles = React.useMemo(() => createStyles(colors), [colors]);
+  const { triggerMedium } = useHaptics();
   const buttonStyle = [styles.button, styles[size], style];
+
+  const handlePress = useCallback(() => {
+    triggerMedium();
+    onPress();
+  }, [onPress, triggerMedium]);
 
   return (
     <TouchableOpacity
       style={buttonStyle}
-      onPress={onPress}
+      onPress={handlePress}
       activeOpacity={0.8}
       testID={testID}
       accessibilityRole="button"

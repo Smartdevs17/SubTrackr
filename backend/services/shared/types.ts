@@ -30,6 +30,7 @@ export interface Alert {
   timestamp: number;
   resolved: boolean;
   ruleId: string;
+  correlationId?: string;
 }
 
 export interface AlertRule {

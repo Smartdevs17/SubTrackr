@@ -115,6 +115,79 @@ export class AnalyticsDashboardApi {
       body: ltvBreakdownToCsv(CohortService.ltvByAcquisitionSource(records)),
     });
   }
+
+  getMrrArrReport(merchantId: string): ApiResponse<{
+    mrr: number;
+    arr: number;
+    arpu: number;
+    ltv: number;
+    subscriberCount: number;
+    activeCount: number;
+  }> {
+    const records = this.repository.getByMerchant(merchantId);
+    const active = records.filter((r) => r.churnedAt === undefined);
+    const churned = records.filter((r) => r.churnedAt !== undefined);
+    const mrr = active.reduce((sum, r) => sum + r.mrr, 0);
+    const arr = mrr * 12;
+    const arpu = active.length > 0 ? mrr / active.length : 0;
+    const grossChurnRate = records.length > 0 ? churned.length / records.length : 0;
+    const ltv = grossChurnRate > 0 ? arpu / grossChurnRate : arpu * 24;
+    return ok({
+      mrr,
+      arr,
+      arpu,
+      ltv,
+      subscriberCount: records.length,
+      activeCount: active.length,
+    });
+  }
+
+  getRevenueForecast(
+    merchantId: string,
+    model: 'linear' | 'exponential' = 'exponential',
+    monthsAhead: number = 3
+  ): ApiResponse<{ label: string; expectedRevenue: number; lowerBound: number; upperBound: number }[]> {
+    const records = this.repository.getByMerchant(merchantId);
+    const active = records.filter((r) => r.churnedAt === undefined);
+    const mrr = active.reduce((sum, r) => sum + r.mrr, 0);
+
+    const buckets = CohortService.buildCohortTable(records, 'month');
+    const retention = buckets.length
+      ? buckets.reduce((sum, b) => sum + b.retentionRate, 0) / buckets.length
+      : 0.95;
+    const confidenceBand = Math.max(0.1, 1 - Math.min(records.length / 50, 0.8));
+
+    let linearSlope = 0;
+    if (model === 'linear' && buckets.length >= 2) {
+      const n = buckets.length;
+      const sumX = buckets.reduce((sum, _, i) => sum + i, 0);
+      const sumY = buckets.reduce((sum, b) => sum + b.currentMrr, 0);
+      const sumXY = buckets.reduce((sum, b, i) => sum + i * b.currentMrr, 0);
+      const sumXX = buckets.reduce((sum, _, i) => sum + i * i, 0);
+      const denominator = n * sumXX - sumX * sumX;
+      if (denominator !== 0) {
+        linearSlope = (n * sumXY - sumX * sumY) / denominator;
+      }
+    }
+
+    const forecast = Array.from({ length: monthsAhead }, (_, index) => {
+      const monthAhead = index + 1;
+      let expectedRevenue = 0;
+      if (model === 'linear') {
+        expectedRevenue = Math.max(0, mrr + linearSlope * monthAhead);
+      } else {
+        expectedRevenue = mrr * Math.pow(retention || 0.95, monthAhead);
+      }
+      return {
+        label: `M+${monthAhead}`,
+        expectedRevenue,
+        lowerBound: expectedRevenue * (1 - confidenceBand),
+        upperBound: expectedRevenue * (1 + confidenceBand),
+      };
+    });
+
+    return ok(forecast);
+  }
 }
 
 export const analyticsDashboardApi = new AnalyticsDashboardApi();

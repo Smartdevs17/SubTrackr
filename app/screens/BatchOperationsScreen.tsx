@@ -25,6 +25,299 @@ import {
   exportBatchResultToCsv as exportCsv,
 } from '../stores/batchStore';
 import { colors, spacing, typography, borderRadius } from '../../src/utils/constants';
+import {
+  useAtomicBatch,
+  validateAtomicBatch,
+  type AtomicBatchItem,
+  type AtomicBatchReport,
+  type AtomicBatchStatus,
+} from '../services/atomicBatchService';
+
+// ── Atomic status colour map ──────────────────────────────────────────────
+
+const ATOMIC_STATUS_COLORS: Record<AtomicBatchStatus, string> = {
+  idle: colors.textSecondary,
+  validating: colors.warning,
+  snapshotting: colors.warning,
+  executing: colors.primary,
+  committing: colors.primary,
+  rolling_back: colors.error,
+  committed: colors.success,
+  rolled_back: colors.error,
+  failed: colors.error,
+};
+
+// ── AtomicExecutionPanel ──────────────────────────────────────────────────
+
+interface AtomicExecutionPanelProps {
+  operationType: BatchOperationType;
+  subscriptionIds: string[];
+}
+
+const AtomicExecutionPanel: React.FC<AtomicExecutionPanelProps> = ({
+  operationType,
+  subscriptionIds,
+}) => {
+  const { runAtomic, isBusy } = useAtomicBatch();
+  const [report, setReport] = React.useState<AtomicBatchReport | null>(null);
+  const [status, setStatus] = React.useState<AtomicBatchStatus>('idle');
+  const [validationErrors, setValidationErrors] = React.useState<string[]>([]);
+
+  const items: AtomicBatchItem[] = subscriptionIds.map((sid, idx) => ({
+    id: `item_${idx}`,
+    subscriptionId: sid,
+    operation: operationType,
+    payload: {},
+  }));
+
+  const handleRunAtomic = React.useCallback(async () => {
+    setValidationErrors([]);
+    const validation = validateAtomicBatch(items);
+    if (!validation.valid) {
+      setValidationErrors(validation.errors);
+      return;
+    }
+    setStatus('executing');
+    try {
+      const result = await runAtomic(`batch_${Date.now()}`, items, {
+        failFast: true,
+        concurrency: 1,
+        timeoutPerItemMs: 10_000,
+      });
+      setReport(result);
+      setStatus(result.status);
+    } catch {
+      setStatus('failed');
+    }
+  }, [items, runAtomic]);
+
+  const handleReset = () => {
+    setReport(null);
+    setStatus('idle');
+    setValidationErrors([]);
+  };
+
+  const statusColor = ATOMIC_STATUS_COLORS[status];
+
+  return (
+    <View style={atomicStyles.panel}>
+      <View style={atomicStyles.panelHeader}>
+        <Text style={atomicStyles.panelTitle}>⚛  Atomic Execution</Text>
+        <View style={[atomicStyles.statusBadge, { backgroundColor: statusColor + '22', borderColor: statusColor }]}>
+          <Text style={[atomicStyles.statusText, { color: statusColor }]}>
+            {status.toUpperCase().replace('_', ' ')}
+          </Text>
+        </View>
+      </View>
+
+      <Text style={atomicStyles.description}>
+        Atomic mode executes all {subscriptionIds.length} item
+        {subscriptionIds.length !== 1 ? 's' : ''} as a single unit. Any failure
+        will automatically roll back all previously applied changes.
+      </Text>
+
+      {validationErrors.length > 0 && (
+        <View style={atomicStyles.errorBox}>
+          {validationErrors.map((e, i) => (
+            <Text key={i} style={atomicStyles.errorText}>• {e}</Text>
+          ))}
+        </View>
+      )}
+
+      {report && (
+        <View style={atomicStyles.reportBox}>
+          <View style={atomicStyles.reportRow}>
+            <Text style={atomicStyles.reportLabel}>Total items</Text>
+            <Text style={atomicStyles.reportValue}>{report.totalItems}</Text>
+          </View>
+          <View style={atomicStyles.reportRow}>
+            <Text style={atomicStyles.reportLabel}>Succeeded</Text>
+            <Text style={[atomicStyles.reportValue, { color: colors.success }]}>
+              {report.succeededItems}
+            </Text>
+          </View>
+          <View style={atomicStyles.reportRow}>
+            <Text style={atomicStyles.reportLabel}>Failed</Text>
+            <Text style={[atomicStyles.reportValue, { color: colors.error }]}>
+              {report.failedItems}
+            </Text>
+          </View>
+          {report.rolledBackItems > 0 && (
+            <View style={atomicStyles.reportRow}>
+              <Text style={atomicStyles.reportLabel}>Rolled back</Text>
+              <Text style={[atomicStyles.reportValue, { color: colors.warning }]}>
+                {report.rolledBackItems}
+              </Text>
+            </View>
+          )}
+          {report.durationMs !== undefined && (
+            <View style={atomicStyles.reportRow}>
+              <Text style={atomicStyles.reportLabel}>Duration</Text>
+              <Text style={atomicStyles.reportValue}>
+                {report.durationMs < 1000
+                  ? `${report.durationMs} ms`
+                  : `${(report.durationMs / 1000).toFixed(2)} s`}
+              </Text>
+            </View>
+          )}
+          {report.rollbackReason && (
+            <View style={atomicStyles.rollbackBox}>
+              <Text style={atomicStyles.rollbackLabel}>Rollback reason:</Text>
+              <Text style={atomicStyles.rollbackReason}>{report.rollbackReason}</Text>
+            </View>
+          )}
+          <Text style={atomicStyles.idempotencyKey}>
+            Key: {report.idempotencyKey}
+          </Text>
+        </View>
+      )}
+
+      <View style={atomicStyles.buttonRow}>
+        {status === 'idle' || status === 'failed' || status === 'committed' || status === 'rolled_back' ? (
+          <>
+            <TouchableOpacity
+              style={[
+                atomicStyles.runButton,
+                (isBusy || subscriptionIds.length === 0) && atomicStyles.disabledButton,
+              ]}
+              onPress={handleRunAtomic}
+              disabled={isBusy || subscriptionIds.length === 0}>
+              <Text style={atomicStyles.runButtonText}>
+                {status === 'idle' ? '▶  Run Atomically' : '↺  Re-run'}
+              </Text>
+            </TouchableOpacity>
+            {report && (
+              <TouchableOpacity style={atomicStyles.resetButton} onPress={handleReset}>
+                <Text style={atomicStyles.resetButtonText}>Reset</Text>
+              </TouchableOpacity>
+            )}
+          </>
+        ) : (
+          <ActivityIndicator color={colors.primary} />
+        )}
+      </View>
+    </View>
+  );
+};
+
+// ── Styles for AtomicExecutionPanel ───────────────────────────────────────
+
+const atomicStyles = StyleSheet.create({
+  panel: {
+    margin: spacing.md,
+    padding: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.primary + '44',
+  },
+  panelHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
+  },
+  panelTitle: {
+    ...typography.h3,
+    color: colors.text,
+    fontWeight: '700',
+  },
+  statusBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.round,
+    borderWidth: 1,
+  },
+  statusText: {
+    ...typography.small,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  description: {
+    ...typography.body,
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
+  },
+  errorBox: {
+    backgroundColor: colors.error + '18',
+    padding: spacing.sm,
+    borderRadius: borderRadius.sm,
+    marginBottom: spacing.sm,
+  },
+  errorText: {
+    ...typography.caption,
+    color: colors.error,
+  },
+  reportBox: {
+    backgroundColor: colors.surfaceVariant,
+    padding: spacing.sm,
+    borderRadius: borderRadius.sm,
+    marginBottom: spacing.sm,
+    gap: spacing.xs,
+  },
+  reportRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  reportLabel: {
+    ...typography.caption,
+    color: colors.textSecondary,
+  },
+  reportValue: {
+    ...typography.caption,
+    color: colors.text,
+    fontWeight: '600',
+  },
+  rollbackBox: {
+    marginTop: spacing.xs,
+  },
+  rollbackLabel: {
+    ...typography.small,
+    color: colors.error,
+    fontWeight: '600',
+  },
+  rollbackReason: {
+    ...typography.small,
+    color: colors.textSecondary,
+  },
+  idempotencyKey: {
+    ...typography.small,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+    fontFamily: 'monospace',
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  runButton: {
+    flex: 1,
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    alignItems: 'center',
+  },
+  runButtonText: {
+    ...typography.button,
+    color: colors.onPrimary,
+  },
+  resetButton: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    alignItems: 'center',
+  },
+  resetButtonText: {
+    ...typography.button,
+    color: colors.text,
+  },
+  disabledButton: {
+    opacity: 0.45,
+  },
+});
 
 // ════════════════════════════════════════════════════════════════
 // Constants
@@ -47,11 +340,17 @@ const CANCEL_REASONS: Array<{ key: CancelReason['reason']; label: string }> = [
 
 const STATE_COLORS: Record<BatchState, string> = {
   pending: colors.textSecondary,
-  running: colors.warning,
+  processing: colors.warning,
   completed: colors.success,
   partial: colors.warning,
   failed: colors.error,
+  rolled_back: colors.textSecondary,
 };
+
+const formatPercent = (fraction: number): string => `${Math.round(fraction * 100)}%`;
+
+const formatDuration = (ms: number): string =>
+  ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`;
 
 // ════════════════════════════════════════════════════════════════
 // Component
@@ -75,12 +374,19 @@ export const BatchOperationsScreen: React.FC = () => {
     setDraft,
     executeBatch,
     retryFailed,
+    rollbackBatch,
+    canRollback,
     exportResultJson,
     exportResultCsv,
     resetDraft,
-    clearResult,
     loadHistory,
     gasEstimate,
+    itemCount,
+    validateDraft,
+    activeConfig,
+    setOperationConfig,
+    resetOperationConfig,
+    analytics,
   } = useBatchStore();
 
   const [showHistory, setShowHistory] = useState(false);
@@ -100,14 +406,11 @@ export const BatchOperationsScreen: React.FC = () => {
     loadHistory();
   }, []);
 
-  const items =
-    draft.createInputs.length ||
-    draft.updateIds.length ||
-    draft.cancelIds.length ||
-    draft.chargeItems.length ||
-    0;
-
-  const canExecute = items > 0 && !isRunning;
+  const items = itemCount();
+  const config = activeConfig();
+  const sizeCheck = validateDraft();
+  const canExecute = sizeCheck.valid && !isRunning;
+  const rollbackAvailable = canRollback();
 
   const onLoadCsv = useCallback(() => {
     const csv = draft.csvContent;
@@ -138,6 +441,36 @@ export const BatchOperationsScreen: React.FC = () => {
   const onRetry = useCallback(async () => {
     await retryFailed();
   }, [retryFailed]);
+
+  const onRollback = useCallback(() => {
+    Alert.alert(
+      'Roll back batch',
+      'Every committed item in this batch will be reversed. Continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Roll back',
+          style: 'destructive',
+          onPress: async () => {
+            const rollback = await rollbackBatch();
+            if (!rollback) {
+              Alert.alert(
+                'Rollback unavailable',
+                'This batch cannot be rolled back. Configure a rollback handler and check that the operation type allows it.',
+              );
+              return;
+            }
+            Alert.alert(
+              'Rollback complete',
+              `Reverted ${rollback.reverted} of ${rollback.attempted} item(s)${
+                rollback.failed > 0 ? `, ${rollback.failed} could not be reverted` : ''
+              }.`,
+            );
+          },
+        },
+      ],
+    );
+  }, [rollbackBatch]);
 
   const onExportJson = useCallback(() => {
     const json = exportResultJson();
@@ -355,8 +688,131 @@ export const BatchOperationsScreen: React.FC = () => {
       <Text style={styles.gasEstimate}>
         Est. Gas: {gasEst.toLocaleString()} units | {draft.atomic ? 'Atomic' : 'Non-atomic'} mode
       </Text>
+      {!sizeCheck.valid && items > 0 && (
+        <Text style={styles.validationText}>{sizeCheck.reason}</Text>
+      )}
     </View>
   );
+
+  const renderConfig = () => (
+    <View style={styles.section}>
+      <View style={styles.resultHeader}>
+        <Text style={styles.sectionTitle}>{draft.operationType.toUpperCase()} Configuration</Text>
+        <TouchableOpacity onPress={() => resetOperationConfig(draft.operationType)}>
+          <Text style={styles.historyLink}>Reset</Text>
+        </TouchableOpacity>
+      </View>
+      <Text style={styles.configHint}>
+        Applies to every {draft.operationType} batch. Limits mirror the on-chain configuration for
+        this operation type.
+      </Text>
+      <View style={styles.optionRow}>
+        <Text style={styles.optionLabel}>Max items per batch</Text>
+        <TextInput
+          style={styles.chunkInput}
+          value={String(config.maxItems)}
+          onChangeText={(v: string) =>
+            setOperationConfig(draft.operationType, {
+              maxItems: Math.max(1, parseInt(v, 10) || 1),
+            })
+          }
+          keyboardType="number-pad"
+        />
+      </View>
+      <View style={styles.optionRow}>
+        <Text style={styles.optionLabel}>Atomic by default</Text>
+        <Switch
+          value={config.atomicDefault}
+          onValueChange={(atomicDefault: boolean) =>
+            setOperationConfig(draft.operationType, { atomicDefault })
+          }
+          trackColor={{ false: colors.border, true: colors.primary }}
+        />
+      </View>
+      <View style={styles.optionRow}>
+        <Text style={styles.optionLabel}>Rollback allowed</Text>
+        <Switch
+          value={config.allowRollback}
+          onValueChange={(allowRollback: boolean) =>
+            setOperationConfig(draft.operationType, { allowRollback })
+          }
+          trackColor={{ false: colors.border, true: colors.primary }}
+        />
+      </View>
+      <View style={styles.optionRow}>
+        <Text style={styles.optionLabel}>Max retries per item</Text>
+        <TextInput
+          style={styles.chunkInput}
+          value={String(config.maxRetries)}
+          onChangeText={(v: string) =>
+            setOperationConfig(draft.operationType, {
+              maxRetries: Math.max(0, parseInt(v, 10) || 0),
+            })
+          }
+          keyboardType="number-pad"
+        />
+      </View>
+      <View style={styles.optionRow}>
+        <Text style={styles.optionLabel}>Skip already-applied items</Text>
+        <Switch
+          value={config.idempotent}
+          onValueChange={(idempotent: boolean) =>
+            setOperationConfig(draft.operationType, { idempotent })
+          }
+          trackColor={{ false: colors.border, true: colors.primary }}
+        />
+      </View>
+    </View>
+  );
+
+  const renderAnalytics = () => {
+    const stats = analytics();
+    if (stats.overall.batches === 0) return null;
+    const active = stats.byOperationType[draft.operationType];
+    return (
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Batch Analytics</Text>
+        <View style={styles.statsRow}>
+          <View style={styles.statBox}>
+            <Text style={styles.statValue}>{stats.overall.batches}</Text>
+            <Text style={styles.statLabel}>Batches</Text>
+          </View>
+          <View style={styles.statBox}>
+            <Text style={[styles.statValue, styles.successText]}>
+              {formatPercent(stats.overall.batchSuccessRate)}
+            </Text>
+            <Text style={styles.statLabel}>Clean runs</Text>
+          </View>
+          <View style={styles.statBox}>
+            <Text style={[styles.statValue, styles.successText]}>
+              {formatPercent(stats.overall.itemSuccessRate)}
+            </Text>
+            <Text style={styles.statLabel}>Items OK</Text>
+          </View>
+          <View style={styles.statBox}>
+            <Text style={styles.statValue}>{formatDuration(stats.overall.avgDurationMs)}</Text>
+            <Text style={styles.statLabel}>Avg time</Text>
+          </View>
+        </View>
+        <Text style={styles.analyticsDetail}>
+          p95 {formatDuration(stats.overall.p95DurationMs)} ·{' '}
+          {stats.overall.avgItemDurationMs}ms per item · {stats.overall.throughputPerSecond}/s
+          throughput
+        </Text>
+        <Text style={styles.analyticsDetail}>
+          {stats.overall.failedItems} failed item(s) · {stats.overall.skippedItems} skipped ·{' '}
+          {stats.overall.rolledBack} rolled back
+        </Text>
+        {active.batches > 0 && (
+          <Text style={styles.analyticsDetail}>
+            {draft.operationType}: {active.batches} batch(es),{' '}
+            {formatPercent(active.itemSuccessRate)} item success, avg{' '}
+            {formatDuration(active.avgDurationMs)}
+          </Text>
+        )}
+      </View>
+    );
+  };
 
   const renderActions = () => (
     <View style={styles.section}>
@@ -381,6 +837,12 @@ export const BatchOperationsScreen: React.FC = () => {
           onPress={onRetry}
           disabled={!hasFailedItems || isRunning}>
           <Text style={styles.secondaryButtonText}>Retry Failed</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.secondaryButton, !rollbackAvailable && styles.buttonDisabled]}
+          onPress={onRollback}
+          disabled={!rollbackAvailable || isRunning}>
+          <Text style={styles.secondaryButtonText}>Roll Back</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.secondaryButton} onPress={resetDraft}>
           <Text style={styles.secondaryButtonText}>Reset</Text>
@@ -454,8 +916,27 @@ export const BatchOperationsScreen: React.FC = () => {
 
         {currentResult.rolledBack && (
           <View style={styles.rollbackBadge}>
-            <Text style={styles.rollbackText}>Rolled back (atomic failure)</Text>
+            <Text style={styles.rollbackText}>
+              {currentResult.state === 'rolled_back'
+                ? 'Rolled back — every committed item was reversed'
+                : 'Rolled back (atomic failure)'}
+            </Text>
           </View>
+        )}
+
+        {currentResult.rejectionReason && (
+          <View style={styles.rollbackBadge}>
+            <Text style={styles.rollbackText}>{currentResult.rejectionReason}</Text>
+          </View>
+        )}
+
+        {currentResult.durationMs !== undefined && (
+          <Text style={styles.analyticsDetail}>
+            Completed in {formatDuration(currentResult.durationMs)}
+            {currentResult.totalItems > 0
+              ? ` · ${Math.round(currentResult.durationMs / currentResult.totalItems)}ms per item`
+              : ''}
+          </Text>
         )}
 
         <View style={styles.exportRow}>
@@ -655,6 +1136,7 @@ export const BatchOperationsScreen: React.FC = () => {
               <Text style={styles.historySummary}>{item.summary}</Text>
               <Text style={styles.historyTime}>
                 {new Date(item.timestamp).toLocaleString()}
+                {item.durationMs !== undefined ? ` · ${formatDuration(item.durationMs)}` : ''}
               </Text>
             </View>
           )}
@@ -681,9 +1163,25 @@ export const BatchOperationsScreen: React.FC = () => {
         {renderUpdateParams()}
         {renderCancelReasons()}
         {renderOptions()}
+        {renderConfig()}
         {renderActions()}
         {renderProgress()}
         {renderResults()}
+        {renderAnalytics()}
+
+        {/* Issue #919 — Atomic Execution Panel */}
+        <AtomicExecutionPanel
+          operationType={draft.operationType}
+          subscriptionIds={
+            draft.csvContent
+              ? draft.csvContent
+                  .split('\n')
+                  .map((l) => l.trim().split(',')[0])
+                  .filter(Boolean)
+                  .slice(0, 100)
+              : []
+          }
+        />
 
         <View style={styles.bottomPad} />
       </ScrollView>
@@ -852,6 +1350,21 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.textSecondary,
     marginTop: spacing.sm,
+  },
+  validationText: {
+    ...typography.caption,
+    color: colors.error,
+    marginTop: spacing.xs,
+  },
+  configHint: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
+  },
+  analyticsDetail: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
   },
   primaryButton: {
     backgroundColor: colors.primary,

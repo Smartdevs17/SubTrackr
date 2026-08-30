@@ -20,8 +20,6 @@ import { RootStackParamList } from '../navigation/types';
 import { useGamificationStore } from '../store/gamificationStore';
 import { useTransactionQueueStore } from '../store/transactionQueueStore';
 import { usePerformanceProfiler } from '../hooks/usePerformanceProfiler';
-import useRefresh from '../hooks/useRefresh';
-import { useAccessibilityAnnouncement } from '../hooks/useAccessibilityAnnouncement';
 
 // Components
 import { FloatingActionButton } from '../components/common/FloatingActionButton';
@@ -31,6 +29,7 @@ import { FilterModal } from '../components/home/FilterModal';
 import { StatsCard } from '../components/home/StatsCard';
 import { SubscriptionList } from '../components/home/SubscriptionList';
 import { useThemeColors } from '../hooks/useThemeColors';
+import { StatsCardSkeleton, SubscriptionListSkeleton } from '../components/common/SkeletonLoader';
 
 type HomeNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -46,18 +45,17 @@ const HomeScreen: React.FC = () => {
     isLoading,
   } = useSubscriptionStore();
   const colors = useThemeColors();
-  const styles = useMemo(() => createStyles(colors), [colors]);
-  const { announce } = useAccessibilityAnnouncement();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
 
   const isOnline = useTransactionQueueStore((state) => state.isOnline);
   const pendingTransactions = useTransactionQueueStore((state) => state.queuedTransactions.length);
   const { level } = useGamificationStore();
   const { preferredCurrency, exchangeRates } = useSettingsStore();
-  const { refreshing, refresh } = useRefresh();
+  const [refreshing, setRefreshing] = useState(false);
   const [upcomingSubscriptions, setUpcomingSubscriptions] = useState<Subscription[]>([]);
   const [showFilterModal, setShowFilterModal] = useState(false);
 
-  // Use the filter tracking hook
+  // Use the new hook
   const { filters, filteredAndSorted, activeFilterCount, hasActiveFilters, clearAllFilters } =
     useFilteredSubscriptions(subscriptions);
 
@@ -77,15 +75,9 @@ const HomeScreen: React.FC = () => {
   }, [subscriptions, calculateStats, preferredCurrency, exchangeRates]);
 
   const onRefresh = async () => {
-    announce('Refreshing subscriptions');
-    await refresh({
-      fetcher: fetchSubscriptions,
-      minDurationMs: 400,
-      onError: (err) => {
-        console.error('Pull-to-refresh failed:', err);
-        announce('Failed to refresh subscriptions');
-      },
-    });
+    setRefreshing(true);
+    await fetchSubscriptions();
+    setRefreshing(false);
   };
 
   const handleToggleStatus = async (id: string) => {
@@ -105,7 +97,7 @@ const HomeScreen: React.FC = () => {
         style={styles.scrollView}
         refreshControl={
           <RefreshControl
-            refreshing={refreshing || isLoading}
+            refreshing={refreshing}
             onRefresh={onRefresh}
             tintColor={colors.primary}
           />
@@ -130,47 +122,31 @@ const HomeScreen: React.FC = () => {
           <View style={styles.toolsRow}>
             <TouchableOpacity
               onPress={() => navigation.navigate('Community')}
-              style={[styles.toolButton, { backgroundColor: colors.primary }]}
-              accessibilityRole="button"
-              accessibilityLabel="Navigate to Community"
-              accessibilityHint="View community features and discussions">
+              style={[styles.toolButton, { backgroundColor: colors.primary }]}>
               <Text style={styles.toolButtonText}>Community</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => navigation.navigate('SegmentManagement')}
-              style={[styles.toolButton, { backgroundColor: colors.accent }]}
-              accessibilityRole="button"
-              accessibilityLabel="Manage Segments"
-              accessibilityHint="Create and manage customer segments">
+              style={[styles.toolButton, { backgroundColor: colors.accent }]}>
               <Text style={styles.toolButtonText}>Segments</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => navigation.navigate('InvoiceList')}
-              style={styles.toolButtonOutline}
-              accessibilityRole="button"
-              accessibilityLabel="View Invoices"
-              accessibilityHint="View and manage invoices">
+              style={styles.toolButtonOutline}>
               <Text style={styles.toolButtonTextOutline}>Invoices</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => navigation.navigate('GroupManagement')}
-              style={styles.toolButtonOutline}
-              accessibilityRole="button"
-              accessibilityLabel="Manage Groups"
-              accessibilityHint="Organize subscriptions into groups">
+              style={styles.toolButtonOutline}>
               <Text style={styles.toolButtonTextOutline}>Groups</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => navigation.navigate('SupportDashboard')}
-              style={styles.toolButtonOutline}
-              accessibilityRole="button"
-              accessibilityLabel="Support Dashboard"
-              accessibilityHint="Get help and support">
+              style={styles.toolButtonOutline}>
               <Text style={styles.toolButtonTextOutline}>Support</Text>
             </TouchableOpacity>
           </View>
         </View>
-
         <FilterBar
           searchQuery={filters.searchQuery}
           setSearchQuery={filters.setSearchQuery}
@@ -178,35 +154,45 @@ const HomeScreen: React.FC = () => {
           hasActiveFilters={hasActiveFilters}
           activeFilterCount={activeFilterCount}
         />
+        {isLoading ? (
+          <>
+            <StatsCardSkeleton />
+            <SubscriptionListSkeleton count={4} />
+          </>
+        ) : (
+          <>
+            <StatsCard
+              totalMonthlySpend={stats.totalMonthlySpend}
+              totalActive={stats.totalActive}
+              onWalletPress={() => navigation.navigate('WalletConnect')}
+              currency={preferredCurrency}
+            />
 
-        <StatsCard
-          totalMonthlySpend={stats.totalMonthlySpend}
-          totalActive={stats.totalActive}
-          onWalletPress={() => navigation.navigate('WalletConnect')}
-          currency={preferredCurrency}
-        />
+            {!isOnline && (
+              <View style={styles.offlineBanner}>
+                <Text style={styles.offlineText}>
+                  ⚠️ You are offline. {pendingTransactions} queued syncs pending.
+                </Text>
+              </View>
+            )}
 
-        {!isOnline && (
-          <View style={styles.offlineBanner}>
-            <Text style={styles.offlineText}>
-              ⚠️ You are offline. {pendingTransactions} queued syncs pending.
-            </Text>
-          </View>
-        )}
-
-        <SubscriptionList
-          subscriptions={subscriptions}
-          activeSubscriptions={activeSubscriptions}
-          upcomingSubscriptions={upcomingSubscriptions}
-          hasSubscriptions={subscriptions.length > 0}
-          hasActiveFilters={hasActiveFilters}
-          filteredCount={filteredAndSorted.length}
-          totalCount={subscriptions.length}
-          onSubscriptionPress={(sub) => navigation.navigate('SubscriptionDetail', { id: sub.id })}
-          onToggleStatus={handleToggleStatus}
-          onDelete={handleDelete}
-          onAddFirstPress={() => navigation.navigate('AddSubscription')}
-        />
+            <SubscriptionList
+              subscriptions={subscriptions}
+              activeSubscriptions={activeSubscriptions}
+              upcomingSubscriptions={upcomingSubscriptions}
+              hasSubscriptions={subscriptions.length > 0}
+              hasActiveFilters={hasActiveFilters}
+              filteredCount={filteredAndSorted.length}
+              totalCount={subscriptions.length}
+              onSubscriptionPress={(sub) =>
+                navigation.navigate('SubscriptionDetail', { id: sub.id })
+              }
+              onToggleStatus={handleToggleStatus}
+              onDelete={handleDelete}
+              onAddFirstPress={() => navigation.navigate('AddSubscription')}
+            />
+          </>
+        )}{' '}
       </ScrollView>
 
       {subscriptions.length > 0 && (
@@ -260,7 +246,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     title: {
       ...typography.h1,
-      color: colors.text.primary,
+      color: colors.text,
     },
     levelBadge: {
       backgroundColor: colors.primary,
@@ -296,7 +282,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       paddingVertical: spacing.sm,
       borderRadius: borderRadius.md,
       borderWidth: 1,
-      borderColor: colors.border.default,
+      borderColor: colors.border,
       backgroundColor: colors.surface,
       flex: 1,
       alignItems: 'center',
@@ -307,7 +293,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       fontSize: 12,
     },
     toolButtonTextOutline: {
-      color: colors.text.primary,
+      color: colors.text,
       fontWeight: '700',
       fontSize: 12,
     },

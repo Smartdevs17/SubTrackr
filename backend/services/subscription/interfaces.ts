@@ -8,6 +8,8 @@ import {
   SearchQuery,
   SearchResult,
   SearchAnalyticsEvent,
+  SavedSearchDefinition,
+  SavedSearchMatchNotification,
 } from './ElasticsearchService';
 
 export interface ISubscriptionEventStore {
@@ -28,10 +30,19 @@ export interface ISubscriptionEventStore {
 export interface IElasticsearchService {
   indexDocument(subscription: Subscription): void;
   bulkIndex(subscriptions: Subscription[]): void;
+  reindexForSchemaChange(subscriptions: Subscription[]): void;
   deleteDocument(id: string): void;
   readonly documentCount: number;
+  getIndexLagMs(): number;
   search(query: SearchQuery): SearchResult;
+  registerSavedSearch(savedSearch: SavedSearchDefinition): void;
+  removeSavedSearch(id: string): void;
+  listSavedSearches(): SavedSearchDefinition[];
+  loadSavedSearches(savedSearches: SavedSearchDefinition[]): void;
+  checkSavedSearchNotifications(): SavedSearchMatchNotification[];
   getTopQueries(limit?: number): { query: string; count: number }[];
   getAnalyticsEvents(): SearchAnalyticsEvent[];
   clearAnalytics(): void;
 }
+
+export type { SavedSearchDefinition, SavedSearchMatchNotification };

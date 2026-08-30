@@ -1,117 +1,122 @@
-import type { Theme, FontConfig } from './types';
-import { hexToRgb } from './customThemeBuilder';
+import type { Theme, ThemeColors, ContrastResult } from './types';
 
-export interface CSSVariables {
-  [key: string]: string;
-}
+/**
+ * Generate a map of CSS custom properties from a Theme's color palette.
+ *
+ * Each ThemeColors key becomes `--st-<key>` (kebab-cased).
+ * Font family and scale are included when a font is configured.
+ *
+ * @example
+ * const vars = generateCssVariables(darkTheme);
+ * // { '--st-primary': '#6366f1', '--st-background': '#0f172a', ... }
+ */
+export function generateCssVariables(theme: Theme): Record<string, string> {
+  const vars: Record<string, string> = {};
 
-const PREFIX = '--st';
-
-export function flattenColorsToVariables(
-  colors: Record<string, string>,
-  prefix: string = PREFIX
-): CSSVariables {
-  const vars: CSSVariables = {};
-  const sep = prefix.endsWith('-') ? '' : '-';
-  for (const [key, value] of Object.entries(colors)) {
-    const cssKey = key.replace(/([A-Z])/g, '-$1').toLowerCase();
-    vars[`${prefix}${sep}${cssKey}`] = value;
-    const rgb = hexToRgb(value);
-    if (rgb) {
-      vars[`${prefix}${sep}${cssKey}-rgb`] = `${rgb.r}, ${rgb.g}, ${rgb.b}`;
-    }
-  }
-  return vars;
-}
-
-export function flattenFontVariables(fonts: FontConfig, prefix: string = PREFIX): CSSVariables {
-  const vars: CSSVariables = {};
-  if (fonts.family) {
-    vars[`${prefix}-font-family`] = fonts.family;
-  }
-  if (fonts.url) {
-    vars[`${prefix}-font-url`] = fonts.url;
-  }
-  if (fonts.sizes) {
-    if (fonts.sizes.body) vars[`${prefix}-font-size-body`] = `${fonts.sizes.body}px`;
-    if (fonts.sizes.small) vars[`${prefix}-font-size-small`] = `${fonts.sizes.small}px`;
-    if (fonts.sizes.large) vars[`${prefix}-font-size-large`] = `${fonts.sizes.large}px`;
-    if (fonts.sizes.heading) vars[`${prefix}-font-size-heading`] = `${fonts.sizes.heading}px`;
-  }
-  return vars;
-}
-
-export function generateCSSVariablesFromTheme(theme: Theme): CSSVariables {
-  const vars: CSSVariables = {};
-
-  Object.assign(vars, flattenColorsToVariables(theme.colors as unknown as Record<string, string>));
-
-  if (theme.extendedColors) {
-    Object.assign(
-      vars,
-      flattenColorsToVariables(
-        theme.extendedColors as unknown as Record<string, string>,
-        `${PREFIX}-ext-`
-      )
-    );
+  for (const [key, value] of Object.entries(theme.colors) as [keyof ThemeColors, string][]) {
+    vars[`--st-${toKebab(key)}`] = value;
   }
 
-  if (theme.fonts) {
-    Object.assign(vars, flattenFontVariables(theme.fonts));
+  if (theme.font?.family) {
+    vars['--st-font-family'] = theme.font.family;
+  }
+  if (theme.font?.scale !== undefined) {
+    vars['--st-font-scale'] = String(theme.font.scale);
   }
 
-  if (theme.logo) {
-    if (theme.logo.uri) vars[`${PREFIX}-logo-uri`] = `url(${theme.logo.uri})`;
-    if (theme.logo.width) vars[`${PREFIX}-logo-width`] = `${theme.logo.width}px`;
-    if (theme.logo.height) vars[`${PREFIX}-logo-height`] = `${theme.logo.height}px`;
-  }
+  vars['--st-mode'] = theme.mode;
 
   return vars;
 }
 
-export function cssVariablesToString(vars: CSSVariables): string {
-  return Object.entries(vars)
-    .map(([key, value]) => `  ${key}: ${value};`)
+/**
+ * Serialise a CSS variable map to a `:root { … }` block string.
+ * Useful for injecting into a web view or generating a stylesheet snippet.
+ */
+export function toCssBlock(vars: Record<string, string>): string {
+  const declarations = Object.entries(vars)
+    .map(([prop, val]) => `  ${prop}: ${val};`)
     .join('\n');
+  return `:root {\n${declarations}\n}`;
 }
 
-export function generateCSSVariablesDeclaration(theme: Theme): string {
-  const vars = generateCSSVariablesFromTheme(theme);
-  return `:root {\n${cssVariablesToString(vars)}\n}`;
+// ---------------------------------------------------------------------------
+// WCAG contrast helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Calculate the WCAG 2.1 relative luminance of a hex colour.
+ * Returns a value in [0, 1].
+ */
+export function relativeLuminance(hex: string): number {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return 0;
+  const toLinear = (c: number) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * toLinear(rgb.r) + 0.7152 * toLinear(rgb.g) + 0.0722 * toLinear(rgb.b);
 }
 
-export function generateThemeStylesheet(theme: Theme): string {
-  const vars = generateCSSVariablesFromTheme(theme);
-  const lines: string[] = [
-    `/* SubTrackr Theme: ${theme.name} (${theme.mode}) */`,
-    `/* Theme ID: ${theme.id} */`,
-    `/* Generated: ${new Date().toISOString()} */`,
-    '',
-    `:root {`,
-  ];
-
-  for (const [key, value] of Object.entries(vars)) {
-    lines.push(`  ${key}: ${value};`);
-  }
-
-  lines.push('}', '');
-  lines.push(`.theme-${theme.id} {`);
-
-  for (const [key, value] of Object.entries(vars)) {
-    lines.push(`  ${key}: ${value};`);
-  }
-
-  lines.push('}');
-
-  return lines.join('\n');
+/**
+ * Calculate the WCAG 2.1 contrast ratio between two hex colours.
+ *
+ * @example
+ * contrastRatio('#ffffff', '#000000') // => 21
+ * contrastRatio('#6366f1', '#0f172a') // => ~5.8
+ */
+export function contrastRatio(hex1: string, hex2: string): number {
+  const l1 = relativeLuminance(hex1);
+  const l2 = relativeLuminance(hex2);
+  const lighter = Math.max(l1, l2);
+  const darker = Math.min(l1, l2);
+  return (lighter + 0.05) / (darker + 0.05);
 }
 
-export function buildStyleObjectFromTheme(theme: Theme): Record<string, string> {
-  const vars = generateCSSVariablesFromTheme(theme);
-  const style: Record<string, string> = {};
-  for (const [key, value] of Object.entries(vars)) {
-    const reactKey = key.replace(PREFIX, '').replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-    style[reactKey] = value;
-  }
-  return style;
+/**
+ * Evaluate a foreground/background colour pair against WCAG AA and AAA levels.
+ */
+export function checkContrast(foreground: string, background: string): ContrastResult {
+  const ratio = contrastRatio(foreground, background);
+  return {
+    ratio: Math.round(ratio * 100) / 100,
+    passesAA: ratio >= 4.5,
+    passesAAA: ratio >= 7.0,
+  };
+}
+
+/**
+ * Run a full accessibility contrast audit for a theme.
+ * Checks text on background, primary on background, and text on surface.
+ *
+ * Returns a map of pair labels to ContrastResult.
+ */
+export function auditThemeContrast(theme: Theme): Record<string, ContrastResult> {
+  const { colors: c } = theme;
+  return {
+    'text/background': checkContrast(c.text, c.background),
+    'textSecondary/background': checkContrast(c.textSecondary, c.background),
+    'text/surface': checkContrast(c.text, c.surface),
+    'primary/background': checkContrast(c.primary, c.background),
+    'primary/surface': checkContrast(c.primary, c.surface),
+    'error/background': checkContrast(c.error, c.background),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+
+function toKebab(camel: string): string {
+  return camel.replace(/([A-Z])/g, (m) => `-${m.toLowerCase()}`);
+}
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const clean = hex.replace('#', '');
+  const full = clean.length === 3
+    ? clean.split('').map((c) => c + c).join('')
+    : clean;
+  const int = parseInt(full, 16);
+  if (isNaN(int)) return null;
+  return { r: (int >> 16) & 255, g: (int >> 8) & 255, b: int & 255 };
 }
