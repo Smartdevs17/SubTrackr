@@ -1,4 +1,4 @@
-import { asyncStorageAdapter } from '../utils/storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
@@ -18,16 +18,13 @@ import {
 } from '../services/calendarService';
 import type {
   CalendarExportPayload,
-  CalendarEventType,
   CalendarIntegration,
   CalendarProvider,
   CalendarSyncedEvent,
-  CalendarSyncSettings,
   OneTimeScheduledPayment,
   PendingCalendarAuthorization,
   ProratedAdjustment,
   ScheduleConflict,
-  SyncDirection,
 } from '../types/calendar';
 import { REMINDER_PRESETS } from '../types/calendar';
 import type { Subscription } from '../types/subscription';
@@ -77,11 +74,6 @@ interface CalendarState {
     reason: string
   ) => ProratedAdjustment;
   setTimezone: (timezone: string) => void;
-  setSyncDirection: (connectionId: string, direction: SyncDirection) => void;
-  toggleEventType: (connectionId: string, eventType: CalendarEventType) => void;
-  setEnabledEventTypes: (connectionId: string, eventTypes: CalendarEventType[]) => void;
-  triggerBidirectionalSync: (subscription: Subscription) => Promise<void>;
-  getSyncSettings: (connectionId: string) => CalendarSyncSettings | undefined;
 }
 
 function removeProviderPendingState(
@@ -243,13 +235,7 @@ export const useCalendarStore = create<CalendarState>()(
       },
 
       addOneTimePayment: (subscriptionId, amount, currency, scheduledDate, description) => {
-        const payment = scheduleOneTimePayment(
-          subscriptionId,
-          amount,
-          currency,
-          scheduledDate,
-          description
-        );
+        const payment = scheduleOneTimePayment(subscriptionId, amount, currency, scheduledDate, description);
         set((state) => ({
           oneTimePayments: [...state.oneTimePayments, payment],
         }));
@@ -283,123 +269,6 @@ export const useCalendarStore = create<CalendarState>()(
 
       setTimezone: (timezone) => {
         set({ timezone });
-      },
-
-      setSyncDirection: (connectionId, direction) => {
-        set((state) => ({
-          integrations: state.integrations.map((integration) => {
-            if (integration.id !== connectionId) return integration;
-            const syncSettings: CalendarSyncSettings = {
-              ...(integration.syncSettings ?? {
-                syncDirection: 'bidirectional',
-                enabledEventTypes: ['payment_due', 'renewal', 'trial_ending'],
-                syncMethod: 'webhook' as const,
-              }),
-              syncDirection: direction,
-            };
-            return { ...integration, syncSettings };
-          }),
-        }));
-      },
-
-      toggleEventType: (connectionId, eventType) => {
-        set((state) => ({
-          integrations: state.integrations.map((integration) => {
-            if (integration.id !== connectionId) return integration;
-            const current = integration.syncSettings?.enabledEventTypes ?? [
-              'payment_due',
-              'renewal',
-              'trial_ending',
-            ];
-            const updated = current.includes(eventType)
-              ? current.filter((t) => t !== eventType)
-              : [...current, eventType];
-            const syncSettings: CalendarSyncSettings = {
-              ...(integration.syncSettings ?? {
-                syncDirection: 'bidirectional' as SyncDirection,
-                enabledEventTypes: current,
-                syncMethod: 'webhook' as const,
-              }),
-              enabledEventTypes: updated,
-            };
-            return { ...integration, syncSettings };
-          }),
-        }));
-      },
-
-      setEnabledEventTypes: (connectionId, eventTypes) => {
-        set((state) => ({
-          integrations: state.integrations.map((integration) => {
-            if (integration.id !== connectionId) return integration;
-            const syncSettings: CalendarSyncSettings = {
-              ...(integration.syncSettings ?? {
-                syncDirection: 'bidirectional' as SyncDirection,
-                enabledEventTypes: [],
-                syncMethod: 'webhook' as const,
-              }),
-              enabledEventTypes: eventTypes,
-            };
-            return { ...integration, syncSettings };
-          }),
-        }));
-      },
-
-      triggerBidirectionalSync: async (subscription) => {
-        const { integrations, syncedEvents } = get();
-        const activeIntegrations = integrations.filter(isConnected);
-        if (activeIntegrations.length === 0) return;
-
-        const untouchedEvents = syncedEvents.filter(
-          (event) => event.subscriptionId !== subscription.id
-        );
-        const nextSyncedEvents: CalendarSyncedEvent[] = [...untouchedEvents];
-        const syncTime = new Date().toISOString();
-
-        for (const integration of activeIntegrations) {
-          const direction = integration.syncSettings?.syncDirection ?? 'bidirectional';
-          if (direction === 'from_calendar') continue;
-
-          const template = buildSubscriptionCalendarEvent(
-            subscription,
-            integration.reminderOffsets
-          );
-          const upserted = await syncToCalendar(
-            subscription.id,
-            [template],
-            integration,
-            syncedEvents
-          );
-          nextSyncedEvents.push(...upserted);
-        }
-
-        set((state) => ({
-          syncedEvents: nextSyncedEvents,
-          integrations: state.integrations.map((integration) => {
-            const wasActive = activeIntegrations.some((entry) => entry.id === integration.id);
-            if (!wasActive) return integration;
-            return {
-              ...integration,
-              lastSyncedAt: syncTime,
-              syncSettings: integration.syncSettings
-                ? {
-                    ...integration.syncSettings,
-                    lastSyncResult: {
-                      syncedAt: syncTime,
-                      pushed: nextSyncedEvents.length - untouchedEvents.length,
-                      pulled: 0,
-                      conflicts: 0,
-                      errors: 0,
-                    },
-                  }
-                : undefined,
-            };
-          }),
-        }));
-      },
-
-      getSyncSettings: (connectionId) => {
-        const integration = get().integrations.find((i) => i.id === connectionId);
-        return integration?.syncSettings;
       },
 
       syncSubscriptionToCalendars: async (subscription) => {
@@ -474,7 +343,7 @@ export const useCalendarStore = create<CalendarState>()(
     }),
     {
       name: STORAGE_KEY,
-      storage: createJSONStorage(() => asyncStorageAdapter),
+      storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) => ({
         integrations: state.integrations,
         syncedEvents: state.syncedEvents,
@@ -482,19 +351,6 @@ export const useCalendarStore = create<CalendarState>()(
         oneTimePayments: state.oneTimePayments,
         timezone: state.timezone,
       }),
-      onRehydrateStorage: () => (_state, error) => {
-        if (error) {
-          console.warn('[calendarStore] Hydration error — resetting to defaults:', error);
-          useCalendarStore.setState({
-            integrations: [],
-            syncedEvents: [],
-            oneTimePayments: [],
-            scheduleConflicts: [],
-            isLoading: false,
-            error: null,
-          });
-        }
-      },
     }
   )
 );

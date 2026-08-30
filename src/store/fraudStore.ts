@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { asyncStorageAdapter } from '../utils/storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   FraudAction,
   FraudAnalytics,
@@ -10,8 +10,8 @@ import {
   FraudReport,
   FraudRiskScore,
   FraudReviewStatus,
-  FraudSubscriptionRecord,
   FraudSignal,
+  FraudSubscriptionRecord,
 } from '../types/fraud';
 
 const STORAGE_KEY = 'subtrackr-fraud-store';
@@ -484,6 +484,7 @@ const scoreSubscription = (
   };
 };
 
+
 const computeAnalytics = (
   subscriptions: FraudSubscriptionRecord[],
   reviewQueue: FraudCase[]
@@ -825,6 +826,7 @@ export const useFraudStore = create<FraudState>()(
             };
             return dismissedCase;
           });
+
           return {
             subscriptions,
             reviewQueue,
@@ -838,7 +840,7 @@ export const useFraudStore = create<FraudState>()(
     }),
     {
       name: STORAGE_KEY,
-      storage: createJSONStorage(() => asyncStorageAdapter),
+      storage: createJSONStorage(() => AsyncStorage),
     }
   )
 );

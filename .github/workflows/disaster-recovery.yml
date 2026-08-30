@@ -1,0 +1,73 @@
+name: Disaster Recovery Automation
+
+# Automated disaster-recovery routine:
+#  1. Runs a full DR drill (backup → verify → restore + monitor health check)
+#  2. Creates a DR backup (with pre-check)
+#  3. Captures and uploads DR status + backup artefacts
+#
+# Wired to a schedule so backups/status are taken on a routine cadence
+# independent of human action, plus a manual dispatch for on-demand runs.
+
+on:
+  schedule:
+    # Daily at 03:17 UTC
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  dr-routine:
+    name: DR Backup + Status
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Run DR drill (backup → verify → restore + health)
+        run: node scripts/dr-test.js
+        continue-on-error: true
+
+      - name: Create DR backup (with pre-check)
+        run: ./scripts/dr-backup.sh --pre-check --region "${DR_REGION:-us-east-1}" --env "${DR_ENVIRONMENT:-production}"
+        env:
+          DR_REGION: us-east-1
+          DR_ENVIRONMENT: production
+
+      - name: Capture DR status (JSON)
+        run: |
+          STATUS_FILE="dr-status-${{ github.run_id }}.json"
+          ./scripts/dr-status.sh --json > "$STATUS_FILE" 2>&1 || true
+          echo "STATUS_FILE=$STATUS_FILE" >> "$GITHUB_ENV"
+        id: status
+
+      - name: Upload DR backup artefact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: dr-backups-${{ github.run_id }}
+          path: |
+            .dr-backups/*.tar.gz
+            .dr-recovery-log.jsonl
+            ${{ env.STATUS_FILE }}
+
+      - name: Notify on degraded/critical DR health
+        if: always()
+        run: |
+          if ! ./scripts/dr-status.sh --short; then
+            echo "::warning::DR system is in a degraded/critical state — review the DR status artefact."
+          else
+            echo "DR system is healthy."
+          fi

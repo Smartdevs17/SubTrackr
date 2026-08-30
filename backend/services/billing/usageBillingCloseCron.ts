@@ -11,6 +11,10 @@
 import { MeterUsageBreakdown, QuotaMetric } from '../../../src/types/usage';
 import { MeteringService, meteringService } from './meteringService';
 import { TieredPricingCalculator } from './tieredPricingCalculator';
+import { useInvoiceStore } from '../../../src/store/invoiceStore';
+import { useSubscriptionStore } from '../../../src/store/subscriptionStore';
+import { InvoiceStatus } from '../../../src/types/invoice';
+import { buildBillingPeriod } from '../../../src/utils/invoice';
 
 export interface UsageBillingCloseEntry {
   userId: string;
@@ -46,7 +50,7 @@ export class UsageBillingCloseCron {
 
   start(): void {
     if (this.intervalHandle) return;
-    this.intervalHandle = setInterval(() => this.runOnce(), this.intervalMs);
+    this.intervalHandle = setInterval(() => { this.runOnce().catch(console.error); }, this.intervalMs);
     if (this.intervalHandle.unref) this.intervalHandle.unref();
   }
 
@@ -58,13 +62,15 @@ export class UsageBillingCloseCron {
   }
 
   /** Closes the current period for every registered account and resets it. */
-  runOnce(): UsageBillingCloseReport {
+  async runOnce(): Promise<UsageBillingCloseReport> {
     const entries: UsageBillingCloseEntry[] = [];
 
     for (const account of this.accounts) {
       const unitsUsed = this.service.getCurrentPeriodConsumption(account.userId, account.metricType);
       const priced = account.calculator.calculate(unitsUsed);
       const includedUnits = priced.lines.find((l) => l.tier.unitPrice === 0)?.unitsInTier ?? 0;
+      const billableUnits = Math.max(0, unitsUsed - includedUnits);
+      const amount = priced.totalAmount;
 
       entries.push({
         userId: account.userId,
@@ -73,12 +79,30 @@ export class UsageBillingCloseCron {
           metric: account.metric,
           unitsUsed,
           includedUnits,
-          billableUnits: Math.max(0, unitsUsed - includedUnits),
-          amount: priced.totalAmount,
+          billableUnits,
+          amount,
         },
       });
 
       this.service.resetPeriod(account.userId, account.metricType);
+
+      if (amount > 0) {
+        const sub = useSubscriptionStore.getState().subscriptions.find(s => s.id === account.userId);
+        if (sub) {
+          try {
+            const period = buildBillingPeriod(sub);
+            const invoiceStore = useInvoiceStore.getState();
+            const invoice = await invoiceStore.generateInvoiceFromSubscription({
+              subscription: sub,
+              period,
+              notes: `Usage overage for ${account.metricType} (${billableUnits} billable units)`
+            });
+            await invoiceStore.updateInvoiceStatus(invoice.id, InvoiceStatus.DRAFT);
+          } catch (err) {
+            console.error('Failed to generate usage invoice', err);
+          }
+        }
+      }
     }
 
     return { closedAt: new Date().toISOString(), entries };

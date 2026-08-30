@@ -1,147 +1,119 @@
 import {
-  flattenColorsToVariables,
-  flattenFontVariables,
-  generateCSSVariablesFromTheme,
-  cssVariablesToString,
-  generateCSSVariablesDeclaration,
-  generateThemeStylesheet,
+  generateCssVariables,
+  toCssBlock,
+  checkContrast,
+  auditThemeContrast,
+  relativeLuminance,
+  contrastRatio,
 } from '../cssVariables';
-import { darkTheme } from '../themes';
-import type { FontConfig } from '../types';
+import { darkTheme, lightTheme } from '../themes';
 
-describe('flattenColorsToVariables', () => {
-  it('converts color map to CSS variables', () => {
-    const vars = flattenColorsToVariables({ primary: '#ff0000', secondary: '#00ff00' });
-    expect(vars['--st-primary']).toBe('#ff0000');
-    expect(vars['--st-secondary']).toBe('#00ff00');
-  });
-
-  it('generates rgb variables for valid hex colors', () => {
-    const vars = flattenColorsToVariables({ primary: '#ff0000' });
-    expect(vars['--st-primary-rgb']).toBe('255, 0, 0');
-  });
-
-  it('converts camelCase to kebab-case', () => {
-    const vars = flattenColorsToVariables({ textSecondary: '#666' });
-    expect(vars['--st-text-secondary']).toBe('#666');
-  });
-
-  it('uses custom prefix', () => {
-    const vars = flattenColorsToVariables({ primary: '#ff0000' }, '--custom-');
-    expect(vars['--custom-primary']).toBe('#ff0000');
-  });
-});
-
-describe('flattenFontVariables', () => {
-  it('generates font CSS variables', () => {
-    const fonts: FontConfig = {
-      family: 'Inter',
-      sizes: { body: 16, heading: 32 },
-    };
-    const vars = flattenFontVariables(fonts);
-    expect(vars['--st-font-family']).toBe('Inter');
-    expect(vars['--st-font-size-body']).toBe('16px');
-    expect(vars['--st-font-size-heading']).toBe('32px');
-  });
-});
-
-describe('generateCSSVariablesFromTheme', () => {
-  it('generates variables from a full theme', () => {
-    const vars = generateCSSVariablesFromTheme(darkTheme);
+describe('generateCssVariables', () => {
+  it('maps every ThemeColors key to a --st-* variable', () => {
+    const vars = generateCssVariables(darkTheme);
     expect(vars['--st-primary']).toBe(darkTheme.colors.primary);
     expect(vars['--st-background']).toBe(darkTheme.colors.background);
-    expect(vars['--st-primary-rgb']).toBeDefined();
+    expect(vars['--st-text-secondary']).toBe(darkTheme.colors.textSecondary);
   });
 
-  it('includes extended color variables when available', () => {
-    const themeWithExtended = {
-      ...darkTheme,
-      extendedColors: {
-        ...darkTheme.colors,
-        primaryLight: '#818cf8',
-        primaryDark: '#4f46e5',
-        onPrimary: '#ffffff',
-        secondaryLight: '#a78bfa',
-        secondaryDark: '#7c3aed',
-        onSecondary: '#ffffff',
-        accentLight: '#22d3ee',
-        accentDark: '#0891b2',
-        onAccent: '#ffffff',
-        successLight: '#6ee7b7',
-        successDark: '#059669',
-        onSuccess: '#ffffff',
-        warningLight: '#fbbf24',
-        warningDark: '#d97706',
-        onWarning: '#ffffff',
-        errorLight: '#fca5a5',
-        errorDark: '#dc2626',
-        onError: '#ffffff',
-        info: '#0ea5e9',
-        infoLight: '#38bdf8',
-        infoDark: '#0284c7',
-        onInfo: '#ffffff',
-        surfaceVariant: '#334155',
-        surfaceInverse: '#f8fafc',
-        textTertiary: '#94a3b8',
-        textDisabled: '#64748b',
-        borderLight: '#475569',
-        divider: '#334155',
-        scrim: 'rgba(0, 0, 0, 0.5)',
-        warningBackground: 'rgba(245, 158, 11, 0.16)',
-        errorBackground: 'rgba(239, 68, 68, 0.16)',
-        successBackground: 'rgba(16, 185, 129, 0.16)',
-        infoBackground: 'rgba(14, 165, 233, 0.16)',
-      },
-    };
-    const vars = generateCSSVariablesFromTheme(themeWithExtended);
-    expect(vars['--st-ext-primary-light']).toBe('#818cf8');
-    expect(vars['--st-ext-scrim']).toBe('rgba(0, 0, 0, 0.5)');
+  it('includes --st-mode', () => {
+    expect(generateCssVariables(darkTheme)['--st-mode']).toBe('dark');
+    expect(generateCssVariables(lightTheme)['--st-mode']).toBe('light');
   });
 
-  it('includes font variables when fonts are configured', () => {
-    const themeWithFonts = {
-      ...darkTheme,
-      fonts: { family: 'Inter' } as FontConfig,
-    };
-    const vars = generateCSSVariablesFromTheme(themeWithFonts);
+  it('includes font variables when a font is configured', () => {
+    const themed = { ...darkTheme, font: { family: 'Inter', scale: 1.1 } };
+    const vars = generateCssVariables(themed);
     expect(vars['--st-font-family']).toBe('Inter');
+    expect(vars['--st-font-scale']).toBe('1.1');
   });
 
-  it('includes logo variables when logo is configured', () => {
-    const themeWithLogo = {
-      ...darkTheme,
-      logo: { uri: 'https://example.com/logo.png', width: 200, height: 100 },
-    };
-    const vars = generateCSSVariablesFromTheme(themeWithLogo);
-    expect(vars['--st-logo-uri']).toBe('url(https://example.com/logo.png)');
-    expect(vars['--st-logo-width']).toBe('200px');
-    expect(vars['--st-logo-height']).toBe('100px');
+  it('omits font variables when font is not set', () => {
+    const vars = generateCssVariables(darkTheme);
+    expect(vars['--st-font-family']).toBeUndefined();
+    expect(vars['--st-font-scale']).toBeUndefined();
   });
 });
 
-describe('cssVariablesToString', () => {
-  it('formats variables as CSS lines', () => {
-    const vars = { '--st-primary': '#ff0000', '--st-secondary': '#00ff00' };
-    const result = cssVariablesToString(vars);
-    expect(result).toContain('--st-primary: #ff0000;');
-    expect(result).toContain('--st-secondary: #00ff00;');
+describe('toCssBlock', () => {
+  it('wraps variables in a :root block', () => {
+    const block = toCssBlock({ '--st-primary': '#6366f1' });
+    expect(block).toContain(':root {');
+    expect(block).toContain('--st-primary: #6366f1;');
+    expect(block).toContain('}');
   });
 });
 
-describe('generateCSSVariablesDeclaration', () => {
-  it('wraps variables in :root selector', () => {
-    const result = generateCSSVariablesDeclaration(darkTheme);
-    expect(result).toContain(':root {');
-    expect(result).toContain('--st-primary:');
-    expect(result).toContain('}');
+describe('relativeLuminance', () => {
+  it('returns 1 for white', () => {
+    expect(relativeLuminance('#ffffff')).toBeCloseTo(1, 4);
+  });
+
+  it('returns 0 for black', () => {
+    expect(relativeLuminance('#000000')).toBeCloseTo(0, 4);
+  });
+
+  it('returns 0 for invalid hex', () => {
+    expect(relativeLuminance('not-a-color')).toBe(0);
   });
 });
 
-describe('generateThemeStylesheet', () => {
-  it('generates full stylesheet with theme class', () => {
-    const result = generateThemeStylesheet(darkTheme);
-    expect(result).toContain('/* SubTrackr Theme: Dark (dark) */');
-    expect(result).toContain(':root {');
-    expect(result).toContain(`.theme-${darkTheme.id} {`);
+describe('contrastRatio', () => {
+  it('returns 21 for black on white', () => {
+    expect(contrastRatio('#ffffff', '#000000')).toBeCloseTo(21, 0);
+  });
+
+  it('returns 1 for identical colours', () => {
+    expect(contrastRatio('#6366f1', '#6366f1')).toBeCloseTo(1, 4);
+  });
+
+  it('is symmetric', () => {
+    const a = contrastRatio('#6366f1', '#0f172a');
+    const b = contrastRatio('#0f172a', '#6366f1');
+    expect(a).toBeCloseTo(b, 4);
+  });
+});
+
+describe('checkContrast', () => {
+  it('passes AA and AAA for black on white', () => {
+    const result = checkContrast('#000000', '#ffffff');
+    expect(result.passesAA).toBe(true);
+    expect(result.passesAAA).toBe(true);
+  });
+
+  it('fails AA for very low contrast pair', () => {
+    // near-identical colours
+    const result = checkContrast('#eeeeee', '#ffffff');
+    expect(result.passesAA).toBe(false);
+    expect(result.passesAAA).toBe(false);
+  });
+
+  it('rounds ratio to 2 decimal places', () => {
+    const result = checkContrast('#6366f1', '#0f172a');
+    expect(String(result.ratio)).toMatch(/^\d+\.\d{1,2}$/);
+  });
+});
+
+describe('auditThemeContrast', () => {
+  it('returns results for all expected pairs', () => {
+    const audit = auditThemeContrast(darkTheme);
+    expect(Object.keys(audit)).toEqual([
+      'text/background',
+      'textSecondary/background',
+      'text/surface',
+      'primary/background',
+      'primary/surface',
+      'error/background',
+    ]);
+  });
+
+  it('dark theme text on background passes AA', () => {
+    const audit = auditThemeContrast(darkTheme);
+    expect(audit['text/background'].passesAA).toBe(true);
+  });
+
+  it('light theme text on background passes AA', () => {
+    const audit = auditThemeContrast(lightTheme);
+    expect(audit['text/background'].passesAA).toBe(true);
   });
 });

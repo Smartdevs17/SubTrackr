@@ -8,15 +8,24 @@ import {
   PaymentMethodFormData,
   PaymentPriority,
   PaymentAttempt,
+  FallbackChain,
+  FallbackChainValidation,
+  PaymentMethodAnalytics,
+  PaymentMethodExpiryAlert,
+  PaymentMethodShare,
+  PaymentMethodShareRole,
 } from '../types/wallet';
 import {
   WalletServiceManager,
+  WalletConnection,
+} from '../services/walletService';
+import {
   PaymentMethodService,
   PaymentMethodError,
   PaymentMethodErrorCode,
-  WalletConnection,
-} from '../services/walletService';
-import type { PaymentMethodExpiryCheck } from '../services/paymentMethodService';
+  type ChainPaymentResult,
+  type PaymentMethodExpiryCheck,
+} from '../services/paymentMethodService';
 import { Network } from '../config/networks';
 
 // ── Types ──────────────────────────────────────────────────────────
@@ -68,6 +77,44 @@ interface WalletState {
     fallback: PaymentMethod[];
   };
   checkTokenContractUpgrade: (id: string) => Promise<boolean>;
+
+  // Fallback chains
+  fallbackChains: FallbackChain[];
+  createFallbackChain: (
+    name: string,
+    methodIds: string[],
+    options?: Partial<Pick<FallbackChain, 'subscriptionId' | 'maxAttempts' | 'stopOnHardDecline'>>
+  ) => FallbackChain;
+  updateFallbackChain: (id: string, updates: Partial<FallbackChain>) => void;
+  deleteFallbackChain: (id: string) => void;
+  reorderFallbackChain: (id: string, methodIds: string[]) => void;
+  validateFallbackChain: (id: string) => FallbackChainValidation | null;
+  chainForSubscription: (subscriptionId: string) => FallbackChain | null;
+  processPaymentWithChain: (
+    subscriptionId: string,
+    amount: string,
+    chainId: number,
+    maxGasPriceGwei?: number
+  ) => Promise<ChainPaymentResult>;
+
+  // Expiry alerts
+  expiryAlerts: () => PaymentMethodExpiryAlert[];
+  deactivateExpiredMethods: () => number;
+
+  // Analytics
+  paymentAnalytics: () => PaymentMethodAnalytics;
+
+  // Sharing
+  paymentMethodShares: PaymentMethodShare[];
+  sharePaymentMethod: (
+    methodId: string,
+    granteeId: string,
+    role: PaymentMethodShareRole,
+    options?: { spendLimit?: string; expiresAt?: Date }
+  ) => PaymentMethodShare;
+  revokePaymentMethodShare: (shareId: string) => void;
+  sharesForMethod: (methodId: string) => PaymentMethodShare[];
+  methodsSharedWith: (granteeId: string) => PaymentMethod[];
 }
 
 const PAYMENT_STORAGE_KEY = '@subtrackr_payment_methods';
@@ -88,6 +135,8 @@ export const useWalletStore = create<WalletState>()(
         cryptoStreams: [],
         paymentMethods: [],
         paymentAttempts: [],
+        fallbackChains: [],
+        paymentMethodShares: [],
         isLoading: false,
         error: null,
 
@@ -119,6 +168,10 @@ export const useWalletStore = create<WalletState>()(
               cryptoStreams: [],
               paymentMethods: [],
               paymentAttempts: [],
+              // Chains and shares reference methods that are gone, so they go
+              // with them rather than dangling.
+              fallbackChains: [],
+              paymentMethodShares: [],
             });
           } catch (error) {
             set({ error: 'Failed to disconnect wallet' });
@@ -231,6 +284,32 @@ export const useWalletStore = create<WalletState>()(
               );
             }
 
+            if (process.env.DEBUG_STORE) {
+              // eslint-disable-next-line no-console
+              console.log(
+                'CANADD_T',
+                typeof (paymentService as any).canAddMethod,
+                'CTOR',
+                JSON.stringify((paymentService as any).constructor?.name ?? 'plain'),
+                'PROTO_KEYS',
+                Object.getOwnPropertyNames(Object.getPrototypeOf(paymentService) ?? {}).length,
+                'OWN_KEYS',
+                JSON.stringify(Object.keys(paymentService))
+              );
+            }
+            if (process.env.DEBUG_STORE) {
+              // eslint-disable-next-line no-console
+              console.log(
+                'CANADD_T',
+                typeof (paymentService as any).canAddMethod,
+                'CTOR',
+                JSON.stringify((paymentService as any).constructor?.name ?? 'plain'),
+                'PROTO_KEYS',
+                Object.getOwnPropertyNames(Object.getPrototypeOf(paymentService) ?? {}).length,
+                'OWN_KEYS',
+                JSON.stringify(Object.keys(paymentService))
+              );
+            }
             const canAdd = paymentService.canAddMethod(paymentMethods.length);
             if (!canAdd.canAdd) {
               throw new PaymentMethodError(
@@ -282,8 +361,8 @@ export const useWalletStore = create<WalletState>()(
             };
 
             if (!newMethod.isVerified) {
-              await paymentService.verifyPaymentMethod(newMethod);
-              newMethod.isVerified = true;
+              const verified = await paymentService.verifyPaymentMethod(newMethod);
+              newMethod.isVerified = verified;
             }
 
             const updatedMethods = [...paymentMethods, newMethod];
@@ -527,20 +606,306 @@ export const useWalletStore = create<WalletState>()(
             return false;
           }
         },
+
+        // ── Fallback chains ────────────────────────────────────────────
+
+        createFallbackChain: (name, methodIds, options = {}) => {
+          const now = new Date();
+          const chain: FallbackChain = {
+            id: `chain_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            name,
+            methodIds,
+            subscriptionId: options.subscriptionId ?? null,
+            maxAttempts: options.maxAttempts ?? 0,
+            stopOnHardDecline: options.stopOnHardDecline ?? false,
+            isActive: true,
+            createdAt: now,
+            updatedAt: now,
+          };
+
+          const validation = paymentService.validateChain(chain, get().paymentMethods);
+          if (!validation.isValid) {
+            const message = validation.errors.join('; ');
+            set({ error: message });
+            throw new PaymentMethodError(
+              PaymentMethodErrorCode.FALLBACK_FAILED,
+              message,
+              'Fix the chain configuration and try again.'
+            );
+          }
+
+          set((state) => ({ fallbackChains: [...state.fallbackChains, chain], error: null }));
+          return chain;
+        },
+
+        updateFallbackChain: (id, updates) =>
+          set((state) => ({
+            fallbackChains: state.fallbackChains.map((chain) =>
+              chain.id === id ? { ...chain, ...updates, updatedAt: new Date() } : chain
+            ),
+          })),
+
+        deleteFallbackChain: (id) =>
+          set((state) => ({
+            fallbackChains: state.fallbackChains.filter((chain) => chain.id !== id),
+          })),
+
+        reorderFallbackChain: (id, methodIds) =>
+          set((state) => ({
+            fallbackChains: state.fallbackChains.map((chain) =>
+              chain.id === id ? { ...chain, methodIds, updatedAt: new Date() } : chain
+            ),
+          })),
+
+        validateFallbackChain: (id) => {
+          const chain = get().fallbackChains.find((candidate) => candidate.id === id);
+          if (!chain) return null;
+          return paymentService.validateChain(chain, get().paymentMethods);
+        },
+
+        chainForSubscription: (subscriptionId) =>
+          paymentService.selectChainForSubscription(get().fallbackChains, subscriptionId),
+
+        processPaymentWithChain: async (subscriptionId, amount, chainId, maxGasPriceGwei = 500) => {
+          set({ isLoading: true, error: null });
+          try {
+            const { paymentMethods } = get();
+            // A merchant who has never configured a chain still gets one,
+            // derived from the priority ordering.
+            const chain =
+              get().chainForSubscription(subscriptionId) ??
+              paymentService.buildDefaultChain(paymentMethods);
+
+            const result = await paymentService.processPaymentWithChain(
+              chain,
+              paymentMethods,
+              subscriptionId,
+              amount,
+              chainId,
+              maxGasPriceGwei
+            );
+
+            const attempts = [
+              ...get().paymentAttempts,
+              ...result.fallbackAttempts,
+              ...(result.attempt ? [result.attempt] : []),
+            ];
+
+            set({
+              paymentAttempts: attempts,
+              paymentMethods: result.attempt
+                ? paymentMethods.map((method) =>
+                    method.id === result.attempt!.paymentMethodId
+                      ? { ...method, lastUsedAt: new Date(), updatedAt: new Date() }
+                      : method
+                  )
+                : paymentMethods,
+              isLoading: false,
+            });
+
+            return result;
+          } catch (error) {
+            set({
+              error:
+                error instanceof PaymentMethodError
+                  ? error.userMessage
+                  : error instanceof Error
+                    ? error.message
+                    : 'Chain payment failed',
+              isLoading: false,
+            });
+            throw error;
+          }
+        },
+
+        // ── Expiry alerts ──────────────────────────────────────────────
+
+        expiryAlerts: () =>
+          paymentService.buildExpiryAlerts(get().paymentMethods, get().fallbackChains),
+
+        deactivateExpiredMethods: () => {
+          const { paymentMethods } = get();
+          const expired = new Set(
+            paymentService.getExpiredMethods(paymentMethods).map((method) => method.id)
+          );
+          if (expired.size === 0) return 0;
+
+          set({
+            paymentMethods: paymentMethods.map((method) =>
+              expired.has(method.id) ? paymentService.markPaymentMethodExpired(method) : method
+            ),
+          });
+          return expired.size;
+        },
+
+        // ── Analytics ──────────────────────────────────────────────────
+
+        paymentAnalytics: () =>
+          paymentService.computeAnalytics(get().paymentMethods, get().paymentAttempts),
+
+        // ── Sharing ────────────────────────────────────────────────────
+
+        sharePaymentMethod: (methodId, granteeId, role, options = {}) => {
+          const method = get().paymentMethods.find((candidate) => candidate.id === methodId);
+          if (!method) {
+            throw new PaymentMethodError(
+              PaymentMethodErrorCode.INVALID_TOKEN,
+              'Payment method not found.',
+              'Refresh your payment methods and try again.'
+            );
+          }
+
+          try {
+            const share = paymentService.createShare(method, granteeId, role, options);
+            set((state) => ({
+              paymentMethodShares: [...state.paymentMethodShares, share],
+              error: null,
+            }));
+            return share;
+          } catch (error) {
+            set({
+              error: error instanceof PaymentMethodError ? error.userMessage : 'Failed to share',
+            });
+            throw error;
+          }
+        },
+
+        revokePaymentMethodShare: (shareId) =>
+          set((state) => ({
+            paymentMethodShares: state.paymentMethodShares.map((share) =>
+              share.id === shareId && share.revokedAt === null
+                ? { ...share, revokedAt: new Date() }
+                : share
+            ),
+          })),
+
+        sharesForMethod: (methodId) =>
+          get().paymentMethodShares.filter(
+            (share) => share.methodId === methodId && paymentService.isShareActive(share)
+          ),
+
+        methodsSharedWith: (granteeId) =>
+          paymentService.getSharedMethods(
+            get().paymentMethods,
+            get().paymentMethodShares,
+            granteeId
+          ),
+
+        // ── Issue #922: Chain health & smart fallback selection ──────────
+
+        rotationPolicies: [] as PaymentMethodRotationPolicy[],
+
+        getChainHealthSnapshot: (chainId: string) => {
+          const chain = get().fallbackChains.find((c) => c.id === chainId);
+          if (!chain) return null;
+
+          // Build lightweight attempt objects from stored PaymentAttempts.
+          const recentAttempts = get().paymentAttempts.map((a) => ({
+            paymentMethodId: a.paymentMethodId,
+            success: a.success,
+            timestamp: new Date(a.createdAt),
+            latencyMs: undefined as number | undefined,
+          }));
+
+          return _chainHealthMonitor.snapshotChainHealth(
+            chainId,
+            chain.methodIds,
+            recentAttempts
+          );
+        },
+
+        getSmartFallbackSelection: (chainId: string) => {
+          const snapshot = get().getChainHealthSnapshot(chainId);
+          if (!snapshot) return null;
+
+          const chain = get().fallbackChains.find((c) => c.id === chainId);
+          if (!chain) return null;
+
+          const policy =
+            get().rotationPolicies.find((p) => p.chainId === chainId) ?? null;
+
+          return _smartSelector.selectFallbackOrder(chain.methodIds, snapshot, policy);
+        },
+
+        getChainDiagnosticReport: (chainId: string) => {
+          const snapshot = get().getChainHealthSnapshot(chainId);
+          const selection = get().getSmartFallbackSelection(chainId);
+          if (!snapshot || !selection) return null;
+          return buildFallbackChainDiagnosticReport(snapshot, selection);
+        },
+
+        setRotationPolicy: (policy: PaymentMethodRotationPolicy) => {
+          _chainHealthMonitor.setRotationPolicy(policy);
+          set((state) => {
+            const existing = state.rotationPolicies.findIndex(
+              (p) => p.chainId === policy.chainId
+            );
+            const updated = [...state.rotationPolicies];
+            if (existing >= 0) {
+              updated[existing] = policy;
+            } else {
+              updated.push(policy);
+            }
+            return { rotationPolicies: updated };
+          });
+        },
+
+        removeRotationPolicy: (chainId: string) =>
+          set((state) => ({
+            rotationPolicies: state.rotationPolicies.filter((p) => p.chainId !== chainId),
+          })),
+
+        applyAllRotationPolicies: () => {
+          const { rotationPolicies, fallbackChains, paymentAttempts } = get();
+          const updatedPolicies: PaymentMethodRotationPolicy[] = [];
+
+          for (const policy of rotationPolicies) {
+            const chain = fallbackChains.find((c) => c.id === policy.chainId);
+            if (!chain) {
+              updatedPolicies.push(policy);
+              continue;
+            }
+
+            const recentAttempts = paymentAttempts.map((a) => ({
+              paymentMethodId: a.paymentMethodId,
+              success: a.success,
+              timestamp: new Date(a.createdAt),
+            }));
+
+            const snapshot = _chainHealthMonitor.snapshotChainHealth(
+              chain.id,
+              chain.methodIds,
+              recentAttempts
+            );
+            const applied = _chainHealthMonitor.applyRotationPolicy(policy, snapshot);
+            updatedPolicies.push(applied);
+          }
+
+          set({ rotationPolicies: updatedPolicies });
+        },
       };
     },
     {
       name: PAYMENT_STORAGE_KEY,
       storage: createJSONStorage(() => asyncStorageAdapter),
-      // Only persist payment methods and attempts; connection and streams are ephemeral
+      // Only persist payment configuration and history; connection and streams
+      // are ephemeral.
       partialize: (state) => ({
         paymentMethods: state.paymentMethods,
         paymentAttempts: state.paymentAttempts,
+        fallbackChains: state.fallbackChains,
+        paymentMethodShares: state.paymentMethodShares,
+        rotationPolicies: state.rotationPolicies,
       }),
       onRehydrateStorage: () => (_state, error) => {
         if (error) {
           console.warn('[walletStore] Hydration error — resetting payment data:', error);
-          useWalletStore.setState({ paymentMethods: [], paymentAttempts: [] });
+          useWalletStore.setState({
+            paymentMethods: [],
+            paymentAttempts: [],
+            fallbackChains: [],
+            paymentMethodShares: [],
+          });
         }
       },
     }
@@ -551,3 +916,41 @@ export const useWalletStore = create<WalletState>()(
 export const selectAddress = (state: WalletState) => state.connection?.address ?? null;
 export const selectChainId = (state: WalletState) => state.connection?.chainId ?? null;
 export const selectIsConnected = (state: WalletState) => state.connection?.isConnected ?? false;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Issue #922 enhancements — Fallback chain health & smart selection
+// ═══════════════════════════════════════════════════════════════════════════
+import {
+  FallbackChainHealthMonitor,
+  FallbackChainHealthSnapshot,
+  SmartFallbackSelector,
+  SmartFallbackSelection,
+  PaymentMethodRotationPolicy,
+  buildFallbackChainDiagnosticReport,
+} from '../services/walletService';
+
+const _chainHealthMonitor = FallbackChainHealthMonitor.getInstance();
+const _smartSelector = SmartFallbackSelector.getInstance();
+
+/**
+ * Extend the WalletState interface with chain health & smart selection.
+ *
+ * These are computed on demand (not persisted) so they live outside the
+ * persisted slice.
+ */
+declare module './walletStore' {
+  interface WalletState {
+    // ── Chain health ─────────────────────────────────────────────────────
+    /** Compute and return the health snapshot for a specific chain. */
+    getChainHealthSnapshot: (chainId: string) => FallbackChainHealthSnapshot | null;
+    /** Return a smart-selected fallback order for a chain execution. */
+    getSmartFallbackSelection: (chainId: string) => SmartFallbackSelection | null;
+    /** Build a human-readable diagnostic report for a chain. */
+    getChainDiagnosticReport: (chainId: string) => string | null;
+    // ── Rotation policies ────────────────────────────────────────────────
+    rotationPolicies: PaymentMethodRotationPolicy[];
+    setRotationPolicy: (policy: PaymentMethodRotationPolicy) => void;
+    removeRotationPolicy: (chainId: string) => void;
+    applyAllRotationPolicies: () => void;
+  }
+}

@@ -1,3 +1,5 @@
+// Theme type definitions
+
 export interface ThemeColors {
   primary: string;
   secondary: string;
@@ -13,85 +15,25 @@ export interface ThemeColors {
   overlay: string;
 }
 
-export interface ExtendedThemeColors extends ThemeColors {
-  primaryLight: string;
-  primaryDark: string;
-  onPrimary: string;
-  secondaryLight: string;
-  secondaryDark: string;
-  onSecondary: string;
-  accentLight: string;
-  accentDark: string;
-  onAccent: string;
-  successLight: string;
-  successDark: string;
-  onSuccess: string;
-  warningLight: string;
-  warningDark: string;
-  onWarning: string;
-  errorLight: string;
-  errorDark: string;
-  onError: string;
-  info: string;
-  infoLight: string;
-  infoDark: string;
-  onInfo: string;
-  surfaceVariant: string;
-  surfaceInverse: string;
-  textTertiary: string;
-  textDisabled: string;
-  borderLight: string;
-  divider: string;
-  scrim: string;
-  warningBackground: string;
-  errorBackground: string;
-  successBackground: string;
-  infoBackground: string;
-}
-
 export type ThemeMode = 'light' | 'dark';
 
-export interface FontConfig {
-  family?: string;
-  url?: string;
-  weights?: {
-    light?: number;
-    normal?: number;
-    medium?: number;
-    semibold?: number;
-    bold?: number;
-  };
-  sizes?: {
-    small?: number;
-    body?: number;
-    large?: number;
-    heading?: number;
-  };
+/** Font configuration for brand themes. */
+export interface ThemeFont {
+  /** Font family name (must be loaded or available on the device). */
+  family: string;
+  /** Optional scale factor applied to all font sizes (default: 1). */
+  scale?: number;
 }
 
-export interface LogoConfig {
-  uri?: string;
-  darkUri?: string;
-  width?: number;
-  height?: number;
-  altText?: string;
-}
-
-export interface AccessibilityInfo {
-  contrastRatio: number;
-  meetsWcagAA: boolean;
-  meetsWcagAAA: boolean;
-  issues: AccessibilityIssue[];
-}
-
-export interface AccessibilityIssue {
-  type: 'contrast' | 'touch-target' | 'font-size';
-  element: string;
-  foreground: string;
-  background: string;
-  ratio: number;
-  requiredRatio: number;
-  message: string;
+/** Full brand configuration used when creating a custom white-label theme. */
+export interface BrandConfig {
+  primary: string;
+  secondary: string;
+  accent: string;
+  /** Optional logo URI (local asset path or remote URL). */
+  logoUri?: string;
+  /** Optional font settings. */
+  font?: ThemeFont;
 }
 
 export interface Theme {
@@ -99,77 +41,31 @@ export interface Theme {
   name: string;
   mode: ThemeMode;
   colors: ThemeColors;
-  extendedColors?: ExtendedThemeColors;
-  fonts?: FontConfig;
-  logo?: LogoConfig;
-  isCustom?: boolean;
-  parentId?: string;
-  accessibility?: AccessibilityInfo;
-  metadata?: Record<string, unknown>;
-  createdAt?: string;
-  updatedAt?: string;
+  /** Logo URI shown in branded navigation headers. */
+  logoUri?: string;
+  /** Font configuration for this theme. */
+  font?: ThemeFont;
+  /**
+   * CSS custom properties generated from this theme's colors.
+   * Populated automatically by generateCssVariables; not persisted.
+   */
+  cssVariables?: Record<string, string>;
 }
 
-export interface ThemeVariantPair {
-  light: Theme;
-  dark: Theme;
-  sharedConfig: ThemeSharedConfig;
+/**
+ * Serialisable snapshot used for theme export / import.
+ * Does not include derived fields like cssVariables.
+ */
+export interface ThemeExport {
+  version: 1;
+  theme: Omit<Theme, 'cssVariables'>;
 }
 
-export interface ThemeSharedConfig {
-  id: string;
-  name: string;
-  fonts?: FontConfig;
-  logo?: LogoConfig;
-  metadata?: Record<string, unknown>;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface BrandConfig {
-  primary: string;
-  secondary: string;
-  accent: string;
-  fonts?: FontConfig;
-  logo?: LogoConfig;
-}
-
-export interface ThemeConfig {
-  colors: {
-    primary: string;
-    secondary?: string;
-    accent?: string;
-    success?: string;
-    warning?: string;
-    error?: string;
-    background?: string;
-    surface?: string;
-    text?: string;
-    textSecondary?: string;
-  };
-  fonts?: FontConfig;
-  logo?: LogoConfig;
-  metadata?: Record<string, unknown>;
-}
-
-export interface ThemeExportData {
-  version: string;
-  exportedAt: string;
-  theme: {
-    light?: ThemeConfig;
-    dark?: ThemeConfig;
-    shared: ThemeSharedConfig;
-  };
-}
-
-export interface ThemeInheritance {
-  parentId: string;
-  overrides: Partial<ThemeColors>;
-  extendedOverrides?: Partial<ExtendedThemeColors>;
-}
-
-export interface ThemePreviewState {
-  isPreviewing: boolean;
-  previewConfig: Partial<ThemeConfig> | null;
-  originalThemeId: string | null;
+/** WCAG contrast ratio result for accessibility validation. */
+export interface ContrastResult {
+  ratio: number;
+  /** AA requires ≥ 4.5 for normal text, ≥ 3 for large text. */
+  passesAA: boolean;
+  /** AAA requires ≥ 7.0. */
+  passesAAA: boolean;
 }

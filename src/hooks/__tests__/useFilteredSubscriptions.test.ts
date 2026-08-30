@@ -1,4 +1,4 @@
-import { renderHook, act } from '@testing-library/react-hooks';
+import { renderHook, act } from '@testing-library/react-native';
 import { useFilteredSubscriptions } from '../useFilteredSubscriptions';
 import { Subscription, SubscriptionCategory, BillingCycle } from '../../types/subscription';
 
