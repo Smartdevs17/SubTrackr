@@ -15,6 +15,14 @@ import {
   CreditPurchaseInput,
   CreditTransferInput,
 } from '../types/credit';
+import {
+  DEFAULT_PAUSE_LIMITS,
+  PauseLimits,
+  PauseReason,
+  PauseState,
+  PauseValidationResult,
+  type PauseRecord,
+} from '../types/pause';
 import { InvoiceStatus, isOpenInvoice } from '../types/invoice';
 import { dummySubscriptions } from '../utils/dummyData'; // eslint-disable-line
 import { advanceBillingDate } from '../utils/billingDate';
@@ -56,7 +64,16 @@ import {
   applyCreditMemo,
   ProrationPreview,
   CreditMemo,
+  getPeriodDays,
 } from '../utils/proration';
+import {
+  calculateEarlyResumeCredit,
+  calculatePauseCredit,
+  resumePause,
+  validatePauseRequest,
+} from './pauseStore';
+
+export type { PauseRecord } from '../types/pause';
 
 const STORAGE_KEY = 'subtrackr-subscriptions';
 const STORE_VERSION = 2;
@@ -72,7 +89,10 @@ const generateUniqueId = (): string => {
   return `${timestamp}-${randomComponent}`;
 };
 
-type PersistedSubscriptionSlice = Pick<SubscriptionState, 'subscriptions' | 'creditAccounts'>;
+type PersistedSubscriptionSlice = Pick<
+  SubscriptionState,
+  'subscriptions' | 'creditAccounts' | 'pauseHistory'
+>;
 
 const toValidDate = (value: unknown, fallback = new Date()): Date => {
   if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
@@ -246,6 +266,14 @@ const serializeForStorage = (state: PersistedSubscriptionSlice): PersistedSubscr
       },
     ])
   ) as Record<string, CreditAccountState>,
+  pauseHistory: (state.pauseHistory ?? []).map((record) => ({
+    ...record,
+    pausedAt: new Date(record.pausedAt),
+    scheduledResumeAt: new Date(record.scheduledResumeAt),
+    resumedAt: record.resumedAt ? new Date(record.resumedAt) : undefined,
+    plannedResumeDate: record.plannedResumeDate ? new Date(record.plannedResumeDate) : undefined,
+    resumeAt: record.resumeAt ? new Date(record.resumeAt) : undefined,
+  })),
 });
 
 const migratePersistedState = (
@@ -253,7 +281,7 @@ const migratePersistedState = (
   _version: number
 ): PersistedSubscriptionSlice => {
   if (!persisted || typeof persisted !== 'object') {
-    return { subscriptions: [], creditAccounts: {} };
+    return { subscriptions: [], creditAccounts: {}, pauseHistory: [] };
   }
 
   const maybeState = persisted as Partial<PersistedSubscriptionSlice>;
@@ -272,8 +300,20 @@ const migratePersistedState = (
           return acc;
         }, {})
       : {};
+  const pauseHistory = Array.isArray(maybeState.pauseHistory)
+    ? maybeState.pauseHistory.map((entry) => ({
+        ...entry,
+        pausedAt: toValidDate(entry.pausedAt, new Date()),
+        scheduledResumeAt: toValidDate(entry.scheduledResumeAt, new Date()),
+        resumedAt: entry.resumedAt ? toValidDate(entry.resumedAt, new Date()) : undefined,
+        plannedResumeDate: entry.plannedResumeDate
+          ? toValidDate(entry.plannedResumeDate, new Date())
+          : undefined,
+        resumeAt: entry.resumeAt ? toValidDate(entry.resumeAt, new Date()) : undefined,
+      }))
+    : [];
 
-  return { subscriptions, creditAccounts };
+  return { subscriptions, creditAccounts, pauseHistory };
 };
 
 const pendingWrites = new Map<string, string>();
@@ -324,6 +364,7 @@ const debouncedAsyncStorage: StateStorage = {
 interface SubscriptionState {
   subscriptions: Subscription[];
   creditAccounts: Record<string, CreditAccountState>;
+  pauseHistory: PauseRecord[];
   stats: SubscriptionStats;
   isLoading: boolean;
   error: AppError | null;
@@ -331,10 +372,23 @@ interface SubscriptionState {
   creditMemos: Record<string, CreditMemo>;
 
   // Actions
+  pauseSubscription: (
+    subscriptionOrId: string | Subscription,
+    pauseDays: number,
+    reason?: PauseReason | string,
+    limits?: PauseLimits,
+    note?: string
+  ) => PauseRecord;
+  resumeSubscription: (id: string, early?: boolean) => PauseRecord | null;
+  getPauseHistory: (subscriptionId?: string) => PauseRecord[];
+  getActivePause: (subscriptionId: string) => PauseRecord | undefined;
   addSubscription: (data: SubscriptionFormData) => Promise<void>;
   updateSubscription: (id: string, data: Partial<Subscription>) => Promise<void>;
   deleteSubscription: (id: string) => Promise<void>;
   toggleSubscriptionStatus: (id: string) => Promise<void>;
+  pauseSubscription: (id: string, durationDays?: number) => Promise<void>;
+  resumeSubscription: (id: string) => Promise<void>;
+  previewPauseAdjustment: (id: string, resumeDate?: Date) => { adjustedNextBillingDate: Date; elapsedPauseDays: number; creditAmount: number };
   // new actions added
   previewPlanChange: (
     id: string,
@@ -372,6 +426,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
     (set, get) => ({
       subscriptions: dummySubscriptions,
       creditAccounts: {},
+      pauseHistory: [],
       stats: {
         totalActive: 0,
         totalMonthlySpend: 0,
@@ -382,6 +437,121 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       error: null,
       prorationPreview: null,
       creditMemos: {},
+
+      pauseSubscription: (
+        subscriptionOrId,
+        pauseDays,
+        reason = PauseReason.OTHER,
+        limits = DEFAULT_PAUSE_LIMITS,
+        note
+      ) => {
+        const subscription =
+          typeof subscriptionOrId === 'string'
+            ? get().subscriptions.find((sub) => sub.id === subscriptionOrId)
+            : subscriptionOrId;
+        if (!subscription) throw new Error('Subscription not found');
+
+        const validation = validatePauseRequest(
+          subscription.id,
+          pauseDays,
+          get().pauseHistory,
+          limits
+        ) as PauseValidationResult;
+        if (!validation.valid) {
+          throw new Error(validation.reason ?? 'Pause request validation failed.');
+        }
+
+        const creditAmount = calculatePauseCredit(subscription, pauseDays);
+        const now = new Date();
+        const scheduledResumeAt = new Date(now.getTime() + pauseDays * 24 * 60 * 60 * 1000);
+        const record: PauseRecord = {
+          id: generateUniqueId(),
+          subscriptionId: subscription.id,
+          state: PauseState.PAUSED,
+          reason: reason ?? PauseReason.OTHER,
+          note,
+          pausedAt: now,
+          scheduledResumeAt,
+          creditAmount,
+          currency: subscription.currency,
+          creditRemaining: creditAmount,
+          creditExpired: false,
+          creditExpiryDays: 90,
+          billingAdjustment: creditAmount,
+          plannedResumeDate: scheduledResumeAt,
+          status: 'active',
+        };
+
+        set((state) => ({
+          pauseHistory: [...state.pauseHistory, record],
+          subscriptions: state.subscriptions.map((sub) =>
+            sub.id === subscription.id ? { ...sub, isActive: false, updatedAt: now } : sub
+          ),
+        }));
+        get().calculateStats();
+        return record;
+      },
+
+      resumeSubscription: (id, early = false) => {
+        const activePause = get().pauseHistory.find(
+          (record) =>
+            record.subscriptionId === id &&
+            (record.state === PauseState.PAUSED || record.status === 'active')
+        );
+        if (!activePause) return null;
+
+        const resumed = resumePause(activePause, early);
+        const now = new Date();
+        const nextDays = Math.max(
+          1,
+          Math.ceil(
+            (new Date(activePause.scheduledResumeAt).getTime() - new Date(activePause.pausedAt).getTime()) /
+              (1000 * 60 * 60 * 24)
+          )
+        );
+        const updatedRecord: PauseRecord = {
+          ...resumed,
+          resumedAt: now,
+          billingAdjustment: resumed.creditRemaining,
+          plannedResumeDate: activePause.scheduledResumeAt,
+          resumeAt: now,
+          status: 'resumed',
+          reason: activePause.reason,
+        };
+
+        set((state) => ({
+          pauseHistory: state.pauseHistory.map((record) =>
+            record.id === activePause.id ? updatedRecord : record
+          ),
+          subscriptions: state.subscriptions.map((sub) => {
+            if (sub.id !== id) return sub;
+            const shiftedNextBillingDate = new Date(
+              sub.nextBillingDate.getTime() + nextDays * 24 * 60 * 60 * 1000
+            );
+            return {
+              ...sub,
+              isActive: true,
+              nextBillingDate: shiftedNextBillingDate,
+              updatedAt: now,
+            };
+          }),
+        }));
+        get().calculateStats();
+        return updatedRecord;
+      },
+
+      getPauseHistory: (subscriptionId) => {
+        const history = get().pauseHistory;
+        if (!subscriptionId) return history;
+        return history.filter((record) => record.subscriptionId === subscriptionId);
+      },
+
+      getActivePause: (subscriptionId) =>
+        get().pauseHistory.find(
+          (record) =>
+            record.subscriptionId === subscriptionId &&
+            (record.state === PauseState.PAUSED || record.status === 'active')
+        ),
 
       previewPlanChange: (
         id: string,
@@ -595,6 +765,119 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             isLoading: false,
           });
         }
+      },
+
+      pauseSubscription: async (id: string, durationDays: number = 30) => {
+        set({ isLoading: true, error: null });
+        try {
+          const now = new Date();
+          const pausedUntil = new Date(now.getTime() + durationDays * 86400 * 1000);
+          set((state) => ({
+            subscriptions: state.subscriptions.map((sub) =>
+              sub.id === id
+                ? {
+                    ...sub,
+                    isActive: false,
+                    isPaused: true,
+                    pausedAt: now,
+                    pauseDurationDays: durationDays,
+                    pausedUntil,
+                    updatedAt: now,
+                  }
+                : sub
+            ),
+            isLoading: false,
+          }));
+
+          get().calculateStats();
+          await syncRenewalReminders(get().subscriptions);
+          const updatedSubscription = get().subscriptions.find((sub) => sub.id === id);
+          if (updatedSubscription) {
+            await useCalendarStore.getState().syncSubscriptionToCalendars(updatedSubscription);
+          }
+        } catch (error) {
+          const appError = errorHandler.handleError(error as Error, {
+            action: 'pauseSubscription',
+            subscriptionId: id,
+          });
+          set({ error: appError, isLoading: false });
+        }
+      },
+
+      resumeSubscription: async (id: string) => {
+        set({ isLoading: true, error: null });
+        try {
+          const sub = get().subscriptions.find((s) => s.id === id);
+          if (!sub) throw new Error('Subscription not found');
+
+          const now = new Date();
+          let pauseMs = 0;
+          if (sub.pausedAt) {
+            const pausedAtTime = new Date(sub.pausedAt).getTime();
+            const elapsed = now.getTime() - pausedAtTime;
+            const maxPauseMs = (sub.pauseDurationDays || 30) * 86400 * 1000;
+            pauseMs = Math.max(0, Math.min(elapsed, maxPauseMs));
+          }
+
+          const oldNextBilling = new Date(sub.nextBillingDate).getTime();
+          const adjustedNextBillingDate = new Date(oldNextBilling + pauseMs);
+
+          set((state) => ({
+            subscriptions: state.subscriptions.map((s) =>
+              s.id === id
+                ? {
+                    ...s,
+                    isActive: true,
+                    isPaused: false,
+                    pausedAt: undefined,
+                    pauseDurationDays: undefined,
+                    pausedUntil: undefined,
+                    nextBillingDate: adjustedNextBillingDate,
+                    updatedAt: now,
+                  }
+                : s
+            ),
+            isLoading: false,
+          }));
+
+          get().calculateStats();
+          await syncRenewalReminders(get().subscriptions);
+          const updatedSubscription = get().subscriptions.find((s) => s.id === id);
+          if (updatedSubscription) {
+            await useCalendarStore.getState().syncSubscriptionToCalendars(updatedSubscription);
+          }
+        } catch (error) {
+          const appError = errorHandler.handleError(error as Error, {
+            action: 'resumeSubscription',
+            subscriptionId: id,
+          });
+          set({ error: appError, isLoading: false });
+        }
+      },
+
+      previewPauseAdjustment: (id: string, resumeDate?: Date) => {
+        const sub = get().subscriptions.find((s) => s.id === id);
+        if (!sub) throw new Error('Subscription not found');
+
+        const now = resumeDate || new Date();
+        let pauseMs = 0;
+        if (sub.pausedAt) {
+          const pausedAtTime = new Date(sub.pausedAt).getTime();
+          const elapsed = now.getTime() - pausedAtTime;
+          const maxPauseMs = (sub.pauseDurationDays || 30) * 86400 * 1000;
+          pauseMs = Math.max(0, Math.min(elapsed, maxPauseMs));
+        }
+
+        const elapsedPauseDays = Math.round(pauseMs / (86400 * 1000));
+        const adjustedNextBillingDate = new Date(new Date(sub.nextBillingDate).getTime() + pauseMs);
+        const dailyRate = sub.price / 30;
+        const creditAmount = Math.round(dailyRate * elapsedPauseDays * 100) / 100;
+
+        return {
+          adjustedNextBillingDate,
+          elapsedPauseDays,
+          creditAmount,
+        };
       },
 
       recordBillingOutcome: async (id: string, outcome: 'success' | 'failed') => {
@@ -994,6 +1277,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         serializeForStorage({
           subscriptions: state.subscriptions,
           creditAccounts: state.creditAccounts,
+          pauseHistory: state.pauseHistory,
         }),
       migrate: (persistedState, version) => migratePersistedState(persistedState, version),
       merge: (persistedState, currentState) => ({
@@ -1024,9 +1308,13 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           state?.creditAccounts && typeof state.creditAccounts === 'object'
             ? state.creditAccounts
             : {};
+        const pauseHistory = Array.isArray((state as { pauseHistory?: PauseRecord[] } | undefined)?.pauseHistory)
+          ? (state as { pauseHistory?: PauseRecord[] }).pauseHistory ?? []
+          : [];
         useSubscriptionStore.setState({
           subscriptions,
           creditAccounts,
+          pauseHistory,
           isLoading: false,
           error: null,
         });

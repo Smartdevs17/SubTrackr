@@ -120,6 +120,52 @@ pub fn preview_proration(
     calculate_proration(env, subscription, old_price, new_price, effective_date)
 }
 
+/// Calculate a plan-change proration using the actual remaining time until the
+/// next charge, which is the exact mid-cycle behavior required by billing.
+pub fn calculate_mid_cycle_proration(
+    env: &Env,
+    subscription: &Subscription,
+    old_price: i128,
+    new_price: i128,
+    effective_at: u64,
+) -> ProrationResult {
+    let now = env.ledger().timestamp();
+    let period_seconds = subscription
+        .next_charge_at
+        .saturating_sub(subscription.last_charged_at)
+        .max(1);
+    let period_days = period_seconds / 86400;
+    let effective_ts = effective_at.max(now).min(subscription.next_charge_at);
+    let remaining_seconds = subscription.next_charge_at.saturating_sub(effective_ts);
+    let remaining_days = remaining_seconds / 86400;
+
+    let amount = if new_price == old_price || remaining_days == 0 {
+        0
+    } else {
+        (new_price - old_price) * remaining_days as i128 / period_days as i128
+    };
+
+    let is_credit = amount < 0;
+    let abs_amount = amount.abs();
+    let description = if is_credit {
+        String::from_str(env, "Prorated credit for mid-cycle downgrade")
+    } else if amount > 0 {
+        String::from_str(env, "Prorated charge for mid-cycle upgrade")
+    } else {
+        String::from_str(env, "No proration required")
+    };
+
+    ProrationResult {
+        amount: abs_amount,
+        remaining_days,
+        period_days,
+        old_daily_rate: old_price / period_days as i128,
+        new_daily_rate: new_price / period_days as i128,
+        is_credit,
+        description,
+    }
+}
+
 /// Generate a credit memo for downgrade credits
 ///
 /// Credit memos are stored on-chain and can be applied to future invoices

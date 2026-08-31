@@ -15,30 +15,6 @@ import { RootStackParamList } from '../navigation/types';
 import { useCancellationStore } from '../store/cancellationStore';
 import { CANCELLATION_REASONS } from '../store/cancellationStore';
 
-// Local type alias for the retention offer shape
-interface RetentionOffer {
-  id: string;
-  type: string;
-  title: string;
-  description: string;
-  expiresAt: string | Date;
-  abVariant?: 'A' | 'B';
-}
-
-const OFFER_TYPE_ICONS: Record<string, string> = {
-  discount: '💰',
-  pause: '⏸️',
-  downgrade: '⬇️',
-  trial_extension: '⏱️',
-  feature_unlock: '🔓',
-};
-
-type Props = NativeStackScreenProps<RootStackParamList, 'CancellationFlow'>;
-
-const CancellationFlowScreen: React.FC<Props> = ({ route, navigation }) => {
-  const { currentStep, setReason, setStep, acceptOffer, reset } = useCancellationStore();
-  const { deleteSubscription } = useSubscriptionStore();
-import { useCancellationStore, CANCELLATION_REASONS } from '../store/cancellationStore';
 import { RetentionOffer } from '../../backend/services/retentionService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CancellationFlow'>;

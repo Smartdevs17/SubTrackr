@@ -59,6 +59,26 @@ If $\text{Net Adjustment} < 0$, the customer receives an account credit.
 5. **Proration API**: Server-side service (`ProrationApiService`) exposing REST endpoints for backend integration.
 6. **State Management & UI**: Persistent Zustand store (`useProrationStore`), React hook (`useProrationCalculator`), and React Native screen component (`ProrationCalculatorScreen`).
 
+## Mid-cycle proration engine
+
+When a customer changes plans before the next renewal date, the engine computes the adjustment from the exact number of remaining days in the active cycle:
+
+$$
+\text{Adjustment} = \frac{(\text{newPrice} - \text{oldPrice}) \times \text{remainingDays}}{\text{periodDays}}
+$$
+
+- If the result is positive, the customer is charged the difference immediately.
+- If the result is negative, a credit memo is created for the unused portion of the old plan.
+- If the change is scheduled for the end of the cycle, the adjustment is zero.
+
+Example: a $30 plan changes to $60 when 15 of 30 days remain in the cycle.
+
+$$
+\frac{(60 - 30) \times 15}{30} = 15
+$$
+
+The customer is charged $15 immediately.
+
 ## Usage
 
 ### React Hook Example

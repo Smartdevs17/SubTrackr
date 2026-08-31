@@ -47,14 +47,26 @@ pub fn subscribe(
 
     let now = env.ledger().timestamp();
 
+    // Check for trial configuration
+    let trial_opt: Option<subtrackr_types::TrialConfig> = storage_persistent_get(env, storage, StorageKey::PlanTrial(plan_id));
+    let (status, next_charge_at) = if let Some(trial) = trial_opt {
+        if trial.has_trial {
+            (SubscriptionStatus::Trialing, now + trial.duration_seconds)
+        } else {
+            (SubscriptionStatus::Active, now + plan_data.interval.seconds())
+        }
+    } else {
+        (SubscriptionStatus::Active, now + plan_data.interval.seconds())
+    };
+
     let subscription = Subscription {
         id: sub_count,
         plan_id,
         subscriber: subscriber.clone(),
-        status: SubscriptionStatus::Active,
+        status,
         started_at: now,
         last_charged_at: now,
-        next_charge_at: now + plan_data.interval.seconds(),
+        next_charge_at,
         total_paid: 0,
         total_gas_spent: 0,
         charge_count: 0,

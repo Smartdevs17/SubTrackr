@@ -37,6 +37,12 @@ import { createRateLimitMiddleware, RATE_LIMIT_HEADERS } from './services/shared
 import { applyCompression, compressionPrometheusMetrics } from './services/shared/compression';
 import { wrapWithMonitor, type MonitoredPool } from './services/shared/poolMonitor';
 import { SubscriptionTier } from '../src/types/subscription';
+import {
+  processCorsRequest,
+  upsertPolicy,
+  getCorsAnalytics,
+  getViolations,
+} from './services/shared/corsMiddleware';
 
 export interface StartServerOptions {
   port?: number;
@@ -75,18 +81,76 @@ async function ensurePlanCache(pool: Pool): Promise<PlanCacheBootstrap> {
 // Rate-limit middleware factory
 // ---------------------------------------------------------------------------
 
+const SUBSCRIPTION_TIER_VALUES: string[] = Object.values(SubscriptionTier);
+
+function parseSubscriptionTier(raw: string | null): SubscriptionTier | null {
+  if (!raw) return SubscriptionTier.FREE;
+  const value = raw.trim().toLowerCase();
+  return SUBSCRIPTION_TIER_VALUES.includes(value) ? (value as SubscriptionTier) : null;
+}
+
+/** Extract the JWT `sub` (or userId) claim without verifying the signature. */
+function decodeJwtSubject(token: string): string | undefined {
+  const parts = token.split('.');
+  if (parts.length < 2) return undefined;
+  try {
+    const encoded = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const payload = JSON.parse(Buffer.from(encoded, 'base64').toString('utf8')) as {
+      sub?: string;
+      userId?: string;
+      user_id?: string;
+    };
+    return payload.sub ?? payload.userId ?? payload.user_id;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Resolve the caller tier from the x-subscription-tier header (default FREE). */
+function resolveTierFromRequest(
+  req: { headers: Record<string, string | string[] | undefined> },
+): SubscriptionTier {
+  const raw = req.headers['x-subscription-tier'];
+  const value = typeof raw === 'string' ? raw : Array.isArray(raw) ? raw[0] : undefined;
+  return parseSubscriptionTier(value ?? null) ?? SubscriptionTier.FREE;
+}
+
+/**
+ * Resolve a user identity for per-user aggregate limiting.
+ * Prefers the x-user-id header (set by an upstream auth layer) and falls back
+ * to the `sub`/`userId` claim of a Bearer JWT.
+ */
+function resolveUserIdFromRequest(
+  req: { headers: Record<string, string | string[] | undefined> },
+): string | undefined {
+  const xUserId = req.headers['x-user-id'];
+  if (typeof xUserId === 'string' && xUserId.trim()) {
+    return xUserId.trim();
+  }
+  if (Array.isArray(xUserId) && xUserId[0]?.trim()) {
+    return xUserId[0].trim();
+  }
+  const auth = req.headers['authorization'];
+  const token = typeof auth === 'string' && auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+  if (token) {
+    return decodeJwtSubject(token);
+  }
+  return undefined;
+}
+
 function buildRateLimitMiddleware() {
   return createRateLimitMiddleware({
     service: rateLimitingService,
-    // Bypass paths (health/metrics never throttled)
-    bypassPaths: ['/health', '/metrics', '/metrics/plan-cache'],
-    // Tier resolver: reads x-subscription-tier header; defaults to FREE
-    tierFn: (apiKey, _userId) => {
-      // In production this would look up the tier from a DB / cache.
-      // For now we use the header injected by an upstream auth layer.
+    // Public/observability endpoints never throttle clients missing keys.
+    allowMissingKey: true,
+    skipPaths: ['/health', '/metrics/plan-cache', '/metrics/compression', '/metrics/pool'],
+    // Per-key tier: read x-subscription-tier header; defaults to FREE.
+    getTier: (apiKey, req) => {
       void apiKey;
-      return SubscriptionTier.FREE;
+      return resolveTierFromRequest(req);
     },
+    // Per-user aggregate limiting: x-user-id header or Bearer JWT sub claim.
+    getUserId: (req) => resolveUserIdFromRequest(req),
   });
 }
 
@@ -94,12 +158,12 @@ function buildRateLimitMiddleware() {
  * Apply rate limit middleware inline (no Express).
  * Returns true if the request should continue, false if a 429 was sent.
  */
-function applyRateLimit(
+async function applyRateLimit(
   rl: ReturnType<typeof buildRateLimitMiddleware>,
   req: http.IncomingMessage,
   res: http.ServerResponse,
   path: string,
-): boolean {
+): Promise<boolean> {
   let blocked = false;
 
   const pseudoReq = {
@@ -110,18 +174,40 @@ function applyRateLimit(
     ip: (req.socket as { remoteAddress?: string } | null)?.remoteAddress,
   };
 
+  // Minimal Response adapter: the middleware speaks Express-style (status/json)
+  // while the raw http server only exposes writeHead/end.
   const pseudoRes = {
-    setHeader: (name: string, value: string | number) => res.setHeader(name, value),
-    writeHead: (status: number, headers?: Record<string, string>) => {
+    _statusCode: 200,
+    setHeader(name: string, value: string | number) {
+      res.setHeader(name, String(value));
+    },
+    header(name: string, value: string) {
+      res.setHeader(name, value);
+      return this;
+    },
+    set(name: string, value: string) {
+      res.setHeader(name, value);
+      return this;
+    },
+    status(code: number) {
+      this._statusCode = code;
+      return this;
+    },
+    writeHead(status: number, headers?: Record<string, string>) {
       res.writeHead(status, headers);
     },
-    end: (body?: string) => {
+    end(body?: string) {
       res.end(body);
+      blocked = true;
+    },
+    json(body: unknown) {
+      res.writeHead(this._statusCode, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(body));
       blocked = true;
     },
   };
 
-  rl(pseudoReq, pseudoRes, () => {
+  await rl(pseudoReq, pseudoRes, () => {
     /* proceed */
   });
 
@@ -204,12 +290,57 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
 
   const rateLimitMw = buildRateLimitMiddleware();
 
+  // Seed a default permissive CORS policy for the server's own tenant.
+  // In production, policies should be loaded from the database per-tenant.
+  upsertPolicy('default', {
+    allowedOrigins: [
+      { origin: process.env['CORS_ALLOWED_ORIGIN'] ?? '*', isWildcard: true },
+    ],
+    allowCredentials: false,
+    exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
+    maxAge: 86400,
+    allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Api-Key',
+      'X-Request-Id',
+      'X-Subscription-Tier',
+    ],
+    active: true,
+  });
+
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
     const { pathname } = url;
     const method = req.method ?? 'GET';
 
     try {
+      // -----------------------------------------------------------------
+      // CORS – applied to every request before routing
+      // -----------------------------------------------------------------
+      const origin = typeof req.headers['origin'] === 'string' ? req.headers['origin'] : undefined;
+      const requestHeaders = typeof req.headers['access-control-request-headers'] === 'string'
+        ? req.headers['access-control-request-headers']
+        : undefined;
+      const { headers: corsHeaders, allowed: corsAllowed } = processCorsRequest({
+        origin,
+        method,
+        requestHeaders,
+        tenantId: 'default',
+      });
+
+      for (const [name, value] of Object.entries(corsHeaders)) {
+        if (value !== null) res.setHeader(name, value);
+      }
+
+      // Short-circuit OPTIONS preflight
+      if (method === 'OPTIONS') {
+        res.writeHead(corsAllowed ? 204 : 403);
+        res.end();
+        return;
+      }
+
       // -----------------------------------------------------------------
       // Health (bypass rate limiting)
       // -----------------------------------------------------------------
@@ -262,6 +393,26 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
       }
 
       // -----------------------------------------------------------------
+      // CORS analytics  GET /cors/analytics
+      // -----------------------------------------------------------------
+      if (pathname === '/cors/analytics' && method === 'GET') {
+        sendJson(res, 200, getCorsAnalytics());
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // CORS violations  GET /cors/violations
+      // -----------------------------------------------------------------
+      if (pathname === '/cors/violations' && method === 'GET') {
+        const tenantId = url.searchParams.get('tenantId') ?? undefined;
+        const origin = url.searchParams.get('origin') ?? undefined;
+        const limit = url.searchParams.get('limit') ? Number(url.searchParams.get('limit')) : 100;
+        const since = url.searchParams.get('since') ?? undefined;
+        sendJson(res, 200, getViolations({ tenantId, origin, limit, since }));
+        return;
+      }
+
+      // -----------------------------------------------------------------
       // Rate-limit analytics  GET /rate-limits/analytics
       // -----------------------------------------------------------------
       if (pathname === '/rate-limits/analytics' && method === 'GET') {
@@ -285,6 +436,25 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
           return;
         }
         const status = rateLimitingService.getRateLimitStatus(apiKey, tier);
+        sendJson(res, 200, status);
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // Per-user rate-limit status  GET /rate-limits/status/user?userId=...&tier=...
+      // -----------------------------------------------------------------
+      if (pathname === '/rate-limits/status/user' && method === 'GET') {
+        const userId = url.searchParams.get('userId');
+        const tier = parseSubscriptionTier(url.searchParams.get('tier'));
+        if (!userId) {
+          sendJson(res, 400, { error: 'userId query param is required' });
+          return;
+        }
+        if (!tier) {
+          sendJson(res, 400, { error: 'invalid tier' });
+          return;
+        }
+        const status = rateLimitingService.getUserRateLimitStatus(`user:${userId}`, tier);
         sendJson(res, 200, status);
         return;
       }
@@ -344,7 +514,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
       // -----------------------------------------------------------------
       // Apply rate limiting to all other routes
       // -----------------------------------------------------------------
-      const proceed = applyRateLimit(rateLimitMw, req, res, pathname);
+      const proceed = await applyRateLimit(rateLimitMw, req, res, pathname);
       if (!proceed) return; // 429 already sent
 
       // -----------------------------------------------------------------
@@ -416,8 +586,11 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
         console.info(`[Server] Metrics  → GET /metrics/plan-cache`);
         console.info(`[Server] RateLimit → GET /rate-limits/analytics`);
         console.info(`[Server] RateLimit → GET /rate-limits/status?apiKey=...`);
+        console.info(`[Server] RateLimit → GET /rate-limits/status/user?userId=...`);
         console.info(`[Server] RateLimit → POST /rate-limits/bypass`);
         console.info(`[Server] RateLimit → POST /rate-limits/config`);
+        console.info(`[Server] CORS     → GET /cors/analytics`);
+        console.info(`[Server] CORS     → GET /cors/violations`);
         resolve();
       });
     });

@@ -13,10 +13,10 @@ crate-type = ["cdylib", "rlib"]
 serde = "1.0"
 
 [dependencies]
-soroban-sdk = "21.0.0"
+soroban-sdk = "27.0.6"
 subtrackr-types = { path = "../types" }
 
 [dev-dependencies]
-soroban-sdk = { version = "21.0.0", features = ["testutils"] }
+soroban-sdk = { version = "27.0.6", features = ["testutils"] }
 subtrackr-proxy = { path = "../proxy" }
 subtrackr-storage = { path = "../storage" }

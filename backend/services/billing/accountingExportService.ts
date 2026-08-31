@@ -10,7 +10,7 @@
 
 import { MemoryMonitor, toNdjsonLine } from '../shared/streaming';
 
-export type AccountingFormat = 'csv' | 'json' | 'quickbooks' | 'xero' | 'pdf';
+export type AccountingFormat = 'csv' | 'json' | 'quickbooks' | 'xero' | 'pdf' | 'excel_xml' | 'ndjson' | 'ofx' | 'iif' | 'tsv';
 export type TransactionType = 'revenue' | 'refund' | 'credit' | 'fee';
 export type ExportFrequency = 'daily' | 'weekly' | 'monthly';
 export type ExportStatus = 'success' | 'failed';
@@ -286,6 +286,123 @@ function headersForFormat(
   return CSV_HEADERS;
 }
 
+
+// ── Excel 2003 XML Builder (SpreadsheetML) ────────────────────────────────────
+function buildExcelXmlContent(records: TransactionRecord[], merchantId: string): string {
+  const rows = records.map((r) => [
+    '      <Row>',
+    '        <Cell><Data ss:Type="String">' + r.id + '</Data></Cell>',
+    '        <Cell><Data ss:Type="String">' + r.merchantId + '</Data></Cell>',
+    '        <Cell><Data ss:Type="String">' + r.subscriptionId + '</Data></Cell>',
+    '        <Cell><Data ss:Type="String">' + r.subscriptionName + '</Data></Cell>',
+    '        <Cell><Data ss:Type="String">' + r.transactionType + '</Data></Cell>',
+    '        <Cell><Data ss:Type="Number">' + r.amount.toFixed(2) + '</Data></Cell>',
+    '        <Cell><Data ss:Type="String">' + r.currency.toUpperCase() + '</Data></Cell>',
+    '        <Cell><Data ss:Type="String">' + formatDate(r.billingDate) + '</Data></Cell>',
+    '      </Row>',
+  ].join('\n')).join('\n');
+
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<?mso-application progid="Excel.Sheet"?>',
+    '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"',
+    '  xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">',
+    '  <Styles>',
+    '    <Style ss:ID="Header">',
+    '      <Font ss:Bold="1" />',
+    '      <Interior ss:Color="#EEEEEE" ss:Pattern="Solid" />',
+    '    </Style>',
+    '  </Styles>',
+    '  <Worksheet ss:Name="Subscriptions">',
+    '    <Table>',
+    '      <Row ss:StyleID="Header">',
+    '        <Cell><Data ss:Type="String">TransactionId</Data></Cell>',
+    '        <Cell><Data ss:Type="String">MerchantId</Data></Cell>',
+    '        <Cell><Data ss:Type="String">SubscriptionId</Data></Cell>',
+    '        <Cell><Data ss:Type="String">SubscriptionName</Data></Cell>',
+    '        <Cell><Data ss:Type="String">TransactionType</Data></Cell>',
+    '        <Cell><Data ss:Type="String">Amount</Data></Cell>',
+    '        <Cell><Data ss:Type="String">Currency</Data></Cell>',
+    '        <Cell><Data ss:Type="String">BillingDate</Data></Cell>',
+    '      </Row>',
+    rows,
+    '    </Table>',
+    '  </Worksheet>',
+    '</Workbook>',
+  ].join('\n');
+}
+
+// ── QuickBooks IIF Builder (Intuit Interchange Format) ────────────────────────
+function buildIifContent(records: TransactionRecord[]): string {
+  const header = '!TRNS\tTRNSID\tTRNSTYPE\tDATE\tACCNT\tNAME\tAMOUNT\tMEMO\n!SPL\tSPLID\tSPLTYPE\tDATE\tACCNT\tNAME\tAMOUNT\tMEMO\n!ENDTRNS\n';
+  const transactions = records.map((r) => {
+    const d = formatDate(r.billingDate);
+    const amt = r.amount.toFixed(2);
+    return 'TRNS\t' + r.id + '\tINVOICE\t' + d + '\tAccounts Receivable\t' + r.subscriptionName + '\t' + amt + '\t' + (r.description || '') + '\nSPL\t' + r.id + '_spl\tINVOICE\t' + d + '\tSubscription Income\t' + r.subscriptionName + '\t-' + amt + '\t' + (r.description || '') + '\nENDTRNS';
+  }).join('\n');
+  return header + transactions;
+}
+
+// ── Open Financial Exchange (OFX) Builder ─────────────────────────────────────
+function buildOfxContent(records: TransactionRecord[], merchantId: string): string {
+  const nowStr = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
+  const trans = records.map((r) => {
+    const dateStr = new Date(r.billingDate).toISOString().replace(/[-:T.]/g, '').slice(0, 14);
+    const trnType = r.transactionType === 'refund' ? 'DEBIT' : 'CREDIT';
+    return [
+      '          <STMTTRN>',
+      '            <TRNTYPE>' + trnType + '</TRNTYPE>',
+      '            <DTPOSTED>' + dateStr + '</DTPOSTED>',
+      '            <TRNAMT>' + r.amount.toFixed(2) + '</TRNAMT>',
+      '            <FITID>' + r.id + '</FITID>',
+      '            <NAME>' + r.subscriptionName + '</NAME>',
+      '            <MEMO>' + (r.description || 'Subscription payment') + '</MEMO>',
+      '          </STMTTRN>',
+    ].join('\n');
+  }).join('\n');
+
+  return [
+    'OFXHEADER:100',
+    'DATA:OFXSGML',
+    'VERSION:102',
+    'SECURITY:NONE',
+    'ENCODING:USASCII',
+    'CHARSET:1252',
+    'COMPRESSION:NONE',
+    'OLDFILEVERSION:NONE',
+    'NEWFILEVERSION:NONE',
+    '',
+    '<OFX>',
+    '  <SIGNONMSGSRSV1>',
+    '    <SONRS>',
+    '      <STATUS><CODE>0</CODE><SEVERITY>INFO</SEVERITY></STATUS>',
+    '      <DTSERVER>' + nowStr + '</DTSERVER>',
+    '      <LANGUAGE>ENG</LANGUAGE>',
+    '    </SONRS>',
+    '  </SIGNONMSGSRSV1>',
+    '  <BANKMSGSRSV1>',
+    '    <STMTTRNRS>',
+    '      <TRNUID>1001</TRNUID>',
+    '      <STATUS><CODE>0</CODE><SEVERITY>INFO</SEVERITY></STATUS>',
+    '      <STMTRS>',
+    '        <CURDEF>' + (records[0]?.currency || 'USD').toUpperCase() + '</CURDEF>',
+    '        <BANKACCTFROM>',
+    '          <BANKID>SubTrackr</BANKID>',
+    '          <ACCTID>' + merchantId + '</ACCTID>',
+    '          <ACCTTYPE>CHECKING</ACCTTYPE>',
+    '        </BANKACCTFROM>',
+    '        <BANKTRANLIST>',
+    '          <DTSTART>' + nowStr + '</DTSTART>',
+    '          <DTEND>' + nowStr + '</DTEND>',
+    trans,
+    '        </BANKTRANLIST>',
+    '      </STMTRS>',
+    '    </STMTTRNRS>',
+    '  </BANKMSGSRSV1>',
+    '</OFX>',
+  ].join('\n');
+}
+
 // ── PDF builder ───────────────────────────────────────────────────────────────
 
 function escapePdfText(text: string): string {
@@ -440,6 +557,24 @@ export function streamExport(
     // PDF: build full document, emit as single string chunk
     const pdfBuffer = buildPdfContent(filtered, merchantId);
     onChunk(pdfBuffer.toString('latin1'));
+  } else if (format === 'excel_xml') {
+    onChunk(buildExcelXmlContent(filtered, merchantId));
+  } else if (format === 'ofx') {
+    onChunk(buildOfxContent(filtered, merchantId));
+  } else if (format === 'iif') {
+    onChunk(buildIifContent(filtered));
+  } else if (format === 'ndjson') {
+    for (let i = 0; i < filtered.length; i += chunkSize) {
+      const batch = filtered.slice(i, i + chunkSize);
+      onChunk(batch.map((r) => JSON.stringify(r)).join('\n') + '\n');
+    }
+  } else if (format === 'tsv') {
+    const headers = headersForFormat(format, fieldMappings);
+    onChunk(headers.map(csvEscape).join('\t') + '\n');
+    for (let i = 0; i < filtered.length; i += chunkSize) {
+      const batch = filtered.slice(i, i + chunkSize);
+      onChunk(batch.map((r) => recordToCsvRow(r, 'csv', fieldMappings, customFields).replace(/,/g, '\t')).join('\n') + '\n');
+    }
   } else if (format === 'json') {
     if (includeSchema) {
       // Emit schema-wrapped JSON; streaming with full envelope requires buffering for counts
@@ -772,6 +907,11 @@ export function getExportAnalytics(merchantId?: string): ExportAnalytics {
     quickbooks: 0,
     xero: 0,
     pdf: 0,
+    excel_xml: 0,
+    ndjson: 0,
+    ofx: 0,
+    iif: 0,
+    tsv: 0,
   };
 
   let totalDownloads = 0;

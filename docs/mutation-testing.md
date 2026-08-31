@@ -45,8 +45,8 @@ npm run mutation:test
 
 After running mutation tests, open the HTML report in your browser:
 
-- **Frontend:** `reports/mutation/html/index.html`
-- **Backend:** `reports/mutation-backend/html/index.html`
+- **Frontend:** `reports/mutation/frontend/mutation.html`
+- **Backend:** `reports/mutation/backend/mutation.html`
 
 ### Dashboard
 
@@ -59,7 +59,7 @@ A web-based dashboard is available at `reports/mutation-dashboard/index.html`. I
 To update the dashboard after running mutation tests:
 
 ```bash
-node scripts/check-mutation-score.js --summary
+npm run mutation:report
 ```
 
 ### Score Checking
@@ -81,13 +81,13 @@ The script exits with a non-zero code if any module's score falls below the brea
 
 ## CI Integration
 
-Mutation testing runs in CI as part of the `ci.yml` workflow:
-
-1. **`mutation-frontend`** job — runs Stryker on `src/` and uploads the report
-2. **`mutation-backend`** job — runs Stryker on `backend/` and uploads the report
-3. **`mutation-summary`** job — downloads both reports, generates the dashboard JSON, and prints a summary
-
-CI reports are available as GitHub Actions artifacts after each run.
+Mutation testing is available as CI-ready npm scripts (`mutation:test:ci` /
+`mutation:test:backend:ci`) which produce machine-readable JSON reports. They
+are intentionally not part of the default `ci.yml` merge gate because a full
+mutation run is very expensive; wire them into a dedicated, non-blocking
+workflow when the test suite is stable enough to sustain the break threshold
+(50%). Both Stryker configs already point at the correct Jest project
+(`jest.config.js` / `jest.backend.config.js`) and upload-ready reporters.
 
 ## Weak Test Detection
 
