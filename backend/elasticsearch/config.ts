@@ -57,6 +57,14 @@ export const DEFAULT_POOL_CONFIG: ElasticsearchPoolConfig = {
 // Index / Search config
 // ---------------------------------------------------------------------------
 
+export type ElasticsearchNodeRole = 'primary' | 'replica';
+
+export interface ElasticsearchNode {
+  name: string;
+  url: string;
+  role: ElasticsearchNodeRole;
+}
+
 export interface ElasticsearchConfig {
   indexName: string;
   fuzzyMaxEdits: number;
@@ -68,6 +76,14 @@ export interface ElasticsearchConfig {
   analyzerLocales: string[];
   /** Connection pool settings (Issue #986) */
   pool?: ElasticsearchPoolConfig;
+  /** Remote cluster nodes for read/write routing (empty = in-process only). */
+  nodes?: ElasticsearchNode[];
+  /** Route reads to replicas when remote nodes are configured. Default: true */
+  readWriteSplitting?: boolean;
+  /** Fall back to the primary when all replicas are unhealthy. Default: true */
+  automaticFailover?: boolean;
+  /** Maximum autocomplete suggestions returned by the search façade. */
+  maxSuggestions?: number;
 }
 
 export const DEFAULT_ES_CONFIG: ElasticsearchConfig = {
@@ -88,6 +104,10 @@ export const DEFAULT_ES_CONFIG: ElasticsearchConfig = {
   analyticsEnabled: true,
   analyzerLocales: ['en', 'fr', 'de', 'es'],
   pool: DEFAULT_POOL_CONFIG,
+  nodes: [],
+  readWriteSplitting: true,
+  automaticFailover: true,
+  maxSuggestions: 8,
 };
 
 export interface IndexMapping {
@@ -115,3 +135,54 @@ export const SUBSCRIPTION_INDEX_MAPPING: IndexMapping = {
     createdAt: { type: 'date' },
   },
 };
+
+// ---------------------------------------------------------------------------
+// Remote node loading (Issue #945)
+// ---------------------------------------------------------------------------
+
+/**
+ * Load remote cluster nodes from the environment.
+ *
+ *  - ES_PRIMARY_URL          primary node URL (required for remote mode)
+ *  - ES_READ_REPLICA_URLS    comma-separated replica node URLs
+ *
+ * Returns an empty list when no remote nodes are configured so callers fall
+ * back to the in-process index (the default mobile-first deployment).
+ */
+export function loadElasticsearchNodes(env: NodeJS.ProcessEnv = process.env): ElasticsearchNode[] {
+  const nodes: ElasticsearchNode[] = [];
+
+  const primaryUrl = env.ES_PRIMARY_URL;
+  if (primaryUrl) {
+    nodes.push({ name: 'es-primary', url: primaryUrl, role: 'primary' });
+  }
+
+  const replicaUrls = env.ES_READ_REPLICA_URLS;
+  if (replicaUrls) {
+    const urls = replicaUrls
+      .split(',')
+      .map((url) => url.trim())
+      .filter(Boolean);
+    urls.forEach((url, index) => {
+      nodes.push({ name: `es-replica-${index + 1}`, url, role: 'replica' });
+    });
+  }
+
+  return nodes;
+}
+
+/**
+ * Build a complete `ElasticsearchConfig` from the environment, merging the
+ * in-process defaults with any remote nodes that are configured.
+ *
+ * Read/write splitting and automatic failover can be toggled via
+ * `ES_READ_WRITE_SPLITTING` and `ES_AUTOMATIC_FAILOVER`.
+ */
+export function loadElasticsearchConfig(env: NodeJS.ProcessEnv = process.env): ElasticsearchConfig {
+  return {
+    ...DEFAULT_ES_CONFIG,
+    nodes: loadElasticsearchNodes(env),
+    readWriteSplitting: env.ES_READ_WRITE_SPLITTING !== 'false',
+    automaticFailover: env.ES_AUTOMATIC_FAILOVER !== 'false',
+  };
+}

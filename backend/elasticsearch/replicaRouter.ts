@@ -31,11 +31,11 @@ export class ElasticsearchReplicaRouter {
   }
 
   getPrimary(): ElasticsearchNode | null {
-    return this.config.nodes.find((n) => n.role === 'primary') ?? null;
+    return this.config.nodes?.find((n) => n.role === 'primary') ?? null;
   }
 
   getReplicas(): ElasticsearchNode[] {
-    return this.config.nodes.filter((n) => n.role === 'replica');
+    return this.config.nodes?.filter((n) => n.role === 'replica') ?? [];
   }
 
   getHealthyReplicas(): ElasticsearchNode[] {
@@ -55,11 +55,15 @@ export class ElasticsearchReplicaRouter {
    * configured (callers should use the in-process index).
    */
   route(kind: ElasticsearchRouteKind): ElasticsearchRouteResult {
-    if (this.config.nodes.length === 0) {
+    const nodes = this.config.nodes ?? [];
+    const readWriteSplitting = this.config.readWriteSplitting ?? true;
+    const automaticFailover = this.config.automaticFailover ?? true;
+
+    if (nodes.length === 0) {
       return { node: null, route: 'in-process', failedOver: false };
     }
 
-    if (kind === 'write' || !this.config.readWriteSplitting) {
+    if (kind === 'write' || !readWriteSplitting) {
       const primary = this.getPrimary();
       return {
         node: primary,
@@ -79,7 +83,7 @@ export class ElasticsearchReplicaRouter {
       };
     }
 
-    if (this.config.automaticFailover) {
+    if (automaticFailover) {
       const primary = this.getPrimary();
       return {
         node: primary,

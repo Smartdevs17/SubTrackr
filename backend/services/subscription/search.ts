@@ -135,7 +135,7 @@ class SearchService {
    */
   getSuggestions(request: SuggestionRequest): string[] {
     const { partial, includeCategories = true } = request;
-    const limit = request.limit ?? DEFAULT_ES_CONFIG.maxSuggestions;
+    const limit = request.limit ?? DEFAULT_ES_CONFIG.maxSuggestions ?? 8;
 
     if (!partial || partial.trim().length === 0) {
       return [];

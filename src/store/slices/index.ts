@@ -22,6 +22,7 @@ import { createUserSlice } from './userSlice';
 import { createSettingsSlice } from './settingsSlice';
 import { createNetworkSlice } from './networkSlice';
 import { createTransactionSlice } from './transactionSlice';
+import { createSearchSlice } from './searchSlice';
 import type { AppState } from './state';
 
 export type { AppState } from './state';
@@ -30,6 +31,7 @@ export type { UserSlice, UserStoreState, ConsentState } from './userSlice';
 export type { SettingsSlice, SettingsStoreState } from './settingsSlice';
 export type { NetworkSlice, NetworkStoreState } from './networkSlice';
 export type { TransactionSlice, TransactionStoreState } from './transactionSlice';
+export type { SearchSlice, SearchStoreState } from './searchSlice';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Storage selection: pick the correct adapter for the runtime environment.
@@ -54,6 +56,7 @@ export const useAppStore = create<AppState>()(
       ...createSettingsSlice(set, get),
       ...createNetworkSlice(set, get),
       ...createTransactionSlice(set, get),
+      ...createSearchSlice(set, get),
     }),
     {
       name: 'subtrackr-app-store',
@@ -72,6 +75,7 @@ export const useAppStore = create<AppState>()(
         healthScoreWeights: state.healthScoreWeights,
         currentNetwork: state.currentNetwork,
         transactions: state.transactions,
+        savedSearches: state.savedSearches,
       }),
     }
   )
@@ -89,3 +93,5 @@ export const selectPreferredCurrency = (s: AppState) => s.preferredCurrency;
 export const selectCurrentNetwork = (s: AppState) => s.currentNetwork;
 export const selectTransactions = (s: AppState) => s.transactions;
 export const selectSubscriptionTier = (s: AppState) => s.subscriptionTier;
+export const selectSearchQueryText = (s: AppState) => s.queryText;
+export const selectSavedSearches = (s: AppState) => s.savedSearches;
