@@ -46,9 +46,7 @@ export const DashboardCard: React.FC<DashboardCardProps> = ({
       <Text style={styles.title}>{title}</Text>
       <View style={styles.valueRow}>
         <Text style={styles.value}>{value}</Text>
-        {trend && (
-          <Text style={[styles.trend, { color: getTrendColor() }]}>{getTrendIcon()}</Text>
-        )}
+        {trend && <Text style={[styles.trend, { color: getTrendColor() }]}>{getTrendIcon()}</Text>}
       </View>
       {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
     </View>

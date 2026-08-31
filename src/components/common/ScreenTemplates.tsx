@@ -111,7 +111,11 @@ export function ListScreen<T>({
         style={styles.scroll}
         refreshControl={
           onRefresh ? (
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primary}
+            />
           ) : undefined
         }>
         {data.length === 0 ? (
@@ -123,7 +127,9 @@ export function ListScreen<T>({
             onAction={onEmptyAction}
           />
         ) : (
-          data.map((item, index) => <View key={keyExtractor(item, index)}>{renderItem(item, index)}</View>)
+          data.map((item, index) => (
+            <View key={keyExtractor(item, index)}>{renderItem(item, index)}</View>
+          ))
         )}
       </ScrollView>
     </ScreenTemplate>

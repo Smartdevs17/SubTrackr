@@ -1,37 +1,32 @@
 import {
-  simulateNetworkCall,
-  withRetry,
+  simulateNetworkPartition,
   runNetworkPartitionExperiment,
+  PartitionNode,
 } from '../experiments/network-partition';
 
 describe('Network Partition Experiment', () => {
-  it('simulateNetworkCall resolves when failure rate is 0', async () => {
-    await expect(simulateNetworkCall(0)).resolves.toEqual({ data: 'ok' });
+  it('reports unreachable nodes during partition', async () => {
+    const nodes: PartitionNode[] = [
+      { name: 'a', reachable: true, value: 'ok' },
+      { name: 'b', reachable: false, value: 'ok' },
+    ];
+    const result = await simulateNetworkPartition(nodes);
+    expect(result.find((r) => r.name === 'b')?.ok).toBe(false);
+    expect(result.find((r) => r.name === 'a')?.ok).toBe(true);
   });
 
-  it('simulateNetworkCall rejects when failure rate is 1', async () => {
-    await expect(simulateNetworkCall(1)).rejects.toThrow('Network partition');
-  });
-
-  it('withRetry succeeds after transient failures', async () => {
-    let calls = 0;
-    const fn = async () => {
-      calls++;
-      if (calls < 3) throw new Error('transient');
-      return 'ok';
-    };
-    await expect(withRetry(fn, 5, 0)).resolves.toBe('ok');
-    expect(calls).toBe(3);
-  });
-
-  it('withRetry throws after exhausting attempts', async () => {
-    await expect(withRetry(() => Promise.reject(new Error('fail')), 3, 0)).rejects.toThrow('fail');
+  it('recovers once partition heals', async () => {
+    const nodes: PartitionNode[] = [
+      { name: 'a', reachable: false, value: 'ok' },
+    ];
+    const recovered = await simulateNetworkPartition(nodes, true);
+    expect(recovered[0].ok).toBe(true);
   });
 
   it('runNetworkPartitionExperiment passes', async () => {
     const result = await runNetworkPartitionExperiment();
     expect(result.experiment).toBe('network-partition');
     expect(result.passed).toBe(true);
-    expect(result.recovery).toBe('exponential-backoff-retry');
+    expect(result.recovery).toBe('partition-healed');
   });
 });

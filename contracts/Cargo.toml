@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "api",
     "proxy",
     "storage",
     "subscription",
@@ -9,9 +10,12 @@ members = [
     "oracle",
     "batch",
     "credit",
+    "invoice",
     "metering",
     "access_control",
+    "security",
 ]
+exclude = ["fuzz"]
 
 [profile.release]
 opt-level = "z"
@@ -24,5 +28,5 @@ codegen-units = 1
 lto = true
 
 [workspace.dependencies]
-soroban-sdk = "21.0.0"
+soroban-sdk = "27.0.6"
 arbitrary = { version = "1.3", features = ["derive"] }

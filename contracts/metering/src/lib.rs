@@ -1,4 +1,5 @@
 #![no_std]
+#![allow(clippy::too_many_arguments)]
 //! SubTrackr usage-metering contract.
 //!
 //! Real-time usage-based billing (issue: metered billing). Reporters push
@@ -22,7 +23,8 @@ mod metering;
 mod test;
 
 pub use metering::{
-    billable_units, bucket_start, Charge, ChargeLine, Meter, MeterState, MeteredUsage, UsageBucket,
+    billable_units, bucket_start, rate_units, validate_tiers, Charge, ChargeLine, Meter,
+    MeterState, MeteredUsage, PriceTier, PricingModel, TierLine, UsageBucket,
 };
 
 use soroban_sdk::{
@@ -42,6 +44,9 @@ pub enum MeteringError {
     InvalidValue = 1,
     InvalidPeriod = 2,
     MeterNotFound = 3,
+    /// Tiers are unordered, negatively priced, or place the unbounded tier
+    /// somewhere other than last.
+    InvalidTiers = 4,
 }
 
 #[contracttype]
@@ -56,9 +61,9 @@ pub struct SubTrackrMetering;
 
 #[contractimpl]
 impl SubTrackrMetering {
-    /// Registers or reconfigures a meter, setting its pricing, included tier,
-    /// aggregation period, and alert threshold. Existing totals/buckets are
-    /// preserved across reconfiguration.
+    /// Registers or reconfigures a meter with flat per-unit pricing, setting
+    /// its price, included tier, aggregation period, and alert threshold.
+    /// Existing totals/buckets are preserved across reconfiguration.
     pub fn register_meter(
         env: Env,
         reporter: Address,
@@ -69,10 +74,60 @@ impl SubTrackrMetering {
         period_secs: u64,
         alert_threshold: u64,
     ) -> Result<(), MeteringError> {
+        let tiers: Vec<PriceTier> = Vec::new(&env);
+        Self::register_tiered_meter(
+            env,
+            reporter,
+            subscription_id,
+            meter,
+            unit_price,
+            included_units,
+            period_secs,
+            alert_threshold,
+            PricingModel::Flat,
+            tiers,
+        )
+    }
+
+    /// Registers or reconfigures a meter with an explicit pricing model and
+    /// overage ladder.
+    ///
+    /// `included_units` is always the free allowance; the ladder rates only
+    /// what exceeds it. Under [`PricingModel::Graduated`] the ladder bounds are
+    /// cumulative over the *billable* units, so a `[1_000 @ 2, unbounded @ 1]`
+    /// ladder with 500 included units charges the first 1,000 overage units at
+    /// 2 and everything beyond at 1.
+    ///
+    /// Reconfiguration preserves accumulated totals and buckets so a mid-period
+    /// price change re-rates the same recorded usage.
+    #[allow(clippy::too_many_arguments)]
+    pub fn register_tiered_meter(
+        env: Env,
+        reporter: Address,
+        subscription_id: SubscriptionId,
+        meter: Meter,
+        unit_price: i128,
+        included_units: u64,
+        period_secs: u64,
+        alert_threshold: u64,
+        pricing_model: PricingModel,
+        tiers: Vec<PriceTier>,
+    ) -> Result<(), MeteringError> {
         reporter.require_auth();
         if period_secs == 0 {
             return Err(MeteringError::InvalidPeriod);
         }
+        if unit_price < 0 {
+            return Err(MeteringError::InvalidValue);
+        }
+        if !validate_tiers(&tiers) {
+            return Err(MeteringError::InvalidTiers);
+        }
+        // Every model but Flat is meaningless without a ladder.
+        if pricing_model != PricingModel::Flat && tiers.is_empty() {
+            return Err(MeteringError::InvalidTiers);
+        }
+
         let mut state = Self::meter(&env, subscription_id, &meter).unwrap_or(MeterState {
             metric: meter.clone(),
             total: 0,
@@ -82,11 +137,15 @@ impl SubTrackrMetering {
             unit_price,
             alert_threshold,
             alert_fired: false,
+            pricing_model: pricing_model.clone(),
+            tiers: tiers.clone(),
             buckets: Vec::new(&env),
         });
         state.period_secs = period_secs;
         state.included_units = included_units;
         state.unit_price = unit_price;
+        state.pricing_model = pricing_model;
+        state.tiers = tiers;
         // Re-arming the alert lets a raised threshold fire again.
         state.alert_threshold = alert_threshold;
         state.alert_fired = state.total >= alert_threshold && alert_threshold != 0;
@@ -118,6 +177,8 @@ impl SubTrackrMetering {
             unit_price: 0,
             alert_threshold: 0,
             alert_fired: false,
+            pricing_model: PricingModel::Flat,
+            tiers: Vec::new(&env),
             buckets: Vec::new(&env),
         });
 
@@ -125,7 +186,8 @@ impl SubTrackrMetering {
         state.last_timestamp = now;
         Self::add_to_bucket(&mut state, now, value);
 
-        if state.alert_threshold != 0 && !state.alert_fired && state.total >= state.alert_threshold {
+        if state.alert_threshold != 0 && !state.alert_fired && state.total >= state.alert_threshold
+        {
             state.alert_fired = true;
             env.events().publish(
                 (symbol_short!("usage_alt"), subscription_id, meter.clone()),
@@ -141,8 +203,10 @@ impl SubTrackrMetering {
             value,
             timestamp: now,
         };
-        env.events()
-            .publish((symbol_short!("usage"), subscription_id), observation.clone());
+        env.events().publish(
+            (symbol_short!("usage"), subscription_id),
+            observation.clone(),
+        );
         Ok(observation)
     }
 
@@ -166,7 +230,13 @@ impl SubTrackrMetering {
             if let Some(state) = Self::meter(&env, subscription_id, &metric) {
                 let used = Self::usage_in_range(&state, &period);
                 let billable = billable_units(used, state.included_units);
-                let amount = (billable as i128).saturating_mul(state.unit_price);
+                let (amount, tier_lines) = rate_units(
+                    &env,
+                    &state.pricing_model,
+                    billable,
+                    state.unit_price,
+                    &state.tiers,
+                );
                 total = total.saturating_add(amount);
                 lines.push_back(ChargeLine {
                     metric,
@@ -174,6 +244,7 @@ impl SubTrackrMetering {
                     billable_units: billable,
                     unit_price: state.unit_price,
                     amount,
+                    tier_lines,
                 });
             }
             m += 1;
@@ -201,6 +272,35 @@ impl SubTrackrMetering {
         Self::meter(&env, subscription_id, &meter).ok_or(MeteringError::MeterNotFound)
     }
 
+    /// Prices a hypothetical usage volume against a meter's current ladder
+    /// without recording anything — the quote/preview path used by the
+    /// dashboard's "what would N units cost?" estimator.
+    pub fn quote_usage(
+        env: Env,
+        subscription_id: SubscriptionId,
+        meter: Meter,
+        units: u64,
+    ) -> Result<ChargeLine, MeteringError> {
+        let state =
+            Self::meter(&env, subscription_id, &meter).ok_or(MeteringError::MeterNotFound)?;
+        let billable = billable_units(units, state.included_units);
+        let (amount, tier_lines) = rate_units(
+            &env,
+            &state.pricing_model,
+            billable,
+            state.unit_price,
+            &state.tiers,
+        );
+        Ok(ChargeLine {
+            metric: meter,
+            units,
+            billable_units: billable,
+            unit_price: state.unit_price,
+            amount,
+            tier_lines,
+        })
+    }
+
     /// Cumulative units recorded for a meter.
     pub fn get_usage_total(env: Env, subscription_id: SubscriptionId, meter: Meter) -> u64 {
         Self::meter(&env, subscription_id, &meter)
@@ -226,7 +326,10 @@ impl SubTrackrMetering {
                 return;
             }
         }
-        state.buckets.push_back(UsageBucket { start, units: value });
+        state.buckets.push_back(UsageBucket {
+            start,
+            units: value,
+        });
         while state.buckets.len() > MAX_BUCKETS {
             state.buckets.remove(0);
         }
@@ -274,6 +377,8 @@ impl SubTrackrMetering {
             i += 1;
         }
         metrics.push_back(metric.clone());
-        env.storage().persistent().set(&DataKey::Meters(sub), &metrics);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Meters(sub), &metrics);
     }
 }

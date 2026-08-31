@@ -3,6 +3,7 @@
     "name": "SubTrackr",
     "slug": "subtrackr",
     "version": "1.0.0",
+    "scheme": "subtrackr",
     "orientation": "portrait",
     "icon": "./assets/subtrackr-icon.png",
     "userInterfaceStyle": "automatic",
@@ -12,10 +13,12 @@
       "resizeMode": "contain",
       "backgroundColor": "#1a1a1a"
     },
+    "assetBundlePatterns": ["assets/**", "src/assets/**"],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.subtrackr.app",
-      "icon": "./assets/subtrackr-icon.png"
+      "icon": "./assets/subtrackr-icon.png",
+      "associatedDomains": ["applinks:subtrackr.app"]
     },
     "android": {
       "package": "com.subtrackr.app",
@@ -24,16 +27,56 @@
         "backgroundColor": "#1a1a1a"
       },
       "edgeToEdgeEnabled": true,
-      "icon": "./assets/subtrackr-icon.png"
+      "icon": "./assets/subtrackr-icon.png",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "subtrackr.app",
+              "pathPrefix": "/"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ],
+      "jsEngine": "hermes",
+      "hermesFlags": ["-g", "--minify", "--inline-store-on-put", "--allocation-profile"]
     },
     "web": {
       "favicon": "./assets/subtrackr-icon.png",
       "name": "SubTrackr - Subscription Management with Crypto Payments",
-      "description": "Manage your subscriptions with Web3 crypto payments"
+      "description": "Manage your subscriptions with Web3 crypto payments",
+      "meta": {
+        "http-equiv": {
+          "Content-Security-Policy": "default-src 'self'; script-src 'self' 'strict-dynamic'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://api.subtrackr.app; font-src 'self' https://fonts.gstatic.com; object-src 'none'; media-src 'none'; frame-src 'none'; frame-ancestors 'none'; form-action 'self'; base-uri 'self'; upgrade-insecure-requests",
+          "X-Content-Type-Options": "nosniff",
+          "X-Frame-Options": "DENY",
+          "Referrer-Policy": "strict-origin-when-cross-origin",
+          "Permissions-Policy": "geolocation=(), microphone=(), camera=()"
+        }
+      }
     },
     "extra": {
       "eas": {
         "projectId": "your-project-id"
+      },
+      "cdn": {
+        "enabled": true,
+        "provider": "fastly",
+        "originShield": {
+          "enabled": true,
+          "pop": "us-east-1"
+        },
+        "staticTtlSeconds": 31536000,
+        "publicApiTtlSeconds": 300,
+        "staleWhileRevalidateSeconds": 60,
+        "cacheWarmPaths": ["/plans", "/pricing", "/features", "/public/config"],
+        "regions": ["us-east-1", "eu-west-1", "ap-southeast-1"],
+        "surrogateKeyHeader": "Surrogate-Key",
+        "cacheTagHeader": "Cache-Tag"
       }
     },
     "owner": "subtrackr",
@@ -41,6 +84,7 @@
     "keywords": ["subscription", "crypto", "web3", "blockchain", "payments"],
     "primaryColor": "#6366f1",
     "plugins": [
+      ["./plugins/withKotlinVersion", "2.1.20"],
       [
         "expo-notifications",
         {

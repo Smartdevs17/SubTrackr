@@ -1,0 +1,52 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// db/schema/schema.prisma
+
+enum AuditOutcome {
+  ALLOW
+  DENY
+}
+
+model Role {
+  id          String           @id @default(uuid())
+  name        String           @unique // e.g., 'Admin', 'Billing', 'Support', 'Viewer', or Custom names
+  isCustom    Boolean          @default(true)
+  permissions RolePermission[]
+  userRoles   UserRole[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model RolePermission {
+  id         String   @id @default(uuid())
+  roleId     String
+  permission String   // Format: "resource:action" (e.g., "subscription:create")
+  role       Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permission])
+}
+
+model UserRole {
+  id        String   @id @default(uuid())
+  userId    String
+  roleId    String
+  role      Role     @relation(fields: [roleId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([userId, roleId])
+}
+
+model PermissionAuditLog {
+  id        String       @id @default(uuid())
+  action    String       // e.g., "subscription:cancel"
+  actorId   String       // User ID pushing the request
+  resource  String       // Target Resource ID or 'generic'
+  outcome   AuditOutcome
+  timestamp DateTime     @default(now())
+}

@@ -1,4 +1,4 @@
-import { BillingCycle, Subscription } from './subscription';
+import { BillingCycle, Subscription, SubscriptionCategory } from './subscription';
 
 export enum InvoiceStatus {
   DRAFT = 'draft',
@@ -29,6 +29,9 @@ export enum DigitalGoodsCategory {
   MARKETPLACE = 'marketplace',
   OTHER = 'other',
 }
+
+// Backward-compatible alias used by stores/UI.
+export type DigitalGoodsClass = DigitalGoodsCategory;
 
 export enum CertificateStatus {
   PENDING = 'pending',
@@ -157,6 +160,7 @@ export interface TaxRemittanceLineItem {
   taxableAmount: number;
   rateBps: number;
   taxCollected: number;
+  transactionCount?: number;
   currency: string;
   digitalGoodsCategory?: DigitalGoodsCategory;
   invoiceDate: Date;
@@ -225,6 +229,7 @@ export interface TaxInvoiceGenerationInput {
   isExempt: boolean;
   digitalGoodsCategory: DigitalGoodsCategory;
   effectiveTaxRateBps: number;
+  reverseCharge?: boolean;
 }
 
 export interface InvoiceLineItem {
@@ -240,6 +245,46 @@ export interface InvoiceLineItem {
 export interface InvoicePeriod {
   start: Date;
   end: Date;
+}
+
+export interface InvoiceBranding {
+  logoUrl?: string;
+  primaryColor?: string;
+  fontFamily?: string;
+  /** Used for secondary surfaces (table headers, rules) in rendered invoices. */
+  secondaryColor?: string;
+  accentColor?: string;
+  /** Body text colour; falls back to a neutral when unset. */
+  textColor?: string;
+  /** Displayed under the totals block — payment terms, legal footer, etc. */
+  footerText?: string;
+  supportEmail?: string;
+  websiteUrl?: string;
+  /** Rendered logo width in points. Clamped when the invoice is rendered. */
+  logoWidth?: number;
+}
+
+export interface InvoiceTemplate {
+  id: string;
+  name: string;
+  layout: 'standard' | 'modern' | 'minimalist';
+}
+
+/**
+ * A tenant's invoice presentation. Tenants are merchants on the platform, so
+ * one deployment renders invoices under many brands; anything left unset here
+ * falls back to the platform defaults in `InvoiceConfig`.
+ */
+export interface TenantBrandingProfile {
+  tenantId: string;
+  /** Legal entity name printed as the issuer. Defaults to the merchant name. */
+  displayName?: string;
+  branding: InvoiceBranding;
+  /** Overrides `InvoiceConfig.defaultTemplateId` for this tenant. */
+  templateId?: string;
+  /** Overrides the platform invoice number prefix, e.g. `ACME`. */
+  numberingPrefix?: string;
+  updatedAt?: Date;
 }
 
 export interface Invoice {
@@ -266,6 +311,10 @@ export interface Invoice {
   digitalGoodsCategory?: DigitalGoodsCategory;
   isTaxExempt?: boolean;
   taxExemptionId?: string;
+  reverseCharge?: boolean;
+  branding?: InvoiceBranding;
+  templateId?: string;
+  tenantId?: string;
 }
 
 export interface InvoiceConfig {
@@ -277,6 +326,18 @@ export interface InvoiceConfig {
   exchangeRateScale: number;
   paymentTermsDays: number;
   defaultTaxType: TaxType;
+  defaultBranding?: InvoiceBranding;
+  defaultTemplateId?: string;
+}
+
+/** Branding actually applied to an invoice, with the source of each decision. */
+export interface ResolvedInvoiceBranding {
+  branding: InvoiceBranding;
+  templateId: string;
+  displayName?: string;
+  numberingPrefix: string;
+  /** Which layer supplied the branding — useful for the branding preview UI. */
+  source: 'tenant' | 'platform' | 'fallback';
 }
 
 export interface InvoiceTotals {
@@ -293,6 +354,8 @@ export interface InvoiceFormData {
   recipientEmail?: string;
   notes?: string;
   taxJurisdiction?: TaxJurisdiction;
+  /** Merchant whose branding profile should be applied to this invoice. */
+  tenantId?: string;
 }
 
 export interface InvoiceStateSnapshot {
@@ -348,21 +411,21 @@ export const isTaxExempt = (status: CustomerTaxStatus | null): boolean => {
 };
 
 export const mapSubscriptionCategoryToDigitalGoods = (
-  category: import('./subscription').SubscriptionCategory
+  category: SubscriptionCategory
 ): DigitalGoodsCategory => {
   switch (category) {
-    case import('./subscription').SubscriptionCategory.STREAMING:
+    case SubscriptionCategory.STREAMING:
       return DigitalGoodsCategory.STREAMING;
-    case import('./subscription').SubscriptionCategory.SOFTWARE:
-    case import('./subscription').SubscriptionCategory.PRODUCTIVITY:
+    case SubscriptionCategory.SOFTWARE:
+    case SubscriptionCategory.PRODUCTIVITY:
       return DigitalGoodsCategory.SAAS;
-    case import('./subscription').SubscriptionCategory.GAMING:
+    case SubscriptionCategory.GAMING:
       return DigitalGoodsCategory.IN_APP_PURCHASE;
-    case import('./subscription').SubscriptionCategory.FINANCE:
+    case SubscriptionCategory.FINANCE:
       return DigitalGoodsCategory.ONLINE_SERVICE;
-    case import('./subscription').SubscriptionCategory.EDUCATION:
-    case import('./subscription').SubscriptionCategory.FITNESS:
-    case import('./subscription').SubscriptionCategory.OTHER:
+    case SubscriptionCategory.EDUCATION:
+    case SubscriptionCategory.FITNESS:
+    case SubscriptionCategory.OTHER:
     default:
       return DigitalGoodsCategory.OTHER;
   }

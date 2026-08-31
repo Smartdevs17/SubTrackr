@@ -2,6 +2,14 @@ import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 
 import type { Subscription } from '../types/subscription';
+import {
+  NOTIFICATION_TYPE_META,
+  type DeliveryResult,
+  type NotificationChannel,
+  type NotificationRecord,
+  type NotificationType,
+} from '../types/notification';
+import { useNotificationPreferencesStore } from '../store/notificationPreferencesStore';
 import { navigationRef } from '../navigation/navigationRef';
 
 export const NOTIFICATION_DATA_TYPE = {
@@ -295,9 +303,7 @@ export async function presentDunningWarningNotification(
   });
 }
 
-export async function presentDunningSuspendedNotification(
-  sub: Subscription
-): Promise<void> {
+export async function presentDunningSuspendedNotification(sub: Subscription): Promise<void> {
   if (!isNotificationsSupported()) return;
   const status = await getPermissionStatus();
   if (status !== Notifications.PermissionStatus.GRANTED) return;
@@ -317,9 +323,7 @@ export async function presentDunningSuspendedNotification(
   });
 }
 
-export async function presentDunningCancelledNotification(
-  sub: Subscription
-): Promise<void> {
+export async function presentDunningCancelledNotification(sub: Subscription): Promise<void> {
   if (!isNotificationsSupported()) return;
   const status = await getPermissionStatus();
   if (status !== Notifications.PermissionStatus.GRANTED) return;
@@ -339,9 +343,7 @@ export async function presentDunningCancelledNotification(
   });
 }
 
-export async function presentDunningRecoveryNotification(
-  sub: Subscription
-): Promise<void> {
+export async function presentDunningRecoveryNotification(sub: Subscription): Promise<void> {
   if (!isNotificationsSupported()) return;
   const status = await getPermissionStatus();
   if (status !== Notifications.PermissionStatus.GRANTED) return;
@@ -358,6 +360,214 @@ export async function presentDunningRecoveryNotification(
     },
     trigger: null,
   });
+}
+
+// ── Multi-channel delivery ─────────────────────────────────────────────
+//
+// Push is delivered on-device through Expo; email, SMS and in-app are handed
+// to transports the host app registers, so this module stays free of any
+// specific provider.
+
+/** Sends one rendered message on one channel. Resolves false on refusal. */
+export type ChannelTransport = (input: {
+  channel: NotificationChannel;
+  subject: string;
+  body: string;
+  data?: Record<string, string>;
+}) => Promise<boolean>;
+
+const transports = new Map<NotificationChannel, ChannelTransport>();
+
+export function registerChannelTransport(
+  channel: NotificationChannel,
+  transport: ChannelTransport
+): void {
+  transports.set(channel, transport);
+}
+
+export function clearChannelTransports(): void {
+  transports.clear();
+}
+
+const pushTransport: ChannelTransport = async ({ subject, body, data }) => {
+  if (!isNotificationsSupported()) return false;
+  const status = await getPermissionStatus();
+  if (status !== Notifications.PermissionStatus.GRANTED) return false;
+
+  await Notifications.scheduleNotificationAsync({
+    content: { title: subject, body, data: data ?? {}, sound: 'default' },
+    trigger: null,
+  });
+  return true;
+};
+
+function transportFor(channel: NotificationChannel): ChannelTransport | undefined {
+  if (channel === 'push') return transports.get('push') ?? pushTransport;
+  return transports.get(channel);
+}
+
+/** True when `date` falls inside the subscriber's quiet window. */
+function isInQuietHours(
+  date: Date,
+  quietHours: { enabled: boolean; startHour: number; endHour: number }
+): boolean {
+  if (!quietHours.enabled) return false;
+  const hour = date.getUTCHours();
+  return quietHours.startHour < quietHours.endHour
+    ? hour >= quietHours.startHour && hour < quietHours.endHour
+    : hour >= quietHours.startHour || hour < quietHours.endHour;
+}
+
+/** The next moment outside the quiet window, or `date` if already outside. */
+function nextDeliveryTime(
+  date: Date,
+  quietHours: { enabled: boolean; startHour: number; endHour: number }
+): Date {
+  if (!isInQuietHours(date, quietHours)) return date;
+  const result = new Date(date);
+  result.setUTCHours(quietHours.endHour, 0, 0, 0);
+  if (result <= date) {
+    result.setUTCDate(result.getUTCDate() + 1);
+  }
+  return result;
+}
+
+export interface DeliverNotificationInput {
+  type: NotificationType;
+  userId?: string;
+  /** Values substituted into the type's template. */
+  variables?: Record<string, string>;
+  /** Used when no template is registered for a channel. */
+  subject?: string;
+  body?: string;
+  data?: Record<string, string>;
+  /** Stop after the first channel that accepts, rather than fanning out. */
+  firstSuccessOnly?: boolean;
+  /** Overrides "now" for scheduling decisions. */
+  at?: Date;
+}
+
+/**
+ * Deliver one notification across the channels the subscriber has enabled for
+ * its type, recording every attempt in history.
+ *
+ * A notification with no enabled channel is recorded as suppressed rather than
+ * dropped, so analytics can tell "not sent" from "sent and ignored".
+ * Non-critical notifications inside quiet hours are recorded as scheduled for
+ * the end of the window; critical ones go out immediately.
+ */
+export async function deliverNotification(
+  input: DeliverNotificationInput
+): Promise<DeliveryResult> {
+  const store = useNotificationPreferencesStore.getState();
+  const meta = NOTIFICATION_TYPE_META[input.type];
+  const userId = input.userId ?? 'me';
+  const now = input.at ?? new Date();
+  const channels = store.channelsFor(input.type);
+
+  const result: DeliveryResult = {
+    userId,
+    type: input.type,
+    delivered: [],
+    failed: [],
+    suppressed: [],
+    records: [],
+    scheduled: false,
+  };
+
+  const record = (patch: Omit<NotificationRecord, 'id' | 'userId' | 'type'>): NotificationRecord =>
+    store.recordNotification({ ...patch, userId, type: input.type });
+
+  if (channels.length === 0) {
+    const suppressed = record({
+      channel: meta.defaultChannels[0],
+      title: input.subject ?? meta.label,
+      body: input.body ?? '',
+      status: 'suppressed',
+      createdAt: now.toISOString(),
+      reason: store.preferences.types[input.type]?.muted
+        ? 'Muted by the subscriber'
+        : 'No channel enabled for this notification type',
+      data: input.data,
+    });
+    result.suppressed.push(suppressed.channel);
+    result.records.push(suppressed);
+    return result;
+  }
+
+  const deferUntil =
+    meta.priority === 'critical' ? now : nextDeliveryTime(now, store.preferences.quietHours);
+  const deferred = deferUntil.getTime() !== now.getTime();
+
+  for (const channel of channels) {
+    const rendered = store.renderFor(input.type, channel, input.variables, {
+      subject: input.subject,
+      body: input.body,
+    });
+
+    if (deferred) {
+      result.records.push(
+        record({
+          channel,
+          title: rendered.subject,
+          body: rendered.body,
+          status: 'scheduled',
+          createdAt: now.toISOString(),
+          scheduledFor: deferUntil.toISOString(),
+          reason: 'Deferred past quiet hours',
+          data: input.data,
+        })
+      );
+      continue;
+    }
+
+    const transport = transportFor(channel);
+    let accepted = false;
+    let reason: string | undefined;
+
+    if (!transport) {
+      reason = `No transport registered for ${channel}`;
+    } else {
+      try {
+        accepted = await transport({
+          channel,
+          subject: rendered.subject,
+          body: rendered.body,
+          data: input.data,
+        });
+        if (!accepted) reason = `${channel} transport refused the notification`;
+      } catch (error) {
+        reason = error instanceof Error ? error.message : String(error);
+      }
+    }
+
+    result.records.push(
+      record({
+        channel,
+        title: rendered.subject,
+        body: rendered.body,
+        status: accepted ? 'delivered' : 'failed',
+        createdAt: now.toISOString(),
+        sentAt: now.toISOString(),
+        reason,
+        data: input.data,
+      })
+    );
+
+    if (accepted) {
+      result.delivered.push(channel);
+      if (input.firstSuccessOnly) break;
+    } else {
+      result.failed.push(channel);
+    }
+  }
+
+  if (deferred) {
+    result.scheduled = true;
+    result.scheduledFor = deferUntil.toISOString();
+  }
+
+  return result;
 }
 
 export function navigateToSubscriptionFromNotification(subscriptionId: string): void {
@@ -381,4 +591,148 @@ export function attachNotificationResponseListeners(): () => void {
   });
 
   return () => sub.remove();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Issue #920 — Frontend notification preference management helpers
+// ═══════════════════════════════════════════════════════════════════════════
+
+import { useNotificationPreferencesStore } from '../store/notificationPreferencesStore';
+import type { NotificationType, NotificationChannel } from '../types/notification';
+
+/**
+ * Notification preference summary for display in the settings UI.
+ */
+export interface NotificationPreferenceSummary {
+  totalEnabled: number;
+  totalDisabled: number;
+  channelSummary: Record<NotificationChannel, { enabled: number; disabled: number }>;
+  hasQuietHours: boolean;
+  frequency: string;
+}
+
+/**
+ * Build a UI-friendly summary of the current notification preferences.
+ *
+ * Reads directly from the Zustand preferences store so it can be called
+ * from any component without prop-drilling.
+ */
+export function getNotificationPreferenceSummary(): NotificationPreferenceSummary {
+  const store = useNotificationPreferencesStore.getState();
+  const prefs = store.preferences;
+
+  if (!prefs) {
+    return {
+      totalEnabled: 0,
+      totalDisabled: 0,
+      channelSummary: {
+        push: { enabled: 0, disabled: 0 },
+        email: { enabled: 0, disabled: 0 },
+        sms: { enabled: 0, disabled: 0 },
+        inApp: { enabled: 0, disabled: 0 },
+      },
+      hasQuietHours: false,
+      frequency: 'immediate',
+    };
+  }
+
+  const channelSummary: Record<NotificationChannel, { enabled: number; disabled: number }> = {
+    push: { enabled: 0, disabled: 0 },
+    email: { enabled: 0, disabled: 0 },
+    sms: { enabled: 0, disabled: 0 },
+    inApp: { enabled: 0, disabled: 0 },
+  };
+
+  let totalEnabled = 0;
+  let totalDisabled = 0;
+
+  if (prefs.typePreferences) {
+    for (const typePref of Object.values(prefs.typePreferences)) {
+      if (typeof typePref === 'object' && typePref !== null && 'channels' in typePref) {
+        const channels = (typePref as { channels: Record<string, boolean> }).channels;
+        for (const [ch, enabled] of Object.entries(channels)) {
+          const channel = ch as NotificationChannel;
+          if (channel in channelSummary) {
+            if (enabled) {
+              channelSummary[channel].enabled += 1;
+              totalEnabled += 1;
+            } else {
+              channelSummary[channel].disabled += 1;
+              totalDisabled += 1;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return {
+    totalEnabled,
+    totalDisabled,
+    channelSummary,
+    hasQuietHours: prefs.quietHoursEnabled ?? false,
+    frequency: prefs.frequency ?? 'immediate',
+  };
+}
+
+/**
+ * Bulk-enable or bulk-disable all notification types for a specific channel.
+ * Useful for a "Pause all email notifications" toggle.
+ */
+export async function setAllChannelNotifications(
+  channel: NotificationChannel,
+  enabled: boolean,
+  notificationTypes: NotificationType[]
+): Promise<void> {
+  const store = useNotificationPreferencesStore.getState();
+  for (const type of notificationTypes) {
+    await store.setTypeChannelEnabled?.(type, channel, enabled);
+  }
+}
+
+/**
+ * Returns true if the device should display a notification based on the
+ * local preferences store (without hitting the backend).
+ *
+ * Used as a client-side gate before scheduling a push notification.
+ */
+export function shouldShowNotification(
+  type: NotificationType,
+  channel: NotificationChannel
+): boolean {
+  const store = useNotificationPreferencesStore.getState();
+  const prefs = store.preferences;
+  if (!prefs) return true; // default to showing if prefs haven't loaded yet
+
+  // Check channel-level toggle.
+  const channelEnabled = prefs.channels?.[channel as keyof typeof prefs.channels] ?? true;
+  if (!channelEnabled) return false;
+
+  // Check type-level toggle.
+  if (prefs.typePreferences) {
+    const typePref = (prefs.typePreferences as Record<string, unknown>)[type];
+    if (typeof typePref === 'object' && typePref !== null && 'channels' in typePref) {
+      const channels = (typePref as { channels: Record<string, boolean> }).channels;
+      if (channel in channels && !channels[channel]) return false;
+    }
+  }
+
+  // Check quiet hours.
+  if (prefs.quietHoursEnabled) {
+    const now = new Date();
+    const [startH, startM] = (prefs.quietHoursStart ?? '22:00').split(':').map(Number);
+    const [endH, endM] = (prefs.quietHoursEnd ?? '08:00').split(':').map(Number);
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    const startMinutes = startH * 60 + startM;
+    const endMinutes = endH * 60 + endM;
+
+    const inQuiet =
+      startMinutes < endMinutes
+        ? nowMinutes >= startMinutes && nowMinutes < endMinutes
+        : nowMinutes >= startMinutes || nowMinutes < endMinutes; // overnight window
+
+    if (inQuiet) return false;
+  }
+
+  return true;
 }

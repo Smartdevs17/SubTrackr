@@ -1,5 +1,3 @@
-#![cfg(test)]
-
 use super::*;
 use soroban_sdk::{testutils::Address as _, testutils::Ledger as _, Address, Env, String};
 
@@ -128,4 +126,34 @@ fn expiration_policy_drives_default_expiry() {
     assert_eq!(client.get_credit_balance(&sub), 200);
     set_time(&env, 1_200); // > 1_000 + 100
     assert_eq!(client.get_credit_balance(&sub), 0);
+}
+
+#[test]
+fn returns_consolidated_account_balance_summary() {
+    let (env, client, _admin) = setup();
+    let sub = Address::generate(&env);
+    let reason = String::from_str(&env, "promo");
+    let currency = String::from_str(&env, "USD");
+
+    set_time(&env, 1_000);
+    client.issue_credit(&sub, &250, &reason, &Some(2_000));
+
+    // Create a prepayment wallet and deposit funds.
+    let wallet_id = client.create_wallet(&sub, &1, &currency);
+    let deposit = client.deposit(&sub, &wallet_id, &75);
+    assert_eq!(deposit.balance, 75);
+
+    let summary = client.get_account_balance_summary(&sub);
+    assert_eq!(summary.credit_balance, 250);
+    assert_eq!(summary.wallet_balance, 75);
+    assert_eq!(summary.net_balance, 325);
+    assert_eq!(summary.next_expiration_at, Some(2_000));
+
+    // Expiry removes credit from the summary but keeps wallet balance.
+    set_time(&env, 2_500);
+    client.expire_credits(&sub);
+    let after = client.get_account_balance_summary(&sub);
+    assert_eq!(after.credit_balance, 0);
+    assert_eq!(after.wallet_balance, 75);
+    assert_eq!(after.net_balance, 75);
 }

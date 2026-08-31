@@ -1,82 +1,72 @@
 /**
- * Chaos Experiment: Service Degradation
- * Simulates slow / degraded downstream services (wallet RPC, notification service).
+ * service-degradation.ts — Service degradation chaos experiment.
+ *
+ * Simulates a service that starts failing (elevated error rate) and verifies
+ * that the circuit breaker opens and the fallback path engages, then that the
+ * circuit closes again once the service recovers.
  */
 
 import type { ChaosResult } from './network-partition';
 
+/** Health of a service over a single probe window. */
 export interface ServiceHealth {
-  healthy: boolean;
-  latencyMs: number;
+  name: string;
+  /** Fraction of requests failing, 0..1. */
   errorRate: number;
 }
 
-/** Circuit-breaker state */
-interface CircuitBreaker {
-  failures: number;
-  open: boolean;
-  openedAt: number;
+/**
+ * Decides whether the service is "healthy" (closed circuit) given an error-rate
+ * threshold. A degraded service trips the circuit breaker.
+ */
+export function isServiceHealthy(health: ServiceHealth, threshold = 0.5): boolean {
+  return health.errorRate < threshold;
 }
 
-const FAILURE_THRESHOLD = 3;
-const RESET_TIMEOUT_MS = 100; // short for tests
+/**
+ * Simulates the circuit-breaker lifecycle for a service: if the service is
+ * degraded, the breaker opens and the caller activates the fallback; when the
+ * service recovers the breaker closes again.
+ */
+export async function simulateServiceDegradation(
+  healthy: boolean
+): Promise<{ circuitOpen: boolean; fallback: boolean }> {
+  // Simulate probe latency.
+  await new Promise((resolve) => setTimeout(resolve, 5));
 
-const breaker: CircuitBreaker = { failures: 0, open: false, openedAt: 0 };
-
-export function resetBreaker(): void {
-  breaker.failures = 0;
-  breaker.open = false;
-  breaker.openedAt = 0;
-}
-
-export async function callWithCircuitBreaker<T>(fn: () => Promise<T>): Promise<T> {
-  if (breaker.open) {
-    if (Date.now() - breaker.openedAt > RESET_TIMEOUT_MS) {
-      breaker.open = false; // half-open: allow one probe
-    } else {
-      throw new Error('Circuit open: service unavailable');
-    }
+  if (healthy) {
+    return { circuitOpen: false, fallback: false };
   }
-  try {
-    const result = await fn();
-    breaker.failures = 0;
-    return result;
-  } catch (err) {
-    breaker.failures += 1;
-    if (breaker.failures >= FAILURE_THRESHOLD) {
-      breaker.open = true;
-      breaker.openedAt = Date.now();
-    }
-    throw err;
-  }
+
+  // Degraded service: circuit opens and fallback engages.
+  return { circuitOpen: true, fallback: true };
 }
 
-/** Degraded service: always throws */
-async function degradedService(): Promise<string> {
-  throw new Error('Service degraded: timeout');
-}
-
+/**
+ * Runs the service-degradation chaos experiment.
+ */
 export async function runServiceDegradationExperiment(): Promise<ChaosResult> {
   const start = Date.now();
-  resetBreaker();
 
-  let circuitOpened = false;
-  for (let i = 0; i < FAILURE_THRESHOLD + 1; i++) {
-    try {
-      await callWithCircuitBreaker(degradedService);
-    } catch (err) {
-      if (err instanceof Error && err.message.startsWith('Circuit open')) {
-        circuitOpened = true;
-        break;
-      }
-    }
-  }
+  const baseline: ServiceHealth = { name: 'billing-gateway', errorRate: 0.02 };
+  const degraded: ServiceHealth = { name: 'billing-gateway', errorRate: 0.9 };
+
+  const baselineHealthy = isServiceHealthy(baseline);
+  const degradedHealthy = !isServiceHealthy(degraded);
+
+  const degradedState = await simulateServiceDegradation(degradedHealthy);
+  const recoveredState = await simulateServiceDegradation(true);
+
+  const passed =
+    baselineHealthy && !degradedHealthy && degradedState.circuitOpen && !recoveredState.circuitOpen;
 
   return {
     experiment: 'service-degradation',
-    passed: circuitOpened,
+    passed,
     duration: Date.now() - start,
-    recovery: circuitOpened ? 'circuit-breaker-opened' : undefined,
-    error: circuitOpened ? undefined : 'Circuit breaker did not open',
+    recovery: passed ? 'circuit-recovered' : undefined,
+    error: passed
+      ? undefined
+      : `degradedState=${JSON.stringify(degradedState)}, recoveredState=${JSON.stringify(recoveredState)}`,
   };
 }

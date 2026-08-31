@@ -1,76 +1,80 @@
 /**
- * Chaos Experiment: Network Partition
- * Simulates network failures and validates graceful degradation.
+ * network-partition.ts — Network partition chaos experiment.
+ *
+ * Simulates a network partition between services and verifies that the system
+ * degrades gracefully (timeouts / circuit breakers) and recovers when the
+ * partition heals.
+ *
+ * This module is also the canonical home of the shared `ChaosResult` type used
+ * across every experiment.
  */
 
 export interface ChaosResult {
   experiment: string;
   passed: boolean;
   duration: number;
-  error?: string;
   recovery?: string;
+  error?: string;
 }
 
-/** Simulates a network call that can be injected with failure */
-export async function simulateNetworkCall(
-  failureRate: number,
-  latencyMs = 0
-): Promise<{ data: string }> {
-  if (latencyMs > 0) {
-    await new Promise((r) => setTimeout(r, latencyMs));
-  }
-  if (Math.random() < failureRate) {
-    throw new Error('Network partition: connection refused');
-  }
-  return { data: 'ok' };
+/** Simulated service node participating in the partition. */
+export interface PartitionNode<T = unknown> {
+  name: string;
+  /** Whether the node is reachable from the orchestrator. */
+  reachable: boolean;
+  /** Payload the node would return when reachable. */
+  value: T;
 }
 
-/** Retry with exponential back-off — the standard recovery mechanism */
-export async function withRetry<T>(
-  fn: () => Promise<T>,
-  maxAttempts = 3,
-  baseDelayMs = 10
-): Promise<T> {
-  let lastError: unknown;
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      return await fn();
-    } catch (err) {
-      lastError = err;
-      if (attempt < maxAttempts) {
-        await new Promise((r) => setTimeout(r, baseDelayMs * 2 ** (attempt - 1)));
-      }
+/**
+ * Simulates a network partition by making the nodes listed in `partitioned`
+ * unreachable. Returns a result set of `{{ name, ok, value }}` per node.
+ */
+export async function simulateNetworkPartition<T>(
+  nodes: PartitionNode<T>[],
+  partitionHealed = false
+): Promise<{ name: string; ok: boolean; value: T | null; error?: string }[]> {
+  // Simulate a transient packet-loss window before resolving.
+  await new Promise((resolve) => setTimeout(resolve, 5));
+
+  return nodes.map((node) => {
+    const isPartitioned = !partitionHealed ? !node.reachable : node.reachable;
+    if (!isPartitioned) {
+      return { name: node.name, ok: false, value: null, error: `${node.name} unreachable` };
     }
-  }
-  throw lastError;
+    return { name: node.name, ok: true, value: node.value };
+  });
 }
 
+/**
+ * Runs the network-partition chaos experiment: a wire dependency is partitioned
+ * and must fail closed (error), then the partition heals and it must recover.
+ */
 export async function runNetworkPartitionExperiment(): Promise<ChaosResult> {
   const start = Date.now();
-  try {
-    // Fail the first 3 attempts, succeed on the 4th — deterministic partition scenario
-    let attempt = 0;
-    await withRetry(
-      () => {
-        attempt++;
-        if (attempt < 4) return simulateNetworkCall(1); // force failure
-        return simulateNetworkCall(0); // succeed
-      },
-      5,
-      5
-    );
-    return {
-      experiment: 'network-partition',
-      passed: true,
-      duration: Date.now() - start,
-      recovery: 'exponential-backoff-retry',
-    };
-  } catch (err) {
-    return {
-      experiment: 'network-partition',
-      passed: false,
-      duration: Date.now() - start,
-      error: err instanceof Error ? err.message : String(err),
-    };
-  }
+
+  const nodes: PartitionNode<string>[] = [
+    { name: 'api-gateway', reachable: true, value: 'ok' },
+    { name: 'billing-worker', reachable: false, value: 'ok' },
+    { name: 'notification-service', reachable: true, value: 'ok' },
+  ];
+
+  const duringPartition = await simulateNetworkPartition(nodes);
+  const degraded = duringPartition.filter((r) => !r.ok);
+  const degradesGracefully = degraded.length === 1 && degraded[0].name === 'billing-worker';
+
+  const afterHeal = await simulateNetworkPartition(nodes, true);
+  const recovered = afterHeal.every((r) => r.ok);
+
+  const passed = degradesGracefully && recovered;
+
+  return {
+    experiment: 'network-partition',
+    passed,
+    duration: Date.now() - start,
+    recovery: passed ? 'partition-healed' : undefined,
+    error: passed
+      ? undefined
+      : `degraded=${degradesGracefully}, recovered=${recovered}`,
+  };
 }

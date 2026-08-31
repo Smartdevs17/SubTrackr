@@ -12,7 +12,9 @@ import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { RootStackParamList } from '../navigation/types';
-import { useCancellationStore, CANCELLATION_REASONS } from '../store/cancellationStore';
+import { useCancellationStore } from '../store/cancellationStore';
+import { CANCELLATION_REASONS } from '../store/cancellationStore';
+
 import { RetentionOffer } from '../../backend/services/retentionService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CancellationFlow'>;
@@ -81,7 +83,9 @@ const CancellationFlowScreen: React.FC<Props> = ({ route, navigation }) => {
         <Text style={styles.offerIcon}>{OFFER_TYPE_ICONS[offer.type] ?? '🎁'}</Text>
         <View style={styles.offerHeaderText}>
           <Text style={styles.offerTitle}>{offer.title}</Text>
-          <Text style={styles.offerBadge}>{offer.abVariant === 'A' ? 'Popular' : 'Best Value'}</Text>
+          <Text style={styles.offerBadge}>
+            {offer.abVariant === 'A' ? 'Popular' : 'Best Value'}
+          </Text>
         </View>
       </View>
       <Text style={styles.offerDescription}>{offer.description}</Text>

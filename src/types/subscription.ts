@@ -8,6 +8,11 @@ export interface Subscription {
   billingCycle: BillingCycle;
   nextBillingDate: Date;
   isActive: boolean;
+  isPaused?: boolean;
+  pausedAt?: Date;
+  pauseDurationDays?: number;
+  pausedUntil?: Date;
+  billingAdjustmentAmount?: number;
   /** When false, skip renewal reminders and charge alerts for this subscription */
   notificationsEnabled?: boolean;
   isCryptoEnabled: boolean;
@@ -18,13 +23,6 @@ export interface Subscription {
   totalGasSpent?: number;
   chargeCount?: number;
   lastGasCost?: number;
-  /** Oracle-sourced fiat equivalent price for display purposes */
-  fiatPrice?: number;
-  fiatCurrency?: string;
-  fiatPriceUpdatedAt?: Date;
-  oraclePriceDeviationBps?: number;
-  groupId?: string;
-  groupMemberAddress?: string;
   timezone?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -88,6 +86,4 @@ export interface SubscriptionStats {
   totalYearlySpend: number;
   categoryBreakdown: Record<SubscriptionCategory, number>;
   totalGasSpent?: number;
-  totalFiatMonthlySpend?: number;
-  fiatCurrency?: string;
 }
