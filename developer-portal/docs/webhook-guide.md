@@ -6,6 +6,53 @@ Webhooks allow your application to receive real-time HTTP notifications when eve
 
 ---
 
+## Advanced Attribute & Event Filtering
+
+SubTrackr provides granular filtering so your webhooks only receive relevant events. You can filter by event patterns, exclusion rules, and payload attribute conditions.
+
+### Filter Configuration Example
+
+```json
+{
+  "url": "https://your-app.com/webhooks/subtrackr",
+  "events": ["subscription.*", "payment.succeeded"],
+  "filterConfig": {
+    "enabled": true,
+    "eventPatterns": ["subscription.*", "payment.succeeded"],
+    "excludePatterns": ["subscription.cancelled"],
+    "ruleCombination": "AND",
+    "attributeRules": [
+      {
+        "field": "data.plan.price",
+        "operator": "gte",
+        "value": 100
+      },
+      {
+        "field": "data.plan.currency",
+        "operator": "eq",
+        "value": "USDC"
+      }
+    ],
+    "fieldProjections": ["id", "type", "occurredAt", "data"]
+  }
+}
+```
+
+### Supported Filter Operators
+
+| Operator | Meaning | Example |
+|----------|---------|---------|
+|  | Equals |  |
+|  | Not Equals |  |
+|  /  | Greater than / or equal |  |
+|  /  | Less than / or equal |  |
+|  /  | In array / Not in array |  |
+|  | String substring or array item |  |
+|  | Regular expression pattern |  |
+|  | Field is present / non-null |  |
+
+---
+
 ## Quick Start
 
 ### 1. Register a Webhook Endpoint
