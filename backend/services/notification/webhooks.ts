@@ -1,8 +1,8 @@
 /**
- * Unified Webhook System — Issue #727
+ * Unified Webhook System — Issue #926
  *
  * This barrel file is the single entry point for the SubTrackr subscription
- * webhook system as specified in the Technical Scope of issue #727.
+ * webhook system as specified in the Technical Scope of issue #926.
  *
  * It re-exports:
  *  - WebhookDeliveryService       — core delivery, retry, rate limiting, DLQ
