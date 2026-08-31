@@ -160,6 +160,19 @@ pub struct PrepaymentSnapshot {
     pub transaction_id: u64,
 }
 
+/// Consolidated balance summary for a subscriber combining on-book credit and
+/// prepayment-wallet funds. Returned by [`SubTrackrCredit::get_account_balance_summary`].
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct AccountBalanceSummary {
+    pub subscriber: Address,
+    pub credit_balance: i128,
+    pub wallet_balance: i128,
+    pub net_balance: i128,
+    pub expiration_policy: ExpirationPolicy,
+    pub next_expiration_at: Option<u64>,
+}
+
 #[contracttype]
 #[derive(Clone)]
 enum DataKey {
@@ -475,6 +488,55 @@ impl SubTrackrCredit {
             .get::<_, PrepaymentWallet>(&DataKey::Wallet(wallet_id))
             .map(|w| w.balance)
             .unwrap_or(0)
+    }
+
+    /// Returns a consolidated account-balance summary for a subscriber,
+    /// combining on-book credit with prepayment-wallet funds. Read-only view.
+    pub fn get_account_balance_summary(env: Env, subscriber: Address) -> AccountBalanceSummary {
+        let now = env.ledger().timestamp();
+        let account = Self::account(&env, &subscriber);
+        let credit_balance = Self::available(now, &account);
+
+        // Sum prepayment wallets owned by the subscriber.
+        let mut wallet_balance: i128 = 0;
+        let mut i: u64 = 0;
+        while i < 1024 {
+            let key = DataKey::Wallet(i);
+            if !env.storage().persistent().has(&key) {
+                break;
+            }
+            if let Some(wallet): Option<PrepaymentWallet> = env.storage().persistent().get(&key) {
+                if wallet.subscriber == subscriber {
+                    wallet_balance += wallet.balance;
+                }
+            }
+            i += 1;
+        }
+
+        // First non-expired lot expiry (earliest future expiry).
+        let mut next_expiration_at: Option<u64> = None;
+        let mut j: u32 = 0;
+        while j < account.lots.len() {
+            let lot = account.lots.get(j).unwrap();
+            if lot.remaining > 0 && !Self::is_expired(now, &lot) {
+                if let Some(exp) = lot.expires_at {
+                    next_expiration_at = Some(match next_expiration_at {
+                        Some(cur) if cur < exp => cur,
+                        _ => exp,
+                    });
+                }
+            }
+            j += 1;
+        }
+
+        AccountBalanceSummary {
+            subscriber: subscriber.clone(),
+            credit_balance,
+            wallet_balance,
+            net_balance: credit_balance + wallet_balance,
+            expiration_policy: account.expiration_policy,
+            next_expiration_at,
+        }
     }
 
     /// Batch expiry processor for cron keepers. Iterates all stored wallets,

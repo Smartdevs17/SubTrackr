@@ -14,9 +14,10 @@ import {
   ADDRESS_CONSTANTS,
   STELLAR_CHAINS,
 } from '../utils/constants/values';
-import { ChainType } from '../types/wallet';
-
-export { ContractError, ContractErrorCode, NetworkError, NetworkErrorCode };
+import {
+  GasEstimate,
+} from '../types/wallet';
+import { PaymentMethodService } from './paymentMethodService';
 
 // ── Structured error handling ──────────────────────────────────────
 
@@ -1197,3 +1198,307 @@ export type { PaymentMethodExpiryCheck, ChainPaymentResult } from './paymentMeth
 export const walletServiceManager = WalletServiceManager.getInstance();
 export const paymentMethodService = PaymentMethodService.getInstance();
 export default walletServiceManager;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Issue #922 — Payment Method Management with Fallback Chains
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Health status of a single payment method in a fallback chain.
+ */
+export interface PaymentMethodHealth {
+  methodId: string;
+  /** Fraction of recent attempts that succeeded (0–1). */
+  successRate: number;
+  /** Average latency of the last N authorizations in ms. */
+  avgLatencyMs: number;
+  /** Whether the method is currently considered healthy. */
+  healthy: boolean;
+  /** ISO-8601 timestamp of the last successful authorization. */
+  lastSuccessAt: string | null;
+  /** Consecutive failure count since the last success. */
+  consecutiveFailures: number;
+}
+
+/**
+ * Snapshot of the health of every method in a fallback chain.
+ */
+export interface FallbackChainHealthSnapshot {
+  chainId: string;
+  checkedAt: string;
+  methods: PaymentMethodHealth[];
+  /** Overall chain health: green when all methods are healthy. */
+  overallStatus: 'green' | 'yellow' | 'red';
+}
+
+/**
+ * Policy that governs automatic rotation of the primary payment method
+ * within a fallback chain.
+ */
+export interface PaymentMethodRotationPolicy {
+  chainId: string;
+  /** Rotate if the primary method fails this many times in a row. */
+  failureThreshold: number;
+  /** How long (ms) to keep the rotated method as primary before reverting. */
+  cooldownMs: number;
+  /** Whether rotation is enabled. */
+  enabled: boolean;
+  /** Method that is currently promoted due to rotation (null = original). */
+  activePromotedMethodId: string | null;
+  promotedAt: string | null;
+}
+
+/**
+ * Result of a smart fallback selection run.
+ */
+export interface SmartFallbackSelection {
+  selectedMethodId: string;
+  reasoning: string;
+  fallbackOrder: string[];
+  estimatedSuccessRate: number;
+}
+
+/**
+ * Monitors the health of payment methods across all fallback chains and
+ * applies automatic rotation policies.
+ *
+ * Usage:
+ *   const monitor = FallbackChainHealthMonitor.getInstance();
+ *   const snapshot = monitor.snapshotChainHealth(chainId, methods, attempts);
+ *   monitor.applyRotationPolicy(policy, snapshot);
+ */
+export class FallbackChainHealthMonitor {
+  private static instance: FallbackChainHealthMonitor;
+  private readonly rotationPolicies = new Map<string, PaymentMethodRotationPolicy>();
+
+  static getInstance(): FallbackChainHealthMonitor {
+    if (!FallbackChainHealthMonitor.instance) {
+      FallbackChainHealthMonitor.instance = new FallbackChainHealthMonitor();
+    }
+    return FallbackChainHealthMonitor.instance;
+  }
+
+  /**
+   * Compute health for every method referenced by the given chain.
+   *
+   * @param chainId        Identifier of the fallback chain.
+   * @param methodIds      Ordered method IDs in the chain.
+   * @param recentAttempts Recent payment attempts (all methods, newest first).
+   * @param windowMs       Look-back window (default 24 h).
+   */
+  snapshotChainHealth(
+    chainId: string,
+    methodIds: string[],
+    recentAttempts: Array<{
+      paymentMethodId: string;
+      success: boolean;
+      timestamp: Date;
+      latencyMs?: number;
+    }>,
+    windowMs = 86_400_000
+  ): FallbackChainHealthSnapshot {
+    const cutoff = Date.now() - windowMs;
+    const now = new Date().toISOString();
+
+    const methodHealths: PaymentMethodHealth[] = methodIds.map((methodId) => {
+      const relevant = recentAttempts.filter(
+        (a) => a.paymentMethodId === methodId && a.timestamp.getTime() >= cutoff
+      );
+
+      const total = relevant.length;
+      const successes = relevant.filter((a) => a.success).length;
+      const successRate = total === 0 ? 1 : successes / total;
+
+      const latencies = relevant.filter((a) => a.latencyMs != null).map((a) => a.latencyMs!);
+      const avgLatencyMs =
+        latencies.length === 0 ? 0 : latencies.reduce((s, l) => s + l, 0) / latencies.length;
+
+      // Count consecutive failures from the newest attempt backwards.
+      let consecutiveFailures = 0;
+      for (const attempt of relevant) {
+        if (!attempt.success) {
+          consecutiveFailures += 1;
+        } else {
+          break;
+        }
+      }
+
+      const lastSuccess = relevant.find((a) => a.success);
+      const lastSuccessAt = lastSuccess ? lastSuccess.timestamp.toISOString() : null;
+
+      // Unhealthy when success rate < 50 % or 3+ consecutive failures.
+      const healthy = successRate >= 0.5 && consecutiveFailures < 3;
+
+      return {
+        methodId,
+        successRate,
+        avgLatencyMs,
+        healthy,
+        lastSuccessAt,
+        consecutiveFailures,
+      };
+    });
+
+    const healthyCount = methodHealths.filter((m) => m.healthy).length;
+    const overallStatus: FallbackChainHealthSnapshot['overallStatus'] =
+      healthyCount === methodHealths.length
+        ? 'green'
+        : healthyCount > 0
+          ? 'yellow'
+          : 'red';
+
+    return { chainId, checkedAt: now, methods: methodHealths, overallStatus };
+  }
+
+  /**
+   * Register or update a rotation policy for a chain.
+   */
+  setRotationPolicy(policy: PaymentMethodRotationPolicy): void {
+    this.rotationPolicies.set(policy.chainId, { ...policy });
+  }
+
+  getRotationPolicy(chainId: string): PaymentMethodRotationPolicy | null {
+    return this.rotationPolicies.get(chainId) ?? null;
+  }
+
+  /**
+   * Apply the rotation policy for a chain given its current health snapshot.
+   * Returns the (possibly updated) policy — callers should persist any changes.
+   */
+  applyRotationPolicy(
+    policy: PaymentMethodRotationPolicy,
+    snapshot: FallbackChainHealthSnapshot
+  ): PaymentMethodRotationPolicy {
+    if (!policy.enabled) return policy;
+
+    const updated = { ...policy };
+
+    // Check if the cooldown has expired and we should revert the promoted method.
+    if (updated.activePromotedMethodId && updated.promotedAt) {
+      const promotedMs = Date.now() - new Date(updated.promotedAt).getTime();
+      if (promotedMs >= updated.cooldownMs) {
+        updated.activePromotedMethodId = null;
+        updated.promotedAt = null;
+      }
+    }
+
+    // Find the primary method health (first in chain).
+    const primaryHealth = snapshot.methods[0];
+    if (!primaryHealth) return updated;
+
+    // Trigger rotation if primary is unhealthy beyond the threshold.
+    if (
+      primaryHealth.consecutiveFailures >= policy.failureThreshold &&
+      updated.activePromotedMethodId === null
+    ) {
+      // Promote the first healthy backup.
+      const backup = snapshot.methods.slice(1).find((m) => m.healthy);
+      if (backup) {
+        updated.activePromotedMethodId = backup.methodId;
+        updated.promotedAt = new Date().toISOString();
+        this.rotationPolicies.set(policy.chainId, updated);
+      }
+    }
+
+    return updated;
+  }
+}
+
+/**
+ * Selects the best fallback method based on historical success rates,
+ * current health and network conditions.
+ */
+export class SmartFallbackSelector {
+  private static instance: SmartFallbackSelector;
+  private readonly monitor = FallbackChainHealthMonitor.getInstance();
+
+  static getInstance(): SmartFallbackSelector {
+    if (!SmartFallbackSelector.instance) {
+      SmartFallbackSelector.instance = new SmartFallbackSelector();
+    }
+    return SmartFallbackSelector.instance;
+  }
+
+  /**
+   * Returns the recommended method order for a given chain execution.
+   *
+   * @param chainMethodIds  Original ordered method IDs in the chain.
+   * @param healthSnapshot  Current health for each method.
+   * @param rotationPolicy  Optional active rotation policy.
+   */
+  selectFallbackOrder(
+    chainMethodIds: string[],
+    healthSnapshot: FallbackChainHealthSnapshot,
+    rotationPolicy?: PaymentMethodRotationPolicy | null
+  ): SmartFallbackSelection {
+    // Build a health map for O(1) lookup.
+    const healthMap = new Map(healthSnapshot.methods.map((m) => [m.methodId, m]));
+
+    // Start from the original order.
+    let ordered = [...chainMethodIds];
+
+    // Apply rotation: if a promoted method exists, push it to the front.
+    if (rotationPolicy?.activePromotedMethodId) {
+      const promoted = rotationPolicy.activePromotedMethodId;
+      ordered = [promoted, ...ordered.filter((id) => id !== promoted)];
+    }
+
+    // Re-rank: unhealthy methods sink to the back while preserving relative
+    // order among healthy and unhealthy groups.
+    const healthy: string[] = [];
+    const unhealthy: string[] = [];
+    for (const id of ordered) {
+      const h = healthMap.get(id);
+      if (h && !h.healthy) {
+        unhealthy.push(id);
+      } else {
+        healthy.push(id);
+      }
+    }
+
+    const fallbackOrder = [...healthy, ...unhealthy];
+    const selectedMethodId = fallbackOrder[0];
+    const selectedHealth = healthMap.get(selectedMethodId);
+    const estimatedSuccessRate = selectedHealth?.successRate ?? 0.9;
+
+    let reasoning = `Selected method ${selectedMethodId}`;
+    if (rotationPolicy?.activePromotedMethodId === selectedMethodId) {
+      reasoning += ' (rotation policy active)';
+    } else if (selectedHealth && !selectedHealth.healthy) {
+      reasoning += ' (all methods degraded; using least-worst option)';
+    } else {
+      reasoning += ' (highest health score)';
+    }
+
+    return { selectedMethodId, reasoning, fallbackOrder, estimatedSuccessRate };
+  }
+}
+
+/**
+ * Simple diagnostic utility: builds a human-readable summary of chain
+ * health for display in the PaymentMethodsScreen.
+ */
+export function buildFallbackChainDiagnosticReport(
+  snapshot: FallbackChainHealthSnapshot,
+  selection: SmartFallbackSelection
+): string {
+  const lines: string[] = [
+    `Chain: ${snapshot.chainId}  |  Status: ${snapshot.overallStatus.toUpperCase()}`,
+    `Checked: ${new Date(snapshot.checkedAt).toLocaleString()}`,
+    '',
+    'Method health:',
+  ];
+
+  for (const m of snapshot.methods) {
+    const status = m.healthy ? '✅' : '⚠️ ';
+    const rate = `${(m.successRate * 100).toFixed(0)}%`;
+    const latency = m.avgLatencyMs > 0 ? `${m.avgLatencyMs.toFixed(0)} ms avg` : 'no data';
+    lines.push(`  ${status} ${m.methodId}  ${rate} success  ${latency}`);
+  }
+
+  lines.push('');
+  lines.push(`Smart selection: ${selection.selectedMethodId}`);
+  lines.push(`Reasoning: ${selection.reasoning}`);
+
+  return lines.join('\n');
+}
