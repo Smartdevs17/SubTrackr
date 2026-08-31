@@ -56,6 +56,25 @@ export {
 } from '../../../src/types/notification';
 export { NotificationError, NotificationErrorCode } from './errors';
 export { DunningEmailSequenceService, dunningEmailSequenceService } from './dunningEmailSequences';
+export {
+  EmailTemplateEngine,
+  emailTemplateEngine,
+  ComponentRenderer,
+  substituteVariables,
+  BUILTIN_TEMPLATES,
+  PRESET_COMPONENTS,
+  createDefaultTemplate,
+} from './emailTemplateEngine';
+export type {
+  ComponentType,
+  ComponentProps,
+  EmailComponent,
+  LayoutName,
+  LayoutConfig,
+  ComponentTemplate,
+  RenderResult,
+  EngineRenderOptions,
+} from './emailTemplateEngine';
 export type {
   DunningEmailVariant,
   DunningABTest,
