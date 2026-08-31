@@ -150,6 +150,7 @@ fn check_and_resume_internal(env: &Env, sub: &mut Subscription) -> bool {
         let now = env.ledger().timestamp();
         if now >= sub.paused_at + sub.pause_duration {
             sub.status = SubscriptionStatus::Active;
+            sub.next_charge_at = sub.next_charge_at.saturating_add(sub.pause_duration);
             sub.paused_at = 0;
             sub.pause_duration = 0;
             return true;
@@ -1061,11 +1062,17 @@ impl SubTrackrSubscription {
         );
 
         let now = env.ledger().timestamp();
-        let plan: Plan = storage_persistent_get(&env, &storage, StorageKey::Plan(sub.plan_id))
-            .expect("Plan not found");
+
+        let elapsed_pause = if sub.paused_at > 0 && now > sub.paused_at {
+            (now - sub.paused_at).min(sub.pause_duration)
+        } else {
+            0
+        };
 
         sub.status = SubscriptionStatus::Active;
-        sub.next_charge_at = now + plan.interval.seconds();
+        if elapsed_pause > 0 {
+            sub.next_charge_at = sub.next_charge_at.saturating_add(elapsed_pause);
+        }
         sub.paused_at = 0;
         sub.pause_duration = 0;
 
