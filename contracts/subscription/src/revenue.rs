@@ -8,7 +8,7 @@
 /// All storage is delegated to the shared storage contract via the
 /// `storage_persistent_*` helpers defined in the parent module.
 use soroban_sdk::{contracttype, Address, Env, Vec};
-use subtrackr_types::StorageKeyExt;
+use subtrackr_types::StorageKey;
 
 use crate::{storage_persistent_get, storage_persistent_set};
 
