@@ -76,7 +76,7 @@
     "expo-haptics": "~14.1.4",
     "expo-image": "~2.3.0",
     "expo-notifications": "^0.31.5",
-    "expo-status-bar": "~2.2.3",
+    "expo-status-bar": "~57.0.1",
     "graphql": "^16.13.2",
     "i18next": "^26.0.8",
     "react": "19.2.5",
