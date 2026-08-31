@@ -3,7 +3,7 @@ uvicorn[standard]>=0.24.0
 onnxruntime>=1.28.0
 onnxruntime-gpu>=1.16.0; platform_system == "Linux"
 numpy>=2.5.1
-pydantic>=2.5.0
+pydantic>=2.13.4
 torch>=2.1.0
 torchvision>=0.28.0
 onnx>=1.15.0
