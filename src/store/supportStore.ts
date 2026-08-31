@@ -177,7 +177,6 @@ export const useSupportStore = create<SupportState>((set, get) => ({
       return updated;
     }
 
-    const ticket = createTicketFromEvent(event, event.relatedTicketIds ?? []);
     const relatedTicketIds = get()
       .tickets.filter(
         (ticket) => ticket.subscriptionId === event.subscriptionId && ticket.status !== 'closed'

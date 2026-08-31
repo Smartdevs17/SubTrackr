@@ -77,7 +77,7 @@ export interface GamificationAnalytics {
   longestStreak: number;
   completionRate: number; // percentage 0-100
   achievementsByCategory: Record<string, number>;
-  pointsHistory: Array<{ timestamp: string; amount: number; reason: string }>;
+  pointsHistory: { timestamp: string; amount: number; reason: string }[];
 }
 
 export type LeaderboardCategory = 'all_time' | 'weekly' | 'streaks';

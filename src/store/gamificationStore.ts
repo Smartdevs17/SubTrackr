@@ -22,7 +22,7 @@ const DEFAULT_CONFIG: GamificationConfig = {
 interface GamificationState extends UserProgress {
   config: GamificationConfig;
   earnedRewards: RewardItem[];
-  pointsHistory: Array<{ timestamp: string; amount: number; reason: string }>;
+  pointsHistory: { timestamp: string; amount: number; reason: string }[];
   addPoints: (amount: number, reason?: string) => void;
   checkAchievements: (trigger: AchievementTrigger, metadata: any) => void;
   claimReward: (rewardId: string) => void;
@@ -79,7 +79,7 @@ export const useGamificationStore = create<GamificationState>()(
       },
 
       checkAchievements: (trigger, metadata) => {
-        const { earnedAchievements, earnedBadges, earnedRewards, config } = get();
+        const { earnedAchievements, earnedBadges, config } = get();
         const allAchievements = gamificationService.getAchievements();
 
         const newUnlocks = allAchievements.filter(
@@ -107,7 +107,9 @@ export const useGamificationStore = create<GamificationState>()(
                 description: ach.reward.description,
                 type: ach.reward.type,
                 value: ach.reward.value,
-                code: ach.reward.code || `SUB-${ach.id.toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`,
+                code:
+                  ach.reward.code ||
+                  `SUB-${ach.id.toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`,
                 isClaimed: false,
                 isRedeemed: false,
                 earnedAt: new Date().toISOString(),
