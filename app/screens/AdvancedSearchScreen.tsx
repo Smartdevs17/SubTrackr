@@ -62,13 +62,19 @@ export const AdvancedSearchScreen: React.FC = () => {
   }, [subscriptions, runSearch]);
 
   useEffect(() => {
-    const notifications = checkNotifications();
-    for (const note of notifications) {
-      Alert.alert(
-        'Saved search match',
-        `"${note.savedSearchName}" has ${note.newMatchCount} new match(es).`
-      );
-    }
+    let cancelled = false;
+    checkNotifications().then((notifications) => {
+      if (cancelled) return;
+      for (const note of notifications) {
+        Alert.alert(
+          'Saved search match',
+          `"${note.savedSearchName}" has ${note.newMatchCount} new match(es).`
+        );
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [subscriptions, checkNotifications]);
 
   const toggleCategory = useCallback(

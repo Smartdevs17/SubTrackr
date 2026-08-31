@@ -12,6 +12,8 @@
 
 export { SliceCreator, AppState } from './state';
 
+export type { SearchSlice, SearchStoreState } from './searchSlice';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared ephemeral-state helpers
 // ─────────────────────────────────────────────────────────────────────────────

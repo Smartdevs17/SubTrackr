@@ -11,12 +11,13 @@ import { UserSlice } from './userSlice';
 import { SettingsSlice } from './settingsSlice';
 import { NetworkSlice } from './networkSlice';
 import { TransactionSlice } from './transactionSlice';
+import { SearchSlice } from './searchSlice';
 
 /**
  * The full combined store state — every slice spread together.
  */
 export interface AppState
-  extends AuthSlice, UserSlice, SettingsSlice, NetworkSlice, TransactionSlice {}
+  extends AuthSlice, UserSlice, SettingsSlice, NetworkSlice, TransactionSlice, SearchSlice {}
 
 /**
  * SliceCreator with full cross-slice access: the 4th generic is AppState so a
