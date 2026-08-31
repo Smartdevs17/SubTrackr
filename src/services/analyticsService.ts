@@ -220,3 +220,231 @@ export const calculateSubscriptionAnalytics = (
     forecast,
   };
 };
+
+// ── Detailed MRR & ARR Breakdown (Issue #952) ─────────────────────────────────
+
+export interface MrrMovementBreakdown {
+  startingMrr: number;
+  newMrr: number;
+  expansionMrr: number;
+  contractionMrr: number;
+  churnedMrr: number;
+  reactivatedMrr: number;
+  netNewMrr: number;
+  endingMrr: number;
+  endingArr: number;
+  quickRatio: number; // (New + Expansion) / (Churn + Contraction)
+  netRevenueRetentionPercent: number;
+}
+
+export interface CohortMatrixRow {
+  cohort: string;
+  cohortSize: number;
+  startingMrr: number;
+  periods: number[]; // Retention percentage for Month 0, Month 1, Month 2...
+}
+
+export interface CohortAnalysisResult {
+  cohortRows: CohortMatrixRow[];
+  averagePeriodRetention: number[];
+  highestRetentionCohort: string;
+  lowestRetentionCohort: string;
+}
+
+export interface UnitEconomicsSummary {
+  arpu: number;
+  ltv: number;
+  cac?: number;
+  ltvToCacRatio?: number;
+  cacPaybackMonths?: number;
+  magicNumber?: number;
+}
+
+/**
+ * Calculates granular MRR movements (New, Expansion, Contraction, Churn, Reactivation, Net New)
+ */
+export function calculateDetailedMrrBreakdown(
+  currentSubscriptions: Subscription[],
+  previousSubscriptions: Subscription[] = []
+): MrrMovementBreakdown {
+  const currentMap = new Map<string, Subscription>(currentSubscriptions.map((s) => [s.id, s]));
+  const prevMap = new Map<string, Subscription>(previousSubscriptions.map((s) => [s.id, s]));
+
+  let startingMrr = 0;
+  let newMrr = 0;
+  let expansionMrr = 0;
+  let contractionMrr = 0;
+  let churnedMrr = 0;
+  let reactivatedMrr = 0;
+
+  // Process previous subscriptions
+  for (const prev of previousSubscriptions) {
+    const prevMonthly = prev.isActive ? toMonthlyRevenue(prev) : 0;
+    if (prev.isActive) {
+      startingMrr += prevMonthly;
+    }
+
+    const curr = currentMap.get(prev.id);
+    if (!curr || !curr.isActive) {
+      if (prev.isActive) {
+        churnedMrr += prevMonthly;
+      }
+    } else {
+      const currMonthly = toMonthlyRevenue(curr);
+      if (!prev.isActive && curr.isActive) {
+        reactivatedMrr += currMonthly;
+      } else if (currMonthly > prevMonthly) {
+        expansionMrr += (currMonthly - prevMonthly);
+      } else if (currMonthly < prevMonthly) {
+        contractionMrr += (prevMonthly - currMonthly);
+      }
+    }
+  }
+
+  // Process newly added subscriptions
+  for (const curr of currentSubscriptions) {
+    if (curr.isActive && !prevMap.has(curr.id)) {
+      newMrr += toMonthlyRevenue(curr);
+    }
+  }
+
+  // If no previous state provided, baseline current active as newMrr or startingMrr
+  if (previousSubscriptions.length === 0) {
+    const active = currentSubscriptions.filter((s) => s.isActive);
+    newMrr = active.reduce((sum, s) => sum + toMonthlyRevenue(s), 0);
+  }
+
+  const netNewMrr = (newMrr + expansionMrr + reactivatedMrr) - (contractionMrr + churnedMrr);
+  const endingMrr = startingMrr + netNewMrr;
+  const endingArr = endingMrr * 12;
+
+  const totalLoss = contractionMrr + churnedMrr;
+  const totalGain = newMrr + expansionMrr;
+  const quickRatio = totalLoss > 0 ? Number((totalGain / totalLoss).toFixed(2)) : totalGain > 0 ? 10 : 0;
+
+  const netRevenueRetentionPercent = startingMrr > 0
+    ? Number((((startingMrr + expansionMrr - contractionMrr - churnedMrr) / startingMrr) * 100).toFixed(2))
+    : 100;
+
+  return {
+    startingMrr: Number(startingMrr.toFixed(2)),
+    newMrr: Number(newMrr.toFixed(2)),
+    expansionMrr: Number(expansionMrr.toFixed(2)),
+    contractionMrr: Number(contractionMrr.toFixed(2)),
+    churnedMrr: Number(churnedMrr.toFixed(2)),
+    reactivatedMrr: Number(reactivatedMrr.toFixed(2)),
+    netNewMrr: Number(netNewMrr.toFixed(2)),
+    endingMrr: Number(endingMrr.toFixed(2)),
+    endingArr: Number(endingArr.toFixed(2)),
+    quickRatio,
+    netRevenueRetentionPercent,
+  };
+}
+
+/**
+ * Calculates multi-period cohort retention matrix
+ */
+export function calculateCohortRetentionMatrix(
+  subscriptions: Subscription[],
+  referenceDate: Date = new Date(),
+  numberOfPeriods: number = 6
+): CohortAnalysisResult {
+  // Group by signup month
+  const cohortGroups = new Map<string, Subscription[]>();
+
+  for (const sub of subscriptions) {
+    const d = new Date(sub.createdAt);
+    const key = d.toISOString().slice(0, 7); // YYYY-MM
+    const group = cohortGroups.get(key) || [];
+    group.push(sub);
+    cohortGroups.set(key, group);
+  }
+
+  const sortedCohorts = Array.from(cohortGroups.keys()).sort();
+  const cohortRows: CohortMatrixRow[] = [];
+
+  for (const cohort of sortedCohorts) {
+    const subs = cohortGroups.get(cohort)!;
+    const cohortSize = subs.length;
+    const startingMrr = subs.reduce((acc, s) => acc + toMonthlyRevenue(s), 0);
+
+    const periods: number[] = [];
+    const [cYear, cMonth] = cohort.split('-').map(Number);
+    const cohortStartDate = new Date(Date.UTC(cYear, cMonth - 1, 1));
+
+    for (let p = 0; p < numberOfPeriods; p++) {
+      const periodDate = new Date(Date.UTC(cYear, cMonth - 1 + p, 1));
+      if (periodDate > referenceDate) {
+        break; // Future period
+      }
+
+      if (p === 0) {
+        periods.push(100);
+      } else {
+        // Evaluate active subscriptions at period p
+        const retained = subs.filter((s) => s.isActive).length;
+        const rate = cohortSize > 0 ? Number(((retained / cohortSize) * 100).toFixed(1)) : 0;
+        periods.push(rate);
+      }
+    }
+
+    cohortRows.push({
+      cohort,
+      cohortSize,
+      startingMrr: Number(startingMrr.toFixed(2)),
+      periods,
+    });
+  }
+
+  // Compute average retention per lifecycle period
+  const averagePeriodRetention: number[] = [];
+  for (let p = 0; p < numberOfPeriods; p++) {
+    const periodRates = cohortRows
+      .map((r) => r.periods[p])
+      .filter((rate): rate is number => rate !== undefined);
+
+    if (periodRates.length > 0) {
+      const avg = periodRates.reduce((a, b) => a + b, 0) / periodRates.length;
+      averagePeriodRetention.push(Number(avg.toFixed(1)));
+    }
+  }
+
+  const sortedByM1 = [...cohortRows].sort((a, b) => (b.periods[1] || 0) - (a.periods[1] || 0));
+  const highestRetentionCohort = sortedByM1[0]?.cohort || '';
+  const lowestRetentionCohort = sortedByM1[sortedByM1.length - 1]?.cohort || '';
+
+  return {
+    cohortRows,
+    averagePeriodRetention,
+    highestRetentionCohort,
+    lowestRetentionCohort,
+  };
+}
+
+/**
+ * Calculates unit economics (ARPU, LTV, CAC Payback)
+ */
+export function calculateCustomerUnitEconomics(
+  subscriptions: Subscription[],
+  cacPerUser: number = 50
+): UnitEconomicsSummary {
+  const active = subscriptions.filter((s) => s.isActive);
+  const totalMrr = active.reduce((sum, s) => sum + toMonthlyRevenue(s), 0);
+  const arpu = active.length > 0 ? Number((totalMrr / active.length).toFixed(2)) : 0;
+
+  const churnRate = subscriptions.length > 0
+    ? (subscriptions.length - active.length) / subscriptions.length
+    : 0.05;
+
+  const ltv = churnRate > 0 ? Number((arpu / churnRate).toFixed(2)) : Number((arpu * 24).toFixed(2));
+  const ltvToCacRatio = cacPerUser > 0 ? Number((ltv / cacPerUser).toFixed(2)) : undefined;
+  const cacPaybackMonths = arpu > 0 ? Number((cacPerUser / arpu).toFixed(1)) : undefined;
+
+  return {
+    arpu,
+    ltv,
+    cac: cacPerUser,
+    ltvToCacRatio,
+    cacPaybackMonths,
+  };
+}
