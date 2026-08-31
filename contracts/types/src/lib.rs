@@ -212,6 +212,18 @@ pub struct UpgradeEvent {
 pub type SubscriptionId = u64;
 pub type MerchantId = Address;
 
+/// Secondary keys used by the reusable plan-template library.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum TemplateKey {
+    Template(u64),
+    ByOwner(Address),
+    Shared,
+    Versions(u64),
+    Analytics(u64),
+    Count,
+}
+
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
 pub enum FraudAction {
@@ -475,6 +487,9 @@ pub enum StorageKey {
     PlanQuotas(u64),
     /// Usage record for a subscription and metric (sub_id, metric -> UsageRecord)
     SubscriptionUsage(u64, QuotaMetric),
+
+    // ── Plan templates (appended for storage compatibility) ──
+    PlanTemplate(TemplateKey),
 
     // Added for MEV-resistant subscription charging
     MevProtectionConfig,
