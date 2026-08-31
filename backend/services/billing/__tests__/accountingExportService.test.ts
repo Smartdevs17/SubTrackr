@@ -289,4 +289,84 @@ describe('accountingExportService', () => {
       expect(result).toBeNull();
     });
   });
+
+  describe('multi-format support (Issue #954)', () => {
+    it('streams Excel 2003 XML spreadsheet with correct tags and rows', () => {
+      const chunks: string[] = [];
+      const { totalRecords } = streamExport([makeRecord()], {
+        format: 'excel_xml',
+        onChunk: (c) => chunks.push(c),
+      });
+
+      const output = chunks.join('');
+      expect(totalRecords).toBe(1);
+      expect(output).toContain('<?mso-application progid="Excel.Sheet"?>');
+      expect(output).toContain('<Worksheet ss:Name="Subscriptions">');
+      expect(output).toContain('<Data ss:Type="String">txn_1</Data>');
+      expect(output).toContain('<Data ss:Type="Number">12.50</Data>');
+    });
+
+    it('streams QuickBooks IIF format with transaction headers', () => {
+      const chunks: string[] = [];
+      const { totalRecords } = streamExport([makeRecord()], {
+        format: 'iif',
+        onChunk: (c) => chunks.push(c),
+      });
+
+      const output = chunks.join('');
+      expect(totalRecords).toBe(1);
+      expect(output).toContain('!TRNS\tTRNSID\tTRNSTYPE');
+      expect(output).toContain('TRNS\ttxn_1\tINVOICE');
+      expect(output).toContain('Accounts Receivable');
+      expect(output).toContain('ENDTRNS');
+    });
+
+    it('streams Open Financial Exchange (OFX) format', () => {
+      const chunks: string[] = [];
+      const { totalRecords } = streamExport([makeRecord()], {
+        format: 'ofx',
+        onChunk: (c) => chunks.push(c),
+      });
+
+      const output = chunks.join('');
+      expect(totalRecords).toBe(1);
+      expect(output).toContain('OFXHEADER:100');
+      expect(output).toContain('<OFX>');
+      expect(output).toContain('<STMTTRN>');
+      expect(output).toContain('<FITID>txn_1</FITID>');
+      expect(output).toContain('<TRNAMT>12.50</TRNAMT>');
+    });
+
+    it('streams NDJSON (newline-delimited JSON) records', () => {
+      const chunks: string[] = [];
+      const records = [makeRecord({ id: 'txn_1' }), makeRecord({ id: 'txn_2' })];
+      const { totalRecords } = streamExport(records, {
+        format: 'ndjson',
+        onChunk: (c) => chunks.push(c),
+      });
+
+      const output = chunks.join('');
+      expect(totalRecords).toBe(2);
+      const lines = output.trim().split('\n');
+      expect(lines.length).toBe(2);
+      const parsed1 = JSON.parse(lines[0]);
+      expect(parsed1.id).toBe('txn_1');
+      const parsed2 = JSON.parse(lines[1]);
+      expect(parsed2.id).toBe('txn_2');
+    });
+
+    it('streams TSV (tab-separated values)', () => {
+      const chunks: string[] = [];
+      const { totalRecords } = streamExport([makeRecord()], {
+        format: 'tsv',
+        onChunk: (c) => chunks.push(c),
+      });
+
+      const output = chunks.join('');
+      expect(totalRecords).toBe(1);
+      expect(output).toContain('"TransactionId"\t"MerchantId"');
+      expect(output).toContain('"txn_1"\t');
+    });
+  });
+
 });

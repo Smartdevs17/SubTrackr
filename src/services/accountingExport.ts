@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BillingCycle, Subscription } from '../types/subscription';
 
 export type MerchantId = string;
-export type AccountingFormat = 'csv' | 'json' | 'quickbooks' | 'xero' | 'pdf';
+export type AccountingFormat = 'csv' | 'json' | 'quickbooks' | 'xero' | 'pdf' | 'excel_xml' | 'ndjson' | 'ofx' | 'iif' | 'tsv';
 export type ExportFrequency = 'daily' | 'weekly' | 'monthly';
 export type ExportDestination = 'download' | 'email' | 'webhook';
 export type ExportStatus = 'success' | 'failed';
