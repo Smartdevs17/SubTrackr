@@ -8,7 +8,7 @@
 /// All storage is delegated to the shared storage contract via the
 /// `storage_persistent_*` helpers defined in the parent module.
 use soroban_sdk::{contracttype, Address, Env, Vec};
-use subtrackr_types::StorageKeyExt;
+use subtrackr_types::StorageKey;
 
 use crate::{storage_persistent_get, storage_persistent_set};
 
@@ -171,7 +171,11 @@ pub fn get_revenue_schedule(
     storage: &Address,
     subscription_id: u64,
 ) -> Option<RevenueSchedule> {
-    storage_persistent_get(env, storage, StorageKeyExt::RevenueSchedule(subscription_id))
+    storage_persistent_get(
+        env,
+        storage,
+        StorageKeyExt::RevenueSchedule(subscription_id),
+    )
 }
 
 pub fn get_deferred_revenue(env: &Env, storage: &Address, merchant: &Address) -> i128 {

@@ -1,12 +1,13 @@
 /**
  * SubTrackr public API HTTP server factory.
  *
- * Mounts CDN-cacheable routes behind edge-cache header middleware.
+ * Mounts CDn-cacheable routes behind edge-cache header middleware.
+ * Additional batch subscription routes are mounted with atomic execution support.
  */
 
 import express, { type Express } from 'express';
 import { cacheHeadersMiddleware } from '../shared/middleware';
-import { createPublicApiRouter, createThemeRouter } from '../subscription/router';
+import { createPublicApiRouter, createThemeRouter, createBatchRouter } from '../subscription/router';
 import { API_VERSION_HEADER, API_VERSION_VALUE } from '../services/shared/apiResponse';
 
 export interface CreateApiServerOptions {
@@ -34,6 +35,8 @@ export function createApiServer(options: CreateApiServerOptions = {}): Express {
   app.use(cacheHeadersMiddleware());
   app.use(createPublicApiRouter());
   app.use('/api/v1/merchant', createThemeRouter());
+  // Batch subscription operations with atomic execution (all-or-nothing semantics)
+  app.use('/api/v1/batch', createBatchRouter());
 
   app.use((_req, res) => {
     res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Not found' } });

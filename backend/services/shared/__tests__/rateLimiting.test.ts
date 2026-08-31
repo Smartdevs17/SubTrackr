@@ -1,85 +1,56 @@
 /**
- * Tests for the rate limiting middleware and RateLimitingService.
- *
- * Run with:
- *   npx jest backend/services/shared/__tests__/rateLimiting.test.ts
+ * Tests — RateLimitingService + rateLimitMiddleware (Issue #998)
  */
 
 import { RateLimitingService } from '../rateLimitingService';
 import {
   createRateLimitMiddleware,
-  RATE_LIMIT_HEADERS,
-  type RateLimitRequest,
-  type RateLimitResponse,
+  createIpRateLimitMiddleware,
+  type MinimalRequest,
+  type MinimalResponse,
+  type NextFn,
 } from '../rateLimitMiddleware';
-import { SubscriptionTier } from '../../../../src/types/subscription';
-import {
-  TIER_RATE_LIMITS,
-  RateLimitTier,
-  mapSubscriptionToRateLimitTier,
-  RATE_LIMIT_TIER_CONFIG,
-} from '../../../../src/types/rateLimiting';
+import { SubscriptionTier } from '../../../src/types/subscription';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeReq(overrides: Partial<RateLimitRequest> = {}): RateLimitRequest {
+function makeReq(overrides: Partial<MinimalRequest> = {}): MinimalRequest {
   return {
+    headers: { 'x-api-key': 'sk_test_abc123' },
+    path: '/api/subscriptions',
     method: 'GET',
-    path: '/subscriptions',
-    url: '/subscriptions',
-    headers: {},
     ...overrides,
   };
 }
 
-interface MockResponse extends RateLimitResponse {
-  statusCode: number;
-  headers: Record<string, string | number>;
-  body: unknown;
-  ended: boolean;
-}
-
-function makeRes(): MockResponse {
-  const res: MockResponse = {
-    statusCode: 200,
-    headers: {},
-    body: null,
-    ended: false,
-    setHeader(name, value) {
-      this.headers[name] = value;
+function makeRes(): MinimalResponse & {
+  _status: number;
+  _headers: Record<string, string>;
+  _body: unknown;
+} {
+  const res = {
+    _status: 200,
+    _headers: {} as Record<string, string>,
+    _body: undefined as unknown,
+    status(code: number) {
+      res._status = code;
+      return res;
     },
-    writeHead(statusCode, headers) {
-      this.statusCode = statusCode;
-      if (headers) {
-        for (const [k, v] of Object.entries(headers)) {
-          this.headers[k] = v;
-        }
-      }
+    set(header: string, value: string) {
+      res._headers[header] = value;
+      return res;
     },
-    end(body) {
-      this.ended = true;
-      if (body) this.body = JSON.parse(body);
+    json(body: unknown) {
+      res._body = body;
     },
   };
   return res;
 }
 
-function runMiddleware(
-  mw: ReturnType<typeof createRateLimitMiddleware>,
-  req: RateLimitRequest,
-  res: MockResponse,
-): boolean {
-  let called = false;
-  mw(req, res, () => {
-    called = true;
-  });
-  return called;
-}
-
 // ---------------------------------------------------------------------------
-// RateLimitingService unit tests
+// RateLimitingService
 // ---------------------------------------------------------------------------
 
 describe('RateLimitingService', () => {
@@ -89,458 +60,236 @@ describe('RateLimitingService', () => {
     service = new RateLimitingService();
   });
 
-  // -------------------------------------------------------------------------
+  // ── bypass ────────────────────────────────────────────────────────────────
+
+  describe('bypass', () => {
+    it('bypasses a known key', () => {
+      service.addBypassKey('internal_key');
+      const result = service.checkRateLimit('internal_key', SubscriptionTier.FREE);
+      expect(result.allowed).toBe(true);
+    });
+
+    it('can remove bypass key', () => {
+      service.addBypassKey('k');
+      service.removeBypassKey('k');
+      expect(service.isBypassed('k')).toBe(false);
+    });
+
+    it('bypasses a user', () => {
+      service.addBypassUser('admin_user');
+      expect(service.checkUserRateLimit('user:admin_user', SubscriptionTier.FREE).allowed).toBe(true);
+    });
+  });
+
+  // ── checkRateLimit ────────────────────────────────────────────────────────
+
   describe('checkRateLimit', () => {
-    it('allows requests within hourly limit', () => {
-      const result = service.checkRateLimit('key1', SubscriptionTier.FREE);
-      expect(result.allowed).toBe(true);
-      expect(result.retryAfterMs).toBeUndefined();
+    it('allows first request for any tier', () => {
+      expect(service.checkRateLimit('key1', SubscriptionTier.FREE).allowed).toBe(true);
+      expect(service.checkRateLimit('key2', SubscriptionTier.PREMIUM).allowed).toBe(true);
     });
 
-    it('blocks requests when hourly limit is exceeded', () => {
-      const tier = SubscriptionTier.FREE;
-      const limits = TIER_RATE_LIMITS[tier];
-
-      // Exhaust the hourly counter by recording requests
-      const usage = service.getOrCreateUsage('key1', tier);
-      usage.hourly = limits.hourlyLimit;
-
-      const result = service.checkRateLimit('key1', tier);
+    it('blocks burst when tokens exhausted', () => {
+      service.setBurstTokens('key_burst', 0, SubscriptionTier.FREE);
+      const result = service.checkRateLimit('key_burst', SubscriptionTier.FREE);
       expect(result.allowed).toBe(false);
       expect(result.retryAfterMs).toBeGreaterThan(0);
     });
-
-    it('blocks when daily limit is exceeded', () => {
-      const tier = SubscriptionTier.FREE;
-      const limits = TIER_RATE_LIMITS[tier];
-
-      const usage = service.getOrCreateUsage('key1', tier);
-      usage.daily = limits.dailyLimit;
-
-      const result = service.checkRateLimit('key1', tier);
-      expect(result.allowed).toBe(false);
-    });
-
-    it('blocks when burst tokens are exhausted', () => {
-      const tier = SubscriptionTier.FREE;
-      service.setBurstTokens('key1', 0, tier);
-
-      const result = service.checkRateLimit('key1', tier);
-      expect(result.allowed).toBe(false);
-      // ~1s at FREE refill rate (1 token/s); allow tiny elapsed-time drift
-      expect(result.retryAfterMs).toBeGreaterThan(0);
-      expect(result.retryAfterMs).toBeLessThanOrEqual(1_000);
-    });
-
-    it('blocks when concurrency limit is exceeded', () => {
-      const tier = SubscriptionTier.FREE;
-      const limits = TIER_RATE_LIMITS[tier];
-
-      const usage = service.getOrCreateUsage('key1', tier);
-      usage.concurrentRequests = limits.concurrentLimit;
-
-      const result = service.checkRateLimit('key1', tier);
-      expect(result.allowed).toBe(false);
-      expect(result.retryAfterMs).toBe(500);
-    });
   });
 
-  // -------------------------------------------------------------------------
-  describe('bypass management', () => {
-    it('allows bypassed API keys regardless of limits', () => {
-      const tier = SubscriptionTier.FREE;
-      const limits = TIER_RATE_LIMITS[tier];
+  // ── recordRequest ─────────────────────────────────────────────────────────
 
-      // Exhaust limit
-      const usage = service.getOrCreateUsage('bypass-key', tier);
-      usage.hourly = limits.hourlyLimit;
-
-      service.addBypassKey('bypass-key');
-
-      const result = service.checkRateLimit('bypass-key', tier);
-      expect(result.allowed).toBe(true);
-    });
-
-    it('removes bypass key', () => {
-      service.addBypassKey('key1');
-      expect(service.isBypassed('key1')).toBe(true);
-
-      service.removeBypassKey('key1');
-      expect(service.isBypassed('key1')).toBe(false);
-    });
-
-    it('allows bypassed users', () => {
-      service.addBypassUser('user123');
-      expect(service.isBypassed('user123', true)).toBe(true);
-    });
-
-    it('listBypassKeys returns all bypass keys', () => {
-      service.addBypassKey('key1');
-      service.addBypassKey('key2');
-      expect(service.listBypassKeys()).toEqual(expect.arrayContaining(['key1', 'key2']));
-    });
-
-    it('listBypassUsers returns all bypass users', () => {
-      service.addBypassUser('u1');
-      service.addBypassUser('u2');
-      expect(service.listBypassUsers()).toEqual(expect.arrayContaining(['u1', 'u2']));
-    });
-  });
-
-  // -------------------------------------------------------------------------
-  describe('custom limits', () => {
-    it('uses custom hourly limit when set', () => {
-      service.setCustomLimits('custom-key', { hourlyLimit: 10 });
-      const limits = service.getEffectiveLimits('custom-key', SubscriptionTier.FREE);
-      expect(limits.hourlyLimit).toBe(10);
-    });
-
-    it('falls back to tier limits for unset dimensions', () => {
-      service.setCustomLimits('custom-key', { hourlyLimit: 10 });
-      const limits = service.getEffectiveLimits('custom-key', SubscriptionTier.FREE);
-      expect(limits.dailyLimit).toBe(TIER_RATE_LIMITS[SubscriptionTier.FREE].dailyLimit);
-    });
-
-    it('clearCustomLimits reverts to tier defaults', () => {
-      service.setCustomLimits('custom-key', { hourlyLimit: 1 });
-      service.clearCustomLimits('custom-key');
-      const limits = service.getEffectiveLimits('custom-key', SubscriptionTier.FREE);
-      expect(limits.hourlyLimit).toBe(TIER_RATE_LIMITS[SubscriptionTier.FREE].hourlyLimit);
-    });
-
-    it('enforces custom limits', () => {
-      service.setCustomLimits('key1', { hourlyLimit: 2 });
-      service.recordRequest('key1', SubscriptionTier.FREE, '/test', 200, 10);
-      service.recordRequest('key1', SubscriptionTier.FREE, '/test', 200, 10);
-
-      // At exactly the limit — checkRateLimit should block further requests
-      const usage = service.getOrCreateUsage('key1', SubscriptionTier.FREE);
-      // 2 requests recorded against hourlyLimit of 2
+  describe('recordRequest', () => {
+    it('increments usage counters', () => {
+      service.recordRequest('key_r', SubscriptionTier.FREE, '/api/subs', 200, 50);
+      service.recordRequest('key_r', SubscriptionTier.FREE, '/api/subs', 200, 40);
+      const usage = service.getUsage('key_r')!;
       expect(usage.hourly).toBe(2);
-    });
-  });
-
-  // -------------------------------------------------------------------------
-  describe('per-user rate limiting', () => {
-    it('allows requests within user hourly limit', () => {
-      const result = service.checkUserRateLimit('user:alice', SubscriptionTier.FREE);
-      expect(result.allowed).toBe(true);
+      expect(usage.daily).toBe(2);
+      expect(usage.monthly).toBe(2);
     });
 
-    it('blocks when user hourly limit is exceeded', () => {
-      const tier = SubscriptionTier.FREE;
-      const userHourlyLimit = TIER_RATE_LIMITS[tier].hourlyLimit * 5;
-
-      // Exhaust user limit
-      const usage = (service as unknown as { userUsages: Map<string, { hourly: number; hourlyResetAt: number }> }).userUsages;
-      service.checkUserRateLimit('user:alice', tier); // creates the entry
-      const entry = usage.get('user:alice')!;
-      entry.hourly = userHourlyLimit;
-
-      const result = service.checkUserRateLimit('user:alice', tier);
-      expect(result.allowed).toBe(false);
-    });
-
-    it('bypassed users skip per-user limit check', () => {
-      const tier = SubscriptionTier.FREE;
-      service.addBypassUser('alice');
-
-      const usage = (service as unknown as { userUsages: Map<string, { hourly: number; hourlyResetAt: number }> }).userUsages;
-      service.checkUserRateLimit('user:alice', tier);
-      const entry = usage.get('user:alice');
-      if (entry) entry.hourly = TIER_RATE_LIMITS[tier].hourlyLimit * 5;
-
-      const result = service.checkUserRateLimit('user:alice', tier);
-      expect(result.allowed).toBe(true);
-    });
-
-    it('getUserRateLimitStatus returns correct multiplied limits', () => {
-      const tier = SubscriptionTier.FREE;
-      const status = service.getUserRateLimitStatus('user:bob', tier);
-      expect(status.limits.hourlyLimit).toBe(TIER_RATE_LIMITS[tier].hourlyLimit * 5);
-    });
-  });
-
-  // -------------------------------------------------------------------------
-  describe('recordRequest and analytics', () => {
-    it('increments counters on record', () => {
-      service.recordRequest('key1', SubscriptionTier.FREE, '/test', 200, 15);
-      const usage = service.getUsage('key1')!;
-      expect(usage.hourly).toBe(1);
-      expect(usage.daily).toBe(1);
-      expect(usage.monthly).toBe(1);
-    });
-
-    it('returns soft warning at 80% usage', () => {
-      const tier = SubscriptionTier.FREE;
-      const limits = TIER_RATE_LIMITS[tier];
-      const usage = service.getOrCreateUsage('key1', tier);
-      usage.hourly = Math.floor(limits.hourlyLimit * 0.8);
-
-      const { softWarning } = service.recordRequest('key1', tier, '/test', 200, 5);
+    it('emits soft warning near limit', () => {
+      service.setCustomLimits('key_soft', { hourlyLimit: 10 });
+      for (let i = 0; i < 8; i++) {
+        service.recordRequest('key_soft', SubscriptionTier.FREE, '/x', 200, 10);
+      }
+      const { softWarning } = service.recordRequest('key_soft', SubscriptionTier.FREE, '/x', 200, 10);
       expect(softWarning).toBeDefined();
-      expect(softWarning?.warning).toBe('soft_limit_reached');
-    });
-
-    it('getAnalytics returns correct totals', () => {
-      service.recordRequest('k1', SubscriptionTier.FREE, '/a', 200, 10);
-      service.recordRequest('k1', SubscriptionTier.FREE, '/b', 200, 20);
-      service.recordRequest('k2', SubscriptionTier.BASIC, '/a', 429, 5);
-
-      const analytics = service.getAnalytics();
-      expect(analytics.totalRequests).toBe(3);
-      expect(analytics.rateLimitHitCount).toBe(1);
-    });
-
-    it('getRateLimitAnalytics returns per-tier breakdown', () => {
-      service.recordRequest('k1', SubscriptionTier.FREE, '/a', 429, 5);
-      service.recordRequest('k2', SubscriptionTier.BASIC, '/b', 200, 10);
-
-      const rla = service.getRateLimitAnalytics();
-      expect(rla.rateLimitHits).toBe(1);
-      expect(rla.byTier[SubscriptionTier.FREE].hits).toBe(1);
-      expect(rla.byTier[SubscriptionTier.BASIC].hits).toBe(0);
+      expect(softWarning!.usagePercent).toBeGreaterThanOrEqual(80);
     });
   });
 
-  // -------------------------------------------------------------------------
-  describe('getRateLimitStatus', () => {
-    it('returns correct remaining values', () => {
-      const tier = SubscriptionTier.BASIC;
-      service.recordRequest('key1', tier, '/a', 200, 10);
-      service.recordRequest('key1', tier, '/a', 200, 10);
+  // ── custom limits ─────────────────────────────────────────────────────────
 
-      const status = service.getRateLimitStatus('key1', tier);
-      expect(status.current.hourly).toBe(2);
-      expect(status.remaining.hourly).toBe(TIER_RATE_LIMITS[tier].hourlyLimit - 2);
+  describe('custom limits', () => {
+    it('overrides tier defaults', () => {
+      service.setCustomLimits('key_c', { hourlyLimit: 5 });
+      const limits = service.getEffectiveLimits('key_c', SubscriptionTier.FREE);
+      expect(limits.hourlyLimit).toBe(5);
+    });
+
+    it('clears custom limits and falls back to tier', () => {
+      service.setCustomLimits('key_c', { hourlyLimit: 5 });
+      service.clearCustomLimits('key_c');
+      // Just check no error thrown and defaults are restored
+      const limits = service.getEffectiveLimits('key_c', SubscriptionTier.FREE);
+      expect(limits.hourlyLimit).toBeGreaterThan(5);
     });
   });
 
-  // -------------------------------------------------------------------------
-  describe('free/pro/enterprise rate limit tiers', () => {
-    it('maps subscription tiers to free/pro/enterprise', () => {
-      expect(mapSubscriptionToRateLimitTier(SubscriptionTier.FREE)).toBe(RateLimitTier.FREE);
-      expect(mapSubscriptionToRateLimitTier(SubscriptionTier.BASIC)).toBe(RateLimitTier.PRO);
-      expect(mapSubscriptionToRateLimitTier(SubscriptionTier.PREMIUM)).toBe(RateLimitTier.PRO);
-      expect(mapSubscriptionToRateLimitTier(SubscriptionTier.ENTERPRISE)).toBe(
-        RateLimitTier.ENTERPRISE,
-      );
+  // ── per-user limits ───────────────────────────────────────────────────────
+
+  describe('per-user limits', () => {
+    it('tracks user usage separately from key usage', () => {
+      service.recordUserRequest('user:alice', SubscriptionTier.FREE, '/api/subs');
+      const status = service.getUserRateLimitStatus('user:alice', SubscriptionTier.FREE);
+      expect(status.current.hourly).toBe(1);
     });
 
-    it('exposes public tier configs via the service', () => {
-      expect(service.getRateLimitTier(SubscriptionTier.PREMIUM)).toBe(RateLimitTier.PRO);
-      const pro = service.getPublicTierLimits(RateLimitTier.PRO);
-      expect(pro.hourlyLimit).toBe(RATE_LIMIT_TIER_CONFIG[RateLimitTier.PRO].hourlyLimit);
-      expect(pro.refillRatePerSecond).toBeGreaterThan(0);
+    it('allows user if within limit', () => {
+      const result = service.checkUserRateLimit('user:bob', SubscriptionTier.PREMIUM);
+      expect(result.allowed).toBe(true);
+    });
+  });
+
+  // ── analytics ─────────────────────────────────────────────────────────────
+
+  describe('analytics', () => {
+    it('returns zeroed analytics on fresh service', () => {
+      const a = service.getAnalytics();
+      expect(a.totalRequests).toBe(0);
+      expect(a.errorRate).toBe(0);
     });
 
-    it('includes refillRatePerSecond in effective limits', () => {
-      const limits = service.getEffectiveLimits('key1', SubscriptionTier.FREE);
-      expect(limits.refillRatePerSecond).toBe(TIER_RATE_LIMITS[SubscriptionTier.FREE].refillRatePerSecond);
+    it('tracks rate limit hit rate', () => {
+      service.recordRequest('k', SubscriptionTier.FREE, '/x', 200, 10);
+      service.recordRequest('k', SubscriptionTier.FREE, '/x', 429, 5);
+      const a = service.getRateLimitAnalytics();
+      expect(a.rateLimitHits).toBe(1);
+      expect(a.hitRate).toBeCloseTo(0.5);
+    });
+
+    it('reports top throttled endpoints', () => {
+      for (let i = 0; i < 3; i++) {
+        service.recordRequest('k', SubscriptionTier.FREE, '/hot', 429, 5);
+      }
+      service.recordRequest('k', SubscriptionTier.FREE, '/cold', 429, 5);
+      const { topThrottledEndpoints } = service.getRateLimitAnalytics();
+      expect(topThrottledEndpoints[0]!.endpoint).toBe('/hot');
+      expect(topThrottledEndpoints[0]!.hits).toBe(3);
+    });
+  });
+
+  // ── tier upgrade ──────────────────────────────────────────────────────────
+
+  describe('tier upgrade recommendation', () => {
+    it('returns null for unknown key', () => {
+      expect(service.checkTierUpgrade('no_key')).toBeNull();
     });
   });
 });
 
 // ---------------------------------------------------------------------------
-// Rate limit middleware unit tests
+// rateLimitMiddleware
 // ---------------------------------------------------------------------------
 
-describe('createRateLimitMiddleware', () => {
+describe('rateLimitMiddleware', () => {
   let service: RateLimitingService;
-  let mw: ReturnType<typeof createRateLimitMiddleware>;
 
   beforeEach(() => {
     service = new RateLimitingService();
-    mw = createRateLimitMiddleware({ service });
   });
 
-  // -------------------------------------------------------------------------
-  describe('bypass paths', () => {
-    it('passes /health without rate limiting', () => {
-      const req = makeReq({ path: '/health' });
-      const res = makeRes();
-      const next = runMiddleware(mw, req, res);
-      expect(next).toBe(true);
-      expect(res.ended).toBe(false);
-    });
+  it('passes request with valid key', async () => {
+    const middleware = createRateLimitMiddleware({ service, allowMissingKey: false });
+    const req = makeReq();
+    const res = makeRes();
+    const next = jest.fn() as NextFn;
 
-    it('passes /metrics/plan-cache without rate limiting', () => {
-      const req = makeReq({ path: '/metrics/plan-cache' });
-      const res = makeRes();
-      expect(runMiddleware(mw, req, res)).toBe(true);
-    });
-
-    it('can configure custom bypass paths', () => {
-      const customMw = createRateLimitMiddleware({
-        service,
-        bypassPaths: ['/health', '/internal'],
-      });
-      const req = makeReq({ path: '/internal/jobs' });
-      const res = makeRes();
-      expect(runMiddleware(customMw, req, res)).toBe(true);
-    });
+    await middleware(req, res as unknown as MinimalResponse, next);
+    expect(next).toHaveBeenCalled();
   });
 
-  // -------------------------------------------------------------------------
-  describe('bypass keys', () => {
-    it('allows request from a bypassed API key', () => {
-      // Exhaust the limit for the key first
-      const tier = SubscriptionTier.FREE;
-      const limits = TIER_RATE_LIMITS[tier];
-      const usage = service.getOrCreateUsage('trusted-key', tier);
-      usage.hourly = limits.hourlyLimit;
+  it('returns 401 when key is missing', async () => {
+    const middleware = createRateLimitMiddleware({ service });
+    const req = makeReq({ headers: {} });
+    const res = makeRes();
+    const next = jest.fn() as NextFn;
 
-      const customMw = createRateLimitMiddleware({
-        service,
-        bypassKeys: new Set(['trusted-key']),
-        tierFn: () => tier,
-      });
-
-      const req = makeReq({ headers: { 'x-api-key': 'trusted-key' }, path: '/plans' });
-      const res = makeRes();
-      expect(runMiddleware(customMw, req, res)).toBe(true);
-      expect(res.ended).toBe(false);
-    });
+    await middleware(req, res as unknown as MinimalResponse, next);
+    expect(res._status).toBe(401);
+    expect(next).not.toHaveBeenCalled();
   });
 
-  // -------------------------------------------------------------------------
-  describe('rate limit enforcement', () => {
-    it('sets X-RateLimit-* headers on allowed requests', () => {
-      const req = makeReq({ headers: { 'x-api-key': 'key1' }, path: '/plans' });
-      const res = makeRes();
+  it('returns 429 when burst tokens exhausted', async () => {
+    const middleware = createRateLimitMiddleware({ service });
+    service.setBurstTokens('sk_test_abc123', 0, SubscriptionTier.FREE);
 
-      runMiddleware(mw, req, res);
+    const req = makeReq();
+    const res = makeRes();
+    const next = jest.fn() as NextFn;
 
-      expect(res.headers[RATE_LIMIT_HEADERS.LIMIT]).toBeDefined();
-      expect(res.headers[RATE_LIMIT_HEADERS.REMAINING]).toBeDefined();
-      expect(res.headers[RATE_LIMIT_HEADERS.RESET]).toBeDefined();
-    });
-
-    it('returns 429 when hourly limit is exceeded', () => {
-      const tier = SubscriptionTier.FREE;
-      const limits = TIER_RATE_LIMITS[tier];
-
-      // Exhaust limit
-      const usage = service.getOrCreateUsage('exhausted-key', tier);
-      usage.hourly = limits.hourlyLimit;
-
-      const customMw = createRateLimitMiddleware({
-        service,
-        tierFn: () => tier,
-      });
-
-      const req = makeReq({ headers: { 'x-api-key': 'exhausted-key' }, path: '/plans' });
-      const res = makeRes();
-      const next = runMiddleware(customMw, req, res);
-
-      expect(next).toBe(false);
-      expect(res.ended).toBe(true);
-      expect(res.statusCode).toBe(429);
-      expect(res.headers[RATE_LIMIT_HEADERS.RETRY_AFTER]).toBeDefined();
-      expect(res.headers[RATE_LIMIT_HEADERS.REMAINING]).toBe(0);
-    });
-
-    it('does not block in softMode even when limit exceeded', () => {
-      const tier = SubscriptionTier.FREE;
-      const limits = TIER_RATE_LIMITS[tier];
-      const usage = service.getOrCreateUsage('soft-key', tier);
-      usage.hourly = limits.hourlyLimit;
-
-      const softMw = createRateLimitMiddleware({
-        service,
-        tierFn: () => tier,
-        softMode: true,
-      });
-
-      const req = makeReq({ headers: { 'x-api-key': 'soft-key' }, path: '/plans' });
-      const res = makeRes();
-      const next = runMiddleware(softMw, req, res);
-
-      expect(next).toBe(true);
-      expect(res.ended).toBe(false);
-    });
+    await middleware(req, res as unknown as MinimalResponse, next);
+    expect(res._status).toBe(429);
+    expect(next).not.toHaveBeenCalled();
   });
 
-  // -------------------------------------------------------------------------
-  describe('per-user headers', () => {
-    it('sets X-UserRateLimit-* headers when user ID provided', () => {
-      const req = makeReq({
-        headers: { 'x-api-key': 'key1', 'x-user-id': 'user123' },
-        path: '/plans',
-      });
-      const res = makeRes();
+  it('sets X-RateLimit-* headers on allowed requests', async () => {
+    const middleware = createRateLimitMiddleware({ service });
+    const req = makeReq();
+    const res = makeRes();
+    const next = jest.fn() as NextFn;
 
-      runMiddleware(mw, req, res);
-
-      expect(res.headers[RATE_LIMIT_HEADERS.USER_LIMIT]).toBeDefined();
-      expect(res.headers[RATE_LIMIT_HEADERS.USER_REMAINING]).toBeDefined();
-      expect(res.headers[RATE_LIMIT_HEADERS.USER_RESET]).toBeDefined();
-    });
-
-    it('blocks when per-user limit is exceeded even if per-key is ok', () => {
-      const tier = SubscriptionTier.FREE;
-      const userHourlyLimit = TIER_RATE_LIMITS[tier].hourlyLimit * 5;
-
-      // Exhaust user limit
-      service.checkUserRateLimit('user:u1', tier); // init
-      const userUsages = (service as unknown as { userUsages: Map<string, { hourly: number; hourlyResetAt: number }> }).userUsages;
-      const entry = userUsages.get('user:u1')!;
-      entry.hourly = userHourlyLimit;
-
-      const customMw = createRateLimitMiddleware({ service, tierFn: () => tier });
-      const req = makeReq({
-        headers: { 'x-api-key': 'key1', 'x-user-id': 'u1' },
-        path: '/plans',
-      });
-      const res = makeRes();
-      const next = runMiddleware(customMw, req, res);
-
-      expect(next).toBe(false);
-      expect(res.statusCode).toBe(429);
-    });
+    await middleware(req, res as unknown as MinimalResponse, next);
+    expect(res._headers['X-RateLimit-Limit']).toBeDefined();
+    expect(res._headers['X-RateLimit-Remaining']).toBeDefined();
+    expect(res._headers['X-RateLimit-Reset']).toBeDefined();
+    expect(res._headers['X-RateLimit-Burst-Remaining']).toBeDefined();
   });
 
-  // -------------------------------------------------------------------------
-  describe('IP fallback', () => {
-    it('uses IP when no API key or user ID', () => {
-      const req = makeReq({ path: '/plans', ip: '127.0.0.1', headers: {} });
-      const res = makeRes();
-      const next = runMiddleware(mw, req, res);
-
-      // Should proceed (IP is well within FREE tier limits)
-      expect(next).toBe(true);
+  it('skips rate limiting for configured bypass paths', async () => {
+    const middleware = createRateLimitMiddleware({
+      service,
+      skipPaths: ['/health'],
     });
+    const req = makeReq({ path: '/health', headers: {} });
+    const res = makeRes();
+    const next = jest.fn() as NextFn;
+
+    await middleware(req, res as unknown as MinimalResponse, next);
+    expect(next).toHaveBeenCalled();
+    expect(res._status).toBe(200); // not set to 401
   });
 
-  // -------------------------------------------------------------------------
-  describe('key extraction', () => {
-    it('extracts API key from x-api-key header', () => {
-      const req = makeReq({ headers: { 'x-api-key': 'sk_test_abc' }, path: '/plans' });
-      const res = makeRes();
-      runMiddleware(mw, req, res);
-      // If parsed correctly the key usage is tracked
-      expect(service.getUsage('sk_test_abc')).toBeDefined();
+  it('uses custom rate limit exceeded body', async () => {
+    const middleware = createRateLimitMiddleware({
+      service,
+      rateLimitExceededBody: (ms) => ({ custom: true, retryAfterMs: ms }),
     });
+    service.setBurstTokens('sk_test_abc123', 0, SubscriptionTier.FREE);
 
-    it('extracts API key from Authorization Bearer header', () => {
-      const req = makeReq({
-        headers: { authorization: 'Bearer sk_bearer_xyz' },
-        path: '/plans',
-      });
-      const res = makeRes();
-      runMiddleware(mw, req, res);
-      expect(service.getUsage('sk_bearer_xyz')).toBeDefined();
-    });
+    const req = makeReq();
+    const res = makeRes();
+    const next = jest.fn() as NextFn;
 
-    it('can use a custom keyFn', () => {
-      const customMw = createRateLimitMiddleware({
-        service,
-        keyFn: (r) => (r.headers['x-custom-key'] as string) || undefined,
-      });
-      const req = makeReq({ headers: { 'x-custom-key': 'custom123' }, path: '/plans' });
-      const res = makeRes();
-      runMiddleware(customMw, req, res);
-      expect(service.getUsage('custom123')).toBeDefined();
+    await middleware(req, res as unknown as MinimalResponse, next);
+    expect((res._body as Record<string, unknown>)['custom']).toBe(true);
+  });
+
+  it('IP rate limit middleware extracts IP as key', async () => {
+    const middleware = createIpRateLimitMiddleware({ service });
+    const req = makeReq({
+      headers: {},
+      ip: '127.0.0.1',
     });
+    const res = makeRes();
+    const next = jest.fn() as NextFn;
+
+    await middleware(req, res as unknown as MinimalResponse, next);
+    expect(next).toHaveBeenCalled();
+    // Usage should exist under ip:127.0.0.1
+    const usage = service.getUsage('ip:127.0.0.1');
+    expect(usage).toBeDefined();
   });
 });

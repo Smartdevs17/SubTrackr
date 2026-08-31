@@ -32,6 +32,7 @@ pub enum SubscriptionStatus {
     Paused,
     Cancelled,
     PastDue,
+    Trialing,
 }
 
 #[contracttype]
@@ -132,6 +133,13 @@ pub type Timestamp = u64;
 
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
+pub struct TrialConfig {
+    pub has_trial: bool,
+    pub duration_seconds: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
 pub enum UpgradeAction {
     Scheduled,
     Executed,
@@ -203,6 +211,18 @@ pub struct UpgradeEvent {
 
 pub type SubscriptionId = u64;
 pub type MerchantId = Address;
+
+/// Secondary keys used by the reusable plan-template library.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum TemplateKey {
+    Template(u64),
+    ByOwner(Address),
+    Shared,
+    Versions(u64),
+    Analytics(u64),
+    Count,
+}
 
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
@@ -317,6 +337,72 @@ pub struct ChargeCommitment {
     pub expires_at: Timestamp,
 }
 
+// ─── Retry / Charging types ───────────────────────────────────────────────────
+
+/// Configures exponential-backoff retry behaviour for a subscription charge.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct RetryConfig {
+    /// Maximum number of retry attempts before marking the charge as exhausted.
+    pub max_retries: u32,
+    /// Initial delay between the first failure and the first retry (seconds).
+    pub base_delay_secs: u64,
+    /// Maximum delay cap (seconds); backoff will never exceed this value.
+    pub max_delay_secs: u64,
+    /// Multiplicative backoff factor applied on each successive failure.
+    pub backoff_factor: u32,
+    /// Number of failures within a window that activates the circuit breaker.
+    pub circuit_breaker_threshold: u32,
+    /// How long (seconds) the circuit breaker pauses all retries after tripping.
+    pub circuit_breaker_cooldown_secs: u64,
+}
+
+/// Lifecycle status of an individual charge attempt.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum ChargeStatus {
+    /// Created but not yet submitted.
+    Pending,
+    /// Currently in-flight.
+    Attempting,
+    /// Successfully settled.
+    Completed,
+    /// Failed; a retry has been scheduled.
+    Retrying,
+    /// Failed; circuit-breaker tripped — all retries paused.
+    Failed,
+    /// Retry budget exhausted with no success.
+    Exhausted,
+}
+
+/// A single charge attempt record stored per subscription.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ChargeAttempt {
+    /// Unique, monotonically increasing identifier.
+    pub id: u64,
+    /// The subscription this charge belongs to.
+    pub subscription_id: u64,
+    /// Current processing status.
+    pub status: ChargeStatus,
+    /// Amount charged (in token stroops / smallest denomination).
+    pub amount: i128,
+    /// Ledger timestamp when the attempt was submitted.
+    pub attempted_at: u64,
+    /// Ledger timestamp when the attempt was finalised (0 = not yet).
+    pub completed_at: u64,
+    /// Last error message recorded by the contract.
+    pub error_message: String,
+    /// How many times this charge has been retried.
+    pub retry_count: u32,
+    /// Upper bound on retries (copied from plan config at creation time).
+    pub max_retries: u32,
+    /// Ledger timestamp at which the next retry should be attempted.
+    pub next_retry_at: u64,
+    /// Ledger timestamp until which the circuit breaker is active (0 = off).
+    pub circuit_breaker_until: u64,
+}
+
 /// Monitoring record for suspicious fee/gas conditions around a charge.
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
@@ -402,9 +488,29 @@ pub enum StorageKey {
     /// Usage record for a subscription and metric (sub_id, metric -> UsageRecord)
     SubscriptionUsage(u64, QuotaMetric),
 
+    // ── Plan templates (appended for storage compatibility) ──
+    PlanTemplate(TemplateKey),
+
     // Added for MEV-resistant subscription charging
     MevProtectionConfig,
     ChargeCommitment(u64),
     MevAlertCount,
     MevAlert(u64),
+
+    // ── Plan Templates ──
+    PlanTemplate(TemplateKey),
+
+    // ── Trials ──
+    PlanTrial(u64),
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum TemplateKey {
+    Template(u64),
+    ByOwner(Address),
+    Shared,
+    Versions(u64),
+    Analytics(u64),
+    Count,
 }

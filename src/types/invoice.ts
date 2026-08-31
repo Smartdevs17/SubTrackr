@@ -251,12 +251,40 @@ export interface InvoiceBranding {
   logoUrl?: string;
   primaryColor?: string;
   fontFamily?: string;
+  /** Used for secondary surfaces (table headers, rules) in rendered invoices. */
+  secondaryColor?: string;
+  accentColor?: string;
+  /** Body text colour; falls back to a neutral when unset. */
+  textColor?: string;
+  /** Displayed under the totals block — payment terms, legal footer, etc. */
+  footerText?: string;
+  supportEmail?: string;
+  websiteUrl?: string;
+  /** Rendered logo width in points. Clamped when the invoice is rendered. */
+  logoWidth?: number;
 }
 
 export interface InvoiceTemplate {
   id: string;
   name: string;
   layout: 'standard' | 'modern' | 'minimalist';
+}
+
+/**
+ * A tenant's invoice presentation. Tenants are merchants on the platform, so
+ * one deployment renders invoices under many brands; anything left unset here
+ * falls back to the platform defaults in `InvoiceConfig`.
+ */
+export interface TenantBrandingProfile {
+  tenantId: string;
+  /** Legal entity name printed as the issuer. Defaults to the merchant name. */
+  displayName?: string;
+  branding: InvoiceBranding;
+  /** Overrides `InvoiceConfig.defaultTemplateId` for this tenant. */
+  templateId?: string;
+  /** Overrides the platform invoice number prefix, e.g. `ACME`. */
+  numberingPrefix?: string;
+  updatedAt?: Date;
 }
 
 export interface Invoice {
@@ -286,6 +314,7 @@ export interface Invoice {
   reverseCharge?: boolean;
   branding?: InvoiceBranding;
   templateId?: string;
+  tenantId?: string;
 }
 
 export interface InvoiceConfig {
@@ -299,6 +328,16 @@ export interface InvoiceConfig {
   defaultTaxType: TaxType;
   defaultBranding?: InvoiceBranding;
   defaultTemplateId?: string;
+}
+
+/** Branding actually applied to an invoice, with the source of each decision. */
+export interface ResolvedInvoiceBranding {
+  branding: InvoiceBranding;
+  templateId: string;
+  displayName?: string;
+  numberingPrefix: string;
+  /** Which layer supplied the branding — useful for the branding preview UI. */
+  source: 'tenant' | 'platform' | 'fallback';
 }
 
 export interface InvoiceTotals {
@@ -315,6 +354,8 @@ export interface InvoiceFormData {
   recipientEmail?: string;
   notes?: string;
   taxJurisdiction?: TaxJurisdiction;
+  /** Merchant whose branding profile should be applied to this invoice. */
+  tenantId?: string;
 }
 
 export interface InvoiceStateSnapshot {

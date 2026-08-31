@@ -30,7 +30,7 @@ export interface PauseRecord {
   id: string;
   subscriptionId: string;
   state: PauseState;
-  reason: PauseReason;
+  reason: PauseReason | string;
   /** User-supplied note */
   note?: string;
   pausedAt: Date;
@@ -38,6 +38,12 @@ export interface PauseRecord {
   scheduledResumeAt: Date;
   /** Actual resume date (set on early/automatic resume) */
   resumedAt?: Date;
+  /** Alias used by the UI to display the same value as the billing adjustment */
+  billingAdjustment?: number;
+  /** Alias used by the UI for the planned resume time */
+  plannedResumeDate?: Date;
+  /** Alias used by the UI and the billing service for active/resumed lifecycle state */
+  status?: 'active' | 'resumed';
   /** Prorated credit issued for unused period, in subscription currency */
   creditAmount: number;
   currency: string;
@@ -47,6 +53,8 @@ export interface PauseRecord {
   creditExpired: boolean;
   /** Days credit expires after resume (if subscription is cancelled after pause) */
   creditExpiryDays: number;
+  /** Legacy field used by older UI code */
+  resumeAt?: Date;
 }
 
 export interface PauseValidationResult {

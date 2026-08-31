@@ -1,8 +1,8 @@
 /**
- * Unified Webhook System — Issue #727
+ * Unified Webhook System — Issue #926
  *
  * This barrel file is the single entry point for the SubTrackr subscription
- * webhook system as specified in the Technical Scope of issue #727.
+ * webhook system as specified in the Technical Scope of issue #926.
  *
  * It re-exports:
  *  - WebhookDeliveryService       — core delivery, retry, rate limiting, DLQ
@@ -53,3 +53,18 @@ export type {
 // ── Event Schema Validator ────────────────────────────────────────────────────
 export { EventSchemaValidator, eventSchemaValidator } from '../webhook/eventSchemaValidator';
 export type { ValidationResult } from '../webhook/eventSchemaValidator';
+
+// ── Webhook Event Filtering Engine (Issue #955) ──────────────────────────────
+export {
+  WebhookEventFilterEngine,
+  webhookFilterEngine,
+  matchEventPattern,
+  evaluateAttributeRule,
+  getNestedProperty,
+} from './webhookFilterEngine';
+export type {
+  FilterOperator,
+  AttributeRule,
+  WebhookFilterConfig,
+  FilterEvaluationResult,
+} from './webhookFilterEngine';

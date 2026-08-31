@@ -78,34 +78,64 @@ export const GamificationScreen: React.FC = () => {
 
       <View style={[styles.navTabs, { borderBottomColor: theme.colors.border.default }]}>
         <TouchableOpacity
-          style={[styles.navTab, activeTab === 'dashboard' && styles.navTabActive, activeTab === 'dashboard' && { borderBottomColor: theme.colors.brand.primary }]}
+          style={[
+            styles.navTab,
+            activeTab === 'dashboard' && styles.navTabActive,
+            activeTab === 'dashboard' && { borderBottomColor: theme.colors.brand.primary },
+          ]}
           onPress={() => setActiveTab('dashboard')}>
           <Text
             style={[
               styles.navTabText,
-              { color: activeTab === 'dashboard' ? theme.colors.brand.primary : theme.colors.text.secondary },
+              {
+                color:
+                  activeTab === 'dashboard'
+                    ? theme.colors.brand.primary
+                    : theme.colors.text.secondary,
+              },
             ]}>
             📊 Dashboard
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.navTab, activeTab === 'rewards' && styles.navTabActive, activeTab === 'rewards' && { borderBottomColor: theme.colors.brand.primary }]}
+          style={[
+            styles.navTab,
+            activeTab === 'rewards' && styles.navTabActive,
+            activeTab === 'rewards' && { borderBottomColor: theme.colors.brand.primary },
+          ]}
           onPress={() => setActiveTab('rewards')}>
           <Text
             style={[
               styles.navTabText,
-              { color: activeTab === 'rewards' ? theme.colors.brand.primary : theme.colors.text.secondary },
+              {
+                color:
+                  activeTab === 'rewards'
+                    ? theme.colors.brand.primary
+                    : theme.colors.text.secondary,
+              },
             ]}>
-            🎁 Rewards {earnedRewards.filter((r) => !r.isClaimed).length > 0 ? `(${earnedRewards.filter((r) => !r.isClaimed).length})` : ''}
+            🎁 Rewards{' '}
+            {earnedRewards.filter((r) => !r.isClaimed).length > 0
+              ? `(${earnedRewards.filter((r) => !r.isClaimed).length})`
+              : ''}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.navTab, activeTab === 'leaderboard' && styles.navTabActive, activeTab === 'leaderboard' && { borderBottomColor: theme.colors.brand.primary }]}
+          style={[
+            styles.navTab,
+            activeTab === 'leaderboard' && styles.navTabActive,
+            activeTab === 'leaderboard' && { borderBottomColor: theme.colors.brand.primary },
+          ]}
           onPress={() => setActiveTab('leaderboard')}>
           <Text
             style={[
               styles.navTabText,
-              { color: activeTab === 'leaderboard' ? theme.colors.brand.primary : theme.colors.text.secondary },
+              {
+                color:
+                  activeTab === 'leaderboard'
+                    ? theme.colors.brand.primary
+                    : theme.colors.text.secondary,
+              },
             ]}>
             🏆 Leaderboard
           </Text>
@@ -151,13 +181,10 @@ export const GamificationScreen: React.FC = () => {
         {activeTab === 'rewards' && (
           <View style={styles.section}>
             <Text style={[styles.sectionDesc, { color: theme.colors.text.secondary }]}>
-              Unlock achievements to earn discount coupons and loyalty credits. Claim and use them on your subscriptions!
+              Unlock achievements to earn discount coupons and loyalty credits. Claim and use them
+              on your subscriptions!
             </Text>
-            <RewardsList
-              rewards={earnedRewards}
-              onClaim={claimReward}
-              onRedeem={redeemReward}
-            />
+            <RewardsList rewards={earnedRewards} onClaim={claimReward} onRedeem={redeemReward} />
           </View>
         )}
 

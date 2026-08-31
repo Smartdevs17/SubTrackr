@@ -169,3 +169,36 @@ export type {
   LeakRecord,
   PoolTuningRecommendation,
 } from './poolMonitor';
+
+// ── Background Job Queue (#990) ──────────────────────────────────────────────
+export { PriorityQueue, jobQueue } from './jobQueue';
+export type { Job, JobHandler, QueueConfig, QueueMetrics, JobStatus, JobPriority } from './jobQueue';
+
+// ── CDN Edge Caching (#991) ──────────────────────────────────────────────────
+export { CdnService, cdnService } from './cdnService';
+export type { CdnConfig, CacheEntry, PurgeRequest, PurgeResult, CdnMetrics } from './cdnService';
+
+// ── WebSocket Connection Pool (#994) ──────────────────────────────────────────
+export { WsConnectionPool } from './wsConnectionPool';
+export type { WsPoolConfig, WsConnection, WsMessage, WsPoolMetrics } from './wsConnectionPool';
+
+// ── Read Replica Router (#997) ────────────────────────────────────────────────
+export { ReadReplicaRouter } from './readReplicaRouter';
+export type { ReplicaConfig, ReplicaHealth, ReadRouteOptions, QueryRoute } from './readReplicaRouter';
+
+// ── Rate Limiting Middleware (#998) ──────────────────────────────────────────
+export { createRateLimitMiddleware, createFastifyRateLimitHook, createIpRateLimitMiddleware } from './rateLimitMiddleware';
+export type { RateLimitMiddlewareOptions, MinimalRequest, MinimalResponse } from './rateLimitMiddleware';
+
+// ── API Key Rotation with Grace Period (#1009) ────────────────────────────────
+export { ApiKeyRotationService, apiKeyRotationService } from './apiKeyRotation';
+export type {
+  ManagedApiKey,
+  ApiKeyEnvironment,
+  ApiKeyStatus,
+  RotationOptions,
+  RotationResult,
+  RotationRecord,
+  ApiKeyValidationResult,
+  ApiKeyRotationMetrics,
+} from './apiKeyRotation';

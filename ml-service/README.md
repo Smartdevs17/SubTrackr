@@ -1,49 +1,34 @@
 # SubTrackr ML Service
 
-FastAPI microservice wrapping the churn, recommendation, and pricing models.
+ML-powered churn prediction, revenue forecasting, and intervention automation
+for the SubTrackr on-chain subscription platform.
 
-## Run locally
+## Full documentation
+
+See **[docs/churn-prediction-ml.md](../docs/churn-prediction-ml.md)** for:
+
+- Architecture diagram
+- Quick-start guide
+- Full API reference (all endpoints with request/response examples)
+- TypeScript client usage
+- Intervention automation with custom dispatchers
+- Feature engineering details
+- Model training pipeline
+- Performance benchmarks
+
+## Quick start
 
 ```bash
-cd ml-service
 pip install -r requirements.txt
-uvicorn main:app --reload
+uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
-Docs at http://localhost:8000/docs
+Service will be available at `http://localhost:8000`.  
+Health check: `GET /health`
 
-## Retrain models
+## Running tests
 
 ```bash
-python retrain.py --model all        # retrain everything
-python retrain.py --model churn      # retrain one model
+pip install pytest httpx
+pytest tests/ -v
 ```
-
-Restart the service after retraining to pick up the new version.
-
-## Environment
-
-| Variable | Default | Description |
-|---|---|---|
-| `ML_SERVICE_URL` | `http://localhost:8000` | Used by the TS backend to reach this service |
-| `FEATURE_STORE_URL` | `redis://localhost:6379/0` | Redis-compatible feature store used before online fallback |
-| `FEATURE_PIPELINE_PATH` | `../services/feature-pipeline` | Local path for versioned feature transformations |
-
-Churn inference reads versioned feature vectors from the feature store. On cache
-miss or store outage, it computes the same transformation online and attempts a
-best-effort store write.
-
-## Key endpoints
-
-| Method | Path | Description |
-|---|---|---|
-| GET | `/health` | Liveness check |
-| GET | `/v1/models` | Model versions + drift status |
-| POST | `/v1/churn/predict` | Single churn prediction |
-| POST | `/v1/churn/predict/batch` | Batch churn predictions |
-| POST | `/v1/churn/forecast` | Revenue forecast |
-| POST | `/v1/recommendations/predict` | Single recommendation |
-| POST | `/v1/recommendations/predict/batch` | Batch recommendations |
-| POST | `/v1/recommendations/feedback` | Record acceptance (A/B + drift) |
-| POST | `/v1/pricing/optimize` | Optimal price calculation |
-| POST | `/v1/pricing/ab-test` | A/B test price tiers |

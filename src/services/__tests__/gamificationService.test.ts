@@ -30,7 +30,9 @@ describe('GamificationService', () => {
 
   it('should generate all_time leaderboard with current user', () => {
     const leaderboard = gamificationService.getLeaderboard(500, 'Test User', 'all_time');
-    expect(leaderboard.some((entry) => entry.name === 'Test User' || entry.isCurrentUser)).toBe(true);
+    expect(leaderboard.some((entry) => entry.name === 'Test User' || entry.isCurrentUser)).toBe(
+      true
+    );
   });
 
   it('should generate weekly leaderboard scaling points appropriately', () => {
@@ -46,9 +48,29 @@ describe('GamificationService', () => {
     expect(leaderboard[0].streak).toBeGreaterThanOrEqual(leaderboard[1].streak || 0);
   });
 
+  it('should default to all_time category when none is provided', () => {
+    const leaderboard = gamificationService.getLeaderboard(500, 'Test User');
+    const userEntry = leaderboard.find((entry) => entry.isCurrentUser);
+    expect(userEntry?.points).toBe(500); // full points, not weekly-scaled
+    expect(leaderboard[0].points).toBeGreaterThanOrEqual(leaderboard[1].points);
+  });
+
+  it('should handle a zero-streak user on the streaks leaderboard', () => {
+    const leaderboard = gamificationService.getLeaderboard(500, 'Test User', 'streaks', 0);
+    const userEntry = leaderboard.find((entry) => entry.isCurrentUser);
+    expect(userEntry?.streak).toBe(0);
+    expect(leaderboard[leaderboard.length - 1].name).toBe('Test User');
+  });
+
   it('should share achievement using native Share API', async () => {
     const ach = gamificationService.getAchievements()[0];
-    await gamificationService.shareAchievement(ach, { points: 50, level: 1, earnedAchievements: [], earnedBadges: [], streak: 1 });
+    await gamificationService.shareAchievement(ach, {
+      points: 50,
+      level: 1,
+      earnedAchievements: [],
+      earnedBadges: [],
+      streak: 1,
+    });
     expect(Share.share).toHaveBeenCalledWith(
       expect.objectContaining({ message: expect.stringContaining(ach.name) })
     );
@@ -56,16 +78,72 @@ describe('GamificationService', () => {
 
   it('should share badge using native Share API', async () => {
     const badge = gamificationService.getBadges()[0];
-    await gamificationService.shareBadge(badge, { points: 50, level: 1, earnedAchievements: [], earnedBadges: [], streak: 1 });
+    await gamificationService.shareBadge(badge, {
+      points: 50,
+      level: 1,
+      earnedAchievements: [],
+      earnedBadges: [],
+      streak: 1,
+    });
     expect(Share.share).toHaveBeenCalledWith(
       expect.objectContaining({ message: expect.stringContaining(badge.name) })
     );
   });
 
   it('should share level using native Share API', async () => {
-    await gamificationService.shareLevel({ points: 500, level: 3, earnedAchievements: [], earnedBadges: [], streak: 5 });
+    await gamificationService.shareLevel({
+      points: 500,
+      level: 3,
+      earnedAchievements: [],
+      earnedBadges: [],
+      streak: 5,
+    });
     expect(Share.share).toHaveBeenCalledWith(
       expect.objectContaining({ message: expect.stringContaining('Level 3') })
     );
+  });
+
+  it('should swallow errors when sharing an achievement fails', async () => {
+    (Share.share as jest.Mock).mockRejectedValueOnce(new Error('share cancelled'));
+    const ach = gamificationService.getAchievements()[0];
+
+    await expect(
+      gamificationService.shareAchievement(ach, {
+        points: 50,
+        level: 1,
+        earnedAchievements: [],
+        earnedBadges: [],
+        streak: 1,
+      })
+    ).resolves.toBeUndefined();
+  });
+
+  it('should swallow errors when sharing a badge fails', async () => {
+    (Share.share as jest.Mock).mockRejectedValueOnce(new Error('share cancelled'));
+    const badge = gamificationService.getBadges()[0];
+
+    await expect(
+      gamificationService.shareBadge(badge, {
+        points: 50,
+        level: 1,
+        earnedAchievements: [],
+        earnedBadges: [],
+        streak: 1,
+      })
+    ).resolves.toBeUndefined();
+  });
+
+  it('should swallow errors when sharing level fails', async () => {
+    (Share.share as jest.Mock).mockRejectedValueOnce(new Error('share cancelled'));
+
+    await expect(
+      gamificationService.shareLevel({
+        points: 500,
+        level: 3,
+        earnedAchievements: [],
+        earnedBadges: [],
+        streak: 5,
+      })
+    ).resolves.toBeUndefined();
   });
 });

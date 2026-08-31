@@ -11,13 +11,19 @@ export interface AlignmentConfirmation {
   appliedAt: Date;
 }
 
+export interface GroupAlignmentConfirmation {
+  previews: AlignmentPlanPreview[];
+  appliedAt: Date;
+}
+
 /**
  * Server-side counterpart to the mobile billing-alignment store: tracks the
- * 90-day re-alignment lockout per merchant/subscriber and produces alignment
- * previews/confirmations from the same pure domain logic.
+ * 90-day re-alignment lockout per merchant/subscriber/group and produces
+ * alignment previews/confirmations from the same pure domain logic.
  */
 export class AlignmentService {
   private lastAlignedAt = new Map<string, Date>();
+  private lastGroupAlignedAt = new Map<string, Date>();
 
   previewAlignment(
     userId: string,
@@ -47,6 +53,36 @@ export class AlignmentService {
     const preview = buildAlignmentPlanPreview(subscriptions, targetDay);
     this.lastAlignedAt.set(userId, now);
     return { preview, appliedAt: now };
+  }
+
+  previewGroupAlignment(
+    groupId: string,
+    memberSubscriptions: Subscription[][],
+    targetDay: AlignmentTargetDay
+  ): AlignmentPlanPreview[] {
+    return memberSubscriptions.map(subs => buildAlignmentPlanPreview(subs, targetDay));
+  }
+
+  canRealignGroup(groupId: string, now: Date = new Date()): boolean {
+    return canRealign(this.lastGroupAlignedAt.get(groupId) ?? null, now);
+  }
+
+  daysUntilNextGroupRealignment(groupId: string, now: Date = new Date()): number {
+    return daysUntilNextRealignment(this.lastGroupAlignedAt.get(groupId) ?? null, now);
+  }
+
+  confirmGroupAlignment(
+    groupId: string,
+    memberSubscriptions: Subscription[][],
+    targetDay: AlignmentTargetDay,
+    now: Date = new Date()
+  ): GroupAlignmentConfirmation {
+    if (!this.canRealignGroup(groupId, now)) {
+      throw new Error(`Re-alignment for group ${groupId} is locked until the 90-day cooldown elapses`);
+    }
+    const previews = memberSubscriptions.map(subs => buildAlignmentPlanPreview(subs, targetDay));
+    this.lastGroupAlignedAt.set(groupId, now);
+    return { previews, appliedAt: now };
   }
 }
 

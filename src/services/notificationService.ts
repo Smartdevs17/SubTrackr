@@ -592,3 +592,147 @@ export function attachNotificationResponseListeners(): () => void {
 
   return () => sub.remove();
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Issue #920 — Frontend notification preference management helpers
+// ═══════════════════════════════════════════════════════════════════════════
+
+import { useNotificationPreferencesStore } from '../store/notificationPreferencesStore';
+import type { NotificationType, NotificationChannel } from '../types/notification';
+
+/**
+ * Notification preference summary for display in the settings UI.
+ */
+export interface NotificationPreferenceSummary {
+  totalEnabled: number;
+  totalDisabled: number;
+  channelSummary: Record<NotificationChannel, { enabled: number; disabled: number }>;
+  hasQuietHours: boolean;
+  frequency: string;
+}
+
+/**
+ * Build a UI-friendly summary of the current notification preferences.
+ *
+ * Reads directly from the Zustand preferences store so it can be called
+ * from any component without prop-drilling.
+ */
+export function getNotificationPreferenceSummary(): NotificationPreferenceSummary {
+  const store = useNotificationPreferencesStore.getState();
+  const prefs = store.preferences;
+
+  if (!prefs) {
+    return {
+      totalEnabled: 0,
+      totalDisabled: 0,
+      channelSummary: {
+        push: { enabled: 0, disabled: 0 },
+        email: { enabled: 0, disabled: 0 },
+        sms: { enabled: 0, disabled: 0 },
+        inApp: { enabled: 0, disabled: 0 },
+      },
+      hasQuietHours: false,
+      frequency: 'immediate',
+    };
+  }
+
+  const channelSummary: Record<NotificationChannel, { enabled: number; disabled: number }> = {
+    push: { enabled: 0, disabled: 0 },
+    email: { enabled: 0, disabled: 0 },
+    sms: { enabled: 0, disabled: 0 },
+    inApp: { enabled: 0, disabled: 0 },
+  };
+
+  let totalEnabled = 0;
+  let totalDisabled = 0;
+
+  if (prefs.typePreferences) {
+    for (const typePref of Object.values(prefs.typePreferences)) {
+      if (typeof typePref === 'object' && typePref !== null && 'channels' in typePref) {
+        const channels = (typePref as { channels: Record<string, boolean> }).channels;
+        for (const [ch, enabled] of Object.entries(channels)) {
+          const channel = ch as NotificationChannel;
+          if (channel in channelSummary) {
+            if (enabled) {
+              channelSummary[channel].enabled += 1;
+              totalEnabled += 1;
+            } else {
+              channelSummary[channel].disabled += 1;
+              totalDisabled += 1;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return {
+    totalEnabled,
+    totalDisabled,
+    channelSummary,
+    hasQuietHours: prefs.quietHoursEnabled ?? false,
+    frequency: prefs.frequency ?? 'immediate',
+  };
+}
+
+/**
+ * Bulk-enable or bulk-disable all notification types for a specific channel.
+ * Useful for a "Pause all email notifications" toggle.
+ */
+export async function setAllChannelNotifications(
+  channel: NotificationChannel,
+  enabled: boolean,
+  notificationTypes: NotificationType[]
+): Promise<void> {
+  const store = useNotificationPreferencesStore.getState();
+  for (const type of notificationTypes) {
+    await store.setTypeChannelEnabled?.(type, channel, enabled);
+  }
+}
+
+/**
+ * Returns true if the device should display a notification based on the
+ * local preferences store (without hitting the backend).
+ *
+ * Used as a client-side gate before scheduling a push notification.
+ */
+export function shouldShowNotification(
+  type: NotificationType,
+  channel: NotificationChannel
+): boolean {
+  const store = useNotificationPreferencesStore.getState();
+  const prefs = store.preferences;
+  if (!prefs) return true; // default to showing if prefs haven't loaded yet
+
+  // Check channel-level toggle.
+  const channelEnabled = prefs.channels?.[channel as keyof typeof prefs.channels] ?? true;
+  if (!channelEnabled) return false;
+
+  // Check type-level toggle.
+  if (prefs.typePreferences) {
+    const typePref = (prefs.typePreferences as Record<string, unknown>)[type];
+    if (typeof typePref === 'object' && typePref !== null && 'channels' in typePref) {
+      const channels = (typePref as { channels: Record<string, boolean> }).channels;
+      if (channel in channels && !channels[channel]) return false;
+    }
+  }
+
+  // Check quiet hours.
+  if (prefs.quietHoursEnabled) {
+    const now = new Date();
+    const [startH, startM] = (prefs.quietHoursStart ?? '22:00').split(':').map(Number);
+    const [endH, endM] = (prefs.quietHoursEnd ?? '08:00').split(':').map(Number);
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    const startMinutes = startH * 60 + startM;
+    const endMinutes = endH * 60 + endM;
+
+    const inQuiet =
+      startMinutes < endMinutes
+        ? nowMinutes >= startMinutes && nowMinutes < endMinutes
+        : nowMinutes >= startMinutes || nowMinutes < endMinutes; // overnight window
+
+    if (inQuiet) return false;
+  }
+
+  return true;
+}

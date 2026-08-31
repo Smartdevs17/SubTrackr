@@ -9,6 +9,7 @@
  */
 
 import { formatTraceparent, mobileTracer, MobileTracer } from './trace';
+import { CircuitBreaker, CircuitBreakerOptions } from './circuitBreaker';
 
 export interface ApiClientOptions {
   baseUrl?: string;
@@ -16,6 +17,8 @@ export interface ApiClientOptions {
   fetchImpl?: typeof fetch;
   /** Default headers merged into every request (e.g. content-type). */
   defaultHeaders?: Record<string, string>;
+  /** Optional circuit breaker configuration */
+  circuitBreaker?: CircuitBreakerOptions;
 }
 
 export interface ApiRequestOptions {
@@ -38,6 +41,7 @@ export class ApiClient {
   private readonly tracer: MobileTracer;
   private readonly fetchImpl: typeof fetch;
   private readonly defaultHeaders: Record<string, string>;
+  private readonly circuitBreaker: CircuitBreaker;
 
   constructor(options: ApiClientOptions = {}) {
     this.baseUrl = (options.baseUrl ?? process.env.EXPO_PUBLIC_API_BASE_URL ?? '').replace(
@@ -47,6 +51,7 @@ export class ApiClient {
     this.tracer = options.tracer ?? mobileTracer;
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.defaultHeaders = { 'Content-Type': 'application/json', ...options.defaultHeaders };
+    this.circuitBreaker = new CircuitBreaker({ name: 'frontend-api-client', tracer: this.tracer, ...options.circuitBreaker });
   }
 
   async request<T>(path: string, options: ApiRequestOptions = {}): Promise<ApiResponse<T>> {
@@ -65,11 +70,26 @@ export class ApiClient {
     };
 
     try {
-      const response = await this.fetchImpl(url, {
-        method,
-        headers,
-        body: options.body === undefined ? undefined : JSON.stringify(options.body),
-      });
+      let response: Response;
+      try {
+        response = await this.circuitBreaker.execute(async () => {
+          const res = await this.fetchImpl(url, {
+            method,
+            headers,
+            body: options.body === undefined ? undefined : JSON.stringify(options.body),
+          });
+          if (res.status >= 500) {
+            throw res;
+          }
+          return res;
+        });
+      } catch (err) {
+        if (err instanceof Response) {
+          response = err;
+        } else {
+          throw err;
+        }
+      }
 
       const text = await response.text();
       const data = (text ? JSON.parse(text) : null) as T;

@@ -1,0 +1,12 @@
+allowBuilds:
+  bufferutil: true
+  detox: false
+  dtrace-provider: false
+  es5-ext: false
+  keccak: false
+  secp256k1: false
+  unrs-resolver: false
+  utf-8-validate: false
+  web3: false
+  web3-bzz: false
+  web3-shh: false
