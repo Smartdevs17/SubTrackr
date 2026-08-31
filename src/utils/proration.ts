@@ -46,6 +46,93 @@ export function getRemainingDays(subscription: Subscription): number {
 }
 
 /**
+ * Resolve the effective proration date for a plan change.
+ *
+ * If a specific date is provided, only immediate changes that happen before the
+ * next billing date are prorated. Future-dated changes at or after the next bill
+ * are treated as end-of-period changes.
+ */
+export function resolveProrationEffectiveDate(
+  currentSubscription: Subscription,
+  effectiveDate: 'immediate' | 'end_of_period' | Date = 'immediate'
+): 'immediate' | 'end_of_period' {
+  if (effectiveDate === 'end_of_period') {
+    return 'end_of_period';
+  }
+
+  if (effectiveDate instanceof Date) {
+    const nextBilling = new Date(currentSubscription.nextBillingDate);
+    const now = new Date();
+    if (
+      effectiveDate.getTime() > now.getTime() &&
+      effectiveDate.getTime() <= nextBilling.getTime()
+    ) {
+      return 'immediate';
+    }
+    return 'end_of_period';
+  }
+
+  return 'immediate';
+}
+
+/**
+ * Calculate a prorated adjustment against the exact days remaining in the cycle.
+ * This is the explicit mid-cycle engine used for plan upgrades and downgrades.
+ */
+export function calculateMidCycleProration(
+  currentSubscription: Subscription,
+  newPrice: number,
+  effectiveDate: 'immediate' | 'end_of_period' | Date = 'immediate'
+): ProrationPreview {
+  const resolvedEffectiveDate = resolveProrationEffectiveDate(currentSubscription, effectiveDate);
+  const periodDays = getPeriodDays(currentSubscription.billingCycle);
+
+  if (resolvedEffectiveDate === 'end_of_period' || currentSubscription.price === newPrice) {
+    return {
+      amount: 0,
+      isCredit: false,
+      remainingDays: 0,
+      periodDays,
+      oldDailyRate: Math.round((currentSubscription.price / periodDays) * 100) / 100,
+      newDailyRate: Math.round((newPrice / periodDays) * 100) / 100,
+      description: 'No proration required',
+      effectiveDate: 'end_of_period',
+    };
+  }
+
+  const now = new Date();
+  const nextBilling = new Date(currentSubscription.nextBillingDate);
+  const chosenDate = effectiveDate instanceof Date ? effectiveDate : now;
+  const targetDate = new Date(
+    Math.min(Math.max(chosenDate.getTime(), now.getTime()), nextBilling.getTime())
+  );
+  const remainingMs = Math.max(0, nextBilling.getTime() - targetDate.getTime());
+  const remainingDays = Math.max(0, Math.ceil(remainingMs / (1000 * 60 * 60 * 24)));
+
+  const rawAmount = ((newPrice - currentSubscription.price) * remainingDays) / periodDays;
+  const amount = Math.round(Math.abs(rawAmount) * 100) / 100;
+  const isCredit = rawAmount < 0;
+
+  const description =
+    amount === 0
+      ? 'No proration required'
+      : isCredit
+        ? `Prorated credit of ${amount} for plan downgrade (${remainingDays} days remaining)`
+        : `Prorated charge of ${amount} for plan upgrade (${remainingDays} days remaining)`;
+
+  return {
+    amount,
+    isCredit,
+    remainingDays,
+    periodDays,
+    oldDailyRate: Math.round((currentSubscription.price / periodDays) * 100) / 100,
+    newDailyRate: Math.round((newPrice / periodDays) * 100) / 100,
+    description,
+    effectiveDate: resolvedEffectiveDate,
+  };
+}
+
+/**
  * Preview proration before confirming plan change
  *
  * Formula: (newRate - oldRate) * remainingDays / periodDays
@@ -55,40 +142,7 @@ export function previewProration(
   newPrice: number,
   effectiveDate: 'immediate' | 'end_of_period' = 'immediate'
 ): ProrationPreview {
-  const periodDays = getPeriodDays(currentSubscription.billingCycle);
-  const remainingDays =
-    effectiveDate === 'end_of_period' ? 0 : getRemainingDays(currentSubscription);
-
-  const oldRate = currentSubscription.price;
-  const oldDailyRate = oldRate / periodDays;
-  const newDailyRate = newPrice / periodDays;
-
-  const rawAmount =
-    effectiveDate === 'end_of_period' ? 0 : ((newPrice - oldRate) * remainingDays) / periodDays;
-
-  // Round to 2 decimal places for currency
-  const amount = Math.round(Math.abs(rawAmount) * 100) / 100;
-  const isCredit = rawAmount < 0;
-
-  let description: string;
-  if (amount === 0) {
-    description = 'No proration required';
-  } else if (isCredit) {
-    description = `Prorated credit of ${amount} for plan downgrade (${remainingDays} days remaining)`;
-  } else {
-    description = `Prorated charge of ${amount} for plan upgrade (${remainingDays} days remaining)`;
-  }
-
-  return {
-    amount,
-    isCredit,
-    remainingDays,
-    periodDays,
-    oldDailyRate: Math.round(oldDailyRate * 100) / 100,
-    newDailyRate: Math.round(newDailyRate * 100) / 100,
-    description,
-    effectiveDate,
-  };
+  return calculateMidCycleProration(currentSubscription, newPrice, effectiveDate);
 }
 
 /**
@@ -175,14 +229,16 @@ export function calculateNetProration(
   }[]
 ): ProrationPreview {
   let netAmount = 0;
+  let remainingDays = getRemainingDays(currentSubscription);
 
   for (const change of priceChanges) {
-    const result = previewProration(
+    const result = calculateMidCycleProration(
       { ...currentSubscription, price: change.oldPrice },
       change.newPrice,
       change.effectiveDate
     );
     netAmount += result.isCredit ? -result.amount : result.amount;
+    remainingDays = Math.max(remainingDays, result.remainingDays);
   }
 
   const isCredit = netAmount < 0;
@@ -191,7 +247,7 @@ export function calculateNetProration(
   return {
     amount,
     isCredit,
-    remainingDays: getRemainingDays(currentSubscription),
+    remainingDays,
     periodDays: getPeriodDays(currentSubscription.billingCycle),
     oldDailyRate: 0,
     newDailyRate: 0,

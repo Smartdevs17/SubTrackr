@@ -4,6 +4,7 @@ import {
   getPeriodDays,
   getRemainingDays,
   previewProration as clientPreviewProration,
+  calculateMidCycleProration,
   generateCreditMemo as clientGenerateCreditMemo,
   applyCreditMemo as clientApplyCreditMemo,
 } from '../../../src/utils/proration';
@@ -122,7 +123,10 @@ export class ProrationService {
       }
     }
 
-    const preview = clientPreviewProration(subscription, newPrice, effectiveType);
+    const preview =
+      effectiveDate instanceof Date || effectiveType === 'immediate'
+        ? calculateMidCycleProration(subscription, newPrice, effectiveDate)
+        : clientPreviewProration(subscription, newPrice, effectiveType);
 
     if (config.method === 'hourly') {
       const hoursRemaining = preview.remainingDays * 24;
