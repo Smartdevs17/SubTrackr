@@ -21,7 +21,6 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
 from models import ChurnPredictionModel, RevenueForecastModel
-from model_registry import registry
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Structured logging with correlation IDs  (issue #910)
@@ -189,6 +188,7 @@ class RetrainRequest(BaseModel):
     training_samples: Optional[List[Dict[str, Any]]] = Field(
         None, description="Optional training rows; omit to use registry defaults"
     )
+
 
 
 # ──────────────────────────────────────────────────────────────────────────────
