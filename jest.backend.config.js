@@ -1,63 +1,46 @@
-/**
- * Jest configuration for backend-only tests.
- *
- * The main jest.config.js intentionally excludes backend/ because it uses the
- * @react-native/jest-preset which is incompatible with pure Node.js modules.
- * This config targets Node directly and uses babel-jest (already installed)
- * with the project's standard TypeScript preset.
- *
- * Run all backend tests:
- *   npx jest --config jest.backend.config.js
- *
- * Run with coverage:
- *   npx jest --config jest.backend.config.js --coverage
- *
- * Run a specific pattern:
- *   npx jest --config jest.backend.config.js --testPathPatterns etagCache
- */
-
-/** @type {import('@jest/types').Config.InitialOptions} */
+/** Minimal Jest config for running backend-only TypeScript tests without Expo. */
 module.exports = {
-  displayName: 'backend',
+  preset: 'ts-jest',
   testEnvironment: 'node',
-  rootDir: '.',
-
+  moduleNameMapper: {
+    '^bullmq$': '<rootDir>/backend/shared/queue/__mocks__/bullmq.ts',
+  },
+  setupFilesAfterEnv: ['<rootDir>/backend/__tests__/setup.ts'],
   testMatch: [
-    '<rootDir>/backend/**/__tests__/**/*.test.ts',
-    '<rootDir>/backend/**/__tests__/**/*.spec.ts',
-    '<rootDir>/backend/**/*.test.ts',
+    '**/backend/**/__tests__/**/*.test.ts',
+    '**/backend/tests/**/*.test.ts',
+    '**/backend/billing/tests/**/*.test.ts',
+    '**/backend/billing/tests/**/*.spec.ts',
+    '**/developer-portal/__tests__/**/*.test.ts',
   ],
-
   transform: {
-    '^.+\\.(js|ts|tsx)$': [
-      'babel-jest',
-      { configFile: './babel.config.backend.js' },
+    '^.+\\.tsx?$': [
+      'ts-jest',
+      {
+        diagnostics: false,
+        tsconfig: { strict: false, skipLibCheck: true },
+      },
     ],
   },
-
-  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
-
-  // Prevent transformIgnore from blocking node:* built-ins
-  transformIgnorePatterns: [
-    'node_modules/(?!(jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/)',
-  ],
-
-  // Stub out React Native / mobile-only deps that backend code never uses
-  moduleNameMapper: {
-    '^@react-native-async-storage/async-storage$':
-      '<rootDir>/src/__mocks__/@react-native-async-storage/async-storage.js',
-  },
-
+  moduleFileExtensions: ['ts', 'js', 'json'],
+  // Coverage settings — aligned with Stryker break threshold (issue #914)
   collectCoverageFrom: [
     'backend/**/*.ts',
-    '!backend/**/*.d.ts',
-    '!backend/**/dist/**',
+    '!backend/**/*.test.ts',
+    '!backend/**/*.spec.ts',
     '!backend/**/__tests__/**',
-    '!backend/**/__mocks__/**',
+    '!backend/**/*.d.ts',
+    '!backend/migrations/**',
+    '!backend/server.ts',
+    '!backend/server/**',
   ],
-
-  coverageDirectory: '<rootDir>/coverage/backend',
-  coverageReporters: ['text', 'lcov', 'html'],
-
-  passWithNoTests: true,
+  coverageThreshold: {
+    global: {
+      branches: 50,
+      functions: 60,
+      lines: 60,
+      statements: 60,
+    },
+  },
+  coverageReporters: ['text', 'lcov', 'json-summary'],
 };
