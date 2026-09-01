@@ -1,0 +1,71 @@
+name: Changelog & Release Notes
+
+on:
+  push:
+    branches: [main, dev, develop]
+  pull_request:
+    branches: [main, dev, develop]
+  workflow_dispatch:
+
+jobs:
+  changelog:
+    name: Generate Changelog from Conventional Commits
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Validate conventional commits
+        if: github.event_name == 'pull_request'
+        run: npx commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.sha }} --verbose
+
+      - name: Generate changelog preview
+        run: |
+          npx conventional-changelog-cli -p angular -i CHANGELOG.md -s -r 0 || true
+          echo "Changelog preview generated"
+          cat CHANGELOG.md || true
+
+      - name: Upload changelog preview
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: changelog-preview
+          path: CHANGELOG.md
+          if-no-files-found: ignore
+
+  semantic-release-dry-run:
+    name: Semantic Release Dry Run
+    runs-on: ubuntu-latest
+    needs: changelog
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Run semantic-release dry-run
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npx semantic-release --dry-run || true
