@@ -208,8 +208,16 @@ function buildSignalBreakdown(analytics: FraudAnalytics): SignalBreakdown[] {
     { signalType: 'usage-anomaly', count: analytics.anomalyAlerts ?? 0, avgScore: 22 },
     { signalType: 'chargeback', count: analytics.chargebackPredictions ?? 0, avgScore: 38 },
     { signalType: 'geolocation-anomaly', count: analytics.geoAnomalyAlerts ?? 0, avgScore: 24 },
-    { signalType: 'device-mismatch', count: Math.round((analytics.flagged ?? 0) * 0.3), avgScore: 20 },
-    { signalType: 'pattern-shift', count: Math.round((analytics.flagged ?? 0) * 0.2), avgScore: 26 },
+    {
+      signalType: 'device-mismatch',
+      count: Math.round((analytics.flagged ?? 0) * 0.3),
+      avgScore: 20,
+    },
+    {
+      signalType: 'pattern-shift',
+      count: Math.round((analytics.flagged ?? 0) * 0.2),
+      avgScore: 26,
+    },
   ];
   const total = raw.reduce((s, r) => s + r.count, 0);
   return raw.map((s) => ({

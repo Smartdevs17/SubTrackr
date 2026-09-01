@@ -59,18 +59,20 @@ export async function performFraudCheck(request: FraudCheckRequest): Promise<Fra
 
   // Check 3: Location mismatch
   if (request.metadata.location) {
-    const loc = typeof request.metadata.location === 'string'
-      ? { country: request.metadata.location }
-      : request.metadata.location;
+    const loc =
+      typeof request.metadata.location === 'string'
+        ? { country: request.metadata.location }
+        : request.metadata.location;
     const locationCheck = await checkLocationAnomaly(request.userId, loc);
     if (locationCheck.isSuspicious) {
       indicators.push({
         type: FraudIndicatorType.LOCATION_MISMATCH,
         severity: 'medium',
         description: locationCheck.reason,
-        value: typeof request.metadata.location === 'string'
-          ? request.metadata.location
-          : request.metadata.location.country,
+        value:
+          typeof request.metadata.location === 'string'
+            ? request.metadata.location
+            : request.metadata.location.country,
       });
       riskScore += 20;
     }
@@ -117,7 +119,7 @@ export async function performFraudCheck(request: FraudCheckRequest): Promise<Fra
 
   // Determine risk level
   const riskLevel = calculateRiskLevel(riskScore);
-  
+
   // Create detection record if risky
   let detectionId: string | undefined;
   if (riskScore >= 30) {
@@ -156,7 +158,7 @@ export async function performFraudCheck(request: FraudCheckRequest): Promise<Fra
 // Fraud Detection Management
 async function createDetection(data: Partial<FraudDetection>): Promise<FraudDetection> {
   const detections = await getAllDetections();
-  
+
   const detection: FraudDetection = {
     id: generateId(),
     transactionId: data.transactionId!,
@@ -176,7 +178,7 @@ async function createDetection(data: Partial<FraudDetection>): Promise<FraudDete
 
   detections.push(detection);
   await AsyncStorage.setItem(STORAGE_KEYS.DETECTIONS, JSON.stringify(detections));
-  
+
   return detection;
 }
 
@@ -187,8 +189,8 @@ export async function updateDetectionStatus(
   notes?: string
 ): Promise<FraudDetection> {
   const detections = await getAllDetections();
-  const index = detections.findIndex(d => d.id === id);
-  
+  const index = detections.findIndex((d) => d.id === id);
+
   if (index === -1) {
     throw new Error(`Detection with id ${id} not found`);
   }
@@ -210,7 +212,7 @@ export async function getAllDetections(filters?: FraudFilters): Promise<FraudDet
   try {
     const data = await AsyncStorage.getItem(STORAGE_KEYS.DETECTIONS);
     if (!data) return [];
-    
+
     let detections: FraudDetection[] = JSON.parse(data);
     detections = detections.map((d: any) => ({
       ...d,
@@ -229,13 +231,13 @@ export async function getAllDetections(filters?: FraudFilters): Promise<FraudDet
 
 export async function getDetectionById(id: string): Promise<FraudDetection | null> {
   const detections = await getAllDetections();
-  return detections.find(d => d.id === id) || null;
+  return detections.find((d) => d.id === id) || null;
 }
 
 // Fraud Alerts
 async function createAlert(detection: FraudDetection): Promise<FraudAlert> {
   const alerts = await getAllAlerts();
-  
+
   const alert: FraudAlert = {
     id: generateId(),
     detectionId: detection.id,
@@ -250,7 +252,7 @@ async function createAlert(detection: FraudDetection): Promise<FraudAlert> {
 
   alerts.push(alert);
   await AsyncStorage.setItem(STORAGE_KEYS.ALERTS, JSON.stringify(alerts));
-  
+
   return alert;
 }
 
@@ -258,7 +260,7 @@ export async function getAllAlerts(): Promise<FraudAlert[]> {
   try {
     const data = await AsyncStorage.getItem(STORAGE_KEYS.ALERTS);
     if (!data) return [];
-    
+
     const alerts: FraudAlert[] = JSON.parse(data);
     return alerts.map((a: any) => ({
       ...a,
@@ -273,8 +275,8 @@ export async function getAllAlerts(): Promise<FraudAlert[]> {
 
 export async function markAlertAsRead(id: string): Promise<void> {
   const alerts = await getAllAlerts();
-  const index = alerts.findIndex(a => a.id === id);
-  
+  const index = alerts.findIndex((a) => a.id === id);
+
   if (index !== -1) {
     alerts[index].isRead = true;
     await AsyncStorage.setItem(STORAGE_KEYS.ALERTS, JSON.stringify(alerts));
@@ -283,8 +285,8 @@ export async function markAlertAsRead(id: string): Promise<void> {
 
 export async function resolveAlert(id: string, actionTaken: string): Promise<void> {
   const alerts = await getAllAlerts();
-  const index = alerts.findIndex(a => a.id === id);
-  
+  const index = alerts.findIndex((a) => a.id === id);
+
   if (index !== -1) {
     alerts[index].isResolved = true;
     alerts[index].actionTaken = actionTaken;
@@ -296,15 +298,14 @@ export async function resolveAlert(id: string, actionTaken: string): Promise<voi
 // Fraud Analytics
 export async function getFraudAnalytics(): Promise<FraudAnalytics> {
   const detections = await getAllDetections();
-  
+
   const totalDetections = detections.length;
-  const blockedTransactions = detections.filter(d => d.isBlocked).length;
-  const confirmedFraud = detections.filter(d => d.status === FraudStatus.CONFIRMED).length;
-  const falsePositives = detections.filter(d => d.status === FraudStatus.FALSE_POSITIVE).length;
-  
-  const averageRiskScore = totalDetections > 0
-    ? detections.reduce((sum, d) => sum + d.riskScore, 0) / totalDetections
-    : 0;
+  const blockedTransactions = detections.filter((d) => d.isBlocked).length;
+  const confirmedFraud = detections.filter((d) => d.status === FraudStatus.CONFIRMED).length;
+  const falsePositives = detections.filter((d) => d.status === FraudStatus.FALSE_POSITIVE).length;
+
+  const averageRiskScore =
+    totalDetections > 0 ? detections.reduce((sum, d) => sum + d.riskScore, 0) / totalDetections : 0;
 
   // Detections by level
   const detectionsByLevel: Record<FraudRiskLevel, number> = {
@@ -313,7 +314,7 @@ export async function getFraudAnalytics(): Promise<FraudAnalytics> {
     high: 0,
     critical: 0,
   };
-  detections.forEach(d => detectionsByLevel[d.riskLevel]++);
+  detections.forEach((d) => detectionsByLevel[d.riskLevel]++);
 
   // Detections by method
   const detectionsByMethod: Record<FraudDetectionMethod, number> = {
@@ -326,7 +327,7 @@ export async function getFraudAnalytics(): Promise<FraudAnalytics> {
     network_analysis: 0,
     ml_model: 0,
   };
-  detections.forEach(d => detectionsByMethod[d.detectionMethod]++);
+  detections.forEach((d) => detectionsByMethod[d.detectionMethod]++);
 
   // Indicator breakdown
   const indicatorBreakdown: Record<FraudIndicatorType, number> = {
@@ -341,29 +342,25 @@ export async function getFraudAnalytics(): Promise<FraudAnalytics> {
     unusual_time: 0,
     ip_reputation: 0,
   };
-  detections.forEach(d => {
-    d.indicators.forEach(ind => indicatorBreakdown[ind.type]++);
+  detections.forEach((d) => {
+    d.indicators.forEach((ind) => indicatorBreakdown[ind.type]++);
   });
 
   // Calculate prevented loss (mock calculation)
   const preventedLoss = detections
-    .filter(d => d.isBlocked && d.status !== FraudStatus.FALSE_POSITIVE)
+    .filter((d) => d.isBlocked && d.status !== FraudStatus.FALSE_POSITIVE)
     .reduce((sum, d) => sum + (d.metadata.transactionAmount || 0), 0);
 
   // Detection and false positive rates
-  const detectionRate = totalDetections > 0 
-    ? (confirmedFraud / totalDetections) * 100 
-    : 0;
-  const falsePositiveRate = totalDetections > 0 
-    ? (falsePositives / totalDetections) * 100 
-    : 0;
+  const detectionRate = totalDetections > 0 ? (confirmedFraud / totalDetections) * 100 : 0;
+  const falsePositiveRate = totalDetections > 0 ? (falsePositives / totalDetections) * 100 : 0;
 
   // Time series data (last 30 days)
   const timeSeriesData = generateTimeSeriesData(detections, 30);
 
   // Top risk users
   const userRiskMap = new Map<string, { riskScore: number; count: number }>();
-  detections.forEach(d => {
+  detections.forEach((d) => {
     const existing = userRiskMap.get(d.userId) || { riskScore: 0, count: 0 };
     userRiskMap.set(d.userId, {
       riskScore: Math.max(existing.riskScore, d.riskScore),
@@ -404,7 +401,7 @@ export async function createInvestigation(
   priority: 'low' | 'medium' | 'high' | 'urgent'
 ): Promise<FraudInvestigation> {
   const investigations = await getAllInvestigations();
-  
+
   const investigation: FraudInvestigation = {
     id: generateId(),
     detectionId,
@@ -420,7 +417,7 @@ export async function createInvestigation(
 
   investigations.push(investigation);
   await AsyncStorage.setItem(STORAGE_KEYS.INVESTIGATIONS, JSON.stringify(investigations));
-  
+
   return investigation;
 }
 
@@ -429,8 +426,8 @@ export async function updateInvestigation(
   updates: Partial<FraudInvestigation>
 ): Promise<FraudInvestigation> {
   const investigations = await getAllInvestigations();
-  const index = investigations.findIndex(i => i.id === id);
-  
+  const index = investigations.findIndex((i) => i.id === id);
+
   if (index === -1) {
     throw new Error(`Investigation with id ${id} not found`);
   }
@@ -450,7 +447,7 @@ export async function getAllInvestigations(): Promise<FraudInvestigation[]> {
   try {
     const data = await AsyncStorage.getItem(STORAGE_KEYS.INVESTIGATIONS);
     if (!data) return [];
-    
+
     const investigations: FraudInvestigation[] = JSON.parse(data);
     return investigations.map((i: any) => ({
       ...i,
@@ -477,12 +474,11 @@ export async function generateFraudReport(
 
   const totalDetections = detections.length;
   const blockedAmount = detections
-    .filter(d => d.isBlocked)
+    .filter((d) => d.isBlocked)
     .reduce((sum, d) => sum + (d.metadata.transactionAmount || 0), 0);
-  const confirmedCases = detections.filter(d => d.status === FraudStatus.CONFIRMED).length;
-  const averageRiskScore = totalDetections > 0
-    ? detections.reduce((sum, d) => sum + d.riskScore, 0) / totalDetections
-    : 0;
+  const confirmedCases = detections.filter((d) => d.status === FraudStatus.CONFIRMED).length;
+  const averageRiskScore =
+    totalDetections > 0 ? detections.reduce((sum, d) => sum + d.riskScore, 0) / totalDetections : 0;
 
   // Calculate trends
   const prevPeriod = calculatePreviousPeriod(period, reportType);
@@ -491,20 +487,23 @@ export async function generateFraudReport(
     dateTo: prevPeriod.end,
   });
 
-  const detectionTrend = totalDetections > prevDetections.length 
-    ? 'increasing' 
-    : totalDetections < prevDetections.length 
-    ? 'decreasing' 
-    : 'stable';
+  const detectionTrend =
+    totalDetections > prevDetections.length
+      ? 'increasing'
+      : totalDetections < prevDetections.length
+        ? 'decreasing'
+        : 'stable';
 
-  const prevAvgRisk = prevDetections.length > 0
-    ? prevDetections.reduce((sum, d) => sum + d.riskScore, 0) / prevDetections.length
-    : 0;
-  const riskTrend = averageRiskScore > prevAvgRisk 
-    ? 'increasing' 
-    : averageRiskScore < prevAvgRisk 
-    ? 'decreasing' 
-    : 'stable';
+  const prevAvgRisk =
+    prevDetections.length > 0
+      ? prevDetections.reduce((sum, d) => sum + d.riskScore, 0) / prevDetections.length
+      : 0;
+  const riskTrend =
+    averageRiskScore > prevAvgRisk
+      ? 'increasing'
+      : averageRiskScore < prevAvgRisk
+        ? 'decreasing'
+        : 'stable';
 
   const recommendations = generateReportRecommendations(analytics, detectionTrend, riskTrend);
 
@@ -542,11 +541,13 @@ export async function getMonitoringStatus(): Promise<RealTimeMonitoring> {
         averageResponseTime: 0,
       };
     }
-    
+
     const monitoring: RealTimeMonitoring = JSON.parse(data);
     return {
       ...monitoring,
-      lastCheckTimestamp: monitoring.lastCheckTimestamp ? new Date(monitoring.lastCheckTimestamp) : undefined,
+      lastCheckTimestamp: monitoring.lastCheckTimestamp
+        ? new Date(monitoring.lastCheckTimestamp)
+        : undefined,
     };
   } catch (error) {
     console.error('Failed to load monitoring status:', error);
@@ -557,11 +558,11 @@ export async function getMonitoringStatus(): Promise<RealTimeMonitoring> {
 async function updateMonitoringStats(): Promise<void> {
   const monitoring = await getMonitoringStatus();
   const detections = await getAllDetections();
-  
+
   monitoring.transactionsMonitored = (monitoring.transactionsMonitored ?? 0) + 1;
-  monitoring.activeDetections = detections.filter(d => d.status === FraudStatus.PENDING).length;
+  monitoring.activeDetections = detections.filter((d) => d.status === FraudStatus.PENDING).length;
   monitoring.lastCheckTimestamp = new Date();
-  
+
   await AsyncStorage.setItem(STORAGE_KEYS.MONITORING, JSON.stringify(monitoring));
 }
 
@@ -578,9 +579,9 @@ async function checkVelocity(
   const timeWindow = 60; // minutes
   const threshold = 5; // max transactions
   const cutoff = new Date(Date.now() - timeWindow * 60 * 1000);
-  
+
   const recentTransactions = detections.filter(
-    d => d.userId === userId && d.subscriptionId === subscriptionId && d.timestamp >= cutoff
+    (d) => d.userId === userId && d.subscriptionId === subscriptionId && d.timestamp >= cutoff
   );
 
   return {
@@ -594,17 +595,20 @@ async function checkVelocity(
 async function checkAmountAnomaly(
   userId: string,
   amount: number
-): Promise<{ isAnomalous: boolean; severity: 'low' | 'medium' | 'high'; deviation: number; averageAmount: number }> {
+): Promise<{
+  isAnomalous: boolean;
+  severity: 'low' | 'medium' | 'high';
+  deviation: number;
+  averageAmount: number;
+}> {
   const detections = await getAllDetections({ userId });
-  
+
   if (detections.length < 3) {
     return { isAnomalous: false, severity: 'low', deviation: 1, averageAmount: amount };
   }
 
-  const amounts = detections
-    .map(d => d.metadata.transactionAmount || 0)
-    .filter(a => a > 0);
-  
+  const amounts = detections.map((d) => d.metadata.transactionAmount || 0).filter((a) => a > 0);
+
   const averageAmount = amounts.reduce((sum, a) => sum + a, 0) / amounts.length;
   const deviation = amount / averageAmount;
 
@@ -621,7 +625,7 @@ async function checkLocationAnomaly(
   location: { country: string; city?: string }
 ): Promise<{ isSuspicious: boolean; reason: string }> {
   const detections = await getAllDetections({ userId });
-  
+
   if (detections.length === 0) {
     return { isSuspicious: false, reason: '' };
   }
@@ -636,7 +640,7 @@ async function checkLocationAnomaly(
   if (recentCountry !== location.country) {
     const timeDiff = Date.now() - detections[detections.length - 1].timestamp.getTime();
     const hoursDiff = timeDiff / (1000 * 60 * 60);
-    
+
     if (hoursDiff < 2) {
       return {
         isSuspicious: true,
@@ -653,14 +657,14 @@ async function checkDeviceFingerprint(
   deviceId: string
 ): Promise<{ isNew: boolean }> {
   const detections = await getAllDetections({ userId });
-  const knownDevices = new Set(detections.map(d => d.metadata.deviceId).filter(Boolean));
-  
+  const knownDevices = new Set(detections.map((d) => d.metadata.deviceId).filter(Boolean));
+
   return { isNew: !knownDevices.has(deviceId) };
 }
 
 function checkTimePattern(timestamp: Date): { isUnusual: boolean; reason: string } {
   const hour = timestamp.getHours();
-  
+
   // Flag transactions between 2 AM and 5 AM
   if (hour >= 2 && hour < 5) {
     return {
@@ -678,7 +682,7 @@ async function checkIPReputation(
   // Mock IP reputation check
   // In production, integrate with IP reputation services
   const suspiciousIPs = ['192.168.1.100', '10.0.0.1']; // Mock blacklist
-  
+
   if (suspiciousIPs.includes(ipAddress)) {
     return {
       isSuspicious: true,
@@ -713,7 +717,7 @@ function generateRecommendation(riskScore: number, indicators: FraudIndicator[])
 function applyFilters(detections: FraudDetection[], filters?: FraudFilters): FraudDetection[] {
   if (!filters) return detections;
 
-  return detections.filter(d => {
+  return detections.filter((d) => {
     if (filters.riskLevel && !filters.riskLevel.includes(d.riskLevel)) return false;
     if (filters.status && !filters.status.includes(d.status)) return false;
     if (filters.dateFrom && d.timestamp < filters.dateFrom) return false;
@@ -738,7 +742,7 @@ function generateTimeSeriesData(
     date.setDate(date.getDate() - i);
     const dateStr = date.toISOString().split('T')[0];
 
-    const dayDetections = detections.filter(d => {
+    const dayDetections = detections.filter((d) => {
       const dStr = d.timestamp.toISOString().split('T')[0];
       return dStr === dateStr;
     });
@@ -746,8 +750,8 @@ function generateTimeSeriesData(
     data.push({
       date: dateStr,
       detections: dayDetections.length,
-      blocked: dayDetections.filter(d => d.isBlocked).length,
-      confirmed: dayDetections.filter(d => d.status === FraudStatus.CONFIRMED).length,
+      blocked: dayDetections.filter((d) => d.isBlocked).length,
+      confirmed: dayDetections.filter((d) => d.status === FraudStatus.CONFIRMED).length,
     });
   }
 
@@ -759,7 +763,7 @@ function calculatePreviousPeriod(
   reportType: string
 ): { start: Date; end: Date } {
   const duration = period.end.getTime() - period.start.getTime();
-  
+
   return {
     start: new Date(period.start.getTime() - duration),
     end: new Date(period.start.getTime()),
@@ -778,15 +782,21 @@ function generateReportRecommendations(
   }
 
   if (riskTrend === 'increasing') {
-    recommendations.push('Average risk score is rising. Consider implementing additional verification steps.');
+    recommendations.push(
+      'Average risk score is rising. Consider implementing additional verification steps.'
+    );
   }
 
   if (analytics.falsePositiveRate && analytics.falsePositiveRate > 20) {
-    recommendations.push(`False positive rate is ${analytics.falsePositiveRate.toFixed(1)}%. Review and adjust fraud detection thresholds.`);
+    recommendations.push(
+      `False positive rate is ${analytics.falsePositiveRate.toFixed(1)}%. Review and adjust fraud detection thresholds.`
+    );
   }
 
   if (analytics.preventedLoss && analytics.preventedLoss > 1000) {
-    recommendations.push(`Successfully prevented $${analytics.preventedLoss.toFixed(2)} in potential fraud.`);
+    recommendations.push(
+      `Successfully prevented $${analytics.preventedLoss.toFixed(2)} in potential fraud.`
+    );
   }
 
   if (recommendations.length === 0) {

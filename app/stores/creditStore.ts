@@ -10,14 +10,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { asyncStorageAdapter } from '../../src/utils/storage';
 
-export type CreditTxKind =
-  | 'issue'
-  | 'apply'
-  | 'transfer_in'
-  | 'transfer_out'
-  | 'expire'
-  | 'deposit'
-  | 'withdraw';
+export type CreditTxKind = 'issue' | 'apply' | 'transfer_in' | 'transfer_out' | 'expire';
 
 export type ExpirationPolicy = { kind: 'never' } | { kind: 'after_secs'; seconds: number };
 
@@ -53,25 +46,39 @@ export interface CreditApplied {
   balanceAfter: number;
 }
 
-/**
- * Consolidated account-balance summary for a subscriber, combining on-book
- * credit (available/issued/expired/applied/transferred) with any prepayment
- * wallet funds. Used for high-level balance display and reconciliation.
- */
-export interface AccountBalance {
+export interface PrepaymentWallet {
+  id: number;
   subscriber: string;
-  availableCredit: number;
-  totalIssued: number;
-  totalApplied: number;
-  totalExpired: number;
-  totalTransferredIn: number;
-  totalTransferredOut: number;
+  subscriptionId: string;
+  currency: string;
+  balance: number;
   totalDeposited: number;
   totalWithdrawn: number;
-  prepaymentBalance: number;
-  netBalance: number;
-  nextExpirationAt?: number;
+  totalDrawn: number;
+  transactions: PrepaymentTransaction[];
+  createdAt: number;
+  updatedAt: number;
 }
+
+export type PrepaymentTxKind = 'deposit' | 'withdraw' | 'drawdown';
+
+export interface PrepaymentTransaction {
+  id: number;
+  kind: PrepaymentTxKind;
+  amount: number;
+  balanceAfter: number;
+  timestamp: number;
+}
+
+export interface PrepaymentSnapshot {
+  walletId: number;
+  balance: number;
+  transactionId: number;
+}
+
+const MAX_HISTORY = 128;
+
+const isPositiveAmount = (amount: number): boolean => Number.isFinite(amount) && amount > 0;
 
 const isExpired = (lot: CreditLot, now: number): boolean =>
   lot.expiresAt !== undefined && lot.expiresAt <= now;
@@ -84,31 +91,24 @@ const availableOf = (account: AccountCredit, now: number): number =>
 
 interface CreditStoreState {
   accounts: Record<string, AccountCredit>;
-  wallets: Record<string, CreditWallet>;
   nextId: number;
+  wallets: Record<number, PrepaymentWallet>;
+  nextWalletId: number;
+  walletTransactionIds: Record<number, number>;
   now: () => number;
 
   issueCredit: (subscriber: string, amount: number, reason: string, expiresAt?: number) => void;
   setExpirationPolicy: (subscriber: string, policy: ExpirationPolicy) => void;
   applyCredit: (subscriber: string, subscriptionId: string, amountDue: number) => CreditApplied;
   transferCredit: (from: string, to: string, amount: number, reason: string) => boolean;
-  depositCredit: (subscriber: string, amount: number, reason: string) => void;
-  withdrawCredit: (subscriber: string, amount: number, reason: string) => boolean;
   expireCredits: (subscriber: string) => number;
   getBalance: (subscriber: string) => number;
   getAccount: (subscriber: string) => AccountCredit;
-  getAccountBalance: (subscriber: string) => AccountBalance;
-  getAccountBalances: () => AccountBalance[];
-}
-
-/** Prepayment wallet tracked alongside credit accounts. */
-export interface CreditWallet {
-  id: string;
-  subscriber: string;
-  currency: string;
-  balance: number;
-  totalDeposited: number;
-  totalWithdrawn: number;
+  createWallet: (subscriber: string, subscriptionId: string, currency: string) => number;
+  getWallet: (walletId: number) => PrepaymentWallet | undefined;
+  deposit: (subscriber: string, walletId: number, amount: number) => PrepaymentSnapshot | undefined;
+  withdraw: (subscriber: string, walletId: number, amount: number) => PrepaymentSnapshot | undefined;
+  drawdown: (subscriber: string, walletId: number, amount: number) => PrepaymentSnapshot | undefined;
 }
 
 const blankAccount = (subscriber: string): AccountCredit => ({
@@ -145,7 +145,7 @@ export const useCreditStore = create<CreditStoreState>()(
         acc.transactions = [
           ...acc.transactions,
           { id: nextId(), kind, amount, timestamp: get().now(), reason, counterparty },
-        ];
+        ].slice(-MAX_HISTORY);
       };
 
       const realizeExpiry = (acc: AccountCredit, now: number): number => {
@@ -177,18 +177,47 @@ export const useCreditStore = create<CreditStoreState>()(
 
       const cloneAccount = (acc: AccountCredit): AccountCredit => ({
         ...acc,
-        lots: [...acc.lots],
-        transactions: [...acc.transactions],
+        lots: acc.lots.map((lot) => ({ ...lot })),
+        transactions: acc.transactions.map((transaction) => ({ ...transaction })),
       });
+
+      const nextWalletTransactionId = (walletId: number): number => {
+        const id = get().walletTransactionIds[walletId] ?? 0;
+        set((state) => ({
+          walletTransactionIds: { ...state.walletTransactionIds, [walletId]: id + 1 },
+        }));
+        return id;
+      };
+
+      const recordWalletTransaction = (
+        wallet: PrepaymentWallet,
+        kind: PrepaymentTxKind,
+        amount: number
+      ): PrepaymentSnapshot => {
+        const transactionId = nextWalletTransactionId(wallet.id);
+        wallet.transactions = [
+          ...wallet.transactions,
+          {
+            id: transactionId,
+            kind,
+            amount,
+            balanceAfter: wallet.balance,
+            timestamp: get().now(),
+          },
+        ].slice(-MAX_HISTORY);
+        return { walletId: wallet.id, balance: wallet.balance, transactionId };
+      };
 
       return {
         accounts: {},
-        wallets: {},
         nextId: 0,
+        wallets: {},
+        nextWalletId: 0,
+        walletTransactionIds: {},
         now: () => Math.floor(Date.now() / 1000),
 
         issueCredit: (subscriber, amount, reason, expiresAt) => {
-          if (amount <= 0) return;
+          if (!isPositiveAmount(amount)) return;
           const now = get().now();
           const acc = cloneAccount(account(subscriber));
           realizeExpiry(acc, now);
@@ -212,7 +241,8 @@ export const useCreditStore = create<CreditStoreState>()(
           const now = get().now();
           const acc = cloneAccount(account(subscriber));
           realizeExpiry(acc, now);
-          const applied = consume(acc, now, Math.max(0, amountDue));
+          const due = Number.isFinite(amountDue) ? Math.max(0, amountDue) : 0;
+          const applied = consume(acc, now, due);
           if (applied > 0) {
             acc.balance -= applied;
             record(acc, 'apply', -applied, 'charge_application');
@@ -221,13 +251,13 @@ export const useCreditStore = create<CreditStoreState>()(
           return {
             subscriptionId,
             applied,
-            remainingDue: amountDue - applied,
+            remainingDue: due - applied,
             balanceAfter: acc.balance,
           };
         },
 
         transferCredit: (from, to, amount, reason) => {
-          if (amount <= 0 || from === to) return false;
+          if (!isPositiveAmount(amount) || from === to) return false;
           const now = get().now();
           const sender = cloneAccount(account(from));
           realizeExpiry(sender, now);
@@ -259,82 +289,80 @@ export const useCreditStore = create<CreditStoreState>()(
         },
 
         getBalance: (subscriber) => availableOf(account(subscriber), get().now()),
-        getAccount: (subscriber) => account(subscriber),
+        getAccount: (subscriber) => cloneAccount(account(subscriber)),
 
-        depositCredit: (subscriber, amount, reason) => {
-          if (amount <= 0) return;
+        createWallet: (subscriber, subscriptionId, currency) => {
+          const id = get().nextWalletId;
           const now = get().now();
-          const acc = cloneAccount(account(subscriber));
-          realizeExpiry(acc, now);
-          acc.balance += amount;
-          acc.lots.push({ id: nextId(), remaining: amount, issuedAt: now });
-          record(acc, 'deposit', amount, reason);
-          commit(acc);
-        },
-
-        withdrawCredit: (subscriber, amount, reason) => {
-          if (amount <= 0) return false;
-          const now = get().now();
-          const acc = cloneAccount(account(subscriber));
-          realizeExpiry(acc, now);
-          if (availableOf(acc, now) < amount) return false;
-          const moved = consume(acc, now, amount);
-          acc.balance -= moved;
-          record(acc, 'withdraw', -moved, reason);
-          commit(acc);
-          return true;
-        },
-
-        getAccountBalance: (subscriber): AccountBalance => {
-          const now = get().now();
-          const acc = account(subscriber);
-          const availableCredit = availableOf(acc, now);
-          const totalApplied = acc.transactions
-            .filter((t) => t.kind === 'apply')
-            .reduce((sum, t) => sum + Math.abs(t.amount), 0);
-          const totalExpired = acc.transactions
-            .filter((t) => t.kind === 'expire')
-            .reduce((sum, t) => sum + Math.abs(t.amount), 0);
-          const totalTransferredIn = acc.transactions
-            .filter((t) => t.kind === 'transfer_in')
-            .reduce((sum, t) => sum + Math.abs(t.amount), 0);
-          const totalTransferredOut = acc.transactions
-            .filter((t) => t.kind === 'transfer_out')
-            .reduce((sum, t) => sum + Math.abs(t.amount), 0);
-          const totalIssued = acc.transactions
-            .filter((t) => t.kind === 'issue' || t.kind === 'deposit')
-            .reduce((sum, t) => sum + Math.abs(t.amount), 0);
-
-          const wallets = Object.values(get().wallets).filter(
-            (w) => w.subscriber === subscriber
-          );
-          const totalDeposited = wallets.reduce((s, w) => s + w.totalDeposited, 0);
-          const totalWithdrawn = wallets.reduce((s, w) => s + w.totalWithdrawn, 0);
-          const prepaymentBalance = wallets.reduce((s, w) => s + w.balance, 0);
-
-          const expiringLots = acc.lots
-            .filter((lot) => lot.remaining > 0 && lot.expiresAt !== undefined && lot.expiresAt > now)
-            .sort((a, b) => (a.expiresAt ?? 0) - (b.expiresAt ?? 0));
-
-          return {
+          const wallet: PrepaymentWallet = {
+            id,
             subscriber,
-            availableCredit,
-            totalIssued,
-            totalApplied,
-            totalExpired,
-            totalTransferredIn,
-            totalTransferredOut,
-            totalDeposited,
-            totalWithdrawn,
-            prepaymentBalance,
-            netBalance: availableCredit + prepaymentBalance,
-            nextExpirationAt: expiringLots[0]?.expiresAt,
+            subscriptionId,
+            currency,
+            balance: 0,
+            totalDeposited: 0,
+            totalWithdrawn: 0,
+            totalDrawn: 0,
+            transactions: [],
+            createdAt: now,
+            updatedAt: now,
           };
+          set((state) => ({
+            wallets: { ...state.wallets, [id]: wallet },
+            nextWalletId: id + 1,
+          }));
+          return id;
         },
 
-        getAccountBalances: () =>
-          [...new Set([...Object.keys(get().accounts), ...Object.keys(get().wallets)])]
-            .map((sub) => get().getAccountBalance(sub)),
+        getWallet: (walletId) => {
+          const wallet = get().wallets[walletId];
+          return wallet ? { ...wallet } : undefined;
+        },
+
+        deposit: (subscriber, walletId, amount) => {
+          if (!isPositiveAmount(amount)) return undefined;
+          const wallet = get().wallets[walletId];
+          if (!wallet || wallet.subscriber !== subscriber) return undefined;
+          const updated = {
+            ...wallet,
+            balance: wallet.balance + amount,
+            totalDeposited: wallet.totalDeposited + amount,
+            updatedAt: get().now(),
+          };
+          const snapshot = recordWalletTransaction(updated, 'deposit', amount);
+          set((state) => ({ wallets: { ...state.wallets, [walletId]: updated } }));
+          return snapshot;
+        },
+
+        withdraw: (subscriber, walletId, amount) => {
+          if (!isPositiveAmount(amount)) return undefined;
+          const wallet = get().wallets[walletId];
+          if (!wallet || wallet.subscriber !== subscriber || wallet.balance < amount) return undefined;
+          const updated = {
+            ...wallet,
+            balance: wallet.balance - amount,
+            totalWithdrawn: wallet.totalWithdrawn + amount,
+            updatedAt: get().now(),
+          };
+          const snapshot = recordWalletTransaction(updated, 'withdraw', amount);
+          set((state) => ({ wallets: { ...state.wallets, [walletId]: updated } }));
+          return snapshot;
+        },
+
+        drawdown: (subscriber, walletId, amount) => {
+          if (!isPositiveAmount(amount)) return undefined;
+          const wallet = get().wallets[walletId];
+          if (!wallet || wallet.subscriber !== subscriber || wallet.balance < amount) return undefined;
+          const updated = {
+            ...wallet,
+            balance: wallet.balance - amount,
+            totalDrawn: wallet.totalDrawn + amount,
+            updatedAt: get().now(),
+          };
+          const snapshot = recordWalletTransaction(updated, 'drawdown', amount);
+          set((state) => ({ wallets: { ...state.wallets, [walletId]: updated } }));
+          return snapshot;
+        },
       };
     },
     {
@@ -342,8 +370,10 @@ export const useCreditStore = create<CreditStoreState>()(
       storage: createJSONStorage(() => asyncStorageAdapter),
       partialize: (state) => ({
         accounts: state.accounts,
-        wallets: state.wallets,
         nextId: state.nextId,
+        wallets: state.wallets,
+        nextWalletId: state.nextWalletId,
+        walletTransactionIds: state.walletTransactionIds,
       }),
     }
   )

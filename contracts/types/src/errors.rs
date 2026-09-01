@@ -1,6 +1,4 @@
-#![no_std]
-
-use soroban_sdk::{contracterror, contracttype, Env, Symbol};
+use soroban_sdk::{Env, Symbol};
 
 /// Unified core error enum for all SubTrackr contracts.
 ///

@@ -129,31 +129,72 @@ fn expiration_policy_drives_default_expiry() {
 }
 
 #[test]
-fn returns_consolidated_account_balance_summary() {
+fn wallet_deposit_withdraw_and_drawdown_have_unique_receipts() {
     let (env, client, _admin) = setup();
-    let sub = Address::generate(&env);
-    let reason = String::from_str(&env, "promo");
-    let currency = String::from_str(&env, "USD");
+    let subscriber = Address::generate(&env);
+    let wallet_id = client.create_wallet(&subscriber, &42, &String::from_str(&env, "USD"));
 
+    let deposited = client.deposit(&subscriber, &wallet_id, &1_000);
+    assert_eq!(deposited.balance, 1_000);
+    assert_eq!(deposited.transaction_id, 0);
+
+    let drawn = client.drawdown(&subscriber, &wallet_id, &250);
+    assert_eq!(drawn.balance, 750);
+    assert_eq!(drawn.transaction_id, 1);
+
+    let withdrawn = client.withdraw(&subscriber, &wallet_id, &100);
+    assert_eq!(withdrawn.balance, 650);
+    assert_eq!(withdrawn.transaction_id, 2);
+
+    let wallet = client.get_wallet(&wallet_id).unwrap();
+    assert_eq!(wallet.balance, 650);
+    assert_eq!(wallet.total_deposited, 1_000);
+    assert_eq!(wallet.total_drawn, 250);
+    assert_eq!(wallet.total_withdrawn, 100);
+    assert_eq!(wallet.transactions.len(), 3);
+    assert_eq!(
+        wallet.transactions.get(0).unwrap().kind,
+        PrepaymentTxKind::Deposit
+    );
+    assert_eq!(
+        wallet.transactions.get(1).unwrap().kind,
+        PrepaymentTxKind::Drawdown
+    );
+    assert_eq!(wallet.transactions.get(2).unwrap().balance_after, 650);
+}
+
+#[test]
+fn wallet_rejects_unauthorized_and_overdrawn_operations() {
+    let (env, client, _admin) = setup();
+    let subscriber = Address::generate(&env);
+    let other = Address::generate(&env);
+    let wallet_id = client.create_wallet(&subscriber, &7, &String::from_str(&env, "USD"));
+    client.deposit(&subscriber, &wallet_id, &100);
+
+    assert_eq!(
+        client.try_drawdown(&subscriber, &wallet_id, &101),
+        Err(Ok(CreditError::InsufficientCredit))
+    );
+    assert_eq!(
+        client.try_withdraw(&other, &wallet_id, &1),
+        Err(Ok(CreditError::Unauthorized))
+    );
+}
+
+#[test]
+fn cron_expires_registered_accounts() {
+    let (env, client, admin) = setup();
+    let subscriber = Address::generate(&env);
     set_time(&env, 1_000);
-    client.issue_credit(&sub, &250, &reason, &Some(2_000));
+    client.issue_credit(
+        &subscriber,
+        &100,
+        &String::from_str(&env, "promo"),
+        &Some(1_100),
+    );
+    set_time(&env, 1_200);
 
-    // Create a prepayment wallet and deposit funds.
-    let wallet_id = client.create_wallet(&sub, &1, &currency);
-    let deposit = client.deposit(&sub, &wallet_id, &75);
-    assert_eq!(deposit.balance, 75);
-
-    let summary = client.get_account_balance_summary(&sub);
-    assert_eq!(summary.credit_balance, 250);
-    assert_eq!(summary.wallet_balance, 75);
-    assert_eq!(summary.net_balance, 325);
-    assert_eq!(summary.next_expiration_at, Some(2_000));
-
-    // Expiry removes credit from the summary but keeps wallet balance.
-    set_time(&env, 2_500);
-    client.expire_credits(&sub);
-    let after = client.get_account_balance_summary(&sub);
-    assert_eq!(after.credit_balance, 0);
-    assert_eq!(after.wallet_balance, 75);
-    assert_eq!(after.net_balance, 75);
+    let results = client.expire_credits_with_cron(&admin);
+    assert_eq!(results.len(), 1);
+    assert_eq!(results.get(0).unwrap().1, 100);
 }

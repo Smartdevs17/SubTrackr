@@ -14,6 +14,9 @@
     "lint:fix": "eslint . --ext .ts,.tsx --fix",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
     "test:shard": "jest --runInBand",
+    "credit:test": "jest --config jest.credit.config.js app/stores/__tests__/creditStore.test.ts app/tests/integration/credit-wallet.integration.test.ts --runInBand",
+    "credit:test:coverage": "jest --config jest.credit.config.js app/stores/__tests__/creditStore.test.ts app/tests/integration/credit-wallet.integration.test.ts --runInBand --coverage --collectCoverageFrom=app/stores/creditStore.ts --coverageThreshold '{\"global\":{\"branches\":80,\"functions\":80,\"lines\":80,\"statements\":80}}'",
+    "credit:benchmark": "jest --config jest.credit.config.js app/stores/__tests__/creditStore.performance.test.ts --runInBand",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md}\"",
     "typecheck": "tsc --noEmit",
     "test": "jest --passWithNoTests",
@@ -152,5 +155,6 @@
     "*.{js,json,md}": [
       "prettier --write"
     ]
-  }
+  },
+  "packageManager": "pnpm@11.17.0+sha512.cca3cea332ad254bb84145f966d19f4879615210346fc92c79a047f23a0d7b3cca3c3792f0076ba1f1831d277efbcf0a9119b31a9a60eca7fb3d6231f331ef72"
 }

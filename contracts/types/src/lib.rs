@@ -1,5 +1,8 @@
 #![no_std]
 
+pub mod errors;
+pub use errors::CoreError;
+
 use soroban_sdk::{contracttype, Address, BytesN, String, Vec};
 
 /// Billing interval in seconds.

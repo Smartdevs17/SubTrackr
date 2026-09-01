@@ -2,7 +2,14 @@ import { useCreditStore } from '../creditStore';
 
 let clock = 1000;
 const reset = () =>
-  useCreditStore.setState({ accounts: {}, wallets: {}, nextId: 0, now: () => clock });
+  useCreditStore.setState({
+    accounts: {},
+    nextId: 0,
+    wallets: {},
+    nextWalletId: 0,
+    walletTransactionIds: {},
+    now: () => clock,
+  });
 
 beforeEach(() => {
   clock = 1000;
@@ -67,53 +74,60 @@ describe('useCreditStore', () => {
     expect(s().getBalance('alice')).toBe(0);
   });
 
-  it('deposits credit into an account balance', () => {
-    s().depositCredit('alice', 200, 'prepaid top-up');
-    expect(s().getBalance('alice')).toBe(200);
-    expect(
-      s()
-        .getAccount('alice')
-        .transactions.some((t) => t.kind === 'deposit' && t.amount === 200)
-    ).toBe(true);
+  it('manages wallet deposits, withdrawals, and charge drawdowns', () => {
+    const walletId = s().createWallet('alice', 'sub_1', 'USD');
+    expect(s().deposit('alice', walletId, 1000)).toMatchObject({
+      walletId,
+      balance: 1000,
+      transactionId: 0,
+    });
+    expect(s().drawdown('alice', walletId, 250)).toMatchObject({
+      balance: 750,
+      transactionId: 1,
+    });
+    expect(s().withdraw('alice', walletId, 100)).toMatchObject({
+      balance: 650,
+      transactionId: 2,
+    });
+    expect(s().getWallet(walletId)).toMatchObject({
+      balance: 650,
+      totalDeposited: 1000,
+      totalDrawn: 250,
+      totalWithdrawn: 100,
+      transactions: [
+        { id: 0, kind: 'deposit', amount: 1000, balanceAfter: 1000 },
+        { id: 1, kind: 'drawdown', amount: 250, balanceAfter: 750 },
+        { id: 2, kind: 'withdraw', amount: 100, balanceAfter: 650 },
+      ],
+    });
   });
 
-  it('withdraws available credit and rejects overdrafts', () => {
-    s().issueCredit('alice', 300, 'promo');
-    expect(s().withdrawCredit('alice', 100, 'cash-out')).toBe(true);
-    expect(s().getBalance('alice')).toBe(200);
-    expect(s().withdrawCredit('alice', 500, 'cash-out')).toBe(false);
-    expect(s().getBalance('alice')).toBe(200);
+  it('rejects unauthorized and overdrawn wallet operations', () => {
+    const walletId = s().createWallet('alice', 'sub_1', 'USD');
+    s().deposit('alice', walletId, 100);
+    expect(s().drawdown('alice', walletId, 101)).toBeUndefined();
+    expect(s().withdraw('bob', walletId, 1)).toBeUndefined();
   });
 
-  it('computes a consolidated account balance summary', () => {
-    useCreditStore.getState().wallets = {
-      'w-1': {
-        id: 'w-1',
-        subscriber: 'alice',
-        currency: 'USD',
-        balance: 75,
-        totalDeposited: 100,
-        totalWithdrawn: 25,
-      },
-    };
-
-    s().issueCredit('alice', 250, 'refund');
-    s().applyCredit('alice', 'sub_1', 50);
-
-    const balance = s().getAccountBalance('alice');
-    expect(balance.subscriber).toBe('alice');
-    expect(balance.availableCredit).toBe(200);
-    expect(balance.totalIssued).toBe(250);
-    expect(balance.totalApplied).toBe(50);
-    expect(balance.prepaymentBalance).toBe(75);
-    expect(balance.netBalance).toBe(275);
-  });
-
-  it('returns account balances for all known subscribers', () => {
+  it('does not expose mutable account or wallet state', () => {
     s().issueCredit('alice', 100, 'promo');
-    s().issueCredit('bob', 200, 'promo');
-    const balances = s().getAccountBalances();
-    expect(balances).toHaveLength(2);
-    expect(balances.map((b) => b.subscriber).sort()).toEqual(['alice', 'bob']);
+    const account = s().getAccount('alice');
+    account.lots[0].remaining = 0;
+    expect(s().getBalance('alice')).toBe(100);
+
+    const walletId = s().createWallet('alice', 'sub_1', 'USD');
+    const wallet = s().getWallet(walletId);
+    if (wallet) wallet.balance = 99;
+    expect(s().getWallet(walletId)?.balance).toBe(0);
+  });
+
+  it('retains only the bounded recent transaction history', () => {
+    for (let index = 0; index < 130; index += 1) {
+      s().issueCredit('alice', 1, `grant-${index}`);
+    }
+    const history = s().getAccount('alice').transactions;
+    expect(history).toHaveLength(128);
+    expect(history[0].reason).toBe('grant-2');
+    expect(history[127].reason).toBe('grant-129');
   });
 });

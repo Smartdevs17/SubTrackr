@@ -1,5 +1,5 @@
 allowBuilds:
-  bufferutil: true
+  bufferutil: false
   detox: false
   dtrace-provider: false
   es5-ext: false

@@ -12,9 +12,6 @@ import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { RootStackParamList } from '../navigation/types';
-import { useCancellationStore } from '../store/cancellationStore';
-import { useSubscriptionStore } from '../store';
-
 import { useCancellationStore, CANCELLATION_REASONS } from '../store/cancellationStore';
 import { RetentionOffer } from '../../backend/services/retentionService';
 
@@ -206,22 +203,6 @@ const CancellationFlowScreen: React.FC<Props> = ({ route, navigation }) => {
       case 'OFFERS':
         return renderOffersStep();
       case 'CONFIRM':
-        return (
-          <View>
-            <Text style={styles.headerText}>Are you sure?</Text>
-            <Text style={styles.infoText}>
-              Your access will continue until the end of the billing period.
-            </Text>
-            <Button
-              title="Confirm Cancellation"
-              variant="danger"
-              onPress={async () => {
-                await deleteSubscription(subscriptionId);
-                setStep('SUCCESS');
-              }}
-            />
-          </View>
-        );
         return renderConfirmStep();
       case 'SUCCESS':
         return renderSuccessStep();
