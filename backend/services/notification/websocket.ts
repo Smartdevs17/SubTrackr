@@ -75,7 +75,7 @@ export interface WebSocketServerConfig {
    * Batch flush interval in milliseconds.
    * Messages accumulate and are sent together at each interval.
    * 0 = disabled (send immediately, legacy behaviour).
-   * Default: 50 ms.
+   * Default: 0 ms.
    */
   batchIntervalMs?: number;
   /**
@@ -95,6 +95,35 @@ export interface WebSocketServerConfig {
    * Default: 10 000 ms.
    */
   pingTimeoutMs?: number;
+}
+
+export type SubscriptionEventHandler = (event: SubscriptionEvent) => number;
+
+export interface SubscriptionEventBus {
+  publish(event: SubscriptionEvent): number;
+  subscribe(handler: SubscriptionEventHandler): () => void;
+}
+
+export class InMemorySubscriptionEventBus extends EventEmitter implements SubscriptionEventBus {
+  private readonly handlers = new Set<SubscriptionEventHandler>();
+
+  publish(event: SubscriptionEvent): number {
+    let matchedClients = 0;
+    for (const handler of this.handlers) {
+      matchedClients += handler(event);
+    }
+    this.emit('subscription.event.published', { event, matchedClients });
+    return matchedClients;
+  }
+
+  subscribe(handler: SubscriptionEventHandler): () => void {
+    this.handlers.add(handler);
+    this.emit('subscription.handler.registered', { handlerCount: this.handlers.size });
+    return () => {
+      this.handlers.delete(handler);
+      this.emit('subscription.handler.removed', { handlerCount: this.handlers.size });
+    };
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -119,6 +148,8 @@ interface ClientState {
 
 export class WebSocketServer extends EventEmitter {
   private readonly cfg: Required<WebSocketServerConfig>;
+  private readonly eventBus: SubscriptionEventBus;
+  private readonly unsubscribeFromEventBus: () => void;
 
   /** clientId → state */
   private clients: Map<string, ClientState> = new Map();
@@ -149,16 +180,23 @@ export class WebSocketServer extends EventEmitter {
   private deliveryTimestamps: number[] = [];
   private totalBatchItems = 0;
 
-  constructor(config: WebSocketServerConfig = {}) {
+  constructor(
+    config: WebSocketServerConfig = {},
+    eventBus: SubscriptionEventBus = new InMemorySubscriptionEventBus()
+  ) {
     super();
     this.cfg = {
       maxConnectionsPerUser: 5,
-      batchIntervalMs: 50,
+      batchIntervalMs: 0,
       maxQueueSize: 100,
       heartbeatIntervalMs: 30_000,
       pingTimeoutMs: 10_000,
       ...config,
     };
+    this.eventBus = eventBus;
+    this.unsubscribeFromEventBus = this.eventBus.subscribe((event) =>
+      this._dispatchSubscriptionEvent(event)
+    );
     this._startBatchFlush();
     this._startHeartbeat();
   }
@@ -279,8 +317,15 @@ export class WebSocketServer extends EventEmitter {
    *
    * When `batchIntervalMs > 0`, events accumulate until the next flush.
    * When `batchIntervalMs === 0`, events are sent immediately (legacy).
-   */
+  */
   broadcast(event: SubscriptionEvent): number {
+    const queued = this.eventBus.publish(event);
+
+    this.emit('broadcast', { event, queued, delivered: queued });
+    return queued;
+  }
+
+  private _dispatchSubscriptionEvent(event: SubscriptionEvent): number {
     this.metrics.eventsPublished++;
     let queued = 0;
 
@@ -304,7 +349,7 @@ export class WebSocketServer extends EventEmitter {
       queued++;
     }
 
-    this.emit('broadcast', { event, queued });
+    this.emit('eventQueued', { event, queued });
     return queued;
   }
 
@@ -332,6 +377,7 @@ export class WebSocketServer extends EventEmitter {
   shutdown(): void {
     if (this.flushTimer) clearInterval(this.flushTimer);
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+    this.unsubscribeFromEventBus();
     this._flushAll();
     // Disconnect all clients
     for (const clientId of [...this.clients.keys()]) {
@@ -427,4 +473,6 @@ export class WebSocketServer extends EventEmitter {
   }
 }
 
-export const webSocketServer = new WebSocketServer();
+export const webSocketServer = new WebSocketServer(
+  process.env.NODE_ENV === 'test' ? { heartbeatIntervalMs: 0 } : {}
+);

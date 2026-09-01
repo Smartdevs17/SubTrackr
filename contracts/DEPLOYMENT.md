@@ -63,6 +63,25 @@ export ADMIN_ADDRESS="GD..."
 | `UPGRADE_DELAY_SECS`  | Minimum delay (seconds) between scheduling and executing an upgrade.               | Testnet, Mainnet |
 | `ROLLBACK_DELAY_SECS` | Delay (seconds) used when scheduling a rollback via `rollback()`.                  | Testnet, Mainnet |
 
+## App Environment Integration
+
+After deployment, publish contract IDs through the validated environment
+profiles instead of reading deployment files directly from application code:
+
+| Variable | Used By |
+| --- | --- |
+| `STELLAR_TESTNET_PROXY_ID` | `src/config/env.ts` and `src/config/networks.ts` |
+| `STELLAR_TESTNET_STORAGE_ID` | `src/config/env.ts` and `src/config/networks.ts` |
+| `STELLAR_TESTNET_SUBSCRIPTION_ID` | `src/config/env.ts` and `src/config/networks.ts` |
+| `STELLAR_MAINNET_PROXY_ID` | `src/config/env.ts` and `src/config/networks.ts` |
+| `STELLAR_MAINNET_STORAGE_ID` | `src/config/env.ts` and `src/config/networks.ts` |
+| `STELLAR_MAINNET_SUBSCRIPTION_ID` | `src/config/env.ts` and `src/config/networks.ts` |
+
+The wallet payment path selects EVM or Stellar behavior through
+`WalletChainStrategyRegistry`. A new contract deployment should update the
+matching environment variables and, only when the chain behavior changes,
+register a new wallet strategy.
+
 ## Verification
 
 After deployment, you can verify that the contract is active by running:

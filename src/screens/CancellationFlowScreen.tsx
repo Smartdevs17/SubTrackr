@@ -31,6 +31,8 @@ const OFFER_TYPE_ICONS: Record<string, string> = {
   downgrade: '⬇️',
   trial_extension: '⏱️',
   feature_unlock: '🔓',
+  feature_upgrade: '⭐',
+  plan_change: '🔄',
 };
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CancellationFlow'>;
@@ -56,7 +58,7 @@ const CancellationFlowScreen: React.FC<Props> = ({ route, navigation }) => {
   useEffect(() => {
     initFlow(subscriptionId);
     return () => reset();
-  }, [subscriptionId]);
+  }, [initFlow, reset, subscriptionId]);
 
   const handleAcceptOffer = async (offerId: string) => {
     await acceptOffer(offerId);

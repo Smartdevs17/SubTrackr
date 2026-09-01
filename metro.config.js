@@ -13,7 +13,7 @@ config.transformer = {
   // and removes them from the critical path entirely when not needed.
   getTransformOptions: async () => ({
     transform: {
-      experimentalImportSupport: false,
+      experimentalImportSupport: true,
       inlineRequires: true,
     },
   }),
@@ -66,10 +66,7 @@ if (process.env.METRO_BUNDLE_REPORT === '1') {
         // Approximate bundle size by summing module source lengths
         let totalBytes = 0;
         for (const [, mod] of graph.dependencies) {
-          totalBytes += (mod.output ?? []).reduce(
-            (acc, o) => acc + (o.data?.code?.length ?? 0),
-            0
-          );
+          totalBytes += (mod.output ?? []).reduce((acc, o) => acc + (o.data?.code?.length ?? 0), 0);
         }
 
         const budgetBytes = (budget.bundleSizeKb ?? 5120) * 1024;

@@ -20,6 +20,10 @@ export function getEvmRpcUrls(chainId: number): string[] {
   return urls;
 }
 
+export function getEvmRpcUrl(chainId: number): string {
+  return getEvmRpcUrls(chainId)[0];
+}
+
 /**
  * Stellar (Soroban) network configuration.
  */

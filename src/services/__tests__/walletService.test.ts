@@ -12,6 +12,7 @@ import {
   ContractErrorCode,
 } from '../walletService';
 import { ethers } from 'ethers';
+import { Framework } from '@superfluid-finance/sdk-core';
 import { getContractAddress, ERC20__factory } from '../../contracts';
 
 // ── Mock dependencies ──────────────────────────────────────────────
@@ -68,8 +69,13 @@ jest.mock('../../config/evm', () => ({
 const mockedGetContractAddress = getContractAddress as jest.MockedFunction<
   typeof getContractAddress
 >;
+const mockedFrameworkCreate = Framework.create as jest.MockedFunction<typeof Framework.create>;
 
 // ── Helpers ────────────────────────────────────────────────────────
+
+const senderAddress = '0x0000000000000000000000000000000000000001';
+const recipientAddress = '0x0000000000000000000000000000000000000002';
+const tokenAddress = '0x0000000000000000000000000000000000000003';
 
 function createMockConnection(overrides?: Partial<WalletConnection>): WalletConnection {
   return {
@@ -87,6 +93,58 @@ function freshManager(): WalletServiceManager {
   mgr.connection = null;
   mgr.listeners = [];
   return mgr;
+}
+
+function mockSuperfluidSdk(
+  options: {
+    gasLimit?: ethers.BigNumberish;
+    transactionHash?: string | null;
+    decimals?: number;
+  } = {}
+) {
+  const getPopulatedTransactionRequest = jest.fn().mockResolvedValue({
+    gasLimit:
+      options.gasLimit === undefined
+        ? ethers.BigNumber.from('100000')
+        : options.gasLimit === null
+          ? null
+          : ethers.BigNumber.from(options.gasLimit),
+  });
+  const exec = jest.fn().mockResolvedValue({
+    wait: jest
+      .fn()
+      .mockResolvedValue(
+        options.transactionHash === null
+          ? {}
+          : { transactionHash: options.transactionHash ?? '0xsuperfluid' }
+      ),
+  });
+  const createFlow = jest.fn().mockReturnValue({ getPopulatedTransactionRequest, exec });
+  const loadSuperToken = jest.fn().mockResolvedValue({
+    address: tokenAddress,
+    contract: {
+      decimals: jest.fn().mockResolvedValue(options.decimals ?? 18),
+    },
+  });
+
+  mockedFrameworkCreate.mockResolvedValue({
+    loadSuperToken,
+    cfaV1: {
+      createFlow,
+    },
+  } as unknown as Awaited<ReturnType<typeof Framework.create>>);
+
+  return { createFlow, exec, getPopulatedTransactionRequest, loadSuperToken };
+}
+
+function createMockSigner(chainId = 1) {
+  return {
+    provider: {
+      getNetwork: jest.fn().mockResolvedValue({ chainId }),
+      getGasPrice: jest.fn().mockResolvedValue(ethers.BigNumber.from('20000000000')),
+    },
+    getAddress: jest.fn().mockResolvedValue(senderAddress),
+  };
 }
 
 // ── Tests ──────────────────────────────────────────────────────────
@@ -353,6 +411,97 @@ describe('WalletServiceManager', () => {
     });
   });
 
+  describe('estimateSuperfluidCreateFlow', () => {
+    it('returns a gas estimate from a populated Superfluid createFlow transaction', async () => {
+      const mgr = freshManager();
+      const mockSigner = createMockSigner(1);
+      const superfluid = mockSuperfluidSdk({ gasLimit: '100000' });
+      jest.spyOn(mgr as any, 'getWalletSigner').mockReturnValue(mockSigner);
+
+      const estimate = await mgr.estimateSuperfluidCreateFlow('ETH', '10', recipientAddress, 1);
+
+      expect(superfluid.loadSuperToken).toHaveBeenCalledWith('ETHx');
+      expect(superfluid.createFlow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sender: senderAddress,
+          receiver: recipientAddress,
+          flowRate: expect.any(String),
+        })
+      );
+      expect(estimate).toEqual({
+        gasLimit: '100000',
+        gasPrice: '20.0',
+        estimatedCost: '0.002',
+      });
+    });
+
+    it('maps ETH to MATICx for Polygon Superfluid streams', async () => {
+      const mgr = freshManager();
+      const mockSigner = createMockSigner(137);
+      const superfluid = mockSuperfluidSdk();
+      jest.spyOn(mgr as any, 'getWalletSigner').mockReturnValue(mockSigner);
+
+      await mgr.estimateSuperfluidCreateFlow('ETH', '10', recipientAddress, 137);
+
+      expect(superfluid.loadSuperToken).toHaveBeenCalledWith('MATICx');
+    });
+
+    it('rejects unsupported Superfluid resolver symbols', async () => {
+      const mgr = freshManager();
+      const mockSigner = createMockSigner(42161);
+      mockSuperfluidSdk();
+      jest.spyOn(mgr as any, 'getWalletSigner').mockReturnValue(mockSigner);
+
+      await expect(
+        mgr.estimateSuperfluidCreateFlow('ARB', '10', recipientAddress, 42161)
+      ).rejects.toThrow('ARB is not supported as a Superfluid super token');
+    });
+
+    it('rejects self-directed Superfluid streams', async () => {
+      const mgr = freshManager();
+      const mockSigner = createMockSigner(1);
+      mockSuperfluidSdk();
+      jest.spyOn(mgr as any, 'getWalletSigner').mockReturnValue(mockSigner);
+
+      await expect(mgr.estimateSuperfluidCreateFlow('ETH', '10', senderAddress, 1)).rejects.toThrow(
+        'Recipient must be a different address'
+      );
+    });
+  });
+
+  describe('createSuperfluidStream', () => {
+    it('executes a Superfluid createFlow operation and returns a stream id', async () => {
+      const mgr = freshManager();
+      const mockSigner = createMockSigner(1);
+      mockSuperfluidSdk({ transactionHash: '0xstreamtx' });
+      jest.spyOn(mgr as any, 'getWalletSigner').mockReturnValue(mockSigner);
+
+      const result = await mgr.createSuperfluidStream('USDC', '10', recipientAddress, 1);
+
+      expect(result).toEqual({
+        txHash: '0xstreamtx',
+        streamId: `${tokenAddress}:${senderAddress}:${recipientAddress}`,
+      });
+    });
+
+    it('wraps non-rejection Superfluid failures in a WalletError', async () => {
+      const mgr = freshManager();
+      const mockSigner = createMockSigner(1);
+      const superfluid = mockSuperfluidSdk();
+      superfluid.exec.mockResolvedValueOnce({
+        wait: jest.fn().mockResolvedValue({}),
+      });
+      jest.spyOn(mgr as any, 'getWalletSigner').mockReturnValue(mockSigner);
+
+      await expect(
+        mgr.createSuperfluidStream('USDC', '10', recipientAddress, 1)
+      ).rejects.toMatchObject({
+        code: WalletErrorCode.STREAM_CREATION_FAILED,
+        userMessage: 'Stream creation failed.',
+      } satisfies Partial<WalletError>);
+    });
+  });
+
   describe('createSablierStream – user denied via message', () => {
     it('throws WalletError USER_REJECTED for user denied message', async () => {
       const mgr = freshManager();
@@ -379,6 +528,194 @@ describe('WalletServiceManager', () => {
       } catch (e) {
         expect(e).toBeInstanceOf(WalletError);
         expect((e as WalletError).code).toBe(WalletErrorCode.USER_REJECTED);
+      }
+    });
+  });
+
+  describe('createSablierStream', () => {
+    it('approves tokens when needed and creates a Sablier stream', async () => {
+      const mgr = freshManager();
+      const mockSigner = createMockSigner(1);
+      jest.spyOn(mgr as any, 'getWalletSigner').mockReturnValue(mockSigner);
+
+      const approve = jest.fn().mockResolvedValue({ wait: jest.fn().mockResolvedValue({}) });
+      const createWithDurations = jest.fn().mockResolvedValue({
+        wait: jest.fn().mockResolvedValue({ transactionHash: '0xsablier' }),
+      });
+      const contractSpy = jest
+        .spyOn(ethers, 'Contract' as any)
+        .mockImplementationOnce(() => ({
+          decimals: jest.fn().mockResolvedValue(6),
+          allowance: jest.fn().mockResolvedValue(ethers.BigNumber.from(0)),
+          approve,
+        }))
+        .mockImplementationOnce(() => ({ createWithDurations }));
+
+      try {
+        const txHash = await mgr.createSablierStream(
+          tokenAddress,
+          '10',
+          Date.now(),
+          Date.now() + 86_400_000,
+          recipientAddress,
+          1
+        );
+
+        expect(approve).toHaveBeenCalledTimes(1);
+        expect(createWithDurations).toHaveBeenCalledWith(
+          expect.objectContaining({
+            sender: senderAddress,
+            recipient: recipientAddress,
+            asset: tokenAddress,
+          })
+        );
+        expect(txHash).toBe('0xsablier');
+      } finally {
+        contractSpy.mockRestore();
+      }
+    });
+
+    it('wraps non-rejection Sablier failures in a WalletError', async () => {
+      const mgr = freshManager();
+      const mockSigner = createMockSigner(1);
+      jest.spyOn(mgr as any, 'getWalletSigner').mockReturnValue(mockSigner);
+
+      const contractSpy = jest.spyOn(ethers, 'Contract' as any).mockImplementation(() => {
+        throw new Error('contract unavailable');
+      });
+
+      try {
+        await expect(
+          mgr.createSablierStream(
+            tokenAddress,
+            '10',
+            Date.now(),
+            Date.now() + 86_400_000,
+            recipientAddress,
+            1
+          )
+        ).rejects.toMatchObject({
+          code: WalletErrorCode.STREAM_CREATION_FAILED,
+          userMessage: 'Stream creation failed.',
+        } satisfies Partial<WalletError>);
+      } finally {
+        contractSpy.mockRestore();
+      }
+    });
+  });
+
+  describe('ERC20 allowance and approval helpers', () => {
+    it('reads ERC20 allowance through the configured provider', async () => {
+      const mgr = freshManager();
+      const allowance = jest.fn().mockResolvedValue(ethers.BigNumber.from(42));
+      const contractSpy = jest.spyOn(ethers, 'Contract' as any).mockImplementation(() => ({
+        allowance,
+      }));
+
+      try {
+        await expect(
+          mgr.getErc20Allowance(tokenAddress, senderAddress, recipientAddress, 1)
+        ).resolves.toEqual(ethers.BigNumber.from(42));
+        expect(allowance).toHaveBeenCalledWith(senderAddress, recipientAddress);
+      } finally {
+        contractSpy.mockRestore();
+      }
+    });
+
+    it('estimates approval gas using the connected wallet signer', async () => {
+      const mgr = freshManager();
+      mgr.setConnection(createMockConnection());
+      const mockProvider = {
+        getGasPrice: jest.fn().mockResolvedValue(ethers.BigNumber.from('20000000000')),
+      };
+      jest
+        .spyOn(ethers.providers, 'JsonRpcProvider')
+        .mockImplementation(() => mockProvider as unknown as ethers.providers.JsonRpcProvider);
+      jest.spyOn(ethers.providers, 'Web3Provider').mockImplementation(
+        () =>
+          ({
+            getSigner: jest.fn().mockReturnValue(createMockSigner(1)),
+          }) as unknown as ethers.providers.Web3Provider
+      );
+      const contractSpy = jest.spyOn(ethers, 'Contract' as any).mockImplementation(() => ({
+        estimateGas: {
+          approve: jest.fn().mockResolvedValue(ethers.BigNumber.from('17500')),
+        },
+      }));
+
+      try {
+        const estimate = await mgr.estimateApproveGas(tokenAddress, recipientAddress, 100, 1);
+
+        expect(estimate.gasLimit).toBe('21000');
+        expect(estimate.gasPrice).toBe('20.0');
+      } finally {
+        contractSpy.mockRestore();
+      }
+    });
+
+    it('uses the fallback gas limit when approval gas estimation fails', async () => {
+      const mgr = freshManager();
+      mgr.setConnection(createMockConnection());
+      const mockProvider = {
+        getGasPrice: jest.fn().mockResolvedValue(ethers.BigNumber.from('20000000000')),
+      };
+      jest
+        .spyOn(ethers.providers, 'JsonRpcProvider')
+        .mockImplementation(() => mockProvider as unknown as ethers.providers.JsonRpcProvider);
+      jest.spyOn(ethers.providers, 'Web3Provider').mockImplementation(
+        () =>
+          ({
+            getSigner: jest.fn().mockReturnValue(createMockSigner(1)),
+          }) as unknown as ethers.providers.Web3Provider
+      );
+      const contractSpy = jest.spyOn(ethers, 'Contract' as any).mockImplementation(() => ({
+        estimateGas: {
+          approve: jest.fn().mockRejectedValue(new Error('cannot estimate')),
+        },
+      }));
+
+      try {
+        const estimate = await mgr.estimateApproveGas(tokenAddress, recipientAddress, 100, 1);
+
+        expect(estimate.gasLimit).toBe('100000');
+        expect(estimate.gasPrice).toBe('20.0');
+      } finally {
+        contractSpy.mockRestore();
+      }
+    });
+
+    it('executes ERC20 approval and returns the transaction hash', async () => {
+      const mgr = freshManager();
+      jest.spyOn(mgr as any, 'getWalletSigner').mockReturnValue(createMockSigner(1));
+      const contractSpy = jest.spyOn(ethers, 'Contract' as any).mockImplementation(() => ({
+        approve: jest.fn().mockResolvedValue({
+          wait: jest.fn().mockResolvedValue({ transactionHash: '0xapprove' }),
+        }),
+      }));
+
+      try {
+        await expect(mgr.approveErc20(tokenAddress, recipientAddress, 100)).resolves.toBe(
+          '0xapprove'
+        );
+      } finally {
+        contractSpy.mockRestore();
+      }
+    });
+
+    it('reports ERC20 approval rejection as USER_REJECTED', async () => {
+      const mgr = freshManager();
+      jest.spyOn(mgr as any, 'getWalletSigner').mockReturnValue(createMockSigner(1));
+      const contractSpy = jest.spyOn(ethers, 'Contract' as any).mockImplementation(() => ({
+        approve: jest.fn().mockRejectedValue({ code: 4001, message: 'user rejected' }),
+      }));
+
+      try {
+        await expect(mgr.approveErc20(tokenAddress, recipientAddress, 100)).rejects.toMatchObject({
+          code: WalletErrorCode.USER_REJECTED,
+          userMessage: 'Approval was rejected in your wallet.',
+        } satisfies Partial<WalletError>);
+      } finally {
+        contractSpy.mockRestore();
       }
     });
   });
