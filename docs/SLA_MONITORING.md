@@ -1,3 +1,51 @@
+<<<<<<< HEAD
+# Subscription SLA Monitoring with Breach Detection
+
+This document specifies the technical architecture, breach detection algorithms, penalty calculation formulas, and UI integration for SubTrackr's SLA monitoring engine.
+
+## Overview
+
+SubTrackr tracks subscription service availability, response latencies, and transaction error rates against SLA commitments (e.g. 99.9% uptime). When an SLA commitment is breached, the breach detection engine:
+- Logs breach incidents with severity levels (`low`, `medium`, `high`, `critical`).
+- Calculates automated service credit penalty refunds.
+- Displays active breach alerts and compliance trends in `SlaDashboard.tsx`.
+
+---
+
+## Technical Architecture
+
+### 1. Backend SLA Breach Detector (`backend/services/shared/monitoring.ts`)
+
+- **Class `SlaBreachDetector`**:
+  - `defaultTargetConfig(merchantId)`: Generates default SLA targets (99.9% uptime, 500ms max latency, 1.0% max error rate).
+  - `evaluateBreaches(config, metrics, monthlyFee)`: Evaluates SLA rules against telemetry metric points to detect:
+    1. **Uptime Drop**: Triggers when observed uptime is less than target (e.g. $< 99.9\%$).
+    2. **Latency Spike**: Triggers when average response latency exceeds threshold ($> 500\text{ms}$).
+    3. **Error Rate Surge**: Triggers when transaction error rate exceeds threshold ($> 1.0\%$).
+  - `calculateCreditPenalty(uptimeDropPercent, subscriptionFee, rateBps)`: Calculates prorated penalty credit amounts.
+  - `generateComplianceReport(config, metrics, breaches)`: Computes an aggregate SLA compliance snapshot.
+
+### 2. Frontend Dashboard (`src/screens/SlaDashboard.tsx`)
+
+- **`SlaDashboard.tsx`**:
+  - **Summary Cards**: Displays Average Uptime, Open Breaches, Credits Issued, and Compliant Merchants.
+  - **SLA Configurator**: Allows setting Uptime targets (%) and Measurement intervals (seconds).
+  - **Service Availability Recorder**: Enables tracking healthy vs outage states with duration.
+  - **Breach Management**: View active and historical SLA breach incidents, penalty credit amounts, and resolution status.
+
+---
+
+## Example Usage
+
+```typescript
+import { SlaBreachDetector } from '../../backend/services/shared/monitoring';
+
+const config = SlaBreachDetector.defaultTargetConfig('merchant_123');
+const breaches = SlaBreachDetector.evaluateBreaches(config, metricPoints, 150);
+
+console.log(`Detected ${breaches.length} SLA breach(es).`);
+```
+=======
 # SLA Monitoring & Breach Detection
 
 ## Overview
@@ -111,70 +159,4 @@ SlaMonitoringService
 | `getAnalytics()` | Get SLA analytics |
 | `generateSlaReport()` | Generate dashboard report |
 | `getMonitoringEvents()` | Get monitoring events |
-
-## Platform Monitoring Service Integration (`MonitoringService`)
-
-The shared `MonitoringService` (`backend/services/shared/monitoring.ts`) performs **subscription SLA monitoring with breach detection** directly on the platform transaction stream. It powers the admin dashboard (`src/services/adminDashboardService.ts`) and the billing pipeline (`backend/services/batchChargeService.ts`).
-
-### How it works
-
-1. Register an SLA target per subscription with `setSlaTarget(subscriptionId, target)`.
-2. Every recorded transaction triggers an SLA evaluation for its subscription.
-3. Uptime is computed from the **success rate** of transactions inside the rolling measurement window (`measurementInterval`). `pending` transactions are ignored; no traffic in the window means compliant.
-4. A **breach** is opened when uptime falls below `uptimeTarget`, and **auto-resolved** when uptime recovers to the target. Only one open breach per subscription at a time.
-5. Each breach raises an alert (`ruleId: sla-breach:<subscriptionId>`) in the platform alert stream and issues a credit via the shared credit policy.
-
-### Credit policy
-
-Credit follows the platform-wide formula (same as `calculateCreditAmount` in `src/services/slaService.ts`):
-
-```
-credit = max(1, round((uptimeTarget − uptimePercentage) / uptimeTarget × measurementInterval × 100))
-```
-
-Capped by `creditCap` when set (0 = unlimited).
-
-### Example
-
-```typescript
-import { MonitoringService } from './backend/services/shared/monitoring';
-
-const monitoring = new MonitoringService();
-
-monitoring.setSlaTarget('sub-123', {
-  uptimeTarget: 99.5,        // 99.5% uptime
-  measurementInterval: 604800, // rolling 7-day window
-  creditCap: 250,            // max credit per breach
-});
-
-monitoring.recordTransaction({ id: 't1', subscriptionId: 'sub-123', amount: 10, currency: 'USD', status: 'success', timestamp: Date.now(), gasUsed: 210000 });
-monitoring.recordTransaction({ id: 't2', subscriptionId: 'sub-123', amount: 10, currency: 'USD', status: 'failed', timestamp: Date.now(), gasUsed: 210000 });
-
-const dash = monitoring.getDashboard();
-console.log(dash.slaStatuses); // per-subscription compliance
-console.log(dash.slaBreaches); // breach records
-console.log(dash.slaSummary);  // aggregate health
-```
-
-### MonitoringService SLA API
-
-| Method | Description |
-|--------|-------------|
-| `setSlaTarget(subscriptionId, target)` | Register or update an SLA target (evaluated immediately) |
-| `removeSlaTarget(subscriptionId)` | Stop SLA monitoring for a subscription |
-| `getSlaTarget(subscriptionId)` | Get the registered target |
-| `getSlaStatus(subscriptionId)` | Live compliance status for a subscription |
-| `getSlaStatuses()` | Compliance status for every monitored subscription |
-| `getSlaSummary()` | Aggregate SLA health (monitored/compliant/breached/credits) |
-| `getSlaBreaches(subscriptionId?)` | Breach records, newest first |
-| `resolveSlaBreach(breachId)` | Manually resolve a breach (operator override) |
-| `acknowledgeSlaBreach(breachId)` | Mark a breach acknowledged |
-| `calculateSlaCreditAmount(target, uptimePercentage)` | Credit for a breach (exported helper) |
-
-### Dashboard snapshot
-
-`getDashboard()` now includes `slaStatuses`, `slaBreaches`, and `slaSummary` alongside the existing transaction metrics and alerts.
-
-### Performance
-
-Ingestion uses incremental O(1) counters; SLA evaluation is per-subscription over its window, bounded by a 5 000-event cap per subscription. Benchmarks (`backend/services/shared/__tests__/monitoringSla.benchmark.test.ts`) measure breach detection throughput — 20 000 transactions across 200 subscriptions evaluate in well under a second.
+>>>>>>> upstream-main

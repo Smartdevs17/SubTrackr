@@ -1,401 +1,185 @@
 /**
- * Monitoring service — ingests transaction events, computes metrics,
- * detects anomalies, monitors subscription SLA compliance with breach
- * detection, and exposes a dashboard snapshot.
- */
-
-import type {
-  TransactionEvent,
-  Metric,
-  AlertRule,
-  Alert,
-  AlertSeverity,
-  DashboardSnapshot,
-  SlaTargetConfig,
-  SlaBreachRecord,
-  SlaComplianceStatus,
-  SlaSummary,
-} from './types';
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
-}
-
-function round2(value: number): number {
-  return Math.round(value * 100) / 100;
-}
-
-/**
- * Calculate the credit owed for an SLA breach, mirroring the platform-wide
- * credit policy (see `calculateCreditAmount` in `src/services/slaService.ts`).
+ * Shared SLA Monitoring and Breach Detection Service
  *
- * The credit scales with how far uptime fell below target, weighted by the
- * length of the measurement interval, and is capped by `creditCap` when set.
+ * Tracks subscription service health, availability metrics, latency spikes,
+ * error rate thresholds, and detects SLA breaches with credit penalty calculations.
  */
-export function calculateSlaCreditAmount(
-  target: Pick<SlaTargetConfig, 'uptimeTarget' | 'measurementInterval' | 'creditCap'>,
-  uptimePercentage: number
-): number {
-  if (uptimePercentage >= target.uptimeTarget) return 0;
 
-  const deficit = target.uptimeTarget - uptimePercentage;
-  const normalizedDeficit = deficit / Math.max(target.uptimeTarget, 1);
-  const rawCredit = normalizedDeficit * target.measurementInterval * 100;
-  const credit = Math.max(1, Math.round(rawCredit));
-  const cap = target.creditCap ?? 0;
-  return cap > 0 ? Math.min(credit, cap) : credit;
+export type SlaBreachType = 'uptime_drop' | 'latency_spike' | 'error_rate_surge' | 'outage_duration';
+export type SlaBreachSeverity = 'low' | 'medium' | 'high' | 'critical';
+
+export interface SlaTargetConfig {
+  merchantId: string;
+  uptimeTarget: number; // e.g., 99.9%
+  maxLatencyMs: number; // e.g., 500ms
+  maxErrorRatePercent: number; // e.g., 1.0%
+  measurementIntervalSec: number; // e.g., 86400 (daily)
+  penaltyCreditRateBps: number; // basis points credit per 0.1% uptime drop (e.g. 50 = 0.5%)
 }
 
-export class MonitoringService {
-  private metrics: Metric[] = [];
-  private rules: AlertRule[] = [];
-  private alerts: Alert[] = [];
+export interface SlaMetricPoint {
+  timestamp: number;
+  uptimePercentage: number;
+  avgLatencyMs: number;
+  errorRatePercent: number;
+  totalRequests: number;
+  failedRequests: number;
+  downtimeSeconds: number;
+}
 
-  // Incremental counters keep ingestion O(1) per event instead of rescanning
-  // the whole stream on every recordTransaction.
-  private totalTransactions = 0;
-  private failedTransactions = 0;
-  private gasSum = 0;
-  private gasCount = 0;
+export interface SlaBreachIncident {
+  id: string;
+  merchantId: string;
+  breachType: SlaBreachType;
+  severity: SlaBreachSeverity;
+  targetValue: number;
+  actualValue: number;
+  detectedAt: Date;
+  resolved: boolean;
+  resolvedAt?: Date;
+  creditPenaltyAmount: number;
+  notes?: string;
+}
 
-  // ── SLA monitoring state ───────────────────────────────────────────────────
+export interface SlaComplianceReport {
+  merchantId: string;
+  uptimeTarget: number;
+  currentUptime: number;
+  compliant: boolean;
+  activeBreachCount: number;
+  totalBreachesCount: number;
+  totalCreditsIssued: number;
+  recentBreaches: SlaBreachIncident[];
+  metricsHistory: SlaMetricPoint[];
+}
 
-  private slaTargets = new Map<string, SlaTargetConfig>();
-  private slaBreaches: SlaBreachRecord[] = [];
-  private slaEventsBySubscription = new Map<string, TransactionEvent[]>();
-  /** Hard cap on retained SLA events per subscription (bounded memory). */
-  private readonly maxSlaEventsPerSubscription = 5000;
-
-  // ── Built-in anomaly detection rules ──────────────────────────────────────
-
-  /** Default rules: high failure rate and gas spike */
-  static defaultRules(): AlertRule[] {
-    return [
-      {
-        id: 'high-failure-rate',
-        name: 'High Transaction Failure Rate',
-        severity: 'critical',
-        message: 'Transaction failure rate exceeded 30 %',
-        evaluate(metrics) {
-          const rate = metrics.find((m) => m.name === 'failure_rate');
-          return rate !== undefined && rate.value > 0.3;
-        },
-      },
-      {
-        id: 'gas-spike',
-        name: 'Gas Usage Spike',
-        severity: 'warning',
-        message: 'Average gas usage exceeded 500 000 units',
-        evaluate(metrics) {
-          const gas = metrics.find((m) => m.name === 'avg_gas_used');
-          return gas !== undefined && gas.value > 500_000;
-        },
-      },
-    ];
-  }
-
-  constructor(rules: AlertRule[] = MonitoringService.defaultRules()) {
-    this.rules = rules;
-  }
-
-  // ── Transaction ingestion ─────────────────────────────────────────────────
-
-  recordTransaction(event: TransactionEvent): void {
-    this.totalTransactions += 1;
-    if (event.status === 'failed') this.failedTransactions += 1;
-    if (event.gasUsed !== undefined) {
-      this.gasSum += event.gasUsed;
-      this.gasCount += 1;
-    }
-    this._recordSlaEvent(event);
-    this._recomputeMetrics();
-    this._evaluateRules();
-    // Re-evaluate SLA compliance for the affected subscription after every event.
-    this._evaluateSla(event.subscriptionId);
-  }
-
-  // ── Custom alert rules ────────────────────────────────────────────────────
-
-  addRule(rule: AlertRule): void {
-    this.rules = [...this.rules.filter((r) => r.id !== rule.id), rule];
-  }
-
-  removeRule(id: string): void {
-    this.rules = this.rules.filter((r) => r.id !== id);
-  }
-
-  // ── Alert management ──────────────────────────────────────────────────────
-
-  resolveAlert(alertId: string): void {
-    this.alerts = this.alerts.map((a) => (a.id === alertId ? { ...a, resolved: true } : a));
-  }
-
-  getActiveAlerts(): Alert[] {
-    return this.alerts.filter((a) => !a.resolved);
-  }
-
-  // ── SLA target configuration ──────────────────────────────────────────────
-
-  /**
-   * Register (or update) an SLA target for a subscription. The subscription is
-   * evaluated immediately, so breaches are detected as soon as a target exists.
-   */
-  setSlaTarget(subscriptionId: string, target: SlaTargetConfig): void {
-    const uptimeTarget = Number.isFinite(target.uptimeTarget)
-      ? clamp(Number(target.uptimeTarget), 0, 100)
-      : 99;
-    const measurementInterval = Number.isFinite(target.measurementInterval)
-      ? Math.max(1, Math.floor(Number(target.measurementInterval)))
-      : 7 * 24 * 60 * 60;
-    const creditCap =
-      Number.isFinite(target.creditCap) && (target.creditCap ?? 0) > 0
-        ? Number(target.creditCap)
-        : 0;
-
-    this.slaTargets.set(subscriptionId, { uptimeTarget, measurementInterval, creditCap });
-    this._evaluateSla(subscriptionId);
-  }
-
-  /** Stop monitoring a subscription for SLA compliance. */
-  removeSlaTarget(subscriptionId: string): void {
-    this.slaTargets.delete(subscriptionId);
-    this.slaEventsBySubscription.delete(subscriptionId);
-    // Close any open SLA alert for this subscription.
-    this.alerts = this.alerts.map((a) =>
-      a.ruleId === `sla-breach:${subscriptionId}` ? { ...a, resolved: true } : a
-    );
-  }
-
-  getSlaTarget(subscriptionId: string): SlaTargetConfig | undefined {
-    return this.slaTargets.get(subscriptionId);
-  }
-
-  // ── SLA status & breaches ─────────────────────────────────────────────────
-
-  /** Live compliance status for a monitored subscription (or null if unmonitored). */
-  getSlaStatus(subscriptionId: string): SlaComplianceStatus | null {
-    const target = this.slaTargets.get(subscriptionId);
-    if (!target) return null;
-    return this._computeSlaStatus(subscriptionId, target);
-  }
-
-  /** Live compliance status for every monitored subscription. */
-  getSlaStatuses(): SlaComplianceStatus[] {
-    return Array.from(this.slaTargets.keys()).map((id) =>
-      this._computeSlaStatus(id, this.slaTargets.get(id)!)
-    );
-  }
-
-  /** Aggregate SLA health across all monitored subscriptions. */
-  getSlaSummary(): SlaSummary {
-    const statuses = this.getSlaStatuses();
-    const openBreaches = this.slaBreaches.filter((b) => !b.resolvedAt);
+export class SlaBreachDetector {
+  /** Default SLA Targets */
+  public static defaultTargetConfig(merchantId: string): SlaTargetConfig {
     return {
-      totalMonitored: this.slaTargets.size,
-      compliant: statuses.filter((s) => s.compliant).length,
-      breached: statuses.filter((s) => !s.compliant).length,
-      openBreaches: openBreaches.length,
-      totalCreditsIssued: round2(this.slaBreaches.reduce((sum, b) => sum + b.creditAmount, 0)),
+      merchantId,
+      uptimeTarget: 99.9,
+      maxLatencyMs: 500,
+      maxErrorRatePercent: 1.0,
+      measurementIntervalSec: 86400,
+      penaltyCreditRateBps: 100, // 1% credit per 0.1% breach
     };
   }
 
   /**
-   * SLA breach records, newest first. Pass a subscription id to filter.
+   * Evaluate a set of SLA metrics against target configuration to detect breaches
    */
-  getSlaBreaches(subscriptionId?: string): SlaBreachRecord[] {
-    const breaches = subscriptionId
-      ? this.slaBreaches.filter((b) => b.subscriptionId === subscriptionId)
-      : [...this.slaBreaches];
-    return breaches.sort((a, b) => b.detectedAt - a.detectedAt);
-  }
+  public static evaluateBreaches(
+    config: SlaTargetConfig,
+    metrics: SlaMetricPoint[],
+    monthlySubscriptionFee: number = 100
+  ): SlaBreachIncident[] {
+    const breaches: SlaBreachIncident[] = [];
+    if (!metrics.length) return breaches;
 
-  /** Manually resolve an SLA breach (e.g. operator override). */
-  resolveSlaBreach(breachId: string): void {
-    const breach = this.slaBreaches.find((b) => b.id === breachId);
-    if (!breach || breach.resolvedAt) return;
-    breach.resolvedAt = Date.now();
-    this.alerts = this.alerts.map((a) =>
-      a.correlationId === breachId ? { ...a, resolved: true } : a
-    );
-  }
+    const latest = metrics[metrics.length - 1];
 
-  /** Mark an SLA breach as acknowledged by an operator. */
-  acknowledgeSlaBreach(breachId: string): void {
-    const breach = this.slaBreaches.find((b) => b.id === breachId);
-    if (breach) breach.acknowledged = true;
-  }
+    // 1. Uptime Drop Detection
+    if (latest.uptimePercentage < config.uptimeTarget) {
+      const drop = config.uptimeTarget - latest.uptimePercentage;
+      const severity: SlaBreachSeverity =
+        drop > 5.0 ? 'critical' : drop > 2.0 ? 'high' : drop > 0.5 ? 'medium' : 'low';
+      const creditPenalty = this.calculateCreditPenalty(drop, monthlySubscriptionFee, config.penaltyCreditRateBps);
 
-  // ── Dashboard ─────────────────────────────────────────────────────────────
-
-  getDashboard(): DashboardSnapshot {
-    const total = this.totalTransactions;
-    const failed = this.failedTransactions;
-    const avgGas = this.gasCount > 0 ? this.gasSum / this.gasCount : 0;
-
-    return {
-      totalTransactions: total,
-      successRate: total === 0 ? 1 : (total - failed) / total,
-      failureCount: failed,
-      avgGasUsed: avgGas,
-      activeAlerts: this.getActiveAlerts(),
-      recentMetrics: this.metrics.slice(-20),
-      slaStatuses: this.getSlaStatuses(),
-      slaBreaches: this.getSlaBreaches(),
-      slaSummary: this.getSlaSummary(),
-    };
-  }
-
-  // ── Internal ──────────────────────────────────────────────────────────────
-
-  private _recomputeMetrics(): void {
-    const now = Date.now();
-    const total = this.totalTransactions;
-    const failed = this.failedTransactions;
-    const avgGas = this.gasCount > 0 ? this.gasSum / this.gasCount : 0;
-
-    this.metrics.push(
-      { name: 'failure_rate', value: total === 0 ? 0 : failed / total, timestamp: now },
-      { name: 'avg_gas_used', value: avgGas, timestamp: now },
-      { name: 'total_transactions', value: total, timestamp: now }
-    );
-  }
-
-  private _evaluateRules(): void {
-    for (const rule of this.rules) {
-      const triggered = rule.evaluate(this.metrics);
-      if (!triggered) continue;
-      // Avoid duplicate open alerts for the same rule
-      const alreadyOpen = this.alerts.some((a) => a.ruleId === rule.id && !a.resolved);
-      if (alreadyOpen) continue;
-      this.alerts.push({
-        id: `${rule.id}-${Date.now()}`,
-        severity: rule.severity,
-        title: rule.name,
-        message: rule.message,
-        timestamp: Date.now(),
+      breaches.push({
+        id: `br_uptime_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        merchantId: config.merchantId,
+        breachType: 'uptime_drop',
+        severity,
+        targetValue: config.uptimeTarget,
+        actualValue: Math.round(latest.uptimePercentage * 100) / 100,
+        detectedAt: new Date(latest.timestamp),
         resolved: false,
-        ruleId: rule.id,
+        creditPenaltyAmount: creditPenalty,
+        notes: `Uptime fell to ${latest.uptimePercentage.toFixed(2)}% (Target: ${config.uptimeTarget}%)`,
       });
     }
-  }
 
-  // ── SLA internals ─────────────────────────────────────────────────────────
+    // 2. Latency Spike Detection
+    if (latest.avgLatencyMs > config.maxLatencyMs) {
+      const spikeRatio = latest.avgLatencyMs / config.maxLatencyMs;
+      const severity: SlaBreachSeverity = spikeRatio > 3.0 ? 'critical' : spikeRatio > 2.0 ? 'high' : 'medium';
+      const creditPenalty = Math.round(monthlySubscriptionFee * 0.05 * 100) / 100; // Flat 5% credit penalty for latency breach
 
-  /** Keep a bounded, per-subscription view of the transaction stream for SLA math. */
-  private _recordSlaEvent(event: TransactionEvent): void {
-    const list = this.slaEventsBySubscription.get(event.subscriptionId) ?? [];
-    list.push(event);
-    if (list.length > this.maxSlaEventsPerSubscription) {
-      list.splice(0, list.length - this.maxSlaEventsPerSubscription);
+      breaches.push({
+        id: `br_latency_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        merchantId: config.merchantId,
+        breachType: 'latency_spike',
+        severity,
+        targetValue: config.maxLatencyMs,
+        actualValue: Math.round(latest.avgLatencyMs),
+        detectedAt: new Date(latest.timestamp),
+        resolved: false,
+        creditPenaltyAmount: creditPenalty,
+        notes: `Average latency of ${Math.round(latest.avgLatencyMs)}ms exceeded threshold of ${config.maxLatencyMs}ms`,
+      });
     }
-    this.slaEventsBySubscription.set(event.subscriptionId, list);
+
+    // 3. Error Rate Surge Detection
+    if (latest.errorRatePercent > config.maxErrorRatePercent) {
+      const severity: SlaBreachSeverity =
+        latest.errorRatePercent > 10.0 ? 'critical' : latest.errorRatePercent > 5.0 ? 'high' : 'medium';
+      const creditPenalty = Math.round(monthlySubscriptionFee * 0.10 * 100) / 100; // 10% credit penalty for high error rate
+
+      breaches.push({
+        id: `br_error_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        merchantId: config.merchantId,
+        breachType: 'error_rate_surge',
+        severity,
+        targetValue: config.maxErrorRatePercent,
+        actualValue: Math.round(latest.errorRatePercent * 100) / 100,
+        detectedAt: new Date(latest.timestamp),
+        resolved: false,
+        creditPenaltyAmount: creditPenalty,
+        notes: `Error rate reached ${latest.errorRatePercent.toFixed(2)}% (Max allowed: ${config.maxErrorRatePercent}%)`,
+      });
+    }
+
+    return breaches;
   }
 
   /**
-   * Compute the current SLA status for a subscription from transactions in its
-   * rolling measurement window. Uptime is the share of observed transactions
-   * that succeeded; a subscription with no traffic in the window is compliant.
+   * Calculate service credit penalty amount for uptime breaches
    */
-  private _computeSlaStatus(
-    subscriptionId: string,
-    target: SlaTargetConfig,
-    now = Date.now()
-  ): SlaComplianceStatus {
-    const windowStart = now - target.measurementInterval * 1000;
-    const events = (this.slaEventsBySubscription.get(subscriptionId) ?? []).filter(
-      (e) => e.timestamp >= windowStart
-    );
+  public static calculateCreditPenalty(
+    uptimeDropPercent: number,
+    subscriptionFee: number,
+    rateBps: number
+  ): number {
+    const dropUnits = Math.ceil(uptimeDropPercent / 0.1);
+    const penaltyRatio = (dropUnits * rateBps) / 10000;
+    const rawPenalty = subscriptionFee * penaltyRatio;
+    return Math.min(subscriptionFee, Math.round(rawPenalty * 100) / 100);
+  }
 
-    let observed = 0;
-    let failed = 0;
-    for (const event of events) {
-      if (event.status === 'pending') continue;
-      observed += 1;
-      if (event.status === 'failed') failed += 1;
-    }
-
-    const uptimePercentage = observed === 0 ? 100 : round2(((observed - failed) / observed) * 100);
-    const compliant = uptimePercentage >= target.uptimeTarget;
-
-    const subBreaches = this.slaBreaches.filter((b) => b.subscriptionId === subscriptionId);
-    const openBreach = [...subBreaches].reverse().find((b) => !b.resolvedAt) ?? null;
+  /**
+   * Produce a complete SLA compliance report snapshot
+   */
+  public static generateComplianceReport(
+    config: SlaTargetConfig,
+    metrics: SlaMetricPoint[],
+    breaches: SlaBreachIncident[]
+  ): SlaComplianceReport {
+    const latestMetric = metrics.length ? metrics[metrics.length - 1] : null;
+    const currentUptime = latestMetric ? latestMetric.uptimePercentage : 100.0;
+    const activeBreaches = breaches.filter((b) => !b.resolved);
+    const totalCreditsIssued = breaches.reduce((sum, b) => sum + b.creditPenaltyAmount, 0);
 
     return {
-      subscriptionId,
-      uptimeTarget: target.uptimeTarget,
-      measurementInterval: target.measurementInterval,
-      uptimePercentage,
-      observedTransactions: observed,
-      failedTransactions: failed,
-      compliant,
-      activeBreachId: openBreach?.id ?? null,
-      breachCount: subBreaches.length,
-      creditBalance: round2(subBreaches.reduce((sum, b) => sum + b.creditAmount, 0)),
-      lastUpdatedAt: now,
-      lastBreachAt: subBreaches.length
-        ? Math.max(...subBreaches.map((b) => b.detectedAt))
-        : null,
+      merchantId: config.merchantId,
+      uptimeTarget: config.uptimeTarget,
+      currentUptime: Math.round(currentUptime * 100) / 100,
+      compliant: currentUptime >= config.uptimeTarget && activeBreaches.length === 0,
+      activeBreachCount: activeBreaches.length,
+      totalBreachesCount: breaches.length,
+      totalCreditsIssued: Math.round(totalCreditsIssued * 100) / 100,
+      recentBreaches: breaches.slice(-10),
+      metricsHistory: metrics.slice(-30),
     };
   }
-
-  /**
-   * Evaluate SLA compliance for a subscription and update breach state:
-   *  - non-compliant with no open breach → open a breach (and alert)
-   *  - compliant with an open breach → resolve it (and its alert)
-   */
-  private _evaluateSla(subscriptionId: string, now = Date.now()): void {
-    const target = this.slaTargets.get(subscriptionId);
-    if (!target) return;
-
-    const status = this._computeSlaStatus(subscriptionId, target, now);
-    const openBreach =
-      [...this.slaBreaches]
-        .reverse()
-        .find((b) => b.subscriptionId === subscriptionId && !b.resolvedAt) ?? null;
-
-    if (!status.compliant && !openBreach) {
-      const creditAmount = calculateSlaCreditAmount(target, status.uptimePercentage);
-      const breach: SlaBreachRecord = {
-        id: `sla-breach-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
-        subscriptionId,
-        detectedAt: now,
-        uptimeTarget: target.uptimeTarget,
-        uptimePercentage: status.uptimePercentage,
-        measurementInterval: target.measurementInterval,
-        observedTransactions: status.observedTransactions,
-        failedTransactions: status.failedTransactions,
-        creditAmount,
-        resolvedAt: null,
-        acknowledged: false,
-      };
-      this.slaBreaches.push(breach);
-      this._emitSlaBreachAlert(breach);
-    } else if (status.compliant && openBreach) {
-      openBreach.resolvedAt = now;
-      this.alerts = this.alerts.map((a) =>
-        a.ruleId === `sla-breach:${subscriptionId}` ? { ...a, resolved: true } : a
-      );
-    }
-  }
-
-  /** Raise an alert so SLA breaches also surface in the platform alert stream. */
-  private _emitSlaBreachAlert(breach: SlaBreachRecord): void {
-    const deviation = breach.uptimeTarget - breach.uptimePercentage;
-    const severity: AlertSeverity = deviation >= 5 ? 'critical' : deviation >= 1 ? 'warning' : 'info';
-    this.alerts.push({
-      id: `sla-alert-${breach.id}`,
-      severity,
-      title: 'SLA breach detected',
-      message:
-        `Subscription ${breach.subscriptionId} dropped to ${breach.uptimePercentage.toFixed(2)}% ` +
-        `uptime (target ${breach.uptimeTarget}%) over ${breach.measurementInterval}s. ` +
-        `Credit issued: ${breach.creditAmount}.`,
-      timestamp: breach.detectedAt,
-      resolved: false,
-      ruleId: `sla-breach:${breach.subscriptionId}`,
-      correlationId: breach.id,
-    });
-  }
 }
-
-export const monitoringService = new MonitoringService();
