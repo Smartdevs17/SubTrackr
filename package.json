@@ -18,6 +18,8 @@
     "typecheck": "tsc --noEmit",
     "test": "jest --passWithNoTests",
     "test:coverage": "jest --coverage",
+    "test:backend": "jest --config jest.backend.config.js",
+    "test:backend:coverage": "jest --config jest.backend.config.js --coverage",
     "performance:ci": "node scripts/check-performance-budget.js",
     "mutation:test": "npx --yes @stryker-mutator/core@9.0.0 run",
     "build": "expo export",

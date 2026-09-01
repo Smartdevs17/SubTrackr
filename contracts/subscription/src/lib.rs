@@ -2,8 +2,10 @@
 mod gas_optimization;
 mod gas_profiler;
 mod gas_storage;
+mod lazy_modules;
 mod quota;
 mod revenue;
+mod storage_packing;
 mod usage;
 mod plan_templates;
 mod trial;

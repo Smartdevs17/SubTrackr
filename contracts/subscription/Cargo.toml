@@ -10,6 +10,32 @@ name = "subtrackr_subscription"
 path = "src/lib.rs"
 crate-type = ["cdylib", "rlib"]
 
+# ── Compile-time feature flags for lazy module loading ────────────────────────
+#
+# Disabling a feature removes the corresponding cross-contract call paths
+# entirely from the compiled WASM binary, reducing both binary size and the
+# maximum possible gas footprint. See contracts/subscription/src/lazy_modules.rs
+# for the runtime (per-call) lazy resolution layer.
+#
+# Default: billing and notifications are on; others off unless explicitly enabled.
+[features]
+default = ["billing", "notifications"]
+
+# Enables invoice generation and billing-cycle revenue tracking.
+billing = []
+
+# Enables webhook delivery and push notification dispatch.
+notifications = []
+
+# Enables churn/retention analytics cross-contract calls.
+analytics = []
+
+# Enables on-chain fraud-score evaluation before each charge.
+fraud_detection = []
+
+# Enables the commit-reveal MEV protection flow for large charges.
+mev_protection = []
+
 serde = "1.0"
 
 [dependencies]
