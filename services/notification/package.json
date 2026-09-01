@@ -29,6 +29,6 @@
     "vitest": "^4.1.10",
     "eslint": "^10.8.0",
     "@typescript-eslint/eslint-plugin": "^8.65.0",
-    "@typescript-eslint/parser": "^8.65.0"
+    "@typescript-eslint/parser": "^8.68.0"
   }
 }
