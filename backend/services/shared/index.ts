@@ -59,22 +59,8 @@ export type {
   ResponseMeta,
   PaginationMeta,
 } from './apiResponse';
-export type {
-  TransactionStatus,
-  AlertSeverity,
-  AlertChannel,
-  TransactionEvent,
-  Metric,
-  Alert,
-  AlertRule,
-  AlertChannelConfig,
-  DashboardSnapshot,
-  SlaTargetConfig,
-  SlaBreachRecord,
-  SlaComplianceStatus,
-  SlaSummary,
-} from './types';
-export { MonitoringService, monitoringService, calculateSlaCreditAmount } from './monitoring';
+export type { TransactionStatus, AlertSeverity, AlertChannel, TransactionEvent, Metric, Alert, AlertRule, AlertChannelConfig, DashboardSnapshot } from './types';
+export { MonitoringService, monitoringService } from './monitoring';
 
 // ── Typed Event Bus ────────────────────────────────────────────────────────────
 export {
@@ -200,19 +186,40 @@ export type { WsPoolConfig, WsConnection, WsMessage, WsPoolMetrics } from './wsC
 export { ReadReplicaRouter } from './readReplicaRouter';
 export type { ReplicaConfig, ReplicaHealth, ReadRouteOptions, QueryRoute } from './readReplicaRouter';
 
-// ── Rate Limiting Middleware (#998) ──────────────────────────────────────────
-export { createRateLimitMiddleware, createFastifyRateLimitHook, createIpRateLimitMiddleware } from './rateLimitMiddleware';
-export type { RateLimitMiddlewareOptions, MinimalRequest, MinimalResponse } from './rateLimitMiddleware';
-
-// ── API Key Rotation with Grace Period (#1009) ────────────────────────────────
-export { ApiKeyRotationService, apiKeyRotationService } from './apiKeyRotation';
+// ── Composable Middleware Chain ───────────────────────────────────────────────
+export {
+  chain,
+  MiddlewareChain,
+  toExpressMiddleware,
+  skipPaths,
+  authHandler,
+  corsHandler,
+  rateLimitHandler,
+  sanitizationHandler,
+  validationHandler,
+  securityHeadersHandler,
+  publicApiChain,
+  authenticatedApiChain,
+} from './middlewareChain';
 export type {
-  ManagedApiKey,
-  ApiKeyEnvironment,
-  ApiKeyStatus,
-  RotationOptions,
-  RotationResult,
-  RotationRecord,
-  ApiKeyValidationResult,
-  ApiKeyRotationMetrics,
-} from './apiKeyRotation';
+  MiddlewareFn,
+  MiddlewareErrorHandler,
+  MiddlewareMetadata,
+  ChainExecutionResult,
+  ExpressContext,
+} from './middlewareChain';
+
+// ── Intelligent Redis Cache ───────────────────────────────────────────────────
+export {
+  IntelligentCacheService,
+  createIntelligentCache,
+  TIER_TTL,
+  SUBSCRIPTION_INVALIDATION_RULES,
+} from './intelligentCache';
+export type {
+  CacheTier,
+  CacheSetOptions,
+  IntelligentCacheConfig,
+  CacheInvalidationRule,
+  IntelligentCacheMetrics,
+} from './intelligentCache';
