@@ -25,7 +25,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
@@ -58,7 +58,7 @@ jobs:
       # ── Upload test results as artifact ───────────────────────────────
       - name: Upload invariant test results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: invariant-test-results
           path: contracts/invariant-test-results.txt
@@ -74,7 +74,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
@@ -95,7 +95,7 @@ jobs:
 
       - name: Upload extended fuzz results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: extended-fuzz-results
           path: contracts/extended-fuzz-results.txt
