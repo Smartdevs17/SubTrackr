@@ -96,6 +96,11 @@ Verifies `MonitoringService` and `AlertingService` end-to-end pipeline.
 | dispatchAll skips resolved          | Resolved alerts not re-dispatched         |
 | createDispatcher validation         | Throws when webhookUrl missing            |
 | Full pipeline                       | Transactions → metrics → alert → dispatch |
+| SLA breach detection pipeline       | Transactions → SLA breach → dashboard     |
+| SLA breach auto-resolution          | Recovery closes breach and alert          |
+| SLA credit cap enforced             | Per-breach credit capped                  |
+| SLA per-subscription isolation      | Independent monitoring per subscription   |
+| SLA removeSlaTarget                 | Monitoring stops cleanly                  |
 
 ## Test Data Factories (`factories.ts`)
 

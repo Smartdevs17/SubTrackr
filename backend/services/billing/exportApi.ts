@@ -355,6 +355,32 @@ export function handleDeleteSchedule(req: Request, res: Response): void {
 }
 
 /**
+ * PATCH /v1/exports/schedules/:id/toggle
+ *
+ * Body: { "enabled": boolean }
+ *
+ * Convenience endpoint to enable/disable a schedule.
+ */
+export function handleToggleSchedule(req: Request, res: Response): void {
+  const rid = requestId(req);
+  const { id } = req.params as { id: string };
+  const { enabled } = req.body as { enabled?: boolean };
+
+  if (typeof enabled !== 'boolean') {
+    res.status(400).json(fail(null, '"enabled" must be a boolean', rid));
+    return;
+  }
+
+  const updated = toggleExportSchedule(id, enabled);
+  if (!updated) {
+    res.status(404).json(fail(null, `Schedule ${id} not found`, rid));
+    return;
+  }
+
+  res.status(200).json(ok(updated, `Schedule ${enabled ? 'enabled' : 'disabled'}`, rid));
+}
+
+/**
  * GET /v1/exports/analytics?merchantId=...
  *
  * Returns aggregated analytics: total exports, downloads, format breakdown.

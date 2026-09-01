@@ -1,5 +1,7 @@
 import type { Theme, BrandConfig } from './types';
 import { generateCssVariables } from './cssVariables';
+import { generateExtendedColors } from './customThemeBuilder';
+import { getAccessibilityRating } from './accessibility';
 
 export const darkTheme: Theme = {
   id: 'dark',
@@ -75,19 +77,26 @@ export const builtInThemes: Theme[] = [darkTheme, lightTheme, highContrastTheme]
  * on top of a base theme. CSS variables are generated automatically.
  */
 export function createBrandTheme(base: Theme, brand: BrandConfig, id: string, name: string): Theme {
+  const now = new Date().toISOString();
+  const colors = {
+    ...base.colors,
+    primary: brand.primary,
+    secondary: brand.secondary,
+    accent: brand.accent,
+  };
   const theme: Theme = {
     ...base,
     id,
     name,
-    colors: {
-      ...base.colors,
-      primary: brand.primary,
-      secondary: brand.secondary,
-      accent: brand.accent,
-    },
+    colors,
     logoUri: brand.logoUri ?? base.logoUri,
     font: brand.font ?? base.font,
+    extendedColors: generateExtendedColors(colors, base.mode),
+    isCustom: true,
+    createdAt: now,
+    updatedAt: now,
   };
   theme.cssVariables = generateCssVariables(theme);
+  theme.accessibility = getAccessibilityRating(theme);
   return theme;
 }

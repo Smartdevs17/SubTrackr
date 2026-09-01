@@ -59,8 +59,22 @@ export type {
   ResponseMeta,
   PaginationMeta,
 } from './apiResponse';
-export type { TransactionStatus, AlertSeverity, AlertChannel, TransactionEvent, Metric, Alert, AlertRule, AlertChannelConfig, DashboardSnapshot } from './types';
-export { MonitoringService, monitoringService } from './monitoring';
+export type {
+  TransactionStatus,
+  AlertSeverity,
+  AlertChannel,
+  TransactionEvent,
+  Metric,
+  Alert,
+  AlertRule,
+  AlertChannelConfig,
+  DashboardSnapshot,
+  SlaTargetConfig,
+  SlaBreachRecord,
+  SlaComplianceStatus,
+  SlaSummary,
+} from './types';
+export { MonitoringService, monitoringService, calculateSlaCreditAmount } from './monitoring';
 
 // ── Typed Event Bus ────────────────────────────────────────────────────────────
 export {

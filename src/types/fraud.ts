@@ -9,7 +9,6 @@ export type FraudSignalType =
   | 'geolocation-anomaly';
 export type FraudReviewOutcome = 'true_positive' | 'false_positive' | 'needs_follow_up';
 export type FraudEvidenceSource = 'payment' | 'device' | 'location' | 'support';
-  | 'device-mismatch';
 
 // ── Legacy types used by fraudDetectionService ────────────────────────────────
 
@@ -320,8 +319,14 @@ export interface FraudAnalytics {
   preventedLoss?: number;
   detectionRate?: number;
   falsePositiveRate?: number;
-  timeSeriesData?: Array<{ date: string; count?: number; detections?: number; blocked: number; confirmed?: number }>;
-  topRiskUsers?: Array<{ userId: string; riskScore: number; detectionCount: number }>;
+  timeSeriesData?: {
+    date: string;
+    count?: number;
+    detections?: number;
+    blocked: number;
+    confirmed?: number;
+  }[];
+  topRiskUsers?: { userId: string; riskScore: number; detectionCount: number }[];
   // New dashboard fields (used by fraud store and UI)
   totalChecks?: number;
   approved?: number;

@@ -183,6 +183,99 @@ describe('API endpoints integration', () => {
     expect(() => createDispatcher({ type: 'slack' })).toThrow('webhookUrl required');
   });
 
+  // ── SLA breach detection pipeline ────────────────────────────────────────
+
+  it('detects an SLA breach from the transaction stream and surfaces it in the dashboard', () => {
+    monitoring.setSlaTarget('sub-sla-1', {
+      uptimeTarget: 99,
+      measurementInterval: 86_400,
+      creditCap: 1_000,
+    });
+
+    monitoring.recordTransaction(makeTxEvent({ subscriptionId: 'sub-sla-1', status: 'success' }));
+    monitoring.recordTransaction(makeTxEvent({ subscriptionId: 'sub-sla-1', status: 'failed' }));
+
+    const dash = monitoring.getDashboard();
+    const status = dash.slaStatuses.find((s) => s.subscriptionId === 'sub-sla-1');
+    const breaches = dash.slaBreaches.filter((b) => b.subscriptionId === 'sub-sla-1');
+
+    expect(status).toBeDefined();
+    expect(status!.compliant).toBe(false);
+    expect(status!.uptimePercentage).toBe(50);
+    expect(breaches).toHaveLength(1);
+    expect(breaches[0].resolvedAt).toBeNull();
+    expect(breaches[0].creditAmount).toBeGreaterThan(0);
+    // SLA breach also raises an alert through the platform alert stream.
+    expect(
+      dash.activeAlerts.some((a) => a.ruleId === 'sla-breach:sub-sla-1')
+    ).toBe(true);
+  });
+
+  it('auto-resolves the SLA breach when the subscription returns to compliance', () => {
+    monitoring.setSlaTarget('sub-sla-2', {
+      uptimeTarget: 99,
+      measurementInterval: 86_400,
+    });
+
+    monitoring.recordTransaction(makeTxEvent({ subscriptionId: 'sub-sla-2', status: 'failed' }));
+    monitoring.recordTransaction(makeTxEvent({ subscriptionId: 'sub-sla-2', status: 'success' }));
+    expect(monitoring.getSlaBreaches('sub-sla-2')).toHaveLength(1);
+
+    // 99 successes + 1 failure = 99% uptime → back at target.
+    for (let i = 0; i < 98; i++) {
+      monitoring.recordTransaction(makeTxEvent({ subscriptionId: 'sub-sla-2', status: 'success' }));
+    }
+
+    const status = monitoring.getSlaStatus('sub-sla-2');
+    expect(status!.compliant).toBe(true);
+    expect(status!.activeBreachId).toBeNull();
+    expect(monitoring.getSlaBreaches('sub-sla-2')[0].resolvedAt).not.toBeNull();
+    expect(monitoring.getActiveAlerts().some((a) => a.ruleId === 'sla-breach:sub-sla-2')).toBe(false);
+  });
+
+  it('enforces the per-breach credit cap', () => {
+    monitoring.setSlaTarget('sub-sla-3', {
+      uptimeTarget: 99,
+      measurementInterval: 86_400,
+      creditCap: 50,
+    });
+    monitoring.recordTransaction(makeTxEvent({ subscriptionId: 'sub-sla-3', status: 'failed' }));
+
+    const breach = monitoring.getSlaBreaches('sub-sla-3')[0];
+    expect(breach.creditAmount).toBe(50);
+  });
+
+  it('keeps SLA monitoring independent per subscription', () => {
+    monitoring.setSlaTarget('sub-sla-4', {
+      uptimeTarget: 99,
+      measurementInterval: 86_400,
+    });
+    monitoring.setSlaTarget('sub-sla-5', {
+      uptimeTarget: 99,
+      measurementInterval: 86_400,
+    });
+
+    monitoring.recordTransaction(makeTxEvent({ subscriptionId: 'sub-sla-4', status: 'failed' }));
+    monitoring.recordTransaction(makeTxEvent({ subscriptionId: 'sub-sla-5', status: 'success' }));
+
+    expect(monitoring.getSlaBreaches('sub-sla-4')).toHaveLength(1);
+    expect(monitoring.getSlaBreaches('sub-sla-5')).toHaveLength(0);
+    expect(monitoring.getSlaStatus('sub-sla-5')!.compliant).toBe(true);
+  });
+
+  it('stops monitoring a subscription after removeSlaTarget', () => {
+    monitoring.setSlaTarget('sub-sla-6', {
+      uptimeTarget: 99,
+      measurementInterval: 86_400,
+    });
+    monitoring.recordTransaction(makeTxEvent({ subscriptionId: 'sub-sla-6', status: 'failed' }));
+    expect(monitoring.getSlaBreaches('sub-sla-6')).toHaveLength(1);
+
+    monitoring.removeSlaTarget('sub-sla-6');
+    expect(monitoring.getSlaStatus('sub-sla-6')).toBeNull();
+    expect(monitoring.getSlaSummary().totalMonitored).toBe(0);
+  });
+
   // ── Full pipeline: transactions → metrics → alert → dispatch ─────────────
 
   it('full pipeline: high failure rate triggers and dispatches a critical alert', async () => {
