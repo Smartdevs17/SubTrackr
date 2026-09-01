@@ -14,11 +14,6 @@
 //! * real-time billing via [`SubTrackrMetering::calculate_usage_charge`]
 //! * multiple meters per subscription
 //! * usage alerts and full history/trend access
-//!
-//! Timestamps come from the ledger (not the caller) to keep aggregation
-//! consistent under concurrent, high-frequency ingestion.
-
-mod metering;
 #[cfg(test)]
 mod test;
 
@@ -380,5 +375,6 @@ impl SubTrackrMetering {
         env.storage()
             .persistent()
             .set(&DataKey::Meters(sub), &metrics);
+>>>>>>> upstream/main
     }
 }

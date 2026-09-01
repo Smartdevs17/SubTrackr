@@ -7,6 +7,7 @@ export { useCreditStore } from './creditStore';
 export { useTransactionQueueStore } from './transactionQueueStore';
 export { useDunningStore } from './dunningStore';
 export { useWalletStore } from './walletStore';
+export { useMeteringStore } from './meteringStore';
 export { useNetworkStore } from './networkStore';
 export { useSettingsStore } from './settingsStore';
 export { useUserStore } from './userStore';
