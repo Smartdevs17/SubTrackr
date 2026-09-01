@@ -49,13 +49,18 @@
       "favicon": "./assets/subtrackr-icon.png",
       "name": "SubTrackr - Subscription Management with Crypto Payments",
       "description": "Manage your subscriptions with Web3 crypto payments",
-      "meta": {
-        "http-equiv": {
-          "Content-Security-Policy": "default-src 'self'; script-src 'self' 'strict-dynamic'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://api.subtrackr.app; font-src 'self' https://fonts.gstatic.com; object-src 'none'; media-src 'none'; frame-src 'none'; frame-ancestors 'none'; form-action 'self'; base-uri 'self'; upgrade-insecure-requests",
-          "X-Content-Type-Options": "nosniff",
-          "X-Frame-Options": "DENY",
-          "Referrer-Policy": "strict-origin-when-cross-origin",
-          "Permissions-Policy": "geolocation=(), microphone=(), camera=()"
+      "security": {
+        "hsts": {
+          "maxAgeSeconds": 63072000,
+          "includeSubDomains": true,
+          "preload": true
+        },
+        "permissionsPolicy": {
+          "geolocation": "none",
+          "microphone": "none",
+          "camera": "none",
+          "payment": "none",
+          "usb": "none"
         }
       }
     },

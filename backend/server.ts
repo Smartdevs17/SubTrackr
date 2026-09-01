@@ -36,6 +36,7 @@ import { rateLimitingService } from './services/shared/rateLimitingService';
 import { createRateLimitMiddleware, RATE_LIMIT_HEADERS } from './services/shared/rateLimitMiddleware';
 import { applyCompression, compressionPrometheusMetrics } from './services/shared/compression';
 import { wrapWithMonitor, type MonitoredPool } from './services/shared/poolMonitor';
+import { applySecurityHeadersToResponse } from './shared/middleware/securityHeaders';
 import { SubscriptionTier } from '../src/types/subscription';
 import {
   processCorsRequest,
@@ -314,6 +315,19 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
     const { pathname } = url;
     const method = req.method ?? 'GET';
+
+    applySecurityHeadersToResponse(res);
+
+    const originalWriteHead = res.writeHead.bind(res);
+    res.writeHead = ((statusCode: number, statusMessage?: string | Record<string, string>) => {
+      if (!res.headersSent) {
+        applySecurityHeadersToResponse(res);
+      }
+      if (typeof statusMessage === 'string') {
+        return originalWriteHead(statusCode, statusMessage);
+      }
+      return originalWriteHead(statusCode, statusMessage);
+    }) as typeof res.writeHead;
 
     try {
       // -----------------------------------------------------------------

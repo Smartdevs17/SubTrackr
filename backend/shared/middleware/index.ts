@@ -36,3 +36,9 @@ export {
   applyETagToRawHandler,
 } from './etagMiddleware';
 export type { ETagMiddlewareOptions } from './etagMiddleware';
+export {
+  buildSecurityHeaders,
+  securityHeadersMiddleware,
+  applySecurityHeadersToResponse,
+} from './securityHeaders';
+export type { SecurityHeadersOptions } from './securityHeaders';
