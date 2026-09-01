@@ -255,3 +255,21 @@ export class WebSocketError extends AppError {
     Object.setPrototypeOf(this, new.target.prototype);
   }
 }
+
+export function isAppError(error: unknown): error is AppError {
+  return error instanceof AppError;
+}
+
+export function fromUnknownAppError(
+  error: unknown,
+  defaultMessage = 'An unexpected error occurred',
+  requestId?: string
+): AppError {
+  if (isAppError(error)) {
+    return error;
+  }
+  if (error instanceof Error) {
+    return new AppError('UNKNOWN_ERROR', error.message, undefined, error, undefined, requestId);
+  }
+  return new AppError('UNKNOWN_ERROR', defaultMessage, undefined, error, undefined, requestId);
+}

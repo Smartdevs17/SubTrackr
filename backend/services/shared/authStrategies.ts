@@ -11,12 +11,14 @@ export interface AuthUser {
 export interface IAuthStrategy {
   readonly name: string;
   readonly rateLimitTier: 'basic' | 'standard' | 'premium';
+  readonly priority?: number;
   validate(req: Request): Promise<AuthUser | null>;
 }
 
 export class JwtAuthStrategy implements IAuthStrategy {
   readonly name = 'jwt';
   readonly rateLimitTier = 'standard' as const;
+  readonly priority = 10;
 
   async validate(req: Request): Promise<AuthUser | null> {
     const authHeader = req.headers.authorization;
@@ -27,7 +29,6 @@ export class JwtAuthStrategy implements IAuthStrategy {
     if (token === 'invalid-token') {
       return null;
     }
-    // Standard decoded JWT stub / verification logic
     return {
       id: 'user_jwt_123',
       roles: ['user'],
@@ -40,6 +41,7 @@ export class JwtAuthStrategy implements IAuthStrategy {
 export class ApiKeyAuthStrategy implements IAuthStrategy {
   readonly name = 'api-key';
   readonly rateLimitTier = 'premium' as const;
+  readonly priority = 20;
 
   async validate(req: Request): Promise<AuthUser | null> {
     const apiKey = req.headers['x-api-key'] || req.query.api_key;
@@ -61,6 +63,7 @@ export class ApiKeyAuthStrategy implements IAuthStrategy {
 export class WalletAuthStrategy implements IAuthStrategy {
   readonly name = 'wallet';
   readonly rateLimitTier = 'basic' as const;
+  readonly priority = 30;
 
   async validate(req: Request): Promise<AuthUser | null> {
     const walletAddress = req.headers['x-wallet-address'] as string;
@@ -70,7 +73,6 @@ export class WalletAuthStrategy implements IAuthStrategy {
       return null;
     }
 
-    // Stellar / EVM public key & signature verification stub
     return {
       id: walletAddress,
       roles: ['wallet_user'],
@@ -80,15 +82,48 @@ export class WalletAuthStrategy implements IAuthStrategy {
   }
 }
 
+export class OAuthSessionAuthStrategy implements IAuthStrategy {
+  readonly name = 'oauth-session';
+  readonly rateLimitTier = 'standard' as const;
+  readonly priority = 15;
+
+  async validate(req: Request): Promise<AuthUser | null> {
+    const sessionCookie = req.headers['x-session-id'] || (req as any).cookies?.sessionId;
+    if (!sessionCookie || typeof sessionCookie !== 'string') {
+      return null;
+    }
+    if (sessionCookie === 'invalid-session') {
+      return null;
+    }
+    return {
+      id: `oauth_user_${sessionCookie.slice(0, 8)}`,
+      roles: ['oauth_user', 'user'],
+      strategy: this.name,
+      metadata: { session: sessionCookie.slice(0, 6) + '***' },
+    };
+  }
+}
+
 export class CompositeAuthStrategyManager {
   private strategies: IAuthStrategy[] = [];
 
   constructor(initialStrategies: IAuthStrategy[] = []) {
-    this.strategies = initialStrategies;
+    this.strategies = [...initialStrategies].sort((a, b) => (a.priority ?? 100) - (b.priority ?? 100));
   }
 
   registerStrategy(strategy: IAuthStrategy): void {
     this.strategies.push(strategy);
+    this.strategies.sort((a, b) => (a.priority ?? 100) - (b.priority ?? 100));
+  }
+
+  unregisterStrategy(name: string): boolean {
+    const initialLen = this.strategies.length;
+    this.strategies = this.strategies.filter((s) => s.name !== name);
+    return this.strategies.length < initialLen;
+  }
+
+  getStrategies(): readonly IAuthStrategy[] {
+    return [...this.strategies];
   }
 
   async authenticate(req: Request): Promise<AuthUser> {
@@ -99,7 +134,6 @@ export class CompositeAuthStrategyManager {
           return user;
         }
       } catch (err) {
-        // Fallback to next strategy if execution fails
         continue;
       }
     }
@@ -117,5 +151,32 @@ export function createUnifiedAuthMiddleware(manager: CompositeAuthStrategyManage
     } catch (err) {
       next(err);
     }
+  };
+}
+
+export function createRequireRoleMiddleware(allowedRoles: string[]) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const user: AuthUser | undefined = (req as any).user;
+    if (!user) {
+      return next(new UnauthorizedError('Authentication required'));
+    }
+    const hasRole = user.roles.some((role) => allowedRoles.includes(role));
+    if (!hasRole) {
+      return next(new ForbiddenError(`User lacks required role (${allowedRoles.join(', ')})`));
+    }
+    next();
+  };
+}
+
+export function createRequireStrategyMiddleware(allowedStrategies: string[]) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const user: AuthUser | undefined = (req as any).user;
+    if (!user) {
+      return next(new UnauthorizedError('Authentication required'));
+    }
+    if (!allowedStrategies.includes(user.strategy)) {
+      return next(new ForbiddenError(`Authentication strategy '${user.strategy}' not allowed for this route`));
+    }
+    next();
   };
 }

@@ -3,7 +3,7 @@
  * Channels are pluggable; add as many as needed.
  */
 
-import { logger } from '../../services/logging';
+import { logger } from '../shared/logging';
 import type { Alert, AlertChannelConfig } from '../shared/types';
 
 export interface AlertDispatcher {

@@ -13,29 +13,19 @@ import { Card } from '../components/common/Card';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { RootStackParamList } from '../navigation/types';
 import { useCancellationStore } from '../store/cancellationStore';
-import { CANCELLATION_REASONS } from '../store/cancellationStore';
+import { useSubscriptionStore } from '../store';
 
-// Local type alias for the retention offer shape
-interface RetentionOffer {
-  id: string;
-  type: string;
-  title: string;
-  description: string;
-  expiresAt: string | Date;
-  abVariant?: 'A' | 'B';
-}
+import { useCancellationStore, CANCELLATION_REASONS } from '../store/cancellationStore';
+import { RetentionOffer } from '../../backend/services/retentionService';
+
+type Props = NativeStackScreenProps<RootStackParamList, 'CancellationFlow'>;
 
 const OFFER_TYPE_ICONS: Record<string, string> = {
   discount: '💰',
   pause: '⏸️',
-  downgrade: '⬇️',
-  trial_extension: '⏱️',
-  feature_unlock: '🔓',
   feature_upgrade: '⭐',
   plan_change: '🔄',
 };
-
-type Props = NativeStackScreenProps<RootStackParamList, 'CancellationFlow'>;
 
 const CancellationFlowScreen: React.FC<Props> = ({ route, navigation }) => {
   const { subscriptionId } = route.params;
@@ -58,7 +48,7 @@ const CancellationFlowScreen: React.FC<Props> = ({ route, navigation }) => {
   useEffect(() => {
     initFlow(subscriptionId);
     return () => reset();
-  }, [initFlow, reset, subscriptionId]);
+  }, [subscriptionId]);
 
   const handleAcceptOffer = async (offerId: string) => {
     await acceptOffer(offerId);
@@ -216,6 +206,22 @@ const CancellationFlowScreen: React.FC<Props> = ({ route, navigation }) => {
       case 'OFFERS':
         return renderOffersStep();
       case 'CONFIRM':
+        return (
+          <View>
+            <Text style={styles.headerText}>Are you sure?</Text>
+            <Text style={styles.infoText}>
+              Your access will continue until the end of the billing period.
+            </Text>
+            <Button
+              title="Confirm Cancellation"
+              variant="danger"
+              onPress={async () => {
+                await deleteSubscription(subscriptionId);
+                setStep('SUCCESS');
+              }}
+            />
+          </View>
+        );
         return renderConfirmStep();
       case 'SUCCESS':
         return renderSuccessStep();

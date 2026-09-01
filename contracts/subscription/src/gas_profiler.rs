@@ -1,6 +1,7 @@
-/// Gas Profiling Module for SubTrackr Subscription Contract
-/// Tracks gas consumption for each contract function and provides optimization insights
-use soroban_sdk::{Address, Env, String, Vec};
+//! Gas Profiling Module for SubTrackr Subscription Contract
+//! Tracks gas consumption for each contract function and provides optimization insights.
+
+use soroban_sdk::{Address, Env, String, Symbol, Vec};
 
 /// Gas profile entry for a function call
 #[derive(Clone)]

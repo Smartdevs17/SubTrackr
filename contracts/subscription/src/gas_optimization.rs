@@ -1,5 +1,6 @@
-/// Gas Optimization and Targeting Module
-/// Provides optimization recommendations and tracks gas targets
+//! Gas Optimization and Targeting Module
+//! Provides optimization recommendations and tracks gas targets.
+
 use soroban_sdk::{Env, String, Vec};
 
 /// Optimization level

@@ -1,7 +1,7 @@
 use soroban_sdk::{Address, Env, String, Vec};
-use crate::SubTrackrSubscriptionClient;
+use crate::{SubTrackrSubscription, SubTrackrSubscriptionClient};
 use subtrackr_types::{
-    StorageKeyExt, Subscription, SubscriptionStatus, WebhookConfig, WebhookDelivery,
+    StorageKey, Subscription, SubscriptionStatus, WebhookConfig, WebhookDelivery,
     WebhookDeliveryStatus, WebhookEventType, WebhookRetryPolicy,
 };
 
@@ -11,16 +11,16 @@ use crate::{
 };
 
 fn webhook_ids_for_merchant(env: &Env, storage: &Address, merchant: &Address) -> Vec<u64> {
-    storage_persistent_get(env, storage, StorageKeyExt::MerchantWebhooks(merchant.clone()))
+    storage_persistent_get(env, storage, StorageKey::MerchantWebhooks(merchant.clone()))
         .unwrap_or(Vec::new(env))
 }
 
 fn set_webhook_ids_for_merchant(env: &Env, storage: &Address, merchant: &Address, ids: Vec<u64>) {
-    storage_persistent_set(env, storage, StorageKeyExt::MerchantWebhooks(merchant.clone()), ids);
+    storage_persistent_set(env, storage, StorageKey::MerchantWebhooks(merchant.clone()), ids);
 }
 
 fn deliveries_for_webhook(env: &Env, storage: &Address, webhook_id: u64) -> Vec<u64> {
-    storage_persistent_get(env, storage, StorageKeyExt::WebhookDeliveriesByWebhook(webhook_id))
+    storage_persistent_get(env, storage, StorageKey::WebhookDeliveriesByWebhook(webhook_id))
         .unwrap_or(Vec::new(env))
 }
 
@@ -28,7 +28,7 @@ fn set_deliveries_for_webhook(env: &Env, storage: &Address, webhook_id: u64, ids
     storage_persistent_set(
         env,
         storage,
-        StorageKeyExt::WebhookDeliveriesByWebhook(webhook_id),
+        StorageKey::WebhookDeliveriesByWebhook(webhook_id),
         ids,
     );
 }
@@ -46,17 +46,17 @@ fn webhook_supports_event(config: &WebhookConfig, event_type: &WebhookEventType)
 }
 
 fn next_webhook_id(env: &Env, storage: &Address) -> u64 {
-    let mut count: u64 = storage_instance_get(env, storage, StorageKeyExt::WebhookCount).unwrap_or(0);
+    let mut count: u64 = storage_instance_get(env, storage, StorageKey::WebhookCount).unwrap_or(0);
     count += 1;
-    storage_instance_set(env, storage, StorageKeyExt::WebhookCount, count);
+    storage_instance_set(env, storage, StorageKey::WebhookCount, count);
     count
 }
 
 fn next_delivery_id(env: &Env, storage: &Address) -> u64 {
     let mut count: u64 =
-        storage_instance_get(env, storage, StorageKeyExt::WebhookDeliveryCount).unwrap_or(0);
+        storage_instance_get(env, storage, StorageKey::WebhookDeliveryCount).unwrap_or(0);
     count += 1;
-    storage_instance_set(env, storage, StorageKeyExt::WebhookDeliveryCount, count);
+    storage_instance_set(env, storage, StorageKey::WebhookDeliveryCount, count);
     count
 }
 
@@ -90,7 +90,7 @@ pub(crate) fn emit_subscription_event(
         let config_opt: Option<WebhookConfig> = storage_persistent_get(
             env,
             storage,
-            StorageKeyExt::Webhook(webhook_id),
+            StorageKey::Webhook(webhook_id),
         );
         if let Some(config) = config_opt {
             if !webhook_supports_event(&config, &event_type) {
@@ -130,7 +130,7 @@ pub(crate) fn emit_subscription_event(
                 created_at: env.ledger().timestamp(),
                 updated_at: env.ledger().timestamp(),
             };
-            storage_persistent_set(env, storage, StorageKeyExt::WebhookDelivery(delivery_id), delivery);
+            storage_persistent_set(env, storage, StorageKey::WebhookDelivery(delivery_id), delivery);
 
             let mut deliveries = deliveries_for_webhook(env, storage, webhook_id);
             deliveries.push_back(delivery_id);
@@ -160,7 +160,7 @@ impl super::SubTrackrSubscription {
         config.success_count = 0;
         config.failure_count = 0;
 
-        storage_persistent_set(&env, &storage, StorageKeyExt::Webhook(id), config.clone());
+        storage_persistent_set(&env, &storage, StorageKey::Webhook(id), config.clone());
 
         let mut ids = webhook_ids_for_merchant(&env, &storage, &config.merchant);
         ids.push_back(id);
@@ -179,7 +179,7 @@ impl super::SubTrackrSubscription {
         config.merchant.require_auth();
 
         let current: WebhookConfig =
-            storage_persistent_get(&env, &storage, StorageKeyExt::Webhook(id))
+            storage_persistent_get(&env, &storage, StorageKey::Webhook(id))
                 .expect("Webhook not found");
 
         assert!(current.merchant == config.merchant, "Webhook merchant mismatch");
@@ -191,12 +191,12 @@ impl super::SubTrackrSubscription {
         config.health_check_at = current.health_check_at;
         config.healthy = current.healthy;
 
-        storage_persistent_set(&env, &storage, StorageKeyExt::Webhook(id), config);
+        storage_persistent_set(&env, &storage, StorageKey::Webhook(id), config);
     }
 
     pub fn delete_webhook(env: Env, proxy: Address, storage: Address, id: u64) {
         proxy.require_auth();
-        let config: WebhookConfig = storage_persistent_get(&env, &storage, StorageKeyExt::Webhook(id))
+        let config: WebhookConfig = storage_persistent_get(&env, &storage, StorageKey::Webhook(id))
             .expect("Webhook not found");
         config.merchant.require_auth();
 
@@ -211,31 +211,31 @@ impl super::SubTrackrSubscription {
         storage_persistent_remove(
             &env,
             &storage,
-            StorageKeyExt::WebhookDeliveriesByWebhook(id),
+            StorageKey::WebhookDeliveriesByWebhook(id),
         );
-        storage_persistent_remove(&env, &storage, StorageKeyExt::Webhook(id));
+        storage_persistent_remove(&env, &storage, StorageKey::Webhook(id));
     }
 
     pub fn pause_webhook(env: Env, proxy: Address, storage: Address, id: u64) {
         proxy.require_auth();
         let mut config: WebhookConfig =
-            storage_persistent_get(&env, &storage, StorageKeyExt::Webhook(id))
+            storage_persistent_get(&env, &storage, StorageKey::Webhook(id))
                 .expect("Webhook not found");
         config.merchant.require_auth();
         config.is_paused = true;
         config.updated_at = env.ledger().timestamp();
-        storage_persistent_set(&env, &storage, StorageKeyExt::Webhook(id), config);
+        storage_persistent_set(&env, &storage, StorageKey::Webhook(id), config);
     }
 
     pub fn resume_webhook(env: Env, proxy: Address, storage: Address, id: u64) {
         proxy.require_auth();
         let mut config: WebhookConfig =
-            storage_persistent_get(&env, &storage, StorageKeyExt::Webhook(id))
+            storage_persistent_get(&env, &storage, StorageKey::Webhook(id))
                 .expect("Webhook not found");
         config.merchant.require_auth();
         config.is_paused = false;
         config.updated_at = env.ledger().timestamp();
-        storage_persistent_set(&env, &storage, StorageKeyExt::Webhook(id), config);
+        storage_persistent_set(&env, &storage, StorageKey::Webhook(id), config);
     }
 
     pub fn list_webhooks(env: Env, proxy: Address, storage: Address, merchant: Address) -> Vec<WebhookConfig> {
@@ -244,7 +244,7 @@ impl super::SubTrackrSubscription {
         let mut items = Vec::new(&env);
         for webhook_id in ids.iter() {
             let config_opt: Option<WebhookConfig> =
-                storage_persistent_get(&env, &storage, StorageKeyExt::Webhook(webhook_id));
+                storage_persistent_get(&env, &storage, StorageKey::Webhook(webhook_id));
             if let Some(config) = config_opt {
                 items.push_back(config);
             }
@@ -268,7 +268,7 @@ impl super::SubTrackrSubscription {
             let delivery_opt: Option<WebhookDelivery> = storage_persistent_get(
                 &env,
                 &storage,
-                StorageKeyExt::WebhookDelivery(delivery_id),
+                StorageKey::WebhookDelivery(delivery_id),
             );
             if let Some(delivery) = delivery_opt {
                 items.push_back(delivery);
@@ -281,13 +281,13 @@ impl super::SubTrackrSubscription {
     pub fn retry_webhook_delivery(env: Env, proxy: Address, storage: Address, delivery_id: u64) {
         proxy.require_auth();
         let mut delivery: WebhookDelivery =
-            storage_persistent_get(&env, &storage, StorageKeyExt::WebhookDelivery(delivery_id))
+            storage_persistent_get(&env, &storage, StorageKey::WebhookDelivery(delivery_id))
                 .expect("Webhook delivery not found");
 
         let config: WebhookConfig = storage_persistent_get(
             &env,
             &storage,
-            StorageKeyExt::Webhook(delivery.webhook_id),
+            StorageKey::Webhook(delivery.webhook_id),
         )
         .expect("Webhook not found");
         config.merchant.require_auth();
@@ -302,7 +302,7 @@ impl super::SubTrackrSubscription {
                 + compute_delay(&config.retry_policy, delivery.attempts);
         }
         delivery.updated_at = env.ledger().timestamp();
-        storage_persistent_set(&env, &storage, StorageKeyExt::WebhookDelivery(delivery_id), delivery);
+        storage_persistent_set(&env, &storage, StorageKey::WebhookDelivery(delivery_id), delivery);
     }
 
     pub fn get_webhook_health(
@@ -313,7 +313,7 @@ impl super::SubTrackrSubscription {
     ) -> WebhookConfig {
         proxy.require_auth();
         let mut config: WebhookConfig =
-            storage_persistent_get(&env, &storage, StorageKeyExt::Webhook(webhook_id))
+            storage_persistent_get(&env, &storage, StorageKey::Webhook(webhook_id))
                 .expect("Webhook not found");
         config.merchant.require_auth();
 
@@ -324,7 +324,7 @@ impl super::SubTrackrSubscription {
             let delivery_opt: Option<WebhookDelivery> = storage_persistent_get(
                 &env,
                 &storage,
-                StorageKeyExt::WebhookDelivery(delivery_id),
+                StorageKey::WebhookDelivery(delivery_id),
             );
             if let Some(delivery) = delivery_opt {
                 match delivery.status {
@@ -338,7 +338,7 @@ impl super::SubTrackrSubscription {
         config.healthy = failures <= successes;
         config.health_check_at = env.ledger().timestamp();
         config.updated_at = config.health_check_at;
-        storage_persistent_set(&env, &storage, StorageKeyExt::Webhook(webhook_id), config.clone());
+        storage_persistent_set(&env, &storage, StorageKey::Webhook(webhook_id), config.clone());
         config
     }
 }

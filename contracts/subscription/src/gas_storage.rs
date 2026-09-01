@@ -1,12 +1,14 @@
+//! Gas Storage Module
+//! Manages storage and retrieval of gas profiling metrics.
+
 use crate::gas_profiler::GasProfile;
-/// Gas Storage Module
-/// Manages storage and retrieval of gas profiling metrics
+use soroban_sdk::{Address, Env, IntoVal, String as SorobanString, TryFromVal, Val, Vec};
 
 /// Storage keys for gas metrics
 #[derive(Clone)]
 pub enum GasStorageKey {
     /// Function gas profile: StorageKey::GasProfile(function_name)
-    GasProfile(String),
+    GasProfile(SorobanString),
     /// Daily gas usage: StorageKey::DailyGasUsage(timestamp)
     DailyGasUsage(u64),
     /// Weekly gas usage: StorageKey::WeeklyGasUsage(timestamp)
@@ -18,9 +20,9 @@ pub enum GasStorageKey {
     /// Total number of contract calls
     TotalCallCount,
     /// Gas alert count by type
-    AlertCount(String),
+    AlertCount(SorobanString),
     /// Last recorded gas usage for a function
-    LastGasUsage(String),
+    LastGasUsage(SorobanString),
 }
 
 /// Gas metrics storage handler
@@ -38,7 +40,7 @@ impl GasMetricsStorage {
     pub fn get_profile(
         env: &Env,
         storage: &Address,
-        function_name: &String,
+        function_name: &SorobanString,
     ) -> Option<GasProfile> {
         // Retrieve and deserialize profile
         None
@@ -111,26 +113,26 @@ impl GasMetricsStorage {
 
     /// Record gas alert
     pub fn record_alert(env: &Env, storage: &Address, alert_type: &str) {
-        let alert_key = String::from_str(env, alert_type);
+        let alert_key = SorobanString::from_str(env, alert_type);
         // Increment alert count
     }
 
     /// Get gas alert count by type
     pub fn get_alert_count(env: &Env, storage: &Address, alert_type: &str) -> u64 {
-        let alert_key = String::from_str(env, alert_type);
+        let alert_key = SorobanString::from_str(env, alert_type);
         // Retrieve alert count
         0
     }
 
     /// Update last recorded gas usage for a function
     pub fn update_last_usage(env: &Env, storage: &Address, function_name: &str, gas_used: u64) {
-        let fname = String::from_str(env, function_name);
+        let fname = SorobanString::from_str(env, function_name);
         // Update last usage
     }
 
     /// Get last recorded gas usage
     pub fn get_last_usage(env: &Env, storage: &Address, function_name: &str) -> Option<u64> {
-        let fname = String::from_str(env, function_name);
+        let fname = SorobanString::from_str(env, function_name);
         // Retrieve last usage
         None
     }
@@ -145,13 +147,15 @@ impl GasMetricsStorage {
     pub fn get_metrics_summary(env: &Env, storage: &Address) -> (u64, u64, u64) {
         let total_gas = Self::get_total_gas_used(env, storage);
         let total_calls = Self::get_total_call_count(env, storage);
-        let avg_gas = total_gas.checked_div(total_calls).unwrap_or(0);
+        let avg_gas = total_gas
+            .checked_div(total_calls)
+            .unwrap_or(0);
         (total_gas, total_calls, avg_gas)
     }
 }
 
 /// Helper function to format gas profile storage key
-fn format_gas_profile_key(env: &Env, function_name: &String) -> String {
+fn format_gas_profile_key(env: &Env, function_name: &SorobanString) -> SorobanString {
     // Format: "gas_profile_{function_name}"
     function_name.clone()
 }
