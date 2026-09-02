@@ -43,7 +43,7 @@ jobs:
       # Upload HTML report as PR check artifact
       - name: Upload Lighthouse report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: lighthouse-report-${{ github.sha }}
           path: .lighthouseci/
@@ -123,7 +123,7 @@ jobs:
 
       - name: Upload mobile Lighthouse report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: lighthouse-mobile-report-${{ github.sha }}
           path: .lighthouseci/
