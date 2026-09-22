@@ -27,7 +27,7 @@ jobs:
 
       - name: Upload performance budget config
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: performance-budget-${{ github.sha }}
           path: performance-budget.json
@@ -88,7 +88,7 @@ jobs:
 
       - name: Upload gas benchmark artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gas-benchmarks-${{ github.sha }}
           path: |
