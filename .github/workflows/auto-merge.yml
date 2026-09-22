@@ -1,40 +1,33 @@
-name: Auto-Merge CI-Passing PRs
+name: Auto-Merge PRs
 
 on:
   pull_request_target:
-    types: [opened]
+    types: [opened, synchronize]
 
 permissions:
   contents: write
   pull-requests: write
 
 jobs:
-  enable-auto-merge:
+  auto-merge:
     runs-on: ubuntu-latest
     steps:
-      - name: Enable auto-merge
+      - name: Try to merge PR
         uses: actions/github-script@v7
         with:
           script: |
             const pr = context.payload.pull_request;
-
-            if (pr.draft) {
-              console.log('PR is draft, skipping');
-              return;
-            }
+            if (pr.draft) return;
 
             try {
               await github.graphql(`
                 mutation ($id: ID!, $method: PullRequestMergeMethod!) {
                   enablePullRequestAutoMerge(input: { pullRequestId: $id, mergeMethod: $method }) {
-                    pullRequest { number, autoMergeRequest { enabledAt } }
+                    pullRequest { number }
                   }
                 }
-              `, {
-                id: pr.node_id,
-                method: 'SQUASH'
-              });
+              `, { id: pr.node_id, method: 'SQUASH' });
               console.log(`Auto-merge enabled for PR #${pr.number}`);
-            } catch (error) {
-              console.log(`Failed to enable auto-merge: ${error.message}`);
+            } catch (e) {
+              console.log(`Auto-merge not available: ${e.message}`);
             }
