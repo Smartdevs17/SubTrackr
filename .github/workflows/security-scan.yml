@@ -71,7 +71,7 @@ jobs:
 
       - name: Upload SAST reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: security-sast-semgrep
           path: security-reports/
@@ -131,7 +131,7 @@ jobs:
 
       - name: Upload dependency reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: security-dependency-scan
           path: security-reports/
@@ -174,7 +174,7 @@ jobs:
 
       - name: Upload container reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: security-container-trivy
           path: security-reports/
@@ -227,7 +227,7 @@ jobs:
 
       - name: Upload DAST reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: security-dast-zap
           path: security-reports/
@@ -256,7 +256,7 @@ jobs:
           cat security-dashboard.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload dashboard
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: security-dashboard
           path: security-dashboard.md
