@@ -4,5 +4,5 @@ pydantic==2.13.5
 redis==8.1.0
 
 # ML dependencies (optional – service degrades gracefully without them)
-numpy==1.26.4
+numpy==2.5.3
 scikit-learn==1.9.0
