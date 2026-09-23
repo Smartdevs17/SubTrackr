@@ -1,7 +1,7 @@
 fastapi==0.141.1
 uvicorn[standard]==0.32.1
 pydantic==2.10.3
-redis==5.2.1
+redis==8.1.0
 
 # ML dependencies (optional – service degrades gracefully without them)
 numpy==1.26.4
