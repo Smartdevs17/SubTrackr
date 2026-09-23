@@ -37,16 +37,20 @@ const makeSubscription = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
+const makeHit = (overrides: Record<string, unknown> = {}): { subscription: Record<string, unknown>; score: number } => ({
+  subscription: makeSubscription(overrides),
+  score: 1,
+});
+
 const baseResult = {
-  items: [
-    makeSubscription({ category: 'productivity', billingCycle: 'monthly', status: 'active' }),
-    makeSubscription({ category: 'streaming', billingCycle: 'annual', status: 'active' }),
-    makeSubscription({ category: 'productivity', billingCycle: 'monthly', status: 'paused' }),
+  hits: [
+    makeHit({ category: 'productivity', billingCycle: 'monthly', status: 'active' }),
+    makeHit({ category: 'streaming', billingCycle: 'annual', status: 'active' }),
+    makeHit({ category: 'productivity', billingCycle: 'monthly', status: 'paused' }),
   ],
   total: 3,
-  page: 1,
-  pageSize: 20,
-  totalPages: 1,
+  took: 1,
+  facets: [],
 };
 
 // ── SubscriptionSearchAggregator ──────────────────────────────────────────
@@ -81,8 +85,8 @@ describe('SubscriptionSearchAggregator', () => {
       { categories: ['streaming' as never] }
     );
 
-    expect(result.hits.items).toHaveLength(1);
-    expect(result.hits.items[0].category).toBe('streaming');
+    expect(result.hits.hits).toHaveLength(1);
+    expect(result.hits.hits[0].subscription.category).toBe('streaming');
     expect(result.totalHits).toBe(1);
   });
 
@@ -92,17 +96,17 @@ describe('SubscriptionSearchAggregator', () => {
       { statuses: ['paused'] }
     );
 
-    expect(result.hits.items).toHaveLength(1);
-    expect(result.hits.items[0].status).toBe('paused');
+    expect(result.hits.hits).toHaveLength(1);
+    expect(result.hits.hits[0].subscription.status).toBe('paused');
   });
 
   it('should narrow results by price range', async () => {
     mockSearch.mockResolvedValue({
       ...baseResult,
-      items: [
-        makeSubscription({ price: '5.00' }),
-        makeSubscription({ price: '15.00' }),
-        makeSubscription({ price: '25.00' }),
+      hits: [
+        makeHit({ price: '5.00' }),
+        makeHit({ price: '15.00' }),
+        makeHit({ price: '25.00' }),
       ],
     });
 
@@ -111,8 +115,8 @@ describe('SubscriptionSearchAggregator', () => {
       { priceRange: { min: 10, max: 20 } }
     );
 
-    expect(result.hits.items).toHaveLength(1);
-    expect(result.hits.items[0].price).toBe('15.00');
+    expect(result.hits.hits).toHaveLength(1);
+    expect(result.hits.hits[0].subscription.price).toBe('15.00');
   });
 
   it('should populate suggestions from the service', async () => {
