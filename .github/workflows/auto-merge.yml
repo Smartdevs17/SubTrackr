@@ -2,7 +2,7 @@ name: Auto-Merge PRs
 
 on:
   pull_request_target:
-    types: [opened, synchronize]
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: write
@@ -10,27 +10,31 @@ permissions:
 
 jobs:
   auto-merge:
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     steps:
-      - name: Try to merge PR
+      - name: Auto-merge PR if no conflicts
         uses: actions/github-script@v7
         with:
           script: |
             const pr = context.payload.pull_request;
-            if (pr.draft) return;
+            const { owner, repo } = context.repo;
+
+            const { data: updated } = await github.rest.pulls.get({
+              owner, repo, pull_number: pr.number,
+            });
+
+            if (updated.mergeable !== true) {
+              console.log(`PR #${pr.number} not mergeable (mergeable=${updated.mergeable}); skipping.`);
+              return;
+            }
 
             try {
-              await github.graphql(`
-                mutation ($prId: ID!, $mergeMethod: PullRequestMergeMethod!) {
-                  enablePullRequestAutoMerge(input: { pullRequestId: $prId, mergeMethod: $mergeMethod }) {
-                    pullRequest { number }
-                  }
-                }
-              `, {
-                prId: pr.node_id,
-                mergeMethod: 'SQUASH'
+              await github.rest.pulls.merge({
+                owner, repo, pull_number: pr.number,
+                merge_method: 'squash',
               });
-              console.log(`Auto-merge enabled for PR #${pr.number}`);
+              console.log(`Merged PR #${pr.number}`);
             } catch (e) {
-              console.log(`Auto-merge not available: ${e.message}`);
+              console.log(`Could not merge PR #${pr.number}: ${e.message}`);
             }
