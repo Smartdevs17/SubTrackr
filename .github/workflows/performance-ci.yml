@@ -15,7 +15,7 @@ jobs:
     name: Frontend Performance Budget
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-node
 
       - name: Run performance budget check
@@ -38,7 +38,7 @@ jobs:
     name: Gas Benchmarks (Soroban)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Rust stable toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
