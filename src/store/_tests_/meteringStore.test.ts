@@ -10,19 +10,44 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 
 describe('src/store/meteringStore re-export', () => {
   beforeEach(() => {
-    useMeteringStore.getState().resetStore();
+    useMeteringStore.setState({
+      meters: {},
+      alerts: [],
+      usageHistory: [],
+    });
+    jest.clearAllMocks();
   });
 
-  it('exports functioning useMeteringStore instance', () => {
-    const metric = useMeteringStore.getState().registerMetric({
-      subscriptionId: 'sub-test',
-      metricType: 'api_calls',
-      metricName: 'API',
-      unitName: 'calls',
-      unitRate: 0.01,
+  it('exports a functioning metering store against the combined slice', () => {
+    useMeteringStore.getState().registerMeter('sub-test', 'api_calls', {
+      unitPrice: 0.01,
+      includedUnits: 100,
     });
+    useMeteringStore.getState().recordUsage('sub-test', 'api_calls', 120);
 
-    expect(metric.id).toBeDefined();
-    expect(useMeteringStore.getState().getSubscriptionMetrics('sub-test').length).toBe(1);
+    expect(useMeteringStore.getState().getUsageTotal('sub-test', 'api_calls')).toBe(120);
+    expect(useMeteringStore.getState().getMeters('sub-test')).toHaveLength(1);
+
+    const charge = useMeteringStore.getState().calculateUsageCharge('sub-test', {
+      start: 0,
+      end: Date.now(),
+    });
+    expect(charge.lines).toHaveLength(1);
+    expect(charge.lines[0].billableUnits).toBe(20);
+    expect(charge.total).toBeCloseTo(0.2);
+  });
+
+  it('reports usage analytics with alerts over the combined slice', () => {
+    useMeteringStore.getState().registerMeter('sub-test', 'api_calls', {
+      unitPrice: 0.01,
+      includedUnits: 0,
+      alertThreshold: 10,
+    });
+    useMeteringStore.getState().recordUsage('sub-test', 'api_calls', 15);
+
+    const analytics = useMeteringStore.getState().getAnalytics('sub-test');
+    expect(analytics.totalUsage).toBe(15);
+    expect(analytics.alertsCount).toBe(1);
+    expect(useMeteringStore.getState().getActiveAlerts('sub-test')).toHaveLength(1);
   });
 });

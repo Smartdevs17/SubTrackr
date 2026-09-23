@@ -22,6 +22,13 @@ const PrivacyCenterScreen = lazyScreen(() => import('../../screens/PrivacyCenter
 const DataExportScreen = lazyScreen(() => import('../../screens/DataExportScreen'));
 const TaxSettingsScreen = lazyScreen(() => import('../../screens/TaxSettingsScreen'));
 const TaxComplianceScreen = lazyScreen(() => import('../../screens/TaxComplianceScreen'));
+// AdvancedSearchScreen lives in app/screens and exports both a named and a
+// default export; the named one is mapped onto the shape `lazyScreen` expects.
+const AdvancedSearchScreen = lazyScreen(() =>
+  import('../../../app/screens/AdvancedSearchScreen').then((m) => ({
+    default: m.AdvancedSearchScreen,
+  }))
+);
 
 export const SettingsStack = () => (
   <Stack.Navigator>
@@ -70,6 +77,11 @@ export const SettingsStack = () => (
       name="TaxCompliance"
       component={TaxComplianceScreen}
       options={{ title: 'Tax Compliance', headerShown: true }}
+    />
+    <Stack.Screen
+      name="AdvancedSearch"
+      component={AdvancedSearchScreen}
+      options={{ title: 'Advanced Search', headerShown: true }}
     />
   </Stack.Navigator>
 );

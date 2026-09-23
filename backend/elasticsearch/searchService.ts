@@ -191,6 +191,14 @@ export class AdvancedSearchService {
     );
   }
 
+  /**
+   * Autocomplete entry point used by the aggregator and `SearchAutoComplete`;
+   * delegates to `suggest`.
+   */
+  async getSuggestions(partial: string): Promise<AdvancedSearchSuggestion[]> {
+    return this.suggest(partial);
+  }
+
   private allDocs(): Subscription[] {
     // The peer exposes its source documents through a lightweight search with
     // no query, which returns every indexed subscription.
@@ -356,9 +364,13 @@ export class SubscriptionSearchAggregator {
     // 1. Run the underlying search.
     const raw = await this.searchService.search(query);
 
+    // The peer returns `SearchResult` with `hits` (SearchHit[]), so the
+    // subscriptions are derived from the hits before filtering/faceting.
+    const rawItems = raw.hits.map((hit) => hit.subscription);
+
     // 2. Apply in-memory filters (mirrors the Elasticsearch query in a
     //    client-side fallback for the embedded index).
-    const filtered = filters ? this.applyFilters(raw.items, filters) : raw.items;
+    const filtered = filters ? this.applyFilters(rawItems, filters) : rawItems;
 
     // 3. Compute facets from the filtered result set.
     const facets = this.buildFacets(filtered);
@@ -371,8 +383,11 @@ export class SubscriptionSearchAggregator {
 
     const queryTimeMs = Date.now() - start;
 
+    // 5. Rebuild the SearchResult hits from the filtered subscriptions.
+    const filteredHits = raw.hits.filter((hit) => filtered.includes(hit.subscription));
+
     return {
-      hits: { ...raw, items: filtered },
+      hits: { ...raw, hits: filteredHits },
       facets,
       totalHits: filtered.length,
       queryTimeMs,
