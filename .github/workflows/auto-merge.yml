@@ -21,12 +21,15 @@ jobs:
 
             try {
               await github.graphql(`
-                mutation ($id: ID!, $method: PullRequestMergeMethod!) {
-                  enablePullRequestAutoMerge(input: { pullRequestId: $id, mergeMethod: $method }) {
+                mutation ($prId: ID!, $mergeMethod: PullRequestMergeMethod!) {
+                  enablePullRequestAutoMerge(input: { pullRequestId: $prId, mergeMethod: $mergeMethod }) {
                     pullRequest { number }
                   }
                 }
-              `, { id: pr.node_id, method: 'SQUASH' });
+              `, {
+                prId: pr.node_id,
+                mergeMethod: 'SQUASH'
+              });
               console.log(`Auto-merge enabled for PR #${pr.number}`);
             } catch (e) {
               console.log(`Auto-merge not available: ${e.message}`);
