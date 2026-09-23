@@ -1,6 +1,6 @@
-fastapi>=0.140.13
+fastapi>=0.141.1
 uvicorn[standard]>=0.52.4
-onnxruntime>=1.28.0
+onnxruntime>=1.30.0
 onnxruntime-gpu>=1.30.0; platform_system == "Linux"
 numpy>=2.5.2
 pydantic>=2.13.5
