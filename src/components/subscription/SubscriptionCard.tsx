@@ -334,6 +334,8 @@ const styles = StyleSheet.create({
   },
   toggleButton: {
     alignSelf: 'flex-end',
+    minHeight: 44,
+    justifyContent: 'center',
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
     backgroundColor: colors.surface,
@@ -352,6 +354,8 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   shareButton: {
+    minHeight: 44,
+    justifyContent: 'center',
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
     backgroundColor: colors.surface,
@@ -366,6 +370,8 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   deleteButton: {
+    minHeight: 44,
+    justifyContent: 'center',
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
     backgroundColor: colors.surface,

@@ -56,7 +56,8 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         style={[styles.filterButton, hasActiveFilters && styles.filterButtonActive]}
         onPress={onFilterPress}
         accessibilityRole="button"
-        accessibilityLabel={`Filters${hasActiveFilters ? `, ${activeFilterCount} active` : ''}`}>
+        accessibilityLabel={`Filters${hasActiveFilters ? `, ${activeFilterCount} active` : ''}`}
+        accessibilityHint="Opens subscription filter options">
         <Text style={[styles.filterIcon, hasActiveFilters && styles.filterIconActive]}>🔧</Text>
 
         {hasActiveFilters && (
