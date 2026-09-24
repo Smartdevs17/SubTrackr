@@ -1,15 +1,46 @@
+/**
+ * SMS channel provider for the notification microservice.
+ *
+ * Delegates to the backend's TwilioSmsProvider instead of the previous stub.
+ */
+
 import { ChannelProvider } from '../types/channel';
+import type { Notification } from '../types/notification';
+import {
+  createSmsProviderFromEnv,
+  type SmsProvider,
+} from '../../../../backend/services/notification/smsProvider';
 
 export class SMSProvider implements ChannelProvider {
-  constructor(
-    private readonly accountSid: string,
-    private readonly authToken: string,
-    private readonly fromNumber: string
-  ) {}
+  private readonly provider: SmsProvider;
+
+  constructor(accountSid: string, authToken: string, fromNumber: string) {
+    // Params kept for backward-compat with the factory signature.
+    // The env-based factory is preferred so config stays centralised.
+    this.provider = createSmsProviderFromEnv(
+      accountSid
+        ? {
+            ...process.env,
+            TWILIO_ACCOUNT_SID: accountSid,
+            TWILIO_AUTH_TOKEN: authToken,
+            TWILIO_FROM_NUMBER: fromNumber,
+          }
+        : process.env
+    );
+  }
 
   async send(
-    notification: import('../types/notification').Notification
+    notification: Notification
   ): Promise<{ success: boolean; messageId?: string; error?: string }> {
-    return { success: true, messageId: `sms-${Date.now()}` };
+    const result = await this.provider.send({
+      to: notification.recipient,
+      body: notification.variables?.['body'] ?? notification.template,
+    });
+
+    return {
+      success: result.success,
+      messageId: result.messageId,
+      error: result.error,
+    };
   }
 }

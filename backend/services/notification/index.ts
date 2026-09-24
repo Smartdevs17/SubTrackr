@@ -85,3 +85,85 @@ export type {
   DunningEmailDeliveryLog,
   DunningDeliverabilityMetrics,
 } from '../../../src/types/dunningABTest';
+
+// ── Email Provider ────────────────────────────────────────────────────────────
+export {
+  SendGridEmailProvider,
+  SesEmailProvider,
+  buildEmailTransport,
+  buildLegacyEmailSender,
+  createEmailProviderFromEnv,
+  createStubEmailProvider,
+  getEmailFromAddress,
+  emailProvider,
+} from './emailProvider';
+export type {
+  EmailAddress,
+  EmailAttachment,
+  EmailMessage,
+  EmailResult,
+  EmailProvider,
+  EmailTransportConfig,
+  SendGridConfig,
+  SesConfig,
+} from './emailProvider';
+
+// ── SMS Provider ──────────────────────────────────────────────────────────────
+export {
+  TwilioSmsProvider,
+  buildSmsTransport,
+  buildLegacySmsSender,
+  createSmsProviderFromEnv,
+  createStubSmsProvider,
+  smsProvider,
+  optOutStore,
+  isGsm7,
+  smsSegmentCount,
+  truncateSms,
+} from './smsProvider';
+export type {
+  SmsMessage,
+  SmsResult,
+  SmsProvider,
+  TwilioConfig,
+} from './smsProvider';
+
+// ── Slack ─────────────────────────────────────────────────────────────────────
+export {
+  SlackNotifier,
+  SlackAlertDispatcher,
+  buildSubscriptionAlertMessage,
+  buildSystemAlertMessage,
+  createSlackNotifierFromEnv,
+  createSlackAlertDispatcherFromEnv,
+  slackNotifier,
+} from './slack';
+export type {
+  SlackMessage,
+  SlackNotifierConfig,
+  SlackDeliveryResult,
+  SubscriptionAlertContext,
+} from './slack';
+
+// ── Webhook Queue (BullMQ) ────────────────────────────────────────────────────
+export {
+  WebhookQueue,
+  WebhookQueueWorker,
+  WebhookRetryScheduler,
+  DlqReplayWorker,
+  eventPriority,
+} from './jobs/webhookQueue';
+export type {
+  WebhookQueueConfig,
+  WebhookQueueWorkerConfig,
+  WebhookWorkerMetrics,
+  WebhookJobData,
+} from './jobs/webhookQueue';
+
+// ── Subscription Notifier ─────────────────────────────────────────────────────
+export { SubscriptionNotifier, subscriptionNotifier } from './subscriptionNotifier';
+export type {
+  NotificationRecipient,
+  SubscriptionContext,
+  SubscriptionNotifierDeps,
+} from './subscriptionNotifier';
