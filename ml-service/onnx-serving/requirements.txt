@@ -5,6 +5,6 @@ onnxruntime-gpu>=1.30.0; platform_system == "Linux"
 numpy>=2.5.3
 pydantic>=2.13.5
 torch>=2.13.0
-torchvision>=0.28.0
+torchvision>=0.29.0
 onnx>=1.22.0
 onnxruntime-quantization>=0.1.3
