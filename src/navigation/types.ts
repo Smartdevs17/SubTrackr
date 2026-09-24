@@ -36,6 +36,7 @@ export type RootStackParamList = {
   SupportDashboard: undefined;
   UsageDashboard: undefined;
   DeveloperPortal: undefined;
+  ApiPlayground: undefined;
   SandboxDashboard: undefined;
   ApiKeyManagement: undefined;
   DocumentationPortal: undefined;
