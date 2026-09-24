@@ -288,5 +288,3 @@ npm run security:audit
 ## License
 
 MIT
-
-<!-- trivial update for PR -->
