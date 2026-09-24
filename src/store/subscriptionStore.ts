@@ -423,6 +423,12 @@ export interface SubscriptionState {
   getPauseHistory: (subscriptionId?: string) => PauseRecord[];
   getActivePause: (subscriptionId: string) => PauseRecord | undefined;
   addSubscription: (data: SubscriptionFormData) => Promise<void>;
+  addFromTemplate: (
+    callerId: string,
+    templateId: string,
+    overrides?: import('../types/planTemplate').TemplateOverrides,
+    extraData?: Partial<SubscriptionFormData>
+  ) => Promise<import('../types/planTemplate').ResolvedPlan>;
   updateSubscription: (id: string, data: Partial<Subscription>) => Promise<void>;
   deleteSubscription: (id: string) => Promise<void>;
   toggleSubscriptionStatus: (id: string) => Promise<void>;
@@ -725,6 +731,34 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             isLoading: false,
           });
         }
+      },
+
+      addFromTemplate: async (callerId, templateId, overrides = {}, extraData = {}) => {
+        const { usePlanTemplateStore } = await import('./planTemplateStore');
+        const templateStore = usePlanTemplateStore.getState();
+
+        // Resolve template → concrete plan params
+        const resolved = templateStore.instantiate(callerId, templateId, overrides);
+
+        const formData: SubscriptionFormData = {
+          name: resolved.name,
+          description: resolved.description,
+          category: resolved.category,
+          price: resolved.price,
+          currency: resolved.currency,
+          billingCycle: resolved.billingCycle,
+          nextBillingDate: new Date(),
+          notificationsEnabled: true,
+          isCryptoEnabled: false,
+          ...extraData,
+        };
+
+        await get().addSubscription(formData);
+
+        // Record that a subscription was started against the template
+        templateStore.recordSubscription(templateId, resolved.price);
+
+        return resolved;
       },
 
       updateSubscription: async (id: string, data: Partial<Subscription>) => {

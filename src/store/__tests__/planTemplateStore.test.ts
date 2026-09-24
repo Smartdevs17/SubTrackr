@@ -354,3 +354,42 @@ describe('analytics', () => {
     });
   });
 });
+
+// ── deleteTemplate ────────────────────────────────────────────────────────────
+
+describe('deleteTemplate', () => {
+  it('removes the template and its analytics', () => {
+    const template = store().createTemplate(OWNER, flatDraft());
+    store().deleteTemplate(OWNER, template.id);
+
+    expect(store().getTemplate(template.id)).toBeUndefined();
+    expect(store().getAnalytics(template.id)).toMatchObject({ views: 0, plansCreated: 0 });
+  });
+
+  it('removes all versions in a chain', () => {
+    const v1 = store().createTemplate(OWNER, flatDraft());
+    const v2 = store().publishVersion(OWNER, v1.id, flatDraft({ basePrice: 29 }));
+
+    store().deleteTemplate(OWNER, v2.id); // delete via any version id
+
+    expect(store().getTemplate(v1.id)).toBeUndefined();
+    expect(store().getTemplate(v2.id)).toBeUndefined();
+    expect(store().templates).toHaveLength(0);
+  });
+
+  it('rejects deletion by a non-owner', () => {
+    const template = store().createTemplate(OWNER, flatDraft());
+    expect(() => store().deleteTemplate('someone-else', template.id)).toThrow();
+    expect(store().getTemplate(template.id)).toBeDefined();
+  });
+
+  it('clears the selected template from the library listing', () => {
+    const a = store().createTemplate(OWNER, flatDraft({ name: 'A' }));
+    const b = store().createTemplate(OWNER, flatDraft({ name: 'B' }));
+    store().deleteTemplate(OWNER, a.id);
+
+    const remaining = store().listTemplates({ ownerId: OWNER });
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0].id).toBe(b.id);
+  });
+});
