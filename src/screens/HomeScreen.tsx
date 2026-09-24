@@ -27,6 +27,7 @@ import { useFilteredSubscriptions } from '../hooks/useFilteredSubscriptions';
 import { FilterBar } from '../components/home/FilterBar';
 import { FilterModal } from '../components/home/FilterModal';
 import { StatsCard } from '../components/home/StatsCard';
+import { TrackingOverview } from '../components/home/TrackingOverview';
 import { SubscriptionList } from '../components/home/SubscriptionList';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { StatsCardSkeleton, SubscriptionListSkeleton } from '../components/common/SkeletonLoader';
@@ -167,6 +168,8 @@ const HomeScreen: React.FC = () => {
               onWalletPress={() => navigation.navigate('WalletConnect')}
               currency={preferredCurrency}
             />
+
+            <TrackingOverview subscriptions={subscriptions} currency={preferredCurrency} />
 
             {!isOnline && (
               <View style={styles.offlineBanner}>
