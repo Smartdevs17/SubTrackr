@@ -2,6 +2,9 @@
   "name": "subtrackr",
   "version": "1.0.0",
   "main": "index.ts",
+  "bin": {
+    "subtrackr": "./bin/subtrackr.js"
+  },
   "scripts": {
     "start": "expo start --dev-client",
     "start:expo-go": "expo start",
@@ -63,6 +66,10 @@
     "api:changelog": "node scripts/generate-api-changelog.js",
     "api:changelog:preview": "node scripts/generate-api-changelog.js --stdout",
     "api:changelog:ci": "node scripts/generate-api-changelog.js --breaking",
+    "cli": "node bin/subtrackr.js",
+    "cli:help": "node bin/subtrackr.js --help",
+    "cli:login": "node bin/subtrackr.js auth login",
+    "cli:subs": "node bin/subtrackr.js subscriptions list",
     "sdk:test:js": "npm --prefix sdks/javascript test",
     "sdk:test:python": "PYTHONPATH=sdks/python python3 -m unittest discover sdks/python/tests",
     "sdk:test:go": "cd sdks/go && go test ./...",
