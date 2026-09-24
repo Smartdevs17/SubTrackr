@@ -2,6 +2,20 @@ export { CalendarSyncService, calendarSyncService } from './domain/CalendarSyncS
 export type { RemoteChange } from './domain/CalendarSyncService';
 export { SyncWorker } from './domain/SyncWorker';
 export { createCalendarSyncController } from './controller/calendarSyncController';
+export {
+  RenewalReminderScheduler,
+  getRenewalReminderScheduler,
+  DEFAULT_LEAD_TIMES,
+  DEFAULT_SCHEDULER_CONFIG,
+} from './domain/RenewalReminderScheduler';
+export type {
+  SubscriptionForReminder,
+  ReminderLeadTime,
+  ReminderSchedulerConfig,
+  ScheduleRenewalsResult,
+  ReminderRecord,
+} from './domain/RenewalReminderScheduler';
+export { createRenewalReminderController } from './controller/renewalReminderController';
 export type {
   CalendarConnection,
   CalendarEvent,
