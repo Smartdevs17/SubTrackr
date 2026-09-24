@@ -70,6 +70,9 @@ logs/
 coverage/
 .nyc_output/
 
+# Security scan reports
+security-reports/
+
 # Test snapshots & generated test/lint artifacts
 **/__snapshots__/
 *.snap
