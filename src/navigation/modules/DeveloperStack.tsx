@@ -6,6 +6,7 @@ import { RootStackParamList } from '../types';
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const DeveloperPortalScreen = lazyScreen(() => import('../../screens/DeveloperPortalScreen'));
+const ApiPlaygroundScreen = lazyScreen(() => import('../../screens/ApiPlaygroundScreen'));
 const SandboxDashboardScreen = lazyScreen(() => import('../../screens/SandboxDashboardScreen'));
 const ApiKeyManagementScreen = lazyScreen(() => import('../../screens/ApiKeyManagementScreen'));
 const DocumentationPortalScreen = lazyScreen(
@@ -29,6 +30,11 @@ export const DeveloperStack = () => (
       name="DeveloperPortal"
       component={DeveloperPortalScreen}
       options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="ApiPlayground"
+      component={ApiPlaygroundScreen}
+      options={{ title: 'API Playground', headerShown: true }}
     />
     <Stack.Screen
       name="SandboxDashboard"
