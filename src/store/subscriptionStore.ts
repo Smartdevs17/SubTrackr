@@ -39,6 +39,10 @@ import {
   presentDunningCancelledNotification,
   presentDunningRecoveryNotification,
 } from '../services/notificationService';
+import {
+  notifySubscriptionEvent,
+  SUBSCRIPTION_EVENT,
+} from '../services/subscriptionEventNotifications';
 import { useCalendarStore } from './calendarStore';
 import { useGamificationStore } from './gamificationStore';
 import { useInvoiceStore } from './invoiceStore';
@@ -388,7 +392,10 @@ export interface SubscriptionState {
   toggleSubscriptionStatus: (id: string) => Promise<void>;
   pauseSubscription: (id: string, durationDays?: number) => Promise<void>;
   resumeSubscription: (id: string) => Promise<void>;
-  previewPauseAdjustment: (id: string, resumeDate?: Date) => { adjustedNextBillingDate: Date; elapsedPauseDays: number; creditAmount: number };
+  previewPauseAdjustment: (
+    id: string,
+    resumeDate?: Date
+  ) => { adjustedNextBillingDate: Date; elapsedPauseDays: number; creditAmount: number };
   // new actions added
   previewPlanChange: (
     id: string,
@@ -505,7 +512,8 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         const nextDays = Math.max(
           1,
           Math.ceil(
-            (new Date(activePause.scheduledResumeAt).getTime() - new Date(activePause.pausedAt).getTime()) /
+            (new Date(activePause.scheduledResumeAt).getTime() -
+              new Date(activePause.pausedAt).getTime()) /
               (1000 * 60 * 60 * 24)
           )
         );
@@ -652,6 +660,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
 
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
+          await notifySubscriptionEvent(SUBSCRIPTION_EVENT.ADDED, newSubscription);
           await useCalendarStore.getState().syncSubscriptionToCalendars(newSubscription);
 
           // Gamification Triggers
@@ -678,6 +687,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       updateSubscription: async (id: string, data: Partial<Subscription>) => {
         set({ isLoading: true, error: null });
         try {
+          const previous = get().subscriptions.find((sub) => sub.id === id);
           set((state) => ({
             subscriptions: state.subscriptions.map((sub) =>
               sub.id === id ? { ...sub, ...data, updatedAt: new Date() } : sub
@@ -688,6 +698,16 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
           const updatedSubscription = get().subscriptions.find((sub) => sub.id === id);
+          if (
+            updatedSubscription &&
+            data.price !== undefined &&
+            previous &&
+            previous.price !== data.price
+          ) {
+            await notifySubscriptionEvent(SUBSCRIPTION_EVENT.PRICE_CHANGED, updatedSubscription, {
+              previousPrice: previous.price,
+            });
+          }
           if (updatedSubscription) {
             await useCalendarStore.getState().syncSubscriptionToCalendars(updatedSubscription);
           }
@@ -726,6 +746,9 @@ export const useSubscriptionStore = create<SubscriptionState>()(
 
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
+          if (current) {
+            await notifySubscriptionEvent(SUBSCRIPTION_EVENT.CANCELLED, current);
+          }
           await useCalendarStore.getState().removeSubscriptionFromCalendars(id);
         } catch (error) {
           const appError = errorHandler.handleError(error as Error, {
@@ -753,6 +776,10 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           await syncRenewalReminders(get().subscriptions);
           const updatedSubscription = get().subscriptions.find((sub) => sub.id === id);
           if (updatedSubscription) {
+            await notifySubscriptionEvent(
+              updatedSubscription.isActive ? SUBSCRIPTION_EVENT.RESUMED : SUBSCRIPTION_EVENT.PAUSED,
+              updatedSubscription
+            );
             await useCalendarStore.getState().syncSubscriptionToCalendars(updatedSubscription);
           }
         } catch (error) {
@@ -793,6 +820,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           await syncRenewalReminders(get().subscriptions);
           const updatedSubscription = get().subscriptions.find((sub) => sub.id === id);
           if (updatedSubscription) {
+            await notifySubscriptionEvent(SUBSCRIPTION_EVENT.PAUSED, updatedSubscription);
             await useCalendarStore.getState().syncSubscriptionToCalendars(updatedSubscription);
           }
         } catch (error) {
@@ -844,6 +872,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           await syncRenewalReminders(get().subscriptions);
           const updatedSubscription = get().subscriptions.find((s) => s.id === id);
           if (updatedSubscription) {
+            await notifySubscriptionEvent(SUBSCRIPTION_EVENT.RESUMED, updatedSubscription);
             await useCalendarStore.getState().syncSubscriptionToCalendars(updatedSubscription);
           }
         } catch (error) {
@@ -1308,8 +1337,10 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           state?.creditAccounts && typeof state.creditAccounts === 'object'
             ? state.creditAccounts
             : {};
-        const pauseHistory = Array.isArray((state as { pauseHistory?: PauseRecord[] } | undefined)?.pauseHistory)
-          ? (state as { pauseHistory?: PauseRecord[] }).pauseHistory ?? []
+        const pauseHistory = Array.isArray(
+          (state as { pauseHistory?: PauseRecord[] } | undefined)?.pauseHistory
+        )
+          ? ((state as { pauseHistory?: PauseRecord[] }).pauseHistory ?? [])
           : [];
         useSubscriptionStore.setState({
           subscriptions,
