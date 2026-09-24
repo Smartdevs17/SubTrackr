@@ -43,6 +43,8 @@ import {
   notifySubscriptionEvent,
   SUBSCRIPTION_EVENT,
 } from '../services/subscriptionEventNotifications';
+import { SubscriptionCRDT, type SubscriptionMetadata } from '../services/cache/crdt';
+import { networkMonitor } from '../services/network/networkMonitor';
 import { useCalendarStore } from './calendarStore';
 import { useGamificationStore } from './gamificationStore';
 import { useInvoiceStore } from './invoiceStore';
@@ -93,10 +95,38 @@ const generateUniqueId = (): string => {
   return `${timestamp}-${randomComponent}`;
 };
 
+export type SubscriptionSyncStatus = 'idle' | 'pending' | 'syncing' | 'conflict' | 'error';
+
 type PersistedSubscriptionSlice = Pick<
   SubscriptionState,
-  'subscriptions' | 'creditAccounts' | 'pauseHistory'
+  'subscriptions' | 'creditAccounts' | 'pauseHistory' | 'crdtMetadata'
 >;
+
+function stampCrdtMetadata(
+  metadata: Record<string, SubscriptionMetadata>,
+  sub: Subscription,
+  updates?: Partial<Subscription>
+): Record<string, SubscriptionMetadata> {
+  const now = Date.now();
+  const current = metadata[sub.id];
+  return {
+    ...metadata,
+    [sub.id]: current
+      ? SubscriptionCRDT.updateMetadata(current, updates ?? sub, now)
+      : SubscriptionCRDT.createMetadata(sub, now),
+  };
+}
+
+function tombstoneCrdtMetadata(
+  metadata: Record<string, SubscriptionMetadata>,
+  id: string
+): Record<string, SubscriptionMetadata> {
+  const current = metadata[id] ?? { timestamps: {} };
+  return {
+    ...metadata,
+    [id]: { ...current, deletedAt: Date.now() },
+  };
+}
 
 const toValidDate = (value: unknown, fallback = new Date()): Date => {
   if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
@@ -278,6 +308,7 @@ const serializeForStorage = (state: PersistedSubscriptionSlice): PersistedSubscr
     plannedResumeDate: record.plannedResumeDate ? new Date(record.plannedResumeDate) : undefined,
     resumeAt: record.resumeAt ? new Date(record.resumeAt) : undefined,
   })),
+  crdtMetadata: state.crdtMetadata ?? {},
 });
 
 const migratePersistedState = (
@@ -285,7 +316,7 @@ const migratePersistedState = (
   _version: number
 ): PersistedSubscriptionSlice => {
   if (!persisted || typeof persisted !== 'object') {
-    return { subscriptions: [], creditAccounts: {}, pauseHistory: [] };
+    return { subscriptions: [], creditAccounts: {}, pauseHistory: [], crdtMetadata: {} };
   }
 
   const maybeState = persisted as Partial<PersistedSubscriptionSlice>;
@@ -317,7 +348,12 @@ const migratePersistedState = (
       }))
     : [];
 
-  return { subscriptions, creditAccounts, pauseHistory };
+  const crdtMetadata =
+    maybeState.crdtMetadata && typeof maybeState.crdtMetadata === 'object'
+      ? maybeState.crdtMetadata
+      : {};
+
+  return { subscriptions, creditAccounts, pauseHistory, crdtMetadata };
 };
 
 const pendingWrites = new Map<string, string>();
@@ -426,6 +462,9 @@ export interface SubscriptionState {
   expireCredits: (accountId?: string) => Promise<void>;
   fetchSubscriptions: () => Promise<void>;
   calculateStats: () => void;
+  syncStatus: SubscriptionSyncStatus;
+  crdtMetadata: Record<string, SubscriptionMetadata>;
+  syncWithServer: () => Promise<void>;
 }
 
 export const useSubscriptionStore = create<SubscriptionState>()(
@@ -444,6 +483,8 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       error: null,
       prorationPreview: null,
       creditMemos: {},
+      syncStatus: 'idle' as SubscriptionSyncStatus,
+      crdtMetadata: {},
 
       pauseSubscription: (
         subscriptionOrId,
@@ -655,6 +696,8 @@ export const useSubscriptionStore = create<SubscriptionState>()(
 
           set((state) => ({
             subscriptions: [...state.subscriptions, newSubscription],
+            crdtMetadata: stampCrdtMetadata(state.crdtMetadata, newSubscription),
+            syncStatus: 'pending',
             isLoading: false,
           }));
 
@@ -688,12 +731,20 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         set({ isLoading: true, error: null });
         try {
           const previous = get().subscriptions.find((sub) => sub.id === id);
-          set((state) => ({
-            subscriptions: state.subscriptions.map((sub) =>
+          set((state) => {
+            const next = state.subscriptions.map((sub) =>
               sub.id === id ? { ...sub, ...data, updatedAt: new Date() } : sub
-            ),
-            isLoading: false,
-          }));
+            );
+            const updated = next.find((sub) => sub.id === id);
+            return {
+              subscriptions: next,
+              crdtMetadata: updated
+                ? stampCrdtMetadata(state.crdtMetadata, updated, data)
+                : state.crdtMetadata,
+              syncStatus: 'pending' as SubscriptionSyncStatus,
+              isLoading: false,
+            };
+          });
 
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
@@ -741,6 +792,8 @@ export const useSubscriptionStore = create<SubscriptionState>()(
 
           set((state) => ({
             subscriptions: state.subscriptions.filter((sub) => sub.id !== id),
+            crdtMetadata: tombstoneCrdtMetadata(state.crdtMetadata, id),
+            syncStatus: 'pending',
             isLoading: false,
           }));
 
@@ -765,12 +818,23 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       toggleSubscriptionStatus: async (id: string) => {
         set({ isLoading: true, error: null });
         try {
-          set((state) => ({
-            subscriptions: state.subscriptions.map((sub) =>
+          set((state) => {
+            const next = state.subscriptions.map((sub) =>
               sub.id === id ? { ...sub, isActive: !sub.isActive, updatedAt: new Date() } : sub
-            ),
-            isLoading: false,
-          }));
+            );
+            const updated = next.find((sub) => sub.id === id);
+            return {
+              subscriptions: next,
+              crdtMetadata: updated
+                ? stampCrdtMetadata(state.crdtMetadata, updated, {
+                    isActive: updated.isActive,
+                    updatedAt: updated.updatedAt,
+                  })
+                : state.crdtMetadata,
+              syncStatus: 'pending' as SubscriptionSyncStatus,
+              isLoading: false,
+            };
+          });
 
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
@@ -1206,10 +1270,48 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         }
       },
 
+      syncWithServer: async () => {
+        if (!networkMonitor.isOnline()) {
+          set({ syncStatus: 'pending' });
+          return;
+        }
+
+        set({ syncStatus: 'syncing', error: null });
+        try {
+          const { subscriptions, crdtMetadata } = get();
+          const localState = {
+            subscriptions: Object.fromEntries(subscriptions.map((sub) => [sub.id, sub])),
+            metadata: crdtMetadata,
+          };
+          const merged = SubscriptionCRDT.merge(localState, localState);
+          const mergedList = Object.values(merged.subscriptions).map((sub) =>
+            normalizeSubscription(sub)
+          );
+
+          set({
+            subscriptions: mergedList.length > 0 ? mergedList : subscriptions,
+            crdtMetadata: merged.metadata,
+            syncStatus: 'idle',
+          });
+          get().calculateStats();
+        } catch (error) {
+          set({
+            syncStatus: 'error',
+            error: errorHandler.handleError(error as Error, {
+              action: 'syncWithServer',
+            }),
+          });
+          throw error;
+        }
+      },
+
       fetchSubscriptions: async () => {
         set({ isLoading: true, error: null });
         try {
           await new Promise((resolve) => setTimeout(resolve, 1000));
+          if (get().syncStatus === 'pending') {
+            await get().syncWithServer();
+          }
           set({ isLoading: false });
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
@@ -1307,6 +1409,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           subscriptions: state.subscriptions,
           creditAccounts: state.creditAccounts,
           pauseHistory: state.pauseHistory,
+          crdtMetadata: state.crdtMetadata,
         }),
       migrate: (persistedState, version) => migratePersistedState(persistedState, version),
       merge: (persistedState, currentState) => ({

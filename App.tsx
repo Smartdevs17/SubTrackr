@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { useNotifications } from './src/hooks/useNotifications';
 import { useTransactionQueue } from './src/hooks/useTransactionQueue';
+import { useOfflineSync } from './src/hooks/useOfflineSync';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import { HydrationGate } from './src/components/HydrationGate';
 import { initI18n } from './src/i18n/config';
@@ -89,6 +90,7 @@ createAppKit({
 function NotificationBootstrap() {
   useNotifications();
   useTransactionQueue();
+  useOfflineSync();
 
   const { initialize } = useNetworkStore();
   const { initializeSettings } = useSettingsStore();
