@@ -1,5 +1,5 @@
 fastapi>=0.141.1
-uvicorn[standard]>=0.52.4
+uvicorn[standard]>=0.53.0
 onnxruntime>=1.30.0
 onnxruntime-gpu>=1.30.0; platform_system == "Linux"
 numpy>=2.5.3
