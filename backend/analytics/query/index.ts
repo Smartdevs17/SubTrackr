@@ -4,3 +4,6 @@ export { CohortRetentionQueryHandler } from './cohortRetentionQueryHandler';
 export type { CohortRetentionResult, CohortRetentionPeriod } from './cohortRetentionQueryHandler';
 export { LTVQueryHandler } from './ltvQueryHandler';
 export type { LTVQueryResult } from './ltvQueryHandler';
+export { GeographicRevenueQueryHandler } from './geographicRevenueQueryHandler';
+export type { GeographicRevenueResult, GeographicSummaryResult } from './geographicRevenueQueryHandler';
+
