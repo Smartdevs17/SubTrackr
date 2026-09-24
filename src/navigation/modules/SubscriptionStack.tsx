@@ -5,6 +5,9 @@ import { RootStackParamList } from '../types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+const SubscriptionDashboardScreen = lazyScreen(
+  () => import('../../screens/SubscriptionDashboardScreen')
+);
 const AddSubscriptionScreen = lazyScreen(() => import('../../screens/AddSubscriptionScreen'));
 const SubscriptionDetailScreen = lazyScreen(() => import('../../screens/SubscriptionDetailScreen'));
 const EditSubscriptionScreen = lazyScreen(() => import('../../screens/EditSubscriptionScreen'));
@@ -16,6 +19,11 @@ const PlanTemplatesScreen = lazyScreen(() => import('../../screens/PlanTemplates
 
 export const SubscriptionStack = () => (
   <Stack.Navigator>
+    <Stack.Screen
+      name="SubscriptionDashboard"
+      component={SubscriptionDashboardScreen}
+      options={{ headerShown: false, title: 'Dashboard' }}
+    />
     <Stack.Screen
       name="AddSubscription"
       component={AddSubscriptionScreen}

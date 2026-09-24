@@ -2,6 +2,7 @@ import { NavigatorScreenParams } from '@react-navigation/native';
 
 export type RootStackParamList = {
   Home: undefined;
+  SubscriptionDashboard: undefined;
   AddSubscription: undefined;
   SubscriptionDetail: { id: string };
   EditSubscription: { id: string };
