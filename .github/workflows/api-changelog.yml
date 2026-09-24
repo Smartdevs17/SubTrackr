@@ -1,0 +1,141 @@
+name: API Changelog Generation
+
+# Issue #1179 — Add API changelog generation from spec diffs
+#
+# Runs whenever the authoritative OpenAPI spec changes.
+# On PRs:  generates a diff and posts a summary as a job annotation.
+# On main: generates the diff, prepends to developer-portal/docs/changelog.md,
+#          and opens an auto-commit (or can be extended to open a PR).
+
+on:
+  pull_request:
+    paths:
+      - 'developer-portal/docs/openapi.json'
+      - 'spec/openapi.yaml'
+      - 'spec/openapi.previous.json'
+  push:
+    branches:
+      - main
+    paths:
+      - 'developer-portal/docs/openapi.json'
+
+  # Allow manual runs from the Actions tab
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Changelog version override (e.g. 1.3.0). Leave blank to use spec info.version.'
+        required: false
+        default: ''
+      breaking_gate:
+        description: 'Fail the job if breaking changes are detected'
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: write        # needed to commit the updated changelog on main
+  pull-requests: write   # needed to annotate PR checks
+
+jobs:
+  # ────────────────────────────────────────────────────────────────────────────
+  # Job 1: generate-changelog
+  # Runs on every trigger. On PRs it prints to stdout; on main it updates the file.
+  # ────────────────────────────────────────────────────────────────────────────
+  generate-changelog:
+    name: Generate API Changelog
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2   # we need HEAD~1 for the git-history fallback
+
+      - name: Setup Node.js
+        uses: ./.github/actions/setup-node
+
+      # ── PR mode: print diff to stdout so reviewers can see it ──────────────
+      - name: Generate changelog (PR preview — stdout only)
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "## API Spec Diff Preview" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```markdown' >> $GITHUB_STEP_SUMMARY
+          node scripts/generate-api-changelog.js --stdout >> $GITHUB_STEP_SUMMARY || true
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      # Optional breaking-change gate on PRs (fails the check if enabled)
+      - name: Breaking-change gate (PR)
+        if: >
+          github.event_name == 'pull_request' &&
+          github.event.inputs.breaking_gate == 'true'
+        run: node scripts/generate-api-changelog.js --stdout --breaking
+
+      # ── Push / manual mode: update the changelog file and commit ────────────
+      - name: Generate changelog and update file (push to main / manual)
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        run: |
+          VERSION_ARG=""
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION_ARG="--version ${{ github.event.inputs.version }}"
+          fi
+
+          BREAKING_ARG=""
+          if [ "${{ github.event.inputs.breaking_gate }}" = "true" ]; then
+            BREAKING_ARG="--breaking"
+          fi
+
+          node scripts/generate-api-changelog.js $VERSION_ARG $BREAKING_ARG
+
+      - name: Commit updated changelog
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Stage changelog + snapshot (if generated)
+          git add developer-portal/docs/changelog.md spec/openapi.previous.json || true
+
+          if git diff --cached --quiet; then
+            echo "No changelog changes to commit."
+          else
+            git commit -m "docs(api): update API changelog from spec diff [skip ci]"
+            git push
+          fi
+
+      # ── Always upload the changelog as an artifact ──────────────────────────
+      - name: Upload changelog artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-changelog
+          path: developer-portal/docs/changelog.md
+          if-no-files-found: ignore
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # Job 2: validate-spec
+  # Sanity checks that the spec file is valid JSON and has required fields.
+  # ────────────────────────────────────────────────────────────────────────────
+  validate-spec:
+    name: Validate OpenAPI Spec
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate JSON structure
+        run: |
+          node -e "
+            const fs = require('fs');
+            const spec = JSON.parse(fs.readFileSync('developer-portal/docs/openapi.json', 'utf8'));
+            const required = ['openapi', 'info', 'paths'];
+            for (const field of required) {
+              if (!spec[field]) {
+                console.error('Missing required field: ' + field);
+                process.exit(1);
+              }
+            }
+            const endpointCount = Object.keys(spec.paths).length;
+            console.log('Spec valid. OpenAPI ' + spec.openapi + ', version ' + spec.info.version + ', ' + endpointCount + ' path(s).');
+          "
