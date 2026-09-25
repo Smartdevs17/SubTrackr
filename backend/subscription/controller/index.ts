@@ -27,6 +27,18 @@ export {
 } from './mutationController';
 export type { UpdatePlanBody, UpdatePricingBody, MutationResult } from './mutationController';
 
+export {
+  searchSubscriptions,
+  listSavedSearches,
+  createSavedSearch,
+  deleteSavedSearch,
+} from './searchController';
+export type {
+  SubscriptionSearchQueryParams,
+  SubscriptionStatusParam,
+  SubscriptionSearchProvider,
+} from './searchController';
+
 export type { CacheableEndpointResult, CacheableMutationResult } from './types';
 
 /** Extract request ID from incoming headers. */
