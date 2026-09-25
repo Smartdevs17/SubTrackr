@@ -1,22 +1,51 @@
+# docker-compose.override.yml
+#
+# Issue #1175 — Implement local development environment with Docker
+#
+# Development overrides — applied automatically by Docker Compose when running
+# `docker compose up` locally.  Adds hot-reload volume mounts to every service
+# so code changes are reflected inside containers without rebuilding.
+#
+# These overrides are NOT applied in CI (override files are local-only by convention).
+
 version: '3.8'
-# Maps local directories to containers for instant hot-reloading (ts-node-dev / uvicorn)
+
 services:
+  # ── Backend API hot-reload ─────────────────────────────────────────────────
   backend:
     volumes:
       - .:/usr/src/app
       - /usr/src/app/node_modules
+    environment:
+      NODE_ENV: development
+
+  # ── Workers hot-reload ─────────────────────────────────────────────────────
   workers:
     volumes:
       - .:/usr/src/app
       - /usr/src/app/node_modules
+    environment:
+      NODE_ENV: development
+
+  # ── Webhook Dispatcher hot-reload ─────────────────────────────────────────
   webhook-dispatcher:
     volumes:
       - .:/usr/src/app
       - /usr/src/app/node_modules
+    environment:
+      NODE_ENV: development
+
+  # ── ML Service hot-reload ─────────────────────────────────────────────────
   ml-service:
     volumes:
       - ./ml-service:/app
+    environment:
+      RELOAD: "true"
+
+  # ── Mobile / Expo hot-reload ───────────────────────────────────────────────
   mobile:
     volumes:
       - .:/usr/src/app
       - /usr/src/app/node_modules
+    environment:
+      NODE_ENV: development
