@@ -60,6 +60,7 @@ const AddSubscriptionScreen: React.FC = () => {
     isCryptoEnabled: false,
     cryptoToken: undefined,
     cryptoAmount: undefined,
+    billingDayOfMonth: undefined,
   });
 
   useEffect(() => {
@@ -452,6 +453,37 @@ const AddSubscriptionScreen: React.FC = () => {
                   ))}
                 </View>
               </View>
+
+              {(selectedBillingCycle === BillingCycle.MONTHLY ||
+                selectedBillingCycle === BillingCycle.YEARLY) && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Billing Day Alignment (Optional)</Text>
+                  <Text style={styles.alignmentHint}>
+                    Align future billing dates to a specific day of the month
+                  </Text>
+                  <View style={styles.alignmentGrid}>
+                    {ALIGNMENT_OPTIONS.map((option) => (
+                      <TouchableOpacity
+                        key={option.label}
+                        style={[
+                          styles.alignmentItem,
+                          formData.billingDayOfMonth === option.value &&
+                            styles.alignmentItemSelected,
+                        ]}
+                        onPress={() => handleInputChange('billingDayOfMonth', option.value)}>
+                        <Text
+                          style={[
+                            styles.alignmentText,
+                            formData.billingDayOfMonth === option.value &&
+                              styles.alignmentTextSelected,
+                          ]}>
+                          {option.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
             </View>
 
             <View style={styles.section}>
