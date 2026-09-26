@@ -65,8 +65,17 @@ function buildQueries(renderer) {
     }
   };
 
+  const queryByTestId = (testID) => {
+    try {
+      return getByTestId(testID);
+    } catch {
+      return null;
+    }
+  };
+
   return {
     getByTestId,
+    queryByTestId,
     getByText,
     getAllByText,
     queryByText,
