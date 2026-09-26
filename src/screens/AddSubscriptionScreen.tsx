@@ -32,6 +32,17 @@ interface AddSubscriptionFormData extends SubscriptionFormData {
   priceError: string;
 }
 
+const ALIGNMENT_OPTIONS = [
+  { label: 'None', value: undefined },
+  { label: '1st', value: 1 },
+  { label: '5th', value: 5 },
+  { label: '10th', value: 10 },
+  { label: '15th', value: 15 },
+  { label: '20th', value: 20 },
+  { label: '25th', value: 25 },
+  { label: 'Last day', value: 31 },
+];
+
 const getDefaultNextBillingDate = (cycle: BillingCycle) => advanceBillingDate(new Date(), cycle);
 
 const AddSubscriptionScreen: React.FC = () => {
@@ -774,6 +785,38 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       ...typography.caption,
       color: colors.textSecondary,
       marginTop: spacing.xs,
+    },
+    alignmentHint: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      marginBottom: spacing.sm,
+    },
+    alignmentGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.sm,
+    },
+    alignmentItem: {
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderRadius: borderRadius.md,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      minWidth: 70,
+      alignItems: 'center',
+    },
+    alignmentItemSelected: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    alignmentText: {
+      ...typography.caption,
+      color: colors.text,
+    },
+    alignmentTextSelected: {
+      color: colors.text,
+      fontWeight: '600',
     },
     footer: {
       padding: spacing.lg,

@@ -25,6 +25,7 @@ export { useSlaStore } from './slaStore';
 export { useGamificationStore } from './gamificationStore';
 export { useThemeStore } from '../theme/themeStore';
 export { usePlanComparisonStore } from './planComparisonStore';
+export { useResellerStore } from './resellerStore';
 
 // Context + Hooks pattern exports (Issue #742)
 export {

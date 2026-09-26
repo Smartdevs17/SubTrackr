@@ -34,6 +34,20 @@ import { ScreenTransition, SharedElement } from '../components/common/SharedElem
 type SubscriptionDetailRouteProp = RouteProp<RootStackParamList, 'SubscriptionDetail'>;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
+const getDayOfMonthSuffix = (day: number): string => {
+  if (day >= 11 && day <= 13) return 'th';
+  switch (day % 10) {
+    case 1:
+      return 'st';
+    case 2:
+      return 'nd';
+    case 3:
+      return 'rd';
+    default:
+      return 'th';
+  }
+};
+
 const CREDIT_METHODS: { label: string; value: CreditPaymentMethod; hint: string }[] = [
   { label: 'Card', value: 'card', hint: 'Visa, Mastercard, or Amex' },
   { label: 'Bank', value: 'bank_transfer', hint: 'ACH or wire transfer' },
@@ -279,6 +293,9 @@ const SubscriptionDetailScreen: React.FC = () => {
                   clearBefore: () => useSubscriptionStore.setState({ subscriptions: [] }),
                   fetcher: () => useSubscriptionStore.getState().fetchSubscriptions(),
                 })
+              }
+            />
+          }>
               }
             />
           }>
@@ -1042,8 +1059,21 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: spacing.xs,
   },
+  alignmentRow: {
+    marginTop: spacing.md,
+  },
+  alignmentValue: {
+    ...typography.body,
+    color: colors.text,
+    marginTop: spacing.xs,
+  },
+  statusCard: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+  },
   marginRight: {
     marginRight: spacing.sm,
+  }
   },
   standardCard: {
     marginHorizontal: spacing.lg,
