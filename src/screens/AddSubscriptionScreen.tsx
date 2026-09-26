@@ -24,6 +24,17 @@ interface AddSubscriptionFormData extends SubscriptionFormData {
   priceError: string;
 }
 
+const ALIGNMENT_OPTIONS = [
+  { label: 'None', value: undefined },
+  { label: '1st', value: 1 },
+  { label: '5th', value: 5 },
+  { label: '10th', value: 10 },
+  { label: '15th', value: 15 },
+  { label: '20th', value: 20 },
+  { label: '25th', value: 25 },
+  { label: 'Last day', value: 31 },
+];
+
 const AddSubscriptionScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { addSubscription, isLoading } = useSubscriptionStore();
@@ -41,6 +52,7 @@ const AddSubscriptionScreen: React.FC = () => {
     isCryptoEnabled: false,
     cryptoToken: undefined,
     cryptoAmount: undefined,
+    billingDayOfMonth: undefined,
   });
 
   const [selectedCategory, setSelectedCategory] = useState<SubscriptionCategory>(
@@ -308,6 +320,37 @@ const AddSubscriptionScreen: React.FC = () => {
                   ))}
                 </View>
               </View>
+
+              {(selectedBillingCycle === BillingCycle.MONTHLY ||
+                selectedBillingCycle === BillingCycle.YEARLY) && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Billing Day Alignment (Optional)</Text>
+                  <Text style={styles.alignmentHint}>
+                    Align future billing dates to a specific day of the month
+                  </Text>
+                  <View style={styles.alignmentGrid}>
+                    {ALIGNMENT_OPTIONS.map((option) => (
+                      <TouchableOpacity
+                        key={option.label}
+                        style={[
+                          styles.alignmentItem,
+                          formData.billingDayOfMonth === option.value &&
+                            styles.alignmentItemSelected,
+                        ]}
+                        onPress={() => handleInputChange('billingDayOfMonth', option.value)}>
+                        <Text
+                          style={[
+                            styles.alignmentText,
+                            formData.billingDayOfMonth === option.value &&
+                              styles.alignmentTextSelected,
+                          ]}>
+                          {option.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
             </View>
 
             <View style={styles.section}>
@@ -587,6 +630,38 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.textSecondary,
     marginTop: spacing.xs,
+  },
+  alignmentHint: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
+  },
+  alignmentGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  alignmentItem: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    minWidth: 70,
+    alignItems: 'center',
+  },
+  alignmentItemSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  alignmentText: {
+    ...typography.caption,
+    color: colors.text,
+  },
+  alignmentTextSelected: {
+    color: colors.text,
+    fontWeight: '600',
   },
   footer: {
     padding: spacing.lg,

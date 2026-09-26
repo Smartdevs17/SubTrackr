@@ -9,7 +9,7 @@ import {
   BillingCycle, // eslint-disable-line
 } from '../types/subscription';
 import { dummySubscriptions } from '../utils/dummyData'; // eslint-disable-line
-import { advanceBillingDate } from '../utils/billingDate';
+import { calculateNextBillingDate } from '../utils/billingDate';
 import { BILLING_CONVERSIONS, CACHE_CONSTANTS } from '../utils/constants/values';
 import {
   syncRenewalReminders,
@@ -263,7 +263,11 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         }
 
         if (outcome === 'success') {
-          const next = advanceBillingDate(new Date(sub.nextBillingDate), sub.billingCycle);
+          const next = calculateNextBillingDate(
+            new Date(sub.nextBillingDate),
+            sub.billingCycle,
+            sub.billingDayOfMonth
+          );
           const simulatedGas = 0.01 + Math.random() * 0.005; // Simulate 0.01 - 0.015 XLM gas
           set((state) => ({
             subscriptions: state.subscriptions.map((s) =>

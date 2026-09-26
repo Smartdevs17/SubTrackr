@@ -23,6 +23,20 @@ import { Card } from '../components/common/Card';
 type SubscriptionDetailRouteProp = RouteProp<RootStackParamList, 'SubscriptionDetail'>;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
+const getDayOfMonthSuffix = (day: number): string => {
+  if (day >= 11 && day <= 13) return 'th';
+  switch (day % 10) {
+    case 1:
+      return 'st';
+    case 2:
+      return 'nd';
+    case 3:
+      return 'rd';
+    default:
+      return 'th';
+  }
+};
+
 const SubscriptionDetailScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<SubscriptionDetailRouteProp>();
@@ -187,6 +201,18 @@ const SubscriptionDetailScreen: React.FC = () => {
               })}
             </Text>
           </View>
+          {subscription.billingDayOfMonth && (
+            <View style={styles.alignmentRow}>
+              <Text style={styles.priceLabel}>Billing Alignment</Text>
+              <Text style={styles.alignmentValue}>
+                {subscription.billingDayOfMonth === 31
+                  ? 'Last day of month'
+                  : `${subscription.billingDayOfMonth}${getDayOfMonthSuffix(
+                      subscription.billingDayOfMonth
+                    )} of each month`}
+              </Text>
+            </View>
+          )}
         </Card>
 
         {/* Notifications */}
@@ -471,6 +497,14 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.accent,
     fontWeight: '600',
+    marginTop: spacing.xs,
+  },
+  alignmentRow: {
+    marginTop: spacing.md,
+  },
+  alignmentValue: {
+    ...typography.body,
+    color: colors.text,
     marginTop: spacing.xs,
   },
   statusCard: {
