@@ -39,6 +39,7 @@ export type RootStackParamList = {
   ApiPlayground: undefined;
   SandboxDashboard: undefined;
   ApiKeyManagement: undefined;
+  ApiKeys: undefined;
   DocumentationPortal: undefined;
   IntegrationGuides: undefined;
   MerchantOnboarding: undefined;

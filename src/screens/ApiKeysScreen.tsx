@@ -1,4 +1,16 @@
-import React, { useState } from 'react';
+/**
+ * ApiKeysScreen
+ *
+ * Lightweight API-key overview screen. Supports:
+ *  - Stats at a glance
+ *  - Quick key creation with tier selection
+ *  - Inline rotate / revoke / delete per key
+ *  - Deep-link to ApiKeyManagement for full management (scopes, audit log, etc.)
+ *
+ * All operations are backed by the unified `useApiStore` so data is consistent
+ * with the full ApiKeyManagementScreen.
+ */
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,203 +22,232 @@ import {
   Alert,
   Clipboard,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Card } from '../components/common/Card';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
-import { useApiStore } from '../store/apiStore';
+import { useApiStore, TIER_LABELS } from '../store/apiStore';
 import { ApiKeyStatus } from '../types/sandbox';
+import type { RootStackParamList } from '../navigation/types';
 
-const USAGE_TIERS = [
-  { key: 'free', label: 'Free', desc: '100 req/min, 10K/day' },
-  { key: 'basic', label: 'Basic', desc: '1K req/min, 100K/day' },
-  { key: 'pro', label: 'Pro', desc: '10K req/min, 1M/day' },
-  { key: 'enterprise', label: 'Enterprise', desc: '100K req/min, 10M/day' },
-] as const;
+const TIERS = Object.entries(TIER_LABELS) as [string, { label: string; desc: string }][];
+
+type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 const ApiKeysScreen: React.FC = () => {
-  const { apiKeys, createApiKey, revokeApiKey, rotateApiKey, deleteApiKey, getKeyStats, maskKey } =
-    useApiStore();
+  const navigation = useNavigation<Nav>();
+  const {
+    apiKeys,
+    createApiKey,
+    revokeApiKey,
+    rotateApiKey,
+    deleteApiKey,
+    getKeyStats,
+    maskKey,
+  } = useApiStore();
 
-  const [newKeyName, setNewKeyName] = useState('');
-  const [selectedTier, setSelectedTier] = useState<string>('free');
-  const [showNewKey, setShowNewKey] = useState<string | null>(null);
+  const [newKeyName, setNewKeyName]     = useState('');
+  const [selectedTier, setSelectedTier] = useState('free');
+  const [showNewKey, setShowNewKey]     = useState<string | null>(null);
 
   const stats = getKeyStats();
 
-  const handleCreateKey = () => {
-    if (!newKeyName.trim()) {
+  const handleCreate = useCallback(() => {
+    const name = newKeyName.trim();
+    if (!name) {
       Alert.alert('Name required', 'Please provide a name for the API key.');
       return;
     }
-
-    const key = createApiKey(
-      newKeyName.trim(),
+    const created = createApiKey(
+      name,
       selectedTier as 'free' | 'basic' | 'pro' | 'enterprise'
     );
-    setShowNewKey(key.key);
+    setShowNewKey(created.key);
     setNewKeyName('');
-    Alert.alert(
-      'API Key Created',
-      'Your new API key has been generated. Copy it now - it will only be shown once.'
-    );
-  };
+  }, [newKeyName, selectedTier, createApiKey]);
 
-  const handleCopyKey = (key: string) => {
+  const handleCopy = useCallback((key: string) => {
     Clipboard.setString(key);
     Alert.alert('Copied', 'API key copied to clipboard.');
-  };
+  }, []);
 
-  const handleRevokeKey = (keyId: string, keyName: string) => {
+  const handleRotate = useCallback((keyId: string, keyName: string) => {
     Alert.alert(
-      'Revoke API Key',
-      `Revoke "${keyName}"? This will immediately invalidate the key.`,
+      'Rotate Key',
+      `Rotating "${keyName}" will immediately invalidate the current secret. Continue?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Rotate',
+          onPress: () => {
+            const newRaw = rotateApiKey(keyId);
+            if (newRaw) {
+              setShowNewKey(newRaw);
+            } else {
+              Alert.alert('Error', 'Could not rotate key. It may no longer be active.');
+            }
+          },
+        },
+      ]
+    );
+  }, [rotateApiKey]);
+
+  const handleRevoke = useCallback((keyId: string, keyName: string) => {
+    Alert.alert(
+      'Revoke Key',
+      `Revoking "${keyName}" will immediately invalidate it. This cannot be undone.`,
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Revoke', style: 'destructive', onPress: () => revokeApiKey(keyId) },
       ]
     );
-  };
+  }, [revokeApiKey]);
 
-  const handleRotateKey = (keyId: string, keyName: string) => {
-    Alert.alert('Rotate API Key', `Rotate "${keyName}"? The current key will be replaced.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Rotate',
-        onPress: () => {
-          const newKey = rotateApiKey(keyId);
-          if (newKey) {
-            setShowNewKey(newKey);
-            Alert.alert('Key Rotated', 'Your new API key is shown below.');
-          }
-        },
-      },
-    ]);
-  };
-
-  const handleDeleteKey = (keyId: string, keyName: string) => {
-    Alert.alert('Delete API Key', `Permanently delete "${keyName}"?`, [
+  const handleDelete = useCallback((keyId: string, keyName: string) => {
+    Alert.alert('Delete Key', `Permanently delete "${keyName}"?`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => deleteApiKey(keyId) },
     ]);
-  };
+  }, [deleteApiKey]);
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
+
+        {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>API Keys</Text>
-          <Text style={styles.subtitle}>Manage API keys with rate limiting and usage metering</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.title}>API Keys</Text>
+            <Text style={styles.subtitle}>Quick overview and key management</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.manageBtn}
+            onPress={() => navigation.navigate('ApiKeyManagement')}
+            accessibilityLabel="Open full API key management"
+            accessibilityRole="button">
+            <Text style={styles.manageBtnText}>Full Management →</Text>
+          </TouchableOpacity>
         </View>
 
+        {/* Stats */}
         <View style={styles.statsGrid}>
-          <Card style={styles.statCard}>
-            <Text style={styles.statValue}>{stats.total}</Text>
-            <Text style={styles.statLabel}>Total</Text>
-          </Card>
-          <Card style={styles.statCard}>
-            <Text style={[styles.statValue, { color: colors.success }]}>{stats.active}</Text>
-            <Text style={styles.statLabel}>Active</Text>
-          </Card>
-          <Card style={styles.statCard}>
-            <Text style={[styles.statValue, { color: colors.error }]}>{stats.revoked}</Text>
-            <Text style={styles.statLabel}>Revoked</Text>
-          </Card>
-          <Card style={styles.statCard}>
-            <Text style={[styles.statValue, { color: colors.warning }]}>{stats.expired}</Text>
-            <Text style={styles.statLabel}>Expired</Text>
-          </Card>
+          {[
+            { label: 'Total',   value: stats.total,   color: colors.text },
+            { label: 'Active',  value: stats.active,  color: colors.success },
+            { label: 'Revoked', value: stats.revoked, color: colors.error },
+            { label: 'Expired', value: stats.expired, color: colors.warning },
+          ].map(({ label, value, color }) => (
+            <Card key={label} style={styles.statCard}>
+              <Text style={[styles.statValue, { color }]}>{value}</Text>
+              <Text style={styles.statLabel}>{label}</Text>
+            </Card>
+          ))}
         </View>
 
+        {/* New key revealed banner */}
+        {showNewKey && (
+          <Card style={styles.newKeyCard}>
+            <Text style={styles.newKeyTitle}>New API Key</Text>
+            <Text style={styles.newKeyWarning}>Copy now — shown once only.</Text>
+            <View style={styles.keyDisplayBox}>
+              <Text style={styles.keyMonoText} selectable>{showNewKey}</Text>
+            </View>
+            <View style={styles.rowButtons}>
+              <TouchableOpacity
+                style={[styles.btn, styles.btnPrimary, { flex: 1 }]}
+                onPress={() => handleCopy(showNewKey)}
+                accessibilityLabel="Copy API key"
+                accessibilityRole="button">
+                <Text style={styles.btnPrimaryText}>Copy Key</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.btn, styles.btnOutline, { flex: 1 }]}
+                onPress={() => setShowNewKey(null)}
+                accessibilityLabel="Dismiss"
+                accessibilityRole="button">
+                <Text style={styles.btnOutlineText}>Dismiss</Text>
+              </TouchableOpacity>
+            </View>
+          </Card>
+        )}
+
+        {/* Quick create form */}
         <Card style={styles.section}>
           <Text style={styles.sectionTitle}>Generate New Key</Text>
 
-          <Text style={styles.label}>Key Name</Text>
+          <Text style={styles.fieldLabel}>Key Name</Text>
           <TextInput
             style={styles.input}
             placeholder="e.g. Production Key"
             placeholderTextColor={colors.textSecondary}
             value={newKeyName}
             onChangeText={setNewKeyName}
+            accessibilityLabel="API key name"
           />
 
-          <Text style={styles.label}>Usage Tier</Text>
+          <Text style={styles.fieldLabel}>Usage Tier</Text>
           <View style={styles.tierGrid}>
-            {USAGE_TIERS.map((tier) => (
+            {TIERS.map(([tierKey, info]) => (
               <TouchableOpacity
-                key={tier.key}
-                style={[styles.tierCard, selectedTier === tier.key && styles.tierCardSelected]}
-                onPress={() => setSelectedTier(tier.key)}>
-                <Text
-                  style={[styles.tierLabel, selectedTier === tier.key && styles.tierLabelSelected]}>
-                  {tier.label}
+                key={tierKey}
+                style={[styles.tierCard, selectedTier === tierKey && styles.tierCardSelected]}
+                onPress={() => setSelectedTier(tierKey)}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: selectedTier === tierKey }}
+                accessibilityLabel={`Select ${info.label} tier`}>
+                <Text style={[styles.tierLabel, selectedTier === tierKey && styles.tierLabelSelected]}>
+                  {info.label}
                 </Text>
-                <Text style={styles.tierDesc}>{tier.desc}</Text>
+                <Text style={styles.tierDesc}>{info.desc}</Text>
               </TouchableOpacity>
             ))}
           </View>
 
-          <TouchableOpacity style={styles.primaryButton} onPress={handleCreateKey}>
-            <Text style={styles.primaryButtonText}>Generate API Key</Text>
+          <TouchableOpacity
+            style={[styles.btn, styles.btnPrimary]}
+            onPress={handleCreate}
+            accessibilityLabel="Generate API key"
+            accessibilityRole="button">
+            <Text style={styles.btnPrimaryText}>Generate API Key</Text>
           </TouchableOpacity>
         </Card>
 
-        {showNewKey && (
-          <Card style={[styles.section, styles.newKeyCard]}>
-            <Text style={styles.newKeyTitle}>New API Key</Text>
-            <Text style={styles.newKeyWarning}>
-              Copy this key now. You won't be able to see it again.
-            </Text>
-            <View style={styles.keyDisplay}>
-              <Text style={styles.keyText} selectable>
-                {showNewKey}
-              </Text>
-            </View>
-            <View style={styles.keyActions}>
-              <TouchableOpacity style={styles.copyButton} onPress={() => handleCopyKey(showNewKey)}>
-                <Text style={styles.copyButtonText}>Copy Key</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.dismissButton} onPress={() => setShowNewKey(null)}>
-                <Text style={styles.dismissButtonText}>Dismiss</Text>
-              </TouchableOpacity>
-            </View>
-          </Card>
-        )}
-
+        {/* Keys list */}
         <Card style={styles.section}>
           <Text style={styles.sectionTitle}>Your API Keys</Text>
+
           {apiKeys.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyText}>No API keys yet</Text>
-              <Text style={styles.emptySubtext}>Generate an API key above to get started</Text>
+              <Text style={styles.emptySubtext}>Generate a key above to get started</Text>
             </View>
           ) : (
             apiKeys.map((key) => (
               <View key={key.id} style={styles.keyCard}>
-                <View style={styles.keyHeader}>
-                  <View style={styles.keyNameRow}>
-                    <Text style={styles.keyName}>{key.name}</Text>
-                    <View
-                      style={[
-                        styles.statusBadge,
-                        {
-                          backgroundColor:
-                            key.status === ApiKeyStatus.ACTIVE
-                              ? colors.success
-                              : key.status === ApiKeyStatus.REVOKED
-                                ? colors.error
-                                : colors.warning,
-                        },
-                      ]}>
-                      <Text style={styles.statusText}>{key.status}</Text>
-                    </View>
+                <View style={styles.keyCardTop}>
+                  <Text style={styles.keyName} numberOfLines={1}>{key.name}</Text>
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      {
+                        backgroundColor:
+                          key.status === ApiKeyStatus.ACTIVE
+                            ? colors.success
+                            : key.status === ApiKeyStatus.REVOKED
+                              ? colors.error
+                              : colors.warning,
+                      },
+                    ]}>
+                    <Text style={styles.statusText}>{key.status.toUpperCase()}</Text>
                   </View>
                 </View>
 
-                <Text style={styles.keyValue}>{maskKey(key.key)}</Text>
+                <Text style={styles.keyMasked}>{maskKey(key.key)}</Text>
 
                 <View style={styles.keyMeta}>
                   <Text style={styles.keyMetaText}>
-                    Rate Limit: {key.rateLimit?.requestsPerMinute ?? '-'}/min ·{' '}
-                    {key.rateLimit?.requestsPerDay ?? '-'}/day
+                    Rate: {key.rateLimit?.requestsPerMinute ?? '—'}/min ·{' '}
+                    {key.rateLimit?.requestsPerDay ?? '—'}/day
                   </Text>
                   {key.lastUsedAt && (
                     <Text style={styles.keyMetaText}>
@@ -218,96 +259,73 @@ const ApiKeysScreen: React.FC = () => {
                   </Text>
                 </View>
 
-                <View style={styles.keyCardActions}>
+                <View style={styles.keyActions}>
                   {key.status === ApiKeyStatus.ACTIVE && (
                     <>
                       <TouchableOpacity
-                        style={styles.actionButton}
-                        onPress={() => handleCopyKey(key.key)}>
-                        <Text style={styles.actionButtonText}>Copy</Text>
+                        style={styles.actionBtn}
+                        onPress={() => handleRotate(key.id, key.name)}
+                        accessibilityLabel={`Rotate ${key.name}`}
+                        accessibilityRole="button">
+                        <Text style={styles.actionBtnText}>🔄 Rotate</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
-                        style={styles.actionButton}
-                        onPress={() => handleRotateKey(key.id, key.name)}>
-                        <Text style={styles.actionButtonText}>Rotate</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.actionButton, styles.actionButtonDanger]}
-                        onPress={() => handleRevokeKey(key.id, key.name)}>
-                        <Text style={[styles.actionButtonText, { color: colors.error }]}>
-                          Revoke
+                        style={[styles.actionBtn, { borderColor: colors.error }]}
+                        onPress={() => handleRevoke(key.id, key.name)}
+                        accessibilityLabel={`Revoke ${key.name}`}
+                        accessibilityRole="button">
+                        <Text style={[styles.actionBtnText, { color: colors.error }]}>
+                          🚫 Revoke
                         </Text>
                       </TouchableOpacity>
                     </>
                   )}
                   <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={() => handleDeleteKey(key.id, key.name)}>
-                    <Text style={styles.actionButtonText}>Delete</Text>
+                    style={styles.actionBtn}
+                    onPress={() => handleDelete(key.id, key.name)}
+                    accessibilityLabel={`Delete ${key.name}`}
+                    accessibilityRole="button">
+                    <Text style={styles.actionBtnText}>🗑 Delete</Text>
                   </TouchableOpacity>
                 </View>
               </View>
             ))
           )}
         </Card>
+
       </ScrollView>
     </SafeAreaView>
   );
 };
 
+// ─── styles ──────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  content: {
-    padding: spacing.lg,
-    gap: spacing.lg,
-    paddingBottom: spacing.xxl,
-  },
-  header: {
-    marginBottom: spacing.sm,
-  },
-  title: {
-    ...typography.h1,
-    color: colors.text,
-  },
-  subtitle: {
-    ...typography.body,
-    color: colors.textSecondary,
+  container: { flex: 1, backgroundColor: colors.background },
+  content: { padding: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xxl },
+
+  header: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
+  title: { ...typography.h1, color: colors.text },
+  subtitle: { ...typography.body, color: colors.textSecondary, marginTop: spacing.xs },
+  manageBtn: {
     marginTop: spacing.xs,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.primary,
   },
-  statsGrid: {
-    flexDirection: 'row',
-    gap: spacing.md,
-  },
-  statCard: {
-    flex: 1,
-    alignItems: 'center',
-    padding: spacing.md,
-  },
-  statValue: {
-    ...typography.h2,
-    color: colors.text,
-    fontWeight: '800',
-  },
-  statLabel: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: spacing.xs,
-  },
-  section: {
-    gap: spacing.md,
-  },
-  sectionTitle: {
-    ...typography.h3,
-    color: colors.text,
-  },
-  label: {
-    ...typography.body,
-    color: colors.textSecondary,
-    fontWeight: '600',
-  },
+  manageBtnText: { ...typography.caption, color: colors.primary, fontWeight: '700' },
+
+  statsGrid: { flexDirection: 'row', gap: spacing.sm },
+  statCard: { flex: 1, alignItems: 'center', padding: spacing.md },
+  statValue: { ...typography.h2, fontWeight: '800' },
+  statLabel: { ...typography.caption, color: colors.textSecondary, marginTop: spacing.xs },
+
+  section: { gap: spacing.md },
+  sectionTitle: { ...typography.h3, color: colors.text },
+  fieldLabel: { ...typography.body, color: colors.textSecondary, fontWeight: '600' },
+
   input: {
     borderWidth: 1,
     borderColor: colors.border,
@@ -316,12 +334,10 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     color: colors.text,
     backgroundColor: colors.surface,
+    ...typography.body,
   },
-  tierGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
+
+  tierGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   tierCard: {
     flex: 1,
     minWidth: '45%',
@@ -331,171 +347,87 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.md,
     backgroundColor: colors.surface,
   },
-  tierCardSelected: {
-    borderColor: colors.primary,
-    backgroundColor: `${colors.primary}15`,
-  },
-  tierLabel: {
-    ...typography.body,
-    color: colors.text,
-    fontWeight: '700',
-    textTransform: 'capitalize',
-  },
-  tierLabelSelected: {
-    color: colors.primary,
-  },
-  tierDesc: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: spacing.xs,
-  },
-  primaryButton: {
-    backgroundColor: colors.primary,
+  tierCardSelected: { borderColor: colors.primary, backgroundColor: `${colors.primary}18` },
+  tierLabel: { ...typography.body, color: colors.text, fontWeight: '700' },
+  tierLabelSelected: { color: colors.primary },
+  tierDesc: { ...typography.caption, color: colors.textSecondary, marginTop: spacing.xs },
+
+  btn: {
     borderRadius: borderRadius.md,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.lg,
     alignItems: 'center',
   },
-  primaryButtonText: {
-    ...typography.body,
-    color: colors.text,
-    fontWeight: '700',
-  },
+  btnPrimary: { backgroundColor: colors.primary },
+  btnPrimaryText: { ...typography.button, color: colors.onPrimary },
+  btnOutline: { borderWidth: 1, borderColor: colors.border },
+  btnOutlineText: { ...typography.button, color: colors.textSecondary },
+  rowButtons: { flexDirection: 'row', gap: spacing.sm },
+
   newKeyCard: {
+    gap: spacing.md,
     borderWidth: 2,
     borderColor: colors.success,
-    backgroundColor: `${colors.success}10`,
+    backgroundColor: `${colors.success}12`,
   },
-  newKeyTitle: {
-    ...typography.h3,
-    color: colors.success,
-  },
-  newKeyWarning: {
-    ...typography.body,
-    color: colors.warning,
-    fontWeight: '600',
-  },
-  keyDisplay: {
-    padding: spacing.md,
+  newKeyTitle: { ...typography.h3, color: colors.success },
+  newKeyWarning: { ...typography.body, color: colors.warning, fontWeight: '600' },
+  keyDisplayBox: {
     backgroundColor: colors.surface,
     borderRadius: borderRadius.md,
     borderWidth: 1,
     borderColor: colors.border,
+    padding: spacing.md,
   },
-  keyText: {
-    ...typography.caption,
-    color: colors.text,
-    fontFamily: 'monospace',
-  },
-  keyActions: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  copyButton: {
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    flex: 1,
-    alignItems: 'center',
-  },
-  copyButtonText: {
-    ...typography.body,
-    color: colors.text,
-    fontWeight: '700',
-  },
-  dismissButton: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: borderRadius.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    flex: 1,
-    alignItems: 'center',
-  },
-  dismissButtonText: {
-    ...typography.body,
-    color: colors.textSecondary,
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: spacing.xl,
-  },
-  emptyText: {
-    ...typography.h3,
-    color: colors.text,
-  },
-  emptySubtext: {
-    ...typography.body,
-    color: colors.textSecondary,
-    marginTop: spacing.xs,
-  },
+  keyMonoText: { ...typography.caption, color: colors.text, fontFamily: 'monospace' },
+
   keyCard: {
     padding: spacing.md,
     backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg,
     borderWidth: 1,
     borderColor: colors.border,
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
   },
-  keyHeader: {
-    gap: spacing.xs,
-  },
-  keyNameRow: {
+  keyCardTop: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.xs,
   },
-  keyName: {
-    ...typography.body,
-    color: colors.text,
-    fontWeight: '700',
-  },
+  keyName: { ...typography.body, color: colors.text, fontWeight: '700', flex: 1 },
   statusBadge: {
     paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
+    paddingVertical: 2,
     borderRadius: borderRadius.round,
   },
   statusText: {
-    ...typography.caption,
-    color: colors.text,
+    ...typography.small,
+    color: colors.background,
     fontWeight: '700',
-    textTransform: 'capitalize',
+    letterSpacing: 0.5,
   },
-  keyValue: {
+  keyMasked: {
     ...typography.caption,
     color: colors.textSecondary,
     fontFamily: 'monospace',
-    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
   },
-  keyMeta: {
-    marginTop: spacing.sm,
-    gap: spacing.xs,
-  },
-  keyMetaText: {
-    ...typography.caption,
-    color: colors.textSecondary,
-  },
-  keyCardActions: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    marginTop: spacing.md,
-    flexWrap: 'wrap',
-  },
-  actionButton: {
+  keyMeta: { gap: spacing.xs, marginBottom: spacing.md },
+  keyMetaText: { ...typography.caption, color: colors.textSecondary },
+  keyActions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  actionBtn: {
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: borderRadius.md,
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.md,
   },
-  actionButtonDanger: {
-    borderColor: colors.error,
-  },
-  actionButtonText: {
-    ...typography.caption,
-    color: colors.text,
-    fontWeight: '600',
-  },
+  actionBtnText: { ...typography.caption, color: colors.text, fontWeight: '600' },
+
+  emptyState: { alignItems: 'center', paddingVertical: spacing.xl },
+  emptyText: { ...typography.h3, color: colors.text },
+  emptySubtext: { ...typography.body, color: colors.textSecondary, marginTop: spacing.xs },
 });
 
 export default ApiKeysScreen;
