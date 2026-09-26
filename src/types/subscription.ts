@@ -44,8 +44,25 @@ export enum SubscriptionCategory {
 export enum BillingCycle {
   MONTHLY = 'monthly',
   YEARLY = 'yearly',
+  ANNUAL = 'annual',
   WEEKLY = 'weekly',
   CUSTOM = 'custom',
+}
+
+export interface AnnualBillingDiscount {
+  monthlyPrice: number;
+  annualPrice: number;
+  savingsAmount: number;
+  savingsPercentage: number;
+}
+
+export interface AnnualBillingPlan {
+  id: string;
+  name: string;
+  monthlyRate: number;
+  annualRate: number;
+  discountPercentage: number;
+  isAnnualOptionAvailable: boolean;
 }
 
 export enum SubscriptionTier {

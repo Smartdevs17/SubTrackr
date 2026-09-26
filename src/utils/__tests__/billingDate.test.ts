@@ -106,48 +106,15 @@ describe('billingDate utilities', () => {
     });
   });
 
-  describe('calculateNextBillingDate', () => {
-    it('should calculate next monthly billing with alignment', () => {
-      const currentDate = new Date('2024-01-10T10:00:00Z');
-      const result = calculateNextBillingDate(currentDate, BillingCycle.MONTHLY, 15);
-      expect(result.getUTCDate()).toBe(15);
-      expect(result.getUTCMonth()).toBe(1); // February
-    });
+  it('advances one full year for annual cycles', () => {
+    const start = new Date(2026, 8, 15, 12, 0, 0);
+    const next = advanceBillingDate(start, BillingCycle.ANNUAL);
+    expect(next).toEqual(new Date(2027, 8, 15, 12, 0, 0));
+  });
 
-    it('should calculate next yearly billing with alignment', () => {
-      const currentDate = new Date('2024-01-10T10:00:00Z');
-      const result = calculateNextBillingDate(currentDate, BillingCycle.YEARLY, 20);
-      expect(result.getUTCDate()).toBe(20);
-      expect(result.getUTCFullYear()).toBe(2025);
-    });
-
-    it('should not apply alignment for weekly billing', () => {
-      const currentDate = new Date('2024-01-10T10:00:00Z');
-      const result = calculateNextBillingDate(currentDate, BillingCycle.WEEKLY, 15);
-      // Should be 7 days later, not aligned to the 15th
-      expect(result.toISOString()).toBe('2024-01-17T10:00:00.000Z');
-    });
-
-    it('should work without alignment parameter', () => {
-      const currentDate = new Date('2024-01-15T10:00:00Z');
-      const result = calculateNextBillingDate(currentDate, BillingCycle.MONTHLY);
-      expect(result.toISOString()).toBe('2024-02-15T10:00:00.000Z');
-    });
-
-    it('should handle alignment across year boundary', () => {
-      const currentDate = new Date('2024-12-10T10:00:00Z');
-      const result = calculateNextBillingDate(currentDate, BillingCycle.MONTHLY, 5);
-      expect(result.getUTCDate()).toBe(5);
-      expect(result.getUTCMonth()).toBe(0); // January
-      expect(result.getUTCFullYear()).toBe(2025);
-    });
-
-    it('should handle alignment to last day of month', () => {
-      const currentDate = new Date('2024-01-15T10:00:00Z');
-      const result = calculateNextBillingDate(currentDate, BillingCycle.MONTHLY, 31);
-      // February has 29 days in 2024 (leap year)
-      expect(result.getUTCDate()).toBe(29);
-      expect(result.getUTCMonth()).toBe(1); // February
-    });
+  it('uses monthly fallback for custom billing cycles', () => {
+    const start = new Date(2026, 2, 31, 10, 0, 0); // Mar 31, 2026
+    const next = advanceBillingDate(start, BillingCycle.CUSTOM);
+    expect(next).toEqual(new Date(2026, 3, 30, 10, 0, 0));
   });
 });

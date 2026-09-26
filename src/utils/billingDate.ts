@@ -37,6 +37,7 @@ export function advanceBillingDate(from: Date, cycle: BillingCycle): Date {
     case BillingCycle.MONTHLY:
       return addMonths(d, 1);
     case BillingCycle.YEARLY:
+    case BillingCycle.ANNUAL:
       return addYears(d, 1);
     case BillingCycle.CUSTOM:
     default:
@@ -97,16 +98,8 @@ export function calculateNextBillingDate(
   const nextDate = advanceBillingDate(currentDate, cycle);
   
   // Apply alignment only for monthly and yearly cycles
-  if (
-    dayOfMonth &&
-    dayOfMonth >= 1 &&
-    dayOfMonth <= 31 &&
-    (cycle === BillingCycle.MONTHLY || cycle === BillingCycle.YEARLY)
-  ) {
-    const aligned = new Date(nextDate.getTime());
-    const lastDayOfMonth = new Date(aligned.getFullYear(), aligned.getMonth() + 1, 0).getDate();
-    aligned.setDate(Math.min(dayOfMonth, lastDayOfMonth));
-    return aligned;
+  if (dayOfMonth && (cycle === BillingCycle.MONTHLY || cycle === BillingCycle.YEARLY)) {
+    return alignBillingToDay(nextDate, dayOfMonth);
   }
   
   return nextDate;
