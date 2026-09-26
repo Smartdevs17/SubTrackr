@@ -47,6 +47,16 @@ function buildQueries(renderer) {
     return matches[0];
   };
 
+  const getAllByText = (text) => {
+    const matcher =
+      text instanceof RegExp ? (value) => text.test(value) : (value) => value === String(text);
+    const matches = findAll(root, (node) => matcher(flattenText(node)));
+    if (matches.length === 0) {
+      throw new Error(`Unable to find element with text: ${String(text)}`);
+    }
+    return matches;
+  };
+
   const queryByText = (text) => {
     try {
       return getByText(text);
@@ -58,6 +68,7 @@ function buildQueries(renderer) {
   return {
     getByTestId,
     getByText,
+    getAllByText,
     queryByText,
     toJSON: () => renderer.toJSON(),
     update: (element) => renderer.update(element),
@@ -75,12 +86,26 @@ function render(element) {
 const fireEvent = {
   press(element) {
     TestRenderer.act(() => {
-      element.props?.onPress?.();
+      let curr = element;
+      while (curr) {
+        if (curr.props?.onPress) {
+          curr.props.onPress();
+          return;
+        }
+        curr = curr.parent;
+      }
     });
   },
   changeText(element, value) {
     TestRenderer.act(() => {
-      element.props?.onChangeText?.(value);
+      let curr = element;
+      while (curr) {
+        if (curr.props?.onChangeText) {
+          curr.props.onChangeText(value);
+          return;
+        }
+        curr = curr.parent;
+      }
     });
   },
 };
