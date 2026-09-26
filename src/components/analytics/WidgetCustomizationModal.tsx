@@ -4,11 +4,11 @@ import {
   Text,
   StyleSheet,
   Modal,
-  TouchableOpacity,
+  Pressable,
   ScrollView,
   SafeAreaView,
 } from 'react-native';
-import { useAnalyticsStore } from '../../../app/stores/analyticsStore';
+import { useWidgetStore } from '../../store/widgetStore';
 import { spacing, typography, borderRadius } from '../../utils/constants';
 
 interface WidgetCustomizationModalProps {
@@ -61,7 +61,7 @@ export const WidgetCustomizationModal: React.FC<WidgetCustomizationModalProps> =
     reorderWidgets,
     setForecastModel,
     resetWidgetConfig,
-  } = useAnalyticsStore();
+  } = useWidgetStore();
 
   const handleMoveUp = (index: number) => {
     if (index === 0) return;
@@ -81,18 +81,19 @@ export const WidgetCustomizationModal: React.FC<WidgetCustomizationModalProps> =
     reorderWidgets(newOrder);
   };
 
+  if (!visible) return null;
+
   return (
-    <Modal visible={visible} animationType="slide" transparent>
-      <View style={styles.modalOverlay}>
-        <SafeAreaView style={styles.modalContainer}>
+    <View style={styles.modalOverlay}>
+      <SafeAreaView style={styles.modalContainer}>
           <View style={styles.header}>
             <View>
               <Text style={styles.title}>Dashboard Customizer</Text>
               <Text style={styles.subtitle}>Configure analytics widgets & forecast models</Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <Pressable onPress={onClose} style={styles.closeButton}>
               <Text style={styles.closeButtonText}>✕</Text>
-            </TouchableOpacity>
+            </Pressable>
           </View>
 
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -103,7 +104,7 @@ export const WidgetCustomizationModal: React.FC<WidgetCustomizationModalProps> =
                 Select the algorithmic model used to project future MRR and ARR trajectories.
               </Text>
               <View style={styles.modelSelectorContainer}>
-                <TouchableOpacity
+                <Pressable
                   style={[
                     styles.modelOption,
                     forecastModel === 'exponential' && styles.modelOptionActive,
@@ -126,9 +127,9 @@ export const WidgetCustomizationModal: React.FC<WidgetCustomizationModalProps> =
                   >
                     Compound retention & expansion rate model
                   </Text>
-                </TouchableOpacity>
+                </Pressable>
 
-                <TouchableOpacity
+                <Pressable
                   style={[
                     styles.modelOption,
                     forecastModel === 'linear' && styles.modelOptionActive,
@@ -151,7 +152,7 @@ export const WidgetCustomizationModal: React.FC<WidgetCustomizationModalProps> =
                   >
                     Trend-line slope based on recent months
                   </Text>
-                </TouchableOpacity>
+                </Pressable>
               </View>
             </View>
 
@@ -159,9 +160,9 @@ export const WidgetCustomizationModal: React.FC<WidgetCustomizationModalProps> =
             <View style={styles.section}>
               <View style={styles.sectionHeaderRow}>
                 <Text style={styles.sectionTitle}>🛠️ Widget Layout & Visibility</Text>
-                <TouchableOpacity onPress={resetWidgetConfig} style={styles.resetButton}>
+                <Pressable onPress={resetWidgetConfig} style={styles.resetButton}>
                   <Text style={styles.resetButtonText}>Reset Default</Text>
-                </TouchableOpacity>
+                </Pressable>
               </View>
               <Text style={styles.sectionDesc}>
                 Toggle widgets on/off and use up/down arrows to reorder dashboard cards.
@@ -193,14 +194,14 @@ export const WidgetCustomizationModal: React.FC<WidgetCustomizationModalProps> =
 
                     <View style={styles.widgetActions}>
                       <View style={styles.reorderButtons}>
-                        <TouchableOpacity
+                        <Pressable
                           onPress={() => handleMoveUp(index)}
                           disabled={index === 0}
                           style={[styles.arrowBtn, index === 0 && styles.arrowBtnDisabled]}
                         >
                           <Text style={styles.arrowText}>▲</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
+                        </Pressable>
+                        <Pressable
                           onPress={() => handleMoveDown(index)}
                           disabled={index === widgetOrder.length - 1}
                           style={[
@@ -209,10 +210,10 @@ export const WidgetCustomizationModal: React.FC<WidgetCustomizationModalProps> =
                           ]}
                         >
                           <Text style={styles.arrowText}>▼</Text>
-                        </TouchableOpacity>
+                        </Pressable>
                       </View>
 
-                      <TouchableOpacity
+                      <Pressable
                         style={[styles.toggleBtn, isEnabled && styles.toggleBtnActive]}
                         onPress={() => toggleWidget(widgetId)}
                       >
@@ -221,7 +222,7 @@ export const WidgetCustomizationModal: React.FC<WidgetCustomizationModalProps> =
                         >
                           {isEnabled ? 'ON' : 'OFF'}
                         </Text>
-                      </TouchableOpacity>
+                      </Pressable>
                     </View>
                   </View>
                 );
@@ -230,13 +231,12 @@ export const WidgetCustomizationModal: React.FC<WidgetCustomizationModalProps> =
           </ScrollView>
 
           <View style={styles.footer}>
-            <TouchableOpacity style={styles.doneButton} onPress={onClose}>
+            <Pressable style={styles.doneButton} onPress={onClose} testID="save-apply-button">
               <Text style={styles.doneButtonText}>Save & Apply Changes</Text>
-            </TouchableOpacity>
+            </Pressable>
           </View>
         </SafeAreaView>
       </View>
-    </Modal>
   );
 };
 
