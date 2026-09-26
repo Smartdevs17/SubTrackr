@@ -26,6 +26,12 @@ describe('advanceBillingDate', () => {
     expect(next).toEqual(new Date(2025, 1, 28, 10, 0, 0));
   });
 
+  it('advances one full year for annual cycles', () => {
+    const start = new Date(2026, 8, 15, 12, 0, 0);
+    const next = advanceBillingDate(start, BillingCycle.ANNUAL);
+    expect(next).toEqual(new Date(2027, 8, 15, 12, 0, 0));
+  });
+
   it('uses monthly fallback for custom billing cycles', () => {
     const start = new Date(2026, 2, 31, 10, 0, 0); // Mar 31, 2026
     const next = advanceBillingDate(start, BillingCycle.CUSTOM);
