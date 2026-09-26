@@ -1,0 +1,26 @@
+{
+  "common": {
+    "dashboard": "לוח בקרה",
+    "subscriptions": "מנויים",
+    "analytics": "אנליטיקה",
+    "settings": "הגדרות",
+    "cancel": "ביטול",
+    "save": "שמירה",
+    "delete": "מחיקה",
+    "edit": "עריכה",
+    "add": "הוספה"
+  },
+  "subscription": {
+    "title": "ניהול מנויים",
+    "price": "מחיר",
+    "billingCycle": "מחזור חיוב",
+    "nextBilling": "תאריך חיוב הבא",
+    "active": "פעיל",
+    "paused": "מושהה",
+    "cancelled": "מבוטל"
+  },
+  "rtl": {
+    "direction": "rtl",
+    "languageName": "עברית"
+  }
+}
