@@ -37,6 +37,7 @@ export function advanceBillingDate(from: Date, cycle: BillingCycle): Date {
     case BillingCycle.MONTHLY:
       return addMonths(d, 1);
     case BillingCycle.YEARLY:
+    case BillingCycle.ANNUAL:
       return addYears(d, 1);
     case BillingCycle.CUSTOM:
     default:
