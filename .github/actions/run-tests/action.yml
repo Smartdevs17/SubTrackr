@@ -1,0 +1,7 @@
+name: 'Run Tests'
+description: 'Jest config, coverage thresholds, JUnit report output'
+runs:
+  using: 'composite'
+  steps:
+    - run: npm test -- --ci --coverage --reporters=default --reporters=jest-junit
+      shell: bash

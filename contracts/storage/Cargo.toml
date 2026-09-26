@@ -1,0 +1,22 @@
+[package]
+name = "subtrackr-storage"
+version = "0.2.0"
+edition = "2021"
+authors = ["SubTrackr Team"]
+description = "State storage contract for SubTrackr (Soroban)"
+
+[lib]
+name = "subtrackr_storage"
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+soroban-sdk = { workspace = true }
+subtrackr-types = { path = "../types" }
+
+[features]
+default = []
+testutils = ["soroban-sdk/testutils"]
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }

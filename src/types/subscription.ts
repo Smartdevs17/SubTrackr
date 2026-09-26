@@ -8,6 +8,11 @@ export interface Subscription {
   billingCycle: BillingCycle;
   nextBillingDate: Date;
   isActive: boolean;
+  isPaused?: boolean;
+  pausedAt?: Date;
+  pauseDurationDays?: number;
+  pausedUntil?: Date;
+  billingAdjustmentAmount?: number;
   /** When false, skip renewal reminders and charge alerts for this subscription */
   notificationsEnabled?: boolean;
   isCryptoEnabled: boolean;
@@ -20,6 +25,7 @@ export interface Subscription {
   lastGasCost?: number;
   /** Preferred day of month for billing (1-31), used for cycle alignment */
   billingDayOfMonth?: number;
+  timezone?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -40,6 +46,26 @@ export enum BillingCycle {
   YEARLY = 'yearly',
   WEEKLY = 'weekly',
   CUSTOM = 'custom',
+}
+
+export enum SubscriptionTier {
+  FREE = 'free',
+  BASIC = 'basic',
+  PREMIUM = 'premium',
+  ENTERPRISE = 'enterprise',
+}
+
+export interface SubscriptionPlan {
+  id: string;
+  name: string;
+  tier: SubscriptionTier;
+  price: number;
+  currency: string;
+  billingCycle: BillingCycle;
+  features: import('./feature').FeatureId[]; // Feature IDs included in this plan
+  limits: Record<string, number>; // Feature limits (e.g., { 'max_subscriptions': 10 })
+  isPopular?: boolean;
+  description: string;
 }
 
 export interface SubscriptionFormData {
@@ -63,4 +89,5 @@ export interface SubscriptionStats {
   totalMonthlySpend: number;
   totalYearlySpend: number;
   categoryBreakdown: Record<SubscriptionCategory, number>;
+  totalGasSpent?: number;
 }

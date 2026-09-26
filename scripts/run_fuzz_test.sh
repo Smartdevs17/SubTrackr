@@ -1,0 +1,23 @@
+#!/bin/bash
+
+set -e
+
+echo "═══════════════════════════════════════════════════════════"
+echo "   SubTrackr Subscription Contract Fuzzing Test Suite"
+echo "═══════════════════════════════════════════════════════════"
+
+cd contracts/subscription
+
+# Run all tests
+echo -e "\n📋 Running all tests..."
+cargo test
+
+echo -e "\n✅ All tests passed!"
+
+# Run with specific output
+echo -e "\n📊 Running tests with output..."
+cargo test -- --nocapture --test-threads=1
+
+echo -e "\n═══════════════════════════════════════════════════════════"
+echo "   ✅ All Fuzzing Tests Completed Successfully!"
+echo "═══════════════════════════════════════════════════════════"

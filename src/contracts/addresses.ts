@@ -1,7 +1,9 @@
 /**
- * Canonical EVM contract addresses by chain. Prefer these over literals in services.
- * Add new networks or contracts here as the app gains support.
+ * Canonical contract addresses by network. Prefer these over literals in services.
+ * Supports both EVM and Stellar networks.
  */
+import { getContractAddresses } from '../config/networks';
+
 export const CHAIN_IDS = {
   ETHEREUM: 1,
   POLYGON: 137,
@@ -10,11 +12,11 @@ export const CHAIN_IDS = {
 
 export type KnownChainId = (typeof CHAIN_IDS)[keyof typeof CHAIN_IDS];
 
-export type ContractKey = 'usdc';
+export type EVMContractKey = 'usdc';
+export type StellarContractKey = 'proxy' | 'storage' | 'subscription';
 
-type ChainContracts = Record<ContractKey, `0x${string}`>;
-
-export const CONTRACT_ADDRESSES: Record<KnownChainId, ChainContracts> = {
+type EVMChainContracts = Record<EVMContractKey, `0x${string}`>;
+export const EVM_CONTRACT_ADDRESSES: Record<KnownChainId, EVMChainContracts> = {
   [CHAIN_IDS.ETHEREUM]: {
     usdc: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
   },
@@ -27,13 +29,28 @@ export const CONTRACT_ADDRESSES: Record<KnownChainId, ChainContracts> = {
   },
 };
 
-const SUPPORTED = new Set<number>(Object.values(CHAIN_IDS));
+const SUPPORTED_EVM = new Set<number>(Object.values(CHAIN_IDS));
 
 export function isKnownEvmChainId(chainId: number): chainId is KnownChainId {
-  return SUPPORTED.has(chainId);
+  return SUPPORTED_EVM.has(chainId);
 }
 
-export function getContractAddress(chainId: number, key: ContractKey): string | undefined {
+export function getEvmContractAddress(chainId: number, key: EVMContractKey): string | undefined {
   if (!isKnownEvmChainId(chainId)) return undefined;
-  return CONTRACT_ADDRESSES[chainId][key];
+  return EVM_CONTRACT_ADDRESSES[chainId][key];
+}
+
+export function getStellarContractAddress(
+  networkId: string,
+  key: StellarContractKey
+): string | undefined {
+  const addresses = getContractAddresses(networkId);
+  return addresses?.[key];
+}
+
+// Legacy compatibility
+export type ContractKey = EVMContractKey;
+export const CONTRACT_ADDRESSES = EVM_CONTRACT_ADDRESSES;
+export function getContractAddress(chainId: number, key: ContractKey): string | undefined {
+  return getEvmContractAddress(chainId, key);
 }

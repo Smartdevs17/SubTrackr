@@ -8,7 +8,7 @@ on:
 
 env:
   NODE_VERSION: '20'
-  RUST_VERSION: '1.85'
+  RUST_VERSION: '1.88'
 
 jobs:
   commitlint:
@@ -17,7 +17,7 @@ jobs:
     if: github.event_name == 'pull_request'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -27,7 +27,15 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
+      - name: Cache node modules
+        uses: actions/cache@v4
+        id: cache-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package-lock.json') }}
+
       - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: npm ci --legacy-peer-deps
 
       - name: Validate PR commits
@@ -41,7 +49,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -49,7 +57,15 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
+      - name: Cache node modules
+        uses: actions/cache@v4
+        id: cache-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package-lock.json') }}
+
       - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: npm ci --legacy-peer-deps
 
       - name: Check formatting (Prettier)
@@ -58,12 +74,12 @@ jobs:
       - name: Run ESLint
         run: npm run lint
 
-  typescript-typecheck:
-    name: TypeScript Type Check
+  npm-audit:
+    name: NPM Audit (High/Critical)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -72,6 +88,33 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Run NPM Audit
+        run: npx audit-ci --config audit-ci.json
+
+  typescript-typecheck:
+    name: TypeScript Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Cache node modules
+        uses: actions/cache@v4
+        id: cache-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: npm ci --legacy-peer-deps
 
       - name: EVM ABI TypeChain (must match committed output)
@@ -80,12 +123,21 @@ jobs:
       - name: Run TypeScript type check
         run: npx tsc --noEmit
 
+      - name: Validate performance budgets
+        run: npm run performance:ci
+
   typescript-tests:
-    name: TypeScript Tests
+    name: TypeScript Tests (Sharded)
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        shard: [1, 2, 3]
+    env:
+      SHARD: ${{ matrix.shard }}
+      SHARD_COUNT: 3
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -93,16 +145,26 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
+      - name: Cache node modules
+        uses: actions/cache@v4
+        id: cache-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package-lock.json') }}
+
       - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: npm ci --legacy-peer-deps
 
-      - name: Run tests with coverage
-        run: npm run test:coverage
+      - name: Run sharded tests with coverage
+        run: |
+          echo "Running shard $SHARD of $SHARD_COUNT"
+          npm run test:shard
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: coverage-report
+          name: coverage-report-${{ matrix.shard }}
           path: coverage/lcov.info
 
   typescript-build:
@@ -110,7 +172,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -118,7 +180,25 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
+      - name: Cache node modules
+        uses: actions/cache@v4
+        id: cache-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Cache Expo build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            .expo
+            node_modules/.cache/expo
+          key: ${{ runner.os }}-expo-${{ hashFiles('package.json', 'app.json') }}
+          restore-keys: |
+            ${{ runner.os }}-expo-
+
       - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: npm ci --legacy-peer-deps
 
       - name: Run Expo export
@@ -133,7 +213,7 @@ jobs:
     if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -144,7 +224,7 @@ jobs:
           path: coverage
 
       - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@master
+        uses: SonarSource/sonarcloud-github-action@v4
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -157,7 +237,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
@@ -173,7 +253,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
@@ -181,10 +261,17 @@ jobs:
           toolchain: ${{ env.RUST_VERSION }}
           components: clippy
 
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
+      - name: Cache Rust dependencies and target
+        uses: actions/cache@v4
         with:
-          workspaces: './contracts -> target'
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            contracts/target/
+          key: ${{ runner.os }}-cargo-${{ env.RUST_VERSION }}-${{ hashFiles('contracts/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ env.RUST_VERSION }}-
 
       - name: Run Clippy
         working-directory: ./contracts
@@ -195,17 +282,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUST_VERSION }}
 
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
+      - name: Cache Rust dependencies and target
+        uses: actions/cache@v4
         with:
-          workspaces: './contracts -> target'
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            contracts/target/
+          key: ${{ runner.os }}-cargo-${{ env.RUST_VERSION }}-${{ hashFiles('contracts/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ env.RUST_VERSION }}-
 
       - name: Run Rust tests
         working-directory: ./contracts
@@ -216,21 +310,113 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUST_VERSION }}
 
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
+      - name: Cache Rust dependencies and target
+        uses: actions/cache@v4
         with:
-          workspaces: './contracts -> target'
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            contracts/target/
+          key: ${{ runner.os }}-cargo-${{ env.RUST_VERSION }}-${{ hashFiles('contracts/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ env.RUST_VERSION }}-
 
       - name: Build Rust contracts
         working-directory: ./contracts
         run: cargo build --release
+
+  # ─────────────────────────────────────────────────────────
+  # Load Testing
+  # ─────────────────────────────────────────────────────────
+  load-test:
+    name: k6 Load Test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [subscription, billing, contract]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Prepare reports directory
+        run: mkdir -p load-tests/reports
+
+      # k6 exits non-zero when a threshold in config/options.js is breached,
+      # which fails this job — that is the CI gate on performance regressions.
+      - name: Setup k6
+        uses: grafana/setup-k6-action@v1
+
+      - name: Run k6 Load Test (${{ matrix.scenario }})
+        run: k6 run load-tests/run.js --env SCENARIO=${{ matrix.scenario }} --quiet
+
+      - name: Rename report for this scenario
+        if: always()
+        run: |
+          for ext in json md html; do
+            if [ -f "load-tests/reports/summary.$ext" ]; then
+              mv "load-tests/reports/summary.$ext" "load-tests/reports/${{ matrix.scenario }}.$ext"
+            fi
+          done
+
+      - name: Upload load test report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: load-test-report-${{ matrix.scenario }}
+          path: load-tests/reports/
+          if-no-files-found: ignore
+
+  # ─────────────────────────────────────────────────────────
+  # Bundle Size Monitoring
+  # ─────────────────────────────────────────────────────────
+  bundle-size:
+    name: Bundle Size Check
+    runs-on: ubuntu-latest
+    env:
+      EXPO_NO_TELEMETRY: 1
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Check bundle size (PR)
+        if: github.event_name == 'pull_request'
+        uses: andresz1/size-limit-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          build_script: 'build'
+
+      - name: Build app
+        if: github.event_name != 'pull_request'
+        run: npm run build
+
+      - name: Check bundle size (Push)
+        if: github.event_name != 'pull_request'
+        run: npx size-limit --json > bundle-size-report.json
+
+      - name: Upload bundle size report
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v7
+        with:
+          name: bundle-size-report-${{ github.sha }}
+          path: bundle-size-report.json
 
   # ─────────────────────────────────────────────────────────
   # Merge Protection (only on PRs)
@@ -251,6 +437,8 @@ jobs:
         rust-clippy,
         rust-tests,
         rust-build,
+        load-test,
+        bundle-size,
       ]
     steps:
       - name: All checks passed
@@ -275,6 +463,8 @@ jobs:
         rust-clippy,
         rust-tests,
         rust-build,
+        load-test,
+        bundle-size,
       ]
     steps:
       - name: Check for failures
@@ -291,7 +481,9 @@ jobs:
              [ "${{ needs.rust-format.result }}" != "success" ] || \
              [ "${{ needs.rust-clippy.result }}" != "success" ] || \
              [ "${{ needs.rust-tests.result }}" != "success" ] || \
-             [ "${{ needs.rust-build.result }}" != "success" ]; then
+             [ "${{ needs.rust-build.result }}" != "success" ] || \
+             [ "${{ needs.load-test.result }}" != "success" ] || \
+             [ "${{ needs.bundle-size.result }}" != "success" ]; then
             echo "One or more CI checks failed"
             exit 1
           fi

@@ -330,6 +330,14 @@
                   "map": [
                     {
                       "key": {
+                        "symbol": "charge_count"
+                      },
+                      "val": {
+                        "u32": 0
+                      }
+                    },
+                    {
+                      "key": {
                         "symbol": "id"
                       },
                       "val": {
@@ -413,6 +421,14 @@
                       },
                       "val": {
                         "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "total_gas_spent"
+                      },
+                      "val": {
+                        "u64": 0
                       }
                     },
                     {
@@ -1044,7 +1060,7 @@
             "data": {
               "vec": [
                 {
-                  "string": "caught panic 'Subscription not active' from contract function 'Symbol(obj#231)'"
+                  "string": "caught panic 'Subscription not active' from contract function 'Symbol(obj#277)'"
                 },
                 {
                   "u64": 1

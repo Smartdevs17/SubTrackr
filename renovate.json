@@ -1,0 +1,65 @@
+{
+  "extends": ["config:base"],
+  "packageRules": [
+    {
+      "matchUpdateTypes": ["patch"],
+      "groupName": "patch dependencies",
+      "automerge": true,
+      "automergeType": "branch"
+    },
+    {
+      "matchUpdateTypes": ["minor"],
+      "groupName": "minor dependencies",
+      "automerge": false
+    },
+    {
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "devDependencies (non-major)",
+      "automerge": true
+    },
+    {
+      "matchDepTypes": ["dependencies"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "dependencies (non-major)",
+      "automerge": false
+    },
+    {
+      "matchPackagePatterns": ["^@types/"],
+      "groupName": "type definitions",
+      "automerge": true
+    },
+    {
+      "matchPackagePatterns": ["eslint", "prettier", "typescript"],
+      "groupName": "linting and formatting",
+      "automerge": false
+    },
+    {
+      "matchPackagePatterns": ["react", "react-native", "expo"],
+      "groupName": "react and expo",
+      "automerge": false,
+      "labels": ["dependencies", "react"]
+    },
+    {
+      "matchPackagePatterns": ["@stellar", "stellar-sdk", "soroban"],
+      "groupName": "stellar dependencies",
+      "automerge": false,
+      "labels": ["dependencies", "stellar"]
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "automerge": false,
+    "labels": ["dependencies", "security"]
+  },
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "schedule": ["before 6am on monday"],
+  "timezone": "UTC",
+  "labels": ["dependencies", "renovate"],
+  "assignees": ["Smartdevs17"],
+  "reviewers": ["Smartdevs17"],
+  "semanticCommits": "enabled",
+  "semanticCommitType": "chore",
+  "semanticCommitScope": "deps"
+}

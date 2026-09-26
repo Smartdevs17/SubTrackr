@@ -30,10 +30,22 @@ describe('billingDate utilities', () => {
       const result = advanceBillingDate(startDate, BillingCycle.CUSTOM);
       expect(result.toISOString()).toBe('2024-02-15T10:00:00.000Z');
     });
+
+    it('rolls last-of-month to month end for monthly cycles', () => {
+      const start = new Date(2026, 0, 31, 10, 0, 0); // Jan 31, 2026
+      const next = advanceBillingDate(start, BillingCycle.MONTHLY);
+      expect(next).toEqual(new Date(2026, 1, 28, 10, 0, 0));
+    });
+
+    it('rolls leap-day to February 28 on a non-leap year for yearly cycles', () => {
+      const start = new Date(2024, 1, 29, 10, 0, 0); // Feb 29, 2024
+      const next = advanceBillingDate(start, BillingCycle.YEARLY);
+      expect(next).toEqual(new Date(2025, 1, 28, 10, 0, 0));
+    });
   });
 
   describe('alignBillingToDay', () => {
-    it('should align to the 1st of the month', () => {
+    it('should align to the 1st of the next month if 1st is before current day', () => {
       const baseDate = new Date('2024-01-15T10:00:00Z');
       const result = alignBillingToDay(baseDate, 1);
       expect(result.getUTCDate()).toBe(1);
