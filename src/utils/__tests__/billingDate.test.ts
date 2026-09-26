@@ -106,6 +106,12 @@ describe('billingDate utilities', () => {
     });
   });
 
+  it('advances one full year for annual cycles', () => {
+    const start = new Date(2026, 8, 15, 12, 0, 0);
+    const next = advanceBillingDate(start, BillingCycle.ANNUAL);
+    expect(next).toEqual(new Date(2027, 8, 15, 12, 0, 0));
+  });
+
   describe('calculateNextBillingDate', () => {
     it('should calculate next monthly billing with alignment', () => {
       const currentDate = new Date('2024-01-10T10:00:00Z');
