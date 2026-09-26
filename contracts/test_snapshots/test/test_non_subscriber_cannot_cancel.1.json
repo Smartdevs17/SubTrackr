@@ -308,6 +308,14 @@
                   "map": [
                     {
                       "key": {
+                        "symbol": "charge_count"
+                      },
+                      "val": {
+                        "u32": 0
+                      }
+                    },
+                    {
+                      "key": {
                         "symbol": "id"
                       },
                       "val": {
@@ -391,6 +399,14 @@
                       },
                       "val": {
                         "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "total_gas_spent"
+                      },
+                      "val": {
+                        "u64": 0
                       }
                     },
                     {
@@ -909,7 +925,7 @@
             "data": {
               "vec": [
                 {
-                  "string": "caught panic 'Only subscriber can cancel' from contract function 'Symbol(obj#171)'"
+                  "string": "caught panic 'Only subscriber can cancel' from contract function 'Symbol(obj#187)'"
                 },
                 {
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4"

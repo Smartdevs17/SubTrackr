@@ -101,6 +101,19 @@ export const CHAIN_IDS = {
   POLYGON: 137,
   /** Arbitrum Mainnet */
   ARBITRUM: 42161,
+  /** Optimism */
+  OPTIMISM: 10,
+  /** Base */
+  BASE: 8453,
+  /** Stellar (Soroban) */
+  STELLAR: 0x8000,
+} as const;
+
+export const STELLAR_CHAINS = {
+  /** Stellar Mainnet chain ID */
+  MAINNET: 0x8000,
+  /** Stellar Testnet chain ID */
+  TESTNET: 0x8001,
 } as const;
 
 // Formatting constants

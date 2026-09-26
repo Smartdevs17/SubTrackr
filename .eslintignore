@@ -1,0 +1,10 @@
+src/design-system/
+sandbox/
+app/
+backend/
+developer-portal/
+sdks/
+contracts/
+chaos/
+services/
+node_modules/

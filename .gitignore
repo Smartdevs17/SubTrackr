@@ -1,7 +1,6 @@
-# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
-
-# dependencies
+# Dependencies
 node_modules/
+pnpm-lock.yaml/
 
 # Expo
 .expo/
@@ -21,19 +20,20 @@ expo-env.d.ts
 # Metro
 .metro-health-check*
 
-# debug
+# Debug
 npm-debug.*
 yarn-debug.*
 yarn-error.*
 
-# macOS
+# macOS / Linux
 .DS_Store
 *.pem
 
-# local env files
+# Local env files
 .env*.local
+.env
 
-# typescript
+# TypeScript
 *.tsbuildinfo
 
 # Build outputs
@@ -41,14 +41,90 @@ builds/
 android/
 ios/
 
-.DS_Store
-.env
-
 # IDE / Tools
 .claude/
+.idea/
+.vscode/settings.json
+!.vscode/extensions.json
 _typechain_tmp/
 _tc_verify/
 
+# Feature flags and A/B testing data
+feature_flags_cache/
+ab_test_data/
+
+# User data and analytics
+user_analytics/
+local_user_data/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Logs
+logs/
+*.log
+
+# Coverage reports
+coverage/
+.nyc_output/
+
+# Test snapshots & generated test/lint artifacts
+**/__snapshots__/
+*.snap
+*.snap.orig
+junit.xml
+jest-results.json
+test-results/
+playwright-report/
+e2e/artifacts/
+e2e/screenshots/
+_jest-cache/
+test_output.txt
+tsc_output*.txt
+lint_output*.txt
+lint_final_error.txt
+final_lint_check.txt
+
+# Load test reports
+load-tests/reports/*
+!load-tests/reports/.gitkeep
+
+# React Native
+.expo-shared/
+
 # Build artifacts
 build_errors*.txt
-*.log
+contracts/migrations/history/*
+!contracts/migrations/history/.gitkeep
+contracts/migrations/snapshots/*
+!contracts/migrations/snapshots/.gitkeep
+
+# Rust / Soroban test snapshots
+contracts/**/test_snapshots/
+test_snapshots/
+
+# Generated / artifact files
+*.orig
+SubTrackr
+contracts/clippy_output.txt
+issue*.json
+issues_summary.json
+COMPLETION_SUMMARY.md
+RACE_CONDITION_FIX.md
+JS_BUNDLE_FIX.md
+BUILD_FIX_GUIDE.md
+PR_BODY_*.md
+PR_CI_*.md
+BUNDLE_AUDIT.md
+DESIGN_SYSTEM_INTEGRATION.md
+DESIGN_SYSTEM_IMPLEMENTATION.md
+DESIGN_SYSTEM_SETUP.md
+WCAG_COMPLIANCE.md
+FORMATTING.md
+
+# Backup / duplicate files
+*.backup
+*\ copy.*
+package.json.backup

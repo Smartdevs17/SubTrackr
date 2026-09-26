@@ -4,114 +4,119 @@ import { NavigationContainer } from '@react-navigation/native';
 import { navigationRef } from './navigationRef';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import HomeScreen from '../screens/HomeScreen';
-import AddSubscriptionScreen from '../screens/AddSubscriptionScreen';
-import WalletConnectScreen from '../screens/WalletConnectScreen';
-import CryptoPaymentScreen from '../screens/CryptoPaymentScreen';
-import SubscriptionDetailScreen from '../screens/SubscriptionDetailScreen';
-import AnalyticsScreen from '../screens/AnalyticsScreen';
-import SettingsScreen from '../screens/SettingsScreen';
-import { colors } from '../utils/constants';
+import { useTranslation } from 'react-i18next';
+import { prefetchModule } from '../utils/lazyLoading';
 import { RootStackParamList, TabParamList } from './types';
+import { useTheme } from '../theme';
+import { darkNavigationTheme, lightNavigationTheme } from '../theme/navigationTheme';
+import { NavigationErrorBoundary } from './NavigationErrorBoundary';
+
+// Import feature-based stack modules
+import {
+  SubscriptionStack,
+  AnalyticsStack,
+  SettingsStack,
+  WalletStack,
+} from './modules';
 
 const Tab = createBottomTabNavigator<TabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-const HomeStack = () => (
-  <Stack.Navigator>
-    <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
-    <Stack.Screen
-      name="AddSubscription"
-      component={AddSubscriptionScreen}
-      options={{ headerShown: false }}
-    />
-    <Stack.Screen
-      name="SubscriptionDetail"
-      component={SubscriptionDetailScreen}
-      options={{ headerShown: false }}
-    />
-    <Stack.Screen
-      name="WalletConnect"
-      component={WalletConnectScreen}
-      options={{ headerShown: false }}
-    />
-    <Stack.Screen
-      name="CryptoPayment"
-      component={CryptoPaymentScreen}
-      options={{ headerShown: false }}
-    />
+/**
+ * Root Stack Navigator encapsulating tab navigation and global modal screens.
+ */
+const RootNavigator = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="MainTabs" component={TabNavigator} />
+    <Stack.Screen name="SubscriptionStack" component={SubscriptionStack} />
+    <Stack.Screen name="AnalyticsStack" component={AnalyticsStack} />
+    <Stack.Screen name="WalletStack" component={WalletStack} />
+    <Stack.Screen name="SettingsStack" component={SettingsStack} />
   </Stack.Navigator>
 );
 
-const TabNavigator = () => (
-  <Tab.Navigator
-    screenOptions={{
-      tabBarStyle: {
-        backgroundColor: colors.surface,
-        borderTopColor: colors.border,
-        borderTopWidth: 1,
-      },
-      tabBarActiveTintColor: colors.primary,
-      tabBarInactiveTintColor: colors.textSecondary,
-      headerShown: false,
-    }}>
-    <Tab.Screen
-      name="HomeTab"
-      component={HomeStack}
-      options={{
-        tabBarLabel: 'Home',
-        tabBarIcon: ({ color, size }) => (
-          <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>🏠</Text>
-        ),
-      }}
-    />
-    <Tab.Screen
-      name="AddTab"
-      component={AddSubscriptionScreen}
-      options={{
-        tabBarLabel: 'Add',
-        tabBarIcon: ({ color, size }) => (
-          <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>➕</Text>
-        ),
-      }}
-    />
-    <Tab.Screen
-      name="WalletTab"
-      component={WalletConnectScreen}
-      options={{
-        tabBarLabel: 'Wallet',
-        tabBarIcon: ({ color, size }) => (
-          <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>🔗</Text>
-        ),
-      }}
-    />
-    <Tab.Screen
-      name="AnalyticsTab"
-      component={AnalyticsScreen}
-      options={{
-        tabBarLabel: 'Analytics',
-        tabBarIcon: ({ color, size }) => (
-          <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>📊</Text>
-        ),
-      }}
-    />
-    <Tab.Screen
-      name="SettingsTab"
-      component={SettingsScreen}
-      options={{
-        tabBarLabel: 'Settings',
-        tabBarIcon: ({ color, size }) => (
-          <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>⚙️</Text>
-        ),
-      }}
-    />
-  </Tab.Navigator>
-);
+/**
+ * Modular Bottom Tab Navigator organizing main entry points.
+ */
+const TabNavigator = () => {
+  const { t } = useTranslation();
+  const { colors } = useTheme();
 
-export const AppNavigator = () => {
   return (
-    <NavigationContainer ref={navigationRef}>
-      <TabNavigator />
-    </NavigationContainer>
+    <Tab.Navigator
+      screenOptions={{
+        tabBarStyle: {
+          backgroundColor: colors.navigation.tabBar,
+          borderTopColor: colors.navigation.tabBarBorder,
+          borderTopWidth: 1,
+        },
+        tabBarActiveTintColor: colors.navigation.activeTab,
+        tabBarInactiveTintColor: colors.navigation.inactiveTab,
+        headerShown: false,
+      }}>
+      <Tab.Screen
+        name="HomeTab"
+        component={SubscriptionStack}
+        options={{
+          tabBarLabel: t('navigation.home'),
+          tabBarIcon: ({ color, size }) => (
+            <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>🏠</Text>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="WalletTab"
+        component={WalletStack}
+        options={{
+          tabBarLabel: t('navigation.wallet'),
+          tabBarIcon: ({ color, size }) => (
+            <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>🔗</Text>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="AnalyticsTab"
+        component={AnalyticsStack}
+        options={{
+          tabBarLabel: t('navigation.analytics'),
+          tabBarIcon: ({ color, size }) => (
+            <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>📊</Text>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="SettingsTab"
+        component={SettingsStack}
+        options={{
+          tabBarLabel: t('navigation.settings'),
+          tabBarIcon: ({ color, size }) => (
+            <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>⚙️</Text>
+          ),
+        }}
+      />
+    </Tab.Navigator>
   );
 };
+
+export const AppNavigator = () => {
+  React.useEffect(() => {
+    prefetchModule('AddSubscription', () => import('../screens/AddSubscriptionScreen'));
+    prefetchModule('WalletConnect', () => import('../screens/WalletConnectV2Screen'));
+    prefetchModule('Analytics', () => import('../screens/AnalyticsScreen'));
+    prefetchModule('SubscriptionDetail', () => import('../screens/SubscriptionDetailScreen'));
+  }, []);
+
+  const { isDark } = useTheme();
+
+  return (
+    <NavigationErrorBoundary>
+      <NavigationContainer
+        ref={navigationRef}
+        theme={isDark ? darkNavigationTheme : lightNavigationTheme}>
+        <RootNavigator />
+      </NavigationContainer>
+    </NavigationErrorBoundary>
+  );
+};
+
+export default AppNavigator;

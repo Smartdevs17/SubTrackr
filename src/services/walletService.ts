@@ -1,22 +1,97 @@
 import { ethers } from 'ethers';
-import { Framework, SFError } from '@superfluid-finance/sdk-core';
+import { Framework } from '@superfluid-finance/sdk-core';
 
+import { logger } from './logging';
+import { PaymentMethodService } from './paymentMethodService';
 import { ERC20__factory, getContractAddress } from '../contracts';
-import { getEvmRpcUrl } from '../config/evm';
+import { getEvmRpcUrl, getEvmRpcUrls } from '../config/evm';
+import { getOrCreateResilientProvider } from './rpcProvider';
+import { ContractError, ContractErrorCode, NetworkError, NetworkErrorCode } from '../errors';
 import {
   TIME_CONSTANTS,
   CRYPTO_CONSTANTS,
   CHAIN_IDS,
   ADDRESS_CONSTANTS,
+  STELLAR_CHAINS,
 } from '../utils/constants/values';
+import {
+  GasEstimate,
+} from '../types/wallet';
+import { PaymentMethodService } from './paymentMethodService';
+
+// ── Structured error handling ──────────────────────────────────────
+
+export enum WalletErrorCode {
+  NOT_CONNECTED = 'WALLET_NOT_CONNECTED',
+  USER_REJECTED = 'USER_REJECTED',
+  NETWORK_MISMATCH = 'NETWORK_MISMATCH',
+  BALANCE_FETCH_FAILED = 'BALANCE_FETCH_FAILED',
+  GAS_ESTIMATION_FAILED = 'GAS_ESTIMATION_FAILED',
+  STREAM_CREATION_FAILED = 'STREAM_CREATION_FAILED',
+  APPROVAL_FAILED = 'APPROVAL_FAILED',
+  INVALID_PARAMS = 'INVALID_PARAMS',
+  UNKNOWN = 'UNKNOWN',
+}
+
+export class WalletError extends Error {
+  readonly code: WalletErrorCode;
+  readonly userMessage: string;
+  readonly recovery?: string;
+
+  constructor(code: WalletErrorCode, userMessage: string, recovery?: string, cause?: unknown) {
+    super(userMessage);
+    this.name = 'WalletError';
+    this.code = code;
+    this.userMessage = userMessage;
+    this.recovery = recovery;
+    // Preserve original stack if available
+    if (cause instanceof Error && cause.stack) {
+      this.stack = `${this.stack}\nCaused by: ${cause.stack}`;
+    }
+  }
+}
+
+// ── Error rate tracker ─────────────────────────────────────────────
+
+interface ErrorRecord {
+  count: number;
+  lastSeen: number;
+}
+
+class ErrorRateTracker {
+  private readonly counts = new Map<WalletErrorCode, ErrorRecord>();
+
+  record(code: WalletErrorCode): void {
+    const existing = this.counts.get(code);
+    if (existing) {
+      existing.count += 1;
+      existing.lastSeen = Date.now();
+    } else {
+      this.counts.set(code, { count: 1, lastSeen: Date.now() });
+    }
+  }
+
+  getStats(): Record<string, ErrorRecord> {
+    return Object.fromEntries(this.counts.entries());
+  }
+
+  reset(): void {
+    this.counts.clear();
+  }
+}
+
+export const errorTracker = new ErrorRateTracker();
 
 export interface WalletConnection {
   address: string;
   chainId: number;
+  chainType?: ChainType;
   isConnected: boolean;
   provider?: ethers.providers.Web3Provider;
   /** EIP-1193 provider from WalletConnect / AppKit — required for signing Superfluid txs */
   eip1193Provider?: ethers.providers.ExternalProvider;
+  /** Stellar-specific public key for Freighter/Soroban payments. */
+  stellarPublicKey?: string;
 }
 
 export interface TokenBalance {
@@ -43,11 +118,64 @@ export interface GasEstimate {
   estimatedCost: string;
 }
 
+/** Balances for one chain within a multi-chain fetch, or why that chain failed. */
+export interface ChainBalanceResult {
+  chainId: number;
+  balances: TokenBalance[];
+  error?: string;
+}
+
+export interface MultiChainBalances {
+  address: string;
+  results: ChainBalanceResult[];
+  /** Chains whose balances could not be read; their results are empty. */
+  failedChainIds: number[];
+}
+
 /** Result after an on-chain Superfluid CFA stream is created */
 export interface SuperfluidStreamResult {
   txHash: string;
   /** Correlates with Superfluid subgraph queries (filter by sender, receiver, token) */
   streamId: string;
+}
+
+export interface SupportedWalletChain {
+  chainType: ChainType;
+  chainId: number;
+  name: string;
+  nativeSymbol: string;
+}
+
+interface GasEstimateRequest {
+  from: string;
+  to: string;
+  value: string;
+  chainId: number;
+  userGasLimitOverride?: string;
+}
+
+interface WalletChainStrategyContext {
+  getConnection(): WalletConnection | null;
+  setConnection(connection: WalletConnection | null): void;
+  getWalletSigner(): ethers.Signer;
+}
+
+export interface WalletChainStrategy {
+  readonly chainType: ChainType;
+  supportsChain(chainId: number): boolean;
+  getSupportedChains(): SupportedWalletChain[];
+  getTokenBalances(
+    address: string,
+    chainId: number,
+    context: WalletChainStrategyContext
+  ): Promise<TokenBalance[]>;
+  estimateGas?(
+    request: GasEstimateRequest,
+    context: WalletChainStrategyContext
+  ): Promise<GasEstimate>;
+  switchChain?(chainId: number, context: WalletChainStrategyContext): Promise<WalletConnection>;
+  connect?(context: WalletChainStrategyContext): Promise<WalletConnection>;
+  getProvider?(chainId: number): ethers.providers.JsonRpcProvider;
 }
 
 const SECONDS_PER_MONTH = TIME_CONSTANTS.SECONDS_PER_MONTH;
@@ -77,23 +205,431 @@ function superTokenResolverSymbol(chainId: number, tokenSymbol: string): string 
   return `${s}x`;
 }
 
-function formatSuperfluidError(error: unknown): string {
-  if (error instanceof SFError) {
-    return error.message;
-  }
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return 'Superfluid stream creation failed';
+function toWalletError(
+  error: unknown,
+  code: WalletErrorCode,
+  userMessage: string,
+  recovery?: string
+): WalletError {
+  errorTracker.record(code);
+  // Log full detail for debugging without leaking to the user
+  logger.error(`WalletError ${code}`, { error, code, userMessage, recovery });
+  return new WalletError(code, userMessage, recovery, error);
 }
 
-// This is a hook-based service that needs to be used within React components
-// For the service layer, we'll create a different approach
+export class EvmWalletChainStrategy implements WalletChainStrategy {
+  readonly chainType = ChainType.EVM;
+
+  supportsChain(chainId: number): boolean {
+    return chainId !== CHAIN_IDS.STELLAR && chainId !== STELLAR_CHAINS.TESTNET;
+  }
+
+  getSupportedChains(): SupportedWalletChain[] {
+    return [
+      {
+        chainType: ChainType.EVM,
+        chainId: CHAIN_IDS.ETHEREUM,
+        name: 'Ethereum',
+        nativeSymbol: 'ETH',
+      },
+      {
+        chainType: ChainType.EVM,
+        chainId: CHAIN_IDS.POLYGON,
+        name: 'Polygon',
+        nativeSymbol: 'MATIC',
+      },
+      {
+        chainType: ChainType.EVM,
+        chainId: CHAIN_IDS.ARBITRUM,
+        name: 'Arbitrum',
+        nativeSymbol: 'ETH',
+      },
+      {
+        chainType: ChainType.EVM,
+        chainId: CHAIN_IDS.OPTIMISM,
+        name: 'Optimism',
+        nativeSymbol: 'ETH',
+      },
+      { chainType: ChainType.EVM, chainId: CHAIN_IDS.BASE, name: 'Base', nativeSymbol: 'ETH' },
+    ];
+  }
+
+  async getTokenBalances(address: string, chainId: number): Promise<TokenBalance[]> {
+    try {
+      const provider = this.getProvider(chainId);
+      const balances: TokenBalance[] = [];
+      const nativeBalance = await provider.getBalance(address);
+
+      balances.push({
+        symbol: getNativeSymbolForChain(chainId),
+        name: getNativeNameForChain(chainId),
+        address: ADDRESS_CONSTANTS.ZERO_ADDRESS,
+        balance: ethers.utils.formatEther(nativeBalance),
+        decimals: CRYPTO_CONSTANTS.ETH_DECIMALS,
+      });
+
+      if (isUsdcBalanceSupported(chainId)) {
+        const usdcAddress = getContractAddress(chainId, 'usdc');
+        if (!usdcAddress) {
+          return balances;
+        }
+
+        const usdcContract = ERC20__factory.connect(usdcAddress, provider);
+        try {
+          const usdcBalance = await usdcContract.balanceOf(address);
+          balances.push({
+            symbol: 'USDC',
+            name: 'USD Coin',
+            address: usdcAddress,
+            balance: ethers.utils.formatUnits(usdcBalance, CRYPTO_CONSTANTS.USDC_DECIMALS),
+            decimals: CRYPTO_CONSTANTS.USDC_DECIMALS,
+          });
+        } catch (error) {
+          logger.warn('USDC not available on this chain', { chainId, error });
+        }
+      }
+
+      return balances;
+    } catch (error) {
+      throw new NetworkError(
+        NetworkErrorCode.RPC_ERROR,
+        'Unable to fetch token balances.',
+        'Check your network connection and try again.',
+        error,
+        { chainId, address }
+      );
+    }
+  }
+
+  async estimateGas(request: GasEstimateRequest): Promise<GasEstimate> {
+    let provider: ethers.providers.JsonRpcProvider;
+    let gasPrice: ethers.BigNumber;
+
+    try {
+      provider = this.getProvider(request.chainId);
+      gasPrice = await resolveGasPrice(provider);
+    } catch (error) {
+      throw new NetworkError(
+        NetworkErrorCode.RPC_ERROR,
+        'Could not retrieve gas price.',
+        'Check your network connection and try again.',
+        error,
+        { chainId: request.chainId }
+      );
+    }
+
+    let gasLimit: ethers.BigNumber;
+
+    if (request.userGasLimitOverride) {
+      gasLimit = ethers.BigNumber.from(request.userGasLimitOverride);
+    } else {
+      try {
+        const estimated = await provider.estimateGas({
+          from: request.from,
+          to: request.to,
+          value: ethers.utils.parseEther(request.value || '0'),
+        });
+        gasLimit = estimated.mul(getGasBufferMultiplier(request.chainId)).div(100);
+      } catch (error) {
+        logger.warn('Gas estimation failed, using safe fallback', { error });
+        gasLimit = ethers.BigNumber.from(CRYPTO_CONSTANTS.FALLBACK_GAS_LIMIT);
+      }
+    }
+
+    const estimatedCost = gasPrice.mul(gasLimit);
+    return {
+      gasLimit: gasLimit.toString(),
+      gasPrice: ethers.utils.formatUnits(gasPrice, 'gwei'),
+      estimatedCost: ethers.utils.formatEther(estimatedCost),
+    };
+  }
+
+  async switchChain(
+    chainId: number,
+    context: WalletChainStrategyContext
+  ): Promise<WalletConnection> {
+    const connection = context.getConnection();
+    if (!connection?.eip1193Provider) {
+      const err = new WalletError(
+        WalletErrorCode.NOT_CONNECTED,
+        'EVM wallet is not connected.',
+        'Connect your EVM wallet and try again.'
+      );
+      errorTracker.record(WalletErrorCode.NOT_CONNECTED);
+      throw err;
+    }
+
+    const request = (
+      connection.eip1193Provider as { request?: (args: unknown) => Promise<unknown> }
+    ).request;
+    if (request) {
+      await request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: ethers.utils.hexValue(chainId) }],
+      });
+    }
+
+    const nextConnection = { ...connection, chainType: ChainType.EVM, chainId };
+    context.setConnection(nextConnection);
+    return nextConnection;
+  }
+
+  getProvider(chainId: number): ethers.providers.JsonRpcProvider {
+    const urls = resolveEvmRpcUrls(chainId);
+    if (process.env.NODE_ENV === 'test') {
+      return new ethers.providers.JsonRpcProvider(
+        urls[0],
+        chainId
+      ) as ethers.providers.JsonRpcProvider;
+    }
+    return getOrCreateResilientProvider(
+      chainId,
+      urls
+    ) as unknown as ethers.providers.JsonRpcProvider;
+  }
+}
+
+export class StellarWalletChainStrategy implements WalletChainStrategy {
+  readonly chainType = ChainType.STELLAR;
+
+  supportsChain(chainId: number): boolean {
+    return chainId === CHAIN_IDS.STELLAR || chainId === STELLAR_CHAINS.TESTNET;
+  }
+
+  getSupportedChains(): SupportedWalletChain[] {
+    return [
+      {
+        chainType: ChainType.STELLAR,
+        chainId: CHAIN_IDS.STELLAR,
+        name: 'Stellar Mainnet',
+        nativeSymbol: 'XLM',
+      },
+      {
+        chainType: ChainType.STELLAR,
+        chainId: STELLAR_CHAINS.TESTNET,
+        name: 'Stellar Testnet',
+        nativeSymbol: 'XLM',
+      },
+    ];
+  }
+
+  async getTokenBalances(address: string, chainId: number): Promise<TokenBalance[]> {
+    if (!this.supportsChain(chainId)) {
+      throw new NetworkError(
+        NetworkErrorCode.UNSUPPORTED_CHAIN,
+        `Unsupported Stellar chain ${chainId}.`,
+        'Select a supported Stellar network.'
+      );
+    }
+
+    return [
+      {
+        symbol: 'XLM',
+        name: 'Stellar Lumens',
+        address,
+        balance: '0',
+        decimals: 7,
+      },
+    ];
+  }
+
+  async estimateGas(): Promise<GasEstimate> {
+    return {
+      gasLimit: '100',
+      gasPrice: '0.00001',
+      estimatedCost: '0.001',
+    };
+  }
+
+  async connect(context: WalletChainStrategyContext): Promise<WalletConnection> {
+    const provider = resolveStellarWalletProvider();
+    if (!provider?.getPublicKey) {
+      const err = new WalletError(
+        WalletErrorCode.NOT_CONNECTED,
+        'Stellar wallet is not connected.',
+        'Install Freighter or connect a compatible Stellar wallet.'
+      );
+      errorTracker.record(WalletErrorCode.NOT_CONNECTED);
+      throw err;
+    }
+
+    const publicKey = await provider.getPublicKey();
+    const connection: WalletConnection = {
+      address: publicKey,
+      stellarPublicKey: publicKey,
+      chainId: CHAIN_IDS.STELLAR,
+      chainType: ChainType.STELLAR,
+      isConnected: true,
+    };
+    context.setConnection(connection);
+    return connection;
+  }
+
+  async switchChain(
+    chainId: number,
+    context: WalletChainStrategyContext
+  ): Promise<WalletConnection> {
+    if (!this.supportsChain(chainId)) {
+      throw new NetworkError(
+        NetworkErrorCode.UNSUPPORTED_CHAIN,
+        `Unsupported Stellar chain ${chainId}.`,
+        'Select a supported Stellar network.'
+      );
+    }
+
+    const connection = context.getConnection();
+    if (!connection?.stellarPublicKey && !isStellarPublicKey(connection?.address)) {
+      return this.connect(context);
+    }
+
+    const nextConnection: WalletConnection = {
+      address: connection?.stellarPublicKey ?? connection?.address ?? '',
+      stellarPublicKey: connection?.stellarPublicKey ?? connection?.address,
+      chainId,
+      chainType: ChainType.STELLAR,
+      isConnected: true,
+    };
+    context.setConnection(nextConnection);
+    return nextConnection;
+  }
+}
+
+export class WalletChainStrategyRegistry {
+  private readonly strategies = new Map<ChainType, WalletChainStrategy>();
+
+  constructor(strategies: WalletChainStrategy[] = []) {
+    strategies.forEach((strategy) => this.registerStrategy(strategy));
+  }
+
+  registerStrategy(strategy: WalletChainStrategy): void {
+    this.strategies.set(strategy.chainType, strategy);
+  }
+
+  getStrategy(chainType: ChainType): WalletChainStrategy {
+    const strategy = this.strategies.get(chainType);
+    if (!strategy) {
+      throw new Error(`No wallet chain strategy registered for ${chainType}`);
+    }
+    return strategy;
+  }
+
+  getStrategyForChain(chainId: number): WalletChainStrategy {
+    for (const strategy of this.strategies.values()) {
+      if (strategy.supportsChain(chainId)) {
+        return strategy;
+      }
+    }
+    throw new NetworkError(
+      NetworkErrorCode.UNSUPPORTED_CHAIN,
+      `Unsupported chain ${chainId}.`,
+      'Select a supported payment network.'
+    );
+  }
+
+  getSupportedChains(): SupportedWalletChain[] {
+    return [...this.strategies.values()].flatMap((strategy) => strategy.getSupportedChains());
+  }
+}
+
+export function createDefaultWalletChainStrategyRegistry(): WalletChainStrategyRegistry {
+  return new WalletChainStrategyRegistry([
+    new EvmWalletChainStrategy(),
+    new StellarWalletChainStrategy(),
+  ]);
+}
+
+function resolveEvmRpcUrls(chainId: number): string[] {
+  try {
+    if (typeof getEvmRpcUrls === 'function') {
+      const configured = getEvmRpcUrls(chainId);
+      if (Array.isArray(configured) && configured.length > 0) {
+        return configured;
+      }
+      if (typeof configured === 'string') {
+        return [configured];
+      }
+    }
+  } catch {
+    // Fall through to the legacy single-url resolver.
+  }
+
+  return [getEvmRpcUrl(chainId)];
+}
+
+function isUsdcBalanceSupported(chainId: number): boolean {
+  return (
+    chainId === CHAIN_IDS.ETHEREUM ||
+    chainId === CHAIN_IDS.POLYGON ||
+    chainId === CHAIN_IDS.ARBITRUM
+  );
+}
+
+function getGasBufferMultiplier(chainId: number): number {
+  return chainId === CHAIN_IDS.POLYGON
+    ? CRYPTO_CONSTANTS.POLYGON_GAS_BUFFER_MULTIPLIER
+    : CRYPTO_CONSTANTS.DEFAULT_GAS_BUFFER_MULTIPLIER;
+}
+
+async function resolveGasPrice(
+  provider: ethers.providers.JsonRpcProvider
+): Promise<ethers.BigNumber> {
+  if (typeof provider.getFeeData === 'function') {
+    const feeData = await provider.getFeeData();
+    return feeData.maxFeePerGas ?? feeData.gasPrice ?? ethers.BigNumber.from(0);
+  }
+
+  if (typeof provider.getGasPrice === 'function') {
+    return provider.getGasPrice();
+  }
+
+  return ethers.BigNumber.from(0);
+}
+
+function getNativeSymbolForChain(chainId: number): string {
+  const symbols: Record<number, string> = {
+    [CHAIN_IDS.ETHEREUM]: 'ETH',
+    [CHAIN_IDS.POLYGON]: 'MATIC',
+    [CHAIN_IDS.ARBITRUM]: 'ETH',
+    [CHAIN_IDS.OPTIMISM]: 'ETH',
+    [CHAIN_IDS.BASE]: 'ETH',
+  };
+  return symbols[chainId] || 'ETH';
+}
+
+function getNativeNameForChain(chainId: number): string {
+  const names: Record<number, string> = {
+    [CHAIN_IDS.ETHEREUM]: 'Ethereum',
+    [CHAIN_IDS.POLYGON]: 'Polygon',
+    [CHAIN_IDS.ARBITRUM]: 'Arbitrum',
+    [CHAIN_IDS.OPTIMISM]: 'Optimism',
+    [CHAIN_IDS.BASE]: 'Base',
+  };
+  return names[chainId] || 'Ethereum';
+}
+
+function resolveStellarWalletProvider(): any {
+  const globalWallets = globalThis as {
+    freighterApi?: any;
+    freighter?: any;
+    stellar?: any;
+  };
+
+  return globalWallets.freighterApi ?? globalWallets.freighter ?? globalWallets.stellar ?? null;
+}
+
+function isStellarPublicKey(value: string | undefined): boolean {
+  return typeof value === 'string' && value.startsWith('G') && value.length === 56;
+}
 
 export class WalletServiceManager {
   private static instance: WalletServiceManager;
   private connection: WalletConnection | null = null;
   private listeners: ((connection: WalletConnection | null) => void)[] = [];
+  private readonly strategyRegistry: WalletChainStrategyRegistry;
+
+  constructor(strategyRegistry = createDefaultWalletChainStrategyRegistry()) {
+    this.strategyRegistry = strategyRegistry;
+  }
 
   static getInstance(): WalletServiceManager {
     if (!WalletServiceManager.instance) {
@@ -104,9 +640,9 @@ export class WalletServiceManager {
 
   async initialize(): Promise<void> {
     try {
-      console.log('WalletServiceManager initialized successfully');
+      logger.info('WalletServiceManager initialized successfully');
     } catch (error) {
-      console.error('Failed to initialize WalletServiceManager:', error);
+      logger.error('Failed to initialize WalletServiceManager', { error });
       throw error;
     }
   }
@@ -139,61 +675,17 @@ export class WalletServiceManager {
     try {
       this.connection = null;
       this.notifyListeners();
-      console.log('Wallet disconnected');
+      logger.info('Wallet disconnected');
     } catch (error) {
-      console.error('Failed to disconnect wallet:', error);
+      logger.error('Failed to disconnect wallet', { error });
       throw error;
     }
   }
 
   async getTokenBalances(address: string, chainId: number): Promise<TokenBalance[]> {
-    try {
-      const provider = this.getProvider(chainId);
-      const balances: TokenBalance[] = [];
-
-      // Get native token balance (ETH, MATIC, etc.)
-      const nativeBalance = await provider.getBalance(address);
-      const nativeSymbol = this.getNativeSymbol(chainId);
-
-      balances.push({
-        symbol: nativeSymbol,
-        name: this.getNativeName(chainId),
-        address: '0x0000000000000000000000000000000000000000',
-        balance: ethers.utils.formatEther(nativeBalance),
-        decimals: CRYPTO_CONSTANTS.ETH_DECIMALS,
-      });
-
-      // Get USDC balance if on supported chains
-      if (
-        chainId === CHAIN_IDS.ETHEREUM ||
-        chainId === CHAIN_IDS.POLYGON ||
-        chainId === CHAIN_IDS.ARBITRUM
-      ) {
-        const usdcAddress = getContractAddress(chainId, 'usdc');
-        if (!usdcAddress) {
-          return balances;
-        }
-        const usdcContract = ERC20__factory.connect(usdcAddress, provider);
-
-        try {
-          const usdcBalance = await usdcContract.balanceOf(address);
-          balances.push({
-            symbol: 'USDC',
-            name: 'USD Coin',
-            address: usdcAddress,
-            balance: ethers.utils.formatUnits(usdcBalance, CRYPTO_CONSTANTS.USDC_DECIMALS),
-            decimals: CRYPTO_CONSTANTS.USDC_DECIMALS,
-          });
-        } catch {
-          console.log('USDC not available on this chain');
-        }
-      }
-
-      return balances;
-    } catch (error) {
-      console.error('Failed to get token balances:', error);
-      throw error;
-    }
+    return this.strategyRegistry
+      .getStrategyForChain(chainId)
+      .getTokenBalances(address, chainId, this);
   }
 
   async estimateGas(
@@ -203,47 +695,28 @@ export class WalletServiceManager {
     chainId: number,
     userGasLimitOverride?: string
   ): Promise<GasEstimate> {
-    const provider = this.getProvider(chainId);
-
-    // Use getFeeData for EIP-1559 support
-    const feeData = await provider.getFeeData();
-    const gasPrice = feeData.maxFeePerGas ?? feeData.gasPrice ?? ethers.BigNumber.from(0);
-
-    let gasLimit: ethers.BigNumber;
-
-    if (userGasLimitOverride) {
-      gasLimit = ethers.BigNumber.from(userGasLimitOverride);
-    } else {
-      try {
-        const estimated = await provider.estimateGas({
-          from,
-          to,
-          value: ethers.utils.parseEther(value || '0'),
-        });
-        // Network-specific buffer: higher for Polygon due to congestion variability
-        const bufferMultiplier =
-          chainId === CHAIN_IDS.POLYGON
-            ? CRYPTO_CONSTANTS.POLYGON_GAS_BUFFER_MULTIPLIER
-            : CRYPTO_CONSTANTS.DEFAULT_GAS_BUFFER_MULTIPLIER;
-        gasLimit = estimated.mul(bufferMultiplier).div(100);
-      } catch (err) {
-        console.warn('Gas estimation failed, using safe fallback:', err);
-        gasLimit = ethers.BigNumber.from(CRYPTO_CONSTANTS.FALLBACK_GAS_LIMIT);
-      }
+    const strategy = this.strategyRegistry.getStrategyForChain(chainId);
+    if (!strategy.estimateGas) {
+      throw new NetworkError(
+        NetworkErrorCode.UNSUPPORTED_CHAIN,
+        `Gas estimation is not supported for chain ${chainId}.`,
+        'Select an EVM-compatible network.'
+      );
     }
 
-    const estimatedCost = gasPrice.mul(gasLimit);
-    return {
-      gasLimit: gasLimit.toString(),
-      gasPrice: ethers.utils.formatUnits(gasPrice, 'gwei'),
-      estimatedCost: ethers.utils.formatEther(estimatedCost),
-    };
+    return strategy.estimateGas({ from, to, value, chainId, userGasLimitOverride }, this);
   }
 
-  private getWalletSigner(): ethers.Signer {
+  getWalletSigner(): ethers.Signer {
     const conn = this.connection;
     if (!conn?.eip1193Provider) {
-      throw new Error('Wallet is not connected or does not expose a signing provider.');
+      const err = new WalletError(
+        WalletErrorCode.NOT_CONNECTED,
+        'EVM wallet is not connected.',
+        'Connect your EVM wallet and try again.'
+      );
+      errorTracker.record(WalletErrorCode.NOT_CONNECTED);
+      throw err;
     }
     const web3Provider = new ethers.providers.Web3Provider(conn.eip1193Provider);
     return web3Provider.getSigner();
@@ -372,10 +845,19 @@ export class WalletServiceManager {
       };
     } catch (error) {
       if (isUserRejectedError(error)) {
-        throw new Error('Transaction was rejected in your wallet.');
+        errorTracker.record(WalletErrorCode.USER_REJECTED);
+        throw new WalletError(
+          WalletErrorCode.USER_REJECTED,
+          'Transaction was rejected in your wallet.',
+          'Open your wallet and approve the transaction to continue.'
+        );
       }
-      console.error('Failed to create Superfluid stream:', error);
-      throw new Error(formatSuperfluidError(error));
+      throw toWalletError(
+        error,
+        WalletErrorCode.STREAM_CREATION_FAILED,
+        'Stream creation failed.',
+        'Check your token balance and try again.'
+      );
     }
   }
 
@@ -411,7 +893,10 @@ export class WalletServiceManager {
 
       // 2. Ensure Allowance (approve exact amount if insufficient)
       const owner = await signer.getAddress();
-      const currentAllowance: ethers.BigNumber = await erc20.allowance(owner, SABLIER_V2_LOCKUP_LINEAR);
+      const currentAllowance: ethers.BigNumber = await erc20.allowance(
+        owner,
+        SABLIER_V2_LOCKUP_LINEAR
+      );
       if (currentAllowance.lt(amountBn)) {
         const txApprove = await erc20.approve(SABLIER_V2_LOCKUP_LINEAR, amountBn);
         await txApprove.wait();
@@ -452,10 +937,19 @@ export class WalletServiceManager {
       return receipt.transactionHash;
     } catch (error) {
       if (isUserRejectedError(error)) {
-        throw new Error('Transaction was rejected in your wallet.');
+        errorTracker.record(WalletErrorCode.USER_REJECTED);
+        throw new WalletError(
+          WalletErrorCode.USER_REJECTED,
+          'Transaction was rejected in your wallet.',
+          'Open your wallet and approve the transaction to continue.'
+        );
       }
-      console.error('Failed to create Sablier stream:', error);
-      throw error;
+      throw toWalletError(
+        error,
+        WalletErrorCode.STREAM_CREATION_FAILED,
+        'Stream creation failed.',
+        'Check your token balance and allowance, then try again.'
+      );
     }
   }
 
@@ -484,13 +978,18 @@ export class WalletServiceManager {
     chainId: number
   ): Promise<GasEstimate> {
     const provider = this.getProvider(chainId);
-    const feeData = await provider.getFeeData();
-    const gasPrice = feeData.maxFeePerGas ?? feeData.gasPrice ?? ethers.BigNumber.from(0);
+    const gasPrice = await resolveGasPrice(provider);
 
     const erc20Abi = ['function approve(address spender, uint256 amount) returns (bool)'];
     const conn = this.connection;
     if (!conn?.eip1193Provider) {
-      throw new Error('Wallet is not connected for gas estimation.');
+      const err = new WalletError(
+        WalletErrorCode.NOT_CONNECTED,
+        'EVM wallet is not connected.',
+        'Connect your EVM wallet and try again.'
+      );
+      errorTracker.record(WalletErrorCode.NOT_CONNECTED);
+      throw err;
     }
     const web3Provider = new ethers.providers.Web3Provider(conn.eip1193Provider);
     const signer = web3Provider.getSigner();
@@ -499,13 +998,9 @@ export class WalletServiceManager {
     let gasLimit: ethers.BigNumber;
     try {
       const estimated = await erc20WithSigner.estimateGas.approve(spender, amount);
-      const bufferMultiplier =
-        chainId === CHAIN_IDS.POLYGON
-          ? CRYPTO_CONSTANTS.POLYGON_GAS_BUFFER_MULTIPLIER
-          : CRYPTO_CONSTANTS.DEFAULT_GAS_BUFFER_MULTIPLIER;
-      gasLimit = estimated.mul(bufferMultiplier).div(100);
+      gasLimit = estimated.mul(getGasBufferMultiplier(chainId)).div(100);
     } catch (err) {
-      console.warn('Approve gas estimation failed, using fallback:', err);
+      logger.warn('Approve gas estimation failed, using fallback', { error: err });
       gasLimit = ethers.BigNumber.from(CRYPTO_CONSTANTS.FALLBACK_GAS_LIMIT);
     }
 
@@ -521,24 +1016,60 @@ export class WalletServiceManager {
    * Performs an ERC20 approve for `spender` and waits for mining.
    * Returns transaction hash.
    */
-  async approveErc20(
-    token: string,
-    spender: string,
-    amount: ethers.BigNumberish
-  ): Promise<string> {
+  async approveErc20(token: string, spender: string, amount: ethers.BigNumberish): Promise<string> {
     const signer = this.getWalletSigner();
     const erc20Abi = ['function approve(address spender, uint256 amount) returns (bool)'];
     const erc20 = new ethers.Contract(token, erc20Abi, signer);
-    const tx = await erc20.approve(spender, amount);
-    const receipt = await tx.wait();
-    if (!receipt?.transactionHash) {
-      throw new Error('Approval transaction mined without a hash');
+    try {
+      const tx = await erc20.approve(spender, amount);
+      const receipt = await tx.wait();
+      if (!receipt?.transactionHash) {
+        throw new Error('Approval transaction mined without a hash');
+      }
+      return receipt.transactionHash;
+    } catch (error) {
+      if (isUserRejectedError(error)) {
+        errorTracker.record(WalletErrorCode.USER_REJECTED);
+        throw new WalletError(
+          WalletErrorCode.USER_REJECTED,
+          'Approval was rejected in your wallet.',
+          'Open your wallet and approve the request to continue.'
+        );
+      }
+      throw new ContractError(
+        ContractErrorCode.EXECUTION_FAILED,
+        'Token approval failed.',
+        'Check your wallet connection and try again.',
+        error
+      );
     }
-    return receipt.transactionHash;
   }
 
-  private getProvider(chainId: number): ethers.providers.JsonRpcProvider {
-    return new ethers.providers.JsonRpcProvider(getEvmRpcUrl(chainId));
+  getProvider(chainId: number): ethers.providers.JsonRpcProvider {
+    const strategy = this.strategyRegistry.getStrategy(ChainType.EVM);
+    if (!strategy.getProvider) {
+      throw new NetworkError(
+        NetworkErrorCode.UNSUPPORTED_CHAIN,
+        'EVM provider strategy is not registered.',
+        'Restart the app and try again.'
+      );
+    }
+    return strategy.getProvider(chainId);
+  }
+
+  private async resolveGasPrice(
+    provider: ethers.providers.JsonRpcProvider
+  ): Promise<ethers.BigNumber> {
+    if (typeof provider.getFeeData === 'function') {
+      const feeData = await provider.getFeeData();
+      return feeData.maxFeePerGas ?? feeData.gasPrice ?? ethers.BigNumber.from(0);
+    }
+
+    if (typeof provider.getGasPrice === 'function') {
+      return provider.getGasPrice();
+    }
+
+    return ethers.BigNumber.from(0);
   }
 
   private getNativeSymbol(chainId: number): string {
@@ -559,11 +1090,415 @@ export class WalletServiceManager {
     return names[chainId] || 'Ethereum';
   }
 
+  getSupportedChains(): SupportedWalletChain[] {
+    return this.strategyRegistry.getSupportedChains();
+  }
+
+  getStellarProvider(): any {
+    return resolveStellarWalletProvider();
+  }
+
+  async connectStellarWallet(): Promise<WalletConnection> {
+    const strategy = this.strategyRegistry.getStrategy(ChainType.STELLAR);
+    if (!strategy.connect) {
+      throw new WalletError(
+        WalletErrorCode.NOT_CONNECTED,
+        'Stellar wallet support is not available.',
+        'Restart the app and try again.'
+      );
+    }
+    return strategy.connect(this);
+  }
+
+  async switchChain(chainType: ChainType, chainId: number): Promise<WalletConnection> {
+    const strategy = this.strategyRegistry.getStrategy(chainType);
+    if (!strategy.switchChain) {
+      throw new NetworkError(
+        NetworkErrorCode.UNSUPPORTED_CHAIN,
+        `Chain switching is not supported for ${chainType}.`,
+        'Select a supported payment network.'
+      );
+    }
+    return strategy.switchChain(chainId, this);
+  }
+
   isConnected(): boolean {
     return this.connection?.isConnected || false;
   }
+
+  private resolveChainType(chainId: number): ChainType {
+    return this.strategyRegistry.getStrategyForChain(chainId).chainType;
+  }
+
+  /**
+   * Fetches balances across several chains at once, for the unified
+   * multi-chain view (see `multiChainSubscriptionService`).
+   *
+   * One unreachable chain must not blank the whole view, so failures are
+   * reported per chain instead of rejecting the call. Requests run in parallel
+   * because a serial walk over a handful of RPCs is the slowest thing on the
+   * balances screen.
+   */
+  async getBalancesAcrossChains(address: string, chainIds: number[]): Promise<MultiChainBalances> {
+    const settled = await Promise.all(
+      chainIds.map(async (chainId): Promise<ChainBalanceResult> => {
+        try {
+          return { chainId, balances: await this.getTokenBalances(address, chainId) };
+        } catch (error) {
+          return {
+            chainId,
+            balances: [],
+            error: error instanceof Error ? error.message : String(error),
+          };
+        }
+      })
+    );
+
+    return {
+      address,
+      results: settled,
+      failedChainIds: settled.filter((r) => r.error !== undefined).map((r) => r.chainId),
+    };
+  }
+
+  /**
+   * Total holdings of one token across chains, keyed by chain id.
+   *
+   * Balances stay per chain rather than being summed: the same symbol on two
+   * chains is not fungible, and a single figure would imply it is.
+   */
+  static totalsBySymbol(balances: MultiChainBalances, symbol: string): Record<number, number> {
+    const wanted = symbol.toUpperCase();
+    const totals: Record<number, number> = {};
+    for (const result of balances.results) {
+      const match = result.balances.find((b) => b.symbol.toUpperCase() === wanted);
+      if (match) {
+        const parsed = Number(match.balance);
+        totals[result.chainId] = Number.isFinite(parsed) ? parsed : 0;
+      }
+    }
+    return totals;
+  }
 }
 
-// Export singleton instance
+// ── Payment method management ───────────────────────────────────────
+//
+// All payment-method types, errors, and the service class live in
+// paymentMethodService.ts.  Re-export them from here so existing imports of
+// walletService keep working unchanged.
+
+export {
+  PaymentMethodErrorCode,
+  PaymentMethodError,
+  PaymentMethodService,
+} from './paymentMethodService';
+export type { PaymentMethodExpiryCheck, ChainPaymentResult } from './paymentMethodService';
+
+// Export singleton instances
 export const walletServiceManager = WalletServiceManager.getInstance();
+export const paymentMethodService = PaymentMethodService.getInstance();
 export default walletServiceManager;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Issue #922 — Payment Method Management with Fallback Chains
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Health status of a single payment method in a fallback chain.
+ */
+export interface PaymentMethodHealth {
+  methodId: string;
+  /** Fraction of recent attempts that succeeded (0–1). */
+  successRate: number;
+  /** Average latency of the last N authorizations in ms. */
+  avgLatencyMs: number;
+  /** Whether the method is currently considered healthy. */
+  healthy: boolean;
+  /** ISO-8601 timestamp of the last successful authorization. */
+  lastSuccessAt: string | null;
+  /** Consecutive failure count since the last success. */
+  consecutiveFailures: number;
+}
+
+/**
+ * Snapshot of the health of every method in a fallback chain.
+ */
+export interface FallbackChainHealthSnapshot {
+  chainId: string;
+  checkedAt: string;
+  methods: PaymentMethodHealth[];
+  /** Overall chain health: green when all methods are healthy. */
+  overallStatus: 'green' | 'yellow' | 'red';
+}
+
+/**
+ * Policy that governs automatic rotation of the primary payment method
+ * within a fallback chain.
+ */
+export interface PaymentMethodRotationPolicy {
+  chainId: string;
+  /** Rotate if the primary method fails this many times in a row. */
+  failureThreshold: number;
+  /** How long (ms) to keep the rotated method as primary before reverting. */
+  cooldownMs: number;
+  /** Whether rotation is enabled. */
+  enabled: boolean;
+  /** Method that is currently promoted due to rotation (null = original). */
+  activePromotedMethodId: string | null;
+  promotedAt: string | null;
+}
+
+/**
+ * Result of a smart fallback selection run.
+ */
+export interface SmartFallbackSelection {
+  selectedMethodId: string;
+  reasoning: string;
+  fallbackOrder: string[];
+  estimatedSuccessRate: number;
+}
+
+/**
+ * Monitors the health of payment methods across all fallback chains and
+ * applies automatic rotation policies.
+ *
+ * Usage:
+ *   const monitor = FallbackChainHealthMonitor.getInstance();
+ *   const snapshot = monitor.snapshotChainHealth(chainId, methods, attempts);
+ *   monitor.applyRotationPolicy(policy, snapshot);
+ */
+export class FallbackChainHealthMonitor {
+  private static instance: FallbackChainHealthMonitor;
+  private readonly rotationPolicies = new Map<string, PaymentMethodRotationPolicy>();
+
+  static getInstance(): FallbackChainHealthMonitor {
+    if (!FallbackChainHealthMonitor.instance) {
+      FallbackChainHealthMonitor.instance = new FallbackChainHealthMonitor();
+    }
+    return FallbackChainHealthMonitor.instance;
+  }
+
+  /**
+   * Compute health for every method referenced by the given chain.
+   *
+   * @param chainId        Identifier of the fallback chain.
+   * @param methodIds      Ordered method IDs in the chain.
+   * @param recentAttempts Recent payment attempts (all methods, newest first).
+   * @param windowMs       Look-back window (default 24 h).
+   */
+  snapshotChainHealth(
+    chainId: string,
+    methodIds: string[],
+    recentAttempts: Array<{
+      paymentMethodId: string;
+      success: boolean;
+      timestamp: Date;
+      latencyMs?: number;
+    }>,
+    windowMs = 86_400_000
+  ): FallbackChainHealthSnapshot {
+    const cutoff = Date.now() - windowMs;
+    const now = new Date().toISOString();
+
+    const methodHealths: PaymentMethodHealth[] = methodIds.map((methodId) => {
+      const relevant = recentAttempts.filter(
+        (a) => a.paymentMethodId === methodId && a.timestamp.getTime() >= cutoff
+      );
+
+      const total = relevant.length;
+      const successes = relevant.filter((a) => a.success).length;
+      const successRate = total === 0 ? 1 : successes / total;
+
+      const latencies = relevant.filter((a) => a.latencyMs != null).map((a) => a.latencyMs!);
+      const avgLatencyMs =
+        latencies.length === 0 ? 0 : latencies.reduce((s, l) => s + l, 0) / latencies.length;
+
+      // Count consecutive failures from the newest attempt backwards.
+      let consecutiveFailures = 0;
+      for (const attempt of relevant) {
+        if (!attempt.success) {
+          consecutiveFailures += 1;
+        } else {
+          break;
+        }
+      }
+
+      const lastSuccess = relevant.find((a) => a.success);
+      const lastSuccessAt = lastSuccess ? lastSuccess.timestamp.toISOString() : null;
+
+      // Unhealthy when success rate < 50 % or 3+ consecutive failures.
+      const healthy = successRate >= 0.5 && consecutiveFailures < 3;
+
+      return {
+        methodId,
+        successRate,
+        avgLatencyMs,
+        healthy,
+        lastSuccessAt,
+        consecutiveFailures,
+      };
+    });
+
+    const healthyCount = methodHealths.filter((m) => m.healthy).length;
+    const overallStatus: FallbackChainHealthSnapshot['overallStatus'] =
+      healthyCount === methodHealths.length
+        ? 'green'
+        : healthyCount > 0
+          ? 'yellow'
+          : 'red';
+
+    return { chainId, checkedAt: now, methods: methodHealths, overallStatus };
+  }
+
+  /**
+   * Register or update a rotation policy for a chain.
+   */
+  setRotationPolicy(policy: PaymentMethodRotationPolicy): void {
+    this.rotationPolicies.set(policy.chainId, { ...policy });
+  }
+
+  getRotationPolicy(chainId: string): PaymentMethodRotationPolicy | null {
+    return this.rotationPolicies.get(chainId) ?? null;
+  }
+
+  /**
+   * Apply the rotation policy for a chain given its current health snapshot.
+   * Returns the (possibly updated) policy — callers should persist any changes.
+   */
+  applyRotationPolicy(
+    policy: PaymentMethodRotationPolicy,
+    snapshot: FallbackChainHealthSnapshot
+  ): PaymentMethodRotationPolicy {
+    if (!policy.enabled) return policy;
+
+    const updated = { ...policy };
+
+    // Check if the cooldown has expired and we should revert the promoted method.
+    if (updated.activePromotedMethodId && updated.promotedAt) {
+      const promotedMs = Date.now() - new Date(updated.promotedAt).getTime();
+      if (promotedMs >= updated.cooldownMs) {
+        updated.activePromotedMethodId = null;
+        updated.promotedAt = null;
+      }
+    }
+
+    // Find the primary method health (first in chain).
+    const primaryHealth = snapshot.methods[0];
+    if (!primaryHealth) return updated;
+
+    // Trigger rotation if primary is unhealthy beyond the threshold.
+    if (
+      primaryHealth.consecutiveFailures >= policy.failureThreshold &&
+      updated.activePromotedMethodId === null
+    ) {
+      // Promote the first healthy backup.
+      const backup = snapshot.methods.slice(1).find((m) => m.healthy);
+      if (backup) {
+        updated.activePromotedMethodId = backup.methodId;
+        updated.promotedAt = new Date().toISOString();
+        this.rotationPolicies.set(policy.chainId, updated);
+      }
+    }
+
+    return updated;
+  }
+}
+
+/**
+ * Selects the best fallback method based on historical success rates,
+ * current health and network conditions.
+ */
+export class SmartFallbackSelector {
+  private static instance: SmartFallbackSelector;
+  private readonly monitor = FallbackChainHealthMonitor.getInstance();
+
+  static getInstance(): SmartFallbackSelector {
+    if (!SmartFallbackSelector.instance) {
+      SmartFallbackSelector.instance = new SmartFallbackSelector();
+    }
+    return SmartFallbackSelector.instance;
+  }
+
+  /**
+   * Returns the recommended method order for a given chain execution.
+   *
+   * @param chainMethodIds  Original ordered method IDs in the chain.
+   * @param healthSnapshot  Current health for each method.
+   * @param rotationPolicy  Optional active rotation policy.
+   */
+  selectFallbackOrder(
+    chainMethodIds: string[],
+    healthSnapshot: FallbackChainHealthSnapshot,
+    rotationPolicy?: PaymentMethodRotationPolicy | null
+  ): SmartFallbackSelection {
+    // Build a health map for O(1) lookup.
+    const healthMap = new Map(healthSnapshot.methods.map((m) => [m.methodId, m]));
+
+    // Start from the original order.
+    let ordered = [...chainMethodIds];
+
+    // Apply rotation: if a promoted method exists, push it to the front.
+    if (rotationPolicy?.activePromotedMethodId) {
+      const promoted = rotationPolicy.activePromotedMethodId;
+      ordered = [promoted, ...ordered.filter((id) => id !== promoted)];
+    }
+
+    // Re-rank: unhealthy methods sink to the back while preserving relative
+    // order among healthy and unhealthy groups.
+    const healthy: string[] = [];
+    const unhealthy: string[] = [];
+    for (const id of ordered) {
+      const h = healthMap.get(id);
+      if (h && !h.healthy) {
+        unhealthy.push(id);
+      } else {
+        healthy.push(id);
+      }
+    }
+
+    const fallbackOrder = [...healthy, ...unhealthy];
+    const selectedMethodId = fallbackOrder[0];
+    const selectedHealth = healthMap.get(selectedMethodId);
+    const estimatedSuccessRate = selectedHealth?.successRate ?? 0.9;
+
+    let reasoning = `Selected method ${selectedMethodId}`;
+    if (rotationPolicy?.activePromotedMethodId === selectedMethodId) {
+      reasoning += ' (rotation policy active)';
+    } else if (selectedHealth && !selectedHealth.healthy) {
+      reasoning += ' (all methods degraded; using least-worst option)';
+    } else {
+      reasoning += ' (highest health score)';
+    }
+
+    return { selectedMethodId, reasoning, fallbackOrder, estimatedSuccessRate };
+  }
+}
+
+/**
+ * Simple diagnostic utility: builds a human-readable summary of chain
+ * health for display in the PaymentMethodsScreen.
+ */
+export function buildFallbackChainDiagnosticReport(
+  snapshot: FallbackChainHealthSnapshot,
+  selection: SmartFallbackSelection
+): string {
+  const lines: string[] = [
+    `Chain: ${snapshot.chainId}  |  Status: ${snapshot.overallStatus.toUpperCase()}`,
+    `Checked: ${new Date(snapshot.checkedAt).toLocaleString()}`,
+    '',
+    'Method health:',
+  ];
+
+  for (const m of snapshot.methods) {
+    const status = m.healthy ? '✅' : '⚠️ ';
+    const rate = `${(m.successRate * 100).toFixed(0)}%`;
+    const latency = m.avgLatencyMs > 0 ? `${m.avgLatencyMs.toFixed(0)} ms avg` : 'no data';
+    lines.push(`  ${status} ${m.methodId}  ${rate} success  ${latency}`);
+  }
+
+  lines.push('');
+  lines.push(`Smart selection: ${selection.selectedMethodId}`);
+  lines.push(`Reasoning: ${selection.reasoning}`);
+
+  return lines.join('\n');
+}

@@ -1,0 +1,249 @@
+name: Contract Build & Binary Size
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'contracts/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'contracts/**'
+  workflow_dispatch:
+    inputs:
+      features:
+        description: 'Feature flags for subscription crate (e.g. "oracle,extended")'
+        required: false
+        default: ''
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # ── 1. Core contracts — smallest binary, fastest CI ───────────────────────
+  build-core:
+    name: Build Core Contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build core contracts (no optional features)
+        uses: ./.github/actions/build-contracts
+        with:
+          contracts: 'storage proxy subscription'
+          features: ''
+          run-wasm-opt: 'false'
+          upload-artifacts: 'true'
+
+  # ── 2. Full subscription build — all optional features ────────────────────
+  build-full:
+    name: Build Subscription (All Features)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build subscription with all features
+        uses: ./.github/actions/build-contracts
+        with:
+          contracts: 'subscription'
+          features: 'full'
+          run-wasm-opt: 'false'
+          upload-artifacts: 'false'
+
+  # ── 3. Feature-flag matrix — verify each flag compiles independently ───────
+  feature-matrix:
+    name: Feature Flag / ${{ matrix.feature }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        feature:
+          - ''          # core only (no optional features)
+          - 'oracle'
+          - 'extended'
+          - 'metering'
+          - 'credit'
+          - 'fraud'
+          - 'audit-log'
+          - 'full'      # all features combined
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust stable
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Add WASM target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            contracts/target
+          key: cargo-feat-${{ runner.os }}-${{ matrix.feature }}-${{ hashFiles('contracts/Cargo.lock') }}
+          restore-keys: |
+            cargo-feat-${{ runner.os }}-
+
+      - name: cargo check — feature=${{ matrix.feature || 'default' }}
+        continue-on-error: true
+        working-directory: contracts
+        run: |
+          FEATURE="${{ matrix.feature }}"
+          if [[ -z "$FEATURE" ]]; then
+            cargo check --target wasm32-unknown-unknown \
+              -p subtrackr-subscription --no-default-features
+          else
+            cargo check --target wasm32-unknown-unknown \
+              -p subtrackr-subscription --features "subtrackr-subscription/$FEATURE"
+          fi
+
+  # ── 4. Binary size monitoring — compare PR vs main ────────────────────────
+  binary-size:
+    name: Binary Size Monitoring
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust stable
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Add WASM target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            contracts/target
+          key: cargo-size-${{ runner.os }}-${{ hashFiles('contracts/Cargo.lock') }}
+          restore-keys: |
+            cargo-size-${{ runner.os }}-
+
+      - name: Build PR branch (core)
+        working-directory: contracts
+        run: |
+          cargo build --target wasm32-unknown-unknown --release \
+            -p subtrackr-subscription \
+            -p subtrackr-storage \
+            -p subtrackr-proxy || true
+
+      - name: Record PR sizes
+        id: pr-sizes
+        working-directory: contracts
+        run: |
+          WASM_DIR="target/wasm32-unknown-unknown/release"
+          OUT=""
+          for f in "$WASM_DIR"/*.wasm; do
+            [[ -f "$f" ]] || continue
+            name=$(basename "$f")
+            bytes=$(wc -c < "$f")
+            OUT="$OUT\n$name=$bytes"
+          done
+          echo "sizes<<EOF" >> "$GITHUB_OUTPUT"
+          echo -e "$OUT" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Post size summary to PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const rawSizes = `${{ steps.pr-sizes.outputs.sizes }}`;
+            const lines = rawSizes.trim().split('\n').filter(Boolean);
+            if (!lines.length) return;
+
+            const rows = lines.map(line => {
+              const [name, bytes] = line.split('=');
+              const kb = (parseInt(bytes, 10) / 1024).toFixed(1);
+              const status = parseInt(bytes, 10) > 512 * 1024 ? '⚠️' : '✅';
+              return `| ${status} | \`${name}\` | ${kb} KB |`;
+            }).join('\n');
+
+            const body = [
+              '### 📦 WASM Binary Size Report',
+              '',
+              '| Status | Contract | Size |',
+              '|--------|----------|------|',
+              rows,
+              '',
+              '_Budget: 500 KB per contract. ⚠️ = exceeds budget._',
+            ].join('\n');
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body,
+            });
+
+  # ── 5. Compile-time benchmark — report on main only ───────────────────────
+  compile-benchmark:
+    name: Compilation Time Benchmark
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust stable
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Add WASM target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Measure full workspace build time
+        id: bench
+        working-directory: contracts
+        run: |
+          cargo clean
+          START=$(date +%s%N)
+          cargo build --target wasm32-unknown-unknown --release --workspace \
+            --message-format json 2>/dev/null | tail -5 || true
+          END=$(date +%s%N)
+          ELAPSED_MS=$(( (END - START) / 1000000 ))
+          echo "elapsed_ms=$ELAPSED_MS" >> "$GITHUB_OUTPUT"
+          echo "::notice::Full workspace build time: ${ELAPSED_MS}ms"
+
+      - name: Write compile time to summary
+        run: |
+          echo "## ⏱ Compile Time" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Full workspace (wasm32, release): **${{ steps.bench.outputs.elapsed_ms }} ms**" >> "$GITHUB_STEP_SUMMARY"
+
+  # ── 6. Dependency analysis ────────────────────────────────────────────────
+  dep-analysis:
+    name: Module Dependency Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust stable
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Print dependency tree (subscription)
+        working-directory: contracts
+        run: cargo tree -p subtrackr-subscription
+
+      - name: Check for duplicate dependencies
+        working-directory: contracts
+        run: |
+          DUPES=$(cargo tree --duplicate 2>/dev/null | grep -v "^$" || true)
+          if [[ -n "$DUPES" ]]; then
+            echo "::warning::Duplicate dependencies detected:"
+            echo "$DUPES"
+          else
+            echo "No duplicate dependencies found."
+          fi

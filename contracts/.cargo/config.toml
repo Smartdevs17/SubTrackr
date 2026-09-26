@@ -1,0 +1,21 @@
+# Cargo configuration for the SubTrackr contracts workspace
+# Sets wasm32-unknown-unknown as the default build target so that
+# `cargo build --release` inside `contracts/` produces WASM without
+# requiring `--target wasm32-unknown-unknown` on every command.
+
+[build]
+target = "wasm32-unknown-unknown"
+
+# Enable sparse registry protocol for faster dependency resolution
+[net]
+git-fetch-with-cli = true
+
+# WASM-specific linker flags — strip unreachable code sections,
+# merge data sections, and apply garbage collection to further reduce binary size.
+[target.wasm32-unknown-unknown]
+rustflags = [
+    # Export the Soroban __call_extern symbol needed by the host
+    "-C", "link-arg=--export-dynamic",
+    # Remove unused sections (helps wasm-opt and soroban-cli)
+    "-C", "link-arg=--gc-sections",
+]

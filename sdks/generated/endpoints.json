@@ -1,0 +1,25 @@
+{
+  "openapiVersion": "3.1.0",
+  "source": "developer-portal/docs/openapi.json",
+  "generatedBy": "scripts/generate-sdks.js",
+  "endpoints": [
+    {
+      "path": "/auth/login",
+      "method": "POST",
+      "operation": "loginUser",
+      "summary": "Authenticate user"
+    },
+    {
+      "path": "/subscriptions",
+      "method": "GET",
+      "operation": "listSubscriptions",
+      "summary": "List subscriptions"
+    },
+    {
+      "path": "/subscriptions",
+      "method": "POST",
+      "operation": "createSubscription",
+      "summary": "Create subscription"
+    }
+  ]
+}
