@@ -22,11 +22,12 @@ const CHANNEL_LABELS: Record<CommChannel, string> = {
   email: '✉️  Email',
   push: '🔔  Push',
   sms: '💬  SMS',
+  voice: '📞  Voice Call',
   in_app: '📱  In-App',
 };
 
 const CATEGORIES: CommCategory[] = ['billing', 'security', 'product', 'marketing', 'survey'];
-const CHANNELS: CommChannel[] = ['email', 'push', 'sms', 'in_app'];
+const CHANNELS: CommChannel[] = ['email', 'push', 'sms', 'voice', 'in_app'];
 
 const CommunicationPreferencesScreen: React.FC = () => {
   const [prefs, setPrefs] = useState<SubscriberPreference>(() =>
