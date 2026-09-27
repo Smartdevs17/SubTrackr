@@ -7,7 +7,11 @@
 
 import express, { type Express } from 'express';
 import { cacheHeadersMiddleware } from '../shared/middleware';
-import { createPublicApiRouter, createThemeRouter, createBatchRouter } from '../subscription/router';
+import {
+  createPublicApiRouter,
+  createSubscriptionOpsRouter,
+  createThemeRouter,
+} from '../subscription/router';
 import { API_VERSION_HEADER, API_VERSION_VALUE } from '../services/shared/apiResponse';
 
 export interface CreateApiServerOptions {
@@ -34,9 +38,8 @@ export function createApiServer(options: CreateApiServerOptions = {}): Express {
 
   app.use(cacheHeadersMiddleware());
   app.use(createPublicApiRouter());
+  app.use(createSubscriptionOpsRouter());
   app.use('/api/v1/merchant', createThemeRouter());
-  // Batch subscription operations with atomic execution (all-or-nothing semantics)
-  app.use('/api/v1/batch', createBatchRouter());
 
   app.use((_req, res) => {
     res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Not found' } });

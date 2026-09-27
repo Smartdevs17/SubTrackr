@@ -135,6 +135,14 @@ const SubscriptionDetailScreen: React.FC = () => {
     }
   }, [subscription, toggleSubscriptionStatus]);
 
+  const handleOpenPauseSchedule = useCallback(() => {
+    if (subscription) {
+      navigation.navigate('PauseSubscription', {
+        subscriptionId: subscription.id,
+      });
+    }
+  }, [subscription, navigation]);
+
   const handleStartCancellation = useCallback(() => {
     if (subscription) {
       navigation.navigate('CancellationFlow', {
@@ -683,6 +691,14 @@ const SubscriptionDetailScreen: React.FC = () => {
               variant="secondary"
               style={styles.actionButton}
               testID="pause-resume-subscription-button"
+            />
+
+            <Button
+              title="Set Pause Schedule"
+              onPress={handleOpenPauseSchedule}
+              variant="secondary"
+              style={styles.actionButton}
+              testID="pause-schedule-button"
             />
 
             <Button
