@@ -1,47 +1,50 @@
 /**
- * usageAlertService.ts — Pure functions for usage-alert business logic.
+ * Usage Alerts & Overage Notifications Service (#1230)
  *
- * No side effects, no store access — all functions take plain data and return
- * plain data.  The Zustand store imports these to implement its actions.
+ * Pure, stateless functions for evaluating usage thresholds,
+ * generating alerts, and calculating overage costs.
  */
 
-import {
+import { QuotaMetric } from '../types/usage';
+import type {
+  OverageNotification,
   UsageAlert,
   UsageAlertSeverity,
   UsageAlertType,
   UsageThreshold,
-  OverageNotification,
 } from '../types/usageAlerts';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────────────────────
 
-/** Lightweight uuid-like generator that works without external packages. */
-const generateId = (): string => {
-  const ts = Date.now().toString(36);
-  const rand = Math.random().toString(36).slice(2, 8);
-  return `${ts}-${rand}`;
+function uuid(): string {
+  return `alert-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+const METRIC_LABELS: Record<QuotaMetric, string> = {
+  [QuotaMetric.API_CALLS]: 'API Calls',
+  [QuotaMetric.STORAGE]: 'Storage',
+  [QuotaMetric.SEATS]: 'Seats',
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// checkUsageThresholds
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Core threshold evaluation ──────────────────────────────────────────────
+
+export interface ThresholdResult {
+  type: UsageAlertType;
+  severity: UsageAlertSeverity;
+}
 
 /**
- * Determines whether the given usage crosses any of the threshold percentages.
- *
- * Returns the most severe matching {type, severity} pair, or `null` if no
- * threshold is crossed.
+ * Determines whether a usage reading crosses a threshold boundary.
+ * Returns null when usage is healthy (below warning level).
  */
 export function checkUsageThresholds(
   currentValue: number,
-  limit: number,
+  limitValue: number,
   threshold: UsageThreshold
-): { type: UsageAlertType; severity: UsageAlertSeverity } | null {
-  if (!threshold.enabled || limit <= 0) return null;
+): ThresholdResult | null {
+  if (!threshold.enabled || limitValue <= 0) return null;
 
-  const pct = (currentValue / limit) * 100;
+  const pct = (currentValue / limitValue) * 100;
 
   if (pct >= threshold.overagePercent) {
     return { type: 'overage', severity: 'critical' };
@@ -55,143 +58,123 @@ export function checkUsageThresholds(
   return null;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// formatAlertMessage
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Alert message formatting ───────────────────────────────────────────────
 
-/**
- * Builds a human-readable description for an alert given its type.
- */
 export function formatAlertMessage(
   type: UsageAlertType,
-  metricName: string,
+  metric: QuotaMetric,
   usagePercent: number,
   overageAmount?: number
 ): string {
-  const pct = usagePercent.toFixed(1);
-
+  const label = METRIC_LABELS[metric] ?? metric;
   switch (type) {
     case 'approaching_limit':
-      return `You have used ${pct}% of your ${metricName} quota. Consider upgrading your plan to avoid service interruption.`;
+      return `${label} usage is at ${usagePercent.toFixed(1)}% of your limit. Consider upgrading your plan.`;
     case 'limit_exceeded':
-      return `Your ${metricName} usage has reached ${pct}% of the allowed limit. New usage may be blocked.`;
+      return `${label} usage has reached ${usagePercent.toFixed(1)}% of your limit. Upgrade to avoid service interruptions.`;
     case 'overage':
       return overageAmount !== undefined
-        ? `Your ${metricName} usage has exceeded the quota by ${overageAmount.toLocaleString()} units. Overage charges may apply.`
-        : `Your ${metricName} usage has exceeded the quota. Overage charges may apply.`;
+        ? `${label} has exceeded your limit by ${overageAmount.toLocaleString()} units. Overage charges may apply.`
+        : `${label} has exceeded your plan limit. Overage charges may apply.`;
     case 'reset':
-      return `Your ${metricName} quota has been reset for the new billing period.`;
+      return `${label} usage has been reset for the new billing period.`;
     case 'custom':
-      return `A custom alert has been triggered for your ${metricName} usage at ${pct}%.`;
+      return `${label} usage alert triggered at ${usagePercent.toFixed(1)}%.`;
     default:
-      return `Usage alert for ${metricName} at ${pct}%.`;
+      return `${label} usage alert.`;
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// generateUsageAlert
-// ─────────────────────────────────────────────────────────────────────────────
+function formatAlertTitle(type: UsageAlertType, metric: QuotaMetric): string {
+  const label = METRIC_LABELS[metric] ?? metric;
+  switch (type) {
+    case 'approaching_limit':
+      return `${label} Approaching Limit`;
+    case 'limit_exceeded':
+      return `${label} Limit Exceeded`;
+    case 'overage':
+      return `${label} Overage Detected`;
+    case 'reset':
+      return `${label} Usage Reset`;
+    default:
+      return `${label} Alert`;
+  }
+}
 
-/**
- * Creates a fully-formed {@link UsageAlert} from raw usage data and a
- * threshold definition.  Returns `null` when no threshold is crossed.
- */
+// ── Alert generation ───────────────────────────────────────────────────────
+
 export function generateUsageAlert(
   subscriptionId: string,
-  metricName: string,
+  metric: QuotaMetric,
   currentValue: number,
-  limit: number,
+  limitValue: number,
   threshold: UsageThreshold
 ): UsageAlert | null {
-  const result = checkUsageThresholds(currentValue, limit, threshold);
+  const result = checkUsageThresholds(currentValue, limitValue, threshold);
   if (!result) return null;
 
-  const usagePercent = limit > 0 ? (currentValue / limit) * 100 : 0;
-  const overageAmount = Math.max(0, currentValue - limit);
-  const { type, severity } = result;
-
-  const titleMap: Record<UsageAlertType, string> = {
-    approaching_limit: `${metricName} Approaching Limit`,
-    limit_exceeded: `${metricName} Limit Exceeded`,
-    overage: `${metricName} Overage Detected`,
-    reset: `${metricName} Quota Reset`,
-    custom: `${metricName} Custom Alert`,
-  };
+  const usagePercent = limitValue > 0 ? (currentValue / limitValue) * 100 : 0;
+  const overageAmount = currentValue > limitValue ? currentValue - limitValue : undefined;
 
   return {
-    id: generateId(),
+    id: uuid(),
     subscriptionId,
-    metricName,
-    type,
-    severity,
-    title: titleMap[type],
-    message: formatAlertMessage(type, metricName, usagePercent, overageAmount || undefined),
+    metric,
+    type: result.type,
+    severity: result.severity,
+    title: formatAlertTitle(result.type, metric),
+    message: formatAlertMessage(result.type, metric, usagePercent, overageAmount),
     currentValue,
-    limitValue: limit,
-    usagePercent,
+    limitValue,
+    usagePercent: Number(usagePercent.toFixed(2)),
     timestamp: new Date().toISOString(),
     isRead: false,
     isDismissed: false,
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// calculateOverageCost
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Overage cost calculation ───────────────────────────────────────────────
 
-/**
- * Calculates the monetary cost for a given overage amount.
- *
- * @param overageAmount - Units consumed beyond the quota.
- * @param pricePerUnit  - Cost per single overage unit in the billing currency.
- * @returns Total overage cost, rounded to two decimal places.
- */
 export function calculateOverageCost(overageAmount: number, pricePerUnit: number): number {
-  return Math.round(Math.max(0, overageAmount) * pricePerUnit * 100) / 100;
+  return Number(Math.max(0, overageAmount * pricePerUnit).toFixed(2));
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// generateOverageNotification
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Creates an {@link OverageNotification} when usage exceeds the quota limit.
- * Returns `null` if currentValue is within the limit.
- */
 export function generateOverageNotification(
   subscriptionId: string,
-  metricName: string,
+  metric: QuotaMetric,
   currentValue: number,
-  limit: number,
-  costPerUnit: number
+  limitValue: number,
+  costPerUnit: number = 0
 ): OverageNotification | null {
-  const overageAmount = currentValue - limit;
-  if (overageAmount <= 0) return null;
+  if (currentValue <= limitValue) return null;
+
+  const overageAmount = currentValue - limitValue;
+  const overageCost = calculateOverageCost(overageAmount, costPerUnit);
 
   return {
-    id: generateId(),
+    id: uuid(),
     subscriptionId,
-    metricName,
-    overageAmount,
-    overageCost: calculateOverageCost(overageAmount, costPerUnit),
+    metric,
+    overageAmount: Number(overageAmount.toFixed(2)),
+    overageCost,
     timestamp: new Date().toISOString(),
     isAcknowledged: false,
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// evaluateAllThresholds
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Batch evaluation ───────────────────────────────────────────────────────
+
+export interface UsageEntry {
+  current: number;
+  limit: number;
+}
 
 /**
- * Evaluates every threshold in `thresholds` against the supplied usage map.
- *
- * @param usageMap   - Keyed by `"subscriptionId::metricName"`.
- * @param thresholds - All configured thresholds across all subscriptions.
- * @returns An array of new {@link UsageAlert} objects (one per crossed threshold).
+ * Evaluates all thresholds against a usage map.
+ * usageMap key format: `${subscriptionId}:${metric}`
  */
 export function evaluateAllThresholds(
-  usageMap: Record<string, { current: number; limit: number }>,
+  usageMap: Record<string, UsageEntry>,
   thresholds: UsageThreshold[]
 ): UsageAlert[] {
   const alerts: UsageAlert[] = [];
@@ -199,22 +182,66 @@ export function evaluateAllThresholds(
   for (const threshold of thresholds) {
     if (!threshold.enabled) continue;
 
-    const key = `${threshold.subscriptionId}::${threshold.metricName}`;
-    const usage = usageMap[key];
-    if (!usage) continue;
+    const key = `${threshold.subscriptionId}:${threshold.metric}`;
+    const entry = usageMap[key];
+    if (!entry) continue;
 
     const alert = generateUsageAlert(
       threshold.subscriptionId,
-      threshold.metricName,
-      usage.current,
-      usage.limit,
+      threshold.metric,
+      entry.current,
+      entry.limit,
       threshold
     );
-
-    if (alert) {
-      alerts.push(alert);
-    }
+    if (alert) alerts.push(alert);
   }
 
   return alerts;
+}
+
+/**
+ * Generates overage notifications for all entries exceeding their limits.
+ */
+export function evaluateOverages(
+  usageMap: Record<string, UsageEntry>,
+  thresholds: UsageThreshold[]
+): OverageNotification[] {
+  const notifications: OverageNotification[] = [];
+
+  for (const threshold of thresholds) {
+    if (!threshold.enabled) continue;
+
+    const key = `${threshold.subscriptionId}:${threshold.metric}`;
+    const entry = usageMap[key];
+    if (!entry) continue;
+
+    const notification = generateOverageNotification(
+      threshold.subscriptionId,
+      threshold.metric,
+      entry.current,
+      entry.limit,
+      threshold.costPerUnit ?? 0
+    );
+    if (notification) notifications.push(notification);
+  }
+
+  return notifications;
+}
+
+// ── Default threshold factory ──────────────────────────────────────────────
+
+export function createDefaultThreshold(
+  subscriptionId: string,
+  metric: QuotaMetric
+): UsageThreshold {
+  return {
+    id: `threshold-${subscriptionId}-${metric}-${Date.now()}`,
+    subscriptionId,
+    metric,
+    warningPercent: 80,
+    criticalPercent: 95,
+    overagePercent: 100,
+    enabled: true,
+    costPerUnit: 0,
+  };
 }

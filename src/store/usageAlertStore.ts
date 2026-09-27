@@ -1,191 +1,202 @@
 /**
- * usageAlertStore.ts — Zustand store for usage alerts and overage notifications.
- *
- * Persists to AsyncStorage under 'subtrackr-usage-alerts'.
+ * Zustand store for usage alerts and overage notifications (#1230).
  */
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { asyncStorageAdapter } from '../utils/storage';
-import { UsageAlert, UsageThreshold, OverageNotification } from '../types/usageAlerts';
+import { QuotaMetric } from '../types/usage';
+import type { OverageNotification, UsageAlert, UsageThreshold } from '../types/usageAlerts';
 import {
+  createDefaultThreshold,
   evaluateAllThresholds,
-  generateOverageNotification,
+  evaluateOverages,
 } from '../services/usageAlertService';
+import type { UsageEntry } from '../services/usageAlertService';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// State shape
-// ─────────────────────────────────────────────────────────────────────────────
+const STORAGE_KEY = 'subtrackr-usage-alerts';
+
+// ── State shape ────────────────────────────────────────────────────────────
 
 interface UsageAlertState {
-  /** All generated alerts (active + dismissed). */
   alerts: UsageAlert[];
-  /** Overage notifications triggered when usage exceeds quota. */
   overageNotifications: OverageNotification[];
-  /** User-configured threshold definitions. */
   thresholds: UsageThreshold[];
-  /** ISO-8601 timestamp of the last threshold evaluation run, or null. */
   lastChecked: string | null;
   isLoading: boolean;
   error: string | null;
 
-  // ── Threshold management ────────────────────────────────────────────────
-  addThreshold: (threshold: UsageThreshold) => void;
+  // ── Threshold management ─────────────────────────────────────────────────
+  addThreshold: (subscriptionId: string, metric: QuotaMetric, overrides?: Partial<UsageThreshold>) => void;
   updateThreshold: (id: string, updates: Partial<UsageThreshold>) => void;
   removeThreshold: (id: string) => void;
+  getThreshold: (subscriptionId: string, metric: QuotaMetric) => UsageThreshold | undefined;
 
-  // ── Alert lifecycle ─────────────────────────────────────────────────────
-  /**
-   * Evaluates all configured thresholds against the provided usage map.
-   * Appends new alerts and overage notifications; does not overwrite existing
-   * alerts with the same metric.
-   *
-   * @param usageData - Map keyed by "subscriptionId::metricName".
-   * @param costPerUnit - Default overage cost per unit (used when no per-threshold
-   *                      cost is configured). Defaults to 0.
-   */
-  checkAlerts: (
-    usageData: Record<string, { current: number; limit: number }>,
-    costPerUnit?: number
-  ) => void;
-  acknowledgeAlert: (id: string) => void;
+  // ── Alert evaluation ─────────────────────────────────────────────────────
+  /** Run threshold checks against a usage snapshot. Appends new alerts + overages. */
+  checkAlerts: (usageMap: Record<string, UsageEntry>) => void;
+
+  // ── Alert lifecycle ──────────────────────────────────────────────────────
+  markAlertRead: (id: string) => void;
   dismissAlert: (id: string) => void;
   markAllRead: () => void;
+  clearDismissed: () => void;
   clearAllAlerts: () => void;
 
-  // ── Overage notifications ───────────────────────────────────────────────
+  // ── Overage lifecycle ────────────────────────────────────────────────────
   acknowledgeOverage: (id: string) => void;
+  acknowledgeAllOverages: () => void;
 
-  // ── Misc ────────────────────────────────────────────────────────────────
+  // ── Utilities ─────────────────────────────────────────────────────────────
+  unreadCount: () => number;
+  criticalCount: () => number;
   clearError: () => void;
+  reset: () => void;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Store
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Defaults ───────────────────────────────────────────────────────────────
+
+const defaults = {
+  alerts: [] as UsageAlert[],
+  overageNotifications: [] as OverageNotification[],
+  thresholds: [] as UsageThreshold[],
+  lastChecked: null as string | null,
+  isLoading: false,
+  error: null as string | null,
+};
+
+// ── Store ──────────────────────────────────────────────────────────────────
 
 export const useUsageAlertStore = create<UsageAlertState>()(
   persist(
     (set, get) => ({
-      alerts: [],
-      overageNotifications: [],
-      thresholds: [],
-      lastChecked: null,
-      isLoading: false,
-      error: null,
+      ...defaults,
 
-      // ── Threshold management ──────────────────────────────────────────────
+      // ── Thresholds ──────────────────────────────────────────────────────
 
-      addThreshold: (threshold) =>
-        set((state) => ({
-          thresholds: [...state.thresholds, threshold],
-        })),
+      addThreshold: (subscriptionId, metric, overrides) => {
+        const existing = get().thresholds.find(
+          (t) => t.subscriptionId === subscriptionId && t.metric === metric
+        );
+        if (existing) return; // already configured
+        const threshold = { ...createDefaultThreshold(subscriptionId, metric), ...overrides };
+        set((s) => ({ thresholds: [...s.thresholds, threshold] }));
+      },
 
-      updateThreshold: (id, updates) =>
-        set((state) => ({
-          thresholds: state.thresholds.map((t) => (t.id === id ? { ...t, ...updates } : t)),
-        })),
+      updateThreshold: (id, updates) => {
+        set((s) => ({
+          thresholds: s.thresholds.map((t) => (t.id === id ? { ...t, ...updates } : t)),
+        }));
+      },
 
-      removeThreshold: (id) =>
-        set((state) => ({
-          thresholds: state.thresholds.filter((t) => t.id !== id),
-        })),
+      removeThreshold: (id) => {
+        set((s) => ({ thresholds: s.thresholds.filter((t) => t.id !== id) }));
+      },
 
-      // ── Alert evaluation ──────────────────────────────────────────────────
+      getThreshold: (subscriptionId, metric) => {
+        return get().thresholds.find(
+          (t) => t.subscriptionId === subscriptionId && t.metric === metric
+        );
+      },
 
-      checkAlerts: (usageData, costPerUnit = 0) => {
+      // ── Check ───────────────────────────────────────────────────────────
+
+      checkAlerts: (usageMap) => {
         set({ isLoading: true, error: null });
         try {
-          const { thresholds, alerts: existingAlerts } = get();
+          const { thresholds } = get();
+          const newAlerts = evaluateAllThresholds(usageMap, thresholds);
+          const newOverages = evaluateOverages(usageMap, thresholds);
 
-          // Evaluate thresholds → new alerts
-          const newAlerts = evaluateAllThresholds(usageData, thresholds);
-
-          // De-duplicate: skip if an unread, undismissed alert for the same
-          // subscription + metric + type already exists.
-          const filteredAlerts = newAlerts.filter((na) => {
-            return !existingAlerts.some(
-              (ea) =>
-                ea.subscriptionId === na.subscriptionId &&
-                ea.metricName === na.metricName &&
-                ea.type === na.type &&
-                !ea.isDismissed
-            );
-          });
-
-          // Generate overage notifications for any entries that exceed limit
-          const newOverages: OverageNotification[] = [];
-          for (const [key, usage] of Object.entries(usageData)) {
-            if (usage.current <= usage.limit) continue;
-            const [subscriptionId, metricName] = key.split('::');
-            if (!subscriptionId || !metricName) continue;
-
-            const notification = generateOverageNotification(
-              subscriptionId,
-              metricName,
-              usage.current,
-              usage.limit,
-              costPerUnit
-            );
-            if (notification) {
-              newOverages.push(notification);
-            }
-          }
-
-          set((state) => ({
-            alerts: [...state.alerts, ...filteredAlerts],
-            overageNotifications: [...state.overageNotifications, ...newOverages],
+          set((s) => ({
+            alerts: [...s.alerts, ...newAlerts],
+            overageNotifications: [...s.overageNotifications, ...newOverages],
             lastChecked: new Date().toISOString(),
             isLoading: false,
           }));
         } catch (err) {
-          const message = err instanceof Error ? err.message : 'Failed to check usage alerts';
-          set({ error: message, isLoading: false });
+          set({
+            isLoading: false,
+            error: err instanceof Error ? err.message : 'Failed to check usage alerts.',
+          });
         }
       },
 
-      // ── Alert lifecycle ────────────────────────────────────────────────────
+      // ── Alert lifecycle ─────────────────────────────────────────────────
 
-      acknowledgeAlert: (id) =>
-        set((state) => ({
-          alerts: state.alerts.map((a) => (a.id === id ? { ...a, isRead: true } : a)),
-        })),
+      markAlertRead: (id) => {
+        set((s) => ({
+          alerts: s.alerts.map((a) => (a.id === id ? { ...a, isRead: true } : a)),
+        }));
+      },
 
-      dismissAlert: (id) =>
-        set((state) => ({
-          alerts: state.alerts.map((a) =>
+      dismissAlert: (id) => {
+        set((s) => ({
+          alerts: s.alerts.map((a) =>
             a.id === id ? { ...a, isDismissed: true, isRead: true } : a
           ),
-        })),
+        }));
+      },
 
-      markAllRead: () =>
-        set((state) => ({
-          alerts: state.alerts.map((a) => ({ ...a, isRead: true })),
-        })),
+      markAllRead: () => {
+        set((s) => ({
+          alerts: s.alerts.map((a) => ({ ...a, isRead: true })),
+        }));
+      },
 
-      clearAllAlerts: () =>
-        set({
-          alerts: [],
-          overageNotifications: [],
-          error: null,
-        }),
+      clearDismissed: () => {
+        set((s) => ({ alerts: s.alerts.filter((a) => !a.isDismissed) }));
+      },
 
-      // ── Overage notifications ──────────────────────────────────────────────
+      clearAllAlerts: () => {
+        set({ alerts: [], overageNotifications: [] });
+      },
 
-      acknowledgeOverage: (id) =>
-        set((state) => ({
-          overageNotifications: state.overageNotifications.map((n) =>
+      // ── Overages ────────────────────────────────────────────────────────
+
+      acknowledgeOverage: (id) => {
+        set((s) => ({
+          overageNotifications: s.overageNotifications.map((n) =>
             n.id === id ? { ...n, isAcknowledged: true } : n
           ),
-        })),
+        }));
+      },
 
-      // ── Misc ───────────────────────────────────────────────────────────────
+      acknowledgeAllOverages: () => {
+        set((s) => ({
+          overageNotifications: s.overageNotifications.map((n) => ({
+            ...n,
+            isAcknowledged: true,
+          })),
+        }));
+      },
+
+      // ── Computed helpers ─────────────────────────────────────────────────
+
+      unreadCount: () => get().alerts.filter((a) => !a.isRead && !a.isDismissed).length,
+
+      criticalCount: () =>
+        get().alerts.filter((a) => a.severity === 'critical' && !a.isDismissed).length,
 
       clearError: () => set({ error: null }),
+
+      reset: () => set({ ...defaults }),
     }),
     {
-      name: 'subtrackr-usage-alerts',
+      name: STORAGE_KEY,
       storage: createJSONStorage(() => asyncStorageAdapter),
+      partialize: (state) => ({
+        alerts: state.alerts,
+        overageNotifications: state.overageNotifications,
+        thresholds: state.thresholds,
+        lastChecked: state.lastChecked,
+      }),
+      onRehydrateStorage: () => (_state, error) => {
+        if (error) {
+          console.warn('[usageAlertStore] Hydration error – resetting:', error);
+          useUsageAlertStore.setState({ ...defaults });
+        }
+      },
     }
   )
 );
