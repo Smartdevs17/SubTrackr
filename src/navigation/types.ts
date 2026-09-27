@@ -1,10 +1,5 @@
 import { NavigatorScreenParams } from '@react-navigation/native';
-import {
-  useRoute,
-  useNavigation,
-  RouteProp,
-  NavigationProp,
-} from '@react-navigation/native';
+import { useRoute, useNavigation, RouteProp, NavigationProp } from '@react-navigation/native';
 
 export type RootStackParamList = {
   Home: undefined;
@@ -22,6 +17,10 @@ export type RootStackParamList = {
   InvoiceList: undefined;
   InvoiceDetail: { id: string };
   GDPRSettings: undefined;
+  PrivacyCenter: undefined;
+  ConsentManagement: undefined;
+  DataExport: undefined;
+  DPALog: undefined;
   Settings: undefined;
   CalendarIntegration: undefined;
   WebhookSettings: undefined;
