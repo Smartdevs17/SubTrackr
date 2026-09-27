@@ -14,7 +14,7 @@
  */
 
 import { RateLimitingService } from './rateLimitingService';
-import { SubscriptionTier } from '../../src/types/subscription';
+import { SubscriptionTier } from '../../../src/types/subscription';
 
 // ---------------------------------------------------------------------------
 // Shared types
@@ -215,19 +215,17 @@ export function createRateLimitMiddleware(opts: RateLimitMiddlewareOptions) {
       setHeader(res, 'Sunset', req.headers['x-grace-expires'] as string ?? '');
     }
 
-    // Record usage asynchronously so it does not block the response
-    const originalJson = res.json.bind(res);
-    let statusCode = 200;
-
-    res.status = (code: number) => {
-      statusCode = code;
-      return res;
-    };
-
-    res.json = (body: unknown) => {
-      // Record after response is built
+    // Record usage exactly once per response, whichever terminal method the
+    // handler uses. Express handlers go through res.json/res.send, but the raw
+    // Node server in backend/server.ts writes with res.writeHead + res.end —
+    // recording only on res.json meant no usage was ever accumulated, so no
+    // limit could ever be reached and the counters stayed at their ceiling.
+    let recorded = false;
+    const recordOnce = (responseStatus: number): void => {
+      if (recorded) return;
+      recorded = true;
       const latencyMs = Date.now() - start;
-      service.recordRequest(apiKey, tier, path, statusCode, latencyMs);
+      service.recordRequest(apiKey, tier, path, responseStatus, latencyMs);
 
       if (getUserId) {
         const userId = getUserId(req);
@@ -235,9 +233,46 @@ export function createRateLimitMiddleware(opts: RateLimitMiddlewareOptions) {
           service.recordUserRequest(`user:${userId}`, tier, path);
         }
       }
-
-      originalJson(body);
     };
+
+    let statusCode = 200;
+    const raw = res as MinimalResponse & {
+      end?: (chunk?: unknown) => void;
+      writeHead?: (code: number, ...rest: unknown[]) => unknown;
+    };
+
+    res.status = (code: number) => {
+      statusCode = code;
+      return res;
+    };
+
+    // A host that provides no res.json (a raw ServerResponse) keeps it absent;
+    // the writeHead/end hooks below record instead.
+    if (typeof res.json === 'function') {
+      const originalJson = res.json.bind(res);
+      res.json = (body: unknown) => {
+        recordOnce(statusCode);
+        originalJson(body);
+      };
+    }
+
+    // Raw Node responses never call res.json; writeHead is where their real
+    // status code becomes visible.
+    if (typeof raw.writeHead === 'function') {
+      const originalWriteHead = raw.writeHead.bind(raw);
+      raw.writeHead = (code: number, ...rest: unknown[]) => {
+        if (typeof code === 'number') statusCode = code;
+        return originalWriteHead(code, ...rest);
+      };
+    }
+
+    if (typeof raw.end === 'function') {
+      const originalEnd = raw.end.bind(raw);
+      raw.end = (chunk?: unknown) => {
+        recordOnce(statusCode);
+        originalEnd(chunk);
+      };
+    }
 
     next();
   };
