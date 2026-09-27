@@ -30,3 +30,27 @@ export type {
 
 export { GdprController } from './gdprController';
 export type { GdprControllerDeps, GdprApiResponse } from './gdprController';
+
+export {
+  DataRetentionService,
+  RetentionPolicyError,
+  validateRetentionPolicy,
+  DEFAULT_RETENTION_POLICIES,
+  DEFAULT_BATCH_SIZE,
+  MIN_RETENTION_DAYS,
+  MAX_RETENTION_DAYS,
+} from './dataRetentionService';
+export type {
+  RetentionAction,
+  DataRetentionPolicy,
+  RetentionRecord,
+  RetentionDataStore,
+  LegalHold,
+  LegalHoldScope,
+  PolicyEnforcementResult,
+  RetentionEnforcementReport,
+  EnforceOptions,
+} from './dataRetentionService';
+
+export { RetentionEnforcementJob } from './retentionEnforcementJob';
+export { RetentionController } from './retentionController';
