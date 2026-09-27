@@ -78,6 +78,7 @@
     "bundle-size:why": "size-limit --why"
   },
   "dependencies": {
+    "@graphql-tools/schema": "^10.1.1",
     "@react-native-async-storage/async-storage": "2.1.2",
     "@react-native-community/datetimepicker": "^9.1.0",
     "@react-native-community/netinfo": "11.4.1",
@@ -101,6 +102,7 @@
     "expo-notifications": "^57.0.14",
     "expo-status-bar": "~2.2.3",
     "graphql": "^16.14.2",
+    "graphql-http": "^1.23.0",
     "i18next": "^26.0.8",
     "react": "19.2.5",
     "react-i18next": "^17.0.6",
