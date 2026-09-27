@@ -338,6 +338,43 @@ container.bind('ISmsTransport', (c) =>
 );
 container.register('ISmsOptOutStore', optOutStore);
 
+// ── Voice Provider (#1255) ────────────────────────────────────────────────────
+import { voiceProvider, buildVoiceTransport } from './notification/voiceProvider';
+container.register('IVoiceProvider', voiceProvider);
+container.bind('IVoiceTransport', (c) =>
+  buildVoiceTransport(c.resolve('IVoiceProvider'))
+);
+
+// ── Communication Preferences (#1253) ─────────────────────────────────────────
+import {
+  communicationPreferenceService,
+  communicationPreferenceRepository,
+} from './notification/communicationPreferencesService';
+container.register(
+  'ICommunicationPreferenceService',
+  communicationPreferenceService
+);
+container.register(
+  'ICommunicationPreferenceRepository',
+  communicationPreferenceRepository
+);
+
+// ── Transactional Email Templates (#1254) ─────────────────────────────────────
+import {
+  renderTransactionalEmail,
+  registerTransactionalTemplates,
+} from './notification/transactionalEmailTemplates';
+registerTransactionalTemplates();
+container.register('ITransactionalEmailRenderer', { renderTransactionalEmail });
+
+// ── Two-Way SMS (#1256) ───────────────────────────────────────────────────────
+import { smsInboundHandler } from './notification/smsInboundHandler';
+container.register('ISmsInboundHandler', smsInboundHandler);
+
+// ── Voice Call Reminders (#1255) ──────────────────────────────────────────────
+import { voiceReminderService } from './notification/voiceReminderService';
+container.register('IVoiceReminderService', voiceReminderService);
+
 // ── Slack Notifier ────────────────────────────────────────────────────────────
 import {
   slackNotifier,
