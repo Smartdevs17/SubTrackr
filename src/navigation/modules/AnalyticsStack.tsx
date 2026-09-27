@@ -16,6 +16,9 @@ const ChurnPredictionScreen = lazyScreen(
 const UsageDashboardScreen = lazyScreen(() => import('../../screens/UsageDashboard'));
 const UsageAlertsScreen = lazyScreen(() => import('../../screens/UsageAlertsScreen'));
 
+const PaymentFailureListScreen = lazyScreen(() => import('../../screens/PaymentFailureListScreen'));
+const PaymentFailureDetailScreen = lazyScreen(() => import('../../screens/PaymentFailureDetailScreen'));
+
 export const AnalyticsStack = () => (
   <Stack.Navigator>
     <Stack.Screen name="Analytics" component={AnalyticsScreen} options={{ headerShown: false }} />
@@ -43,6 +46,16 @@ export const AnalyticsStack = () => (
       name="UsageAlerts"
       component={UsageAlertsScreen}
       options={{ title: 'Usage Alerts', headerShown: true }}
+    />
+    <Stack.Screen
+      name="PaymentFailureList"
+      component={PaymentFailureListScreen}
+      options={{ title: 'Payment Failures', headerShown: true }}
+    />
+    <Stack.Screen
+      name="PaymentFailureDetail"
+      component={PaymentFailureDetailScreen}
+      options={{ title: 'Failure Detail', headerShown: true }}
     />
   </Stack.Navigator>
 );
