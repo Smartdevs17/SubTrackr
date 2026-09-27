@@ -28,6 +28,13 @@ SubTrackr is a mobile application for managing recurring payments and subscripti
 - Multi-token support (XLM, USDC on Stellar, custom Stellar assets)
 - Transparent on-chain payment history
 
+**Shopify Subscription Billing**
+
+- Charge subscriptions that are billed through Shopify from the same payment router as Stripe, Circle and Stellar
+- Billing attempts carry an idempotency key, so a retried charge cannot bill a subscriber twice
+- Refunds against the Shopify order behind the charge, with no blind retries
+- Registered automatically when `SHOPIFY_SHOP_DOMAIN` and `SHOPIFY_ADMIN_ACCESS_TOKEN` are set
+
 **Smart Notifications**
 
 - Billing reminders with advance warnings before charges
@@ -149,6 +156,8 @@ cp .env.example .env
 | `STELLAR_NETWORK`    | `testnet` or `public` Stellar network         | `testnet`                                                         |
 | `CONTRACT_ID`        | Deployed SubTrackr proxy contract ID (stable) | `CB64...` (your deployed proxy contract address)                  |
 | `WEB3AUTH_CLIENT_ID` | Web3Auth client ID for social login           | Get one from [Web3Auth Dashboard](https://dashboard.web3auth.io/) |
+| `SHOPIFY_SHOP_DOMAIN` | Shopify shop domain for subscription billing (optional) | `your-shop.myshopify.com` |
+| `SHOPIFY_ADMIN_ACCESS_TOKEN` | Admin API token of the Shopify custom app (optional) | `shpat_...` |
 
 ### 4. Run the Mobile App
 
