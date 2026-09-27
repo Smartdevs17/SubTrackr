@@ -304,9 +304,6 @@ const SubscriptionDetailScreen: React.FC = () => {
               }
             />
           }>
-              }
-            />
-          }>
           {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity
@@ -1089,7 +1086,6 @@ const styles = StyleSheet.create({
   },
   marginRight: {
     marginRight: spacing.sm,
-  }
   },
   standardCard: {
     marginHorizontal: spacing.lg,
