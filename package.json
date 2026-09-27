@@ -14,7 +14,7 @@
     "ios:device": "expo run:ios --device",
     "web": "expo start --web",
     "lint": "eslint . --ext .ts,.tsx",
-    "lint:fix": "eslint . --ext .ts,.tsx --fix",
+    "lint:fix": "teslint . --ext .ts,.tsx --fix",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
     "test:shard": "jest --runInBand",
     "credit:test": "jest --config jest.credit.config.js app/stores/__tests__/creditStore.test.ts app/tests/integration/credit-wallet.integration.test.ts --runInBand",
