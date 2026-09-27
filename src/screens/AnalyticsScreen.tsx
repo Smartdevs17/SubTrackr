@@ -446,6 +446,19 @@ const AnalyticsScreen: React.FC = () => {
             </Text>
           </View>
         </Card>
+        <TouchableOpacity
+          onPress={() => navigation.navigate('ForecastingDashboard')}
+          activeOpacity={0.85}>
+          <Card style={[styles.chartCard, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
+            <View>
+              <Text style={styles.chartTitle}>📈 Revenue Forecasting</Text>
+              <Text style={{ ...typography.caption, color: colors.textSecondary }}>
+                Predictive models · Confidence intervals · Trend analysis
+              </Text>
+            </View>
+            <Text style={{ fontSize: 20, color: colors.primary }}>›</Text>
+          </Card>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );

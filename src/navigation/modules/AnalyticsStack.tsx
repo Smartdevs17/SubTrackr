@@ -13,8 +13,7 @@ const PerformanceDashboardScreen = lazyScreen(
 const ChurnPredictionScreen = lazyScreen(
   () => import('../../../app/screens/ChurnPredictionScreen')
 );
-const UsageDashboardScreen = lazyScreen(() => import('../../screens/UsageDashboard'));
-const UsageAlertsScreen = lazyScreen(() => import('../../screens/UsageAlertsScreen'));
+const ForecastingScreen = lazyScreen(() => import('../../screens/ForecastingScreen'));
 
 export const AnalyticsStack = () => (
   <Stack.Navigator>
@@ -35,14 +34,9 @@ export const AnalyticsStack = () => (
       options={{ title: 'Churn Analytics', headerShown: true }}
     />
     <Stack.Screen
-      name="UsageDashboard"
-      component={UsageDashboardScreen}
-      options={{ title: 'Usage Dashboard', headerShown: true }}
-    />
-    <Stack.Screen
-      name="UsageAlerts"
-      component={UsageAlertsScreen}
-      options={{ title: 'Usage Alerts', headerShown: true }}
+      name="ForecastingDashboard"
+      component={ForecastingScreen}
+      options={{ title: 'Revenue Forecasting', headerShown: true }}
     />
   </Stack.Navigator>
 );
