@@ -1,4 +1,10 @@
 import { NavigatorScreenParams } from '@react-navigation/native';
+import {
+  useRoute,
+  useNavigation,
+  RouteProp,
+  NavigationProp,
+} from '@react-navigation/native';
 
 export type RootStackParamList = {
   Home: undefined;
@@ -35,6 +41,7 @@ export type RootStackParamList = {
   TaxSettings: undefined;
   SupportDashboard: undefined;
   UsageDashboard: undefined;
+  UsageAlerts: undefined;
   DeveloperPortal: undefined;
   ApiPlayground: undefined;
   SandboxDashboard: undefined;
@@ -64,3 +71,23 @@ export type TabParamList = {
   RevenueTab: undefined;
   SettingsTab: NavigatorScreenParams<RootStackParamList> | undefined;
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Typed navigation helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Typed wrapper around `useRoute` for screens in RootStackParamList.
+ * Usage:  const route = useAppRoute<'SegmentDetail'>();
+ */
+export function useAppRoute<RouteName extends keyof RootStackParamList>() {
+  return useRoute<RouteProp<RootStackParamList, RouteName>>();
+}
+
+/**
+ * Typed wrapper around `useNavigation` for screens in RootStackParamList.
+ * Usage:  const navigation = useAppNavigation<'SegmentDetail'>();
+ */
+export function useAppNavigation<_RouteName extends keyof RootStackParamList>() {
+  return useNavigation<NavigationProp<RootStackParamList>>();
+}
