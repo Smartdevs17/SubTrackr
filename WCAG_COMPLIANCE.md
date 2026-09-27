@@ -1,4 +1,4 @@
-/\*\*
+w/\*\*
 
 - Design System - WCAG 2.1 Accessibility Compliance Checklist
 - Verification that all components meet WCAG Level AA standards
