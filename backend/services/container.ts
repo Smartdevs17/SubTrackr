@@ -34,7 +34,7 @@ import { billingLockIntegration } from './billing/lockIntegration';
 import { subscriptionLockIntegration } from './subscription/lockIntegration';
 import { kmsProvider, vaultProvider, ColumnEncryptionService } from './shared/encryption';
 import { apiKeyRotationService } from './auth';
-import { paymentRouter, StripeAdapter, CircleAdapter, StellarAdapter } from './payment';
+import { paymentRouter, StripeAdapter, CircleAdapter, StellarAdapter, ShopifyAdapter } from './payment';
 import { getPlanCacheService } from '../subscription/planCacheRegistry';
 import type { PlanCacheService } from '../subscription/domain/PlanCacheService';
 
@@ -242,6 +242,13 @@ container.register('IApiKeyRotationService', apiKeyRotationService);
 paymentRouter.registerGateway('stripe', new StripeAdapter());
 paymentRouter.registerGateway('circle', new CircleAdapter());
 paymentRouter.registerGateway('stellar', new StellarAdapter());
+// ── Shopify subscription billing (Issue #1235) ────────────────────────────────
+// Registered only when the shop is configured, so a deployment without Shopify
+// credentials never offers Shopify as a fallback gateway.
+const shopifyAdapter = ShopifyAdapter.fromEnvironment();
+if (shopifyAdapter) {
+  paymentRouter.registerGateway(shopifyAdapter.name, shopifyAdapter);
+}
 container.register('IPaymentRouter', paymentRouter);
 
 // ── Plan cache (requires bootstrapPlanCache() at startup) ─────────────────────

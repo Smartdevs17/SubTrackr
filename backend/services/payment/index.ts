@@ -7,6 +7,8 @@ export type { PaymentRoutingContext, PaymentRoutingStrategy } from './domain/Pay
 export { StripeAdapter } from './domain/gateways/StripeAdapter';
 export { CircleAdapter } from './domain/gateways/CircleAdapter';
 export { StellarAdapter } from './domain/gateways/StellarAdapter';
+export { ShopifyAdapter } from './domain/gateways/ShopifyAdapter';
+export type { ShopifyAdapterOptions, ShopifyFetch, ShopifyFetchResponse } from './domain/gateways/ShopifyAdapter';
 export { BasePaymentGateway } from './domain/gateways/PaymentGateway';
 export { GatewayConfigController, gatewayConfigController } from './controller/gatewayConfigController';
 export type { IPaymentGateway, IPaymentRouter, PaymentRequest, PaymentResult, RefundRequest, RefundResult, CustomerResult, PaymentMethodResult, PayoutRequest, PayoutResult, GatewayConfig } from './interfaces';
