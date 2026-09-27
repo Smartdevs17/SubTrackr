@@ -13,11 +13,7 @@ const PerformanceDashboardScreen = lazyScreen(
 const ChurnPredictionScreen = lazyScreen(
   () => import('../../../app/screens/ChurnPredictionScreen')
 );
-const UsageDashboardScreen = lazyScreen(() => import('../../screens/UsageDashboard'));
-const UsageAlertsScreen = lazyScreen(() => import('../../screens/UsageAlertsScreen'));
-
-const PaymentFailureListScreen = lazyScreen(() => import('../../screens/PaymentFailureListScreen'));
-const PaymentFailureDetailScreen = lazyScreen(() => import('../../screens/PaymentFailureDetailScreen'));
+const ForecastingScreen = lazyScreen(() => import('../../screens/ForecastingScreen'));
 
 export const AnalyticsStack = () => (
   <Stack.Navigator>
@@ -38,24 +34,9 @@ export const AnalyticsStack = () => (
       options={{ title: 'Churn Analytics', headerShown: true }}
     />
     <Stack.Screen
-      name="UsageDashboard"
-      component={UsageDashboardScreen}
-      options={{ title: 'Usage Dashboard', headerShown: true }}
-    />
-    <Stack.Screen
-      name="UsageAlerts"
-      component={UsageAlertsScreen}
-      options={{ title: 'Usage Alerts', headerShown: true }}
-    />
-    <Stack.Screen
-      name="PaymentFailureList"
-      component={PaymentFailureListScreen}
-      options={{ title: 'Payment Failures', headerShown: true }}
-    />
-    <Stack.Screen
-      name="PaymentFailureDetail"
-      component={PaymentFailureDetailScreen}
-      options={{ title: 'Failure Detail', headerShown: true }}
+      name="ForecastingDashboard"
+      component={ForecastingScreen}
+      options={{ title: 'Revenue Forecasting', headerShown: true }}
     />
   </Stack.Navigator>
 );

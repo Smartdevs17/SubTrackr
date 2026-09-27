@@ -59,8 +59,7 @@ export type RootStackParamList = {
   PaymentMethods: undefined;
   AnalyticsDashboard: undefined;
   AdvancedSearch: undefined;
-  PaymentFailureList: undefined;
-  PaymentFailureDetail: { failureId: string };
+  ForecastingDashboard: undefined;
   NotFound: { reason?: string };
 };
 
