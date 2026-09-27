@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express';
-import { fail, success } from '../../services/shared/apiResponse';
+import { fail, ok } from '../../services/shared/apiResponse';
 import { extractRequestId } from './index';
 
 interface ThemeRecord {
@@ -14,33 +14,33 @@ interface ThemeRecord {
 
 const themeStore = new Map<string, ThemeRecord>();
 
+function merchantIdOf(req: Request): string {
+  const raw = req.headers['x-merchant-id'];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return value?.trim() || 'default';
+}
+
 export function getThemes(req: Request, res: Response): void {
-  const merchantId = (req.headers['x-merchant-id'] as string) || 'default';
+  const merchantId = merchantIdOf(req);
   const merchantThemes = Array.from(themeStore.values()).filter(
     (t) => t.merchantId === merchantId,
   );
-  res.status(200).json(
-    success(merchantThemes, {
-      requestId: extractRequestId(req) || 'unknown',
-    }),
-  );
+  res.status(200).json(ok(merchantThemes, extractRequestId(req)));
 }
 
 export function getThemeById(req: Request, res: Response): void {
   const theme = themeStore.get(req.params.id);
   if (!theme) {
     res.status(404).json(
-      fail('THEME_NOT_FOUND', `Theme "${req.params.id}" not found`, extractRequestId(req)),
+      fail('NOT_FOUND', `Theme "${req.params.id}" not found`, extractRequestId(req)),
     );
     return;
   }
-  res.status(200).json(
-    success(theme, { requestId: extractRequestId(req) || 'unknown' }),
-  );
+  res.status(200).json(ok(theme, extractRequestId(req)));
 }
 
 export function createTheme(req: Request, res: Response): void {
-  const merchantId = (req.headers['x-merchant-id'] as string) || 'default';
+  const merchantId = merchantIdOf(req);
   const { id, name, config } = req.body;
 
   if (!id || !name || !config) {
@@ -62,16 +62,14 @@ export function createTheme(req: Request, res: Response): void {
   };
 
   themeStore.set(id, record);
-  res.status(201).json(
-    success(record, { requestId: extractRequestId(req) || 'unknown' }),
-  );
+  res.status(201).json(ok(record, extractRequestId(req)));
 }
 
 export function updateTheme(req: Request, res: Response): void {
   const existing = themeStore.get(req.params.id);
   if (!existing) {
     res.status(404).json(
-      fail('THEME_NOT_FOUND', `Theme "${req.params.id}" not found`, extractRequestId(req)),
+      fail('NOT_FOUND', `Theme "${req.params.id}" not found`, extractRequestId(req)),
     );
     return;
   }
@@ -91,33 +89,29 @@ export function updateTheme(req: Request, res: Response): void {
   existing.updatedAt = new Date().toISOString();
 
   themeStore.set(req.params.id, existing);
-  res.status(200).json(
-    success(existing, { requestId: extractRequestId(req) || 'unknown' }),
-  );
+  res.status(200).json(ok(existing, extractRequestId(req)));
 }
 
 export function deleteTheme(req: Request, res: Response): void {
   const existing = themeStore.get(req.params.id);
   if (!existing) {
     res.status(404).json(
-      fail('THEME_NOT_FOUND', `Theme "${req.params.id}" not found`, extractRequestId(req)),
+      fail('NOT_FOUND', `Theme "${req.params.id}" not found`, extractRequestId(req)),
     );
     return;
   }
 
   themeStore.delete(req.params.id);
-  res.status(200).json(
-    success({ deleted: true }, { requestId: extractRequestId(req) || 'unknown' }),
-  );
+  res.status(200).json(ok({ deleted: true }, extractRequestId(req)));
 }
 
 export function activateTheme(req: Request, res: Response): void {
-  const merchantId = (req.headers['x-merchant-id'] as string) || 'default';
+  const merchantId = merchantIdOf(req);
   const theme = themeStore.get(req.params.id);
 
   if (!theme) {
     res.status(404).json(
-      fail('THEME_NOT_FOUND', `Theme "${req.params.id}" not found`, extractRequestId(req)),
+      fail('NOT_FOUND', `Theme "${req.params.id}" not found`, extractRequestId(req)),
     );
     return;
   }
@@ -129,7 +123,5 @@ export function activateTheme(req: Request, res: Response): void {
   theme.isActive = true;
   theme.updatedAt = new Date().toISOString();
 
-  res.status(200).json(
-    success(theme, { requestId: extractRequestId(req) || 'unknown' }),
-  );
+  res.status(200).json(ok(theme, extractRequestId(req)));
 }

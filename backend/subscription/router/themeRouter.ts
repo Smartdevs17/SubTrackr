@@ -7,6 +7,11 @@ import {
   deleteTheme,
   activateTheme,
 } from '../controller/themeController';
+import {
+  getBranding,
+  updateBranding,
+  getPortalTheme,
+} from '../controller/brandingController';
 
 type AsyncHandler = (req: Request, res: Response, next: NextFunction) => Promise<void>;
 
@@ -66,6 +71,29 @@ export function createThemeRouter(): Router {
     asyncHandler(async (req, res) => {
       const { getThemeById: findTheme } = await import('../controller/themeController');
       getThemeById(req, res);
+    }),
+  );
+
+  // ── Tenant branding (Issue #1110) ────────────────────────────────────────
+
+  router.get(
+    '/branding',
+    asyncHandler(async (req, res) => {
+      getBranding(req, res);
+    }),
+  );
+
+  router.put(
+    '/branding',
+    asyncHandler(async (req, res) => {
+      updateBranding(req, res);
+    }),
+  );
+
+  router.get(
+    '/branding/portal',
+    asyncHandler(async (req, res) => {
+      getPortalTheme(req, res);
     }),
   );
 

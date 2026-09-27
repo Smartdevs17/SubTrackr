@@ -135,6 +135,14 @@ const SubscriptionDetailScreen: React.FC = () => {
     }
   }, [subscription, toggleSubscriptionStatus]);
 
+  const handleOpenPauseSchedule = useCallback(() => {
+    if (subscription) {
+      navigation.navigate('PauseSubscription', {
+        subscriptionId: subscription.id,
+      });
+    }
+  }, [subscription, navigation]);
+
   const handleStartCancellation = useCallback(() => {
     if (subscription) {
       navigation.navigate('CancellationFlow', {
@@ -293,9 +301,6 @@ const SubscriptionDetailScreen: React.FC = () => {
                   clearBefore: () => useSubscriptionStore.setState({ subscriptions: [] }),
                   fetcher: () => useSubscriptionStore.getState().fetchSubscriptions(),
                 })
-              }
-            />
-          }>
               }
             />
           }>
@@ -686,6 +691,14 @@ const SubscriptionDetailScreen: React.FC = () => {
             />
 
             <Button
+              title="Set Pause Schedule"
+              onPress={handleOpenPauseSchedule}
+              variant="secondary"
+              style={styles.actionButton}
+              testID="pause-schedule-button"
+            />
+
+            <Button
               title="Cancel Subscription"
               variant="danger"
               onPress={handleStartCancellation}
@@ -1073,7 +1086,6 @@ const styles = StyleSheet.create({
   },
   marginRight: {
     marginRight: spacing.sm,
-  }
   },
   standardCard: {
     marginHorizontal: spacing.lg,

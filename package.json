@@ -34,6 +34,7 @@
     "mutation:frontend": "npm run mutation:test",
     "mutation:backend": "npm run mutation:test:backend",
     "mutation:all": "npm run mutation:frontend && npm run mutation:backend",
+    "mutation:test:all": "npm run mutation:test && npm run mutation:test:backend",
     "mutation:report": "node scripts/check-mutation-score.js --summary",
     "build": "expo export",
     "build:android": "expo run:android --variant release",

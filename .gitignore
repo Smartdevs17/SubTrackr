@@ -70,6 +70,10 @@ logs/
 coverage/
 .nyc_output/
 
+# Mutation testing artifacts (Stryker)
+reports/
+.stryker-tmp/
+
 # Test snapshots & generated test/lint artifacts
 **/__snapshots__/
 *.snap
