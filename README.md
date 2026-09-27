@@ -60,6 +60,16 @@ SubTrackr is a mobile application for managing recurring payments and subscripti
 - Comprehensive fraud analytics and reporting
 - Prevented loss tracking and false positive monitoring
 
+**SLA Monitoring with Breach Alerts**
+
+- SLA definition per tier (Basic, Standard, Premium, Enterprise)
+- Real-time SLA tracking with compliance monitoring
+- Automatic breach detection and alerting
+- SLA credits issuance for breaches
+- Comprehensive SLA analytics and reporting
+- MTTR tracking and trend analysis
+- Multi-metric support (uptime, response time, error rate, etc.)
+
 **Wallet Integration**
 
 - Native Freighter wallet connection for Stellar transactions
