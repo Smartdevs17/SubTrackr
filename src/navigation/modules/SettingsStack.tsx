@@ -19,6 +19,7 @@ const EmailTemplateEditorScreen = lazyScreen(
 );
 const GDPRSettingsScreen = lazyScreen(() => import('../../screens/GDPRSettingsScreen'));
 const PrivacyCenterScreen = lazyScreen(() => import('../../screens/PrivacyCenterScreen'));
+const ConsentManagementScreen = lazyScreen(() => import('../../screens/ConsentManagementScreen'));
 const DataExportScreen = lazyScreen(() => import('../../screens/DataExportScreen'));
 const TaxSettingsScreen = lazyScreen(() => import('../../screens/TaxSettingsScreen'));
 const TaxComplianceScreen = lazyScreen(() => import('../../screens/TaxComplianceScreen'));
@@ -57,6 +58,11 @@ export const SettingsStack = () => (
       name="PrivacyCenter"
       component={PrivacyCenterScreen}
       options={{ title: 'Privacy Center', headerShown: true }}
+    />
+    <Stack.Screen
+      name="ConsentManagement"
+      component={ConsentManagementScreen}
+      options={{ title: 'Consent Preferences', headerShown: true }}
     />
     <Stack.Screen
       name="DataExport"
