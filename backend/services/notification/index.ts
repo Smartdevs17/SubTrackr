@@ -144,6 +144,55 @@ export type {
   SlackDeliveryResult,
   SubscriptionAlertContext,
 } from './slack';
+export {
+  SlackThreadStore,
+  SlackThreadedNotifier,
+  threadKeyFor,
+  updateKeyFor,
+  renderThreadSummary,
+  summarizeThreadByEvent,
+  createThreadTransport,
+} from './slackThreads';
+export type {
+  ThreadEntry,
+  ThreadMessage,
+  ThreadStats,
+  ThreadKeyStrategy,
+  ThreadTransport,
+  ThreadedMessageOptions,
+  ThreadedNotifierDeps,
+  ThreadedSendResult,
+  SlackTs,
+} from './slackThreads';
+
+// ── Digest ──────────────────────────────────────────────────────────────────────
+export {
+  DigestEmailService,
+  createDigestEmailService,
+  buildDigestWindow,
+  windowForSubscriber,
+  isWithinWindow,
+  selectDigestRecords,
+  groupIntoSections,
+  renderDigest,
+  summariseDigestRun,
+  assertValidFrequency,
+  DIGEST_FREQUENCIES,
+  DIGEST_INLINE_LIMIT,
+} from './digestService';
+export type {
+  DigestContent,
+  DigestFrequency,
+  DigestItem,
+  DigestResult,
+  DigestRunSummary,
+  DigestSection,
+  DigestServiceDeps,
+  DigestSubscriberSource,
+  DigestSubscription,
+  DigestWindow,
+  DigestPreferencesSource,
+} from './digestService';
 
 // ── Webhook Queue (BullMQ) ────────────────────────────────────────────────────
 export {

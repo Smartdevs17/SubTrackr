@@ -71,7 +71,11 @@ coverage/
 .nyc_output/
 
 # Test snapshots & generated test/lint artifacts
+# Jest/Vitest snapshots are generated, environment-dependent and regenerate on
+# demand, so committing them produces noisy diffs and stale expectations. Rust
+# contract snapshots are the exception and are un-ignored further down.
 **/__snapshots__/
+**/snapshots/
 *.snap
 *.snap.orig
 junit.xml
@@ -81,6 +85,7 @@ playwright-report/
 e2e/artifacts/
 e2e/screenshots/
 _jest-cache/
+.jest-cache/
 test_output.txt
 tsc_output*.txt
 lint_output*.txt
@@ -102,8 +107,14 @@ contracts/migrations/snapshots/*
 !contracts/migrations/snapshots/.gitkeep
 
 # Rust / Soroban test snapshots
+#
+# These are NOT junk: Soroban stores ledger/auth state per test case, so a
+# missing snapshot means the upgrade path and timelock enforcement are no
+# longer being verified. They are re-asserted below the JS snapshot rules so a
+# future blanket ignore cannot silently drop them.
 contracts/**/test_snapshots/
 test_snapshots/
+!contracts/**/test_snapshots/
 
 # Generated / artifact files
 *.orig
@@ -128,3 +139,28 @@ FORMATTING.md
 *.backup
 *\ copy.*
 package.json.backup
+
+# Build / validation output
+build_errors*.txt
+*.tsbuildinfo
+bundle-report*.json
+size-limit-report*.json
+.eslintcache
+.stryker-tmp/
+lcov.info
+coverage-final.json
+
+# One-off notes left at the repo root by debugging sessions
+issue*.json
+issues_summary.json
+COMPLETION_SUMMARY.md
+RACE_CONDITION_FIX.md
+JS_BUNDLE_FIX.md
+BUILD_FIX_GUIDE.md
+BUNDLE_AUDIT.md
+PR_BODY_*.md
+PR_CI_*.md
+WCAG_COMPLIANCE.md
+FORMATTING.md
+fix-*.sh
+verify-*.sh
