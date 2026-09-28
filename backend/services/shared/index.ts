@@ -216,5 +216,34 @@ export type {
   VersionReportRow,
   BuildReportOptions,
 } from './apiDeprecationReport';
+// ── Build Metrics Exporter ───────────────────────────────────────────────────
+export {
+  BuildMetricsService,
+  BuildMetricsValidationError,
+  buildMetricsService,
+  BUILD_STATUSES,
+  parseBuildRunInput,
+  escapeLabelValue,
+  sampleValue,
+  sampleMs,
+  percentile,
+} from './buildMetricsService';
+export type {
+  BuildStatus,
+  BuildRunInput,
+  BuildRunRecord,
+  BuildStageRecord,
+  BuildArtifactRecord,
+  BuildHandle,
+  BuildStartMeta,
+  EndBuildResult,
+  BuildMetrics,
+  BuildIngestResult,
+  BuildMetricsServiceOptions,
+  PipelineBuildStats,
+  StageBuildStats,
+  ArtifactBuildStats,
+  RejectionReason,
+} from './buildMetricsService';
 
 

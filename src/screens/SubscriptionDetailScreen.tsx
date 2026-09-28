@@ -34,6 +34,20 @@ import { ScreenTransition, SharedElement } from '../components/common/SharedElem
 type SubscriptionDetailRouteProp = RouteProp<RootStackParamList, 'SubscriptionDetail'>;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
+const getDayOfMonthSuffix = (day: number): string => {
+  if (day >= 11 && day <= 13) return 'th';
+  switch (day % 10) {
+    case 1:
+      return 'st';
+    case 2:
+      return 'nd';
+    case 3:
+      return 'rd';
+    default:
+      return 'th';
+  }
+};
+
 const CREDIT_METHODS: { label: string; value: CreditPaymentMethod; hint: string }[] = [
   { label: 'Card', value: 'card', hint: 'Visa, Mastercard, or Amex' },
   { label: 'Bank', value: 'bank_transfer', hint: 'ACH or wire transfer' },
@@ -120,6 +134,14 @@ const SubscriptionDetailScreen: React.FC = () => {
       Alert.alert('Error', 'Failed to update contract status');
     }
   }, [subscription, toggleSubscriptionStatus]);
+
+  const handleOpenPauseSchedule = useCallback(() => {
+    if (subscription) {
+      navigation.navigate('PauseSubscription', {
+        subscriptionId: subscription.id,
+      });
+    }
+  }, [subscription, navigation]);
 
   const handleStartCancellation = useCallback(() => {
     if (subscription) {
@@ -669,6 +691,14 @@ const SubscriptionDetailScreen: React.FC = () => {
             />
 
             <Button
+              title="Set Pause Schedule"
+              onPress={handleOpenPauseSchedule}
+              variant="secondary"
+              style={styles.actionButton}
+              testID="pause-schedule-button"
+            />
+
+            <Button
               title="Cancel Subscription"
               variant="danger"
               onPress={handleStartCancellation}
@@ -1041,6 +1071,18 @@ const styles = StyleSheet.create({
     color: colors.accent,
     fontWeight: '600',
     marginTop: spacing.xs,
+  },
+  alignmentRow: {
+    marginTop: spacing.md,
+  },
+  alignmentValue: {
+    ...typography.body,
+    color: colors.text,
+    marginTop: spacing.xs,
+  },
+  statusCard: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
   },
   marginRight: {
     marginRight: spacing.sm,

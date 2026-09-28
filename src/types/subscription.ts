@@ -23,6 +23,8 @@ export interface Subscription {
   totalGasSpent?: number;
   chargeCount?: number;
   lastGasCost?: number;
+  /** Preferred day of month for billing (1-31), used for cycle alignment */
+  billingDayOfMonth?: number;
   timezone?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -95,6 +97,8 @@ export interface SubscriptionFormData {
   isCryptoEnabled: boolean;
   cryptoToken?: string;
   cryptoAmount?: number;
+  /** Preferred day of month for billing (1-31), used for cycle alignment */
+  billingDayOfMonth?: number;
 }
 
 export interface SubscriptionStats {

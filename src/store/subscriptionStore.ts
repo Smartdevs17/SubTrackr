@@ -25,7 +25,7 @@ import {
 } from '../types/pause';
 import { InvoiceStatus, isOpenInvoice } from '../types/invoice';
 import { dummySubscriptions } from '../utils/dummyData'; // eslint-disable-line
-import { advanceBillingDate } from '../utils/billingDate';
+import { advanceBillingDate, calculateNextBillingDate } from '../utils/billingDate';
 import { buildBillingPeriod } from '../utils/invoice';
 import { BILLING_CONVERSIONS, CACHE_CONSTANTS } from '../utils/constants/values';
 import {
@@ -1054,7 +1054,11 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           }
           await presentChargeSuccessNotification(sub);
           const billingPeriod = buildBillingPeriod(sub);
-          const next = advanceBillingDate(new Date(sub.nextBillingDate), sub.billingCycle);
+          const next = calculateNextBillingDate(
+            new Date(sub.nextBillingDate),
+            sub.billingCycle,
+            sub.billingDayOfMonth
+          );
           const simulatedGas = 0.01 + Math.random() * 0.005; // Simulate 0.01 - 0.015 XLM gas
           set((state) => ({
             subscriptions: state.subscriptions.map((s) =>

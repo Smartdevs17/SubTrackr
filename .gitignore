@@ -164,3 +164,12 @@ WCAG_COMPLIANCE.md
 FORMATTING.md
 fix-*.sh
 verify-*.sh
+package-fixed.json
+
+# Local manifests, caches and CI scratch output
+.eslintcache
+.stryker-tmp/
+bundle-size-report.json
+size-limit-report*.json
+jest-babel.config.js.bak
+.metro-health-check*

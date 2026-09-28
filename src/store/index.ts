@@ -26,6 +26,8 @@ export { useSlaStore } from './slaStore';
 export { useGamificationStore } from './gamificationStore';
 export { useThemeStore } from '../theme/themeStore';
 export { usePlanComparisonStore } from './planComparisonStore';
+export { useResellerStore } from './resellerStore';
+export { useForecastingStore } from './forecastingStore';
 
 // Context + Hooks pattern exports (Issue #742)
 export {
@@ -37,3 +39,4 @@ export {
   useSubscriptionActions,
   useSubscription,
 } from '../context/SubscriptionContext';
+export { usePaymentFailureStore } from './paymentFailureStore';
