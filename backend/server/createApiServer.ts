@@ -9,6 +9,7 @@ import express, { type Express } from 'express';
 import { cacheHeadersMiddleware } from '../shared/middleware';
 import {
   createPublicApiRouter,
+  createSearchRouter,
   createSubscriptionOpsRouter,
   createThemeRouter,
 } from '../subscription/router';
@@ -39,6 +40,7 @@ export function createApiServer(options: CreateApiServerOptions = {}): Express {
   app.use(cacheHeadersMiddleware());
   app.use(createPublicApiRouter());
   app.use(createSubscriptionOpsRouter());
+  app.use('/api/v1/search', createSearchRouter());
   app.use('/api/v1/merchant', createThemeRouter());
 
   app.use((_req, res) => {
