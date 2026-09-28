@@ -6,6 +6,8 @@ import { FEATURE_CONFIG } from '../../config/features';
 import { featureFlagsService } from '../../services/featureFlags';
 import { useUserStore } from '../../store/userStore';
 import { colors, spacing, typography, borderRadius, shadows } from '../../utils/constants';
+import { PlanComparisonHeatmap } from './PlanComparisonHeatmap';
+import { AnnualSavingsBadge } from './AnnualSavingsBadge';
 
 const { width } = Dimensions.get('window');
 const cardWidth = (width - spacing.lg * 3) / 2; // Two cards per row
@@ -81,6 +83,8 @@ export const SubscriptionPlans: React.FC<SubscriptionPlansProps> = ({
   const renderPlanCard = (plan: SubscriptionPlan) => {
     const isCurrentPlan = showCurrentPlan && plan.tier === subscriptionTier;
     const isPopular = plan.isPopular;
+    const monthlyPlan = plans.find(p => p.billingCycle === BillingCycle.MONTHLY && p.tier === plan.tier);
+    const annualPlan = plans.find(p => p.billingCycle === BillingCycle.YEARLY && p.tier === plan.tier);
 
     return (
       <View key={plan.id} style={[styles.planCard, { width: cardWidth }]}>
@@ -102,6 +106,9 @@ export const SubscriptionPlans: React.FC<SubscriptionPlansProps> = ({
             <Text style={styles.price}>${plan.price}</Text>
             <Text style={styles.billingCycle}>/{plan.billingCycle.replace('ly', '')}</Text>
           </View>
+          {monthlyPlan && annualPlan && plan.id === monthlyPlan.id && (
+            <AnnualSavingsBadge monthlyPlan={monthlyPlan} annualPlan={annualPlan} />
+          )}
           <Text style={styles.planDescription}>{plan.description}</Text>
         </View>
 
@@ -136,6 +143,8 @@ export const SubscriptionPlans: React.FC<SubscriptionPlansProps> = ({
         <Text style={styles.title}>Choose Your Plan</Text>
         <Text style={styles.subtitle}>Select the plan that best fits your needs</Text>
       </View>
+
+      <PlanComparisonHeatmap plans={plans} />
 
       <View style={styles.plansGrid}>{plans.map((plan) => renderPlanCard(plan))}</View>
 
