@@ -419,6 +419,64 @@ jobs:
           path: bundle-size-report.json
 
   # ─────────────────────────────────────────────────────────
+  # Build Metrics (issue #1285)
+  #
+  # Reporter only: publishes the pipeline's duration, conclusion and per-job
+  # stage timings to the backend's build metrics ingest endpoint so
+  # GET /metrics/build tracks real CI health. Runs even when the pipeline
+  # fails, and is deliberately excluded from the merge-protection and
+  # ci-success needs lists so a metrics outage cannot block a merge.
+  # ─────────────────────────────────────────────────────────
+  build-metrics:
+    name: Publish Build Metrics
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      [
+        commitlint,
+        typescript-lint,
+        typescript-typecheck,
+        typescript-tests,
+        typescript-build,
+        sonarcloud,
+        rust-format,
+        rust-clippy,
+        rust-tests,
+        rust-build,
+        load-test,
+        bundle-size,
+      ]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Determine pipeline conclusion
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          failed=$(jq -r 'to_entries | map(select(.value.result != "success" and .value.result != "skipped") | .key) | join(",")' <<< "$NEEDS")
+          if [ -n "$failed" ]; then
+            echo "JOB_CONCLUSION=failure" >> "$GITHUB_ENV"
+            echo "BUILD_METRICS_REASON=${failed:0:200}" >> "$GITHUB_ENV"
+          else
+            echo "JOB_CONCLUSION=success" >> "$GITHUB_ENV"
+          fi
+          echo "Pipeline conclusion: ${failed:-all jobs green}"
+
+      - name: Publish build report
+        env:
+          BUILD_METRICS_URL: ${{ secrets.BUILD_METRICS_URL }}
+          BUILD_METRICS_INGEST_TOKEN: ${{ secrets.BUILD_METRICS_INGEST_TOKEN }}
+          BUILD_METRICS_REASON: ${{ env.BUILD_METRICS_REASON }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/publish-build-metrics.js
+
+  # ─────────────────────────────────────────────────────────
   # Merge Protection (only on PRs)
   # ─────────────────────────────────────────────────────────
   merge-protection:

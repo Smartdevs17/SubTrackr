@@ -7,6 +7,8 @@
  *   - GraphQL API at POST /graphql
  *   - Plan REST API at /plans/*
  *   - Prometheus plan cache metrics at GET /metrics/plan-cache
+ *   - Prometheus build pipeline metrics at GET /metrics/build (issue #1285)
+ *   - Build report ingestion at POST /build/metrics (issue #1285)
  *
  * Start locally:
  *   docker compose up -d redis postgres
@@ -14,6 +16,7 @@
  */
 
 import http from 'node:http';
+import { timingSafeEqual } from 'node:crypto';
 import { URL } from 'node:url';
 import { makeExecutableSchema } from '@graphql-tools/schema';
 import { createHandler } from 'graphql-http/lib/use/node';
@@ -44,6 +47,13 @@ import {
   getCorsAnalytics,
   getViolations,
 } from './services/shared/corsMiddleware';
+import { tierQuotaService } from './services/shared/tierQuotaService';
+import {
+  ipWhitelistService,
+  createIpWhitelistGate,
+} from './services/shared/ipWhitelistService';
+import { serverSessionService } from './services/auth/serverSessionService';
+import { buildMetricsService } from './services/shared/buildMetricsService';
 
 export interface StartServerOptions {
   port?: number;
@@ -144,7 +154,13 @@ function buildRateLimitMiddleware() {
     service: rateLimitingService,
     // Public/observability endpoints never throttle clients missing keys.
     allowMissingKey: true,
-    skipPaths: ['/health', '/metrics/plan-cache', '/metrics/compression', '/metrics/pool'],
+    skipPaths: [
+      '/health',
+      '/metrics/plan-cache',
+      '/metrics/compression',
+      '/metrics/pool',
+      '/metrics/build',
+    ],
     // Per-key tier: read x-subscription-tier header; defaults to FREE.
     getTier: (apiKey, req) => {
       void apiKey;
@@ -156,8 +172,41 @@ function buildRateLimitMiddleware() {
 }
 
 /**
+ * A `http.ServerResponse` augmented with the Express-style surface the rate
+ * limit middleware expects (`status` / `set` / `json`).
+ *
+ * The middleware is handed the *real* response rather than a stand-in, so the
+ * `writeHead` / `end` it wraps are the ones the route handlers actually call.
+ * A stand-in saw none of the real writes, which is why usage was never recorded
+ * and no limit could ever be reached.
+ */
+type AttachableResponse = http.ServerResponse & {
+  status(code: number): AttachableResponse;
+  set(name: string, value: string): AttachableResponse;
+  json(body: unknown): void;
+};
+
+function asAttachableResponse(res: http.ServerResponse): AttachableResponse {
+  const attachable = res as AttachableResponse;
+  attachable.status = function status(code: number) {
+    this.statusCode = code;
+    return this;
+  };
+  attachable.set = function set(name: string, value: string) {
+    this.setHeader(name, value);
+    return this;
+  };
+  attachable.json = function json(body: unknown) {
+    this.writeHead(this.statusCode, { 'Content-Type': 'application/json' });
+    this.end(JSON.stringify(body));
+  };
+  return attachable;
+}
+
+/**
  * Apply rate limit middleware inline (no Express).
- * Returns true if the request should continue, false if a 429 was sent.
+ * Returns true if the request should continue, false if the limiter already
+ * answered with 401/429.
  */
 async function applyRateLimit(
   rl: ReturnType<typeof buildRateLimitMiddleware>,
@@ -165,8 +214,6 @@ async function applyRateLimit(
   res: http.ServerResponse,
   path: string,
 ): Promise<boolean> {
-  let blocked = false;
-
   const pseudoReq = {
     method: req.method,
     path,
@@ -175,54 +222,70 @@ async function applyRateLimit(
     ip: (req.socket as { remoteAddress?: string } | null)?.remoteAddress,
   };
 
-  // Minimal Response adapter: the middleware speaks Express-style (status/json)
-  // while the raw http server only exposes writeHead/end.
-  const pseudoRes = {
-    _statusCode: 200,
-    setHeader(name: string, value: string | number) {
-      res.setHeader(name, String(value));
-    },
-    header(name: string, value: string) {
-      res.setHeader(name, value);
-      return this;
-    },
-    set(name: string, value: string) {
-      res.setHeader(name, value);
-      return this;
-    },
-    status(code: number) {
-      this._statusCode = code;
-      return this;
-    },
-    writeHead(status: number, headers?: Record<string, string>) {
-      res.writeHead(status, headers);
-    },
-    end(body?: string) {
-      res.end(body);
-      blocked = true;
-    },
-    json(body: unknown) {
-      res.writeHead(this._statusCode, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(body));
-      blocked = true;
-    },
-  };
-
-  await rl(pseudoReq, pseudoRes, () => {
+  await rl(pseudoReq, asAttachableResponse(res), () => {
     /* proceed */
   });
 
-  return !blocked;
+  // The limiter terminates the response itself when it denies the request.
+  return !res.writableEnded;
 }
 
-async function readJsonBody(req: http.IncomingMessage): Promise<unknown> {
+/** Client fault carrying an explicit HTTP status for the top-level catch. */
+class HttpError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'HttpError';
+  }
+}
+
+/** Upper bound on an ingested CI report body (1 MiB). */
+const MAX_BUILD_REPORT_BYTES = 1024 * 1024;
+
+/**
+ * Read and parse a JSON request body.
+ *
+ * @param maxBytes - Optional hard cap; exceeding it aborts with 413 so an
+ *   untrusted upload cannot buffer unbounded memory. Omit for trusted routes
+ *   to preserve the previous unlimited behaviour.
+ */
+async function readJsonBody(req: http.IncomingMessage, maxBytes?: number): Promise<unknown> {
   const chunks: Buffer[] = [];
+  let received = 0;
   for await (const chunk of req) {
-    chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+    const buf = typeof chunk === 'string' ? Buffer.from(chunk) : chunk;
+    received += buf.length;
+    if (maxBytes !== undefined && received > maxBytes) {
+      throw new HttpError(413, `request body exceeds ${maxBytes} bytes`);
+    }
+    chunks.push(buf);
   }
   const raw = Buffer.concat(chunks).toString('utf8').trim();
   if (!raw) return {};
-  return JSON.parse(raw) as unknown;
+  try {
+    return JSON.parse(raw) as unknown;
+  } catch {
+    throw new HttpError(400, 'request body is not valid JSON');
+  }
+}
+
+/**
+ * Constant-time comparison of a presented token against the configured ingest
+ * secret. Returns false when either side is missing so an unconfigured server
+ * never treats an empty token as valid.
+ */
+function tokenMatches(presented: string, expected: string | undefined): boolean {
+  if (!presented || !expected) return false;
+  const a = Buffer.from(presented, 'utf8');
+  const b = Buffer.from(expected, 'utf8');
+  if (a.length !== b.length) return false;
+  try {
+    return timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
 }
 
 function sendJson(
@@ -261,7 +324,26 @@ function matchPlanId(pathname: string): string | null {
 
 export async function startServer(options: StartServerOptions = {}): Promise<RunningServer> {
   const pool = options.pool ?? (await getPool());
+
+  // Boot time is tracked as a build run so the <2s startup budget from AGENTS.md
+  // is alertable through GET /metrics/build (issue #1285).
+  const bootstrapBuild = buildMetricsService.beginBuild('backend-bootstrap', {
+    runId: process.env['GITHUB_RUN_ID'],
+    commitSha: process.env['GITHUB_SHA'],
+    branch: process.env['GITHUB_REF_NAME'],
+  });
   const planBootstrap = options.planBootstrap ?? (await ensurePlanCache(pool));
+  buildMetricsService.endBuild(bootstrapBuild, {
+    status: 'success',
+    stages: [
+      {
+        stage: 'plan-cache-bootstrap',
+        durationMs: Date.now() - bootstrapBuild.startedAt,
+        status: 'success',
+      },
+    ],
+  });
+
   const planController = createPlanController({ planCache: planBootstrap.planCache });
 
   // Wrap pool with monitoring
@@ -290,6 +372,32 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
   });
 
   const rateLimitMw = buildRateLimitMiddleware();
+
+  // ---------------------------------------------------------------------------
+  // IP whitelist gate (issue #1158)
+  // ---------------------------------------------------------------------------
+  const ipWhitelistGate = createIpWhitelistGate({
+    service: ipWhitelistService,
+    getTenantId: (req) => {
+      const tid = req.headers['x-tenant-id'];
+      return typeof tid === 'string' ? tid : 'default';
+    },
+    bypassPaths: [
+      '/health',
+      '/metrics/plan-cache',
+      '/metrics/compression',
+      '/metrics/pool',
+      '/metrics/build',
+    ],
+  });
+
+  // ---------------------------------------------------------------------------
+  // Session expiry sweep — every 5 minutes (issue #1160)
+  // ---------------------------------------------------------------------------
+  const sessionSweepTimer = setInterval(() => {
+    serverSessionService.sweepExpiredSessions();
+  }, 5 * 60 * 1000);
+  sessionSweepTimer.unref();
 
   // Seed a default permissive CORS policy for the server's own tenant.
   // In production, policies should be loaded from the database per-tenant.
@@ -356,6 +464,23 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
       }
 
       // -----------------------------------------------------------------
+      // IP Whitelist gate (issue #1158) — applied before all auth/rate-limit
+      // -----------------------------------------------------------------
+      const ipAllowed = ipWhitelistGate(req, res, pathname);
+      if (!ipAllowed) return; // 403 already written
+
+      // -----------------------------------------------------------------
+      // Rate limiting (issue #913)
+      //
+      // Runs ahead of the whole route table, not just the routes below it, so
+      // every endpoint is actually metered. Paths in `skipPaths` (plus the
+      // service defaults in rateLimitingService.bypass.paths) are exempt, which
+      // is what keeps the observability endpoints scrapeable.
+      // -----------------------------------------------------------------
+      const proceed = await applyRateLimit(rateLimitMw, req, res, pathname);
+      if (!proceed) return; // 429 already sent
+
+      // -----------------------------------------------------------------
       // Health (bypass rate limiting)
       // -----------------------------------------------------------------
       if (pathname === '/health' && method === 'GET') {
@@ -391,6 +516,56 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
       if (pathname === '/metrics/pool' && method === 'GET') {
         res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4; charset=utf-8' });
         res.end(monitoredPool.prometheusMetrics());
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // Build metrics  GET /metrics/build  (issue #1285)
+      // -----------------------------------------------------------------
+      if (pathname === '/metrics/build' && method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4; charset=utf-8' });
+        res.end(buildMetricsService.prometheusMetrics());
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // Build metrics summary  GET /build/metrics  (issue #1285)
+      // -----------------------------------------------------------------
+      if (pathname === '/build/metrics' && method === 'GET') {
+        sendJson(res, 200, buildMetricsService.getMetrics());
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // Build report ingest  POST /build/metrics  (issue #1285)
+      //
+      // CI posts a run report here. Gated on a shared secret because the
+      // payload is untrusted and the route mutates exported metrics; with no
+      // secret configured the route is disabled rather than left open.
+      // -----------------------------------------------------------------
+      if (pathname === '/build/metrics' && method === 'POST') {
+        const ingestSecret = process.env['BUILD_METRICS_INGEST_TOKEN'];
+        if (!ingestSecret) {
+          sendJson(res, 503, {
+            error: 'build report ingest is disabled; set BUILD_METRICS_INGEST_TOKEN to enable',
+          });
+          return;
+        }
+        const authHeader = req.headers['authorization'];
+        const presented = typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
+          ? authHeader.slice(7).trim()
+          : '';
+        if (!tokenMatches(presented, ingestSecret)) {
+          sendJson(res, 401, { error: 'invalid or missing build report ingest token' });
+          return;
+        }
+        const report = await readJsonBody(req, MAX_BUILD_REPORT_BYTES);
+        const result = buildMetricsService.ingestBuildReport(report);
+        sendJson(res, 202, {
+          accepted: result.accepted.length,
+          rejected: result.rejected.length,
+          rejections: result.rejected,
+        });
         return;
       }
 
@@ -525,11 +700,955 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
         return;
       }
 
+      // =================================================================
+      // TIER QUOTA ROUTES  (issue #1155)
+      // =================================================================
+
+      // GET /quota/policies — list all tier policies
+      if (pathname === '/quota/policies' && method === 'GET') {
+        sendJson(res, 200, { policies: tierQuotaService.getAllPolicies() });
+        return;
+      }
+
+      // GET /quota/policies/:tier — get single tier policy
+      {
+        const quotaPolicyMatch = pathname.match(/^\/quota\/policies\/([^/]+)$/);
+        if (quotaPolicyMatch && method === 'GET') {
+          const tier = quotaPolicyMatch[1] as SubscriptionTier;
+          const policy = tierQuotaService.getPolicy(tier);
+          sendJson(res, 200, { policy });
+          return;
+        }
+
+        // PATCH /quota/policies/:tier — update a tier policy
+        if (quotaPolicyMatch && method === 'PATCH') {
+          const tier = quotaPolicyMatch[1] as SubscriptionTier;
+          const body = (await readJsonBody(req)) as Record<string, unknown>;
+          const updated = tierQuotaService.setPolicy(tier, body as any);
+          sendJson(res, 200, { policy: updated });
+          return;
+        }
+      }
+
+      // GET /quota/status?apiKey=...&tier=... — usage snapshots
+      if (pathname === '/quota/status' && method === 'GET') {
+        const apiKey = url.searchParams.get('apiKey');
+        const tier = (url.searchParams.get('tier') as SubscriptionTier) ?? SubscriptionTier.FREE;
+        if (!apiKey) {
+          sendJson(res, 400, { error: 'apiKey query param is required' });
+          return;
+        }
+        const snapshots = tierQuotaService.getUsageSnapshot(apiKey, tier);
+        const upgrade = tierQuotaService.getUpgradeRecommendation(apiKey, tier);
+        sendJson(res, 200, { snapshots, upgrade });
+        return;
+      }
+
+      // POST /quota/check — check without recording usage
+      if (pathname === '/quota/check' && method === 'POST') {
+        const body = (await readJsonBody(req)) as { apiKey?: string; tier?: string };
+        const apiKey = body.apiKey;
+        const tier = (body.tier as SubscriptionTier) ?? SubscriptionTier.FREE;
+        if (!apiKey) {
+          sendJson(res, 400, { error: 'apiKey is required' });
+          return;
+        }
+        const result = tierQuotaService.checkQuota(apiKey, tier);
+        sendJson(res, result.allowed ? 200 : 429, result);
+        return;
+      }
+
+      // POST /quota/grants — create an entitlement grant
+      if (pathname === '/quota/grants' && method === 'POST') {
+        const body = (await readJsonBody(req)) as {
+          apiKey?: string;
+          tier?: string;
+          extraHourly?: number;
+          extraDaily?: number;
+          extraMonthly?: number;
+          expiresAt?: string | null;
+          reason?: string;
+          grantedBy?: string;
+        };
+        if (!body.apiKey) {
+          sendJson(res, 400, { error: 'apiKey is required' });
+          return;
+        }
+        const grant = tierQuotaService.grantQuota({
+          apiKey: body.apiKey,
+          tier: (body.tier as SubscriptionTier) ?? SubscriptionTier.FREE,
+          extraHourly: body.extraHourly ?? 0,
+          extraDaily: body.extraDaily ?? 0,
+          extraMonthly: body.extraMonthly ?? 0,
+          expiresAt: body.expiresAt ?? null,
+          reason: body.reason ?? '',
+          grantedBy: body.grantedBy ?? 'admin',
+        });
+        sendJson(res, 201, { grant });
+        return;
+      }
+
+      // DELETE /quota/grants/:apiKey — revoke a grant
+      {
+        const grantDeleteMatch = pathname.match(/^\/quota\/grants\/([^/]+)$/);
+        if (grantDeleteMatch && method === 'DELETE') {
+          const apiKey = decodeURIComponent(grantDeleteMatch[1]);
+          const revoked = tierQuotaService.revokeGrant(apiKey);
+          sendJson(res, revoked ? 200 : 404, { revoked, apiKey });
+          return;
+        }
+      }
+
+      // GET /quota/grants — list active grants
+      if (pathname === '/quota/grants' && method === 'GET') {
+        sendJson(res, 200, { grants: tierQuotaService.listGrants() });
+        return;
+      }
+
+      // GET /quota/metrics — summary metrics
+      if (pathname === '/quota/metrics' && method === 'GET') {
+        sendJson(res, 200, tierQuotaService.getMetrics());
+        return;
+      }
+
+      // GET /metrics/quota — Prometheus text
+      if (pathname === '/metrics/quota' && method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4; charset=utf-8' });
+        res.end(tierQuotaService.prometheusMetrics());
+        return;
+      }
+
+      // POST /quota/reset — reset usage for apiKey (admin)
+      if (pathname === '/quota/reset' && method === 'POST') {
+        const body = (await readJsonBody(req)) as { apiKey?: string; all?: boolean };
+        if (body.all) {
+          tierQuotaService.resetAllUsage();
+          sendJson(res, 200, { reset: 'all' });
+        } else if (body.apiKey) {
+          tierQuotaService.resetUsage(body.apiKey);
+          sendJson(res, 200, { reset: body.apiKey });
+        } else {
+          sendJson(res, 400, { error: 'apiKey or all:true required' });
+        }
+        return;
+      }
+
+      // =================================================================
+      // IP WHITELIST ROUTES  (issue #1158)
+      // =================================================================
+
+      // GET /ip-whitelist/rules — list all rules
+      if (pathname === '/ip-whitelist/rules' && method === 'GET') {
+        const tenantId = url.searchParams.get('tenantId') ?? undefined;
+        const rules = tenantId
+          ? ipWhitelistService.getRulesForTenant(tenantId)
+          : ipWhitelistService.getAllRules();
+        sendJson(res, 200, { rules });
+        return;
+      }
+
+      // POST /ip-whitelist/rules — add a rule
+      if (pathname === '/ip-whitelist/rules' && method === 'POST') {
+        const body = (await readJsonBody(req)) as {
+          cidr?: string;
+          type?: 'allow' | 'deny';
+          tenantId?: string;
+          description?: string;
+          expiresAt?: number | null;
+          priority?: number;
+          createdBy?: string;
+        };
+        if (!body.cidr) {
+          sendJson(res, 400, { error: 'cidr is required' });
+          return;
+        }
+        const rule = ipWhitelistService.addRule({
+          cidr: body.cidr,
+          type: body.type ?? 'allow',
+          tenantId: body.tenantId ?? 'default',
+          description: body.description,
+          expiresAt: body.expiresAt ?? null,
+          priority: body.priority,
+          createdBy: body.createdBy ?? 'admin',
+          enabled: true,
+        });
+        sendJson(res, 201, { rule });
+        return;
+      }
+
+      // PATCH /ip-whitelist/rules/:id — update a rule
+      // DELETE /ip-whitelist/rules/:id — delete a rule
+      {
+        const ruleMatch = pathname.match(/^\/ip-whitelist\/rules\/([^/]+)$/);
+        if (ruleMatch && method === 'PATCH') {
+          const id = ruleMatch[1];
+          const body = (await readJsonBody(req)) as Record<string, unknown>;
+          const updated = ipWhitelistService.updateRule(id, body as any);
+          if (!updated) { sendJson(res, 404, { error: 'Rule not found' }); return; }
+          sendJson(res, 200, { rule: updated });
+          return;
+        }
+        if (ruleMatch && method === 'DELETE') {
+          const id = ruleMatch[1];
+          const deleted = ipWhitelistService.deleteRule(id);
+          sendJson(res, deleted ? 200 : 404, { deleted, id });
+          return;
+        }
+      }
+
+      // POST /ip-whitelist/check — test an IP against rules
+      if (pathname === '/ip-whitelist/check' && method === 'POST') {
+        const body = (await readJsonBody(req)) as { ip?: string; tenantId?: string; path?: string };
+        if (!body.ip) {
+          sendJson(res, 400, { error: 'ip is required' });
+          return;
+        }
+        const decision = ipWhitelistService.decide(body.ip, body.tenantId ?? 'default', body.path ?? '/');
+        sendJson(res, 200, { decision });
+        return;
+      }
+
+      // GET /ip-whitelist/stats — stats
+      if (pathname === '/ip-whitelist/stats' && method === 'GET') {
+        sendJson(res, 200, ipWhitelistService.getStats());
+        return;
+      }
+
+      // GET /ip-whitelist/audit-log — decision audit log
+      if (pathname === '/ip-whitelist/audit-log' && method === 'GET') {
+        const tenantId = url.searchParams.get('tenantId') ?? undefined;
+        const ip = url.searchParams.get('ip') ?? undefined;
+        const deniedOnly = url.searchParams.get('deniedOnly') === 'true';
+        const limit = url.searchParams.get('limit') ? Number(url.searchParams.get('limit')) : 500;
+        const since = url.searchParams.get('since') ? Number(url.searchParams.get('since')) : undefined;
+        sendJson(res, 200, {
+          log: ipWhitelistService.getDecisionLog({ tenantId, ip, deniedOnly, since, limit }),
+        });
+        return;
+      }
+
+      // POST /ip-whitelist/purge-expired — purge expired rules
+      if (pathname === '/ip-whitelist/purge-expired' && method === 'POST') {
+        const count = ipWhitelistService.purgeExpiredRules();
+        sendJson(res, 200, { purged: count });
+        return;
+      }
+
+      // GET /ip-whitelist/trusted-networks — list trusted networks
+      if (pathname === '/ip-whitelist/trusted-networks' && method === 'GET') {
+        sendJson(res, 200, { trustedNetworks: (ipWhitelistService as any).trustedNetworks });
+        return;
+      }
+
+      // POST /ip-whitelist/trusted-networks — add trusted network
+      if (pathname === '/ip-whitelist/trusted-networks' && method === 'POST') {
+        const body = (await readJsonBody(req)) as { cidr?: string };
+        if (!body.cidr) { sendJson(res, 400, { error: 'cidr is required' }); return; }
+        ipWhitelistService.addTrustedNetwork(body.cidr);
+        sendJson(res, 200, { added: body.cidr });
+        return;
+      }
+
+      // GET /metrics/ip-whitelist — Prometheus text
+      if (pathname === '/metrics/ip-whitelist' && method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4; charset=utf-8' });
+        res.end(ipWhitelistService.prometheusMetrics());
+        return;
+      }
+
+      // =================================================================
+      // SESSION MANAGEMENT ROUTES  (issue #1160)
+      // =================================================================
+
+      // POST /sessions — create a new session
+      if (pathname === '/sessions' && method === 'POST') {
+        const body = (await readJsonBody(req)) as {
+          userId?: string;
+          ttlMs?: number;
+          metadata?: Record<string, unknown>;
+        };
+        if (!body.userId) {
+          sendJson(res, 400, { error: 'userId is required' });
+          return;
+        }
+        const session = serverSessionService.createSession({
+          userId: body.userId,
+          req,
+          ttlMs: body.ttlMs,
+          metadata: body.metadata,
+        });
+        // Never send the raw token back in body — send it in a header so callers
+        // can store it securely; include session metadata only.
+        res.setHeader('X-Session-Token', session.token);
+        sendJson(res, 201, {
+          id: session.id,
+          userId: session.userId,
+          device: session.device,
+          geo: { country: session.geo.country, city: session.geo.city, region: session.geo.region },
+          status: session.status,
+          createdAt: session.createdAt,
+          expiresAt: session.expiresAt,
+          isSuspicious: session.isSuspicious,
+          suspiciousReasons: session.suspiciousReasons,
+        });
+        return;
+      }
+
+      // GET /sessions/validate — validate token from X-Session-Token header
+      if (pathname === '/sessions/validate' && method === 'GET') {
+        const token = req.headers['x-session-token'] as string;
+        if (!token) {
+          sendJson(res, 400, { error: 'X-Session-Token header is required' });
+          return;
+        }
+        const result = serverSessionService.validateSession(token, req);
+        if (!result.valid) {
+          sendJson(res, 401, { valid: false, reason: result.reason });
+          return;
+        }
+        const s = result.session!;
+        sendJson(res, 200, {
+          valid: true,
+          id: s.id,
+          userId: s.userId,
+          device: s.device,
+          status: s.status,
+          expiresAt: s.expiresAt,
+          isSuspicious: s.isSuspicious,
+          suspiciousReasons: s.suspiciousReasons,
+        });
+        return;
+      }
+
+      // POST /sessions/touch — extend session TTL
+      if (pathname === '/sessions/touch' && method === 'POST') {
+        const token = req.headers['x-session-token'] as string;
+        if (!token) {
+          sendJson(res, 400, { error: 'X-Session-Token header is required' });
+          return;
+        }
+        const session = serverSessionService.touchSession(token);
+        if (!session) {
+          sendJson(res, 404, { error: 'Session not found or expired' });
+          return;
+        }
+        sendJson(res, 200, { id: session.id, expiresAt: session.expiresAt, lastActiveAt: session.lastActiveAt });
+        return;
+      }
+
+      // POST /sessions/revoke — revoke a specific session token
+      if (pathname === '/sessions/revoke' && method === 'POST') {
+        const body = (await readJsonBody(req)) as { token?: string; reason?: string };
+        if (!body.token) {
+          sendJson(res, 400, { error: 'token is required' });
+          return;
+        }
+        const revoked = serverSessionService.revokeSession(body.token, body.reason);
+        sendJson(res, revoked ? 200 : 404, { revoked });
+        return;
+      }
+
+      // POST /sessions/revoke-all — revoke all sessions for a user
+      if (pathname === '/sessions/revoke-all' && method === 'POST') {
+        const body = (await readJsonBody(req)) as { userId?: string; reason?: string };
+        if (!body.userId) {
+          sendJson(res, 400, { error: 'userId is required' });
+          return;
+        }
+        const count = serverSessionService.revokeAllSessions(body.userId, body.reason);
+        sendJson(res, 200, { revoked: count });
+        return;
+      }
+
+      // POST /sessions/revoke-others — revoke all other sessions for the token owner
+      if (pathname === '/sessions/revoke-others' && method === 'POST') {
+        const token = req.headers['x-session-token'] as string;
+        if (!token) {
+          sendJson(res, 400, { error: 'X-Session-Token header is required' });
+          return;
+        }
+        const count = serverSessionService.revokeOtherSessions(token);
+        sendJson(res, 200, { revoked: count });
+        return;
+      }
+
+      // GET /sessions/user/:userId — list all sessions for a user
+      {
+        const userSessionMatch = pathname.match(/^\/sessions\/user\/([^/]+)$/);
+        if (userSessionMatch && method === 'GET') {
+          const userId = decodeURIComponent(userSessionMatch[1]);
+          const activeOnly = url.searchParams.get('activeOnly') === 'true';
+          const sessions = activeOnly
+            ? serverSessionService.getActiveSessionsForUser(userId)
+            : serverSessionService.getAllSessionsForUser(userId);
+          // Strip raw tokens from list response
+          sendJson(res, 200, {
+            sessions: sessions.map((s) => ({
+              id: s.id,
+              userId: s.userId,
+              device: s.device,
+              geo: { country: s.geo.country, city: s.geo.city, region: s.geo.region },
+              status: s.status,
+              createdAt: s.createdAt,
+              lastActiveAt: s.lastActiveAt,
+              expiresAt: s.expiresAt,
+              isSuspicious: s.isSuspicious,
+              suspiciousReasons: s.suspiciousReasons,
+            })),
+          });
+          return;
+        }
+      }
+
+      // GET /sessions/suspicious — get suspicious sessions (optional ?userId=)
+      if (pathname === '/sessions/suspicious' && method === 'GET') {
+        const userId = url.searchParams.get('userId') ?? undefined;
+        const sessions = serverSessionService.getSuspiciousSessions(userId);
+        sendJson(res, 200, {
+          sessions: sessions.map((s) => ({
+            id: s.id,
+            userId: s.userId,
+            device: s.device,
+            geo: { country: s.geo.country, city: s.geo.city, region: s.geo.region },
+            status: s.status,
+            isSuspicious: s.isSuspicious,
+            suspiciousReasons: s.suspiciousReasons,
+          })),
+        });
+        return;
+      }
+
+      // GET /sessions/stats — aggregate stats
+      if (pathname === '/sessions/stats' && method === 'GET') {
+        sendJson(res, 200, serverSessionService.getStats());
+        return;
+      }
+
+      // GET /sessions/audit-log — audit log query
+      if (pathname === '/sessions/audit-log' && method === 'GET') {
+        const userId = url.searchParams.get('userId') ?? undefined;
+        const sessionId = url.searchParams.get('sessionId') ?? undefined;
+        const action = url.searchParams.get('action') as any;
+        const since = url.searchParams.get('since') ? Number(url.searchParams.get('since')) : undefined;
+        const limit = url.searchParams.get('limit') ? Number(url.searchParams.get('limit')) : 200;
+        sendJson(res, 200, {
+          log: serverSessionService.getAuditLog({ userId, sessionId, action, since, limit }),
+        });
+        return;
+      }
+
+      // PATCH /sessions/config — update session service config
+      if (pathname === '/sessions/config' && method === 'PATCH') {
+        const body = (await readJsonBody(req)) as Record<string, unknown>;
+        const config = serverSessionService.updateConfig(body as any);
+        sendJson(res, 200, { config });
+        return;
+      }
+
+      // GET /sessions/config — get current config
+      if (pathname === '/sessions/config' && method === 'GET') {
+        sendJson(res, 200, { config: serverSessionService.getConfig() });
+        return;
+      }
+
+      // POST /sessions/sweep — manually trigger expiry sweep
+      if (pathname === '/sessions/sweep' && method === 'POST') {
+        const count = serverSessionService.sweepExpiredSessions();
+        sendJson(res, 200, { swept: count });
+        return;
+      }
+
+      // GET /metrics/sessions — Prometheus text
+      if (pathname === '/metrics/sessions' && method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4; charset=utf-8' });
+        res.end(serverSessionService.prometheusMetrics());
+        return;
+      }
+
       // -----------------------------------------------------------------
-      // Apply rate limiting to all other routes
+      // Tier Quota — GET /quota/status?apiKey=...&tier=...
       // -----------------------------------------------------------------
-      const proceed = await applyRateLimit(rateLimitMw, req, res, pathname);
-      if (!proceed) return; // 429 already sent
+      if (pathname === '/quota/status' && method === 'GET') {
+        const apiKey = url.searchParams.get('apiKey');
+        const tier = (url.searchParams.get('tier') as SubscriptionTier) ?? SubscriptionTier.FREE;
+        if (!apiKey) {
+          sendJson(res, 400, { error: 'apiKey query param required' });
+          return;
+        }
+        const snapshots = tierQuotaService.getUsageSnapshot(apiKey, tier);
+        const recommendation = tierQuotaService.getUpgradeRecommendation(apiKey, tier);
+        sendJson(res, 200, { snapshots, recommendation });
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // Tier Quota — GET /quota/policies
+      // -----------------------------------------------------------------
+      if (pathname === '/quota/policies' && method === 'GET') {
+        sendJson(res, 200, { policies: tierQuotaService.getAllPolicies() });
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // Tier Quota — PATCH /quota/policies/:tier
+      // -----------------------------------------------------------------
+      if (pathname.startsWith('/quota/policies/') && method === 'PATCH') {
+        const tierParam = pathname.split('/')[3] as SubscriptionTier;
+        if (!tierParam) {
+          sendJson(res, 400, { error: 'tier path param required' });
+          return;
+        }
+        const body = (await readJsonBody(req)) as Parameters<typeof tierQuotaService.setPolicy>[1];
+        const policy = tierQuotaService.setPolicy(tierParam, body);
+        sendJson(res, 200, { policy });
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // Tier Quota — POST /quota/grants
+      // -----------------------------------------------------------------
+      if (pathname === '/quota/grants' && method === 'POST') {
+        const body = (await readJsonBody(req)) as Parameters<typeof tierQuotaService.grantQuota>[0];
+        if (!body.apiKey || !body.tier) {
+          sendJson(res, 400, { error: 'apiKey and tier are required' });
+          return;
+        }
+        const grant = tierQuotaService.grantQuota(body);
+        sendJson(res, 201, { grant });
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // Tier Quota — DELETE /quota/grants/:apiKey
+      // -----------------------------------------------------------------
+      if (pathname.startsWith('/quota/grants/') && method === 'DELETE') {
+        const apiKey = decodeURIComponent(pathname.split('/')[3] ?? '');
+        const ok = tierQuotaService.revokeGrant(apiKey);
+        sendJson(res, ok ? 200 : 404, { success: ok });
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // Tier Quota — GET /quota/metrics
+      // -----------------------------------------------------------------
+      if (pathname === '/quota/metrics' && method === 'GET') {
+        sendJson(res, 200, tierQuotaService.getMetrics());
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // Tier Quota — GET /metrics/quota (Prometheus)
+      // -----------------------------------------------------------------
+      if (pathname === '/metrics/quota' && method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4; charset=utf-8' });
+        res.end(tierQuotaService.prometheusMetrics());
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // IP Whitelist — GET /ip-whitelist/rules
+      // -----------------------------------------------------------------
+      if (pathname === '/ip-whitelist/rules' && method === 'GET') {
+        const tenantId = url.searchParams.get('tenantId') ?? undefined;
+        const rules = tenantId
+          ? ipWhitelistService.getRulesForTenant(tenantId)
+          : ipWhitelistService.getAllRules();
+        sendJson(res, 200, { rules });
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // IP Whitelist — POST /ip-whitelist/rules
+      // -----------------------------------------------------------------
+      if (pathname === '/ip-whitelist/rules' && method === 'POST') {
+        const body = (await readJsonBody(req)) as Parameters<typeof ipWhitelistService.addRule>[0];
+        if (!body.cidr || !body.type || !body.tenantId) {
+          sendJson(res, 400, { error: 'cidr, type, and tenantId are required' });
+          return;
+        }
+        const rule = ipWhitelistService.addRule({ ...body, createdBy: body.createdBy ?? 'api' });
+        sendJson(res, 201, { rule });
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // IP Whitelist — PATCH /ip-whitelist/rules/:id
+      // -----------------------------------------------------------------
+      if (pathname.startsWith('/ip-whitelist/rules/') && method === 'PATCH') {
+        const ruleId = pathname.split('/')[3];
+        if (!ruleId) { sendJson(res, 400, { error: 'rule id required' }); return; }
+        const body = (await readJsonBody(req)) as Parameters<typeof ipWhitelistService.updateRule>[1];
+        const updated = ipWhitelistService.updateRule(ruleId, body);
+        sendJson(res, updated ? 200 : 404, updated ?? { error: 'rule not found' });
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // IP Whitelist — DELETE /ip-whitelist/rules/:id
+      // -----------------------------------------------------------------
+      if (pathname.startsWith('/ip-whitelist/rules/') && method === 'DELETE') {
+        const ruleId = pathname.split('/')[3];
+        if (!ruleId) { sendJson(res, 400, { error: 'rule id required' }); return; }
+        const ok = ipWhitelistService.deleteRule(ruleId);
+        sendJson(res, ok ? 200 : 404, { success: ok });
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // IP Whitelist — POST /ip-whitelist/check
+      // -----------------------------------------------------------------
+      if (pathname === '/ip-whitelist/check' && method === 'POST') {
+        const body = (await readJsonBody(req)) as { ip?: string; tenantId?: string };
+        const ip = body.ip ?? extractClientIp(req);
+        const tenantId = body.tenantId ?? 'default';
+        const decision = ipWhitelistService.decide(ip, tenantId, pathname);
+        sendJson(res, 200, { decision });
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // IP Whitelist — GET /ip-whitelist/stats
+      // -----------------------------------------------------------------
+      if (pathname === '/ip-whitelist/stats' && method === 'GET') {
+        sendJson(res, 200, ipWhitelistService.getStats());
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // IP Whitelist — GET /ip-whitelist/audit
+      // -----------------------------------------------------------------
+      if (pathname === '/ip-whitelist/audit' && method === 'GET') {
+        const tenantId = url.searchParams.get('tenantId') ?? undefined;
+        const ip = url.searchParams.get('ip') ?? undefined;
+        const limit = url.searchParams.get('limit') ? Number(url.searchParams.get('limit')) : 200;
+        const since = url.searchParams.get('since') ? Number(url.searchParams.get('since')) : undefined;
+        const log = ipWhitelistService.getDecisionLog({ tenantId, ip, limit, since });
+        sendJson(res, 200, { log });
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // IP Whitelist — GET /metrics/ip-whitelist (Prometheus)
+      // -----------------------------------------------------------------
+      if (pathname === '/metrics/ip-whitelist' && method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4; charset=utf-8' });
+        res.end(ipWhitelistService.prometheusMetrics());
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // Sessions — POST /sessions  (create session)
+      // -----------------------------------------------------------------
+      if (pathname === '/sessions' && method === 'POST') {
+        const body = (await readJsonBody(req)) as { userId?: string; ttlMs?: number; metadata?: Record<string, unknown> };
+        if (!body.userId) {
+          sendJson(res, 400, { error: 'userId is required' });
+          return;
+        }
+        const session = serverSessionService.createSession({
+          userId: body.userId,
+          req,
+          ttlMs: body.ttlMs,
+          metadata: body.metadata,
+        });
+        // Don't expose raw token in response body — return only id + metadata
+        sendJson(res, 201, {
+          sessionId: session.id,
+          token: session.token,
+          expiresAt: session.expiresAt,
+          device: session.device,
+          isSuspicious: session.isSuspicious,
+          suspiciousReasons: session.suspiciousReasons,
+        });
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // Sessions — GET /sessions/validate  (token in Authorization: Bearer)
+      // -----------------------------------------------------------------
+      if (pathname === '/sessions/validate' && method === 'GET') {
+        const authHeader = req.headers['authorization'];
+        const token = typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
+          ? authHeader.slice(7).trim()
+          : url.searchParams.get('token') ?? '';
+        if (!token) {
+          sendJson(res, 400, { error: 'session token required in Authorization header' });
+          return;
+        }
+        const result = serverSessionService.validateSession(token, req);
+        if (!result.valid) {
+          sendJson(res, 401, { valid: false, reason: result.reason });
+          return;
+        }
+        const s = result.session!;
+        sendJson(res, 200, {
+          valid: true,
+          sessionId: s.id,
+          userId: s.userId,
+          device: s.device,
+          geo: s.geo,
+          expiresAt: s.expiresAt,
+          isSuspicious: s.isSuspicious,
+          suspiciousReasons: s.suspiciousReasons,
+        });
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // Sessions — GET /sessions/user/:userId
+      // -----------------------------------------------------------------
+      if (pathname.startsWith('/sessions/user/') && method === 'GET') {
+        const userId = decodeURIComponent(pathname.split('/')[3] ?? '');
+        if (!userId) { sendJson(res, 400, { error: 'userId required' }); return; }
+        const sessions = serverSessionService.getAllSessionsForUser(userId).map((s) => ({
+          id: s.id,
+          device: s.device,
+          geo: s.geo,
+          status: s.status,
+          createdAt: s.createdAt,
+          lastActiveAt: s.lastActiveAt,
+          expiresAt: s.expiresAt,
+          isSuspicious: s.isSuspicious,
+          suspiciousReasons: s.suspiciousReasons,
+        }));
+        sendJson(res, 200, { sessions });
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // Sessions — DELETE /sessions/:token  (revoke)
+      // -----------------------------------------------------------------
+      if (pathname.startsWith('/sessions/') && method === 'DELETE') {
+        const token = decodeURIComponent(pathname.split('/')[2] ?? '');
+        if (!token) { sendJson(res, 400, { error: 'session token required' }); return; }
+        const body = (await readJsonBody(req)) as { reason?: string };
+        const ok = serverSessionService.revokeSession(token, body.reason);
+        sendJson(res, ok ? 200 : 404, { success: ok });
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // Sessions — POST /sessions/revoke-all  (revoke all for user)
+      // -----------------------------------------------------------------
+      if (pathname === '/sessions/revoke-all' && method === 'POST') {
+        const body = (await readJsonBody(req)) as { userId?: string; reason?: string };
+        if (!body.userId) { sendJson(res, 400, { error: 'userId required' }); return; }
+        const count = serverSessionService.revokeAllSessions(body.userId, body.reason);
+        sendJson(res, 200, { revokedCount: count });
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // Sessions — POST /sessions/revoke-others
+      // -----------------------------------------------------------------
+      if (pathname === '/sessions/revoke-others' && method === 'POST') {
+        const body = (await readJsonBody(req)) as { token?: string; reason?: string };
+        if (!body.token) { sendJson(res, 400, { error: 'current session token required' }); return; }
+        const count = serverSessionService.revokeOtherSessions(body.token, body.reason);
+        sendJson(res, 200, { revokedCount: count });
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // Sessions — GET /sessions/suspicious
+      // -----------------------------------------------------------------
+      if (pathname === '/sessions/suspicious' && method === 'GET') {
+        const userId = url.searchParams.get('userId') ?? undefined;
+        const suspicious = serverSessionService.getSuspiciousSessions(userId).map((s) => ({
+          id: s.id,
+          userId: s.userId,
+          device: s.device,
+          geo: s.geo,
+          status: s.status,
+          suspiciousReasons: s.suspiciousReasons,
+          createdAt: s.createdAt,
+          lastActiveAt: s.lastActiveAt,
+        }));
+        sendJson(res, 200, { suspicious });
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // Sessions — GET /sessions/stats
+      // -----------------------------------------------------------------
+      if (pathname === '/sessions/stats' && method === 'GET') {
+        sendJson(res, 200, serverSessionService.getStats());
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // Sessions — GET /sessions/audit
+      // -----------------------------------------------------------------
+      if (pathname === '/sessions/audit' && method === 'GET') {
+        const userId = url.searchParams.get('userId') ?? undefined;
+        const sessionId = url.searchParams.get('sessionId') ?? undefined;
+        const action = url.searchParams.get('action') as Parameters<typeof serverSessionService.getAuditLog>[0]['action'];
+        const since = url.searchParams.get('since') ? Number(url.searchParams.get('since')) : undefined;
+        const limit = url.searchParams.get('limit') ? Number(url.searchParams.get('limit')) : 200;
+        sendJson(res, 200, { log: serverSessionService.getAuditLog({ userId, sessionId, action, since, limit }) });
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // Sessions — PATCH /sessions/config
+      // -----------------------------------------------------------------
+      if (pathname === '/sessions/config' && method === 'PATCH') {
+        const body = (await readJsonBody(req)) as Parameters<typeof serverSessionService.updateConfig>[0];
+        const config = serverSessionService.updateConfig(body);
+        sendJson(res, 200, { config });
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // Sessions — GET /metrics/sessions (Prometheus)
+      // -----------------------------------------------------------------
+      if (pathname === '/metrics/sessions' && method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4; charset=utf-8' });
+        res.end(serverSessionService.prometheusMetrics());
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // HubSpot — POST /hubspot/contacts/sync
+      // -----------------------------------------------------------------
+      if (pathname === '/hubspot/contacts/sync' && method === 'POST') {
+        const body = (await readJsonBody(req)) as { contacts?: unknown[]; contact?: unknown };
+        const hubspot = getHubSpotService();
+        if (Array.isArray(body.contacts)) {
+          const results = await hubspot.syncContacts(body.contacts as Parameters<typeof hubspot.syncContacts>[0]);
+          sendJson(res, 200, { results });
+        } else if (body.contact) {
+          const result = await hubspot.syncContact(body.contact as Parameters<typeof hubspot.syncContact>[0]);
+          sendJson(res, result.success ? 200 : 502, { result });
+        } else {
+          sendJson(res, 400, { error: 'contact or contacts array required' });
+        }
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // HubSpot — POST /hubspot/companies/sync
+      // -----------------------------------------------------------------
+      if (pathname === '/hubspot/companies/sync' && method === 'POST') {
+        const body = (await readJsonBody(req)) as { companies?: unknown[]; company?: unknown };
+        const hubspot = getHubSpotService();
+        if (Array.isArray(body.companies)) {
+          const results = await hubspot.syncCompanies(body.companies as Parameters<typeof hubspot.syncCompanies>[0]);
+          sendJson(res, 200, { results });
+        } else if (body.company) {
+          const result = await hubspot.syncCompany(body.company as Parameters<typeof hubspot.syncCompany>[0]);
+          sendJson(res, result.success ? 200 : 502, { result });
+        } else {
+          sendJson(res, 400, { error: 'company or companies array required' });
+        }
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // HubSpot — POST /hubspot/deals/sync
+      // -----------------------------------------------------------------
+      if (pathname === '/hubspot/deals/sync' && method === 'POST') {
+        const body = (await readJsonBody(req)) as { deals?: unknown[]; deal?: unknown };
+        const hubspot = getHubSpotService();
+        if (Array.isArray(body.deals)) {
+          const results = await hubspot.syncDeals(body.deals as Parameters<typeof hubspot.syncDeals>[0]);
+          sendJson(res, 200, { results });
+        } else if (body.deal) {
+          const result = await hubspot.syncDeal(body.deal as Parameters<typeof hubspot.syncDeal>[0]);
+          sendJson(res, result.success ? 200 : 502, { result });
+        } else {
+          sendJson(res, 400, { error: 'deal or deals array required' });
+        }
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // HubSpot — POST /hubspot/activities
+      // -----------------------------------------------------------------
+      if (pathname === '/hubspot/activities' && method === 'POST') {
+        const body = (await readJsonBody(req)) as import('./services/crm/hubspotService').HubSpotActivity;
+        const result = await getHubSpotService().trackActivity(body);
+        sendJson(res, result.success ? 200 : 502, { result });
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // HubSpot — POST /hubspot/webhook  (ingest from HubSpot)
+      // -----------------------------------------------------------------
+      if (pathname === '/hubspot/webhook' && method === 'POST') {
+        const rawBody = await new Promise<string>((resolve, reject) => {
+          const chunks: Buffer[] = [];
+          req.on('data', (c: Buffer) => chunks.push(c));
+          req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+          req.on('error', reject);
+        });
+
+        const hubspot = getHubSpotService();
+        const sigHeader = req.headers['x-hubspot-signature-v3'] as string ?? '';
+        const timestamp = req.headers['x-hubspot-request-timestamp'] as string ?? '';
+        const reqUrl = `https://${req.headers['host'] ?? 'localhost'}${req.url ?? '/hubspot/webhook'}`;
+
+        const verified = hubspot.verifyWebhookSignature({
+          method: 'POST',
+          url: reqUrl,
+          rawBody,
+          timestamp,
+          signature: sigHeader,
+        });
+
+        if (!verified) {
+          sendJson(res, 401, { error: 'webhook signature verification failed' });
+          return;
+        }
+
+        let events: unknown[];
+        try {
+          events = JSON.parse(rawBody) as unknown[];
+        } catch {
+          sendJson(res, 400, { error: 'invalid JSON body' });
+          return;
+        }
+
+        const stats = hubspot.ingestWebhookEvents(
+          events as Parameters<typeof hubspot.ingestWebhookEvents>[0],
+        );
+        sendJson(res, 200, stats);
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // HubSpot — GET /hubspot/sync-status
+      // -----------------------------------------------------------------
+      if (pathname === '/hubspot/sync-status' && method === 'GET') {
+        const objectType = url.searchParams.get('type') as import('./services/crm/hubspotService').HubSpotObjectType | null;
+        const hubspot = getHubSpotService();
+        const records = objectType
+          ? hubspot.getSyncRecordsByType(objectType)
+          : [
+              ...hubspot.getSyncRecordsByType('contacts'),
+              ...hubspot.getSyncRecordsByType('companies'),
+              ...hubspot.getSyncRecordsByType('deals'),
+            ];
+        sendJson(res, 200, { records, failedSyncs: hubspot.getFailedSyncs() });
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // HubSpot — GET /hubspot/metrics (JSON)
+      // -----------------------------------------------------------------
+      if (pathname === '/hubspot/metrics' && method === 'GET') {
+        sendJson(res, 200, getHubSpotService().getMetrics());
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // HubSpot — GET /metrics/hubspot (Prometheus)
+      // -----------------------------------------------------------------
+      if (pathname === '/metrics/hubspot' && method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4; charset=utf-8' });
+        res.end(getHubSpotService().prometheusMetrics());
+        return;
+      }
 
       // -----------------------------------------------------------------
       // GraphQL
@@ -573,6 +1692,10 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
 
       sendJson(res, 404, { error: 'Not found' });
     } catch (err) {
+      if (err instanceof HttpError) {
+        sendJson(res, err.status, { error: err.message });
+        return;
+      }
       console.error('[Server] Request error:', err);
       sendJson(res, 500, { error: 'Internal server error' });
     }
@@ -582,6 +1705,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
   const host = options.host ?? process.env.HOST ?? '0.0.0.0';
 
   const shutdown = async (): Promise<void> => {
+    clearInterval(sessionSweepTimer);
     await new Promise<void>((resolve, reject) => {
       server.close((err) => (err ? reject(err) : resolve()));
     });
@@ -598,6 +1722,9 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
         console.info(`[Server] GraphQL  → POST /graphql`);
         console.info(`[Server] Plans    → /plans`);
         console.info(`[Server] Metrics  → GET /metrics/plan-cache`);
+        console.info(`[Server] Build    → GET /build/metrics`);
+        console.info(`[Server] Build    → GET /metrics/build`);
+        console.info(`[Server] Build    → POST /build/metrics`);
         console.info(`[Server] RateLimit → GET /rate-limits/analytics`);
         console.info(`[Server] RateLimit → GET /rate-limits/status?apiKey=...`);
         console.info(`[Server] RateLimit → GET /rate-limits/status/user?userId=...`);
@@ -605,6 +1732,59 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
         console.info(`[Server] RateLimit → POST /rate-limits/config`);
         console.info(`[Server] CORS     → GET /cors/analytics`);
         console.info(`[Server] CORS     → GET /cors/violations`);
+        console.info(`[Server] Quota    → GET /quota/policies`);
+        console.info(`[Server] Quota    → GET /quota/status?apiKey=...&tier=...`);
+        console.info(`[Server] Quota    → POST /quota/check`);
+        console.info(`[Server] Quota    → POST /quota/grants`);
+        console.info(`[Server] Quota    → GET /quota/metrics`);
+        console.info(`[Server] Quota    → GET /metrics/quota`);
+        console.info(`[Server] IPList   → GET /ip-whitelist/rules`);
+        console.info(`[Server] IPList   → POST /ip-whitelist/rules`);
+        console.info(`[Server] IPList   → POST /ip-whitelist/check`);
+        console.info(`[Server] IPList   → GET /ip-whitelist/stats`);
+        console.info(`[Server] IPList   → GET /ip-whitelist/audit-log`);
+        console.info(`[Server] IPList   → GET /metrics/ip-whitelist`);
+        console.info(`[Server] Session  → POST /sessions`);
+        console.info(`[Server] Session  → GET /sessions/validate`);
+        console.info(`[Server] Session  → POST /sessions/touch`);
+        console.info(`[Server] Session  → POST /sessions/revoke`);
+        console.info(`[Server] Session  → POST /sessions/revoke-all`);
+        console.info(`[Server] Session  → POST /sessions/revoke-others`);
+        console.info(`[Server] Session  → GET /sessions/user/:userId`);
+        console.info(`[Server] Session  → GET /sessions/suspicious`);
+        console.info(`[Server] Session  → GET /sessions/stats`);
+        console.info(`[Server] Session  → GET /sessions/audit-log`);
+        console.info(`[Server] Session  → GET /metrics/sessions`);
+        console.info(`[Server] Quota    → GET /quota/status?apiKey=...`);
+        console.info(`[Server] Quota    → GET /quota/policies`);
+        console.info(`[Server] Quota    → PATCH /quota/policies/:tier`);
+        console.info(`[Server] Quota    → POST /quota/grants`);
+        console.info(`[Server] Quota    → DELETE /quota/grants/:apiKey`);
+        console.info(`[Server] Quota    → GET /quota/metrics`);
+        console.info(`[Server] IPWlist  → GET /ip-whitelist/rules`);
+        console.info(`[Server] IPWlist  → POST /ip-whitelist/rules`);
+        console.info(`[Server] IPWlist  → PATCH /ip-whitelist/rules/:id`);
+        console.info(`[Server] IPWlist  → DELETE /ip-whitelist/rules/:id`);
+        console.info(`[Server] IPWlist  → POST /ip-whitelist/check`);
+        console.info(`[Server] IPWlist  → GET /ip-whitelist/stats`);
+        console.info(`[Server] IPWlist  → GET /ip-whitelist/audit`);
+        console.info(`[Server] Sessions → POST /sessions`);
+        console.info(`[Server] Sessions → GET /sessions/validate`);
+        console.info(`[Server] Sessions → GET /sessions/user/:userId`);
+        console.info(`[Server] Sessions → DELETE /sessions/:token`);
+        console.info(`[Server] Sessions → POST /sessions/revoke-all`);
+        console.info(`[Server] Sessions → POST /sessions/revoke-others`);
+        console.info(`[Server] Sessions → GET /sessions/suspicious`);
+        console.info(`[Server] Sessions → GET /sessions/stats`);
+        console.info(`[Server] Sessions → GET /sessions/audit`);
+        console.info(`[Server] Sessions → PATCH /sessions/config`);
+        console.info(`[Server] HubSpot  → POST /hubspot/contacts/sync`);
+        console.info(`[Server] HubSpot  → POST /hubspot/companies/sync`);
+        console.info(`[Server] HubSpot  → POST /hubspot/deals/sync`);
+        console.info(`[Server] HubSpot  → POST /hubspot/activities`);
+        console.info(`[Server] HubSpot  → POST /hubspot/webhook`);
+        console.info(`[Server] HubSpot  → GET /hubspot/sync-status`);
+        console.info(`[Server] HubSpot  → GET /hubspot/metrics`);
         resolve();
       });
     });

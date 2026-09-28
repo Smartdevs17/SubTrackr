@@ -28,6 +28,13 @@ SubTrackr is a mobile application for managing recurring payments and subscripti
 - Multi-token support (XLM, USDC on Stellar, custom Stellar assets)
 - Transparent on-chain payment history
 
+**Shopify Subscription Billing**
+
+- Charge subscriptions that are billed through Shopify from the same payment router as Stripe, Circle and Stellar
+- Billing attempts carry an idempotency key, so a retried charge cannot bill a subscriber twice
+- Refunds against the Shopify order behind the charge, with no blind retries
+- Registered automatically when `SHOPIFY_SHOP_DOMAIN` and `SHOPIFY_ADMIN_ACCESS_TOKEN` are set
+
 **Smart Notifications**
 
 - Billing reminders with advance warnings before charges
@@ -53,6 +60,16 @@ SubTrackr is a mobile application for managing recurring payments and subscripti
 - Comprehensive fraud analytics and reporting
 - Prevented loss tracking and false positive monitoring
 
+**SLA Monitoring with Breach Alerts**
+
+- SLA definition per tier (Basic, Standard, Premium, Enterprise)
+- Real-time SLA tracking with compliance monitoring
+- Automatic breach detection and alerting
+- SLA credits issuance for breaches
+- Comprehensive SLA analytics and reporting
+- MTTR tracking and trend analysis
+- Multi-metric support (uptime, response time, error rate, etc.)
+
 **Wallet Integration**
 
 - Native Freighter wallet connection for Stellar transactions
@@ -63,15 +80,26 @@ SubTrackr is a mobile application for managing recurring payments and subscripti
 
 ```
 SubTrackr/
-├── src/              # React Native mobile app (Expo)
-│   ├── screens/      # App screens
-│   ├── components/   # Reusable UI components
-│   ├── services/     # Wallet and API services
-│   ├── store/        # Zustand state management
-│   └── hooks/        # Custom React hooks
-├── contracts/        # Soroban smart contracts (Rust)
-│   └── src/          # Subscription management contract
-├── stellarlend/      # Optional local clone of the lending protocol (separate Git repo; see below)
+├── src/                # React Native mobile app (Expo)
+│   ├── screens/        # App screens
+│   ├── components/     # Reusable UI components
+│   ├── services/       # Wallet and API services
+│   ├── hooks/          # Custom React hooks
+│   ├── i18n/           # Localization (incl. RTL languages)
+│   └── navigation/     # React Navigation setup
+├── app/                # Zustand stores and app-level services
+├── backend/            # Node.js API, billing, fraud, SLA, gateway adapters
+├── contracts/          # Soroban smart contracts (Rust workspace)
+├── services/           # Standalone services (notifications, feature pipeline)
+├── ml-service/         # Python ML service (forecasting, savings suggestions)
+├── sdks/               # Client SDKs (JavaScript, Python, Go)
+├── developer-portal/   # Developer portal and API docs
+├── bin/                # `subtrackr` CLI
+├── infra/              # Terraform, observability, PgBouncer, CDN config
+├── e2e/                # Detox end-to-end tests
+├── load-tests/         # k6 load tests
+├── scripts/            # Setup, deploy, migration, and DR scripts
+└── docs/               # Feature and operations documentation
 ```
 
 ## Tech Stack
@@ -83,7 +111,10 @@ SubTrackr/
 | Wallet          | Freighter Wallet, Stellar SDK  |
 | Auth            | Web3Auth (social login)        |
 | Smart Contracts | Soroban (Rust) on Stellar      |
-| Payments        | XLM, Stellar tokens            |
+| Payments        | XLM, Stellar tokens, Stripe, Circle, Shopify |
+| Backend         | Node.js, PostgreSQL, Redis     |
+| ML Service      | Python                         |
+| Testing         | Jest, Detox, Stryker, k6       |
 
 ## Getting Started
 
@@ -149,6 +180,8 @@ cp .env.example .env
 | `STELLAR_NETWORK`    | `testnet` or `public` Stellar network         | `testnet`                                                         |
 | `CONTRACT_ID`        | Deployed SubTrackr proxy contract ID (stable) | `CB64...` (your deployed proxy contract address)                  |
 | `WEB3AUTH_CLIENT_ID` | Web3Auth client ID for social login           | Get one from [Web3Auth Dashboard](https://dashboard.web3auth.io/) |
+| `SHOPIFY_SHOP_DOMAIN` | Shopify shop domain for subscription billing (optional) | `your-shop.myshopify.com` |
+| `SHOPIFY_ADMIN_ACCESS_TOKEN` | Admin API token of the Shopify custom app (optional) | `shpat_...` |
 
 ### 4. Run the Mobile App
 
@@ -189,12 +222,23 @@ SubTrackr uses an upgradeable architecture (proxy + storage + implementation). U
 Run the test suite to ensure everything is working correctly:
 
 ```bash
-# Run unit tests
-npm test
+npm test                    # Frontend unit tests (Jest)
+npm run test:backend        # Backend tests
+npm run test:coverage       # Tests with coverage
+npm run contracts:test      # Soroban contract tests (cargo)
 
-# Run lint checks
-npm run lint
+npm run lint                # ESLint
+npm run typecheck           # TypeScript type checking
+npm run format:check        # Prettier
+
+npm run mutation:test:all   # Stryker mutation testing (>= 80% on critical paths)
+npm run performance:ci      # Performance budget check
+npm run ci                  # Full CI pipeline locally
 ```
+
+End-to-end tests use Detox (`npm run e2e:build-ios && npm run e2e:test-ios`, or the `android` equivalents), and load tests use k6 (`npm run load:test`).
+
+SDK tests: `npm run sdk:test:js`, `npm run sdk:test:python`, `npm run sdk:test:go`.
 
 ### Troubleshooting
 
@@ -220,23 +264,53 @@ npm run lint
 
 SubTrackr utilizes a fully containerized local environment orchestrated via Docker Compose, eliminating the need to manually install dependencies like PostgreSQL, Redis, Soroban CLI, Rust, and Node.js.
 
-### Architecture
-* **API Gateway (Backend):** Port 3000
-* **Background Workers:** Billing queues
-* **Webhook Dispatcher:** Payload deliveries
-* **ML Service (Python):** Port 8001
-* **Database & Cache:** PostgreSQL (5432), Redis (6379)
-* **Soroban Node:** Standalone local network (8000)
+### Services
+
+| Service                   | Default port | Description                     |
+| ------------------------- | ------------ | ------------------------------- |
+| `backend`                 | 3000         | API gateway                     |
+| `workers`                 | —            | Background billing queues       |
+| `webhook-dispatcher`      | —            | Webhook payload delivery        |
+| `ml-service`              | 8001         | Python ML service               |
+| `feature-pipeline`        | 8010         | Feature pipeline for ML models  |
+| `postgres`                | 5432         | PostgreSQL database             |
+| `redis`                   | 6379         | Cache and queues                |
+| `stellar-standalone`      | 8000         | Standalone local Soroban network |
+| `mobile`                  | 8081         | Expo dev server                 |
+
+Ports can be overridden with the `COMPOSE_PORT_*` variables in `.env.example`.
 
 ### Quick Setup
 
-1. **Initialize the Environment**
-   ```bash
-   ./scripts/setup.sh
-   
+```bash
+./scripts/setup.sh            # Build, start, and seed the full stack
+./scripts/setup.sh --no-seed  # Skip database seeding
+./scripts/setup.sh --pull     # Force-pull base images before building
+```
+
+The script creates `.env` from `.env.example` if missing, starts all services, waits for PostgreSQL and Redis to be healthy, and seeds the database.
+
+Useful follow-ups:
+
+```bash
+docker compose ps             # Service status
+docker compose logs -f backend
+docker compose down           # Stop the stack (add -v to wipe volumes)
+```
+
+## CLI and SDKs
+
+```bash
+npm run cli:help              # Show CLI commands
+npm run cli:login             # Authenticate
+npm run cli:subs              # List subscriptions
+```
+
+Client SDKs for JavaScript, Python, and Go live in `sdks/` and can be regenerated with `npm run sdk:generate`.
+
 ## Contributing
 
-We welcome contributions! SubTrackr participates in the **Stellar Wave Program** via [Drips](https://www.drips.network/). Contributors can earn points and rewards by picking up issues labeled **`Stellar Wave`**.
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines. SubTrackr participates in the **Stellar Wave Program** via [Drips](https://www.drips.network/). Contributors can earn points and rewards by picking up issues labeled **`Stellar Wave`**.
 
 Types of contributions we're looking for:
 

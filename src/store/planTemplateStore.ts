@@ -365,6 +365,9 @@ interface PlanTemplateState {
   // Sharing
   setShared: (ownerId: string, templateId: string, shared: boolean) => void;
 
+  // Deletion
+  deleteTemplate: (ownerId: string, templateId: string) => void;
+
   // Instantiation
   instantiate: (
     callerId: string,
@@ -550,6 +553,32 @@ export const usePlanTemplateStore = create<PlanTemplateState>()(
             ),
             error: null,
           }));
+        },
+
+        // ── Deletion ─────────────────────────────────────────────
+
+        deleteTemplate: (ownerId, templateId) => {
+          const template = requireTemplate(templateId);
+          if (template.ownerId !== ownerId) {
+            const message = `Only the owner of template ${templateId} may delete it.`;
+            set({ error: message });
+            throw new Error(message);
+          }
+
+          // Remove the template and all versions that share the same root.
+          const rootId = template.rootId;
+          set((state) => {
+            const removedIds = new Set(
+              state.templates.filter((t) => t.rootId === rootId).map((t) => t.id)
+            );
+            const nextAnalytics = { ...state.analytics };
+            removedIds.forEach((id) => delete nextAnalytics[id]);
+            return {
+              templates: state.templates.filter((t) => !removedIds.has(t.id)),
+              analytics: nextAnalytics,
+              error: null,
+            };
+          });
         },
 
         // ── Instantiation ────────────────────────────────────────

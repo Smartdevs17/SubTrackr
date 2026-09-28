@@ -25,7 +25,7 @@ import {
 } from '../types/pause';
 import { InvoiceStatus, isOpenInvoice } from '../types/invoice';
 import { dummySubscriptions } from '../utils/dummyData'; // eslint-disable-line
-import { advanceBillingDate } from '../utils/billingDate';
+import { advanceBillingDate, calculateNextBillingDate } from '../utils/billingDate';
 import { buildBillingPeriod } from '../utils/invoice';
 import { BILLING_CONVERSIONS, CACHE_CONSTANTS } from '../utils/constants/values';
 import {
@@ -423,6 +423,12 @@ export interface SubscriptionState {
   getPauseHistory: (subscriptionId?: string) => PauseRecord[];
   getActivePause: (subscriptionId: string) => PauseRecord | undefined;
   addSubscription: (data: SubscriptionFormData) => Promise<void>;
+  addFromTemplate: (
+    callerId: string,
+    templateId: string,
+    overrides?: import('../types/planTemplate').TemplateOverrides,
+    extraData?: Partial<SubscriptionFormData>
+  ) => Promise<import('../types/planTemplate').ResolvedPlan>;
   updateSubscription: (id: string, data: Partial<Subscription>) => Promise<void>;
   deleteSubscription: (id: string) => Promise<void>;
   toggleSubscriptionStatus: (id: string) => Promise<void>;
@@ -727,6 +733,34 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         }
       },
 
+      addFromTemplate: async (callerId, templateId, overrides = {}, extraData = {}) => {
+        const { usePlanTemplateStore } = await import('./planTemplateStore');
+        const templateStore = usePlanTemplateStore.getState();
+
+        // Resolve template → concrete plan params
+        const resolved = templateStore.instantiate(callerId, templateId, overrides);
+
+        const formData: SubscriptionFormData = {
+          name: resolved.name,
+          description: resolved.description,
+          category: resolved.category,
+          price: resolved.price,
+          currency: resolved.currency,
+          billingCycle: resolved.billingCycle,
+          nextBillingDate: new Date(),
+          notificationsEnabled: true,
+          isCryptoEnabled: false,
+          ...extraData,
+        };
+
+        await get().addSubscription(formData);
+
+        // Record that a subscription was started against the template
+        templateStore.recordSubscription(templateId, resolved.price);
+
+        return resolved;
+      },
+
       updateSubscription: async (id: string, data: Partial<Subscription>) => {
         set({ isLoading: true, error: null });
         try {
@@ -1020,7 +1054,11 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           }
           await presentChargeSuccessNotification(sub);
           const billingPeriod = buildBillingPeriod(sub);
-          const next = advanceBillingDate(new Date(sub.nextBillingDate), sub.billingCycle);
+          const next = calculateNextBillingDate(
+            new Date(sub.nextBillingDate),
+            sub.billingCycle,
+            sub.billingDayOfMonth
+          );
           const simulatedGas = 0.01 + Math.random() * 0.005; // Simulate 0.01 - 0.015 XLM gas
           set((state) => ({
             subscriptions: state.subscriptions.map((s) =>

@@ -8,6 +8,10 @@ const KEY_BYTE_LENGTH = 32;
 const KEY_HASH_ALGORITHM = 'sha256';
 const MAX_HISTORY = 5;
 
+export function hashApiKey(rawKey: string): string {
+  return createHash(KEY_HASH_ALGORITHM).update(rawKey).digest('hex');
+}
+
 export class ApiKeyRotationService implements IApiKeyRotationService {
   private keys = new Map<string, ApiKeyRecord>();
   private history = new Map<string, ApiKeyRecord[]>();
@@ -129,7 +133,7 @@ export class ApiKeyRotationService implements IApiKeyRotationService {
   }
 
   async validateKey(rawKey: string): Promise<ApiKeyRecord | null> {
-    const hash = createHash(KEY_HASH_ALGORITHM).update(rawKey).digest('hex');
+    const hash = hashApiKey(rawKey);
     for (const [, record] of this.keys) {
       if (record.keyHash === hash) {
         if (record.status === 'revoked') throw AuthError.apiKeyRevoked(record.id);
@@ -140,6 +144,47 @@ export class ApiKeyRotationService implements IApiKeyRotationService {
       }
     }
     return null;
+  }
+
+  /**
+   * Immediately revoke a key. Unlike `forceRotateKey`, no replacement is
+   * issued — used when a key is compromised or no longer needed.
+   */
+  async revokeKey(keyId: string, reason = 'manual'): Promise<ApiKeyRecord> {
+    const existing = this.keys.get(keyId);
+    if (!existing) throw AuthError.apiKeyNotFound(keyId);
+    if (existing.status === 'revoked') throw AuthError.apiKeyAlreadyRevoked(keyId);
+
+    const now = new Date().toISOString();
+    existing.status = 'revoked';
+    existing.revokedAt = now;
+    existing.revocationReason = reason;
+    existing.gracePeriodEndsAt = null;
+
+    logger.warn('API key revoked', { keyId, merchantId: existing.merchantId, reason });
+    return { ...existing };
+  }
+
+  getKey(keyId: string): ApiKeyRecord | undefined {
+    const record = this.keys.get(keyId);
+    return record ? { ...record } : undefined;
+  }
+
+  /** Resolve the key ID for a SHA-256 key hash (hex). Returns null when unknown. */
+  findKeyIdByHash(keyHash: string): string | null {
+    const normalized = keyHash.toLowerCase();
+    for (const [keyId, record] of this.keys) {
+      if (record.keyHash === normalized) return keyId;
+    }
+    return null;
+  }
+
+  listKeyIds(merchantId?: string): string[] {
+    const ids: string[] = [];
+    for (const [keyId, record] of this.keys) {
+      if (!merchantId || record.merchantId === merchantId) ids.push(keyId);
+    }
+    return ids;
   }
 
   async getKeysDueForRotation(): Promise<ApiKeyRecord[]> {
@@ -159,7 +204,7 @@ export class ApiKeyRotationService implements IApiKeyRotationService {
   private generateKey(): { raw: string; prefix: string; hash: string } {
     const raw = 'sk_' + randomBytes(KEY_BYTE_LENGTH).toString('base64url');
     const prefix = raw.substring(0, KEY_PREFIX_LENGTH);
-    const hash = createHash(KEY_HASH_ALGORITHM).update(raw).digest('hex');
+    const hash = hashApiKey(raw);
     return { raw, prefix, hash };
   }
 }

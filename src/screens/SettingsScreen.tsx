@@ -104,6 +104,22 @@ export const SettingsScreen = () => {
         </TouchableOpacity>
       </View>
 
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Privacy</Text>
+        <TouchableOpacity
+          style={styles.linkButton}
+          testID="consent-management-link"
+          onPress={() => navigation.navigate('ConsentManagement')}>
+          <Text style={styles.linkButtonText}>Consent Preferences</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.linkButton}
+          testID="privacy-center-link"
+          onPress={() => navigation.navigate('PrivacyCenter')}>
+          <Text style={styles.linkButtonText}>Privacy Center</Text>
+        </TouchableOpacity>
+      </View>
+
       {__DEV__ && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Developer</Text>

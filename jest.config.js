@@ -1,5 +1,5 @@
 module.exports = {
-  preset: '@react-native/jest-preset',
+  preset: 'jest-expo',
   transformIgnorePatterns: [
     // Transform all RN, Expo and related packages whether installed directly or
     // via pnpm's virtual store (.pnpm/<pkg>@<ver>/node_modules/<pkg>).
@@ -32,7 +32,7 @@ module.exports = {
     '!src/**/*.test.tsx',
     '!src/**/*.test.ts'
   ],
-  coverageThresholds: {
+  coverageThreshold: {
     global: {
       branches: 80,
       functions: 80,

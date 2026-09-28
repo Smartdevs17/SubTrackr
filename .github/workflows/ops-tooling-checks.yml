@@ -1,0 +1,50 @@
+name: Ops Tooling Checks
+
+# Zero-dependency checks for the operational tooling added in #1286-#1289.
+#
+# Every step below runs on bare Node with no `npm ci`, so a broken manifest,
+# a leaky fixture or a malformed migration file is caught even while the
+# dependency install is unavailable.
+
+on:
+  pull_request:
+    branches: [main, dev, develop]
+  push:
+    branches: [main, dev, develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ops-tooling-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ops-tooling:
+    name: Ops Tooling
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # No `cache: npm` on purpose: this workflow must not depend on a lockfile.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Migration dry-run (#1288)
+        run: |
+          node scripts/db-migrate-dryrun.js \
+            --migrations-dir backend/migrations \
+            --fail-on error
+
+      - name: Test data anonymization audit (#1287)
+        run: node scripts/anonymize-test-data.js --check
+
+      - name: Queue backoff autotuner (#1286)
+        run: |
+          node scripts/queue-backoff-tune.js \
+            --input config/queue-snapshot.sample.json
+
+      - name: API autoscaling manifests (#1289)
+        run: node scripts/validate-autoscaling.js

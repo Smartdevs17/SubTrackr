@@ -3,13 +3,15 @@ import * as Notifications from 'expo-notifications';
 
 import type { Subscription } from '../types/subscription';
 import {
+  NOTIFICATION_CHANNELS,
   NOTIFICATION_TYPE_META,
+  NOTIFICATION_TYPES,
   type DeliveryResult,
   type NotificationChannel,
   type NotificationRecord,
   type NotificationType,
 } from '../types/notification';
-import { useNotificationPreferencesStore } from '../store/notificationPreferencesStore';
+import { useNotificationPreferencesStore, type NotificationPreferences } from '../store/notificationPreferencesStore';
 import { navigationRef } from '../navigation/navigationRef';
 
 export const NOTIFICATION_DATA_TYPE = {
@@ -597,9 +599,6 @@ export function attachNotificationResponseListeners(): () => void {
 // Issue #920 — Frontend notification preference management helpers
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { useNotificationPreferencesStore } from '../store/notificationPreferencesStore';
-import type { NotificationType, NotificationChannel } from '../types/notification';
-
 /**
  * Notification preference summary for display in the settings UI.
  */
@@ -608,7 +607,25 @@ export interface NotificationPreferenceSummary {
   totalDisabled: number;
   channelSummary: Record<NotificationChannel, { enabled: number; disabled: number }>;
   hasQuietHours: boolean;
-  frequency: string;
+  frequency: NotificationPreferences['digestFrequency'];
+  /** Types the subscriber has muted entirely. */
+  mutedTypes: NotificationType[];
+}
+
+/** True when `now` falls inside the configured quiet-hours window. */
+export function isWithinQuietHours(
+  quietHours: NotificationPreferences['quietHours'],
+  now: Date = new Date()
+): boolean {
+  const { startHour, endHour } = quietHours;
+  if (startHour === endHour) return false;
+
+  const hour = now.getHours();
+  // A window that wraps midnight (22 → 8) is the common case and has to be
+  // read as "at or after start, or before end".
+  return startHour < endHour
+    ? hour >= startHour && hour < endHour
+    : hour >= startHour || hour < endHour;
 }
 
 /**
@@ -618,50 +635,32 @@ export interface NotificationPreferenceSummary {
  * from any component without prop-drilling.
  */
 export function getNotificationPreferenceSummary(): NotificationPreferenceSummary {
-  const store = useNotificationPreferencesStore.getState();
-  const prefs = store.preferences;
+  const { preferences } = useNotificationPreferencesStore.getState();
 
-  if (!prefs) {
-    return {
-      totalEnabled: 0,
-      totalDisabled: 0,
-      channelSummary: {
-        push: { enabled: 0, disabled: 0 },
-        email: { enabled: 0, disabled: 0 },
-        sms: { enabled: 0, disabled: 0 },
-        inApp: { enabled: 0, disabled: 0 },
-      },
-      hasQuietHours: false,
-      frequency: 'immediate',
-    };
-  }
-
-  const channelSummary: Record<NotificationChannel, { enabled: number; disabled: number }> = {
-    push: { enabled: 0, disabled: 0 },
-    email: { enabled: 0, disabled: 0 },
-    sms: { enabled: 0, disabled: 0 },
-    inApp: { enabled: 0, disabled: 0 },
-  };
+  const channelSummary = NOTIFICATION_CHANNELS.reduce(
+    (acc, channel) => {
+      acc[channel] = { enabled: 0, disabled: 0 };
+      return acc;
+    },
+    {} as Record<NotificationChannel, { enabled: number; disabled: number }>
+  );
 
   let totalEnabled = 0;
   let totalDisabled = 0;
+  const mutedTypes: NotificationType[] = [];
 
-  if (prefs.typePreferences) {
-    for (const typePref of Object.values(prefs.typePreferences)) {
-      if (typeof typePref === 'object' && typePref !== null && 'channels' in typePref) {
-        const channels = (typePref as { channels: Record<string, boolean> }).channels;
-        for (const [ch, enabled] of Object.entries(channels)) {
-          const channel = ch as NotificationChannel;
-          if (channel in channelSummary) {
-            if (enabled) {
-              channelSummary[channel].enabled += 1;
-              totalEnabled += 1;
-            } else {
-              channelSummary[channel].disabled += 1;
-              totalDisabled += 1;
-            }
-          }
-        }
+  for (const type of NOTIFICATION_TYPES) {
+    const preference = preferences.types[type];
+    if (!preference) continue;
+    if (preference.muted) mutedTypes.push(type);
+
+    for (const channel of NOTIFICATION_CHANNELS) {
+      if (preference.channels[channel]) {
+        channelSummary[channel].enabled += 1;
+        totalEnabled += 1;
+      } else {
+        channelSummary[channel].disabled += 1;
+        totalDisabled += 1;
       }
     }
   }
@@ -670,23 +669,27 @@ export function getNotificationPreferenceSummary(): NotificationPreferenceSummar
     totalEnabled,
     totalDisabled,
     channelSummary,
-    hasQuietHours: prefs.quietHoursEnabled ?? false,
-    frequency: prefs.frequency ?? 'immediate',
+    hasQuietHours: preferences.quietHours.enabled,
+    frequency: preferences.digestFrequency,
+    mutedTypes,
   };
 }
 
 /**
  * Bulk-enable or bulk-disable all notification types for a specific channel.
  * Useful for a "Pause all email notifications" toggle.
+ *
+ * A required type keeps its last remaining channel, so the store may refuse a
+ * disable for that one type — the call is deliberately fire-and-forget per type.
  */
 export async function setAllChannelNotifications(
   channel: NotificationChannel,
   enabled: boolean,
-  notificationTypes: NotificationType[]
+  notificationTypes: NotificationType[] = NOTIFICATION_TYPES
 ): Promise<void> {
   const store = useNotificationPreferencesStore.getState();
   for (const type of notificationTypes) {
-    await store.setTypeChannelEnabled?.(type, channel, enabled);
+    store.setChannelPreference(type, channel, enabled);
   }
 }
 
@@ -700,39 +703,20 @@ export function shouldShowNotification(
   type: NotificationType,
   channel: NotificationChannel
 ): boolean {
-  const store = useNotificationPreferencesStore.getState();
-  const prefs = store.preferences;
-  if (!prefs) return true; // default to showing if prefs haven't loaded yet
+  const { preferences } = useNotificationPreferencesStore.getState();
+  const preference = preferences.types[type];
 
-  // Check channel-level toggle.
-  const channelEnabled = prefs.channels?.[channel as keyof typeof prefs.channels] ?? true;
-  if (!channelEnabled) return false;
+  // Preferences have not hydrated yet — never drop a notification on a guess.
+  if (!preference) return true;
 
-  // Check type-level toggle.
-  if (prefs.typePreferences) {
-    const typePref = (prefs.typePreferences as Record<string, unknown>)[type];
-    if (typeof typePref === 'object' && typePref !== null && 'channels' in typePref) {
-      const channels = (typePref as { channels: Record<string, boolean> }).channels;
-      if (channel in channels && !channels[channel]) return false;
-    }
-  }
+  const meta = NOTIFICATION_TYPE_META[type];
+  if (preference.muted && !meta.required) return false;
+  if (!preference.channels[channel]) return false;
 
-  // Check quiet hours.
-  if (prefs.quietHoursEnabled) {
-    const now = new Date();
-    const [startH, startM] = (prefs.quietHoursStart ?? '22:00').split(':').map(Number);
-    const [endH, endM] = (prefs.quietHoursEnd ?? '08:00').split(':').map(Number);
-    const nowMinutes = now.getHours() * 60 + now.getMinutes();
-    const startMinutes = startH * 60 + startM;
-    const endMinutes = endH * 60 + endM;
-
-    const inQuiet =
-      startMinutes < endMinutes
-        ? nowMinutes >= startMinutes && nowMinutes < endMinutes
-        : nowMinutes >= startMinutes || nowMinutes < endMinutes; // overnight window
-
-    if (inQuiet) return false;
-  }
+  // Critical alerts, and anything landing in the in-app inbox, ignore quiet
+  // hours — the same rule PushScheduleEngine applies when it schedules.
+  if (meta.priority === 'critical' || channel === 'in_app') return true;
+  if (preferences.quietHours.enabled && isWithinQuietHours(preferences.quietHours)) return false;
 
   return true;
 }

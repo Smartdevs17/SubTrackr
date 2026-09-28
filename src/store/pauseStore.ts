@@ -76,7 +76,7 @@ export function validatePauseRequest(
   const pausesThisYear = existingRecords.filter(
     (r) =>
       r.subscriptionId === subscriptionId &&
-      r.state !== PauseState.ACTIVE && // completed pauses
+      r.state === PauseState.ACTIVE && // completed pauses
       new Date(r.pausedAt) >= yearStart
   ).length;
 

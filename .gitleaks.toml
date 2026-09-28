@@ -1,0 +1,21 @@
+title = "SubTrackr secret scanning configuration"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Allow test fixtures, documentation examples, and lockfiles to avoid noisy findings."
+paths = [
+    '''\.env\.example$''',
+    '''.*\.test\.ts$''',
+    '''.*\.test\.tsx$''',
+    '''.*\.spec\.ts$''',
+    '''.*\.spec\.tsx$''',
+    '''.*/__tests__/.*''',
+    '''.*/__mocks__/.*''',
+    '''.*\.md$''',
+    '''.*package-lock\.json$''',
+    '''.*pnpm-lock\.yaml$''',
+    '''.*yarn\.lock$''',
+    '''.*Cargo\.lock$''',
+]
