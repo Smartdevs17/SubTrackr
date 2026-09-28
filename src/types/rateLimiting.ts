@@ -1,5 +1,83 @@
 import { SubscriptionTier } from './subscription';
 
+// ---------------------------------------------------------------------------
+// Public-facing rate limit tier (coarser than the internal SubscriptionTier)
+// ---------------------------------------------------------------------------
+
+export type RateLimitTier = 'free' | 'pro' | 'enterprise';
+
+export interface RateLimitTierConfig {
+  tier: RateLimitTier;
+  /** Requests/hour */
+  requestsPerHour: number;
+  /** Requests/day */
+  requestsPerDay: number;
+  /** Requests/month */
+  requestsPerMonth: number;
+  /** Token-bucket burst capacity */
+  burstCapacity: number;
+  /** Concurrent requests allowed */
+  concurrentRequests: number;
+  /** Token refill rate (tokens/second) */
+  refillRatePerSecond: number;
+  /** Soft-limit warning threshold (0–1) */
+  softLimitThreshold: number;
+}
+
+/** Map internal SubscriptionTier to public RateLimitTier */
+export function mapSubscriptionToRateLimitTier(tier: SubscriptionTier): RateLimitTier {
+  switch (tier) {
+    case SubscriptionTier.FREE:
+      return 'free';
+    case SubscriptionTier.BASIC:
+      return 'pro';
+    case SubscriptionTier.PREMIUM:
+      return 'pro';
+    case SubscriptionTier.ENTERPRISE:
+      return 'enterprise';
+    default:
+      return 'free';
+  }
+}
+
+/** Get the full config for a public RateLimitTier */
+export function getRateLimitTierConfig(tier: RateLimitTier): RateLimitTierConfig {
+  return RATE_LIMIT_TIER_CONFIGS[tier];
+}
+
+export const RATE_LIMIT_TIER_CONFIGS: Record<RateLimitTier, RateLimitTierConfig> = {
+  free: {
+    tier: 'free',
+    requestsPerHour: 100,
+    requestsPerDay: 500,
+    requestsPerMonth: 10_000,
+    burstCapacity: 20,
+    concurrentRequests: 2,
+    refillRatePerSecond: 0.028, // ~100/hour
+    softLimitThreshold: 0.8,
+  },
+  pro: {
+    tier: 'pro',
+    requestsPerHour: 1_000,
+    requestsPerDay: 10_000,
+    requestsPerMonth: 200_000,
+    burstCapacity: 100,
+    concurrentRequests: 10,
+    refillRatePerSecond: 0.278, // ~1000/hour
+    softLimitThreshold: 0.8,
+  },
+  enterprise: {
+    tier: 'enterprise',
+    requestsPerHour: 10_000,
+    requestsPerDay: 100_000,
+    requestsPerMonth: 2_000_000,
+    burstCapacity: 500,
+    concurrentRequests: 50,
+    refillRatePerSecond: 2.778, // ~10000/hour
+    softLimitThreshold: 0.9,
+  },
+};
+
 export interface TierRateLimit {
   tier: SubscriptionTier;
   hourlyLimit: number;
@@ -7,6 +85,8 @@ export interface TierRateLimit {
   monthlyLimit: number;
   burstLimit: number;
   concurrentLimit: number;
+  /** Tokens added to bucket per second */
+  refillRatePerSecond: number;
 }
 
 export interface ApiKeyUsage {
@@ -83,6 +163,7 @@ export const TIER_RATE_LIMITS: Record<SubscriptionTier, TierRateLimit> = {
     monthlyLimit: 10_000,
     burstLimit: 20,
     concurrentLimit: 2,
+    refillRatePerSecond: 0.028,
   },
   [SubscriptionTier.BASIC]: {
     tier: SubscriptionTier.BASIC,
@@ -91,6 +172,7 @@ export const TIER_RATE_LIMITS: Record<SubscriptionTier, TierRateLimit> = {
     monthlyLimit: 50_000,
     burstLimit: 50,
     concurrentLimit: 5,
+    refillRatePerSecond: 0.139,
   },
   [SubscriptionTier.PREMIUM]: {
     tier: SubscriptionTier.PREMIUM,
@@ -99,6 +181,7 @@ export const TIER_RATE_LIMITS: Record<SubscriptionTier, TierRateLimit> = {
     monthlyLimit: 200_000,
     burstLimit: 100,
     concurrentLimit: 10,
+    refillRatePerSecond: 0.278,
   },
   [SubscriptionTier.ENTERPRISE]: {
     tier: SubscriptionTier.ENTERPRISE,
@@ -107,6 +190,7 @@ export const TIER_RATE_LIMITS: Record<SubscriptionTier, TierRateLimit> = {
     monthlyLimit: 2_000_000,
     burstLimit: 500,
     concurrentLimit: 50,
+    refillRatePerSecond: 2.778,
   },
 };
 

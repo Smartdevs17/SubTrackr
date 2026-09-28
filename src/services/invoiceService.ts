@@ -12,6 +12,7 @@ import type {
   InvoiceLineItem,
 } from '../types/invoice';
 import { InvoiceLayout } from '../types/invoice';
+import { getNextSequence, generateLegalInvoiceNumber } from './sequenceService';
 
 const STORAGE_KEYS = {
   INVOICES: '@SubTrackr:invoices',
@@ -143,10 +144,16 @@ export async function createInvoice(data: InvoiceFormData): Promise<Invoice> {
   const lineTotal = data.lineItems.reduce((sum, item) => sum + item.amount, 0);
   const totalAmount = lineTotal + (data.taxAmount || 0) - (data.discountAmount || 0);
 
+  // Legal numbering: fetch next persistent sequence
+  // We track sequence per year to reset it annually (common legal requirement)
+  const year = now.getFullYear();
+  const sequencePrefix = `INV-${year}`;
+  const sequence = await getNextSequence(sequencePrefix);
+
   const newInvoice: Invoice = {
     ...data,
     id: generateId(),
-    invoiceNumber: generateInvoiceNumber(invoices.length + 1),
+    invoiceNumber: generateLegalInvoiceNumber(sequence, 'INV', true, true, now),
     subscriptionName: '', // Should be fetched from subscription
     status: 'draft' as InvoiceStatus,
     issueDate: now,
@@ -349,13 +356,6 @@ export async function getInvoiceAnalytics(): Promise<InvoiceAnalytics> {
 // Helper Functions
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-}
-
-function generateInvoiceNumber(sequence: number): string {
-  const year = new Date().getFullYear();
-  const month = String(new Date().getMonth() + 1).padStart(2, '0');
-  const num = String(sequence).padStart(4, '0');
-  return `INV-${year}${month}-${num}`;
 }
 
 async function saveInvoices(invoices: Invoice[]): Promise<void> {

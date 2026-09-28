@@ -1,6 +1,8 @@
 import { ethers } from 'ethers';
 import { ChainType } from '../types/wallet';
 import { walletServiceManager, WalletError, WalletErrorCode } from './walletService';
+import { logger } from './logging';
+import { simulateStellarTransaction } from './stellarTransactionService';
 
 export interface CrossChainPaymentRoute {
   sourceChainType: ChainType;
@@ -110,11 +112,27 @@ export class CrossChainRoutingService {
 
       const publicKey = await freighterApi.getPublicKey();
       const txXdr = await this.buildStellarTransferTx(publicKey, route);
+      const simulation = await simulateStellarTransaction(txXdr);
+      if (!simulation.success) {
+        throw new WalletError(
+          WalletErrorCode.STREAM_CREATION_FAILED,
+          'Stellar payment simulation failed.',
+          'Check the payment details or network status before retrying.',
+          new Error(simulation.error)
+        );
+      }
+      logger.info('Stellar payment simulation completed.', {
+        totalFeeXlm: simulation.fees.totalFeeXlm,
+        instructions: simulation.storage.instructions,
+      });
       const signedTx = await freighterApi.signTransaction(txXdr);
       const result = await freighterApi.submitTransaction(signedTx);
 
       return result.hash;
     } catch (error) {
+      if (error instanceof WalletError) {
+        throw error;
+      }
       throw new WalletError(
         WalletErrorCode.STREAM_CREATION_FAILED,
         'Stellar payment failed.',

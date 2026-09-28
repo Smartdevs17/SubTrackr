@@ -10,7 +10,7 @@ import {
   type MinimalResponse,
   type NextFn,
 } from '../rateLimitMiddleware';
-import { SubscriptionTier } from '../../../src/types/subscription';
+import { SubscriptionTier } from '../../../../src/types/subscription';
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -40,8 +40,15 @@ const PlanTemplatesScreen: React.FC = () => {
   const navigation = useNavigation();
   const currentUserId = useUserStore((s) => s.user?.id) ?? 'me';
 
-  const { listVersions, getAnalytics, seedStarterTemplates, recordView, setShared, quote } =
-    usePlanTemplateStore();
+  const {
+    listVersions,
+    getAnalytics,
+    seedStarterTemplates,
+    recordView,
+    setShared,
+    quote,
+    deleteTemplate,
+  } = usePlanTemplateStore();
   const templates = usePlanTemplateStore((s) => s.templates);
   const analytics = usePlanTemplateStore((s) => s.analytics);
   const addFromTemplate = useSubscriptionStore((s) => s.addFromTemplate);
@@ -89,6 +96,28 @@ const PlanTemplatesScreen: React.FC = () => {
     } catch (error) {
       Alert.alert('Cannot share template', (error as Error).message);
     }
+  };
+
+  const handleDelete = (template: PlanTemplate) => {
+    Alert.alert(
+      'Delete template',
+      `Are you sure you want to delete "${template.name}" and all its versions? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            try {
+              deleteTemplate(currentUserId, template.id);
+              if (selectedId === template.id) setSelectedId(null);
+            } catch (error) {
+              Alert.alert('Could not delete template', (error as Error).message);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleUse = async (template: PlanTemplate) => {
@@ -257,6 +286,13 @@ const PlanTemplatesScreen: React.FC = () => {
               title={template.shared ? 'Unshare' : 'Share'}
               variant="secondary"
               onPress={() => handleShareToggle(template)}
+            />
+          )}
+          {template.ownerId === currentUserId && (
+            <Button
+              title="Delete"
+              variant="secondary"
+              onPress={() => handleDelete(template)}
             />
           )}
         </View>

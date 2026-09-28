@@ -17,6 +17,14 @@ npm run test:coverage # Run tests with coverage
 npm run performance:ci # Check performance budget
 ```
 
+## Mutation Testing
+
+```bash
+npm run mutation:test         # Stryker score for critical frontend paths (>= 80%)
+npm run mutation:test:backend # Stryker score for critical backend paths (>= 80%)
+npm run mutation:test:all     # Both configurations
+```
+
 ## Build
 
 ```bash

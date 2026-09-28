@@ -3,16 +3,13 @@
   "schemaVersion": "1.0",
 
   "mutate": [
-    "src/**/*.{ts,tsx}",
-    "!src/**/*.test.{ts,tsx}",
-    "!src/**/*.spec.{ts,tsx}",
-    "!src/**/__tests__/**",
-    "!src/**/__mocks__/**",
-    "!src/**/__fixtures__/**",
-    "!src/**/*.d.ts",
-    "!src/**/index.ts",
-    "!src/animations/**",
-    "!src/i18n/**"
+    "src/utils/proration.ts",
+    "src/utils/invoice.ts",
+    "src/utils/billingAlignment.ts",
+    "src/utils/subscriptionHelpers.ts",
+    "src/store/pauseStore.ts",
+    "src/theme/customThemeBuilder.ts",
+    "src/theme/cssVariables.ts"
   ],
 
   "testRunner": "jest",
@@ -39,9 +36,9 @@
   "concurrency": 4,
 
   "thresholds": {
-    "high": 80,
-    "low": 60,
-    "break": 50
+    "high": 90,
+    "low": 80,
+    "break": 80
   },
 
   "tempDirName": ".stryker-tmp",
@@ -57,13 +54,7 @@
   "timeoutFactor": 2.0,
   "maxTestRunnerReuse": 50,
 
-  "ignorePatterns": [
-    ".stryker-tmp",
-    "node_modules"
-  ],
+  "ignorePatterns": [".stryker-tmp", "node_modules"],
 
-  "plugins": [
-    "@stryker-mutator/jest-runner",
-    "@stryker-mutator/typescript-checker"
-  ]
+  "plugins": ["@stryker-mutator/jest-runner", "@stryker-mutator/typescript-checker"]
 }
