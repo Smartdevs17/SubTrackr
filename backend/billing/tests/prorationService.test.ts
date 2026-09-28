@@ -4,7 +4,7 @@
  * @see https://github.com/Smartdevs17/SubTrackr/issues/1117
  */
 
-import { ProrationService, calculateCycleDays } from '../domain/prorationService';
+import { ProrationService, ProrationValidationError, calculateCycleDays } from '../domain/prorationService';
 import { BillingCycle } from '../../../src/types/subscription';
 import type { ProrationCalculationRequest } from '../../../src/types/prorationCalculator';
 
@@ -39,9 +39,24 @@ describe('ProrationService', () => {
     it('should return at least 1 day', () => {
       expect(calculateCycleDays('2026-09-01', '2026-09-01')).toBe(1);
     });
+
+    it('should reject reversed or invalid dates', () => {
+      expect(() => calculateCycleDays('2026-09-02', '2026-09-01')).toThrow(ProrationValidationError);
+      expect(() => calculateCycleDays('not-a-date', '2026-09-01')).toThrow('startDate must be a valid date');
+    });
   });
 
   describe('preview', () => {
+    it('validates prices and clamps an effective date before the cycle', () => {
+      expect(() => service.preview({ ...baseRequest, newPrice: -1 })).toThrow(
+        'newPrice must be a non-negative finite number',
+      );
+
+      const result = service.preview({ ...baseRequest, effectiveDate: '2026-08-01' });
+      expect(result.daysUsed).toBe(0);
+      expect(result.daysRemaining).toBe(30);
+    });
+
     it('should calculate proration for an upgrade', () => {
       const result = service.preview(baseRequest);
 

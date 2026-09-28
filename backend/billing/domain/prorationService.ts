@@ -30,20 +30,55 @@ function generateId(prefix: string): string {
   return `${prefix}_${ts}_${rand}`;
 }
 
-function toMs(date: number | string | Date): number {
-  if (typeof date === 'number') return date;
-  if (typeof date === 'string') return new Date(date).getTime();
-  return date.getTime();
+export class ProrationValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ProrationValidationError';
+  }
+}
+
+function toMs(date: number | string | Date, fieldName: string): number {
+  const value = typeof date === 'number'
+    ? date
+    : typeof date === 'string'
+      ? new Date(date).getTime()
+      : date.getTime();
+  if (!Number.isFinite(value)) {
+    throw new ProrationValidationError(`${fieldName} must be a valid date`);
+  }
+  return value;
 }
 
 export function calculateCycleDays(
   startDate: number | string | Date,
   endDate: number | string | Date,
 ): number {
-  const start = toMs(startDate);
-  const end = toMs(endDate);
-  const diffMs = Math.max(0, end - start);
+  const start = toMs(startDate, 'startDate');
+  const end = toMs(endDate, 'endDate');
+  if (end < start) {
+    throw new ProrationValidationError('endDate must be on or after startDate');
+  }
+  const diffMs = end - start;
   return Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+}
+
+export function validateProrationRequest(request: ProrationCalculationRequest): void {
+  if (!request.currentPlanId || !request.currentPlanName || !request.newPlanId || !request.newPlanName) {
+    throw new ProrationValidationError('plan IDs and names are required');
+  }
+  for (const [name, price] of [['currentPrice', request.currentPrice], ['newPrice', request.newPrice]] as const) {
+    if (!Number.isFinite(price) || price < 0) {
+      throw new ProrationValidationError(`${name} must be a non-negative finite number`);
+    }
+  }
+  const startMs = toMs(request.cycleStartDate, 'cycleStartDate');
+  const endMs = toMs(request.cycleEndDate, 'cycleEndDate');
+  if (endMs <= startMs) {
+    throw new ProrationValidationError('cycleEndDate must be after cycleStartDate');
+  }
+  if (request.effectiveDate !== undefined) {
+    toMs(request.effectiveDate, 'effectiveDate');
+  }
 }
 
 export class ProrationService {
@@ -113,10 +148,15 @@ export class ProrationService {
   // ── internal ──────────────────────────────────────────────
 
   private calculate(request: ProrationCalculationRequest): ProrationCalculationResult {
+    validateProrationRequest(request);
     const config: ProrationConfig = { ...DEFAULT_PRORATION_CONFIG, ...request.config };
-    const effectiveMs = request.effectiveDate ? toMs(request.effectiveDate) : Date.now();
-    const startMs = toMs(request.cycleStartDate);
-    const endMs = toMs(request.cycleEndDate);
+    const startMs = toMs(request.cycleStartDate, 'cycleStartDate');
+    const endMs = toMs(request.cycleEndDate, 'cycleEndDate');
+    const requestedEffectiveMs = request.effectiveDate
+      ? toMs(request.effectiveDate, 'effectiveDate')
+      : Date.now();
+    // Evaluate out-of-cycle previews at the nearest valid boundary.
+    const effectiveMs = Math.max(startMs, Math.min(endMs, requestedEffectiveMs));
 
     const cycleTotalDays = calculateCycleDays(startMs, endMs);
     const daysUsed = Math.max(
