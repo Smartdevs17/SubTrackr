@@ -1,5 +1,16 @@
 export type CommCategory = 'billing' | 'product' | 'marketing' | 'security' | 'survey';
-export type CommChannel = 'email' | 'push' | 'sms' | 'in_app';
+export type CommChannel = 'email' | 'push' | 'sms' | 'voice' | 'in_app';
+
+export const COMM_CATEGORIES: CommCategory[] = [
+  'billing',
+  'product',
+  'marketing',
+  'security',
+  'survey',
+];
+
+/** Every channel a customer can be reached on, in canonical display order. */
+export const COMM_CHANNELS: CommChannel[] = ['email', 'push', 'sms', 'voice', 'in_app'];
 
 export interface ChannelPreference {
   enabled: boolean;
@@ -34,14 +45,12 @@ export const REQUIRED_CATEGORIES: CommCategory[] = ['billing', 'security'];
 
 export function buildDefaultPreferences(userId: string): SubscriberPreference {
   const categories = {} as Record<CommCategory, CategoryPreference>;
-  const allCategories: CommCategory[] = ['billing', 'product', 'marketing', 'security', 'survey'];
 
-  for (const category of allCategories) {
+  for (const category of COMM_CATEGORIES) {
     const waterfall = DEFAULT_WATERFALL[category];
     const channels = {} as Record<CommChannel, ChannelPreference>;
-    const allChannels: CommChannel[] = ['email', 'push', 'sms', 'in_app'];
 
-    for (const ch of allChannels) {
+    for (const ch of COMM_CHANNELS) {
       channels[ch] = {
         enabled: waterfall.includes(ch),
         fallbackOrder: waterfall.filter((c) => c !== ch),

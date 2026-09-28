@@ -7,8 +7,14 @@
 
 import express, { type Express } from 'express';
 import { cacheHeadersMiddleware } from '../shared/middleware';
-import { createPublicApiRouter, createThemeRouter, createBatchRouter } from '../subscription/router';
+import {
+  createPublicApiRouter,
+  createSearchRouter,
+  createSubscriptionOpsRouter,
+  createThemeRouter,
+} from '../subscription/router';
 import { API_VERSION_HEADER, API_VERSION_VALUE } from '../services/shared/apiResponse';
+import { createApiKeyRevocationRouter, createPasskeyRouter } from '../services/auth/router/authRouter';
 
 export interface CreateApiServerOptions {
   /** Optional middleware applied before cache headers (e.g. auth). */
@@ -34,9 +40,11 @@ export function createApiServer(options: CreateApiServerOptions = {}): Express {
 
   app.use(cacheHeadersMiddleware());
   app.use(createPublicApiRouter());
+  app.use(createSubscriptionOpsRouter());
+  app.use('/api/v1/search', createSearchRouter());
   app.use('/api/v1/merchant', createThemeRouter());
-  // Batch subscription operations with atomic execution (all-or-nothing semantics)
-  app.use('/api/v1/batch', createBatchRouter());
+  app.use('/api/v1/auth', createPasskeyRouter());
+  app.use('/api/v1/api-keys', createApiKeyRevocationRouter());
 
   app.use((_req, res) => {
     res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Not found' } });

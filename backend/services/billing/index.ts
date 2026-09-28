@@ -98,3 +98,14 @@ export { PricingAnalyticsService, RevenueMetrics } from './billingAnalytics';
 // Trial Management exports (Issue #958)
 export { TrialManagementService, trialManagementService, DEFAULT_TRIAL_POLICY } from './trialManagementService';
 export type { TrialPolicy, TrialSubscriptionRecord, ConversionIncentive, TrialReminderItem, TrialConversionFunnel, UserActivitySignals, PropensityCategory } from './trialManagementService';
+
+// Multi-Entity Billing exports (Issue #562)
+export { EntityBillingService, entityBillingService, EntityBillingError } from './entityBilling';
+export type {
+  EntityBillingConfig,
+  EntityCharge,
+  EntityInvoiceLineItem,
+  EntityInvoice,
+  EntityHierarchyNode,
+  ConsolidatedBillingSummary,
+} from './entityBilling';

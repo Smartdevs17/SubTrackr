@@ -27,6 +27,7 @@ import { useFilteredSubscriptions } from '../hooks/useFilteredSubscriptions';
 import { FilterBar } from '../components/home/FilterBar';
 import { FilterModal } from '../components/home/FilterModal';
 import { StatsCard } from '../components/home/StatsCard';
+import { TrackingOverview } from '../components/home/TrackingOverview';
 import { SubscriptionList } from '../components/home/SubscriptionList';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { StatsCardSkeleton, SubscriptionListSkeleton } from '../components/common/SkeletonLoader';
@@ -111,7 +112,10 @@ const HomeScreen: React.FC = () => {
               </Text>
               <TouchableOpacity
                 onPress={() => navigation.navigate('Gamification')}
-                style={styles.levelBadge}>
+                style={styles.levelBadge}
+                accessibilityRole="button"
+                accessibilityLabel={`Gamification level ${level}`}
+                accessibilityHint="Opens achievements and rewards">
                 <Text style={styles.levelText}>Lvl {level}</Text>
               </TouchableOpacity>
             </View>
@@ -122,27 +126,42 @@ const HomeScreen: React.FC = () => {
           <View style={styles.toolsRow}>
             <TouchableOpacity
               onPress={() => navigation.navigate('Community')}
-              style={[styles.toolButton, { backgroundColor: colors.primary }]}>
+              style={[styles.toolButton, { backgroundColor: colors.primary }]}
+              accessibilityRole="button"
+              accessibilityLabel="Navigate to Community"
+              accessibilityHint="View community features and discussions">
               <Text style={styles.toolButtonText}>Community</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => navigation.navigate('SegmentManagement')}
-              style={[styles.toolButton, { backgroundColor: colors.accent }]}>
+              style={[styles.toolButton, { backgroundColor: colors.accent }]}
+              accessibilityRole="button"
+              accessibilityLabel="Manage Segments"
+              accessibilityHint="Create and manage customer segments">
               <Text style={styles.toolButtonText}>Segments</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => navigation.navigate('InvoiceList')}
-              style={styles.toolButtonOutline}>
+              style={styles.toolButtonOutline}
+              accessibilityRole="button"
+              accessibilityLabel="View Invoices"
+              accessibilityHint="View and manage invoices">
               <Text style={styles.toolButtonTextOutline}>Invoices</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => navigation.navigate('GroupManagement')}
-              style={styles.toolButtonOutline}>
+              style={styles.toolButtonOutline}
+              accessibilityRole="button"
+              accessibilityLabel="Manage Groups"
+              accessibilityHint="Organize subscriptions into groups">
               <Text style={styles.toolButtonTextOutline}>Groups</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => navigation.navigate('SupportDashboard')}
-              style={styles.toolButtonOutline}>
+              style={styles.toolButtonOutline}
+              accessibilityRole="button"
+              accessibilityLabel="Support Dashboard"
+              accessibilityHint="Get help and support">
               <Text style={styles.toolButtonTextOutline}>Support</Text>
             </TouchableOpacity>
           </View>
@@ -168,8 +187,14 @@ const HomeScreen: React.FC = () => {
               currency={preferredCurrency}
             />
 
+            <TrackingOverview subscriptions={subscriptions} currency={preferredCurrency} />
+
             {!isOnline && (
-              <View style={styles.offlineBanner}>
+              <View
+                style={styles.offlineBanner}
+                accessibilityRole="alert"
+                accessibilityLiveRegion="polite"
+                accessibilityLabel={`You are offline. ${pendingTransactions} queued syncs pending.`}>
                 <Text style={styles.offlineText}>
                   ⚠️ You are offline. {pendingTransactions} queued syncs pending.
                 </Text>
@@ -201,6 +226,8 @@ const HomeScreen: React.FC = () => {
           icon="+"
           size="large"
           testID="add-subscription-button"
+          accessibilityLabel="Add subscription"
+          accessibilityHint="Opens the form to track a new subscription"
         />
       )}
 
@@ -273,19 +300,23 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     toolButton: {
       paddingHorizontal: spacing.md,
       paddingVertical: spacing.sm,
+      minHeight: 44,
       borderRadius: borderRadius.md,
       flex: 1,
       alignItems: 'center',
+      justifyContent: 'center',
     },
     toolButtonOutline: {
       paddingHorizontal: spacing.md,
       paddingVertical: spacing.sm,
+      minHeight: 44,
       borderRadius: borderRadius.md,
       borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.surface,
       flex: 1,
       alignItems: 'center',
+      justifyContent: 'center',
     },
     toolButtonText: {
       color: colors.onPrimary,

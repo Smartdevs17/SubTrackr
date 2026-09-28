@@ -33,3 +33,9 @@ export interface IAuthStrategy {
 ## Fallback & Multi-Strategy Chaining
 The `CompositeAuthStrategyManager` evaluates incoming requests sequentially against registered strategies.
 If a strategy validates the request, authentication succeeds immediately. If a strategy returns `null`, the manager attempts the next strategy in line. If all strategies fail, an `UnauthorizedError` (HTTP 401) is thrown.
+
+## Passwordless Login with Passkeys
+Users can register WebAuthn passkeys while signed in and later sign in without a password. A successful passkey assertion issues a regular server session (`X-Session-Token`). See [passkeys.md](./passkeys.md) for the flow, configuration and API.
+
+## API Key Revocation & Leak Detection
+API keys can be revoked instantly, and exposed keys are detected by scanning content, matching breach-feed hashes and watching for usage anomalies — with automatic revocation or flagging per merchant policy. See [api-key-revocation.md](./api-key-revocation.md).

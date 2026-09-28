@@ -9,6 +9,7 @@ const DeveloperPortalScreen = lazyScreen(() => import('../../screens/DeveloperPo
 const ApiPlaygroundScreen = lazyScreen(() => import('../../screens/ApiPlaygroundScreen'));
 const SandboxDashboardScreen = lazyScreen(() => import('../../screens/SandboxDashboardScreen'));
 const ApiKeyManagementScreen = lazyScreen(() => import('../../screens/ApiKeyManagementScreen'));
+const ApiKeysScreen = lazyScreen(() => import('../../screens/ApiKeysScreen'));
 const DocumentationPortalScreen = lazyScreen(
   () => import('../../screens/DocumentationPortalScreen')
 );
@@ -45,6 +46,11 @@ export const DeveloperStack = () => (
       name="ApiKeyManagement"
       component={ApiKeyManagementScreen}
       options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="ApiKeys"
+      component={ApiKeysScreen}
+      options={{ title: 'API Keys', headerShown: true }}
     />
     <Stack.Screen
       name="DocumentationPortal"

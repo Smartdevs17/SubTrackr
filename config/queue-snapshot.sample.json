@@ -1,0 +1,58 @@
+{
+  "capturedAt": 1736899200000,
+  "health": "degraded",
+  "maxQueueSize": 10000,
+  "queues": [
+    {
+      "priority": "critical",
+      "depth": 3200,
+      "paused": false,
+      "sloViolations": 42,
+      "avgWaitMs": 41000,
+      "avgProcessingMs": 120,
+      "totalEnqueued": 5200,
+      "totalProcessed": 3600
+    },
+    {
+      "priority": "high",
+      "depth": 1400,
+      "paused": false,
+      "sloViolations": 11,
+      "avgWaitMs": 96000,
+      "avgProcessingMs": 240,
+      "totalEnqueued": 2800,
+      "totalProcessed": 2300
+    },
+    {
+      "priority": "normal",
+      "depth": 260,
+      "paused": false,
+      "sloViolations": 2,
+      "avgWaitMs": 210000,
+      "avgProcessingMs": 310,
+      "totalEnqueued": 1400,
+      "totalProcessed": 1250
+    },
+    {
+      "priority": "low",
+      "depth": 40,
+      "paused": false,
+      "sloViolations": 0,
+      "avgWaitMs": 90000,
+      "avgProcessingMs": 120,
+      "totalEnqueued": 600,
+      "totalProcessed": 580
+    }
+  ],
+  "dlq": {
+    "total": 640,
+    "byCritical": 500,
+    "byHigh": 110,
+    "byNormal": 25,
+    "byLow": 5
+  },
+  "rateLimits": [],
+  "scheduledJobs": [],
+  "totalSloViolations": 55,
+  "totalProcessed": 7730
+}

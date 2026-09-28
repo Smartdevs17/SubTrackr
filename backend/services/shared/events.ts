@@ -201,8 +201,28 @@ export interface SsoSessionCreatedPayload extends Record<string, unknown> {
   expiresAt: number;
 }
 
+export interface ApiKeyRevokedPayload extends Record<string, unknown> {
+  keyId: string;
+  merchantId: string;
+  reason: string;
+  revokedBy: string;
+  revokedAt: number;
+}
+
+export interface ApiKeyLeakDetectedPayload extends Record<string, unknown> {
+  incidentId: string;
+  keyId: string;
+  merchantId: string;
+  method: string;
+  source: string;
+  autoRevoked: boolean;
+  detectedAt: number;
+}
+
 export type AuthEvent =
   | DomainEvent<'auth', 'api_key_rotated', ApiKeyRotatedPayload>
+  | DomainEvent<'auth', 'api_key_revoked', ApiKeyRevokedPayload>
+  | DomainEvent<'auth', 'api_key_leak_detected', ApiKeyLeakDetectedPayload>
   | DomainEvent<'auth', 'sso_session_created', SsoSessionCreatedPayload>;
 
 // -- Contract domain (Soroban) -----------------------------------------------
