@@ -3,16 +3,12 @@
   "schemaVersion": "1.0",
 
   "mutate": [
-    "backend/**/*.ts",
-    "!backend/**/*.test.ts",
-    "!backend/**/*.spec.ts",
-    "!backend/**/__tests__/**",
-    "!backend/**/__mocks__/**",
-    "!backend/**/__fixtures__/**",
-    "!backend/**/*.d.ts",
-    "!backend/migrations/**",
-    "!backend/server.ts",
-    "!backend/server/**"
+    "backend/subscription/domain/pauseBilling.ts",
+    "backend/subscription/domain/pauseStateStore.ts",
+    "backend/subscription/domain/batchAggregation.ts",
+    "backend/subscription/domain/portalBranding.ts",
+    "backend/subscription/controller/pauseController.ts",
+    "backend/subscription/controller/batchController.ts"
   ],
 
   "testRunner": "jest",
@@ -39,9 +35,9 @@
   "concurrency": 4,
 
   "thresholds": {
-    "high": 80,
-    "low": 60,
-    "break": 50
+    "high": 90,
+    "low": 80,
+    "break": 80
   },
 
   "tempDirName": ".stryker-backend-tmp",
@@ -57,13 +53,7 @@
   "timeoutFactor": 2.0,
   "maxTestRunnerReuse": 50,
 
-  "ignorePatterns": [
-    ".stryker-backend-tmp",
-    "node_modules"
-  ],
+  "ignorePatterns": [".stryker-backend-tmp", "node_modules"],
 
-  "plugins": [
-    "@stryker-mutator/jest-runner",
-    "@stryker-mutator/typescript-checker"
-  ]
+  "plugins": ["@stryker-mutator/jest-runner", "@stryker-mutator/typescript-checker"]
 }

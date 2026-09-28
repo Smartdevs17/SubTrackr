@@ -85,3 +85,189 @@ export type {
   DunningEmailDeliveryLog,
   DunningDeliverabilityMetrics,
 } from '../../../src/types/dunningABTest';
+
+// ── Email Provider ────────────────────────────────────────────────────────────
+export {
+  SendGridEmailProvider,
+  SesEmailProvider,
+  buildEmailTransport,
+  buildLegacyEmailSender,
+  createEmailProviderFromEnv,
+  createStubEmailProvider,
+  getEmailFromAddress,
+  emailProvider,
+} from './emailProvider';
+export type {
+  EmailAddress,
+  EmailAttachment,
+  EmailMessage,
+  EmailResult,
+  EmailProvider,
+  EmailTransportConfig,
+  SendGridConfig,
+  SesConfig,
+} from './emailProvider';
+
+// ── SMS Provider ──────────────────────────────────────────────────────────────
+export {
+  TwilioSmsProvider,
+  buildSmsTransport,
+  buildLegacySmsSender,
+  createSmsProviderFromEnv,
+  createStubSmsProvider,
+  smsProvider,
+  optOutStore,
+  isGsm7,
+  smsSegmentCount,
+  truncateSms,
+} from './smsProvider';
+export type {
+  SmsMessage,
+  SmsResult,
+  SmsProvider,
+  TwilioConfig,
+} from './smsProvider';
+
+// ── Voice Provider (#1255) ─────────────────────────────────────────────────────
+export {
+  TwilioVoiceProvider,
+  buildVoiceTransport,
+  buildTwiML,
+  say,
+  escapeTwiml,
+  createVoiceProviderFromEnv,
+  createStubVoiceProvider,
+  voiceProvider,
+} from './voiceProvider';
+export type {
+  VoiceCallRequest,
+  VoiceCallResult,
+  VoiceProvider,
+  TwilioVoiceConfig,
+} from './voiceProvider';
+
+// ── Communication Preferences (#1253) ─────────────────────────────────────────
+export {
+  CommunicationPreferenceService,
+  InMemoryCommunicationPreferenceRepository,
+  PreferenceViolationError,
+  buildDefaultCommunicationPreferences,
+  isWithinQuietHours,
+  nextQuietHoursEnd,
+  localMinutesOfDay,
+  communicationPreferenceService,
+  communicationPreferenceRepository,
+  DEFAULT_QUIET_HOURS,
+} from './communicationPreferencesService';
+export type {
+  CommunicationPreferenceRepository,
+  CommunicationPreferences,
+  ChannelDecision,
+  QuietHours,
+  RouteResult,
+  PreferenceChangeEvent,
+  SuppressionReason,
+  ContactPointOptOutLookup,
+  CommunicationPreferenceServiceDeps,
+} from './communicationPreferencesService';
+export { COMM_CHANNELS, COMM_CATEGORIES } from './commPreferencesTypes';
+
+// ── Transactional Email Templates (#1254) ─────────────────────────────────────
+export {
+  TRANSACTIONAL_TEMPLATES,
+  TRANSACTIONAL_TEMPLATE_IDS,
+  TransactionalTemplateError,
+  registerTransactionalTemplates,
+  renderTransactionalEmail,
+  renderTransactionalText,
+} from './transactionalEmailTemplates';
+export type {
+  TransactionalTemplateId,
+  TransactionalTemplateDefinition,
+  TransactionalRenderResult,
+} from './transactionalEmailTemplates';
+
+// ── Voice Call Reminders (#1255) ──────────────────────────────────────────────
+export {
+  VoiceReminderService,
+  voiceReminderService,
+  isWithinCallingHours,
+  msUntilCallingHoursOpen,
+  milestoneForRenewal,
+  buildRenewalReminderScript,
+  DEFAULT_CALLING_HOURS,
+  MILESTONE_DAYS,
+} from './voiceReminderService';
+export type {
+  CallingHours,
+  RenewalToRemind,
+  VoiceReminderContext,
+  VoiceReminderDecision,
+  VoiceReminderMilestone,
+  VoiceReminderRecord,
+  VoiceReminderResult,
+  VoiceReminderServiceDeps,
+  VoiceReminderSkipReason,
+} from './voiceReminderService';
+
+// ── Two-Way SMS (#1256) ───────────────────────────────────────────────────────
+export {
+  SmsInboundHandler,
+  smsInboundHandler,
+  parseInboundSms,
+  matchCommand,
+  DEFAULT_KEYWORD_MAP,
+  HELP_MESSAGE,
+  SNOOZE_DEFAULT_DAYS,
+} from './smsInboundHandler';
+export type {
+  InboundSms,
+  InboundSmsAudit,
+  SmsCommand,
+  SmsCommandActions,
+  SmsInboundHandlerDeps,
+  SmsInboundResult,
+  SmsIntent,
+  TwilioSmsPayload,
+  UserIdLookup,
+} from './smsInboundHandler';
+
+// ── Slack ─────────────────────────────────────────────────────────────────────
+export {
+  SlackNotifier,
+  SlackAlertDispatcher,
+  buildSubscriptionAlertMessage,
+  buildSystemAlertMessage,
+  createSlackNotifierFromEnv,
+  createSlackAlertDispatcherFromEnv,
+  slackNotifier,
+} from './slack';
+export type {
+  SlackMessage,
+  SlackNotifierConfig,
+  SlackDeliveryResult,
+  SubscriptionAlertContext,
+} from './slack';
+
+// ── Webhook Queue (BullMQ) ────────────────────────────────────────────────────
+export {
+  WebhookQueue,
+  WebhookQueueWorker,
+  WebhookRetryScheduler,
+  DlqReplayWorker,
+  eventPriority,
+} from './jobs/webhookQueue';
+export type {
+  WebhookQueueConfig,
+  WebhookQueueWorkerConfig,
+  WebhookWorkerMetrics,
+  WebhookJobData,
+} from './jobs/webhookQueue';
+
+// ── Subscription Notifier ─────────────────────────────────────────────────────
+export { SubscriptionNotifier, subscriptionNotifier } from './subscriptionNotifier';
+export type {
+  NotificationRecipient,
+  SubscriptionContext,
+  SubscriptionNotifierDeps,
+} from './subscriptionNotifier';

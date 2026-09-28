@@ -1,310 +1,257 @@
 import { create } from 'zustand';
-import { createJSONStorage, persist } from 'zustand/middleware';
-import { asyncStorageAdapter } from '../utils/storage';
 import type {
-  SlaAvailabilityEvent,
-  SlaAvailabilityState,
-  SlaBreach,
-  SlaConfig,
-  SlaDashboardReport,
-  SlaStatus,
+  SLADefinition,
+  SLATracking,
+  SLABreach,
+  SLAAlert,
+  SLAAnalytics,
+  SLAReport,
+  SLACheckRequest,
+  SLACheckResponse,
+  SLAFilters,
+  SLATier,
+  SLADashboard,
+  SLACreditIssuance,
+  SLAPeriod,
 } from '../types/sla';
-import {
-  buildSlaDashboardReport,
-  evaluateMerchantSnapshot,
-  normalizeSlaConfig,
-} from '../services/slaService';
-import { presentSlaBreachNotification } from '../services/notificationService';
-import { errorHandler, AppError } from '../services/errorHandler';
+import * as slaService from '../services/slaService';
 
-const STORAGE_KEY = 'subtrackr-sla';
-
-function generateId(prefix: string): string {
-  const timestamp = Date.now().toString(36);
-  const random = Math.random().toString(36).slice(2, 8);
-  return `${prefix}-${timestamp}-${random}`;
-}
-
-interface TrackAvailabilityInput {
-  durationSeconds: number;
-  state: SlaAvailabilityState;
-  note?: string;
-  timestamp?: number;
-}
-
-interface SlaState {
-  configs: Record<string, SlaConfig>;
-  statuses: Record<string, SlaStatus>;
-  availabilityEvents: SlaAvailabilityEvent[];
-  breaches: SlaBreach[];
-  report: SlaDashboardReport;
+interface SLAStore {
+  definitions: SLADefinition[];
+  trackings: SLATracking[];
+  breaches: SLABreach[];
+  alerts: SLAAlert[];
+  analytics: SLAAnalytics | null;
+  dashboard: SLADashboard | null;
+  credits: SLACreditIssuance[];
   isLoading: boolean;
-  error: AppError | null;
-  configureSla: (merchantId: string, config: Partial<SlaConfig>) => Promise<void>;
-  trackServiceAvailability: (merchantId: string, input: TrackAvailabilityInput) => Promise<void>;
-  detectSlaBreach: (merchantId: string) => Promise<SlaStatus | null>;
-  acknowledgeBreach: (breachId: string) => Promise<void>;
-  calculateCredit: (breachId: string) => number;
-  getSlaStatus: (merchantId: string) => SlaStatus | null;
-  refreshReport: () => void;
+  error: string | null;
+
+  // SLA Check
+  performSLACheck: (request: SLACheckRequest) => Promise<SLACheckResponse>;
+
+  // Definitions
+  loadDefinitions: (tier?: SLATier) => Promise<void>;
+  createDefinition: (data: Omit<SLADefinition, 'id' | 'createdAt' | 'updatedAt'>) => Promise<SLADefinition>;
+
+  // Tracking
+  loadTrackings: (filters?: SLAFilters) => Promise<void>;
+
+  // Breaches
+  loadBreaches: (filters?: { status?: string; subscriptionId?: string }) => Promise<void>;
+  updateBreachStatus: (id: string, status: string, notes?: string) => Promise<void>;
+
+  // Alerts
+  loadAlerts: () => Promise<void>;
+  markAlertAsRead: (id: string) => Promise<void>;
+  resolveAlert: (id: string) => Promise<void>;
+  getUnreadAlerts: () => SLAAlert[];
+
+  // Analytics
+  loadAnalytics: () => Promise<void>;
+
+  // Dashboard
+  loadDashboard: () => Promise<void>;
+
+  // Reporting
+  generateReport: (reportType: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly' | 'custom', period: SLAPeriod, tier?: SLATier) => Promise<SLAReport>;
+
+  // Credits
+  loadCredits: () => Promise<void>;
+  approveCredit: (id: string) => Promise<void>;
+
+  // Utility
+  clearError: () => void;
+  reset: () => void;
 }
 
-function buildEmptyReport(): SlaDashboardReport {
-  return {
-    summary: {
-      totalMerchants: 0,
-      compliantMerchants: 0,
-      breachCount: 0,
-      averageUptime: 100,
-      totalCreditsIssued: 0,
-      partialOutageEvents: 0,
-      maintenanceEvents: 0,
-    },
-    configs: {},
-    statuses: {},
-    breaches: [],
-    events: [],
-  };
-}
+const initialState = {
+  definitions: [],
+  trackings: [],
+  breaches: [],
+  alerts: [],
+  analytics: null,
+  dashboard: null,
+  credits: [],
+  isLoading: false,
+  error: null,
+};
 
-function updateMerchantState(state: SlaState, merchantId: string, now = Date.now()) {
-  const config = state.configs[merchantId];
-  if (!config) {
-    return {
-      statuses: state.statuses,
-      breaches: state.breaches,
-      createdBreach: null as SlaBreach | null,
-      resolvedBreachId: null as string | null,
-    };
-  }
+export const useSLAStore = create<SLAStore>((set, get) => ({
+  ...initialState,
 
-  const merchantEvents = state.availabilityEvents.filter(
-    (event) => event.merchantId === merchantId
-  );
-  const merchantBreaches = state.breaches.filter((breach) => breach.merchantId === merchantId);
-  const evaluation = evaluateMerchantSnapshot({
-    config,
-    events: merchantEvents,
-    breaches: merchantBreaches,
-    now,
-  });
-
-  const nextBreaches = state.breaches
-    .filter((breach) => breach.merchantId !== merchantId)
-    .concat(evaluation.breaches);
-
-  return {
-    statuses: {
-      ...state.statuses,
-      [merchantId]: evaluation.status,
-    },
-    breaches: nextBreaches,
-    createdBreach: evaluation.createdBreach,
-    resolvedBreachId: evaluation.resolvedBreachId,
-  };
-}
-
-function rebuildReport(
-  state: Pick<SlaState, 'configs' | 'statuses' | 'breaches' | 'availabilityEvents'>
-): SlaDashboardReport {
-  return buildSlaDashboardReport({
-    configs: state.configs,
-    statuses: state.statuses,
-    breaches: state.breaches,
-    events: state.availabilityEvents,
-  });
-}
-
-export const useSlaStore = create<SlaState>()(
-  persist(
-    (set, get) => ({
-      configs: {},
-      statuses: {},
-      availabilityEvents: [],
-      breaches: [],
-      report: buildEmptyReport(),
-      isLoading: false,
-      error: null,
-
-      configureSla: async (merchantId, config) => {
-        set({ isLoading: true, error: null });
-        try {
-          const normalized = normalizeSlaConfig(merchantId, config);
-          set((state) => {
-            const nextState: SlaState = {
-              ...state,
-              configs: {
-                ...state.configs,
-                [merchantId]: normalized,
-              },
-            };
-            const evaluated = updateMerchantState(nextState, merchantId);
-            return {
-              configs: nextState.configs,
-              statuses: evaluated.statuses,
-              breaches: evaluated.breaches,
-              report: rebuildReport({
-                configs: nextState.configs,
-                statuses: evaluated.statuses,
-                breaches: evaluated.breaches,
-                availabilityEvents: state.availabilityEvents,
-              }),
-              isLoading: false,
-            };
-          });
-        } catch (error) {
-          set({
-            error: errorHandler.handleError(error as Error, {
-              action: 'configureSla',
-              metadata: { merchantId, config },
-            }),
-            isLoading: false,
-          });
-        }
-      },
-
-      trackServiceAvailability: async (merchantId, input) => {
-        set({ isLoading: true, error: null });
-        try {
-          const event: SlaAvailabilityEvent = {
-            id: generateId('sla-event'),
-            merchantId,
-            timestamp: input.timestamp ?? Date.now(),
-            durationSeconds: Math.max(1, Math.floor(input.durationSeconds)),
-            state: input.state,
-            note: input.note,
-          };
-
-          let createdBreach: SlaBreach | null = null;
-
-          set((state) => {
-            const availabilityEvents = [...state.availabilityEvents, event];
-            const nextState: SlaState = {
-              ...state,
-              availabilityEvents,
-            };
-            const evaluated = updateMerchantState(
-              nextState,
-              merchantId,
-              event.timestamp + event.durationSeconds * 1000
-            );
-            createdBreach = evaluated.createdBreach;
-
-            return {
-              availabilityEvents,
-              statuses: evaluated.statuses,
-              breaches: evaluated.breaches,
-              report: rebuildReport({
-                configs: state.configs,
-                statuses: evaluated.statuses,
-                breaches: evaluated.breaches,
-                availabilityEvents,
-              }),
-              isLoading: false,
-            };
-          });
-
-          const breachToNotify = createdBreach as SlaBreach | null;
-          if (breachToNotify) {
-            const config = get().configs[merchantId];
-            void presentSlaBreachNotification({
-              merchantName: config?.merchantId ?? merchantId,
-              uptimeTarget: breachToNotify.uptimeTarget,
-              uptimePercentage: breachToNotify.uptimePercentage,
-              creditAmount: breachToNotify.creditAmount,
-            });
-          }
-        } catch (error) {
-          set({
-            error: errorHandler.handleError(error as Error, {
-              action: 'trackServiceAvailability',
-              metadata: { merchantId, input },
-            }),
-            isLoading: false,
-          });
-        }
-      },
-
-      detectSlaBreach: async (merchantId) => {
-        const state = get();
-        const config = state.configs[merchantId];
-        if (!config) return null;
-
-        const evaluated = updateMerchantState(state, merchantId);
-        set({
-          statuses: evaluated.statuses,
-          breaches: evaluated.breaches,
-          report: rebuildReport({
-            configs: state.configs,
-            statuses: evaluated.statuses,
-            breaches: evaluated.breaches,
-            availabilityEvents: state.availabilityEvents,
-          }),
-        });
-
-        const nextStatus = evaluated.statuses[merchantId] ?? null;
-        if (evaluated.createdBreach) {
-          void presentSlaBreachNotification({
-            merchantName: config.merchantId,
-            uptimeTarget: evaluated.createdBreach.uptimeTarget,
-            uptimePercentage: evaluated.createdBreach.uptimePercentage,
-            creditAmount: evaluated.createdBreach.creditAmount,
-          });
-        }
-        return nextStatus;
-      },
-
-      acknowledgeBreach: async (breachId) => {
-        set({ isLoading: true, error: null });
-        try {
-          set((state) => {
-            const breaches = state.breaches.map((breach) =>
-              breach.id === breachId ? { ...breach, acknowledged: true } : breach
-            );
-            return {
-              breaches,
-              report: rebuildReport({
-                configs: state.configs,
-                statuses: state.statuses,
-                breaches,
-                availabilityEvents: state.availabilityEvents,
-              }),
-              isLoading: false,
-            };
-          });
-        } catch (error) {
-          set({
-            error: errorHandler.handleError(error as Error, {
-              action: 'acknowledgeBreach',
-              metadata: { breachId },
-            }),
-            isLoading: false,
-          });
-        }
-      },
-
-      calculateCredit: (breachId) =>
-        get().breaches.find((breach) => breach.id === breachId)?.creditAmount ?? 0,
-
-      getSlaStatus: (merchantId) => get().statuses[merchantId] ?? null,
-
-      refreshReport: () => {
-        const state = get();
-        set({
-          report: rebuildReport(state),
-        });
-      },
-    }),
-    {
-      name: STORAGE_KEY,
-      storage: createJSONStorage(() => asyncStorageAdapter),
-      version: 1,
-      partialize: (state) => ({
-        configs: state.configs,
-        statuses: state.statuses,
-        availabilityEvents: state.availabilityEvents,
-        breaches: state.breaches,
-      }),
+  performSLACheck: async (request: SLACheckRequest) => {
+    set({ isLoading: true, error: null });
+    try {
+      const response = await slaService.performSLACheck(request);
+      
+      // Reload relevant data
+      await get().loadTrackings();
+      if (response.breached) {
+        await get().loadBreaches();
+        await get().loadAlerts();
+      }
+      
+      set({ isLoading: false });
+      return response;
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false });
+      throw error;
     }
-  )
-);
+  },
+
+  loadDefinitions: async (tier?: SLATier) => {
+    set({ isLoading: true, error: null });
+    try {
+      const definitions = await slaService.getAllSLADefinitions(tier);
+      set({ definitions, isLoading: false });
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false });
+    }
+  },
+
+  createDefinition: async (data) => {
+    set({ isLoading: true, error: null });
+    try {
+      const definition = await slaService.createSLADefinition(data);
+      set(state => ({
+        definitions: [...state.definitions, definition],
+        isLoading: false,
+      }));
+      return definition;
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false });
+      throw error;
+    }
+  },
+
+  loadTrackings: async (filters?: SLAFilters) => {
+    set({ isLoading: true, error: null });
+    try {
+      const trackings = await slaService.getAllTrackings(filters);
+      set({ trackings, isLoading: false });
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false });
+    }
+  },
+
+  loadBreaches: async (filters?) => {
+    set({ isLoading: true, error: null });
+    try {
+      const breaches = await slaService.getAllBreaches(filters);
+      set({ breaches, isLoading: false });
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false });
+    }
+  },
+
+  updateBreachStatus: async (id: string, status: string, notes?: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const updated = await slaService.updateBreachStatus(id, status, notes);
+      set(state => ({
+        breaches: state.breaches.map(b => b.id === id ? updated : b),
+        isLoading: false,
+      }));
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false });
+      throw error;
+    }
+  },
+
+  loadAlerts: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const alerts = await slaService.getAllAlerts();
+      set({ alerts, isLoading: false });
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false });
+    }
+  },
+
+  markAlertAsRead: async (id: string) => {
+    try {
+      await slaService.markAlertAsRead(id);
+      set(state => ({
+        alerts: state.alerts.map(a => a.id === id ? { ...a, isRead: true, acknowledgedAt: new Date() } : a),
+      }));
+    } catch (error) {
+      set({ error: (error as Error).message });
+    }
+  },
+
+  resolveAlert: async (id: string) => {
+    try {
+      await slaService.resolveAlert(id);
+      set(state => ({
+        alerts: state.alerts.map(a => a.id === id ? { ...a, isResolved: true, resolvedAt: new Date() } : a),
+      }));
+    } catch (error) {
+      set({ error: (error as Error).message });
+      throw error;
+    }
+  },
+
+  getUnreadAlerts: () => {
+    return get().alerts.filter(a => !a.isRead);
+  },
+
+  loadAnalytics: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const analytics = await slaService.getSLAAnalytics();
+      set({ analytics, isLoading: false });
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false });
+    }
+  },
+
+  loadDashboard: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const dashboard = await slaService.getSLADashboard();
+      set({ dashboard, isLoading: false });
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false });
+    }
+  },
+
+  generateReport: async (reportType, period, tier?) => {
+    set({ isLoading: true, error: null });
+    try {
+      const report = await slaService.generateSLAReport(reportType, period, tier);
+      set({ isLoading: false });
+      return report;
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false });
+      throw error;
+    }
+  },
+
+  loadCredits: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const credits = await slaService.getAllCredits();
+      set({ credits, isLoading: false });
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false });
+    }
+  },
+
+  approveCredit: async (id: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const approved = await slaService.approveCreditIssuance(id);
+      set(state => ({
+        credits: state.credits.map(c => c.id === id ? approved : c),
+        isLoading: false,
+      }));
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false });
+      throw error;
+    }
+  },
+
+  clearError: () => set({ error: null }),
+  reset: () => set(initialState),
+}));

@@ -7,6 +7,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  issues: write
 
 jobs:
   auto-merge:
@@ -20,6 +21,7 @@ jobs:
             const pr = context.payload.pull_request;
             const { owner, repo } = context.repo;
 
+            // Fetch current PR details (including mergeability)
             const { data: updated } = await github.rest.pulls.get({
               owner, repo, pull_number: pr.number,
             });
@@ -29,12 +31,51 @@ jobs:
               return;
             }
 
+            // Fetch any linked issues that should be closed by this PR
+            let linkedIssues = [];
             try {
+              const query = `
+                query($owner: String!, $repo: String!, $number: Int!) {
+                  repository(owner: $owner, name: $repo) {
+                    pullRequest(number: $number) {
+                      closingIssuesReferences(first: 50) {
+                        nodes {
+                          number
+                        }
+                      }
+                    }
+                  }
+                }
+              `;
+              const res = await github.graphql(query, { owner, repo, number: pr.number });
+              linkedIssues = res.repository.pullRequest.closingIssuesReferences.nodes.map(node => node.number);
+              console.log(`Found linked issues for PR #${pr.number}: ${linkedIssues.join(', ') || 'none'}`);
+            } catch (err) {
+              console.log(`Could not fetch linked issues: ${err.message}`);
+            }
+
+            try {
+              // Merge PR directly, including title and body in the squash commit message
               await github.rest.pulls.merge({
                 owner, repo, pull_number: pr.number,
                 merge_method: 'squash',
+                commit_title: `${updated.title} (#${pr.number})`,
+                commit_message: updated.body || '',
               });
-              console.log(`Merged PR #${pr.number}`);
+              console.log(`Successfully merged PR #${pr.number}`);
+
+              // Double-check and close all linked issues manually to be bulletproof
+              for (const issue_number of linkedIssues) {
+                try {
+                  await github.rest.issues.update({
+                    owner, repo, issue_number,
+                    state: 'closed',
+                  });
+                  console.log(`Closed linked issue #${issue_number} successfully.`);
+                } catch (issueErr) {
+                  console.log(`Could not close linked issue #${issue_number}: ${issueErr.message}`);
+                }
+              }
             } catch (e) {
               console.log(`Could not merge PR #${pr.number}: ${e.message}`);
             }

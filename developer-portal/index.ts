@@ -2,6 +2,7 @@ export { DeveloperPortalService } from './services/portalService';
 export { IntegrationGuidesService } from './services/integrationGuidesService';
 export { DeveloperOnboarding } from './components/DeveloperOnboarding';
 export { ApiKeyManager } from './components/ApiKeyManager';
+export { ApiPlayground } from './components/ApiPlayground';
 export {
   PortalApiKeyRotationService,
   portalApiKeyRotationService,
@@ -16,6 +17,7 @@ export {
   DashboardPage,
   ApiKeysPage,
   DocumentationPage,
+  PlaygroundPage,
   UsagePage,
   OnboardingPage,
   MigrationPage,

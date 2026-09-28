@@ -1,4 +1,4 @@
-import { ApiKeyRotationService } from '../domain/ApiKeyRotationService';
+import { ApiKeyRotationService, hashApiKey } from '../domain/ApiKeyRotationService';
 
 describe('ApiKeyRotationService', () => {
   let service: ApiKeyRotationService;
@@ -70,6 +70,38 @@ describe('ApiKeyRotationService', () => {
     it('returns null for unknown key', async () => {
       const record = await service.validateKey('sk_invalid');
       expect(record).toBeNull();
+    });
+  });
+
+  describe('revokeKey', () => {
+    it('revokes a key without issuing a replacement', async () => {
+      const { keyId, rawKey } = await service.registerKey('merchant-1');
+      const revoked = await service.revokeKey(keyId, 'compromised');
+      expect(revoked.status).toBe('revoked');
+      expect(revoked.revocationReason).toBe('compromised');
+      expect(revoked.revokedAt).toBeDefined();
+      expect(service.getKey(keyId)?.status).toBe('revoked');
+      await expect(service.validateKey(rawKey)).rejects.toThrow('revoked');
+    });
+
+    it('throws for non-existent or already revoked keys', async () => {
+      await expect(service.revokeKey('nonexistent')).rejects.toThrow('not found');
+      const { keyId } = await service.registerKey('merchant-1');
+      await service.revokeKey(keyId);
+      await expect(service.revokeKey(keyId)).rejects.toThrow('already revoked');
+    });
+  });
+
+  describe('key lookups', () => {
+    it('finds a key ID by hash and lists keys per merchant', async () => {
+      const a = await service.registerKey('merchant-1');
+      const b = await service.registerKey('merchant-2');
+      expect(service.findKeyIdByHash(hashApiKey(a.rawKey))).toBe(a.keyId);
+      expect(service.findKeyIdByHash(hashApiKey(a.rawKey).toUpperCase())).toBe(a.keyId);
+      expect(service.findKeyIdByHash(hashApiKey('sk_unknown'))).toBeNull();
+      expect(service.listKeyIds('merchant-2')).toEqual([b.keyId]);
+      expect(service.listKeyIds()).toHaveLength(2);
+      expect(service.getKey('missing')).toBeUndefined();
     });
   });
 });

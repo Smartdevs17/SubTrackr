@@ -137,7 +137,7 @@ const ActivePauseCard: React.FC<ActivePauseCardProps> = ({
 const PauseSubscriptionScreen: React.FC<Props> = ({ route }) => {
   const subscriptionId = route.params?.subscriptionId;
 
-  const { subscriptions } = useSubscriptionStore();
+  const { subscriptions, toggleSubscriptionStatus } = useSubscriptionStore();
   const {
     pauseSubscription,
     resumeSubscription,
@@ -187,6 +187,9 @@ const PauseSubscriptionScreen: React.FC<Props> = ({ route }) => {
           onPress: () => {
             try {
               pauseSubscription(subscription, pauseDays, reason, DEFAULT_PAUSE_LIMITS);
+              if (subscription.isActive) {
+                void toggleSubscriptionStatus(subscription.id);
+              }
             } catch (e) {
               Alert.alert('Error', (e as Error).message);
             }
@@ -194,7 +197,15 @@ const PauseSubscriptionScreen: React.FC<Props> = ({ route }) => {
         },
       ]
     );
-  }, [subscription, pauseDays, reason, preview, validation, pauseSubscription]);
+  }, [
+    subscription,
+    pauseDays,
+    reason,
+    preview,
+    validation,
+    pauseSubscription,
+    toggleSubscriptionStatus,
+  ]);
 
   const handleResume = useCallback(() => {
     if (!subscriptionId) return;
@@ -207,12 +218,18 @@ const PauseSubscriptionScreen: React.FC<Props> = ({ route }) => {
           text: 'Resume',
           onPress: () => {
             const result = resumeSubscription(subscriptionId, true);
-            if (!result) Alert.alert('Error', 'Could not resume subscription.');
+            if (!result) {
+              Alert.alert('Error', 'Could not resume subscription.');
+              return;
+            }
+            if (subscription && !subscription.isActive) {
+              void toggleSubscriptionStatus(subscription.id);
+            }
           },
         },
       ]
     );
-  }, [subscriptionId, resumeSubscription]);
+  }, [subscriptionId, subscription, resumeSubscription, toggleSubscriptionStatus]);
 
   if (!subscription) {
     return (

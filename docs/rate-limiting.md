@@ -83,10 +83,15 @@ A lightweight concurrency counter prevents stampedes. If an API key has `concurr
 
 The rate limiter identifies requests by, in order of preference:
 
-1. `X-API-Key` header
-2. `Authorization: Bearer <token>` header
+1. `Authorization: Bearer <token>` header
+2. `X-API-Key` header
 3. `X-User-ID` header
 4. Client IP address (unauthenticated fallback)
+
+`Authorization` is checked first, so a request carrying both headers is metered
+against the bearer token. This matters for services that send a shared secret
+in `Authorization` while also holding a customer API key — the secret is the
+metered identity.
 
 ---
 
@@ -99,16 +104,21 @@ Every non-bypassed API response includes the following headers:
 | `X-RateLimit-Limit` | integer | Hourly request limit for this API key |
 | `X-RateLimit-Remaining` | integer | Requests remaining in the current hourly window |
 | `X-RateLimit-Reset` | Unix timestamp (s) | Time when the hourly window resets |
-| `X-RateLimit-Policy` | string | Active policy, e.g. `premium;hourly=1000;daily=10000` |
-| `X-UserRateLimit-Limit` | integer | Per-user aggregate hourly limit |
-| `X-UserRateLimit-Remaining` | integer | Per-user requests remaining this hour |
-| `X-UserRateLimit-Reset` | Unix timestamp (s) | When the per-user hourly window resets |
+| `X-RateLimit-Burst-Remaining` | integer | Tokens left in the token bucket; a burst can exhaust these before the hourly cap does |
+| `X-RateLimit-Warning` | string | Present once usage passes 80% of the hourly limit |
+
+These headers reflect usage recorded from *earlier* requests, so the first
+response after startup still advertises the full quota. Usage is recorded when
+the response is written, whichever terminal method the handler uses — a raw
+`http.ServerResponse` writing via `res.writeHead` + `res.end` is metered just
+like an Express handler calling `res.json()`.
 
 On a `429` response:
 
 | Header | Type | Description |
 |--------|------|-------------|
 | `Retry-After` | integer (seconds) | How many seconds to wait before retrying |
+| `X-RateLimit-Retry-After-Ms` | integer (ms) | The same wait in milliseconds |
 
 ---
 
@@ -118,30 +128,18 @@ When a limit is exceeded the API returns HTTP **429 Too Many Requests**:
 
 ```json
 {
-  "status": 429,
   "error": "rate_limit_exceeded",
-  "message": "Rate limit exceeded. Retry after 47 seconds.",
-  "retryAfter": 47,
-  "limit": 100,
-  "remaining": 0,
-  "resetAt": 1722038400000
+  "message": "Rate limit exceeded. Retry after 47s.",
+  "retryAfterMs": 47000,
+  "retryAfterSec": 47
 }
 ```
+
+A per-user aggregate rejection uses `error: "user_rate_limit_exceeded"` with a `User-level rate limit exceeded` message.
 
 ### Soft-limit warnings
 
-Before a key reaches its limit the service emits a soft-limit warning at **80%** and **95%** usage. These do not reject requests but are returned in the response body alongside successful responses.
-
-```json
-{
-  "warning": "soft_limit_reached",
-  "usagePercent": 82,
-  "limit": 100,
-  "current": 82,
-  "tier": "FREE",
-  "message": "API usage at 82% of hourly limit (82/100)"
-}
-```
+Before a key reaches its limit the service emits a soft-limit warning at **80%** of hourly usage via the `X-RateLimit-Warning` response header. This does not reject the request.
 
 ---
 

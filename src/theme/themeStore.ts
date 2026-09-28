@@ -35,6 +35,8 @@ interface ThemeState {
 
   /** Switch to a theme by ID. Falls back to dark if not found. */
   setTheme: (id: string) => void;
+  /** Set theme mode (light / dark). */
+  setThemeMode: (mode: ThemeMode) => void;
   /** Toggle between dark and light built-in themes. */
   toggleMode: () => void;
   /**
@@ -170,6 +172,11 @@ export const useThemeStore = create<ThemeState>()(
       setTheme(id) {
         const theme = resolveTheme(id, get().customThemes);
         set({ activeThemeId: id, theme });
+      },
+
+      setThemeMode(mode) {
+        const target = mode === 'dark' ? darkTheme : lightTheme;
+        set({ activeThemeId: target.id, theme: target });
       },
 
       toggleMode() {

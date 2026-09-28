@@ -3,6 +3,18 @@ export interface SDKOptions {
   environment?: 'production' | 'sandbox';
   baseUrl?: string;
   timeout?: number;
+  /**
+   * Target API version to use for all requests.
+   * Defaults to CURRENT_API_VERSION (2).
+   * Must be >= MIN_SUPPORTED_API_VERSION (1).
+   */
+  apiVersion?: number;
+  /**
+   * Whether to emit console warnings when the SDK detects deprecated usage
+   * or an older API version in a server response.
+   * Defaults to true.
+   */
+  warnOnDeprecation?: boolean;
 }
 
 export interface AuthContext {

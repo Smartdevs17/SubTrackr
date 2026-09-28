@@ -5,8 +5,10 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { useNotifications } from './src/hooks/useNotifications';
 import { useTransactionQueue } from './src/hooks/useTransactionQueue';
+import { useOfflineSync } from './src/hooks/useOfflineSync';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import { HydrationGate } from './src/components/HydrationGate';
+import { ConsentPrompt } from './src/components/privacy/ConsentPrompt';
 import { initI18n } from './src/i18n/config';
 import i18n from './src/i18n/config';
 import { I18nextProvider } from 'react-i18next';
@@ -89,6 +91,7 @@ createAppKit({
 function NotificationBootstrap() {
   useNotifications();
   useTransactionQueue();
+  useOfflineSync();
 
   const { initialize } = useNetworkStore();
   const { initializeSettings } = useSettingsStore();
@@ -200,6 +203,7 @@ export default function App() {
             <HydrationGate>
               <NotificationBootstrap />
               <AppNavigator />
+              <ConsentPrompt />
             </HydrationGate>
           </I18nextProvider>
         </ErrorBoundary>

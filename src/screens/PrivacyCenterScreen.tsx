@@ -14,6 +14,7 @@ import { RootStackParamList } from '../navigation/types';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { gdprService } from '../services/gdpr';
 import { useUserStore } from '../store/userStore';
+import { CONSENT_CATEGORIES } from '../services/consentService';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -21,7 +22,7 @@ const PrivacyCenterScreen = () => {
   const colors = useThemeColors();
   const styles = React.useMemo(() => createStyles(colors), [colors]);
   const navigation = useNavigation<Nav>();
-  const { consent, setConsent } = useUserStore();
+  const { consent } = useUserStore();
   const [loading, setLoading] = useState(false);
 
   const handleRequestDeletion = () => {
@@ -53,32 +54,6 @@ const PrivacyCenterScreen = () => {
     );
   };
 
-  const consentItems: {
-    key: keyof typeof consent;
-    label: string;
-    description: string;
-    category: 'analytics' | 'marketing' | 'notifications';
-  }[] = [
-    {
-      key: 'analytics',
-      label: 'Analytics',
-      description: 'Share anonymous usage data to help improve the app.',
-      category: 'analytics',
-    },
-    {
-      key: 'marketing',
-      label: 'Marketing',
-      description: 'Receive updates about new features and promotions.',
-      category: 'marketing',
-    },
-    {
-      key: 'notifications',
-      label: 'Notifications',
-      description: 'Receive billing reminders and important alerts.',
-      category: 'notifications',
-    },
-  ];
-
   return (
     <ScrollView
       style={styles.container}
@@ -92,32 +67,29 @@ const PrivacyCenterScreen = () => {
       {/* Consent Management */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Consent Management</Text>
-        {consentItems.map((item) => (
+        {CONSENT_CATEGORIES.map((item) => (
           <View key={item.key} style={styles.row}>
             <View style={styles.rowText}>
-              <Text style={styles.rowLabel}>{item.label}</Text>
-              <Text style={styles.rowDesc}>{item.description}</Text>
+              <Text style={styles.rowLabel}>{item.title}</Text>
               <Text style={styles.rowMeta}>
                 Status: {consent[item.key] ? '✅ Granted' : '❌ Withdrawn'}
               </Text>
             </View>
-            <TouchableOpacity
-              style={[
-                styles.toggleBtn,
-                consent[item.key] ? styles.toggleActive : styles.toggleInactive,
-              ]}
-              onPress={async () => {
-                const updated = { [item.key]: !consent[item.key] } as Partial<typeof consent>;
-                setConsent(updated);
-                gdprService.recordConsent('user-123', item.category, !consent[item.key]);
-              }}
-              accessibilityRole="switch"
-              accessibilityState={{ checked: !!consent[item.key] }}
-              accessibilityLabel={`Toggle ${item.label} consent`}>
-              <Text style={styles.toggleBtnText}>{consent[item.key] ? 'Withdraw' : 'Grant'}</Text>
-            </TouchableOpacity>
           </View>
         ))}
+        <TouchableOpacity
+          style={styles.actionBtn}
+          onPress={() => navigation.navigate('ConsentManagement')}
+          testID="privacy-center-manage-consent"
+          accessibilityRole="button"
+          accessibilityLabel="Manage consent preferences">
+          <Text style={styles.actionBtnIcon}>🛡️</Text>
+          <View style={styles.actionBtnText}>
+            <Text style={styles.actionBtnTitle}>Manage Consent</Text>
+            <Text style={styles.actionBtnDesc}>Grant or withdraw consent and view history</Text>
+          </View>
+          <Text style={styles.chevron}>›</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Data Rights */}
@@ -203,7 +175,6 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     rowText: { flex: 1 },
     rowLabel: { fontSize: 15, fontWeight: '600', color: colors.text.primary },
-    rowDesc: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
     rowMeta: { fontSize: 11, color: colors.textSecondary, marginTop: 4 },
     toggleBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 },
     toggleActive: { backgroundColor: colors.error + '22' },

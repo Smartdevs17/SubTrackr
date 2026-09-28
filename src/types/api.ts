@@ -73,7 +73,7 @@ export const SubscriptionCategorySchema = z.enum([
   'other',
 ]);
 
-export const BillingCycleSchema = z.enum(['monthly', 'yearly', 'weekly', 'custom']);
+export const BillingCycleSchema = z.enum(['monthly', 'yearly', 'annual', 'weekly', 'custom']);
 
 export const SubscriptionSchema = z.object({
   id: z.string(),

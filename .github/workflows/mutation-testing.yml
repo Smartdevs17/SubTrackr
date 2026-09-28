@@ -1,0 +1,48 @@
+name: Mutation Testing
+
+# Runs on demand only: a full Stryker run is too expensive for every PR.
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Which configuration to run
+        required: false
+        default: all
+        type: choice
+        options:
+          - all
+          - frontend
+          - backend
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  mutation:
+    name: Stryker mutation score
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      - run: npm ci --legacy-peer-deps
+
+      - name: Frontend mutation tests
+        if: inputs.target == 'all' || inputs.target == 'frontend'
+        run: npm run mutation:test
+
+      - name: Backend mutation tests
+        if: inputs.target == 'all' || inputs.target == 'backend'
+        run: npm run mutation:test:backend
+
+      - name: Upload mutation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report
+          path: reports/
+          retention-days: 14
+          if-no-files-found: ignore

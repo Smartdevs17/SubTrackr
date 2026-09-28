@@ -34,7 +34,7 @@ import { billingLockIntegration } from './billing/lockIntegration';
 import { subscriptionLockIntegration } from './subscription/lockIntegration';
 import { kmsProvider, vaultProvider, ColumnEncryptionService } from './shared/encryption';
 import { apiKeyRotationService } from './auth';
-import { paymentRouter, StripeAdapter, CircleAdapter, StellarAdapter } from './payment';
+import { paymentRouter, StripeAdapter, CircleAdapter, StellarAdapter, ShopifyAdapter } from './payment';
 import { getPlanCacheService } from '../subscription/planCacheRegistry';
 import type { PlanCacheService } from '../subscription/domain/PlanCacheService';
 
@@ -242,6 +242,13 @@ container.register('IApiKeyRotationService', apiKeyRotationService);
 paymentRouter.registerGateway('stripe', new StripeAdapter());
 paymentRouter.registerGateway('circle', new CircleAdapter());
 paymentRouter.registerGateway('stellar', new StellarAdapter());
+// ── Shopify subscription billing (Issue #1235) ────────────────────────────────
+// Registered only when the shop is configured, so a deployment without Shopify
+// credentials never offers Shopify as a fallback gateway.
+const shopifyAdapter = ShopifyAdapter.fromEnvironment();
+if (shopifyAdapter) {
+  paymentRouter.registerGateway(shopifyAdapter.name, shopifyAdapter);
+}
 container.register('IPaymentRouter', paymentRouter);
 
 // ── Plan cache (requires bootstrapPlanCache() at startup) ─────────────────────
@@ -303,3 +310,149 @@ container.bind('IMonitoredPool', () => {
 });
 // Pool monitor is wired explicitly in startServer after getPool() returns.
 export { wrapWithMonitor, loadDatabaseConfig };
+
+// ── Email Provider ────────────────────────────────────────────────────────────
+import {
+  emailProvider,
+  createEmailProviderFromEnv,
+  getEmailFromAddress,
+  buildEmailTransport,
+} from './notification/emailProvider';
+container.register('IEmailProvider', emailProvider);
+container.bind('IEmailTransport', (c) =>
+  buildEmailTransport(
+    c.resolve('IEmailProvider'),
+    { from: getEmailFromAddress() }
+  )
+);
+
+// ── SMS Provider ──────────────────────────────────────────────────────────────
+import {
+  smsProvider,
+  buildSmsTransport,
+  optOutStore,
+} from './notification/smsProvider';
+container.register('ISmsProvider', smsProvider);
+container.bind('ISmsTransport', (c) =>
+  buildSmsTransport(c.resolve('ISmsProvider'))
+);
+container.register('ISmsOptOutStore', optOutStore);
+
+// ── Voice Provider (#1255) ────────────────────────────────────────────────────
+import { voiceProvider, buildVoiceTransport } from './notification/voiceProvider';
+container.register('IVoiceProvider', voiceProvider);
+container.bind('IVoiceTransport', (c) =>
+  buildVoiceTransport(c.resolve('IVoiceProvider'))
+);
+
+// ── Communication Preferences (#1253) ─────────────────────────────────────────
+import {
+  communicationPreferenceService,
+  communicationPreferenceRepository,
+} from './notification/communicationPreferencesService';
+container.register(
+  'ICommunicationPreferenceService',
+  communicationPreferenceService
+);
+container.register(
+  'ICommunicationPreferenceRepository',
+  communicationPreferenceRepository
+);
+
+// ── Transactional Email Templates (#1254) ─────────────────────────────────────
+import {
+  renderTransactionalEmail,
+  registerTransactionalTemplates,
+} from './notification/transactionalEmailTemplates';
+registerTransactionalTemplates();
+container.register('ITransactionalEmailRenderer', { renderTransactionalEmail });
+
+// ── Two-Way SMS (#1256) ───────────────────────────────────────────────────────
+import { smsInboundHandler } from './notification/smsInboundHandler';
+container.register('ISmsInboundHandler', smsInboundHandler);
+
+// ── Voice Call Reminders (#1255) ──────────────────────────────────────────────
+import { voiceReminderService } from './notification/voiceReminderService';
+container.register('IVoiceReminderService', voiceReminderService);
+
+// ── Slack Notifier ────────────────────────────────────────────────────────────
+import {
+  slackNotifier,
+  createSlackAlertDispatcherFromEnv,
+} from './notification/slack';
+// slackNotifier may be null when SLACK_WEBHOOK_URL is unset — guard at resolution time.
+container.bind('ISlackNotifier', () => slackNotifier);
+// Wire Slack into AlertingService if credentials are present.
+{
+  const slackDispatcher = createSlackAlertDispatcherFromEnv();
+  if (slackDispatcher) {
+    // Re-bind IAlertingService so Slack is wired in from construction.
+    container.bind('IAlertingService', () => {
+      const svc = new AlertingService();
+      svc.addChannel({ type: 'slack', webhookUrl: process.env.SLACK_ALERTS_WEBHOOK_URL ?? process.env.SLACK_WEBHOOK_URL });
+      return svc;
+    });
+  }
+}
+
+// ── Webhook Queue (BullMQ) ────────────────────────────────────────────────────
+import {
+  WebhookQueue,
+  WebhookQueueWorker,
+  WebhookRetryScheduler,
+  DlqReplayWorker,
+} from './notification/jobs/webhookQueue';
+
+container.bind('IWebhookQueue', () => {
+  const redisHost = process.env.REDIS_HOST ?? 'localhost';
+  const redisPort = parseInt(process.env.REDIS_PORT ?? '6379', 10);
+  const redisPassword = process.env.REDIS_PASSWORD || undefined;
+  return new WebhookQueue({
+    connection: { host: redisHost, port: redisPort, password: redisPassword },
+  });
+});
+
+container.bind('IWebhookQueueWorker', (c) =>
+  new WebhookQueueWorker(
+    c.resolve('IWebhookDeliveryService'),
+    {
+      connection: {
+        host: process.env.REDIS_HOST ?? 'localhost',
+        port: parseInt(process.env.REDIS_PORT ?? '6379', 10),
+        password: process.env.REDIS_PASSWORD || undefined,
+      },
+    }
+  )
+);
+
+container.bind('IWebhookRetryScheduler', (c) =>
+  new WebhookRetryScheduler(
+    c.resolve('IWebhookDeliveryService'),
+    c.resolve('IWebhookQueue')
+  )
+);
+
+container.bind('IDlqReplayWorker', (c) =>
+  new DlqReplayWorker(c.resolve('IWebhookDeliveryService'))
+);
+
+// ── Notification Transport Wiring ─────────────────────────────────────────────
+// Wire email and SMS transports into the NotificationCenterService singleton.
+import { notificationCenterService } from './notification/notificationCenterService';
+container.register('INotificationCenterService', notificationCenterService);
+
+// Register email transport — transport builder is lazy so it runs after env is loaded.
+notificationCenterService.registerTransport(
+  'email',
+  buildEmailTransport(emailProvider, { from: getEmailFromAddress() })
+);
+
+// Register SMS transport.
+notificationCenterService.registerTransport(
+  'sms',
+  buildSmsTransport(smsProvider)
+);
+
+// ── Subscription Notifier ─────────────────────────────────────────────────────
+import { subscriptionNotifier } from './notification/subscriptionNotifier';
+container.register('ISubscriptionNotifier', subscriptionNotifier);

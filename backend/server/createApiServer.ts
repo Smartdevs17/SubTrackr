@@ -13,8 +13,14 @@
 
 import express, { type Express, type Request, type Response } from 'express';
 import { cacheHeadersMiddleware } from '../shared/middleware';
-import { createPublicApiRouter, createThemeRouter, createBatchRouter } from '../subscription/router';
+import {
+  createPublicApiRouter,
+  createSearchRouter,
+  createSubscriptionOpsRouter,
+  createThemeRouter,
+} from '../subscription/router';
 import { API_VERSION_HEADER, API_VERSION_VALUE } from '../services/shared/apiResponse';
+import { createApiKeyRevocationRouter, createPasskeyRouter } from '../services/auth/router/authRouter';
 
 // ── Zapier integration ────────────────────────────────────────────────────────
 import {
@@ -84,8 +90,12 @@ export function createApiServer(options: CreateApiServerOptions = {}): Express {
   // ── CDN-cached public routes ───────────────────────────────────────────────
   app.use(cacheHeadersMiddleware());
   app.use(createPublicApiRouter());
+  app.use(createSubscriptionOpsRouter());
+  app.use('/api/v1/search', createSearchRouter());
   app.use('/api/v1/merchant', createThemeRouter());
-  app.use('/api/v1/batch', createBatchRouter());
+app.use('/api/v1/batch', createBatchRouter());
+  app.use('/api/v1/auth', createPasskeyRouter());
+  app.use('/api/v1/api-keys', createApiKeyRevocationRouter());
 
   // ── Zapier integration ─────────────────────────────────────────────────────
   app.use('/api/v1/zapier', createZapierRouter(zapierService));

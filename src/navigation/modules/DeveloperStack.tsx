@@ -6,8 +6,10 @@ import { RootStackParamList } from '../types';
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const DeveloperPortalScreen = lazyScreen(() => import('../../screens/DeveloperPortalScreen'));
+const ApiPlaygroundScreen = lazyScreen(() => import('../../screens/ApiPlaygroundScreen'));
 const SandboxDashboardScreen = lazyScreen(() => import('../../screens/SandboxDashboardScreen'));
 const ApiKeyManagementScreen = lazyScreen(() => import('../../screens/ApiKeyManagementScreen'));
+const ApiKeysScreen = lazyScreen(() => import('../../screens/ApiKeysScreen'));
 const DocumentationPortalScreen = lazyScreen(
   () => import('../../screens/DocumentationPortalScreen')
 );
@@ -31,6 +33,11 @@ export const DeveloperStack = () => (
       options={{ headerShown: false }}
     />
     <Stack.Screen
+      name="ApiPlayground"
+      component={ApiPlaygroundScreen}
+      options={{ title: 'API Playground', headerShown: true }}
+    />
+    <Stack.Screen
       name="SandboxDashboard"
       component={SandboxDashboardScreen}
       options={{ headerShown: false }}
@@ -39,6 +46,11 @@ export const DeveloperStack = () => (
       name="ApiKeyManagement"
       component={ApiKeyManagementScreen}
       options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="ApiKeys"
+      component={ApiKeysScreen}
+      options={{ title: 'API Keys', headerShown: true }}
     />
     <Stack.Screen
       name="DocumentationPortal"

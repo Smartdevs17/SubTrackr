@@ -100,6 +100,16 @@ export interface TypedClientOptions extends SDKOptions {
    * Extra headers merged into every request.
    */
   defaultHeaders?: Record<string, string>;
+  /**
+   * Target API version to use for all requests. Defaults to CURRENT_API_VERSION.
+   * Must be >= MIN_SUPPORTED_API_VERSION.
+   */
+  apiVersion?: number;
+  /**
+   * Whether to emit console warnings for deprecated API versions or SDK methods.
+   * Defaults to true.
+   */
+  warnOnDeprecation?: boolean;
 }
 
 // ─── Request options ──────────────────────────────────────────────────────────
@@ -125,9 +135,19 @@ export interface ClientMetrics {
   totalTimeMs: number;
 }
 
+import {
+  SDK_VERSION,
+  CURRENT_API_VERSION,
+  MIN_SUPPORTED_API_VERSION,
+  assessApiVersionCompatibility,
+} from './version';
+import { warnDeprecated, DeprecationRegistry } from './deprecation';
+import { UnsupportedVersionError, VersionMismatchError } from './errors';
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const API_VERSION_HEADER = 'X-API-Version';
+const SDK_VERSION_HEADER = 'X-SDK-Version';
 const REQUEST_ID_HEADER = 'X-Request-ID';
 const IDEMPOTENCY_KEY_HEADER = 'Idempotency-Key';
 
@@ -147,6 +167,9 @@ export class TypedSubTrackrClient {
   private readonly retryOptions: RetryOptions;
   private readonly fetchImpl: typeof fetch;
   private readonly defaultHeaders: Record<string, string>;
+  /** Resolved API version this instance targets. */
+  readonly apiVersion: number;
+  private readonly warnOnDeprecation: boolean;
 
   private metrics: ClientMetrics = {
     totalRequests: 0,
@@ -157,6 +180,23 @@ export class TypedSubTrackrClient {
   };
 
   constructor(options: TypedClientOptions) {
+    // ── Version validation ────────────────────────────────────────────────
+    const requested = options.apiVersion ?? CURRENT_API_VERSION;
+    if (requested < MIN_SUPPORTED_API_VERSION) {
+      throw new UnsupportedVersionError(requested, MIN_SUPPORTED_API_VERSION);
+    }
+    const compat = assessApiVersionCompatibility(requested);
+    if (compat.removed) {
+      throw new UnsupportedVersionError(requested, MIN_SUPPORTED_API_VERSION);
+    }
+    this.apiVersion = requested;
+    this.warnOnDeprecation = options.warnOnDeprecation !== false;
+
+    if (this.warnOnDeprecation && compat.deprecated && compat.message) {
+      // eslint-disable-next-line no-console
+      console.warn(`[SubTrackr SDK v${SDK_VERSION}] ${compat.message}`);
+    }
+
     this.authManager = new AuthManager(options);
     this.baseUrl = (
       options.baseUrl ??
@@ -202,7 +242,8 @@ export class TypedSubTrackrClient {
           Accept: 'application/json',
           Authorization: `Bearer ${token}`,
           [REQUEST_ID_HEADER]: requestId,
-          [API_VERSION_HEADER]: '1',
+          [API_VERSION_HEADER]: String(this.apiVersion),
+          [SDK_VERSION_HEADER]: SDK_VERSION,
           ...this.defaultHeaders,
           ...options.headers,
         };
@@ -253,6 +294,30 @@ export class TypedSubTrackrClient {
             response.status,
             retryAfterMs,
           );
+        }
+
+        // Check API version in the response and warn/throw as appropriate
+        if (this.warnOnDeprecation) {
+          const serverVersionHeader = response.headers.get(API_VERSION_HEADER);
+          if (serverVersionHeader) {
+            const serverVersion = parseInt(serverVersionHeader, 10);
+            if (!Number.isNaN(serverVersion)) {
+              const vCompat = assessApiVersionCompatibility(serverVersion);
+              if (vCompat.removed || (!vCompat.supported && !vCompat.deprecated)) {
+                throw new VersionMismatchError(SDK_VERSION, serverVersion, vCompat.message);
+              }
+              if (vCompat.deprecated && vCompat.message) {
+                const warnKey = `typed_response_api_v${serverVersion}`;
+                if (!DeprecationRegistry.hasWarned(warnKey)) {
+                  DeprecationRegistry.markWarned(warnKey);
+                  if (!DeprecationRegistry.silenced) {
+                    // eslint-disable-next-line no-console
+                    console.warn(`[SubTrackr SDK v${SDK_VERSION}] ${vCompat.message}`);
+                  }
+                }
+              }
+            }
+          }
         }
 
         if (!response.ok) {
@@ -348,6 +413,16 @@ export class TypedSubTrackrClient {
       totalRetries: 0,
       totalTimeMs: 0,
     };
+  }
+
+  /** Returns the SDK semantic version string, e.g. "2.0.0". */
+  getSdkVersion(): string {
+    return SDK_VERSION;
+  }
+
+  /** Returns the API version this client instance is configured to use. */
+  getApiVersion(): number {
+    return this.apiVersion;
   }
 
   // ── Contract / Plan APIs ─────────────────────────────────────────────────────
