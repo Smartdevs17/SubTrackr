@@ -173,6 +173,49 @@ export type {
 export { KycService, kycService } from './kycService';
 export type { KycVerificationOptions, ProcessingResult } from './kycService';
 
+export {
+  ApiVersionRegistry,
+  versionRegistry,
+  createVersionMiddleware,
+  buildVersionHeaders,
+  resolveVersion,
+  extractVersionFromPath,
+  extractVersionFromHeader,
+  extractVersionFromQuery,
+  parseVersionNumber,
+  HEADERS,
+} from './apiVersioning';
+export type {
+  VersionLifecycle,
+  VersionConfig,
+  VersionResolution,
+  DeprecationWarning,
+  VersionAnalytics,
+  VersionRegistryStats,
+  VersionExtractionOptions,
+  VersionMiddlewareOptions,
+  VersionResponseHeaders,
+  MiddlewareRequest,
+  MiddlewareResponse,
+} from './apiVersioning';
+
+export {
+  buildDeprecationReport,
+  severityFor,
+  isHealthy,
+  formatFindings,
+  formatReportTable,
+  toJson,
+  SUNSET_WARNING_DAYS,
+  SUNSET_CRITICAL_DAYS,
+} from './apiDeprecationReport';
+export type {
+  DeprecationSeverity,
+  DeprecationFinding,
+  DeprecationReport,
+  VersionReportRow,
+  BuildReportOptions,
+} from './apiDeprecationReport';
 // ── Build Metrics Exporter ───────────────────────────────────────────────────
 export {
   BuildMetricsService,
