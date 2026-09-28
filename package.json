@@ -39,6 +39,7 @@
     "infra:autoscaling:check": "node scripts/validate-autoscaling.js",
     "ops:check": "npm run db:migrate:dry-run && npm run test:data:anonymize:check && npm run infra:autoscaling:check",
     "performance:ci": "node scripts/check-performance-budget.js",
+    "build:metrics:publish": "node scripts/publish-build-metrics.js",
     "mutation:test": "npx --yes @stryker-mutator/core@9.0.0 run --config stryker.conf.json",
     "mutation:test:backend": "npx --yes @stryker-mutator/core@9.0.0 run --config stryker.backend.conf.json",
     "mutation:test:ci": "npx --yes @stryker-mutator/core@9.0.0 run --config stryker.conf.json --reporters progress,clear-text,json",
@@ -90,6 +91,7 @@
     "bundle-size:why": "size-limit --why"
   },
   "dependencies": {
+    "@graphql-tools/schema": "^10.1.1",
     "@react-native-async-storage/async-storage": "2.1.2",
     "@react-native-community/datetimepicker": "^9.1.0",
     "@react-native-community/netinfo": "11.4.1",
@@ -113,6 +115,7 @@
     "expo-notifications": "^57.0.14",
     "expo-status-bar": "~2.2.3",
     "graphql": "^16.14.2",
+    "graphql-http": "^1.23.0",
     "i18next": "^26.0.8",
     "react": "19.2.5",
     "react-i18next": "^17.0.6",

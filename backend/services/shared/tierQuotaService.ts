@@ -13,7 +13,7 @@
  *   - Quota exhaustion webhooks
  */
 
-import { SubscriptionTier } from '../../src/types/subscription';
+import { SubscriptionTier } from '../../../src/types/subscription';
 import {
   TIER_RATE_LIMITS,
   SOFT_LIMIT_WARNINGS,
@@ -21,7 +21,7 @@ import {
   mapSubscriptionToRateLimitTier,
   type TierRateLimit,
   type RateLimitTier,
-} from '../../src/types/rateLimiting';
+} from '../../../src/types/rateLimiting';
 
 // ---------------------------------------------------------------------------
 // Types
