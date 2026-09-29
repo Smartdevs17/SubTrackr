@@ -9,6 +9,35 @@ export { CircleAdapter } from './domain/gateways/CircleAdapter';
 export { StellarAdapter } from './domain/gateways/StellarAdapter';
 export { ShopifyAdapter } from './domain/gateways/ShopifyAdapter';
 export type { ShopifyAdapterOptions, ShopifyFetch, ShopifyFetchResponse } from './domain/gateways/ShopifyAdapter';
+export { PaddleAdapter, toPaddleMinorUnits } from './domain/gateways/PaddleAdapter';
+export type {
+  PaddleAdapterOptions,
+  PaddleCustomer,
+  PaddleEnvironment,
+  PaddleFetch,
+  PaddleFetchInit,
+  PaddleFetchResponse,
+  PaddleRefund,
+  PaddleTransaction,
+} from './domain/gateways/PaddleAdapter';
+export {
+  PaddleWebhookVerifier,
+  readPaddleSignatureHeader,
+  DEFAULT_EVENT_RETENTION_MS,
+  DEFAULT_MAX_REMEMBERED_EVENTS,
+  DEFAULT_TOLERANCE_SECONDS,
+} from './domain/paddle/PaddleWebhookVerifier';
+export type {
+  PaddleSignatureParts,
+  PaddleVerificationError,
+  PaddleVerificationFailure,
+  PaddleVerificationOk,
+  PaddleVerificationResult,
+  PaddleWebhookEvent,
+  PaddleWebhookVerifierOptions,
+} from './domain/paddle/PaddleWebhookVerifier';
+export { createPaddleRouter } from './router/paddleRouter';
+export type { PaddleRouterOptions } from './router/paddleRouter';
 export { BasePaymentGateway } from './domain/gateways/PaymentGateway';
 export { GatewayConfigController, gatewayConfigController } from './controller/gatewayConfigController';
 export type { IPaymentGateway, IPaymentRouter, PaymentRequest, PaymentResult, RefundRequest, RefundResult, CustomerResult, PaymentMethodResult, PayoutRequest, PayoutResult, GatewayConfig } from './interfaces';

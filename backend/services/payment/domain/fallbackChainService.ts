@@ -13,7 +13,7 @@ import { logger } from '../../shared/logging';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export type GatewayName = 'stripe' | 'circle' | 'stellar';
+export type GatewayName = 'stripe' | 'circle' | 'stellar' | 'paddle';
 
 export type FallbackStatus = 'success' | 'failed' | 'timeout' | 'skipped';
 
