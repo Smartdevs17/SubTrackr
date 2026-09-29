@@ -7,3 +7,4 @@
 
 export * from './zapier';
 export * from './quickbooks';
+export * from './freshbooks';

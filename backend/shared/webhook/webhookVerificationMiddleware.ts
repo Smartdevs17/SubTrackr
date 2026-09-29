@@ -101,6 +101,44 @@ export const captureRawBody = (req: Request, res: Response, next: NextFunction):
 };
 
 /**
+ * Recovers the exact request bytes for signature verification.
+ *
+ * The raw bytes can arrive three ways depending on how the route is mounted:
+ *
+ *  - `captureRawBody` set `req.rawBody`
+ *  - `express.raw({ type: '*/*' })` set `req.body` to a `Buffer`
+ *  - a JSON body parser already consumed the stream, leaving only a parsed object
+ *
+ * The first two are byte-exact. The third is *not* — re-serialising a parsed
+ * object can reorder keys and change the digest — so the third is a last resort
+ * and is only correct for senders whose signature is computed over the
+ * canonical form. Prefer `express.raw` for provider webhooks.
+ */
+export function getRawRequestBody(req: Request): string {
+  if (req.rawBody) return req.rawBody.toString('utf8');
+  const body = (req as Request & { body: unknown }).body;
+  if (Buffer.isBuffer(body)) return body.toString('utf8');
+  if (typeof body === 'string') return body;
+  if (body === undefined || body === null) return '';
+  return JSON.stringify(body);
+}
+
+/**
+ * Parses the request body as JSON, reporting whether the body was parseable.
+ * Provider webhooks are verified against the raw bytes first and only then
+ * decoded, so a malformed body must not throw.
+ */
+export function parseJsonBody(req: Request): { ok: true; value: unknown } | { ok: false } {
+  const raw = getRawRequestBody(req);
+  if (!raw) return { ok: true, value: undefined };
+  try {
+    return { ok: true, value: JSON.parse(raw) as unknown };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/**
  * Factory that returns a verification middleware bound to the provided KeyStore.
  *
  * @example

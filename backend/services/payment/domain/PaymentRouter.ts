@@ -102,6 +102,15 @@ export class PaymentRouter implements IPaymentRouter {
     return gateway;
   }
 
+  /**
+   * Names of the gateways actually registered on this process. Registration is
+   * conditional (a gateway without credentials is not registered), so this is
+   * the only accurate list to expose to a caller choosing a fallback chain.
+   */
+  getRegisteredGatewayNames(): string[] {
+    return [...this.gateways.keys()];
+  }
+
   setMerchantConfig(merchantId: string, config: GatewayConfig): void {
     this.merchantConfigs.set(merchantId, config);
   }

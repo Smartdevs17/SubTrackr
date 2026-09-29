@@ -5,10 +5,13 @@
  * Additional batch subscription routes are mounted with atomic execution support.
  *
  * Integration routes (not CDN-cached):
- *   /api/v1/zapier/*       — Zapier REST-hook integration
- *   /api/v1/quickbooks/*   — QuickBooks Online OAuth + sync
- *   /api/v1/calendar/*     — Calendar sync + renewal reminders
- *   /api/v1/webhooks/verify — Incoming webhook signature verification demo
+ *   /api/v1/zapier/*            — Zapier REST-hook integration
+ *   /api/v1/quickbooks/*        — QuickBooks Online OAuth + sync
+ *   /api/v1/freshbooks/*        — FreshBooks OAuth + accounting sync
+ *   /api/v1/stripe/billing/*    — Stripe Billing: subscriptions, invoices, portal
+ *   /api/v1/paddle/*            — Paddle checkout + billing notifications
+ *   /api/v1/calendar/*          — Calendar sync + renewal reminders
+ *   /api/v1/webhooks/verify     — Incoming webhook signature verification demo
  */
 
 import express, { type Express, type Request, type Response } from 'express';
@@ -32,6 +35,22 @@ import {
 import { QuickBooksOAuthService } from '../integrations/quickbooks/QuickBooksOAuthService';
 import { QuickBooksSyncService } from '../integrations/quickbooks/QuickBooksSyncService';
 import { createQuickBooksRouter } from '../integrations/quickbooks/quickbooksRouter';
+
+// ── FreshBooks integration (issue #1238) ─────────────────────────────────────
+import { FreshBooksOAuthService } from '../integrations/freshbooks/FreshBooksOAuthService';
+import { FreshBooksSyncService } from '../integrations/freshbooks/FreshBooksSyncService';
+import { createFreshBooksRouter } from '../integrations/freshbooks/freshbooksRouter';
+
+// ── Stripe Billing (issue #1239) ─────────────────────────────────────────────
+import { StripeApiClient } from '../billing/domain/stripe/StripeApiClient';
+import { StripeBillingService } from '../billing/domain/stripe/StripeBillingService';
+import { StripeWebhookVerifier } from '../billing/domain/stripe/StripeWebhookVerifier';
+import { createStripeBillingRouter } from '../billing/router/stripeBillingRouter';
+
+// ── Paddle Billing (issue #1240) ─────────────────────────────────────────────
+import { PaddleAdapter } from '../services/payment/domain/gateways/PaddleAdapter';
+import { PaddleWebhookVerifier } from '../services/payment/domain/paddle/PaddleWebhookVerifier';
+import { createPaddleRouter } from '../services/payment/router/paddleRouter';
 
 // ── Calendar + renewal reminders ──────────────────────────────────────────────
 import { calendarSyncService } from '../calendar/domain/CalendarSyncService';
@@ -59,6 +78,28 @@ const qbCredentials = {
 const qbOAuthService = new QuickBooksOAuthService(qbCredentials);
 const qbSyncService = new QuickBooksSyncService(qbOAuthService);
 
+// FreshBooks. The services are constructed unconditionally so the router can
+// answer `/connect` with a configuration error instead of a 404; a deployment
+// without FreshBooks credentials simply never gets a usable connection.
+const fbCredentials = {
+  clientId: process.env['FB_CLIENT_ID'] ?? '',
+  clientSecret: process.env['FB_CLIENT_SECRET'] ?? '',
+  redirectUri:
+    process.env['FB_REDIRECT_URI'] ?? 'http://localhost:3000/api/v1/freshbooks/callback',
+};
+const fbOAuthService = new FreshBooksOAuthService(fbCredentials);
+const fbSyncService = new FreshBooksSyncService({ oauthService: fbOAuthService });
+
+// Stripe Billing. `null` when the key or webhook secret is absent, so the
+// routes answer 503 rather than failing deep inside a provider call.
+const stripeClient = StripeApiClient.fromEnvironment();
+const stripeBillingService = stripeClient ? new StripeBillingService({ client: stripeClient }) : null;
+const stripeWebhookVerifier = StripeWebhookVerifier.fromEnvironment();
+
+// Paddle. Same contract: `null` when PADDLE_API_KEY is not set.
+const paddleAdapter = PaddleAdapter.fromEnvironment();
+const paddleWebhookVerifier = PaddleWebhookVerifier.fromEnvironment();
+
 const renewalScheduler = new RenewalReminderScheduler(calendarSyncService);
 const calendarController = createCalendarSyncController({ syncService: calendarSyncService });
 const reminderController = createRenewalReminderController({ scheduler: renewalScheduler });
@@ -74,6 +115,15 @@ export function createApiServer(options: CreateApiServerOptions = {}): Express {
   const app = express();
 
   app.disable('x-powered-by');
+
+  // Provider webhooks are signed over the exact bytes that were sent, and
+  // `express.json()` consumes the request stream. `express.raw` is therefore
+  // registered for the webhook paths *before* the JSON parser, so
+  // `req.body` is a Buffer holding the untouched payload. `type: '*/*'` is
+  // required because providers do not agree on a Content-Type.
+  app.post('/api/v1/stripe/billing/webhook', express.raw({ type: '*/*' }));
+  app.post('/api/v1/paddle/webhook', express.raw({ type: '*/*' }));
+
   app.use(express.json());
 
   if (options.beforeCache) {
@@ -93,7 +143,8 @@ export function createApiServer(options: CreateApiServerOptions = {}): Express {
   app.use(createSubscriptionOpsRouter());
   app.use('/api/v1/search', createSearchRouter());
   app.use('/api/v1/merchant', createThemeRouter());
-app.use('/api/v1/batch', createBatchRouter());
+  // Batch execution is served by `createSubscriptionOpsRouter()` above, which
+  // already exposes POST /subscriptions/batch and GET /subscriptions/batch/:runId.
   app.use('/api/v1/auth', createPasskeyRouter());
   app.use('/api/v1/api-keys', createApiKeyRevocationRouter());
 
@@ -102,6 +153,35 @@ app.use('/api/v1/batch', createBatchRouter());
 
   // ── QuickBooks integration ─────────────────────────────────────────────────
   app.use('/api/v1/quickbooks', createQuickBooksRouter(qbOAuthService, qbSyncService));
+
+  // ── FreshBooks integration (issue #1238) ───────────────────────────────────
+  app.use(
+    '/api/v1/freshbooks',
+    createFreshBooksRouter(fbOAuthService, fbSyncService, {
+      successRedirectUrl:
+        process.env['FB_SUCCESS_REDIRECT_URL'] ?? 'subtrackr://integrations/freshbooks',
+    }),
+  );
+
+  // ── Stripe Billing (issue #1239) ───────────────────────────────────────────
+  // The webhook route receives a Buffer body (see the express.raw registration
+  // above) and the router decodes it only after the signature verifies.
+  app.use(
+    '/api/v1/stripe/billing',
+    createStripeBillingRouter({
+      service: stripeBillingService,
+      verifier: stripeWebhookVerifier,
+    }),
+  );
+
+  // ── Paddle Billing (issue #1240) ───────────────────────────────────────────
+  app.use(
+    '/api/v1/paddle',
+    createPaddleRouter({
+      adapter: paddleAdapter,
+      verifier: paddleWebhookVerifier,
+    }),
+  );
 
   // ── Webhook signature verification demo endpoint ───────────────────────────
   // Uses captureRawBody only on this specific route so the stream isn't
