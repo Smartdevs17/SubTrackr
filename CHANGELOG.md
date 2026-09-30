@@ -47,22 +47,7 @@ with the [conventional commits](https://www.conventionalcommits.org/) specificat
 
 ### Commit Format Examples
 
-```bash
-# Feature
-feat(subscription): add grace period support
 
-# Bug fix
-fix(billing): resolve double-charge edge case
-
-# Documentation
-docs(api): add payment webhook examples
-
-# Breaking change
-feat(api)!: change subscription status enum
-
-# Chore
-chore(deps): upgrade react-native to 0.73
-```
 
 ### Release Workflow
 
