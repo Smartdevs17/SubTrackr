@@ -33,7 +33,7 @@ jobs:
         with:
           python-version: '3.11'
         if: matrix.language == 'python'
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version: '1.22'
         if: matrix.language == 'go'
