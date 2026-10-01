@@ -29,7 +29,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Cache node modules
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         id: cache-node-modules
         with:
           path: node_modules
