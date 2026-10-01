@@ -1,8 +1,12 @@
+packages:
+  - services/notification
+
 allowBuilds:
   bufferutil: false
   detox: false
   dtrace-provider: false
   es5-ext: false
+  esbuild: set this to true or false
   keccak: false
   secp256k1: false
   unrs-resolver: false

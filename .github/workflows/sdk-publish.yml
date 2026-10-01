@@ -21,14 +21,18 @@ jobs:
           npx @redocly/cli lint developer-portal/docs/openapi.json
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+
+      - uses: actions/setup-node@v4
         with:
           node-version: 18
 
       - name: Build JS SDK
         run: |
           cd sdks/javascript
-          npm ci || npm install
+          pnpm install --frozen-lockfile
           npm run build || true
 
       - name: Setup Python

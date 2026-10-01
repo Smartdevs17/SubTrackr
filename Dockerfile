@@ -1,9 +1,12 @@
 FROM node:26-alpine AS dependencies
 
+RUN corepack enable
+
 WORKDIR /app
 
-COPY package.json package-lock.json ./
-RUN npm ci --legacy-peer-deps && npm cache clean --force
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY scripts ./scripts
+RUN pnpm install --frozen-lockfile && pnpm store path > /dev/null
 
 FROM node:26-alpine
 

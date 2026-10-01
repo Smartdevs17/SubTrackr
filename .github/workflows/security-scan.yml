@@ -87,10 +87,14 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+
+      - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          cache: pnpm
 
       - name: Setup Python
         uses: actions/setup-python@v7
@@ -228,17 +232,22 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+
       - name: Setup Node.js for local sandbox fallback
         if: env.ZAP_TARGET_URL == ''
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          cache: pnpm
 
       - name: Start local sandbox API fallback
         if: env.ZAP_TARGET_URL == ''
         run: |
-          npm ci --legacy-peer-deps
+          pnpm install --frozen-lockfile
           PORT=3000 npm run api:start > zap-local-api.log 2>&1 &
           for attempt in {1..30}; do
             status="$(curl -s -o /dev/null -w '%{http_code}' "$DAST_LOCAL_URL" || true)"

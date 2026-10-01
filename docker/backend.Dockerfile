@@ -1,18 +1,17 @@
-FROM node:18-alpine
+FROM node:20-alpine
+
+RUN corepack enable
 
 # Install build tools for native dependencies
 RUN apk add --no-cache python3 make g++ curl bash
 
 WORKDIR /usr/src/app
 
-# Leverage Docker cache for npm install
-COPY package*.json ./
-COPY .npmrc ./
-
-# Copy the scripts folder so postinstall hooks (like patch-metro.js) can execute
+# Leverage Docker cache for pnpm install
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY scripts/ ./scripts/
 
-RUN npm install
+RUN pnpm install --frozen-lockfile
 
 # Copy the rest of the application code
 COPY . .

@@ -1,5 +1,5 @@
 name: 'Setup Node Environment'
-description: 'Checkout, Node setup, caching, and .env generation from secrets'
+description: 'Checkout, pnpm setup, caching, and .env generation from secrets'
 inputs:
   node-version:
     description: 'Node.js version'
@@ -8,11 +8,14 @@ inputs:
 runs:
   using: 'composite'
   steps:
+    - uses: pnpm/action-setup@v4
+      with:
+        version: 11.17.0
     - uses: actions/setup-node@v4
       with:
         node-version: ${{ inputs.node-version }}
-        cache: 'npm'
-    - run: npm ci --legacy-peer-deps
+        cache: 'pnpm'
+    - run: pnpm install --frozen-lockfile
       shell: bash
     - run: touch .env # Mock .env generation as per AC
       shell: bash

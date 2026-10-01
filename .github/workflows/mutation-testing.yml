@@ -24,11 +24,14 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-      - run: npm ci --legacy-peer-deps
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
 
       - name: Frontend mutation tests
         if: inputs.target == 'all' || inputs.target == 'frontend'

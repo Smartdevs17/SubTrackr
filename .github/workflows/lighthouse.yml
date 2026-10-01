@@ -21,7 +21,7 @@ jobs:
       - name: Build developer portal
         run: |
           cd developer-portal
-          npm ci --legacy-peer-deps || true
+          pnpm install --frozen-lockfile || true
           npx next build || echo "Build skipped (no next.config present yet)"
 
       # Serve the portal locally for auditing
@@ -85,7 +85,7 @@ jobs:
       - name: Build developer portal
         run: |
           cd developer-portal
-          npm ci --legacy-peer-deps || true
+          pnpm install --frozen-lockfile || true
           npx next build || echo "Build skipped"
 
       - name: Serve portal
