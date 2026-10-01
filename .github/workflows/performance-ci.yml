@@ -47,7 +47,7 @@ jobs:
           components: clippy, rustfmt
 
       - name: Cache Cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
@@ -63,7 +63,7 @@ jobs:
           python-version: '3.11'
 
       - name: Restore gas baseline
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: gas-benchmarks/baseline.json
           key: gas-baseline-${{ hashFiles('contracts/subscription/src/**/*.rs', 'contracts/types/src/**/*.rs') }}
@@ -81,7 +81,7 @@ jobs:
 
       - name: Save updated baseline (main branch only)
         if: github.ref == 'refs/heads/main'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: gas-benchmarks/baseline.json
           key: gas-baseline-${{ hashFiles('contracts/subscription/src/**/*.rs', 'contracts/types/src/**/*.rs') }}
