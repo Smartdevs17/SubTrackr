@@ -143,7 +143,7 @@
     "@semantic-release/commit-analyzer": "^13.0.1",
     "@semantic-release/git": "^11.0.1",
     "@semantic-release/github": "^11.0.6",
-    "@semantic-release/npm": "^12.0.2",
+    "@semantic-release/npm": "^13.2.0",
     "@semantic-release/release-notes-generator": "^14.1.0",
     "@size-limit/file": "^14.1.0",
     "@testing-library/react-native": "^14.0.1",
