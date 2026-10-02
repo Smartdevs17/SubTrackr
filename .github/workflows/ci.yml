@@ -23,9 +23,6 @@ jobs:
 
       - name: Setup Node.js
         uses: pnpm/action-setup@v4
-        with:
-          version: 11.17.0
-
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -57,9 +54,6 @@ jobs:
 
       - name: Setup Node.js
         uses: pnpm/action-setup@v4
-        with:
-          version: 11.17.0
-
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -91,9 +85,6 @@ jobs:
 
       - name: Setup Node.js
         uses: pnpm/action-setup@v4
-        with:
-          version: 11.17.0
-
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -114,9 +105,6 @@ jobs:
 
       - name: Setup Node.js
         uses: pnpm/action-setup@v4
-        with:
-          version: 11.17.0
-
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -157,9 +145,6 @@ jobs:
 
       - name: Setup Node.js
         uses: pnpm/action-setup@v4
-        with:
-          version: 11.17.0
-
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -196,9 +181,6 @@ jobs:
 
       - name: Setup Node.js
         uses: pnpm/action-setup@v4
-        with:
-          version: 11.17.0
-
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -413,9 +395,6 @@ jobs:
 
       - name: Setup Node.js
         uses: pnpm/action-setup@v4
-        with:
-          version: 11.17.0
-
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -480,9 +459,6 @@ jobs:
 
       - name: Setup Node.js
         uses: pnpm/action-setup@v4
-        with:
-          version: 11.17.0
-
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
