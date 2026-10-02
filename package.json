@@ -166,7 +166,7 @@
     "lint-staged": "^17.6.0",
     "prettier": "^3.9.9",
     "react-test-renderer": "^19.3.0",
-    "semantic-release": "^24.2.9",
+    "semantic-release": "^25.0.9",
     "size-limit": "^14.1.0",
     "ts-jest": "^29.4.14",
     "typechain": "^8.3.2",
