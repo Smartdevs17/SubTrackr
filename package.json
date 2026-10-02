@@ -124,7 +124,7 @@
     "react-native-gesture-handler": "~3.3.0",
     "react-native-get-random-values": "~1.11.0",
     "react-native-modal": "14.0.0-rc.1",
-    "react-native-performance": "^6.0.0",
+    "react-native-performance": "^7.0.0",
     "react-native-qrcode-svg": "^6.3.26",
     "react-native-safe-area-context": "5.10.0",
     "react-native-screens": "~4.28.0",
