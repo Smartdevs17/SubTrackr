@@ -10,22 +10,16 @@ import type { NotificationPriority, OptInCategory } from '../services/pushSchedu
 
 export type { NotificationPriority, OptInCategory };
 
-/** Where a notification can be delivered. */
-export type NotificationChannel = 'email' | 'push' | 'sms' | 'in_app';
+/**
+ * Channel and notification-type vocabularies are owned by
+ * `@subtrackr/notification-providers` so the backend and the standalone
+ * notification microservice share one definition. Re-exported here for the
+ * existing app-side imports.
+ */
+export type { NotificationChannel, NotificationType } from '@subtrackr/notification-providers';
+import type { NotificationChannel, NotificationType } from '@subtrackr/notification-providers';
 
 export const NOTIFICATION_CHANNELS: NotificationChannel[] = ['email', 'push', 'sms', 'in_app'];
-
-/** What a notification is about. Preferences are held per type, per channel. */
-export type NotificationType =
-  | 'renewal_reminder'
-  | 'charge_success'
-  | 'charge_failed'
-  | 'dunning'
-  | 'trial_ending'
-  | 'security_alert'
-  | 'product_update'
-  | 'promotion'
-  | 'digest';
 
 export const NOTIFICATION_TYPES: NotificationType[] = [
   'renewal_reminder',

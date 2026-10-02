@@ -1,12 +1,14 @@
 packages:
+  - packages/notification-providers
   - services/notification
 
 allowBuilds:
+  '@parcel/watcher': true
   bufferutil: false
   detox: false
   dtrace-provider: false
   es5-ext: false
-  esbuild: set this to true or false
+  esbuild: true
   keccak: false
   secp256k1: false
   unrs-resolver: false

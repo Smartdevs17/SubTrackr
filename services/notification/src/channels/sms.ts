@@ -1,15 +1,12 @@
 /**
  * SMS channel provider for the notification microservice.
  *
- * Delegates to the backend's TwilioSmsProvider instead of the previous stub.
+ * Delegates to the shared TwilioSmsProvider instead of the previous stub.
  */
 
-import { ChannelProvider } from '../types/channel';
-import type { Notification } from '../types/notification';
-import {
-  createSmsProviderFromEnv,
-  type SmsProvider,
-} from '../../../../backend/services/notification/smsProvider';
+import { ChannelProvider } from '../types/channel.js';
+import type { Notification } from '../types/notification.js';
+import { createSmsProviderFromEnv, type SmsProvider } from '@subtrackr/notification-providers';
 
 export class SMSProvider implements ChannelProvider {
   private readonly provider: SmsProvider;

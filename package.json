@@ -91,6 +91,7 @@
     "bundle-size:why": "size-limit --why"
   },
   "dependencies": {
+    "@subtrackr/notification-providers": "workspace:*",
     "@graphql-tools/schema": "^10.1.1",
     "@react-native-async-storage/async-storage": "2.1.2",
     "@react-native-community/datetimepicker": "^9.2.1",
