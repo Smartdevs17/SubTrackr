@@ -15,7 +15,7 @@ permissions:
   actions: read
 
 env:
-  NODE_VERSION: '20'
+  NODE_VERSION: '24'
   SECURITY_REPORT_DIR: security-reports
   DAST_LOCAL_URL: http://127.0.0.1:3000
 
