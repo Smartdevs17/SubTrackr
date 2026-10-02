@@ -147,9 +147,7 @@ impl GasMetricsStorage {
     pub fn get_metrics_summary(env: &Env, storage: &Address) -> (u64, u64, u64) {
         let total_gas = Self::get_total_gas_used(env, storage);
         let total_calls = Self::get_total_call_count(env, storage);
-        let avg_gas = total_gas
-            .checked_div(total_calls)
-            .unwrap_or(0);
+        let avg_gas = total_gas.checked_div(total_calls).unwrap_or(0);
         (total_gas, total_calls, avg_gas)
     }
 }

@@ -5,7 +5,7 @@
 //! grace period calculations, dynamic conversion discounts, and trial conversion analytics.
 
 use soroban_sdk::{contracttype, Address, Env, String, Vec};
-use subtrackr_types::{StorageKey};
+use subtrackr_types::StorageKey;
 
 use crate::{storage_persistent_get, storage_persistent_set};
 
@@ -90,16 +90,31 @@ pub fn configure_trial_for_plan(
     max_extensions: u32,
     incentive_extension_secs: u64,
 ) -> OnChainTrialConfig {
-    assert!(conversion_discount_bps <= BPS_DENOMINATOR, "Discount cannot exceed 100%");
+    assert!(
+        conversion_discount_bps <= BPS_DENOMINATOR,
+        "Discount cannot exceed 100%"
+    );
     assert!(duration_secs > 0, "Duration must be positive");
 
     let config = OnChainTrialConfig {
         plan_id,
-        duration_secs: if duration_secs == 0 { DEFAULT_TRIAL_DURATION_SECS } else { duration_secs },
-        grace_period_secs: if grace_period_secs == 0 { DEFAULT_GRACE_PERIOD_SECS } else { grace_period_secs },
+        duration_secs: if duration_secs == 0 {
+            DEFAULT_TRIAL_DURATION_SECS
+        } else {
+            duration_secs
+        },
+        grace_period_secs: if grace_period_secs == 0 {
+            DEFAULT_GRACE_PERIOD_SECS
+        } else {
+            grace_period_secs
+        },
         auto_convert,
         conversion_discount_bps,
-        max_extensions: if max_extensions == 0 { MAX_TRIAL_EXTENSIONS } else { max_extensions },
+        max_extensions: if max_extensions == 0 {
+            MAX_TRIAL_EXTENSIONS
+        } else {
+            max_extensions
+        },
         incentive_extension_secs,
     };
 
@@ -169,7 +184,9 @@ pub fn convert_trial(
     trial: &mut OnChainTrialRecord,
     promotional_discount_bps: Option<u32>,
 ) -> bool {
-    if trial.status == OnChainTrialStatus::Converted || trial.status == OnChainTrialStatus::Cancelled {
+    if trial.status == OnChainTrialStatus::Converted
+        || trial.status == OnChainTrialStatus::Cancelled
+    {
         return false;
     }
 

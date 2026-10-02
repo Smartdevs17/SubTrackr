@@ -77,7 +77,7 @@ jobs:
           toolchain: stable
 
       - name: Add WASM target
-        run: rustup target add wasm32-unknown-unknown
+        run: rustup target add wasm32v1-none
 
       - name: Cache Cargo
         uses: actions/cache@v6
@@ -96,10 +96,10 @@ jobs:
         run: |
           FEATURE="${{ matrix.feature }}"
           if [[ -z "$FEATURE" ]]; then
-            cargo check --target wasm32-unknown-unknown \
+            cargo check --target wasm32v1-none \
               -p subtrackr-subscription --no-default-features
           else
-            cargo check --target wasm32-unknown-unknown \
+            cargo check --target wasm32v1-none \
               -p subtrackr-subscription --features "subtrackr-subscription/$FEATURE"
           fi
 
@@ -117,7 +117,7 @@ jobs:
           toolchain: stable
 
       - name: Add WASM target
-        run: rustup target add wasm32-unknown-unknown
+        run: rustup target add wasm32v1-none
 
       - name: Cache Cargo
         uses: actions/cache@v6
@@ -133,7 +133,7 @@ jobs:
       - name: Build PR branch (core)
         working-directory: contracts
         run: |
-          cargo build --target wasm32-unknown-unknown --release \
+          cargo build --target wasm32v1-none --release \
             -p subtrackr-subscription \
             -p subtrackr-storage \
             -p subtrackr-proxy || true
@@ -142,7 +142,7 @@ jobs:
         id: pr-sizes
         working-directory: contracts
         run: |
-          WASM_DIR="target/wasm32-unknown-unknown/release"
+          WASM_DIR="target/wasm32v1-none/release"
           OUT=""
           for f in "$WASM_DIR"/*.wasm; do
             [[ -f "$f" ]] || continue
@@ -200,7 +200,7 @@ jobs:
           toolchain: stable
 
       - name: Add WASM target
-        run: rustup target add wasm32-unknown-unknown
+        run: rustup target add wasm32v1-none
 
       - name: Measure full workspace build time
         id: bench
@@ -208,7 +208,7 @@ jobs:
         run: |
           cargo clean
           START=$(date +%s%N)
-          cargo build --target wasm32-unknown-unknown --release --workspace \
+          cargo build --target wasm32v1-none --release --workspace \
             --message-format json 2>/dev/null | tail -5 || true
           END=$(date +%s%N)
           ELAPSED_MS=$(( (END - START) / 1000000 ))

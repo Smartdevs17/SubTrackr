@@ -17,6 +17,8 @@
 #[cfg(test)]
 mod test;
 
+mod metering;
+
 pub use metering::{
     billable_units, bucket_start, rate_units, validate_tiers, Charge, ChargeLine, Meter,
     MeterState, MeteredUsage, PriceTier, PricingModel, TierLine, UsageBucket,
@@ -375,6 +377,5 @@ impl SubTrackrMetering {
         env.storage()
             .persistent()
             .set(&DataKey::Meters(sub), &metrics);
->>>>>>> upstream/main
     }
 }

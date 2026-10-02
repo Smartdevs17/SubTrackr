@@ -31,6 +31,7 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUST_VERSION }}
+          targets: wasm32v1-none
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -80,6 +81,7 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUST_VERSION }}
+          targets: wasm32v1-none
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2

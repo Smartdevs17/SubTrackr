@@ -109,7 +109,9 @@ impl CoreError {
             Self::FeedExists => "This price feed already exists.",
             Self::InvalidTimeoutConfig => "Timeout configuration values are out of allowed range.",
             Self::SelfTransfer => "Cannot transfer to self.",
-            Self::InsufficientFunds => "Insufficient token balance or allowance to process payment.",
+            Self::InsufficientFunds => {
+                "Insufficient token balance or allowance to process payment."
+            }
             Self::InsufficientCredit => "Insufficient credit balance.",
             Self::PaymentNotYetDue => "The next payment is not due yet.",
             Self::PaymentTimedOut => "Payment transaction timed out waiting for confirmation.",
@@ -119,8 +121,12 @@ impl CoreError {
             Self::SubscriptionAlreadyPaused => "This subscription is already paused.",
             Self::SubscriptionNotPaused => "This subscription is not paused.",
             Self::PlanInactive => "This plan is no longer accepting new subscribers.",
-            Self::MaxPauseDurationExceeded => "Pause duration exceeds the allowed maximum of 30 days.",
-            Self::InvalidStateTransition => "Invalid state transition for the current resource state.",
+            Self::MaxPauseDurationExceeded => {
+                "Pause duration exceeds the allowed maximum of 30 days."
+            }
+            Self::InvalidStateTransition => {
+                "Invalid state transition for the current resource state."
+            }
             Self::CircuitOpen => "Oracle circuit breaker is open.",
             Self::StorageVersionMismatch => "Storage schema version mismatch; run migration first.",
             Self::InvalidMigrationPath => "Unsupported migration path.",
@@ -134,7 +140,9 @@ impl CoreError {
             Self::StalePrice => "Price is stale.",
             Self::ChainReorgDetected => "Chain reorganisation detected during timeout window.",
             Self::RateLimited => "Too many requests. Please wait before retrying.",
-            Self::RecoveryAttemptsExhausted => "All automatic recovery attempts have been exhausted.",
+            Self::RecoveryAttemptsExhausted => {
+                "All automatic recovery attempts have been exhausted."
+            }
             Self::TransactionNotRecoverable => "Transaction is not in a recoverable state.",
         }
     }
@@ -144,7 +152,8 @@ impl CoreError {
     }
 
     pub fn emit_event(self, env: &Env) {
-        env.events().publish((Symbol::new(env, "error"),), self.error_code());
+        env.events()
+            .publish((Symbol::new(env, "error"),), self.error_code());
     }
 }
 

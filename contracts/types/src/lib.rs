@@ -734,7 +734,3 @@ pub struct WebhookDelivery {
     pub last_attempt_at: u64,
     pub response_status: u32,
 }
-
-
-
-

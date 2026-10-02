@@ -573,7 +573,7 @@ impl SubTrackrCredit {
             if !env.storage().persistent().has(&key) {
                 break;
             }
-            if let Some(wallet): Option<PrepaymentWallet> = env.storage().persistent().get(&key) {
+            if let Some(wallet) = env.storage().persistent().get::<_, PrepaymentWallet>(&key) {
                 if wallet.subscriber == subscriber {
                     wallet_balance += wallet.balance;
                 }

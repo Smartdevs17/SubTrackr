@@ -11,8 +11,8 @@
 
 use soroban_sdk::{testutils::Address as _, vec, Address, Env, Vec};
 use subtrackr_batch::{
-    default_config, BatchError, BatchOperation, BatchState, OperationType,
-    SubTrackrBatch, SubTrackrBatchClient,
+    default_config, BatchError, BatchOperation, BatchState, OperationType, SubTrackrBatch,
+    SubTrackrBatchClient,
 };
 
 // ── Setup ─────────────────────────────────────────────────────────────────
@@ -36,7 +36,11 @@ fn make_op(env: &Env, kind: OperationType, ids: &[u64], params: &[i128]) -> Batc
     for &v in params {
         p.push_back(v);
     }
-    BatchOperation { operation_type: kind, subscription_ids: sub_ids, params: p }
+    BatchOperation {
+        operation_type: kind,
+        subscription_ids: sub_ids,
+        params: p,
+    }
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────────
@@ -82,7 +86,8 @@ fn non_atomic_allows_partial_success() {
     // Partial state: some items succeeded, some failed.
     assert!(
         result.state == BatchState::Partial || result.state == BatchState::Completed,
-        "Expected Partial or Completed, got {:?}", result.state
+        "Expected Partial or Completed, got {:?}",
+        result.state
     );
 }
 

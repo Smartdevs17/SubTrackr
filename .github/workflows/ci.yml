@@ -250,6 +250,7 @@ jobs:
         with:
           toolchain: ${{ env.RUST_VERSION }}
           components: rustfmt
+          targets: wasm32v1-none
 
       - name: Check Rust formatting
         run: cd contracts && cargo fmt --check
@@ -266,6 +267,7 @@ jobs:
         with:
           toolchain: ${{ env.RUST_VERSION }}
           components: clippy
+          targets: wasm32v1-none
 
       - name: Cache Rust dependencies and target
         uses: actions/cache@v6
@@ -294,6 +296,7 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUST_VERSION }}
+          targets: wasm32v1-none
 
       - name: Cache Rust dependencies and target
         uses: actions/cache@v6
@@ -322,6 +325,7 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUST_VERSION }}
+          targets: wasm32v1-none
 
       - name: Cache Rust dependencies and target
         uses: actions/cache@v6

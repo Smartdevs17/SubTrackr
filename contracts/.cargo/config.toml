@@ -1,18 +1,29 @@
 # Cargo configuration for the SubTrackr contracts workspace
-# Sets wasm32-unknown-unknown as the default build target so that
+# Sets wasm32v1-none as the default build target so that
 # `cargo build --release` inside `contracts/` produces WASM without
-# requiring `--target wasm32-unknown-unknown` on every command.
+# requiring `--target wasm32v1-none` on every command.
+#
+# soroban-sdk 28 rejects wasm32-unknown-unknown: from Rust 1.82 onward that
+# target enables reference-types and multi-value, which the Soroban
+# environment does not yet support. Its build script hard-panics on it and
+# points at wasm32v1-none (Rust 1.84+), so that is the target we build for.
 
 [build]
-target = "wasm32-unknown-unknown"
+target = "wasm32v1-none"
 
 # Enable sparse registry protocol for faster dependency resolution
 [net]
 git-fetch-with-cli = true
 
+# soroban-sdk 28 refuses to build a wasm target unless the build system
+# declares that it performs contract spec shaking (stellar-cli 25.2+ does).
+# We build with plain cargo, so declare it here to keep `cargo build` working.
+[env]
+SOROBAN_SDK_BUILD_SYSTEM_SUPPORTS_SPEC_SHAKING_V2 = "1"
+
 # WASM-specific linker flags — strip unreachable code sections,
 # merge data sections, and apply garbage collection to further reduce binary size.
-[target.wasm32-unknown-unknown]
+[target.wasm32v1-none]
 rustflags = [
     # Export the Soroban __call_extern symbol needed by the host
     "-C", "link-arg=--export-dynamic",

@@ -633,12 +633,10 @@ impl SubTrackrInvoice {
             build_jurisdiction_key(&country.to_string(), &state.to_string(), &city.to_string());
         let key = String::from_str(&env, &jurisdiction_key_str);
 
-        let old_rate_bps = storage_persistent_get::<TaxRateEntry>(
-            &env,
-            StorageKey::TaxRateEntry(key.clone()),
-        )
-        .map(|e| e.rate_bps)
-        .unwrap_or(0);
+        let old_rate_bps =
+            storage_persistent_get::<TaxRateEntry>(&env, StorageKey::TaxRateEntry(key.clone()))
+                .map(|e| e.rate_bps)
+                .unwrap_or(0);
 
         let entry = TaxRateEntry {
             jurisdiction_key: key.clone(),
@@ -659,12 +657,7 @@ impl SubTrackrInvoice {
         }
     }
 
-    pub fn get_tax_rate(
-        env: Env,
-        country: String,
-        state: String,
-        city: String,
-    ) -> TaxRateEntry {
+    pub fn get_tax_rate(env: Env, country: String, state: String, city: String) -> TaxRateEntry {
         resolve_tax_rate_entry(&env, &country, &state, &city)
     }
 
@@ -719,19 +712,11 @@ impl SubTrackrInvoice {
         get_customer_tax_status(&env, &subscriber)
     }
 
-    pub fn check_tax_exemption(
-        env: Env,
-        subscriber: Address,
-        jurisdiction_key: String,
-    ) -> bool {
+    pub fn check_tax_exemption(env: Env, subscriber: Address, jurisdiction_key: String) -> bool {
         is_customer_tax_exempt(&env, &subscriber, &jurisdiction_key)
     }
 
-    pub fn validate_tax_certificate(
-        env: Env,
-        subscriber: Address,
-        certificate_id: String,
-    ) -> bool {
+    pub fn validate_tax_certificate(env: Env, subscriber: Address, certificate_id: String) -> bool {
         let status = get_customer_tax_status(&env, &subscriber);
         if !status.is_exempt {
             return false;
@@ -803,8 +788,7 @@ impl SubTrackrInvoice {
         counter += 1;
         storage_instance_set(&env, StorageKey::TaxRemittanceReportCount, counter);
 
-        let invoice_count: u64 =
-            storage_instance_get(&env, StorageKey::InvoiceCount).unwrap_or(0);
+        let invoice_count: u64 = storage_instance_get(&env, StorageKey::InvoiceCount).unwrap_or(0);
 
         let mut total_tax: i128 = 0;
         let mut total_taxable: i128 = 0;
@@ -813,8 +797,7 @@ impl SubTrackrInvoice {
 
         let mut i: u64 = 1;
         while i <= invoice_count {
-            let invoice: Option<Invoice> =
-                storage_persistent_get(&env, StorageKey::Invoice(i));
+            let invoice: Option<Invoice> = storage_persistent_get(&env, StorageKey::Invoice(i));
             if let Some(inv) = invoice {
                 if inv.merchant == merchant
                     && inv.due_date >= period_start
@@ -888,15 +871,9 @@ impl SubTrackrInvoice {
             .expect("Tax remittance report not found")
     }
 
-    pub fn get_tax_rate_change_log(
-        env: Env,
-        jurisdiction_key: String,
-    ) -> Vec<TaxRateChangeEvent> {
-        storage_persistent_get(
-            &env,
-            StorageKey::TaxRateChangeLogByJdx(jurisdiction_key),
-        )
-        .unwrap_or(Vec::new(&env))
+    pub fn get_tax_rate_change_log(env: Env, jurisdiction_key: String) -> Vec<TaxRateChangeEvent> {
+        storage_persistent_get(&env, StorageKey::TaxRateChangeLogByJdx(jurisdiction_key))
+            .unwrap_or(Vec::new(&env))
     }
 }
 
@@ -922,12 +899,7 @@ mod tests {
         (env, admin, storage_id, invoice_id)
     }
 
-    fn setup_subscription(
-        env: &Env,
-        storage: &Address,
-        merchant: &Address,
-        subscriber: &Address,
-    ) {
+    fn setup_subscription(env: &Env, storage: &Address, merchant: &Address, subscriber: &Address) {
         let plan = Plan {
             id: 1,
             merchant: merchant.clone(),
@@ -1297,8 +1269,12 @@ mod tests {
             &None,
         );
 
-        assert!(contract.validate_tax_certificate(&subscriber, &String::from_str(&env, "CERT-VALID")));
-        assert!(!contract.validate_tax_certificate(&subscriber, &String::from_str(&env, "CERT-FAKE")));
+        assert!(
+            contract.validate_tax_certificate(&subscriber, &String::from_str(&env, "CERT-VALID"))
+        );
+        assert!(
+            !contract.validate_tax_certificate(&subscriber, &String::from_str(&env, "CERT-FAKE"))
+        );
     }
 
     #[test]
@@ -1376,10 +1352,7 @@ mod tests {
             .try_into_val(&env)
             .unwrap();
         subscription.status = subtrackr_types::SubscriptionStatus::Cancelled;
-        storage_client.persistent_set(
-            &StorageKey::Subscription(1),
-            &subscription.into_val(&env),
-        );
+        storage_client.persistent_set(&StorageKey::Subscription(1), &subscription.into_val(&env));
 
         assert!(contract
             .try_generate_invoice(

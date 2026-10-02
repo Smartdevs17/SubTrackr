@@ -32,11 +32,11 @@ Covers contract deployment, app releases, and rollback procedures for all enviro
 
 ```bash
 cargo build --release \
-  --target wasm32-unknown-unknown \
+  --target wasm32v1-none \
   --manifest-path contracts/Cargo.toml
 ```
 
-Output: `target/wasm32-unknown-unknown/release/subtrackr.wasm`
+Output: `target/wasm32v1-none/release/subtrackr.wasm`
 
 ### 2. Deploy
 
@@ -135,7 +135,7 @@ Soroban contracts are immutable. Rollback means deploying a previous or fixed ve
 2. Deploy the previous WASM as a new contract:
    ```bash
    soroban contract deploy \
-     --wasm target/wasm32-unknown-unknown/release/subtrackr_v<PREV>.wasm \
+     --wasm target/wasm32v1-none/release/subtrackr_v<PREV>.wasm \
      --network $NETWORK
    ```
 3. Initialize the new contract with the same admin
@@ -180,7 +180,7 @@ soroban contract invoke --id $CONTRACT_ID --network testnet \
 After mainnet deployment, publish source for transparency:
 
 ```bash
-cargo build --release --target wasm32-unknown-unknown --manifest-path contracts/Cargo.toml
+cargo build --release --target wasm32v1-none --manifest-path contracts/Cargo.toml
 ./scripts/package-source.sh
 # Upload dist/subtrackr-source.tar.gz to Stellar Expert contract page
 ```
