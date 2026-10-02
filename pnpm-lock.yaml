@@ -61,7 +61,7 @@ importers:
         version: 2.0.6(6f004197a6d7777da9aec21913366390)
       '@shopify/flash-list':
         specifier: latest
-        version: 2.3.3(@babel/runtime@7.29.7)(react-native@0.87.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native-community/cli@20.2.0(bufferutil@4.1.0)(supports-color@8.1.1)(typescript@5.8.3)(utf-8-validate@5.0.10))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@5.0.10))(react@19.3.0)
+        version: 2.3.2(@babel/runtime@7.29.7)(react-native@0.87.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native-community/cli@20.2.0(bufferutil@4.1.0)(supports-color@8.1.1)(typescript@5.8.3)(utf-8-validate@5.0.10))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@5.0.10))(react@19.3.0)
       '@stellar/stellar-sdk':
         specifier: ^17.1.0
         version: 17.2.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
@@ -202,8 +202,8 @@ importers:
         specifier: ^11.1.2
         version: 11.1.2(@ethersproject/abi@5.8.0)(@ethersproject/providers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(ethers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(typechain@8.3.2(supports-color@8.1.1)(typescript@5.8.3))(typescript@5.8.3)
       '@types/detox':
-        specifier: ^17.14.3
-        version: 17.14.3
+        specifier: ^18.1.3
+        version: 18.1.3(@jest/environment@30.5.2)(@jest/types@30.5.1)(bufferutil@4.1.0)(expect@29.7.0)(jest-environment-jsdom@29.7.0(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@5.0.10))(jest-environment-node@29.7.0)(jest@29.7.0(@types/node@26.6.3)(supports-color@8.1.1))(utf-8-validate@5.0.10)
       '@types/jest':
         specifier: ^29.5.14
         version: 29.5.14
@@ -2365,8 +2365,8 @@ packages:
     resolution: {integrity: sha512-/ZqxUvKeEztU9drOoPC/8opEPOk+jLlB2q4+xpx6HVLq6aFu3pMpalkTpAQz8XfRfpLp8O25bh6pGPcHDCYpqg==}
     engines: {node: '>=12.*'}
 
-  '@shopify/flash-list@2.3.3':
-    resolution: {integrity: sha512-77MXV5YKMo3B3XZtgNXBaELZVQOE0bDcQxH4D/qf0i3o6YkZWBoHeR0CkFXZBdyoZqgvsUe3kkr0qhQE9lVqtg==}
+  '@shopify/flash-list@2.3.2':
+    resolution: {integrity: sha512-vQnd0y0Ag11yzS30llaeCrtIU3xYTMe7KEOP3dveLImnVjQEUw6BEg1+Ztja6aODlVNz1BpvxtlQ5eZGxiLwKw==}
     peerDependencies:
       '@babel/runtime': '*'
       react: '*'
@@ -2499,8 +2499,9 @@ packages:
   '@types/deep-eql@4.0.2':
     resolution: {integrity: sha512-c9h9dVVMigMPc4bwTvC5dxqtqJZwQPePsWjPlpSOnojbor6pGqdk541lfA7AqFQr5pB1BRdq0juY9db81BwyFw==}
 
-  '@types/detox@17.14.3':
-    resolution: {integrity: sha512-TGvlYiol7snFjEk0spDkcfH12CZRAWa1g51bE0GEYa6iLtfYAqHXVc/f5TFhYV17YI5JoxGfwdSv8WDP9fbAIQ==}
+  '@types/detox@18.1.3':
+    resolution: {integrity: sha512-4AjvhBQBzwUr5gn4SXQihobEM1oKrNkkj8e3zFOTNAe8r2BNdUtH2rFfdR3VxDm0z+1ga7pN7Q/P/S5jrxRU3A==}
+    deprecated: This is a stub types definition. detox provides its own type definitions, so you do not need this installed.
 
   '@types/esrecurse@4.3.1':
     resolution: {integrity: sha512-xJBAbDifo5hpffDBuHl0Y8ywswbiAp/Wi7Y/GtAgSlZyIABppyurxVueOPE8LUQOxdlgi6Zqce7uoEpqNTeiUw==}
@@ -11705,7 +11706,7 @@ snapshots:
       - debug
       - supports-color
 
-  '@shopify/flash-list@2.3.3(@babel/runtime@7.29.7)(react-native@0.87.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native-community/cli@20.2.0(bufferutil@4.1.0)(supports-color@8.1.1)(typescript@5.8.3)(utf-8-validate@5.0.10))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@5.0.10))(react@19.3.0)':
+  '@shopify/flash-list@2.3.2(@babel/runtime@7.29.7)(react-native@0.87.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native-community/cli@20.2.0(bufferutil@4.1.0)(supports-color@8.1.1)(typescript@5.8.3)(utf-8-validate@5.0.10))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@5.0.10))(react@19.3.0)':
     dependencies:
       '@babel/runtime': 7.29.7
       react: 19.3.0
@@ -11846,7 +11847,19 @@ snapshots:
 
   '@types/deep-eql@4.0.2': {}
 
-  '@types/detox@17.14.3': {}
+  '@types/detox@18.1.3(@jest/environment@30.5.2)(@jest/types@30.5.1)(bufferutil@4.1.0)(expect@29.7.0)(jest-environment-jsdom@29.7.0(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@5.0.10))(jest-environment-node@29.7.0)(jest@29.7.0(@types/node@26.6.3)(supports-color@8.1.1))(utf-8-validate@5.0.10)':
+    dependencies:
+      detox: 20.51.4(@jest/environment@30.5.2)(@jest/types@30.5.1)(bufferutil@4.1.0)(expect@29.7.0)(jest-environment-jsdom@29.7.0(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@5.0.10))(jest-environment-node@29.7.0)(jest@29.7.0(@types/node@26.6.3)(supports-color@8.1.1))(utf-8-validate@5.0.10)
+    transitivePeerDependencies:
+      - '@jest/environment'
+      - '@jest/types'
+      - '@types/bunyan'
+      - bufferutil
+      - expect
+      - jest
+      - jest-environment-jsdom
+      - jest-environment-node
+      - utf-8-validate
 
   '@types/esrecurse@4.3.1': {}
 
