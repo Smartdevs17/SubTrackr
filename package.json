@@ -135,7 +135,7 @@
   "devDependencies": {
     "@babel/core": "^7.29.0",
     "@commitlint/cli": "^20.5.2",
-    "@commitlint/config-conventional": "^20.5.0",
+    "@commitlint/config-conventional": "^21.2.3",
     "@config-plugins/detox": "^11.0.0",
     "@expo/cli": "^0.24.20",
     "@react-native-community/cli": "^20.2.0",
