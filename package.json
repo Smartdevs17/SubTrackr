@@ -107,7 +107,7 @@
     "@walletconnect/utils": "^2.25.0",
     "ethers": "^5.8.0",
     "expo": "~53.0.20",
-    "expo-application": "~6.1.5",
+    "expo-application": "~57.0.3",
     "expo-clipboard": "~57.0.2",
     "expo-dev-client": "~5.2.4",
     "expo-haptics": "~57.0.3",
