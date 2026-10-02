@@ -16,3 +16,40 @@ allowBuilds:
   web3: false
   web3-bzz: false
   web3-shh: false
+
+minimumReleaseAgeExclude:
+  - shell-quote@1.12.0
+
+# Security: force patched transitive versions for the high/critical advisories
+# from `pnpm audit` (3 critical + 79 high). Scoped majors keep the v1/v2/v3
+# major lines separate so we do not force an incompatible API onto a dependent.
+overrides:
+  '@xmldom/xmldom': 0.8.15
+  'adm-zip': 0.6.1
+  'axios': 1.20.0
+  'brace-expansion@1': 1.1.20
+  'brace-expansion@2': 2.1.6
+  'browserslist': 4.28.7
+  'elliptic': 6.6.1
+  'fast-uri': 3.1.7
+  'form-data': 2.5.6
+  'immutable': 4.3.9
+  'joi': 17.13.7
+  'js-yaml@3': 3.15.2
+  'js-yaml@4': 4.3.2
+  'lodash': 4.18.1
+  'nanoid': 3.3.18
+  'postcss': 8.5.18
+  'serialize-javascript': 7.0.3
+  'shell-quote': 1.12.0
+  'tar': 7.5.21
+  'tmp': 0.2.7
+  'undici@6': 6.28.1
+  'undici@7': 7.29.1
+  'ws@1': 5.2.5
+  'ws@2': 5.2.5
+  'ws@8': 8.21.0
+
+# node-forge is intentionally absent: its advisory needs >=1.4.1 but 1.4.1 is
+# unreleased (latest 1.4.0), so no override can fix it. It reaches us only via
+# @expo/cli dev tooling and stays allowlisted in audit-ci.json.
