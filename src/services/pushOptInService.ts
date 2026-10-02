@@ -84,7 +84,9 @@ export function normalizePushPermission(
   const status = permission?.status;
   if (typeof status !== 'string') return 'undetermined';
   const normalised = status.toLowerCase();
-  return PERMISSION_STATUSES.includes(normalised) ? (normalised as PushOptInStatus) : 'undetermined';
+  return PERMISSION_STATUSES.includes(normalised)
+    ? (normalised as PushOptInStatus)
+    : 'undetermined';
 }
 
 /**

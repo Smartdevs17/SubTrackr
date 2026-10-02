@@ -9,15 +9,18 @@ and [Conventional Commits](https://www.conventionalcommits.org/).
 ## [Unreleased]
 
 ### Added
+
 - Automated changelog generation from conventional commits via semantic-release.
 - GitHub Actions workflow for changelog preview and validation.
 - Conventional commit validation in CI with strict commitlint rules.
 
 ### Changed
+
 - Enforced conventional commit format for all PRs and pushes.
 - Updated `.releaserc` to generate `CHANGELOG.md` on release.
 
 ### Documentation
+
 - Added changelog generation examples and usage instructions.
 
 ---
@@ -47,15 +50,13 @@ with the [conventional commits](https://www.conventionalcommits.org/) specificat
 
 ### Commit Format Examples
 
-
-
 ### Release Workflow
 
-| Trigger | Action |
-|---------|--------|
-| Push to `main` | semantic-release analyzes commits and may publish |
-| PR to `main` | commitlint validates commit messages |
-| Manual dispatch | semantic-release dry-run preview |
+| Trigger         | Action                                            |
+| --------------- | ------------------------------------------------- |
+| Push to `main`  | semantic-release analyzes commits and may publish |
+| PR to `main`    | commitlint validates commit messages              |
+| Manual dispatch | semantic-release dry-run preview                  |
 
 ### Local Development
 

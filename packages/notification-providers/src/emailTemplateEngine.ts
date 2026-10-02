@@ -20,15 +20,7 @@
 // ── Component types ──────────────────────────────────────────────────────────
 
 export type ComponentType =
-  | 'header'
-  | 'text'
-  | 'html'
-  | 'button'
-  | 'divider'
-  | 'image'
-  | 'spacer'
-  | 'columns'
-  | 'footer';
+  'header' | 'text' | 'html' | 'button' | 'divider' | 'image' | 'spacer' | 'columns' | 'footer';
 
 export interface ComponentProps {
   // text / html

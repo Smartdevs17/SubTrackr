@@ -22,20 +22,22 @@ export async function getAllPlans(billingCycle?: BillingCycle): Promise<Subscrip
   try {
     const data = await AsyncStorage.getItem(STORAGE_KEYS.PLANS);
     if (!data) return getDefaultPlans();
-    
+
     let plans: SubscriptionPlan[] = JSON.parse(data);
     plans = plans.map((p: any) => ({
       ...p,
       createdAt: new Date(p.createdAt),
       updatedAt: new Date(p.updatedAt),
-      discount: p.discount ? {
-        ...p.discount,
-        validUntil: p.discount.validUntil ? new Date(p.discount.validUntil) : undefined,
-      } : undefined,
+      discount: p.discount
+        ? {
+            ...p.discount,
+            validUntil: p.discount.validUntil ? new Date(p.discount.validUntil) : undefined,
+          }
+        : undefined,
     }));
 
     if (billingCycle) {
-      return plans.filter(p => p.billingCycle === billingCycle);
+      return plans.filter((p) => p.billingCycle === billingCycle);
     }
 
     return plans;
@@ -47,18 +49,18 @@ export async function getAllPlans(billingCycle?: BillingCycle): Promise<Subscrip
 
 export async function getPlanById(id: string): Promise<SubscriptionPlan | null> {
   const plans = await getAllPlans();
-  return plans.find(p => p.id === id) || null;
+  return plans.find((p) => p.id === id) || null;
 }
 
 export async function getPlansByTier(tier: PlanTier): Promise<SubscriptionPlan[]> {
   const plans = await getAllPlans();
-  return plans.filter(p => p.tier === tier);
+  return plans.filter((p) => p.tier === tier);
 }
 
 // Plan Comparison
 export async function comparePlans(planIds: string[]): Promise<PlanComparison> {
   const allPlans = await getAllPlans();
-  const plans = allPlans.filter(p => planIds.includes(p.id));
+  const plans = allPlans.filter((p) => planIds.includes(p.id));
 
   if (plans.length < 2) {
     throw new Error('At least 2 plans required for comparison');
@@ -66,7 +68,7 @@ export async function comparePlans(planIds: string[]): Promise<PlanComparison> {
 
   // Build comparison matrix
   const comparisonMatrix = buildComparisonMatrix(plans);
-  
+
   // Generate recommendations
   const recommendations = generateRecommendations(plans);
 
@@ -84,15 +86,19 @@ function buildComparisonMatrix(plans: SubscriptionPlan[]): ComparisonRow[] {
       features: [
         {
           name: 'Monthly Price',
-          values: Object.fromEntries(plans.map(p => [p.id, `${p.currency} ${p.price.toFixed(2)}`])),
+          values: Object.fromEntries(
+            plans.map((p) => [p.id, `${p.currency} ${p.price.toFixed(2)}`])
+          ),
         },
         {
           name: 'Billing Cycle',
-          values: Object.fromEntries(plans.map(p => [p.id, p.billingCycle])),
+          values: Object.fromEntries(plans.map((p) => [p.id, p.billingCycle])),
         },
         {
           name: 'Trial Period',
-          values: Object.fromEntries(plans.map(p => [p.id, p.trialDays ? `${p.trialDays} days` : 'None'])),
+          values: Object.fromEntries(
+            plans.map((p) => [p.id, p.trialDays ? `${p.trialDays} days` : 'None'])
+          ),
         },
       ],
     },
@@ -101,26 +107,40 @@ function buildComparisonMatrix(plans: SubscriptionPlan[]): ComparisonRow[] {
       features: [
         {
           name: 'Subscriptions',
-          values: Object.fromEntries(plans.map(p => [p.id, p.limits.subscriptions === -1 ? 'Unlimited' : p.limits.subscriptions])),
+          values: Object.fromEntries(
+            plans.map((p) => [
+              p.id,
+              p.limits.subscriptions === -1 ? 'Unlimited' : p.limits.subscriptions,
+            ])
+          ),
         },
         {
           name: 'Users',
-          values: Object.fromEntries(plans.map(p => [p.id, p.limits.users === -1 ? 'Unlimited' : p.limits.users || 1])),
+          values: Object.fromEntries(
+            plans.map((p) => [p.id, p.limits.users === -1 ? 'Unlimited' : p.limits.users || 1])
+          ),
         },
         {
           name: 'API Calls',
-          values: Object.fromEntries(plans.map(p => [p.id, p.limits.apiCalls === -1 ? 'Unlimited' : p.limits.apiCalls || 'N/A'])),
+          values: Object.fromEntries(
+            plans.map((p) => [
+              p.id,
+              p.limits.apiCalls === -1 ? 'Unlimited' : p.limits.apiCalls || 'N/A',
+            ])
+          ),
         },
       ],
     },
     {
       category: 'Features',
-      features: getUniqueFeatures(plans).map(featureName => ({
+      features: getUniqueFeatures(plans).map((featureName) => ({
         name: featureName,
-        values: Object.fromEntries(plans.map(p => {
-          const feature = p.features.find(f => f.name === featureName);
-          return [p.id, feature ? (feature.included ? '✓' : '✗') : '✗'];
-        })),
+        values: Object.fromEntries(
+          plans.map((p) => {
+            const feature = p.features.find((f) => f.name === featureName);
+            return [p.id, feature ? (feature.included ? '✓' : '✗') : '✗'];
+          })
+        ),
       })),
     },
   ];
@@ -130,8 +150,8 @@ function buildComparisonMatrix(plans: SubscriptionPlan[]): ComparisonRow[] {
 
 function getUniqueFeatures(plans: SubscriptionPlan[]): string[] {
   const allFeatures = new Set<string>();
-  plans.forEach(plan => {
-    plan.features.forEach(feature => allFeatures.add(feature.name));
+  plans.forEach((plan) => {
+    plan.features.forEach((feature) => allFeatures.add(feature.name));
   });
   return Array.from(allFeatures);
 }
@@ -140,7 +160,7 @@ function generateRecommendations(plans: SubscriptionPlan[]): PlanRecommendation[
   const recommendations: PlanRecommendation[] = [];
 
   // Find most popular
-  const popularPlan = plans.find(p => p.isPopular);
+  const popularPlan = plans.find((p) => p.isPopular);
   if (popularPlan) {
     recommendations.push({
       planId: popularPlan.id,
@@ -150,9 +170,9 @@ function generateRecommendations(plans: SubscriptionPlan[]): PlanRecommendation[
   }
 
   // Find best value
-  const yearlyPlans = plans.filter(p => p.billingCycle === 'yearly');
+  const yearlyPlans = plans.filter((p) => p.billingCycle === 'yearly');
   if (yearlyPlans.length > 0) {
-    const bestValue = yearlyPlans.reduce((best, current) => 
+    const bestValue = yearlyPlans.reduce((best, current) =>
       (current.discount?.percentage || 0) > (best.discount?.percentage || 0) ? current : best
     );
     if (bestValue.discount) {
@@ -166,7 +186,7 @@ function generateRecommendations(plans: SubscriptionPlan[]): PlanRecommendation[
   }
 
   // Find recommended
-  const recommended = plans.find(p => p.isRecommended);
+  const recommended = plans.find((p) => p.isRecommended);
   if (recommended) {
     recommendations.push({
       planId: recommended.id,
@@ -194,7 +214,7 @@ export async function switchPlan(request: PlanSwitchRequest): Promise<PlanSwitch
   if (request.prorated) {
     const now = new Date();
     const effectiveDate = request.effectiveDate || now;
-    
+
     if (newPlan.price > currentPlan.price) {
       prorationCharge = calculateProration(currentPlan, newPlan, effectiveDate);
     } else {
@@ -231,14 +251,18 @@ export async function switchPlan(request: PlanSwitchRequest): Promise<PlanSwitch
   };
 }
 
-function calculateProration(oldPlan: SubscriptionPlan, newPlan: SubscriptionPlan, effectiveDate: Date): number {
+function calculateProration(
+  oldPlan: SubscriptionPlan,
+  newPlan: SubscriptionPlan,
+  effectiveDate: Date
+): number {
   // Simple proration calculation (days remaining in billing cycle)
   const daysInMonth = 30;
   const today = new Date();
   const daysRemaining = Math.max(0, daysInMonth - today.getDate());
   const unusedAmount = (oldPlan.price / daysInMonth) * daysRemaining;
   const newAmount = (newPlan.price / daysInMonth) * daysRemaining;
-  
+
   return Math.abs(newAmount - unusedAmount);
 }
 
@@ -252,7 +276,7 @@ export async function getSwitchHistory(userId?: string): Promise<PlanSwitchHisto
   try {
     const data = await AsyncStorage.getItem(STORAGE_KEYS.SWITCH_HISTORY);
     if (!data) return [];
-    
+
     let history: PlanSwitchHistory[] = JSON.parse(data);
     history = history.map((h: any) => ({
       ...h,
@@ -261,7 +285,7 @@ export async function getSwitchHistory(userId?: string): Promise<PlanSwitchHisto
     }));
 
     if (userId) {
-      return history.filter(h => h.userId === userId);
+      return history.filter((h) => h.userId === userId);
     }
 
     return history;
@@ -277,26 +301,26 @@ export async function getPlanAnalytics(): Promise<PlanAnalytics> {
   const history = await getSwitchHistory();
 
   const totalPlans = plans.length;
-  
+
   // Mock active subscriptions
   const activeSubscriptionsByPlan: Record<string, number> = {};
-  plans.forEach(p => {
+  plans.forEach((p) => {
     activeSubscriptionsByPlan[p.name] = Math.floor(Math.random() * 100);
   });
 
   // Mock revenue
   const revenueByPlan: Record<string, number> = {};
-  plans.forEach(p => {
+  plans.forEach((p) => {
     revenueByPlan[p.name] = activeSubscriptionsByPlan[p.name] * p.price;
   });
 
   // Switches last month
   const lastMonth = new Date();
   lastMonth.setMonth(lastMonth.getMonth() - 1);
-  const switchesLastMonth = history.filter(h => h.createdAt >= lastMonth).length;
+  const switchesLastMonth = history.filter((h) => h.createdAt >= lastMonth).length;
 
   // Popular plan
-  const popularPlan = plans.find(p => p.isPopular)?.name || plans[0]?.name || 'None';
+  const popularPlan = plans.find((p) => p.isPopular)?.name || plans[0]?.name || 'None';
 
   // Mock conversion and churn rates
   const conversionRate = 15.5;
@@ -320,7 +344,7 @@ function generateId(): string {
 
 function getDefaultPlans(): SubscriptionPlan[] {
   const now = new Date();
-  
+
   return [
     {
       id: 'plan-free',
@@ -331,7 +355,12 @@ function getDefaultPlans(): SubscriptionPlan[] {
       currency: 'USD',
       billingCycle: 'monthly',
       features: [
-        { id: 'f1', name: 'Basic Dashboard', description: 'Access to basic dashboard', included: true },
+        {
+          id: 'f1',
+          name: 'Basic Dashboard',
+          description: 'Access to basic dashboard',
+          included: true,
+        },
         { id: 'f2', name: 'Email Support', description: '48-hour response time', included: true },
         { id: 'f3', name: 'Mobile App', description: 'iOS and Android apps', included: true },
         { id: 'f4', name: 'Analytics', description: 'Basic analytics', included: false },
@@ -358,7 +387,12 @@ function getDefaultPlans(): SubscriptionPlan[] {
       currency: 'USD',
       billingCycle: 'monthly',
       features: [
-        { id: 'f1', name: 'Basic Dashboard', description: 'Access to basic dashboard', included: true },
+        {
+          id: 'f1',
+          name: 'Basic Dashboard',
+          description: 'Access to basic dashboard',
+          included: true,
+        },
         { id: 'f2', name: 'Email Support', description: '24-hour response time', included: true },
         { id: 'f3', name: 'Mobile App', description: 'iOS and Android apps', included: true },
         { id: 'f4', name: 'Analytics', description: 'Basic analytics', included: true },
@@ -385,13 +419,28 @@ function getDefaultPlans(): SubscriptionPlan[] {
       currency: 'USD',
       billingCycle: 'monthly',
       features: [
-        { id: 'f1', name: 'Basic Dashboard', description: 'Access to basic dashboard', included: true },
+        {
+          id: 'f1',
+          name: 'Basic Dashboard',
+          description: 'Access to basic dashboard',
+          included: true,
+        },
         { id: 'f2', name: 'Email Support', description: '12-hour response time', included: true },
         { id: 'f3', name: 'Mobile App', description: 'iOS and Android apps', included: true },
         { id: 'f4', name: 'Analytics', description: 'Advanced analytics', included: true },
         { id: 'f5', name: 'API Access', description: 'REST API access', included: true },
-        { id: 'f6', name: 'Priority Support', description: 'Business hours support', included: true },
-        { id: 'f7', name: 'Custom Reports', description: 'Generate custom reports', included: true },
+        {
+          id: 'f6',
+          name: 'Priority Support',
+          description: 'Business hours support',
+          included: true,
+        },
+        {
+          id: 'f7',
+          name: 'Custom Reports',
+          description: 'Generate custom reports',
+          included: true,
+        },
       ],
       limits: {
         subscriptions: 50,
@@ -417,13 +466,33 @@ function getDefaultPlans(): SubscriptionPlan[] {
       currency: 'USD',
       billingCycle: 'monthly',
       features: [
-        { id: 'f1', name: 'Basic Dashboard', description: 'Access to basic dashboard', included: true },
+        {
+          id: 'f1',
+          name: 'Basic Dashboard',
+          description: 'Access to basic dashboard',
+          included: true,
+        },
         { id: 'f2', name: 'Email Support', description: 'Priority email support', included: true },
         { id: 'f3', name: 'Mobile App', description: 'iOS and Android apps', included: true },
-        { id: 'f4', name: 'Analytics', description: 'Advanced analytics with exports', included: true },
+        {
+          id: 'f4',
+          name: 'Analytics',
+          description: 'Advanced analytics with exports',
+          included: true,
+        },
         { id: 'f5', name: 'API Access', description: 'Full REST API access', included: true },
-        { id: 'f6', name: 'Priority Support', description: '24/7 priority support', included: true },
-        { id: 'f7', name: 'Custom Reports', description: 'Unlimited custom reports', included: true },
+        {
+          id: 'f6',
+          name: 'Priority Support',
+          description: '24/7 priority support',
+          included: true,
+        },
+        {
+          id: 'f7',
+          name: 'Custom Reports',
+          description: 'Unlimited custom reports',
+          included: true,
+        },
         { id: 'f8', name: 'White Label', description: 'Custom branding', included: true },
         { id: 'f9', name: 'Dedicated Manager', description: 'Account manager', included: true },
       ],

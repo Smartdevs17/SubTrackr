@@ -107,8 +107,8 @@ describe('RenewalPredictionService', () => {
       const highRisk = service.getHighRiskSubscriptions(subs);
 
       expect(highRisk).toHaveLength(2);
-      expect(highRisk.map(s => s.id)).toContain('sub_2');
-      expect(highRisk.map(s => s.id)).toContain('sub_3');
+      expect(highRisk.map((s) => s.id)).toContain('sub_2');
+      expect(highRisk.map((s) => s.id)).toContain('sub_3');
     });
   });
 

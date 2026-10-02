@@ -11,7 +11,10 @@ import {
   type NotificationRecord,
   type NotificationType,
 } from '../types/notification';
-import { useNotificationPreferencesStore, type NotificationPreferences } from '../store/notificationPreferencesStore';
+import {
+  useNotificationPreferencesStore,
+  type NotificationPreferences,
+} from '../store/notificationPreferencesStore';
 import { navigationRef } from '../navigation/navigationRef';
 
 export const NOTIFICATION_DATA_TYPE = {
@@ -585,8 +588,7 @@ export function attachNotificationResponseListeners(): () => void {
 
   const sub = Notifications.addNotificationResponseReceivedListener((response) => {
     const data = response.notification.request.content.data as
-      | { subscriptionId?: string }
-      | undefined;
+      { subscriptionId?: string } | undefined;
     if (data?.subscriptionId) {
       navigateToSubscriptionFromNotification(data.subscriptionId);
     }

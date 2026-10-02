@@ -86,7 +86,7 @@ export default function InvoiceBrandingScreen({ navigation }: any) {
         <TextInput
           style={[styles.input, { backgroundColor: theme.colors.card, color: theme.colors.text }]}
           value={formData.companyName}
-          onChangeText={text => setFormData({ ...formData, companyName: text })}
+          onChangeText={(text) => setFormData({ ...formData, companyName: text })}
           placeholder="Enter company name"
           placeholderTextColor={theme.colors.textSecondary}
         />
@@ -95,14 +95,14 @@ export default function InvoiceBrandingScreen({ navigation }: any) {
         <TextInput
           style={[styles.input, { backgroundColor: theme.colors.card, color: theme.colors.text }]}
           value={formData.companyLogo}
-          onChangeText={text => setFormData({ ...formData, companyLogo: text })}
+          onChangeText={(text) => setFormData({ ...formData, companyLogo: text })}
           placeholder="https://example.com/logo.png"
           placeholderTextColor={theme.colors.textSecondary}
         />
 
         <Text style={[styles.label, { color: theme.colors.text }]}>Logo Position</Text>
         <View style={styles.radioGroup}>
-          {['left', 'center', 'right'].map(position => (
+          {['left', 'center', 'right'].map((position) => (
             <TouchableOpacity
               key={position}
               style={[
@@ -114,15 +114,13 @@ export default function InvoiceBrandingScreen({ navigation }: any) {
               ]}
               onPress={() =>
                 setFormData({ ...formData, logoPosition: position as 'left' | 'center' | 'right' })
-              }
-            >
+              }>
               <Text
                 style={[
                   styles.radioButtonText,
                   { color: theme.colors.text },
                   formData.logoPosition === position && { color: '#FFFFFF' },
-                ]}
-              >
+                ]}>
                 {position.charAt(0).toUpperCase() + position.slice(1)}
               </Text>
             </TouchableOpacity>
@@ -135,7 +133,7 @@ export default function InvoiceBrandingScreen({ navigation }: any) {
 
         <Text style={[styles.label, { color: theme.colors.text }]}>Color Presets</Text>
         <View style={styles.presetGrid}>
-          {colorPresets.map(preset => (
+          {colorPresets.map((preset) => (
             <TouchableOpacity
               key={preset.name}
               style={[styles.presetCard, { backgroundColor: theme.colors.card }]}
@@ -145,15 +143,10 @@ export default function InvoiceBrandingScreen({ navigation }: any) {
                   primaryColor: preset.primary,
                   secondaryColor: preset.secondary,
                 })
-              }
-            >
+              }>
               <View style={styles.presetColors}>
-                <View
-                  style={[styles.colorCircle, { backgroundColor: preset.primary }]}
-                />
-                <View
-                  style={[styles.colorCircle, { backgroundColor: preset.secondary }]}
-                />
+                <View style={[styles.colorCircle, { backgroundColor: preset.primary }]} />
+                <View style={[styles.colorCircle, { backgroundColor: preset.secondary }]} />
               </View>
               <Text style={[styles.presetName, { color: theme.colors.text }]}>{preset.name}</Text>
             </TouchableOpacity>
@@ -163,43 +156,46 @@ export default function InvoiceBrandingScreen({ navigation }: any) {
         <Text style={[styles.label, { color: theme.colors.text }]}>Primary Color</Text>
         <View style={styles.colorInputContainer}>
           <TextInput
-            style={[styles.input, { flex: 1, backgroundColor: theme.colors.card, color: theme.colors.text }]}
+            style={[
+              styles.input,
+              { flex: 1, backgroundColor: theme.colors.card, color: theme.colors.text },
+            ]}
             value={formData.primaryColor}
-            onChangeText={text => setFormData({ ...formData, primaryColor: text })}
+            onChangeText={(text) => setFormData({ ...formData, primaryColor: text })}
             placeholder="#4F46E5"
             placeholderTextColor={theme.colors.textSecondary}
           />
-          <View
-            style={[styles.colorPreview, { backgroundColor: formData.primaryColor }]}
-          />
+          <View style={[styles.colorPreview, { backgroundColor: formData.primaryColor }]} />
         </View>
 
         <Text style={[styles.label, { color: theme.colors.text }]}>Secondary Color</Text>
         <View style={styles.colorInputContainer}>
           <TextInput
-            style={[styles.input, { flex: 1, backgroundColor: theme.colors.card, color: theme.colors.text }]}
+            style={[
+              styles.input,
+              { flex: 1, backgroundColor: theme.colors.card, color: theme.colors.text },
+            ]}
             value={formData.secondaryColor}
-            onChangeText={text => setFormData({ ...formData, secondaryColor: text })}
+            onChangeText={(text) => setFormData({ ...formData, secondaryColor: text })}
             placeholder="#6B7280"
             placeholderTextColor={theme.colors.textSecondary}
           />
-          <View
-            style={[styles.colorPreview, { backgroundColor: formData.secondaryColor }]}
-          />
+          <View style={[styles.colorPreview, { backgroundColor: formData.secondaryColor }]} />
         </View>
 
         <Text style={[styles.label, { color: theme.colors.text }]}>Accent Color</Text>
         <View style={styles.colorInputContainer}>
           <TextInput
-            style={[styles.input, { flex: 1, backgroundColor: theme.colors.card, color: theme.colors.text }]}
+            style={[
+              styles.input,
+              { flex: 1, backgroundColor: theme.colors.card, color: theme.colors.text },
+            ]}
             value={formData.accentColor}
-            onChangeText={text => setFormData({ ...formData, accentColor: text })}
+            onChangeText={(text) => setFormData({ ...formData, accentColor: text })}
             placeholder="#10B981"
             placeholderTextColor={theme.colors.textSecondary}
           />
-          <View
-            style={[styles.colorPreview, { backgroundColor: formData.accentColor }]}
-          />
+          <View style={[styles.colorPreview, { backgroundColor: formData.accentColor }]} />
         </View>
       </View>
 
@@ -210,7 +206,7 @@ export default function InvoiceBrandingScreen({ navigation }: any) {
         <TextInput
           style={[styles.input, { backgroundColor: theme.colors.card, color: theme.colors.text }]}
           value={formData.fontFamily}
-          onChangeText={text => setFormData({ ...formData, fontFamily: text })}
+          onChangeText={(text) => setFormData({ ...formData, fontFamily: text })}
           placeholder="Arial, sans-serif"
           placeholderTextColor={theme.colors.textSecondary}
         />
@@ -219,15 +215,13 @@ export default function InvoiceBrandingScreen({ navigation }: any) {
       <View style={styles.buttonContainer}>
         <TouchableOpacity
           style={[styles.button, styles.cancelButton, { backgroundColor: theme.colors.card }]}
-          onPress={() => navigation.goBack()}
-        >
+          onPress={() => navigation.goBack()}>
           <Text style={[styles.buttonText, { color: theme.colors.text }]}>Cancel</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.button, { backgroundColor: theme.colors.primary }]}
           onPress={handleSave}
-          disabled={isLoading}
-        >
+          disabled={isLoading}>
           {isLoading ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (

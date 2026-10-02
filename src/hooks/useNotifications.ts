@@ -65,8 +65,7 @@ export function useNotifications(): {
     void Notifications.getLastNotificationResponseAsync().then((response) => {
       if (!response) return;
       const data = response.notification.request.content.data as
-        | { subscriptionId?: string }
-        | undefined;
+        { subscriptionId?: string } | undefined;
       if (data?.subscriptionId) {
         navigateToSubscriptionFromNotification(data.subscriptionId);
       }

@@ -193,9 +193,9 @@ describe('useResellerStore', () => {
 
       await useResellerStore.getState().cancelOrder(order.id);
 
-      await expect(
-        useResellerStore.getState().cancelOrder(order.id)
-      ).rejects.toThrow('Order is already cancelled');
+      await expect(useResellerStore.getState().cancelOrder(order.id)).rejects.toThrow(
+        'Order is already cancelled'
+      );
     });
   });
 

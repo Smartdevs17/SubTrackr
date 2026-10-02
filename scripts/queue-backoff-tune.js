@@ -323,9 +323,7 @@ function normalizePolicy(policy) {
     const scope = perPriority ? source[priority] || {} : source;
     const attempts = scope.maxAttempts;
     const attemptsForClass =
-      attempts !== undefined && typeof attempts === 'object'
-        ? attempts[priority]
-        : attempts;
+      attempts !== undefined && typeof attempts === 'object' ? attempts[priority] : attempts;
     result[priority] = {
       baseDelayMs: toNumber(scope.baseDelayMs, DEFAULT_POLICY.baseDelayMs),
       backoffMultiplier: toNumber(scope.backoffMultiplier, DEFAULT_POLICY.backoffMultiplier),

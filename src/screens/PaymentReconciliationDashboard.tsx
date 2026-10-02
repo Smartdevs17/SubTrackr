@@ -89,11 +89,7 @@ const PaymentReconciliationDashboard: React.FC = () => {
               key={tab}
               style={[styles.tabItem, activeTab === tab && styles.tabItemActive]}
               onPress={() => setActiveTab(tab)}>
-              <Text
-                style={[
-                  styles.tabText,
-                  activeTab === tab && styles.tabTextActive,
-                ]}>
+              <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
                 {tab.toUpperCase()}
               </Text>
             </TouchableOpacity>
@@ -130,9 +126,7 @@ const PaymentReconciliationDashboard: React.FC = () => {
 
               <Card style={styles.statCard}>
                 <Text style={styles.statLabel}>Matched</Text>
-                <Text style={[styles.statValue, { color: '#10B981' }]}>
-                  {summary.matchedCount}
-                </Text>
+                <Text style={[styles.statValue, { color: '#10B981' }]}>{summary.matchedCount}</Text>
               </Card>
 
               <Card style={styles.statCard}>
@@ -169,7 +163,8 @@ const PaymentReconciliationDashboard: React.FC = () => {
                         {ex.status.toUpperCase()}: Sub #{ex.subscriptionId.slice(0, 8)}
                       </Text>
                       <Text style={styles.alertMessage}>
-                        Variance: ${ex.discrepancyAmount.toFixed(2)} ({ex.discrepancyReason || 'Pending'})
+                        Variance: ${ex.discrepancyAmount.toFixed(2)} (
+                        {ex.discrepancyReason || 'Pending'})
                       </Text>
                     </View>
                     <TouchableOpacity
@@ -197,15 +192,14 @@ const PaymentReconciliationDashboard: React.FC = () => {
                 />
               </View>
 
-              <Text style={[styles.chartTitle, { marginTop: spacing.md }]}>Automation Frequency</Text>
+              <Text style={[styles.chartTitle, { marginTop: spacing.md }]}>
+                Automation Frequency
+              </Text>
               <View style={styles.freqRow}>
                 {(['realtime', 'hourly', 'daily', 'weekly'] as ScheduleFrequency[]).map((f) => (
                   <TouchableOpacity
                     key={f}
-                    style={[
-                      styles.freqBtn,
-                      schedule.frequency === f && styles.freqBtnActive,
-                    ]}
+                    style={[styles.freqBtn, schedule.frequency === f && styles.freqBtnActive]}
                     onPress={() => handleFrequencyChange(f)}>
                     <Text
                       style={[

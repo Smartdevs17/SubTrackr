@@ -15,7 +15,7 @@ export async function getNextSequence(prefix: string): Promise<number> {
           const key = `${STORAGE_KEYS.SEQUENCE_PREFIX}${prefix}`;
           const current = await AsyncStorage.getItem(key);
           const nextSeq = current ? parseInt(current, 10) + 1 : 1;
-          
+
           await AsyncStorage.setItem(key, nextSeq.toString());
           resolve(nextSeq);
         } catch (error) {
@@ -30,7 +30,7 @@ export async function getNextSequence(prefix: string): Promise<number> {
             const key = `${STORAGE_KEYS.SEQUENCE_PREFIX}${prefix}`;
             const current = await AsyncStorage.getItem(key);
             const nextSeq = current ? parseInt(current, 10) + 1 : 1;
-            
+
             await AsyncStorage.setItem(key, nextSeq.toString());
             resolve(nextSeq);
           } catch (error) {
@@ -70,7 +70,7 @@ export function generateLegalInvoiceNumber(
   date: Date = new Date()
 ): string {
   const parts = [prefix];
-  
+
   if (includeYear) {
     const year = date.getFullYear();
     if (includeMonth) {
@@ -80,7 +80,7 @@ export function generateLegalInvoiceNumber(
       parts.push(`${year}`);
     }
   }
-  
+
   parts.push(String(sequence).padStart(4, '0'));
   return parts.join('-');
 }

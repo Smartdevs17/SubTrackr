@@ -15,10 +15,7 @@ import {
   PaymentMethodShare,
   PaymentMethodShareRole,
 } from '../types/wallet';
-import {
-  WalletServiceManager,
-  WalletConnection,
-} from '../services/walletService';
+import { WalletServiceManager, WalletConnection } from '../services/walletService';
 import {
   PaymentMethodService,
   PaymentMethodError,
@@ -807,11 +804,7 @@ export const useWalletStore = create<WalletState>()(
             latencyMs: undefined as number | undefined,
           }));
 
-          return _chainHealthMonitor.snapshotChainHealth(
-            chainId,
-            chain.methodIds,
-            recentAttempts
-          );
+          return _chainHealthMonitor.snapshotChainHealth(chainId, chain.methodIds, recentAttempts);
         },
 
         getSmartFallbackSelection: (chainId: string) => {
@@ -821,8 +814,7 @@ export const useWalletStore = create<WalletState>()(
           const chain = get().fallbackChains.find((c) => c.id === chainId);
           if (!chain) return null;
 
-          const policy =
-            get().rotationPolicies.find((p) => p.chainId === chainId) ?? null;
+          const policy = get().rotationPolicies.find((p) => p.chainId === chainId) ?? null;
 
           return _smartSelector.selectFallbackOrder(chain.methodIds, snapshot, policy);
         },
@@ -837,9 +829,7 @@ export const useWalletStore = create<WalletState>()(
         setRotationPolicy: (policy: PaymentMethodRotationPolicy) => {
           _chainHealthMonitor.setRotationPolicy(policy);
           set((state) => {
-            const existing = state.rotationPolicies.findIndex(
-              (p) => p.chainId === policy.chainId
-            );
+            const existing = state.rotationPolicies.findIndex((p) => p.chainId === policy.chainId);
             const updated = [...state.rotationPolicies];
             if (existing >= 0) {
               updated[existing] = policy;

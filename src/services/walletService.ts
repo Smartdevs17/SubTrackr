@@ -14,9 +14,7 @@ import {
   ADDRESS_CONSTANTS,
   STELLAR_CHAINS,
 } from '../utils/constants/values';
-import {
-  GasEstimate,
-} from '../types/wallet';
+import { GasEstimate } from '../types/wallet';
 import { PaymentMethodService } from './paymentMethodService';
 
 // ── Structured error handling ──────────────────────────────────────
@@ -1341,11 +1339,7 @@ export class FallbackChainHealthMonitor {
 
     const healthyCount = methodHealths.filter((m) => m.healthy).length;
     const overallStatus: FallbackChainHealthSnapshot['overallStatus'] =
-      healthyCount === methodHealths.length
-        ? 'green'
-        : healthyCount > 0
-          ? 'yellow'
-          : 'red';
+      healthyCount === methodHealths.length ? 'green' : healthyCount > 0 ? 'yellow' : 'red';
 
     return { chainId, checkedAt: now, methods: methodHealths, overallStatus };
   }

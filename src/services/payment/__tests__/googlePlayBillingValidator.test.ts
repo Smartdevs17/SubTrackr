@@ -103,8 +103,7 @@ describe('GooglePlayBillingValidator', () => {
   });
 
   it('returns false when signature verification fails', () => {
-    const fakePublicKey =
-      'MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC3/yV6mY8v9zJ0u9A0M9...';
+    const fakePublicKey = 'MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC3/yV6mY8v9zJ0u9A0M9...';
     const result = validator.verifySignature('{}', 'invalid_sig', fakePublicKey);
 
     expect(result).toBe(false);

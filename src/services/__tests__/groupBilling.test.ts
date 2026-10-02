@@ -126,12 +126,7 @@ describe('GroupBillingService', () => {
     expect(plan.customName).toBe('Custom Enterprise Family');
     expect(service.getGroupPlanCustomization('grp_test_1')).toEqual(plan);
 
-    const updatedMember = service.overrideMemberBalance(
-      sampleGroup,
-      '0xMEMBER1',
-      0,
-      '0xOWNER'
-    );
+    const updatedMember = service.overrideMemberBalance(sampleGroup, '0xMEMBER1', 0, '0xOWNER');
     expect(updatedMember?.outstandingBalance).toBe(0);
   });
 });

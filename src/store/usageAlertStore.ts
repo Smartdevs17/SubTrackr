@@ -27,7 +27,11 @@ interface UsageAlertState {
   error: string | null;
 
   // ── Threshold management ─────────────────────────────────────────────────
-  addThreshold: (subscriptionId: string, metric: QuotaMetric, overrides?: Partial<UsageThreshold>) => void;
+  addThreshold: (
+    subscriptionId: string,
+    metric: QuotaMetric,
+    overrides?: Partial<UsageThreshold>
+  ) => void;
   updateThreshold: (id: string, updates: Partial<UsageThreshold>) => void;
   removeThreshold: (id: string) => void;
   getThreshold: (subscriptionId: string, metric: QuotaMetric) => UsageThreshold | undefined;

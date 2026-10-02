@@ -35,7 +35,8 @@ import {
 import { useSubscriptionStore } from '../store';
 
 const ImportScreen: React.FC = () => {
-  const { subscriptions, addSubscription, updateSubscription, deleteSubscription } = useSubscriptionStore();
+  const { subscriptions, addSubscription, updateSubscription, deleteSubscription } =
+    useSubscriptionStore();
   const navigation = useNavigation<any>();
 
   const [importMode, setImportMode] = useState<ImportMode>('upsert');
@@ -48,8 +49,14 @@ const ImportScreen: React.FC = () => {
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showMappingModal, setShowMappingModal] = useState(false);
   const [detectedHeaders, setDetectedHeaders] = useState<string[]>([]);
-  const [columnMapping, setColumnMapping] = useState<Record<string, keyof SubscriptionInput | ''>>({});
-  const [progress, setProgress] = useState<{ current: number; total: number; message?: string } | null>(null);
+  const [columnMapping, setColumnMapping] = useState<Record<string, keyof SubscriptionInput | ''>>(
+    {}
+  );
+  const [progress, setProgress] = useState<{
+    current: number;
+    total: number;
+    message?: string;
+  } | null>(null);
 
   const handleImport = useCallback(async () => {
     if (!importText.trim()) {
@@ -153,7 +160,10 @@ const ImportScreen: React.FC = () => {
     return result;
   }
 
-  function parseCSVWithMapping(content: string, mapping: Record<string, keyof SubscriptionInput | ''>): SubscriptionInput[] {
+  function parseCSVWithMapping(
+    content: string,
+    mapping: Record<string, keyof SubscriptionInput | ''>
+  ): SubscriptionInput[] {
     const lines = content.split(/\r?\n/).filter((l) => l.trim());
     if (lines.length < 2) return [];
     const rawHeaders = parseLine(lines[0]);
@@ -217,7 +227,23 @@ const ImportScreen: React.FC = () => {
   };
 
   const cycleMappingFor = (header: string) => {
-    const options = ['','name','description','category','price','currency','billingCycle','nextBillingDate','isActive','notificationsEnabled','isCryptoEnabled','cryptoToken','cryptoAmount','externalId','externalSource'] as (keyof SubscriptionInput | '')[];
+    const options = [
+      '',
+      'name',
+      'description',
+      'category',
+      'price',
+      'currency',
+      'billingCycle',
+      'nextBillingDate',
+      'isActive',
+      'notificationsEnabled',
+      'isCryptoEnabled',
+      'cryptoToken',
+      'cryptoAmount',
+      'externalId',
+      'externalSource',
+    ] as (keyof SubscriptionInput | '')[];
     const current = columnMapping[header] ?? '';
     const idx = options.indexOf(current);
     const next = options[(idx + 1) % options.length];
@@ -243,7 +269,11 @@ const ImportScreen: React.FC = () => {
             const subscription = action.subscription;
             if (!subscription) continue;
 
-            setProgress({ current: processed + 1, total: actions.length, message: `Processing ${subscription.name}` });
+            setProgress({
+              current: processed + 1,
+              total: actions.length,
+              message: `Processing ${subscription.name}`,
+            });
 
             if (action.type === 'update' && action.existingId) {
               await updateSubscription(action.existingId, {
@@ -284,7 +314,11 @@ const ImportScreen: React.FC = () => {
             }
 
             processed += 1;
-            setProgress({ current: processed, total: actions.length, message: `Processed ${processed}/${actions.length}` });
+            setProgress({
+              current: processed,
+              total: actions.length,
+              message: `Processed ${processed}/${actions.length}`,
+            });
           }
 
           if (importMode === 'replace') {
@@ -556,10 +590,12 @@ const ImportScreen: React.FC = () => {
         </View>
 
         {progress && (
-          <Card style={[styles.resultCard, { marginHorizontal: spacing.lg }]}> 
+          <Card style={[styles.resultCard, { marginHorizontal: spacing.lg }]}>
             <Text style={styles.resultTitle}>Import Progress</Text>
             <Text style={styles.resultLabel}>{progress.message}</Text>
-            <Text style={styles.resultValue}>{progress.current} / {progress.total}</Text>
+            <Text style={styles.resultValue}>
+              {progress.current} / {progress.total}
+            </Text>
           </Card>
         )}
 
@@ -593,7 +629,9 @@ const ImportScreen: React.FC = () => {
                   style={{ padding: spacing.md, borderBottomWidth: 1, borderColor: colors.border }}
                   onPress={() => cycleMappingFor(item)}>
                   <Text style={typography.body}>{item}</Text>
-                  <Text style={[typography.caption, { color: colors.textSecondary }]}>Mapping: {String(columnMapping[item] || '(none)')}</Text>
+                  <Text style={[typography.caption, { color: colors.textSecondary }]}>
+                    Mapping: {String(columnMapping[item] || '(none)')}
+                  </Text>
                 </TouchableOpacity>
               )}
             />

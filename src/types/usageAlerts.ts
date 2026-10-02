@@ -7,11 +7,7 @@ import { QuotaMetric } from './usage';
 // ── Alert classification ───────────────────────────────────────────────────
 
 export type UsageAlertType =
-  | 'approaching_limit'
-  | 'limit_exceeded'
-  | 'overage'
-  | 'reset'
-  | 'custom';
+  'approaching_limit' | 'limit_exceeded' | 'overage' | 'reset' | 'custom';
 
 export type UsageAlertSeverity = 'info' | 'warning' | 'critical';
 

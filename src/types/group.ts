@@ -39,10 +39,7 @@ export interface GroupBillingLineItem {
 
 /** Strategies for splitting a group charge across members. */
 export type BillingAllocationStrategy =
-  | 'equal'
-  | 'usage_weighted'
-  | 'custom_weights'
-  | 'owner_pays';
+  'equal' | 'usage_weighted' | 'custom_weights' | 'owner_pays';
 
 /** Optional per-member weight map used by `custom_weights`. */
 export type CustomBillingWeights = Record<string, number>;

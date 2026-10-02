@@ -28,26 +28,29 @@ interface PaymentFailureState {
   loadUnresolvedFailures: (userId: string) => Promise<void>;
   loadFailureById: (id: string) => Promise<void>;
   recordFailure: (failure: Omit<PaymentFailure, 'id' | 'failedAt'>) => Promise<PaymentFailure>;
-  resolveFailure: (failureId: string, resolutionMethod: import('../types/paymentFailure').ResolutionMethod) => Promise<void>;
-  
+  resolveFailure: (
+    failureId: string,
+    resolutionMethod: import('../types/paymentFailure').ResolutionMethod
+  ) => Promise<void>;
+
   loadNotifications: (failureId?: string, userId?: string) => Promise<void>;
   sendNotification: (request: FailureNotificationRequest) => Promise<FailureNotificationResponse>;
   markNotificationRead: (notificationId: string) => Promise<void>;
   markNotificationClicked: (notificationId: string) => Promise<void>;
-  
+
   loadRetries: (failureId?: string) => Promise<void>;
   scheduleRetry: (failure: PaymentFailure) => Promise<void>;
   executeRetry: (retryId: string) => Promise<void>;
-  
+
   loadAnalytics: (userId?: string) => Promise<void>;
   loadHistory: (userId: string, page?: number, pageSize?: number) => Promise<PaymentFailureHistory>;
-  
+
   loadPreferences: (userId: string) => Promise<void>;
   updatePreferences: (preferences: FailureNotificationPreferences) => Promise<void>;
-  
+
   loadRetryConfig: () => Promise<void>;
   updateRetryConfig: (config: SmartRetryConfig) => Promise<void>;
-  
+
   setSelectedFailure: (failure: PaymentFailure | null) => void;
   clearError: () => void;
 }
@@ -101,11 +104,11 @@ export const usePaymentFailureStore = create<PaymentFailureState>((set, get) => 
     set({ loading: true, error: null });
     try {
       const newFailure = await paymentFailureService.recordPaymentFailure(failure);
-      
+
       // Reload failures and notifications
       await get().loadFailures(failure.userId);
       await get().loadNotifications(newFailure.id);
-      
+
       set({ loading: false, selectedFailure: newFailure });
       return newFailure;
     } catch (error) {
@@ -119,11 +122,11 @@ export const usePaymentFailureStore = create<PaymentFailureState>((set, get) => 
     set({ loading: true, error: null });
     try {
       const resolved = await paymentFailureService.resolveFailure(failureId, resolutionMethod);
-      
+
       // Update local state
-      const failures = get().failures.map(f => (f.id === failureId ? resolved : f));
+      const failures = get().failures.map((f) => (f.id === failureId ? resolved : f));
       set({ failures, selectedFailure: resolved, loading: false });
-      
+
       // Reload analytics
       if (resolved.userId) {
         await get().loadAnalytics(resolved.userId);
@@ -150,10 +153,10 @@ export const usePaymentFailureStore = create<PaymentFailureState>((set, get) => 
     set({ loading: true, error: null });
     try {
       const response = await paymentFailureService.sendFailureNotification(request);
-      
+
       // Reload notifications
       await get().loadNotifications(request.failureId);
-      
+
       set({ loading: false });
       return response;
     } catch (error) {
@@ -166,9 +169,9 @@ export const usePaymentFailureStore = create<PaymentFailureState>((set, get) => 
   markNotificationRead: async (notificationId: string) => {
     try {
       await paymentFailureService.markNotificationAsRead(notificationId);
-      
+
       // Update local state
-      const notifications = get().notifications.map(n =>
+      const notifications = get().notifications.map((n) =>
         n.id === notificationId ? { ...n, readAt: new Date() } : n
       );
       set({ notifications });
@@ -180,9 +183,9 @@ export const usePaymentFailureStore = create<PaymentFailureState>((set, get) => 
   markNotificationClicked: async (notificationId: string) => {
     try {
       await paymentFailureService.markNotificationAsClicked(notificationId);
-      
+
       // Update local state
-      const notifications = get().notifications.map(n =>
+      const notifications = get().notifications.map((n) =>
         n.id === notificationId ? { ...n, clickedAt: new Date() } : n
       );
       set({ notifications });
@@ -207,10 +210,10 @@ export const usePaymentFailureStore = create<PaymentFailureState>((set, get) => 
     set({ loading: true, error: null });
     try {
       await paymentFailureService.scheduleRetry(failure);
-      
+
       // Reload retries
       await get().loadRetries(failure.id);
-      
+
       set({ loading: false });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to schedule retry';
@@ -222,14 +225,14 @@ export const usePaymentFailureStore = create<PaymentFailureState>((set, get) => 
     set({ loading: true, error: null });
     try {
       const retry = await paymentFailureService.executeRetry(retryId);
-      
+
       // Reload retries and failures
       await get().loadRetries(retry.failureId);
       const failure = await paymentFailureService.getFailureById(retry.failureId);
       if (failure?.userId) {
         await get().loadFailures(failure.userId);
       }
-      
+
       set({ loading: false });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to execute retry';
@@ -253,11 +256,11 @@ export const usePaymentFailureStore = create<PaymentFailureState>((set, get) => 
     set({ loading: true, error: null });
     try {
       const history = await paymentFailureService.getPaymentFailureHistory(userId, page, pageSize);
-      set({ 
+      set({
         failures: history.failures,
         notifications: history.notifications,
         retries: history.retries,
-        loading: false 
+        loading: false,
       });
       return history;
     } catch (error) {

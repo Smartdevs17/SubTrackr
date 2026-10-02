@@ -83,8 +83,12 @@ export const SubscriptionPlans: React.FC<SubscriptionPlansProps> = ({
   const renderPlanCard = (plan: SubscriptionPlan) => {
     const isCurrentPlan = showCurrentPlan && plan.tier === subscriptionTier;
     const isPopular = plan.isPopular;
-    const monthlyPlan = plans.find(p => p.billingCycle === BillingCycle.MONTHLY && p.tier === plan.tier);
-    const annualPlan = plans.find(p => p.billingCycle === BillingCycle.YEARLY && p.tier === plan.tier);
+    const monthlyPlan = plans.find(
+      (p) => p.billingCycle === BillingCycle.MONTHLY && p.tier === plan.tier
+    );
+    const annualPlan = plans.find(
+      (p) => p.billingCycle === BillingCycle.YEARLY && p.tier === plan.tier
+    );
 
     return (
       <View key={plan.id} style={[styles.planCard, { width: cardWidth }]}>

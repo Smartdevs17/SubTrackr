@@ -59,7 +59,16 @@ export const languageService = {
    */
   formatCurrency(amount: number, currency: string = 'USD') {
     const lang = this.getCurrentLanguage();
-    const locale = lang === 'hi' ? 'en-IN' : lang === 'ar' ? 'ar-SA' : lang === 'he' ? 'he-IL' : lang === 'fa' ? 'fa-IR' : 'en-US';
+    const locale =
+      lang === 'hi'
+        ? 'en-IN'
+        : lang === 'ar'
+          ? 'ar-SA'
+          : lang === 'he'
+            ? 'he-IL'
+            : lang === 'fa'
+              ? 'fa-IR'
+              : 'en-US';
 
     return new Intl.NumberFormat(locale, {
       style: 'currency',

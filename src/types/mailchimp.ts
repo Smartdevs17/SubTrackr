@@ -5,11 +5,7 @@
 // ─── Member / Audience ────────────────────────────────────────────────────────
 
 export type MailchimpMemberStatus =
-  | 'subscribed'
-  | 'unsubscribed'
-  | 'cleaned'
-  | 'pending'
-  | 'transactional';
+  'subscribed' | 'unsubscribed' | 'cleaned' | 'pending' | 'transactional';
 
 export interface MailchimpMergeFields {
   FNAME?: string;
@@ -50,12 +46,7 @@ export interface MailchimpAudience {
 // ─── Campaigns ────────────────────────────────────────────────────────────────
 
 export type MailchimpCampaignType =
-  | 'regular'
-  | 'plaintext'
-  | 'absplit'
-  | 'rss'
-  | 'variate'
-  | 'automation';
+  'regular' | 'plaintext' | 'absplit' | 'rss' | 'variate' | 'automation';
 
 export interface MailchimpCampaign {
   id?: string;
@@ -102,12 +93,7 @@ export interface SubscriptionEventPayload {
 // ─── Webhook ──────────────────────────────────────────────────────────────────
 
 export type MailchimpWebhookType =
-  | 'subscribe'
-  | 'unsubscribe'
-  | 'profile'
-  | 'cleaned'
-  | 'upemail'
-  | 'campaign';
+  'subscribe' | 'unsubscribe' | 'profile' | 'cleaned' | 'upemail' | 'campaign';
 
 export interface MailchimpWebhookEvent {
   type: MailchimpWebhookType;

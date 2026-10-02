@@ -77,7 +77,12 @@ export function validateListingInput(data: Partial<CreateListingInput>): {
   if (!data.description || !data.description.trim()) {
     errors.push('Listing description is required');
   }
-  if (data.retailPrice === undefined || data.retailPrice === null || Number.isNaN(data.retailPrice) || data.retailPrice <= 0) {
+  if (
+    data.retailPrice === undefined ||
+    data.retailPrice === null ||
+    Number.isNaN(data.retailPrice) ||
+    data.retailPrice <= 0
+  ) {
     errors.push('Retail price must be greater than 0');
   }
   if (!data.category) {

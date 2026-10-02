@@ -111,14 +111,14 @@ export class RenewalPredictionService {
    * Batch assess multiple subscriptions for churn risk
    */
   batchAssessChurnRisk(subscriptions: Subscription[]): ChurnRiskAssessment[] {
-    return subscriptions.map(sub => this.assessChurnRisk(sub));
+    return subscriptions.map((sub) => this.assessChurnRisk(sub));
   }
 
   /**
    * Filter subscriptions at high risk of churn
    */
   getHighRiskSubscriptions(subscriptions: Subscription[]): Subscription[] {
-    return subscriptions.filter(sub => {
+    return subscriptions.filter((sub) => {
       const assessment = this.assessChurnRisk(sub);
       return assessment.riskLevel === 'high';
     });

@@ -32,7 +32,9 @@ interface SLAStore {
 
   // Definitions
   loadDefinitions: (tier?: SLATier) => Promise<void>;
-  createDefinition: (data: Omit<SLADefinition, 'id' | 'createdAt' | 'updatedAt'>) => Promise<SLADefinition>;
+  createDefinition: (
+    data: Omit<SLADefinition, 'id' | 'createdAt' | 'updatedAt'>
+  ) => Promise<SLADefinition>;
 
   // Tracking
   loadTrackings: (filters?: SLAFilters) => Promise<void>;
@@ -54,7 +56,11 @@ interface SLAStore {
   loadDashboard: () => Promise<void>;
 
   // Reporting
-  generateReport: (reportType: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly' | 'custom', period: SLAPeriod, tier?: SLATier) => Promise<SLAReport>;
+  generateReport: (
+    reportType: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly' | 'custom',
+    period: SLAPeriod,
+    tier?: SLATier
+  ) => Promise<SLAReport>;
 
   // Credits
   loadCredits: () => Promise<void>;
@@ -84,14 +90,14 @@ export const useSLAStore = create<SLAStore>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const response = await slaService.performSLACheck(request);
-      
+
       // Reload relevant data
       await get().loadTrackings();
       if (response.breached) {
         await get().loadBreaches();
         await get().loadAlerts();
       }
-      
+
       set({ isLoading: false });
       return response;
     } catch (error) {
@@ -114,7 +120,7 @@ export const useSLAStore = create<SLAStore>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const definition = await slaService.createSLADefinition(data);
-      set(state => ({
+      set((state) => ({
         definitions: [...state.definitions, definition],
         isLoading: false,
       }));
@@ -149,8 +155,8 @@ export const useSLAStore = create<SLAStore>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const updated = await slaService.updateBreachStatus(id, status, notes);
-      set(state => ({
-        breaches: state.breaches.map(b => b.id === id ? updated : b),
+      set((state) => ({
+        breaches: state.breaches.map((b) => (b.id === id ? updated : b)),
         isLoading: false,
       }));
     } catch (error) {
@@ -172,8 +178,10 @@ export const useSLAStore = create<SLAStore>((set, get) => ({
   markAlertAsRead: async (id: string) => {
     try {
       await slaService.markAlertAsRead(id);
-      set(state => ({
-        alerts: state.alerts.map(a => a.id === id ? { ...a, isRead: true, acknowledgedAt: new Date() } : a),
+      set((state) => ({
+        alerts: state.alerts.map((a) =>
+          a.id === id ? { ...a, isRead: true, acknowledgedAt: new Date() } : a
+        ),
       }));
     } catch (error) {
       set({ error: (error as Error).message });
@@ -183,8 +191,10 @@ export const useSLAStore = create<SLAStore>((set, get) => ({
   resolveAlert: async (id: string) => {
     try {
       await slaService.resolveAlert(id);
-      set(state => ({
-        alerts: state.alerts.map(a => a.id === id ? { ...a, isResolved: true, resolvedAt: new Date() } : a),
+      set((state) => ({
+        alerts: state.alerts.map((a) =>
+          a.id === id ? { ...a, isResolved: true, resolvedAt: new Date() } : a
+        ),
       }));
     } catch (error) {
       set({ error: (error as Error).message });
@@ -193,7 +203,7 @@ export const useSLAStore = create<SLAStore>((set, get) => ({
   },
 
   getUnreadAlerts: () => {
-    return get().alerts.filter(a => !a.isRead);
+    return get().alerts.filter((a) => !a.isRead);
   },
 
   loadAnalytics: async () => {
@@ -242,8 +252,8 @@ export const useSLAStore = create<SLAStore>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const approved = await slaService.approveCreditIssuance(id);
-      set(state => ({
-        credits: state.credits.map(c => c.id === id ? approved : c),
+      set((state) => ({
+        credits: state.credits.map((c) => (c.id === id ? approved : c)),
         isLoading: false,
       }));
     } catch (error) {

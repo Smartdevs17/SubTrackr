@@ -131,7 +131,10 @@ describe('MailchimpIntegrationService', () => {
 
     it('handles network errors gracefully', async () => {
       const errorFetch = jest.fn().mockRejectedValue(new Error('Network timeout'));
-      service = createMailchimpIntegrationService(testConfig, errorFetch as unknown as typeof fetch);
+      service = createMailchimpIntegrationService(
+        testConfig,
+        errorFetch as unknown as typeof fetch
+      );
       const result = await service.upsertSubscriber({
         email_address: 'user@example.com',
         status: 'subscribed',
@@ -288,7 +291,10 @@ describe('MailchimpIntegrationService', () => {
       await service.createEventCampaign(renewalPayload);
       const [, opts] = fetchMock.mock.calls[0];
       expect(opts.method).toBe('POST');
-      const body = JSON.parse(opts.body) as { settings: { subject_line: string }; recipients: { list_id: string } };
+      const body = JSON.parse(opts.body) as {
+        settings: { subject_line: string };
+        recipients: { list_id: string };
+      };
       expect(body.settings.subject_line).toContain('renews on');
       expect(body.recipients.list_id).toBe('list-abc123');
     });
@@ -296,7 +302,9 @@ describe('MailchimpIntegrationService', () => {
     it('includes segment condition scoped to subscriber email', async () => {
       await service.createEventCampaign(activePayload);
       const [, opts] = fetchMock.mock.calls[0];
-      const body = JSON.parse(opts.body) as { recipients: { segment_opts: { conditions: Array<{ value: string }> } } };
+      const body = JSON.parse(opts.body) as {
+        recipients: { segment_opts: { conditions: Array<{ value: string }> } };
+      };
       expect(body.recipients.segment_opts.conditions[0].value).toBe('user@example.com');
     });
 
@@ -339,7 +347,10 @@ describe('MailchimpIntegrationService', () => {
   // ─── processWebhook ───────────────────────────────────────────────────────
 
   describe('processWebhook()', () => {
-    const makeEvent = (type: MailchimpWebhookEvent['type'], email = 'user@example.com'): MailchimpWebhookEvent => ({
+    const makeEvent = (
+      type: MailchimpWebhookEvent['type'],
+      email = 'user@example.com'
+    ): MailchimpWebhookEvent => ({
       type,
       fired_at: new Date().toISOString(),
       data: { email, list_id: 'list-abc123' },

@@ -408,4 +408,3 @@ export const generatePrintableInvoiceHtml = (invoice: Invoice): string => {
 </body>
 </html>`;
 };
-

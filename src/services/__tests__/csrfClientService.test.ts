@@ -9,11 +9,7 @@ import { CsrfClientService, csrfClientService, CSRF_HEADER_NAME } from '../csrfC
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Build a minimal mock fetch response */
-function makeFetchResponse(
-  token: string | null,
-  status = 200,
-  bodyJson?: object,
-): Response {
+function makeFetchResponse(token: string | null, status = 200, bodyJson?: object): Response {
   const headers = new Headers();
   if (token) headers.set(CSRF_HEADER_NAME, token);
 
@@ -264,9 +260,7 @@ describe('CsrfClientService.fetchWithRetry()', () => {
     const mockFetch = jest
       .fn()
       // For the actual request – first call returns 403
-      .mockResolvedValueOnce(
-        makeFetchResponse('old-token', 403, { code: 'CSRF_TOKEN_MISMATCH' }),
-      )
+      .mockResolvedValueOnce(makeFetchResponse('old-token', 403, { code: 'CSRF_TOKEN_MISMATCH' }))
       // The refresh call (after clear)
       .mockResolvedValueOnce(makeFetchResponse('new-token'))
       // The retry of the original request

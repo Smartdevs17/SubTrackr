@@ -54,7 +54,7 @@ export class AllRpcProvidersFailedError extends Error {
   constructor(chainId: number, errors: { url: string; message: string }[]) {
     super(
       `All RPC providers failed for chain ${chainId}: ` +
-        errors.map((e) => `[${e.url}] ${e.message}`).join(' | '),
+        errors.map((e) => `[${e.url}] ${e.message}`).join(' | ')
     );
     this.name = 'AllRpcProvidersFailedError';
     this.chainId = chainId;
@@ -100,12 +100,18 @@ const DEFAULT_CONFIG: Required<ResilientProviderConfig> = {
 /** Returns a sensible timeout for EVM chains with higher RPC variance. */
 export function defaultChainTimeoutMs(chainId: number): number {
   switch (chainId) {
-    case 1:     return 10_000;
-    case 137:   return 15_000;
-    case 42161: return 15_000;
-    case 10:    return 15_000;
-    case 8453:  return 15_000;
-    default:    return 10_000;
+    case 1:
+      return 10_000;
+    case 137:
+      return 15_000;
+    case 42161:
+      return 15_000;
+    case 10:
+      return 15_000;
+    case 8453:
+      return 15_000;
+    default:
+      return 10_000;
   }
 }
 
@@ -126,11 +132,7 @@ export class ResilientJsonRpcProvider extends ethers.providers.JsonRpcProvider {
   private readonly _config: Required<ResilientProviderConfig>;
   private readonly _circuits = new Map<string, CircuitEntry>();
 
-  constructor(
-    urls: string[],
-    chainId: number,
-    config: ResilientProviderConfig = {},
-  ) {
+  constructor(urls: string[], chainId: number, config: ResilientProviderConfig = {}) {
     super(urls[0], chainId);
     this._urls = urls;
     this._chainId = chainId;
@@ -179,7 +181,9 @@ export class ResilientJsonRpcProvider extends ethers.providers.JsonRpcProvider {
         this._recordFailure(url);
         errors.push({ url, message });
 
-        logger.warn(`[ResilientJsonRpcProvider] chain=${this._chainId} url=${url} failed: ${message}`);
+        logger.warn(
+          `[ResilientJsonRpcProvider] chain=${this._chainId} url=${url} failed: ${message}`
+        );
       }
     }
 
@@ -215,7 +219,7 @@ export class ResilientJsonRpcProvider extends ethers.providers.JsonRpcProvider {
       c.openedAt = Date.now();
       logger.warn(
         `[ResilientJsonRpcProvider] Circuit OPENED for ${url} (chain ${this._chainId}) ` +
-          `after ${c.consecutiveFailures} consecutive failures`,
+          `after ${c.consecutiveFailures} consecutive failures`
       );
     }
   }
@@ -225,7 +229,7 @@ export class ResilientJsonRpcProvider extends ethers.providers.JsonRpcProvider {
   private async _callWithTimeout(
     url: string,
     method: string,
-    params: Array<unknown>,
+    params: Array<unknown>
   ): Promise<unknown> {
     const jitter = Math.floor(Math.random() * this._config.jitterMs);
     const deadline = this._config.timeoutMs + jitter;
@@ -243,9 +247,13 @@ export class ResilientJsonRpcProvider extends ethers.providers.JsonRpcProvider {
 
       // Race the call against an abort-signal-aware timeout
       const timeoutPromise = new Promise<never>((_, reject) => {
-        controller.signal.addEventListener('abort', () => {
-          reject(new RpcProviderTimeoutError(url, deadline));
-        }, { once: true });
+        controller.signal.addEventListener(
+          'abort',
+          () => {
+            reject(new RpcProviderTimeoutError(url, deadline));
+          },
+          { once: true }
+        );
       });
 
       return await Promise.race([callPromise, timeoutPromise]);
@@ -292,7 +300,7 @@ const _providerRegistry = new Map<string, ResilientJsonRpcProvider>();
 export function getOrCreateResilientProvider(
   chainId: number,
   urls: string[],
-  config?: ResilientProviderConfig,
+  config?: ResilientProviderConfig
 ): ResilientJsonRpcProvider {
   const key = `${chainId}::${[...urls].sort().join(',')}`;
   if (!_providerRegistry.has(key)) {

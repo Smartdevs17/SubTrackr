@@ -59,10 +59,7 @@ const MerchantAnalyticsDashboard: React.FC = () => {
     }
   };
 
-  const maxRevenue = Math.max(
-    ...dashboardData.revenue.revenueHistory.map((d) => d.revenue),
-    100
-  );
+  const maxRevenue = Math.max(...dashboardData.revenue.revenueHistory.map((d) => d.revenue), 100);
   const barWidth =
     (CHART_WIDTH - 40) / Math.max(dashboardData.revenue.revenueHistory.length, 1) - 8;
 
@@ -83,11 +80,7 @@ const MerchantAnalyticsDashboard: React.FC = () => {
                 key={tab}
                 style={[styles.tabItem, activeTab === tab && styles.tabItemActive]}
                 onPress={() => setActiveTab(tab)}>
-                <Text
-                  style={[
-                    styles.tabText,
-                    activeTab === tab && styles.tabTextActive,
-                  ]}>
+                <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
                   {tab.toUpperCase()}
                 </Text>
               </TouchableOpacity>
@@ -105,9 +98,7 @@ const MerchantAnalyticsDashboard: React.FC = () => {
                 <Text style={styles.statValue}>
                   ${dashboardData.revenue.monthlyRecurringRevenue.toFixed(2)}
                 </Text>
-                <Text style={styles.statSub}>
-                  +{dashboardData.revenue.revenueGrowthRate}% MoM
-                </Text>
+                <Text style={styles.statSub}>+{dashboardData.revenue.revenueGrowthRate}% MoM</Text>
               </Card>
 
               <Card style={styles.statCard}>
@@ -176,23 +167,17 @@ const MerchantAnalyticsDashboard: React.FC = () => {
             <View style={styles.statsGrid}>
               <Card style={styles.statCard}>
                 <Text style={styles.statLabel}>Total Subscribers</Text>
-                <Text style={styles.statValue}>
-                  {dashboardData.subscribers.totalSubscribers}
-                </Text>
+                <Text style={styles.statValue}>{dashboardData.subscribers.totalSubscribers}</Text>
               </Card>
 
               <Card style={styles.statCard}>
                 <Text style={styles.statLabel}>Active Subscribers</Text>
-                <Text style={styles.statValue}>
-                  {dashboardData.subscribers.activeSubscribers}
-                </Text>
+                <Text style={styles.statValue}>{dashboardData.subscribers.activeSubscribers}</Text>
               </Card>
 
               <Card style={styles.statCard}>
                 <Text style={styles.statLabel}>Churn Rate</Text>
-                <Text style={styles.statValue}>
-                  {dashboardData.subscribers.churnRate}%
-                </Text>
+                <Text style={styles.statValue}>{dashboardData.subscribers.churnRate}%</Text>
               </Card>
 
               <Card style={styles.statCard}>
@@ -246,7 +231,8 @@ const MerchantAnalyticsDashboard: React.FC = () => {
             <Card style={styles.cardSection}>
               <Text style={styles.chartTitle}>Export Financial Reports</Text>
               <Text style={styles.insightDesc}>
-                Download standardized CSV or JSON performance summary reports for accounting and compliance.
+                Download standardized CSV or JSON performance summary reports for accounting and
+                compliance.
               </Text>
               <View style={styles.exportBtnRow}>
                 <TouchableOpacity

@@ -86,7 +86,7 @@ export const SUBSCRIPTION_TIMEZONES = [
   'Pacific/Auckland',
 ] as const;
 
-export type SubscriptionTimezone = typeof SUBSCRIPTION_TIMEZONES[number];
+export type SubscriptionTimezone = (typeof SUBSCRIPTION_TIMEZONES)[number];
 
 export interface CalendarSyncedEvent extends CalendarEventTemplate {
   id: string;

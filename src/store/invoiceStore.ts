@@ -478,11 +478,11 @@ export const useInvoiceStore = create<InvoiceState>()(
           const state = get();
           const region = data.region ?? state.config.defaultRegion;
           const currency = data.currency ?? state.config.defaultCurrency;
-          
+
           const year = new Date().getFullYear();
           const prefix = `INV-${year}`;
           const sequence = await getNextSequence(prefix);
-          
+
           const invoice = buildInvoice(
             data.subscription,
             sequence,
@@ -506,10 +506,12 @@ export const useInvoiceStore = create<InvoiceState>()(
           if (resolved.displayName) {
             invoice.merchantName = resolved.displayName;
           }
-          
+
           invoice.invoiceNumber = generateLegalInvoiceNumber(
             sequence,
-            resolved.numberingPrefix !== state.config.numberingPrefix ? resolved.numberingPrefix : state.config.numberingPrefix,
+            resolved.numberingPrefix !== state.config.numberingPrefix
+              ? resolved.numberingPrefix
+              : state.config.numberingPrefix,
             true,
             true
           );
@@ -569,7 +571,7 @@ export const useInvoiceStore = create<InvoiceState>()(
           }
 
           invoice.lineItems[0].taxRateBps = effectiveRateBps;
-          
+
           invoice.invoiceNumber = generateLegalInvoiceNumber(
             sequence,
             state.config.numberingPrefix,

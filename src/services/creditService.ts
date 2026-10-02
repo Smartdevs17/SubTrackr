@@ -74,37 +74,29 @@ export function buildCreditAccount(
 export function normalizeCreditAccount(raw: Partial<CreditAccountState>): CreditAccountState {
   const account = buildCreditAccount(raw.accountId ?? `account-${Date.now()}`, raw.currency);
   const lots = Array.isArray(raw.lots)
-    ? raw.lots.map(
-        (lot): CreditLot => ({
-          id: lot.id,
-          amountRemaining: Number.isFinite(lot.amountRemaining)
-            ? (lot.amountRemaining as number)
-            : 0,
-          originalAmount: Number.isFinite(lot.originalAmount) ? (lot.originalAmount as number) : 0,
-          createdAt: toValidDate(lot.createdAt, new Date()) ?? new Date(),
-          expiresAt: toValidDate(lot.expiresAt, null),
-          paymentMethod: lot.paymentMethod ?? 'manual',
-          reference: lot.reference,
-          note: lot.note,
-        })
-      )
+    ? raw.lots.map((lot): CreditLot => ({
+        id: lot.id,
+        amountRemaining: Number.isFinite(lot.amountRemaining) ? (lot.amountRemaining as number) : 0,
+        originalAmount: Number.isFinite(lot.originalAmount) ? (lot.originalAmount as number) : 0,
+        createdAt: toValidDate(lot.createdAt, new Date()) ?? new Date(),
+        expiresAt: toValidDate(lot.expiresAt, null),
+        paymentMethod: lot.paymentMethod ?? 'manual',
+        reference: lot.reference,
+        note: lot.note,
+      }))
     : [];
   const ledger = Array.isArray(raw.ledger)
-    ? raw.ledger.map(
-        (entry): CreditLedgerEntry => ({
-          ...entry,
-          createdAt: toValidDate(entry.createdAt, new Date()) ?? new Date(),
-          expiresAt: toValidDate(entry.expiresAt, null),
-        })
-      )
+    ? raw.ledger.map((entry): CreditLedgerEntry => ({
+        ...entry,
+        createdAt: toValidDate(entry.createdAt, new Date()) ?? new Date(),
+        expiresAt: toValidDate(entry.expiresAt, null),
+      }))
     : [];
   const applications = Array.isArray(raw.applications)
-    ? raw.applications.map(
-        (entry): CreditInvoiceApplication => ({
-          ...entry,
-          createdAt: toValidDate(entry.createdAt, new Date()) ?? new Date(),
-        })
-      )
+    ? raw.applications.map((entry): CreditInvoiceApplication => ({
+        ...entry,
+        createdAt: toValidDate(entry.createdAt, new Date()) ?? new Date(),
+      }))
     : [];
 
   const runningTotal = ledger.length

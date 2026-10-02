@@ -42,9 +42,11 @@ export function getScaledFontSize(baseSize: number, fontScale: number = 1.0): nu
 /**
  * Ensures touch target meets accessibility requirements (56pt for low vision mode)
  */
-export function getAccessibleTouchTarget(
-  minSize: number = 56
-): { minWidth: number; minHeight: number; padding: number } {
+export function getAccessibleTouchTarget(minSize: number = 56): {
+  minWidth: number;
+  minHeight: number;
+  padding: number;
+} {
   const size = Math.max(44, minSize);
   return {
     minWidth: size,
@@ -58,12 +60,15 @@ export function getAccessibleTouchTarget(
  */
 export function getLowVisionStyles(config: LowVisionConfig) {
   const fontScale = config.enabled ? Math.max(1.25, config.fontScale) : config.fontScale;
-  const touchTarget = config.enabled ? Math.max(56, config.minTouchTargetSize) : config.minTouchTargetSize;
+  const touchTarget = config.enabled
+    ? Math.max(56, config.minTouchTargetSize)
+    : config.minTouchTargetSize;
 
   return {
     fontScale,
     touchTargetSize: touchTarget,
-    palette: config.highContrast || (config.enabled && config.highContrast) ? HIGH_CONTRAST_PALETTE : null,
+    palette:
+      config.highContrast || (config.enabled && config.highContrast) ? HIGH_CONTRAST_PALETTE : null,
     touchStyle: getAccessibleTouchTarget(touchTarget),
   };
 }

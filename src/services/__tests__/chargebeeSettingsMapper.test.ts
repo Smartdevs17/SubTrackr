@@ -1,7 +1,4 @@
-import {
-  ChargebeeSettingsMapper,
-  createChargebeeSettingsMapper,
-} from '../chargebeeSettingsMapper';
+import { ChargebeeSettingsMapper, createChargebeeSettingsMapper } from '../chargebeeSettingsMapper';
 import type { ChargbeePlan, ChargebeeSubscription, ChargebeeAddon } from '../../types/chargebee';
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -278,7 +275,11 @@ describe('ChargebeeSettingsMapper', () => {
       const result = mapper.mapSubscription(subWithAddons, monthlyPlan);
       expect(result.addons).toHaveLength(2);
       expect(result.addons[0]).toEqual({ id: 'addon_storage', name: 'Extra Storage', price: 5 });
-      expect(result.addons[1]).toEqual({ id: 'addon_support', name: 'Priority Support', price: 10 });
+      expect(result.addons[1]).toEqual({
+        id: 'addon_support',
+        name: 'Priority Support',
+        price: 10,
+      });
     });
 
     it('uses addon id as name when not in registry', () => {
@@ -319,10 +320,7 @@ describe('ChargebeeSettingsMapper', () => {
     ]);
 
     it('maps multiple subscriptions successfully', () => {
-      const results = mapper.mapSubscriptions(
-        [activeSubscription, trialSubscription],
-        plansById
-      );
+      const results = mapper.mapSubscriptions([activeSubscription, trialSubscription], plansById);
       expect(results).toHaveLength(2);
       results.forEach((r) => expect(r.subscription).toBeDefined());
     });

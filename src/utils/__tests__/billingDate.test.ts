@@ -1,9 +1,5 @@
 import { BillingCycle } from '../../types/subscription';
-import {
-  advanceBillingDate,
-  alignBillingToDay,
-  calculateNextBillingDate,
-} from '../billingDate';
+import { advanceBillingDate, alignBillingToDay, calculateNextBillingDate } from '../billingDate';
 
 describe('billingDate utilities', () => {
   describe('advanceBillingDate', () => {

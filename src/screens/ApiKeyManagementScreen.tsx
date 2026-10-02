@@ -26,12 +26,7 @@ import {
 } from 'react-native';
 import { Card } from '../components/common/Card';
 import { colors, spacing, typography, borderRadius, shadows } from '../utils/constants';
-import {
-  useApiStore,
-  TIER_LABELS,
-  ALL_SCOPES,
-  KeyUsageSummary,
-} from '../store/apiStore';
+import { useApiStore, TIER_LABELS, ALL_SCOPES, KeyUsageSummary } from '../store/apiStore';
 import { ApiKey, ApiKeyStatus, ApiKeyScope, ApiKeyAuditEntry } from '../types/sandbox';
 
 // ─── constants ──────────────────────────────────────────────────────────────
@@ -39,55 +34,70 @@ import { ApiKey, ApiKeyStatus, ApiKeyScope, ApiKeyAuditEntry } from '../types/sa
 const TIERS = Object.entries(TIER_LABELS) as [string, { label: string; desc: string }][];
 
 const SCOPE_LABELS: Record<ApiKeyScope, string> = {
-  [ApiKeyScope.READ]:      'Read',
-  [ApiKeyScope.WRITE]:     'Write',
-  [ApiKeyScope.ADMIN]:     'Admin',
-  [ApiKeyScope.WEBHOOKS]:  'Webhooks',
+  [ApiKeyScope.READ]: 'Read',
+  [ApiKeyScope.WRITE]: 'Write',
+  [ApiKeyScope.ADMIN]: 'Admin',
+  [ApiKeyScope.WEBHOOKS]: 'Webhooks',
   [ApiKeyScope.ANALYTICS]: 'Analytics',
 };
 
 const EXPIRY_PRESETS = [
-  { label: '30 days',  days: 30 },
-  { label: '90 days',  days: 90 },
+  { label: '30 days', days: 30 },
+  { label: '90 days', days: 90 },
   { label: '180 days', days: 180 },
-  { label: '1 year',   days: 365 },
-  { label: 'Never',    days: null },
+  { label: '1 year', days: 365 },
+  { label: 'Never', days: null },
 ];
 
 // ─── helper ─────────────────────────────────────────────────────────────────
 
 const statusColor = (status: ApiKeyStatus) => {
   switch (status) {
-    case ApiKeyStatus.ACTIVE:  return colors.success;
-    case ApiKeyStatus.REVOKED: return colors.error;
-    default:                   return colors.warning;
+    case ApiKeyStatus.ACTIVE:
+      return colors.success;
+    case ApiKeyStatus.REVOKED:
+      return colors.error;
+    default:
+      return colors.warning;
   }
 };
 
 const formatDate = (d: Date | string | null | undefined): string => {
   if (!d) return '—';
   return new Date(d).toLocaleDateString(undefined, {
-    year: 'numeric', month: 'short', day: 'numeric',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
   });
 };
 
 const formatDateTime = (d: Date | string | null | undefined): string => {
   if (!d) return '—';
   return new Date(d).toLocaleString(undefined, {
-    year: 'numeric', month: 'short', day: 'numeric',
-    hour: '2-digit', minute: '2-digit',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
   });
 };
 
 const auditEventIcon = (event: ApiKeyAuditEntry['event']): string => {
   switch (event) {
-    case 'created':   return '✨';
-    case 'rotated':   return '🔄';
-    case 'revoked':   return '🚫';
-    case 'expired':   return '⏰';
-    case 'validated': return '✅';
-    case 'migration': return '🔀';
-    default:          return '📝';
+    case 'created':
+      return '✨';
+    case 'rotated':
+      return '🔄';
+    case 'revoked':
+      return '🚫';
+    case 'expired':
+      return '⏰';
+    case 'validated':
+      return '✅';
+    case 'migration':
+      return '🔀';
+    default:
+      return '📝';
   }
 };
 
@@ -107,9 +117,7 @@ const NewKeyBanner: React.FC<NewKeyBannerProps> = ({ rawKey, onDismiss }) => {
   return (
     <Card style={[styles.section, styles.newKeyCard]}>
       <Text style={styles.newKeyTitle}>🔑 New API Key Generated</Text>
-      <Text style={styles.newKeyWarning}>
-        Copy this key now — it will never be shown again.
-      </Text>
+      <Text style={styles.newKeyWarning}>Copy this key now — it will never be shown again.</Text>
       <View style={styles.keyDisplayBox}>
         <Text style={styles.keyMonoText} selectable>
           {rawKey}
@@ -199,8 +207,8 @@ const KeyDetailModal: React.FC<KeyDetailModalProps> = ({
 
   const tabs: { id: 'details' | 'scopes' | 'audit'; label: string }[] = [
     { id: 'details', label: 'Details' },
-    { id: 'scopes',  label: 'Scopes' },
-    { id: 'audit',   label: 'Audit Log' },
+    { id: 'scopes', label: 'Scopes' },
+    { id: 'audit', label: 'Audit Log' },
   ];
 
   return (
@@ -214,7 +222,9 @@ const KeyDetailModal: React.FC<KeyDetailModalProps> = ({
         {/* Header */}
         <View style={styles.modalHeader}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.modalTitle} numberOfLines={1}>{apiKey.name}</Text>
+            <Text style={styles.modalTitle} numberOfLines={1}>
+              {apiKey.name}
+            </Text>
             <View style={[styles.statusBadge, { backgroundColor: statusColor(apiKey.status) }]}>
               <Text style={styles.statusText}>{apiKey.status.toUpperCase()}</Text>
             </View>
@@ -250,7 +260,6 @@ const KeyDetailModal: React.FC<KeyDetailModalProps> = ({
         </View>
 
         <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.modalContent}>
-
           {/* ── DETAILS tab ────────────────────────────────────── */}
           {activeTab === 'details' && (
             <>
@@ -264,26 +273,37 @@ const KeyDetailModal: React.FC<KeyDetailModalProps> = ({
 
               {/* Dates */}
               <Card style={styles.infoCard}>
-                <Row label="Created"    value={formatDate(apiKey.createdAt)} />
-                <Row label="Last used"  value={formatDate(apiKey.lastUsedAt)} />
-                <Row label="Expires"    value={formatDate(apiKey.expiresAt)} />
+                <Row label="Created" value={formatDate(apiKey.createdAt)} />
+                <Row label="Last used" value={formatDate(apiKey.lastUsedAt)} />
+                <Row label="Expires" value={formatDate(apiKey.expiresAt)} />
                 <Row label="Usage count" value={String(apiKey.usageCount ?? 0)} />
               </Card>
 
               {/* Rate limits */}
               <Card style={styles.infoCard}>
                 <Text style={styles.cardSectionTitle}>Rate Limits</Text>
-                <Row label="Per minute" value={`${apiKey.rateLimit?.requestsPerMinute ?? '—'} req`} />
-                <Row label="Per day"    value={`${apiKey.rateLimit?.requestsPerDay ?? '—'} req`} />
+                <Row
+                  label="Per minute"
+                  value={`${apiKey.rateLimit?.requestsPerMinute ?? '—'} req`}
+                />
+                <Row label="Per day" value={`${apiKey.rateLimit?.requestsPerDay ?? '—'} req`} />
               </Card>
 
               {/* Usage summary */}
               <Card style={styles.infoCard}>
                 <Text style={styles.cardSectionTitle}>Usage Summary</Text>
                 <View style={styles.usageRow}>
-                  <UsageStat label="Total"   value={usageSummary.totalRequests}      color={colors.text} />
-                  <UsageStat label="Success" value={usageSummary.successfulRequests} color={colors.success} />
-                  <UsageStat label="Failed"  value={usageSummary.failedRequests}     color={colors.error} />
+                  <UsageStat label="Total" value={usageSummary.totalRequests} color={colors.text} />
+                  <UsageStat
+                    label="Success"
+                    value={usageSummary.successfulRequests}
+                    color={colors.success}
+                  />
+                  <UsageStat
+                    label="Failed"
+                    value={usageSummary.failedRequests}
+                    color={colors.error}
+                  />
                 </View>
               </Card>
 
@@ -297,20 +317,16 @@ const KeyDetailModal: React.FC<KeyDetailModalProps> = ({
                         key={p.label}
                         style={styles.presetChip}
                         onPress={() => {
-                          Alert.alert(
-                            'Update Expiry',
-                            `Set expiry to "${p.label}"?`,
-                            [
-                              { text: 'Cancel', style: 'cancel' },
-                              {
-                                text: 'Confirm',
-                                onPress: () => {
-                                  handleExpiryPreset(p.days);
-                                  Alert.alert('Updated', `Expiry set to ${p.label}.`);
-                                },
+                          Alert.alert('Update Expiry', `Set expiry to "${p.label}"?`, [
+                            { text: 'Cancel', style: 'cancel' },
+                            {
+                              text: 'Confirm',
+                              onPress: () => {
+                                handleExpiryPreset(p.days);
+                                Alert.alert('Updated', `Expiry set to ${p.label}.`);
                               },
-                            ]
-                          );
+                            },
+                          ]);
                         }}
                         accessibilityLabel={`Set expiry to ${p.label}`}
                         accessibilityRole="button">
@@ -330,14 +346,14 @@ const KeyDetailModal: React.FC<KeyDetailModalProps> = ({
                       onPress={onRotate}
                       accessibilityLabel="Rotate API key"
                       accessibilityRole="button">
-                      <Text style={styles.btnWarningText}>🔄  Rotate Key</Text>
+                      <Text style={styles.btnWarningText}>🔄 Rotate Key</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.btn, styles.btnDanger]}
                       onPress={onRevoke}
                       accessibilityLabel="Revoke API key"
                       accessibilityRole="button">
-                      <Text style={styles.btnDangerText}>🚫  Revoke Key</Text>
+                      <Text style={styles.btnDangerText}>🚫 Revoke Key</Text>
                     </TouchableOpacity>
                   </>
                 )}
@@ -346,9 +362,7 @@ const KeyDetailModal: React.FC<KeyDetailModalProps> = ({
                   onPress={onDelete}
                   accessibilityLabel="Delete API key"
                   accessibilityRole="button">
-                  <Text style={[styles.btnOutlineText, { color: colors.error }]}>
-                    🗑  Delete Key
-                  </Text>
+                  <Text style={[styles.btnOutlineText, { color: colors.error }]}>🗑 Delete Key</Text>
                 </TouchableOpacity>
               </View>
             </>
@@ -414,7 +428,6 @@ const KeyDetailModal: React.FC<KeyDetailModalProps> = ({
               )}
             </>
           )}
-
         </ScrollView>
       </SafeAreaView>
     </Modal>
@@ -438,11 +451,16 @@ const UsageStat = ({ label, value, color }: { label: string; value: number; colo
 
 const scopeDescription = (scope: ApiKeyScope): string => {
   switch (scope) {
-    case ApiKeyScope.READ:      return 'Read-only access to subscription data';
-    case ApiKeyScope.WRITE:     return 'Create and update subscriptions';
-    case ApiKeyScope.ADMIN:     return 'Full admin access including user management';
-    case ApiKeyScope.WEBHOOKS:  return 'Manage and receive webhook events';
-    case ApiKeyScope.ANALYTICS: return 'Access analytics and reporting endpoints';
+    case ApiKeyScope.READ:
+      return 'Read-only access to subscription data';
+    case ApiKeyScope.WRITE:
+      return 'Create and update subscriptions';
+    case ApiKeyScope.ADMIN:
+      return 'Full admin access including user management';
+    case ApiKeyScope.WEBHOOKS:
+      return 'Manage and receive webhook events';
+    case ApiKeyScope.ANALYTICS:
+      return 'Access analytics and reporting endpoints';
   }
 };
 
@@ -464,13 +482,13 @@ const ApiKeyManagementScreen: React.FC = () => {
   } = useApiStore();
 
   // form state
-  const [newKeyName, setNewKeyName]         = useState('');
-  const [newKeyDesc, setNewKeyDesc]         = useState('');
-  const [selectedTier, setSelectedTier]     = useState('free');
-  const [showNewKey, setShowNewKey]         = useState<string | null>(null);
+  const [newKeyName, setNewKeyName] = useState('');
+  const [newKeyDesc, setNewKeyDesc] = useState('');
+  const [selectedTier, setSelectedTier] = useState('free');
+  const [showNewKey, setShowNewKey] = useState<string | null>(null);
 
   // detail modal state
-  const [selectedKey, setSelectedKey]       = useState<ApiKey | null>(null);
+  const [selectedKey, setSelectedKey] = useState<ApiKey | null>(null);
 
   const stats = getKeyStats();
 
@@ -483,86 +501,104 @@ const ApiKeyManagementScreen: React.FC = () => {
       return;
     }
 
-    const created = createApiKey(name, selectedTier as 'free' | 'basic' | 'pro' | 'enterprise', newKeyDesc.trim() || undefined);
+    const created = createApiKey(
+      name,
+      selectedTier as 'free' | 'basic' | 'pro' | 'enterprise',
+      newKeyDesc.trim() || undefined
+    );
     setShowNewKey(created.key);
     setNewKeyName('');
     setNewKeyDesc('');
   }, [newKeyName, newKeyDesc, selectedTier, createApiKey]);
 
-  const handleRotate = useCallback((keyId: string, keyName: string) => {
-    Alert.alert(
-      'Rotate API Key',
-      `Rotating "${keyName}" will immediately invalidate the current secret. Any integrations using the old key will break until updated. Continue?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Rotate',
-          onPress: () => {
-            const newRaw = rotateApiKey(keyId);
-            if (newRaw) {
-              setSelectedKey(null); // close modal first
-              setShowNewKey(newRaw);
-            } else {
-              Alert.alert('Error', 'Could not rotate key. It may no longer be active.');
-            }
+  const handleRotate = useCallback(
+    (keyId: string, keyName: string) => {
+      Alert.alert(
+        'Rotate API Key',
+        `Rotating "${keyName}" will immediately invalidate the current secret. Any integrations using the old key will break until updated. Continue?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Rotate',
+            onPress: () => {
+              const newRaw = rotateApiKey(keyId);
+              if (newRaw) {
+                setSelectedKey(null); // close modal first
+                setShowNewKey(newRaw);
+              } else {
+                Alert.alert('Error', 'Could not rotate key. It may no longer be active.');
+              }
+            },
           },
-        },
-      ]
-    );
-  }, [rotateApiKey]);
+        ]
+      );
+    },
+    [rotateApiKey]
+  );
 
-  const handleRevoke = useCallback((keyId: string, keyName: string) => {
-    Alert.alert(
-      'Revoke API Key',
-      `Revoking "${keyName}" will immediately invalidate it. This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Revoke',
-          style: 'destructive',
-          onPress: () => {
-            revokeApiKey(keyId);
-            setSelectedKey(null);
+  const handleRevoke = useCallback(
+    (keyId: string, keyName: string) => {
+      Alert.alert(
+        'Revoke API Key',
+        `Revoking "${keyName}" will immediately invalidate it. This cannot be undone.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Revoke',
+            style: 'destructive',
+            onPress: () => {
+              revokeApiKey(keyId);
+              setSelectedKey(null);
+            },
           },
-        },
-      ]
-    );
-  }, [revokeApiKey]);
+        ]
+      );
+    },
+    [revokeApiKey]
+  );
 
-  const handleDelete = useCallback((keyId: string, keyName: string) => {
-    Alert.alert(
-      'Delete API Key',
-      `Permanently delete "${keyName}"? Usage logs for this key will also be removed.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            deleteApiKey(keyId);
-            setSelectedKey(null);
+  const handleDelete = useCallback(
+    (keyId: string, keyName: string) => {
+      Alert.alert(
+        'Delete API Key',
+        `Permanently delete "${keyName}"? Usage logs for this key will also be removed.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: () => {
+              deleteApiKey(keyId);
+              setSelectedKey(null);
+            },
           },
-        },
-      ]
-    );
-  }, [deleteApiKey]);
+        ]
+      );
+    },
+    [deleteApiKey]
+  );
 
-  const handleSaveScopes = useCallback((keyId: string, scopes: ApiKeyScope[]) => {
-    updateKeyPermissions(keyId, scopes);
-  }, [updateKeyPermissions]);
+  const handleSaveScopes = useCallback(
+    (keyId: string, scopes: ApiKeyScope[]) => {
+      updateKeyPermissions(keyId, scopes);
+    },
+    [updateKeyPermissions]
+  );
 
-  const handleSaveExpiry = useCallback((keyId: string, d: Date | null) => {
-    updateKeyExpiry(keyId, d);
-    // sync selected key state so modal reflects new expiry instantly
-    setSelectedKey((prev) => prev ? { ...prev, expiresAt: d } : prev);
-  }, [updateKeyExpiry]);
+  const handleSaveExpiry = useCallback(
+    (keyId: string, d: Date | null) => {
+      updateKeyExpiry(keyId, d);
+      // sync selected key state so modal reflects new expiry instantly
+      setSelectedKey((prev) => (prev ? { ...prev, expiresAt: d } : prev));
+    },
+    [updateKeyExpiry]
+  );
 
   // ── render ────────────────────────────────────────────────────────────────
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
-
         {/* Header */}
         <View style={styles.pageHeader}>
           <Text style={styles.pageTitle}>API Key Management</Text>
@@ -574,8 +610,8 @@ const ApiKeyManagementScreen: React.FC = () => {
         {/* Stats */}
         <View style={styles.statsGrid}>
           {[
-            { label: 'Total',   value: stats.total,   color: colors.text },
-            { label: 'Active',  value: stats.active,  color: colors.success },
+            { label: 'Total', value: stats.total, color: colors.text },
+            { label: 'Active', value: stats.active, color: colors.success },
             { label: 'Revoked', value: stats.revoked, color: colors.error },
             { label: 'Expired', value: stats.expired, color: colors.warning },
           ].map(({ label, value, color }) => (
@@ -587,9 +623,7 @@ const ApiKeyManagementScreen: React.FC = () => {
         </View>
 
         {/* New key revealed banner */}
-        {showNewKey && (
-          <NewKeyBanner rawKey={showNewKey} onDismiss={() => setShowNewKey(null)} />
-        )}
+        {showNewKey && <NewKeyBanner rawKey={showNewKey} onDismiss={() => setShowNewKey(null)} />}
 
         {/* Create form */}
         <Card style={styles.section}>
@@ -622,18 +656,13 @@ const ApiKeyManagementScreen: React.FC = () => {
             {TIERS.map(([tierKey, info]) => (
               <TouchableOpacity
                 key={tierKey}
-                style={[
-                  styles.tierCard,
-                  selectedTier === tierKey && styles.tierCardSelected,
-                ]}
+                style={[styles.tierCard, selectedTier === tierKey && styles.tierCardSelected]}
                 onPress={() => setSelectedTier(tierKey)}
                 accessibilityRole="radio"
                 accessibilityState={{ checked: selectedTier === tierKey }}
                 accessibilityLabel={`Select ${info.label} tier`}>
-                <Text style={[
-                  styles.tierLabel,
-                  selectedTier === tierKey && styles.tierLabelSelected,
-                ]}>
+                <Text
+                  style={[styles.tierLabel, selectedTier === tierKey && styles.tierLabelSelected]}>
                   {info.label}
                 </Text>
                 <Text style={styles.tierDesc}>{info.desc}</Text>
@@ -669,7 +698,9 @@ const ApiKeyManagementScreen: React.FC = () => {
                 accessibilityLabel={`Open details for ${key.name}`}
                 accessibilityRole="button">
                 <View style={styles.keyCardTop}>
-                  <Text style={styles.keyName} numberOfLines={1}>{key.name}</Text>
+                  <Text style={styles.keyName} numberOfLines={1}>
+                    {key.name}
+                  </Text>
                   <View style={[styles.statusBadge, { backgroundColor: statusColor(key.status) }]}>
                     <Text style={styles.statusText}>{key.status.toUpperCase()}</Text>
                   </View>
@@ -681,13 +712,9 @@ const ApiKeyManagementScreen: React.FC = () => {
                   <Text style={styles.keyMetaText}>
                     Scopes: {(key.scopes ?? [ApiKeyScope.READ]).join(', ')}
                   </Text>
-                  <Text style={styles.keyMetaText}>
-                    Expires: {formatDate(key.expiresAt)}
-                  </Text>
+                  <Text style={styles.keyMetaText}>Expires: {formatDate(key.expiresAt)}</Text>
                   {key.lastUsedAt && (
-                    <Text style={styles.keyMetaText}>
-                      Last used: {formatDate(key.lastUsedAt)}
-                    </Text>
+                    <Text style={styles.keyMetaText}>Last used: {formatDate(key.lastUsedAt)}</Text>
                   )}
                 </View>
 
@@ -742,18 +769,35 @@ const ApiKeyManagementScreen: React.FC = () => {
         <Card style={styles.section}>
           <Text style={styles.sectionTitle}>Best Practices</Text>
           {[
-            { icon: '🔒', title: 'Keep keys secure', body: 'Never expose API keys in client-side code, public repos, or shared documents.' },
-            { icon: '🔄', title: 'Rotate regularly', body: 'Rotate keys periodically and immediately after any suspected compromise.' },
-            { icon: '🎯', title: 'Least privilege', body: 'Only grant the scopes each integration actually needs.' },
-            { icon: '📊', title: 'Monitor usage', body: 'Review usage via the Audit Log tab and revoke any unexpected or unused keys.' },
+            {
+              icon: '🔒',
+              title: 'Keep keys secure',
+              body: 'Never expose API keys in client-side code, public repos, or shared documents.',
+            },
+            {
+              icon: '🔄',
+              title: 'Rotate regularly',
+              body: 'Rotate keys periodically and immediately after any suspected compromise.',
+            },
+            {
+              icon: '🎯',
+              title: 'Least privilege',
+              body: 'Only grant the scopes each integration actually needs.',
+            },
+            {
+              icon: '📊',
+              title: 'Monitor usage',
+              body: 'Review usage via the Audit Log tab and revoke any unexpected or unused keys.',
+            },
           ].map(({ icon, title, body }) => (
             <View key={title} style={styles.bestPracticeRow}>
-              <Text style={styles.bpTitle}>{icon}  {title}</Text>
+              <Text style={styles.bpTitle}>
+                {icon} {title}
+              </Text>
               <Text style={styles.bpBody}>{body}</Text>
             </View>
           ))}
         </Card>
-
       </ScrollView>
 
       {/* Key detail modal */}
@@ -809,7 +853,7 @@ const styles = StyleSheet.create({
     borderColor: colors.success,
     backgroundColor: `${colors.success}12`,
   },
-  newKeyTitle:   { ...typography.h3, color: colors.success },
+  newKeyTitle: { ...typography.h3, color: colors.success },
   newKeyWarning: { ...typography.body, color: colors.warning, fontWeight: '600' },
   keyDisplayBox: {
     backgroundColor: colors.surface,
@@ -870,7 +914,11 @@ const styles = StyleSheet.create({
   btnPrimaryText: { ...typography.button, color: colors.onPrimary },
   btnOutline: { borderWidth: 1, borderColor: colors.border },
   btnOutlineText: { ...typography.button, color: colors.textSecondary },
-  btnWarning: { backgroundColor: `${colors.warning}22`, borderWidth: 1, borderColor: colors.warning },
+  btnWarning: {
+    backgroundColor: `${colors.warning}22`,
+    borderWidth: 1,
+    borderColor: colors.warning,
+  },
   btnWarningText: { ...typography.button, color: colors.warning },
   btnDanger: { backgroundColor: `${colors.error}22`, borderWidth: 1, borderColor: colors.error },
   btnDangerText: { ...typography.button, color: colors.error },
@@ -945,7 +993,12 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   bpTitle: { ...typography.body, color: colors.text, fontWeight: '600' },
-  bpBody: { ...typography.caption, color: colors.textSecondary, marginTop: spacing.xs, lineHeight: 18 },
+  bpBody: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+    lineHeight: 18,
+  },
 
   // ── modal ─────────────────────────────────────────────────────────────────
   modalContainer: { flex: 1, backgroundColor: colors.background },
@@ -1003,8 +1056,19 @@ const styles = StyleSheet.create({
   infoCard: { gap: spacing.xs },
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: spacing.xs },
   infoLabel: { ...typography.caption, color: colors.textSecondary },
-  infoValue: { ...typography.caption, color: colors.text, fontWeight: '600', textAlign: 'right', flex: 1 },
-  cardSectionTitle: { ...typography.body, color: colors.text, fontWeight: '700', marginBottom: spacing.xs },
+  infoValue: {
+    ...typography.caption,
+    color: colors.text,
+    fontWeight: '600',
+    textAlign: 'right',
+    flex: 1,
+  },
+  cardSectionTitle: {
+    ...typography.body,
+    color: colors.text,
+    fontWeight: '700',
+    marginBottom: spacing.xs,
+  },
 
   // usage stats
   usageRow: { flexDirection: 'row', justifyContent: 'space-around' },
@@ -1035,7 +1099,12 @@ const styles = StyleSheet.create({
   },
   scopeLabel: { ...typography.body, color: colors.text, fontWeight: '600' },
   scopeDesc: { ...typography.caption, color: colors.textSecondary, marginTop: spacing.xs },
-  disabledNote: { ...typography.caption, color: colors.warning, textAlign: 'center', marginTop: spacing.md },
+  disabledNote: {
+    ...typography.caption,
+    color: colors.warning,
+    textAlign: 'center',
+    marginTop: spacing.md,
+  },
 
   // audit log
   auditEntry: {

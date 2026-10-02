@@ -111,13 +111,8 @@ export class ChargebeeSettingsMapper {
     // Plans don't have inline addons – but metadata may reference them
     // Resolve any addon IDs stored in metadata.addons array
     const metaAddonIds: string[] = [];
-    if (
-      plan.metadata &&
-      Array.isArray((plan.metadata as Record<string, unknown>).addons)
-    ) {
-      metaAddonIds.push(
-        ...((plan.metadata as Record<string, unknown>).addons as string[])
-      );
+    if (plan.metadata && Array.isArray((plan.metadata as Record<string, unknown>).addons)) {
+      metaAddonIds.push(...((plan.metadata as Record<string, unknown>).addons as string[]));
     }
     for (const addonId of metaAddonIds) {
       const addon = this.config.addonsRegistry.get(addonId);
@@ -227,7 +222,10 @@ export class ChargebeeSettingsMapper {
   mapSubscriptions(
     subscriptions: ChargebeeSubscription[],
     plansById: Map<string, ChargbeePlan>
-  ): Array<{ subscription: MappedSubscriptionSettings; error?: never } | { subscription?: never; error: string; sourceId: string }> {
+  ): Array<
+    | { subscription: MappedSubscriptionSettings; error?: never }
+    | { subscription?: never; error: string; sourceId: string }
+  > {
     return subscriptions.map((sub) => {
       const plan = plansById.get(sub.plan_id);
       if (!plan) {

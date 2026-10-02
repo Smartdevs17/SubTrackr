@@ -38,7 +38,7 @@ describe('GamificationScreen', () => {
 
   it('switches navigation tabs (Dashboard, Rewards, Leaderboard)', () => {
     const { getByText } = render(<GamificationScreen />);
-    
+
     // Switch to Rewards tab
     const rewardsTab = getByText(/Rewards/);
     fireEvent.press(rewardsTab);

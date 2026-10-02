@@ -43,13 +43,7 @@ export const useFeatureAccessTierStore = create<FeatureAccessTierState>((set, ge
     const currentUsage = usageRecords[featureId] || 0;
     const override = customOverrides[featureId];
 
-    return evaluateFeatureAccess(
-      currentTier,
-      featureId,
-      currentUsage,
-      override,
-      tierConfigs
-    );
+    return evaluateFeatureAccess(currentTier, featureId, currentUsage, override, tierConfigs);
   },
 
   hasAccess: (featureId: FeatureId) => {

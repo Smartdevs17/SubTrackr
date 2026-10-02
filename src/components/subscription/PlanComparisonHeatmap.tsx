@@ -9,7 +9,9 @@ interface PlanComparisonHeatmapProps {
 
 export const PlanComparisonHeatmap: React.FC<PlanComparisonHeatmapProps> = ({ plans }) => {
   const getFeatureCoverage = (plan: SubscriptionPlan): number => {
-    return ((plan.features?.length || 0) / Math.max(...plans.map(p => p.features?.length || 0))) * 100;
+    return (
+      ((plan.features?.length || 0) / Math.max(...plans.map((p) => p.features?.length || 0))) * 100
+    );
   };
 
   const getHeatColor = (coverage: number): string => {
@@ -27,9 +29,7 @@ export const PlanComparisonHeatmap: React.FC<PlanComparisonHeatmapProps> = ({ pl
     SubscriptionTier.ENTERPRISE,
   ];
 
-  const sortedPlans = plans.sort(
-    (a, b) => tierOrder.indexOf(a.tier) - tierOrder.indexOf(b.tier)
-  );
+  const sortedPlans = plans.sort((a, b) => tierOrder.indexOf(a.tier) - tierOrder.indexOf(b.tier));
 
   return (
     <ScrollView style={styles.container} horizontal>
@@ -41,11 +41,7 @@ export const PlanComparisonHeatmap: React.FC<PlanComparisonHeatmapProps> = ({ pl
             return (
               <View key={plan.id} style={styles.planColumn}>
                 <Text style={styles.planName}>{plan.name}</Text>
-                <View
-                  style={[
-                    styles.heatCell,
-                    { backgroundColor: getHeatColor(coverage) },
-                  ]}>
+                <View style={[styles.heatCell, { backgroundColor: getHeatColor(coverage) }]}>
                   <Text style={styles.cellText}>{Math.round(coverage)}%</Text>
                 </View>
                 <Text style={styles.featuresCount}>{plan.features?.length || 0} features</Text>

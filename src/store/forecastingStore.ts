@@ -116,12 +116,7 @@ export const useForecastingStore = create<ForecastingState>()(
         set({ isLoading: true, error: null });
         try {
           const historicalData = buildRevenueDataPoints(subscriptions);
-          const {
-            selectedModel,
-            selectedHorizon,
-            selectedGranularity,
-            confidence,
-          } = get();
+          const { selectedModel, selectedHorizon, selectedGranularity, confidence } = get();
 
           const mergedOptions: ForecastOptions = {
             model: selectedModel,

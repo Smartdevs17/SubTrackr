@@ -11,7 +11,8 @@ export const DEFAULT_COMPLIANCE_RULES: ComplianceRule[] = [
   {
     id: 'rule-gdpr-consent',
     name: 'GDPR Data Subject Consent & Privacy Notice',
-    description: 'Ensure subscriptions collect explicit renewal consent and provide clear data processing disclosures.',
+    description:
+      'Ensure subscriptions collect explicit renewal consent and provide clear data processing disclosures.',
     category: 'gdpr_privacy',
     severity: 'high',
     isEnabled: true,
@@ -20,7 +21,8 @@ export const DEFAULT_COMPLIANCE_RULES: ComplianceRule[] = [
   {
     id: 'rule-auto-renewal-notice',
     name: 'Mandatory Auto-Renewal Disclosure',
-    description: 'Subscriptions with recurring billing must explicitly disclose recurring charges and cancellation procedures.',
+    description:
+      'Subscriptions with recurring billing must explicitly disclose recurring charges and cancellation procedures.',
     category: 'auto_renewal',
     severity: 'critical',
     isEnabled: true,
@@ -29,7 +31,8 @@ export const DEFAULT_COMPLIANCE_RULES: ComplianceRule[] = [
   {
     id: 'rule-cancellation-accessibility',
     name: 'Simplified One-Click Cancellation Access',
-    description: 'Subscribers must be provided clear, frictionless cancellation mechanisms prior to renewal billing dates.',
+    description:
+      'Subscribers must be provided clear, frictionless cancellation mechanisms prior to renewal billing dates.',
     category: 'cancellation_policy',
     severity: 'high',
     isEnabled: true,
@@ -38,7 +41,8 @@ export const DEFAULT_COMPLIANCE_RULES: ComplianceRule[] = [
   {
     id: 'rule-billing-transparency',
     name: 'Upfront Price & Tax Disclosure',
-    description: 'Billing currency, pricing details, and interval conversions must be transparently displayed.',
+    description:
+      'Billing currency, pricing details, and interval conversions must be transparently displayed.',
     category: 'billing_disclosure',
     severity: 'medium',
     isEnabled: true,
@@ -47,7 +51,8 @@ export const DEFAULT_COMPLIANCE_RULES: ComplianceRule[] = [
   {
     id: 'rule-crypto-kyc-aml',
     name: 'Crypto Stream Regulatory Compliance',
-    description: 'Crypto-enabled subscriptions with continuous streaming funds must adhere to token compliance checks.',
+    description:
+      'Crypto-enabled subscriptions with continuous streaming funds must adhere to token compliance checks.',
     category: 'crypto_regulatory',
     severity: 'medium',
     isEnabled: true,
@@ -84,7 +89,8 @@ export class ComplianceService {
           if (daysToBilling <= 3 && !sub.notificationsEnabled) {
             status = 'failed';
             details = `Upcoming auto-renewal charge in ${daysToBilling} days without user notification enabled.`;
-            remediationSteps = 'Enable renewal notification alerts or send manual billing reminder.';
+            remediationSteps =
+              'Enable renewal notification alerts or send manual billing reminder.';
           }
         } else if (rule.category === 'crypto_regulatory' && sub.isCryptoEnabled) {
           if (sub.price > 1000 && !sub.cryptoToken) {
@@ -175,7 +181,12 @@ export class ComplianceService {
   /**
    * Log an audit trail entry
    */
-  public static logAuditEntry(action: string, performer: string, targetId: string, details: string): void {
+  public static logAuditEntry(
+    action: string,
+    performer: string,
+    targetId: string,
+    details: string
+  ): void {
     this.auditTrail.unshift({
       id: `audit-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
       action,

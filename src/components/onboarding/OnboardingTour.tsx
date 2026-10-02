@@ -9,15 +9,8 @@ export interface OnboardingTourProps {
 export const OnboardingTour: React.FC<OnboardingTourProps> = ({
   testID = 'onboarding-tour-modal',
 }) => {
-  const {
-    steps,
-    currentStepIndex,
-    isActive,
-    nextStep,
-    prevStep,
-    skipTour,
-    finishTour,
-  } = useOnboardingStore();
+  const { steps, currentStepIndex, isActive, nextStep, prevStep, skipTour, finishTour } =
+    useOnboardingStore();
 
   if (!isActive || steps.length === 0) {
     return null;
@@ -35,11 +28,7 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
           <Text style={styles.stepCounterText} testID="onboarding-step-counter">
             Step {currentStepIndex + 1} of {steps.length}
           </Text>
-          <Pressable
-            onPress={skipTour}
-            style={styles.skipButton}
-            testID="onboarding-skip-button"
-          >
+          <Pressable onPress={skipTour} style={styles.skipButton} testID="onboarding-skip-button">
             <Text style={styles.skipText}>Skip</Text>
           </Pressable>
         </View>
@@ -58,8 +47,7 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
             <Pressable
               onPress={prevStep}
               style={[styles.button, styles.secondaryButton]}
-              testID="onboarding-prev-button"
-            >
+              testID="onboarding-prev-button">
               <Text style={styles.secondaryButtonText}>Back</Text>
             </Pressable>
           )}
@@ -67,11 +55,8 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
           <Pressable
             onPress={isLastStep ? finishTour : nextStep}
             style={[styles.button, styles.primaryButton, isFirstStep && styles.fullWidthButton]}
-            testID="onboarding-next-button"
-          >
-            <Text style={styles.primaryButtonText}>
-              {isLastStep ? 'Get Started' : 'Next'}
-            </Text>
+            testID="onboarding-next-button">
+            <Text style={styles.primaryButtonText}>{isLastStep ? 'Get Started' : 'Next'}</Text>
           </Pressable>
         </View>
       </View>

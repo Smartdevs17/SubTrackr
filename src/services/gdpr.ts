@@ -54,7 +54,11 @@ export const gdprService = {
         });
         return result;
       }
-      const result = { success: true, message: 'User data permanently deleted', anonymizedFields: [] };
+      const result = {
+        success: true,
+        message: 'User data permanently deleted',
+        anonymizedFields: [],
+      };
       logger.info('GDPR permanent deletion requested', { permanent });
       return result;
     } catch (error) {

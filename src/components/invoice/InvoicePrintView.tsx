@@ -15,7 +15,8 @@ export const InvoicePrintView: React.FC<InvoicePrintViewProps> = ({ invoice, onP
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border.default }]}>
+      <View
+        style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border.default }]}>
         <View style={styles.header}>
           <View>
             <Text style={[styles.brandTitle, { color: colors.brand.primary }]}>SubTrackr</Text>
@@ -32,9 +33,15 @@ export const InvoicePrintView: React.FC<InvoicePrintViewProps> = ({ invoice, onP
 
         <View style={styles.metaRow}>
           <View style={styles.metaCol}>
-            <Text style={[styles.metaLabel, { color: colors.textSecondary }]}>MERCHANT / PROVIDER</Text>
-            <Text style={[styles.metaValue, { color: colors.text.primary }]}>{invoice.merchantName}</Text>
-            <Text style={[styles.metaSub, { color: colors.textSecondary }]}>{invoice.subscriptionName}</Text>
+            <Text style={[styles.metaLabel, { color: colors.textSecondary }]}>
+              MERCHANT / PROVIDER
+            </Text>
+            <Text style={[styles.metaValue, { color: colors.text.primary }]}>
+              {invoice.merchantName}
+            </Text>
+            <Text style={[styles.metaSub, { color: colors.textSecondary }]}>
+              {invoice.subscriptionName}
+            </Text>
           </View>
           <View style={[styles.metaCol, { alignItems: 'flex-end' }]}>
             <Text style={[styles.metaLabel, { color: colors.textSecondary }]}>INVOICE DATES</Text>
@@ -49,21 +56,34 @@ export const InvoicePrintView: React.FC<InvoicePrintViewProps> = ({ invoice, onP
 
         <View style={[styles.tableHeader, { backgroundColor: colors.surfaceVariant }]}>
           <Text style={[styles.th, { flex: 2, color: colors.text.primary }]}>Description</Text>
-          <Text style={[styles.th, { flex: 1, textAlign: 'center', color: colors.text.primary }]}>Qty</Text>
-          <Text style={[styles.th, { flex: 1, textAlign: 'right', color: colors.text.primary }]}>Unit Price</Text>
-          <Text style={[styles.th, { flex: 1, textAlign: 'right', color: colors.text.primary }]}>Total</Text>
+          <Text style={[styles.th, { flex: 1, textAlign: 'center', color: colors.text.primary }]}>
+            Qty
+          </Text>
+          <Text style={[styles.th, { flex: 1, textAlign: 'right', color: colors.text.primary }]}>
+            Unit Price
+          </Text>
+          <Text style={[styles.th, { flex: 1, textAlign: 'right', color: colors.text.primary }]}>
+            Total
+          </Text>
         </View>
 
         {invoice.lineItems.map((item, idx) => (
           <View key={idx} style={[styles.tableRow, { borderBottomColor: colors.border.default }]}>
-            <Text style={[styles.td, { flex: 2, color: colors.text.primary }]}>{item.description}</Text>
-            <Text style={[styles.td, { flex: 1, textAlign: 'center', color: colors.textSecondary }]}>
+            <Text style={[styles.td, { flex: 2, color: colors.text.primary }]}>
+              {item.description}
+            </Text>
+            <Text
+              style={[styles.td, { flex: 1, textAlign: 'center', color: colors.textSecondary }]}>
               {item.quantity}
             </Text>
             <Text style={[styles.td, { flex: 1, textAlign: 'right', color: colors.textSecondary }]}>
               {formatCurrency(item.unitPrice, item.currency)}
             </Text>
-            <Text style={[styles.td, { flex: 1, textAlign: 'right', color: colors.text.primary, fontWeight: '600' }]}>
+            <Text
+              style={[
+                styles.td,
+                { flex: 1, textAlign: 'right', color: colors.text.primary, fontWeight: '600' },
+              ]}>
               {formatCurrency(item.lineTotal, item.currency)}
             </Text>
           </View>
@@ -82,7 +102,12 @@ export const InvoicePrintView: React.FC<InvoicePrintViewProps> = ({ invoice, onP
               {formatCurrency(invoice.tax, invoice.currency)}
             </Text>
           </View>
-          <View style={[styles.totalRow, styles.grandTotalRow, { borderTopColor: colors.border.default }]}>
+          <View
+            style={[
+              styles.totalRow,
+              styles.grandTotalRow,
+              { borderTopColor: colors.border.default },
+            ]}>
             <Text style={[styles.grandLabel, { color: colors.text.primary }]}>Total Due:</Text>
             <Text style={[styles.grandVal, { color: colors.brand.primary }]}>
               {formatCurrency(invoice.total, invoice.currency)}
@@ -101,8 +126,7 @@ export const InvoicePrintView: React.FC<InvoicePrintViewProps> = ({ invoice, onP
           <TouchableOpacity
             style={[styles.printButton, { backgroundColor: colors.brand.primary }]}
             onPress={onPrint}
-            testID="print-invoice-button"
-          >
+            testID="print-invoice-button">
             <Text style={styles.printButtonText}>Print / Download PDF</Text>
           </TouchableOpacity>
         )}
@@ -114,7 +138,12 @@ export const InvoicePrintView: React.FC<InvoicePrintViewProps> = ({ invoice, onP
 const styles = StyleSheet.create({
   container: { flex: 1, padding: spacing.md },
   card: { padding: spacing.lg, borderRadius: borderRadius.lg, borderWidth: 1 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.lg },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
   brandTitle: { fontSize: 22, fontWeight: '800' },
   invoiceNumber: { fontSize: 16, fontWeight: '600', marginTop: 4 },
   statusBadge: { paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: borderRadius.sm },
@@ -124,7 +153,12 @@ const styles = StyleSheet.create({
   metaLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 0.5, marginBottom: 4 },
   metaValue: { fontSize: 15, fontWeight: '600' },
   metaSub: { fontSize: 12, marginTop: 2 },
-  tableHeader: { flexDirection: 'row', padding: spacing.xs, borderRadius: borderRadius.xs, marginBottom: spacing.xs },
+  tableHeader: {
+    flexDirection: 'row',
+    padding: spacing.xs,
+    borderRadius: borderRadius.xs,
+    marginBottom: spacing.xs,
+  },
   th: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
   tableRow: { flexDirection: 'row', paddingVertical: spacing.sm, borderBottomWidth: 1 },
   td: { fontSize: 13 },
@@ -138,7 +172,12 @@ const styles = StyleSheet.create({
   notesBox: { marginTop: spacing.lg, padding: spacing.md, borderRadius: borderRadius.md },
   notesTitle: { fontSize: 12, fontWeight: '700', marginBottom: 4 },
   notesText: { fontSize: 12 },
-  printButton: { marginTop: spacing.xl, paddingVertical: spacing.md, borderRadius: borderRadius.md, alignItems: 'center' },
+  printButton: {
+    marginTop: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    alignItems: 'center',
+  },
   printButtonText: { color: '#ffffff', fontWeight: '700', fontSize: 14 },
 });
 

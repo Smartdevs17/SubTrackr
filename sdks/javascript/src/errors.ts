@@ -53,8 +53,7 @@ export class VersionMismatchError extends SubTrackrError {
 
   constructor(sdkVersion: string, apiVersion: number, detail?: string) {
     super(
-      detail ??
-        `API version mismatch: server returned v${apiVersion} but SDK is v${sdkVersion}.`,
+      detail ?? `API version mismatch: server returned v${apiVersion} but SDK is v${sdkVersion}.`,
       0,
       'version_mismatch'
     );

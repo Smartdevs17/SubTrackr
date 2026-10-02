@@ -42,7 +42,12 @@ describe('ConsentPrompt', () => {
   beforeEach(() => {
     useAppStore.setState({
       userId: 'user-1',
-      consent: { analytics: false, marketing: false, notifications: true, hasAcceptedPolicy: false },
+      consent: {
+        analytics: false,
+        marketing: false,
+        notifications: true,
+        hasAcceptedPolicy: false,
+      },
     });
   });
 

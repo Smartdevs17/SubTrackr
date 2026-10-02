@@ -22,46 +22,46 @@ export default function FraudDetectionScreen({ navigation }: any) {
   }, []);
 
   const filteredDetections = detections.filter(
-    d => filterLevel === 'all' || d.riskLevel === filterLevel
+    (d) => filterLevel === 'all' || d.riskLevel === filterLevel
   );
 
   const getRiskColor = (level: FraudRiskLevel) => {
     switch (level) {
-      case 'critical': return '#DC2626';
-      case 'high': return '#EF4444';
-      case 'medium': return '#F59E0B';
-      case 'low': return '#10B981';
-      default: return theme.colors.text;
+      case 'critical':
+        return '#DC2626';
+      case 'high':
+        return '#EF4444';
+      case 'medium':
+        return '#F59E0B';
+      case 'low':
+        return '#10B981';
+      default:
+        return theme.colors.text;
     }
   };
 
   const handleReviewDetection = (detection: FraudDetection) => {
-    Alert.alert(
-      'Review Detection',
-      'What is your assessment?',
-      [
-        {
-          text: 'Confirmed Fraud',
-          onPress: () => updateDetectionStatus(detection.id, 'confirmed', 'admin'),
-        },
-        {
-          text: 'False Positive',
-          onPress: () => updateDetectionStatus(detection.id, 'false_positive', 'admin'),
-        },
-        {
-          text: 'Investigate',
-          onPress: () => navigation.navigate('FraudInvestigation', { detectionId: detection.id }),
-        },
-        { text: 'Cancel', style: 'cancel' },
-      ]
-    );
+    Alert.alert('Review Detection', 'What is your assessment?', [
+      {
+        text: 'Confirmed Fraud',
+        onPress: () => updateDetectionStatus(detection.id, 'confirmed', 'admin'),
+      },
+      {
+        text: 'False Positive',
+        onPress: () => updateDetectionStatus(detection.id, 'false_positive', 'admin'),
+      },
+      {
+        text: 'Investigate',
+        onPress: () => navigation.navigate('FraudInvestigation', { detectionId: detection.id }),
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   const renderDetectionItem = ({ item }: { item: FraudDetection }) => (
     <TouchableOpacity
       style={[styles.detectionCard, { backgroundColor: theme.colors.card }]}
-      onPress={() => handleReviewDetection(item)}
-    >
+      onPress={() => handleReviewDetection(item)}>
       <View style={styles.detectionHeader}>
         <Text style={[styles.transactionId, { color: theme.colors.text }]}>
           {item.transactionId.substring(0, 12)}...
@@ -95,9 +95,7 @@ export default function FraudDetectionScreen({ navigation }: any) {
         <Text style={[styles.statusText, { color: theme.colors.textSecondary }]}>
           {item.status.toUpperCase()}
         </Text>
-        {item.isBlocked && (
-          <Text style={[styles.blockedText, { color: '#DC2626' }]}>BLOCKED</Text>
-        )}
+        {item.isBlocked && <Text style={[styles.blockedText, { color: '#DC2626' }]}>BLOCKED</Text>}
       </View>
     </TouchableOpacity>
   );
@@ -106,7 +104,7 @@ export default function FraudDetectionScreen({ navigation }: any) {
     const filters: Array<FraudRiskLevel | 'all'> = ['all', 'critical', 'high', 'medium', 'low'];
     return (
       <View style={styles.filterContainer}>
-        {filters.map(filter => (
+        {filters.map((filter) => (
           <TouchableOpacity
             key={filter}
             style={[
@@ -114,15 +112,13 @@ export default function FraudDetectionScreen({ navigation }: any) {
               { backgroundColor: theme.colors.card },
               filterLevel === filter && { backgroundColor: theme.colors.primary },
             ]}
-            onPress={() => setFilterLevel(filter)}
-          >
+            onPress={() => setFilterLevel(filter)}>
             <Text
               style={[
                 styles.filterText,
                 { color: theme.colors.text },
                 filterLevel === filter && { color: '#FFFFFF' },
-              ]}
-            >
+              ]}>
               {filter.toUpperCase()}
             </Text>
           </TouchableOpacity>
@@ -149,8 +145,7 @@ export default function FraudDetectionScreen({ navigation }: any) {
         </Text>
         <TouchableOpacity
           style={[styles.analyticsButton, { backgroundColor: theme.colors.primary }]}
-          onPress={() => navigation.navigate('FraudAnalytics')}
-        >
+          onPress={() => navigation.navigate('FraudAnalytics')}>
           <Text style={styles.analyticsButtonText}>Analytics</Text>
         </TouchableOpacity>
       </View>
@@ -158,7 +153,7 @@ export default function FraudDetectionScreen({ navigation }: any) {
       <FlatList
         data={filteredDetections}
         renderItem={renderDetectionItem}
-        keyExtractor={item => item.id}
+        keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContainer}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
@@ -178,12 +173,27 @@ const styles = StyleSheet.create({
   filterContainer: { flexDirection: 'row', padding: 12, gap: 8 },
   filterButton: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
   filterText: { fontSize: 12, fontWeight: '600' },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
   title: { fontSize: 24, fontWeight: 'bold' },
   analyticsButton: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 },
   analyticsButtonText: { color: '#FFFFFF', fontWeight: '600' },
   listContainer: { padding: 16 },
-  detectionCard: { padding: 16, borderRadius: 12, marginBottom: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
+  detectionCard: {
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
   detectionHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
   transactionId: { fontSize: 16, fontWeight: '600' },
   riskBadge: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 },
@@ -193,7 +203,13 @@ const styles = StyleSheet.create({
   scoreValue: { fontSize: 18, fontWeight: 'bold' },
   indicatorsContainer: { marginBottom: 12 },
   indicator: { fontSize: 12, marginLeft: 8, marginTop: 4 },
-  statusRow: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: 8, borderTopWidth: 1, borderTopColor: '#E5E7EB' },
+  statusRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
   statusText: { fontSize: 12, fontWeight: '600' },
   blockedText: { fontSize: 12, fontWeight: 'bold' },
   emptyContainer: { alignItems: 'center', marginTop: 40 },

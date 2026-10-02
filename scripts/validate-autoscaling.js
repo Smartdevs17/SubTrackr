@@ -283,9 +283,7 @@ function validateHpaMetrics(hpa, deployment, errors) {
   }
 
   if (resourceMetrics === 0) {
-    errors.push(
-      'At least one Resource metric is required; custom metrics need a metrics server.'
-    );
+    errors.push('At least one Resource metric is required; custom metrics need a metrics server.');
   }
 }
 
@@ -384,9 +382,7 @@ function validateDeployment(deployment, service, pdb, hpa, errors, warnings) {
   // Scale-down safety: a pod removed by the HPA must first leave the Service.
   const gracePeriod = asObject(asObject(spec.template).spec).terminationGracePeriodSeconds;
   if (!isPositiveInt(gracePeriod)) {
-    warnings.push(
-      'No terminationGracePeriodSeconds: scaled-down pods are killed mid-request.'
-    );
+    warnings.push('No terminationGracePeriodSeconds: scaled-down pods are killed mid-request.');
   }
   if (Object.keys(asObject(asObject(container.lifecycle).preStop)).length === 0) {
     warnings.push(
@@ -444,12 +440,16 @@ function validateAutoscaling(documents) {
   for (const hpa of hpas) {
     const hpaName = asObject(hpa.metadata).name;
     if (hpa.apiVersion !== 'autoscaling/v2') {
-      errors.push(`HorizontalPodAutoscaler ${hpaName} must be autoscaling/v2, not ${hpa.apiVersion}.`);
+      errors.push(
+        `HorizontalPodAutoscaler ${hpaName} must be autoscaling/v2, not ${hpa.apiVersion}.`
+      );
       continue;
     }
     const ref = asObject(hpa.spec.scaleTargetRef);
     if (ref.kind !== 'Deployment' || !String(ref.apiVersion || '').startsWith('apps/')) {
-      errors.push(`scaleTargetRef must be an apps/v1 Deployment, not ${ref.apiVersion}/${ref.kind}.`);
+      errors.push(
+        `scaleTargetRef must be an apps/v1 Deployment, not ${ref.apiVersion}/${ref.kind}.`
+      );
       continue;
     }
     const deployment = findResource(deployments, 'Deployment', ref.name);

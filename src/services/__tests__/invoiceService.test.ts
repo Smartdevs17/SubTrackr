@@ -166,9 +166,9 @@ describe('invoiceService', () => {
     it('should throw error when updating non-existent template', async () => {
       (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify([]));
 
-      await expect(
-        invoiceService.updateTemplate('non-existent', { name: 'Test' })
-      ).rejects.toThrow('Template with id non-existent not found');
+      await expect(invoiceService.updateTemplate('non-existent', { name: 'Test' })).rejects.toThrow(
+        'Template with id non-existent not found'
+      );
     });
 
     it('should delete template', async () => {
@@ -315,7 +315,7 @@ describe('invoiceService', () => {
 
     it('should filter invoices by date range', async () => {
       const invoice1 = await invoiceService.createInvoice(mockInvoiceData);
-      
+
       // Create invoice with past date
       const oldInvoice = await invoiceService.createInvoice(mockInvoiceData);
       await invoiceService.updateInvoice(oldInvoice.id, {
@@ -327,7 +327,7 @@ describe('invoiceService', () => {
       });
 
       expect(recentInvoices.length).toBeGreaterThan(0);
-      expect(recentInvoices.every(inv => inv.issueDate >= new Date('2026-07-01'))).toBe(true);
+      expect(recentInvoices.every((inv) => inv.issueDate >= new Date('2026-07-01'))).toBe(true);
     });
 
     it('should delete invoice', async () => {
@@ -335,7 +335,7 @@ describe('invoiceService', () => {
       await invoiceService.deleteInvoice(invoice.id);
 
       const invoices = await invoiceService.getAllInvoices();
-      expect(invoices.find(inv => inv.id === invoice.id)).toBeUndefined();
+      expect(invoices.find((inv) => inv.id === invoice.id)).toBeUndefined();
     });
 
     it('should get invoice by id', async () => {

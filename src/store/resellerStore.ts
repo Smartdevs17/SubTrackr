@@ -322,9 +322,14 @@ export const useResellerStore = create<ResellerState>((set, get) => ({
       if (order.status === OrderStatus.COMPLETED) {
         const reseller = get().resellers.find((r) => r.id === order.resellerId);
         if (reseller) {
-          const updatedBalance = Math.max(0, Math.round((reseller.balance - order.commissionEarned) * 100) / 100);
+          const updatedBalance = Math.max(
+            0,
+            Math.round((reseller.balance - order.commissionEarned) * 100) / 100
+          );
           set((state) => ({
-            resellers: state.resellers.map((r) => (r.id === reseller.id ? { ...r, balance: updatedBalance } : r)),
+            resellers: state.resellers.map((r) =>
+              r.id === reseller.id ? { ...r, balance: updatedBalance } : r
+            ),
           }));
         }
       }

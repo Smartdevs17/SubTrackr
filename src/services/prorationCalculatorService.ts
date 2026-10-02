@@ -41,7 +41,10 @@ function toMs(date: number | string | Date): number {
 /**
  * Calculate total days between two dates.
  */
-export function calculateCycleDays(startDate: number | string | Date, endDate: number | string | Date): number {
+export function calculateCycleDays(
+  startDate: number | string | Date,
+  endDate: number | string | Date
+): number {
   const start = toMs(startDate);
   const end = toMs(endDate);
   const diffMs = Math.max(0, end - start);
@@ -51,7 +54,9 @@ export function calculateCycleDays(startDate: number | string | Date, endDate: n
 /**
  * Main transparent proration calculator function.
  */
-export function calculateProration(request: ProrationCalculationRequest): ProrationCalculationResult {
+export function calculateProration(
+  request: ProrationCalculationRequest
+): ProrationCalculationResult {
   const config: ProrationConfig = { ...DEFAULT_PRORATION_CONFIG, ...request.config };
   const effectiveMs = request.effectiveDate ? toMs(request.effectiveDate) : Date.now();
   const startMs = toMs(request.cycleStartDate);
@@ -253,7 +258,10 @@ export function buildProrationAnalytics(records: ProrationRecord[]): ProrationAn
   let amountSum = 0;
 
   const upgradePaths = new Map<string, number>();
-  const monthlyData = new Map<string, { upgrades: number; downgrades: number; netRevenue: number }>();
+  const monthlyData = new Map<
+    string,
+    { upgrades: number; downgrades: number; netRevenue: number }
+  >();
 
   for (const record of records) {
     const { result } = record;
@@ -277,10 +285,16 @@ export function buildProrationAnalytics(records: ProrationRecord[]): ProrationAn
 
     // Monthly aggregation
     const monthKey = new Date(record.createdAt).toISOString().slice(0, 7);
-    const existingMonth = monthlyData.get(monthKey) ?? { upgrades: 0, downgrades: 0, netRevenue: 0 };
+    const existingMonth = monthlyData.get(monthKey) ?? {
+      upgrades: 0,
+      downgrades: 0,
+      netRevenue: 0,
+    };
     if (mode === 'upgrade') existingMonth.upgrades++;
     if (mode === 'downgrade') existingMonth.downgrades++;
-    existingMonth.netRevenue += result.isCredit ? -result.netProratedAmount : result.netProratedAmount;
+    existingMonth.netRevenue += result.isCredit
+      ? -result.netProratedAmount
+      : result.netProratedAmount;
     monthlyData.set(monthKey, existingMonth);
   }
 
@@ -306,7 +320,8 @@ export function buildProrationAnalytics(records: ProrationRecord[]): ProrationAn
     totalCancellations,
     totalProratedRevenueCollected: Math.round(totalRevenue * 100) / 100,
     totalCreditsIssued: Math.round(totalCredits * 100) / 100,
-    averageProratedAmount: totalCalculations > 0 ? Math.round((amountSum / totalCalculations) * 100) / 100 : 0,
+    averageProratedAmount:
+      totalCalculations > 0 ? Math.round((amountSum / totalCalculations) * 100) / 100 : 0,
     mostCommonUpgradePath,
     prorationVolumeByMonth,
   };

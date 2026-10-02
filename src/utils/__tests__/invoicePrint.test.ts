@@ -1,5 +1,10 @@
 import { generatePrintableInvoiceHtml, buildInvoice, buildBillingPeriod } from '../invoice';
-import { Subscription, BillingCycle, SubscriptionStatus, SubscriptionCategory } from '../../types/subscription';
+import {
+  Subscription,
+  BillingCycle,
+  SubscriptionStatus,
+  SubscriptionCategory,
+} from '../../types/subscription';
 
 const mockSubscription: Subscription = {
   id: 'sub-101',
@@ -32,7 +37,17 @@ describe('Printable Invoice Utility (Issue #1277)', () => {
 
   it('includes invoice notes in generated HTML when provided', () => {
     const period = buildBillingPeriod(mockSubscription);
-    const invoice = buildInvoice(mockSubscription, 2, period, undefined, undefined, undefined, undefined, undefined, 'Special corporate rate applied');
+    const invoice = buildInvoice(
+      mockSubscription,
+      2,
+      period,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      'Special corporate rate applied'
+    );
     const html = generatePrintableInvoiceHtml(invoice);
 
     expect(html).toContain('Notes:');

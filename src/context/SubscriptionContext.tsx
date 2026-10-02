@@ -80,8 +80,7 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
   );
 
   const getSubscriptionsByCategory = useCallback(
-    (category: SubscriptionCategory) =>
-      subscriptions.filter((s) => s.category === category),
+    (category: SubscriptionCategory) => subscriptions.filter((s) => s.category === category),
     [subscriptions]
   );
 
@@ -133,11 +132,7 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
     ]
   );
 
-  return (
-    <SubscriptionContext.Provider value={value}>
-      {children}
-    </SubscriptionContext.Provider>
-  );
+  return <SubscriptionContext.Provider value={value}>{children}</SubscriptionContext.Provider>;
 }
 
 // ── Custom Hooks ──────────────────────────────────────────────────────────────

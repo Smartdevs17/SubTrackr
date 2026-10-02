@@ -29,10 +29,10 @@ const { Client } = require('pg');
 // ── Connection config from environment ──────────────────────────────────────
 
 const DB_CONFIG = {
-  host:     process.env.DB_HOST     || 'localhost',
-  port:     parseInt(process.env.DB_PORT || '5432', 10),
-  database: process.env.DB_NAME     || 'subtrackr',
-  user:     process.env.DB_USER     || 'postgres',
+  host: process.env.DB_HOST || 'localhost',
+  port: parseInt(process.env.DB_PORT || '5432', 10),
+  database: process.env.DB_NAME || 'subtrackr',
+  user: process.env.DB_USER || 'postgres',
   password: process.env.DB_PASSWORD || 'postgres',
 };
 
@@ -134,58 +134,58 @@ async function bootstrapSchema(client) {
 const MERCHANTS = [
   {
     address: 'GDEMO1MERCHANTSTELLARADDRESS0000000000000000000000000000',
-    name:    'SubTrackr Demo Merchant',
-    email:   'merchant@subtrackr.local',
+    name: 'SubTrackr Demo Merchant',
+    email: 'merchant@subtrackr.local',
   },
 ];
 
 const PLANS = [
   {
     merchant_address: 'GDEMO1MERCHANTSTELLARADDRESS0000000000000000000000000000',
-    name:      'Basic',
-    price:     9.99,
-    token:     'USDC',
-    interval:  'Monthly',
-    active:    true,
+    name: 'Basic',
+    price: 9.99,
+    token: 'USDC',
+    interval: 'Monthly',
+    active: true,
   },
   {
     merchant_address: 'GDEMO1MERCHANTSTELLARADDRESS0000000000000000000000000000',
-    name:      'Pro',
-    price:     29.99,
-    token:     'USDC',
-    interval:  'Monthly',
-    active:    true,
+    name: 'Pro',
+    price: 29.99,
+    token: 'USDC',
+    interval: 'Monthly',
+    active: true,
   },
   {
     merchant_address: 'GDEMO1MERCHANTSTELLARADDRESS0000000000000000000000000000',
-    name:      'Enterprise',
-    price:     99.99,
-    token:     'USDC',
-    interval:  'Yearly',
-    active:    true,
+    name: 'Enterprise',
+    price: 99.99,
+    token: 'USDC',
+    interval: 'Yearly',
+    active: true,
   },
 ];
 
 const SUBSCRIBERS = [
   {
     address: 'GSUB1DEMOSTELLARADDRESS00000000000000000000000000000000',
-    email:   'alice@subtrackr.local',
+    email: 'alice@subtrackr.local',
   },
   {
     address: 'GSUB2DEMOSTELLARADDRESS00000000000000000000000000000000',
-    email:   'bob@subtrackr.local',
+    email: 'bob@subtrackr.local',
   },
 ];
 
 const WEBHOOKS = [
   {
-    id:     'wh_demo_001',
-    url:    'http://localhost:4000/webhooks/subtrackr',
+    id: 'wh_demo_001',
+    url: 'http://localhost:4000/webhooks/subtrackr',
     events: ['subscription.created', 'subscription.cancelled', 'payment.succeeded'],
   },
   {
-    id:     'wh_demo_002',
-    url:    'http://localhost:4000/webhooks/billing',
+    id: 'wh_demo_002',
+    url: 'http://localhost:4000/webhooks/billing',
     events: ['invoice.generated', 'payment.failed'],
   },
 ];
@@ -246,28 +246,28 @@ async function seedSubscriptions(client, planIds) {
 
   const fixtures = [
     {
-      plan_name:          'Basic',
+      plan_name: 'Basic',
       subscriber_address: SUBSCRIBERS[0].address,
-      status:             'active',
-      last_charged_at:    now,
-      next_charge_at:     nextMonth,
-      total_paid:         9.99,
+      status: 'active',
+      last_charged_at: now,
+      next_charge_at: nextMonth,
+      total_paid: 9.99,
     },
     {
-      plan_name:          'Pro',
+      plan_name: 'Pro',
       subscriber_address: SUBSCRIBERS[1].address,
-      status:             'active',
-      last_charged_at:    now,
-      next_charge_at:     nextMonth,
-      total_paid:         29.99,
+      status: 'active',
+      last_charged_at: now,
+      next_charge_at: nextMonth,
+      total_paid: 29.99,
     },
     {
-      plan_name:          'Enterprise',
+      plan_name: 'Enterprise',
       subscriber_address: SUBSCRIBERS[0].address,
-      status:             'paused',
-      last_charged_at:    now,
-      next_charge_at:     null,
-      total_paid:         99.99,
+      status: 'paused',
+      last_charged_at: now,
+      next_charge_at: null,
+      total_paid: 99.99,
     },
   ];
 
@@ -320,12 +320,7 @@ async function main() {
   const client = new Client(DB_CONFIG);
 
   // Retry connection — Postgres may still be initialising when this container starts
-  await withRetry(
-    () => client.connect(),
-    'PostgreSQL connect',
-    12,
-    2000
-  );
+  await withRetry(() => client.connect(), 'PostgreSQL connect', 12, 2000);
 
   console.log('[seed] Connected to PostgreSQL.');
 

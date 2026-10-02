@@ -51,7 +51,11 @@ export class ApiClient {
     this.tracer = options.tracer ?? mobileTracer;
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.defaultHeaders = { 'Content-Type': 'application/json', ...options.defaultHeaders };
-    this.circuitBreaker = new CircuitBreaker({ name: 'frontend-api-client', tracer: this.tracer, ...options.circuitBreaker });
+    this.circuitBreaker = new CircuitBreaker({
+      name: 'frontend-api-client',
+      tracer: this.tracer,
+      ...options.circuitBreaker,
+    });
   }
 
   async request<T>(path: string, options: ApiRequestOptions = {}): Promise<ApiResponse<T>> {

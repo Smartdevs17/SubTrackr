@@ -294,9 +294,9 @@ export function calculateDetailedMrrBreakdown(
       if (!prev.isActive && curr.isActive) {
         reactivatedMrr += currMonthly;
       } else if (currMonthly > prevMonthly) {
-        expansionMrr += (currMonthly - prevMonthly);
+        expansionMrr += currMonthly - prevMonthly;
       } else if (currMonthly < prevMonthly) {
-        contractionMrr += (prevMonthly - currMonthly);
+        contractionMrr += prevMonthly - currMonthly;
       }
     }
   }
@@ -314,17 +314,24 @@ export function calculateDetailedMrrBreakdown(
     newMrr = active.reduce((sum, s) => sum + toMonthlyRevenue(s), 0);
   }
 
-  const netNewMrr = (newMrr + expansionMrr + reactivatedMrr) - (contractionMrr + churnedMrr);
+  const netNewMrr = newMrr + expansionMrr + reactivatedMrr - (contractionMrr + churnedMrr);
   const endingMrr = startingMrr + netNewMrr;
   const endingArr = endingMrr * 12;
 
   const totalLoss = contractionMrr + churnedMrr;
   const totalGain = newMrr + expansionMrr;
-  const quickRatio = totalLoss > 0 ? Number((totalGain / totalLoss).toFixed(2)) : totalGain > 0 ? 10 : 0;
+  const quickRatio =
+    totalLoss > 0 ? Number((totalGain / totalLoss).toFixed(2)) : totalGain > 0 ? 10 : 0;
 
-  const netRevenueRetentionPercent = startingMrr > 0
-    ? Number((((startingMrr + expansionMrr - contractionMrr - churnedMrr) / startingMrr) * 100).toFixed(2))
-    : 100;
+  const netRevenueRetentionPercent =
+    startingMrr > 0
+      ? Number(
+          (
+            ((startingMrr + expansionMrr - contractionMrr - churnedMrr) / startingMrr) *
+            100
+          ).toFixed(2)
+        )
+      : 100;
 
   return {
     startingMrr: Number(startingMrr.toFixed(2)),
@@ -432,11 +439,11 @@ export function calculateCustomerUnitEconomics(
   const totalMrr = active.reduce((sum, s) => sum + toMonthlyRevenue(s), 0);
   const arpu = active.length > 0 ? Number((totalMrr / active.length).toFixed(2)) : 0;
 
-  const churnRate = subscriptions.length > 0
-    ? (subscriptions.length - active.length) / subscriptions.length
-    : 0.05;
+  const churnRate =
+    subscriptions.length > 0 ? (subscriptions.length - active.length) / subscriptions.length : 0.05;
 
-  const ltv = churnRate > 0 ? Number((arpu / churnRate).toFixed(2)) : Number((arpu * 24).toFixed(2));
+  const ltv =
+    churnRate > 0 ? Number((arpu / churnRate).toFixed(2)) : Number((arpu * 24).toFixed(2));
   const ltvToCacRatio = cacPerUser > 0 ? Number((ltv / cacPerUser).toFixed(2)) : undefined;
   const cacPaybackMonths = arpu > 0 ? Number((cacPerUser / arpu).toFixed(1)) : undefined;
 

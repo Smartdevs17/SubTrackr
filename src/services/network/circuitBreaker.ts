@@ -16,8 +16,13 @@ export interface CircuitBreakerOptions {
 }
 
 export class CircuitOpenError extends Error {
-  constructor(public readonly name: string, public readonly openUntil: number) {
-    super(`Circuit breaker "${name}" is OPEN. Recovery attempt allowed at ${new Date(openUntil).toISOString()}`);
+  constructor(
+    public readonly name: string,
+    public readonly openUntil: number
+  ) {
+    super(
+      `Circuit breaker "${name}" is OPEN. Recovery attempt allowed at ${new Date(openUntil).toISOString()}`
+    );
     this.name = 'CircuitOpenError';
   }
 }
@@ -27,7 +32,7 @@ export class CircuitBreaker {
   private consecutiveFailures = 0;
   private consecutiveSuccesses = 0;
   private openUntil: number | null = null;
-  
+
   private readonly failureThreshold: number;
   private readonly recoveryTimeoutMs: number;
   private readonly successThreshold: number;
@@ -50,13 +55,13 @@ export class CircuitBreaker {
 
     if (this.state === 'open') {
       const error = new CircuitOpenError(this.name, this.openUntil!);
-      
+
       // Optionally trace the fast-failure
       const span = this.tracer.startClientSpan(`CircuitBreaker ${this.name} fast-fail`, {
         'circuit.state': 'open',
       });
       this.tracer.endSpan(span, 'error', { 'error.message': error.message });
-      
+
       throw error;
     }
 
@@ -78,7 +83,7 @@ export class CircuitBreaker {
 
   private recordSuccess(): void {
     this.consecutiveFailures = 0;
-    
+
     if (this.state === 'half-open') {
       this.consecutiveSuccesses += 1;
       if (this.consecutiveSuccesses >= this.successThreshold) {
@@ -104,7 +109,7 @@ export class CircuitBreaker {
   private transitionTo(newState: CircuitState): void {
     const previous = this.state;
     this.state = newState;
-    
+
     if (newState === 'open') {
       this.openUntil = Date.now() + this.recoveryTimeoutMs;
       this.consecutiveFailures = 0;

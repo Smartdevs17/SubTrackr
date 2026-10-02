@@ -13,7 +13,13 @@
  * The engine is strategy-agnostic: new strategies can be registered at runtime.
  */
 
-import { PaymentMethod, PaymentAttempt, FallbackChain, PaymentPriority, TokenType } from '../types/wallet';
+import {
+  PaymentMethod,
+  PaymentAttempt,
+  FallbackChain,
+  PaymentPriority,
+  TokenType,
+} from '../types/wallet';
 import {
   PaymentMethodService,
   PaymentMethodError,
@@ -256,7 +262,10 @@ export class RoundRobinStrategy implements ChainStrategy {
       return aTime - bTime; // ascending: LRU first
     });
 
-    const fallbackPriority = new PriorityStrategy().order(nonPrimaries, {} as ChainStrategyContext).orderedMethods;
+    const fallbackPriority = new PriorityStrategy().order(
+      nonPrimaries,
+      {} as ChainStrategyContext
+    ).orderedMethods;
 
     return {
       orderedMethods: [...rrPrimaries, ...fallbackPriority],
@@ -270,7 +279,8 @@ export class RoundRobinStrategy implements ChainStrategy {
 // FallbackChainEngine
 // ---------------------------------------------------------------------------
 
-export type StrategyId = 'priority' | 'weighted' | 'sticky' | 'priority-burst' | 'geo-aware' | 'round-robin' | string;
+export type StrategyId =
+  'priority' | 'weighted' | 'sticky' | 'priority-burst' | 'geo-aware' | 'round-robin' | string;
 
 export interface FallbackChainEngineOptions {
   defaultStrategy?: StrategyId;
@@ -287,10 +297,7 @@ export class FallbackChainEngine {
   private readonly _strategies = new Map<string, ChainStrategy>();
   private readonly _defaultStrategyId: StrategyId;
 
-  constructor(
-    service?: PaymentMethodService,
-    options: FallbackChainEngineOptions = {}
-  ) {
+  constructor(service?: PaymentMethodService, options: FallbackChainEngineOptions = {}) {
     this._service = service ?? PaymentMethodService.getInstance();
     this._defaultStrategyId = options.defaultStrategy ?? 'priority';
 

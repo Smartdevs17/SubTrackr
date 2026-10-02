@@ -13,7 +13,7 @@ describe('planService', () => {
   describe('Plan Management', () => {
     it('should get all plans', async () => {
       const plans = await planService.getAllPlans();
-      
+
       expect(plans).toBeDefined();
       expect(plans.length).toBeGreaterThan(0);
       expect(plans[0]).toHaveProperty('id');
@@ -23,34 +23,34 @@ describe('planService', () => {
 
     it('should filter plans by billing cycle', async () => {
       const monthlyPlans = await planService.getAllPlans('monthly');
-      
-      expect(monthlyPlans.every(p => p.billingCycle === 'monthly')).toBe(true);
+
+      expect(monthlyPlans.every((p) => p.billingCycle === 'monthly')).toBe(true);
     });
 
     it('should get plan by id', async () => {
       const plans = await planService.getAllPlans();
       const firstPlan = plans[0];
-      
+
       const plan = await planService.getPlanById(firstPlan.id);
-      
+
       expect(plan).toBeDefined();
       expect(plan?.id).toBe(firstPlan.id);
     });
 
     it('should get plans by tier', async () => {
       const premiumPlans = await planService.getPlansByTier('premium');
-      
-      expect(premiumPlans.every(p => p.tier === 'premium')).toBe(true);
+
+      expect(premiumPlans.every((p) => p.tier === 'premium')).toBe(true);
     });
   });
 
   describe('Plan Comparison', () => {
     it('should compare multiple plans', async () => {
       const plans = await planService.getAllPlans();
-      const planIds = plans.slice(0, 2).map(p => p.id);
-      
+      const planIds = plans.slice(0, 2).map((p) => p.id);
+
       const comparison = await planService.comparePlans(planIds);
-      
+
       expect(comparison).toBeDefined();
       expect(comparison.plans).toHaveLength(2);
       expect(comparison.comparisonMatrix).toBeDefined();
@@ -65,10 +65,10 @@ describe('planService', () => {
 
     it('should generate recommendations', async () => {
       const plans = await planService.getAllPlans();
-      const planIds = plans.map(p => p.id);
-      
+      const planIds = plans.map((p) => p.id);
+
       const comparison = await planService.comparePlans(planIds);
-      
+
       expect(comparison.recommendations.length).toBeGreaterThan(0);
       expect(comparison.recommendations[0]).toHaveProperty('planId');
       expect(comparison.recommendations[0]).toHaveProperty('reason');
@@ -77,10 +77,10 @@ describe('planService', () => {
 
     it('should build comparison matrix with categories', async () => {
       const plans = await planService.getAllPlans();
-      const planIds = plans.slice(0, 3).map(p => p.id);
-      
+      const planIds = plans.slice(0, 3).map((p) => p.id);
+
       const comparison = await planService.comparePlans(planIds);
-      
+
       expect(comparison.comparisonMatrix.length).toBeGreaterThan(0);
       expect(comparison.comparisonMatrix[0]).toHaveProperty('category');
       expect(comparison.comparisonMatrix[0]).toHaveProperty('features');
@@ -92,7 +92,7 @@ describe('planService', () => {
       const plans = await planService.getAllPlans();
       const currentPlan = plans[0];
       const targetPlan = plans[1];
-      
+
       const request = {
         currentPlanId: currentPlan.id,
         targetPlanId: targetPlan.id,
@@ -101,7 +101,7 @@ describe('planService', () => {
       };
 
       const response = await planService.switchPlan(request);
-      
+
       expect(response.success).toBe(true);
       expect(response.switchId).toBeDefined();
       expect(response.currentPlan.id).toBe(currentPlan.id);
@@ -111,9 +111,9 @@ describe('planService', () => {
 
     it('should calculate proration when upgrading', async () => {
       const plans = await planService.getAllPlans();
-      const basicPlan = plans.find(p => p.tier === 'basic');
-      const premiumPlan = plans.find(p => p.tier === 'premium');
-      
+      const basicPlan = plans.find((p) => p.tier === 'basic');
+      const premiumPlan = plans.find((p) => p.tier === 'premium');
+
       if (!basicPlan || !premiumPlan) {
         throw new Error('Required plans not found');
       }
@@ -126,7 +126,7 @@ describe('planService', () => {
       };
 
       const response = await planService.switchPlan(request);
-      
+
       expect(response.prorationCharge).toBeDefined();
       expect(response.prorationCharge).toBeGreaterThan(0);
     });
@@ -155,7 +155,7 @@ describe('planService', () => {
 
       await planService.switchPlan(request);
       const history = await planService.getSwitchHistory('user-123');
-      
+
       expect(history.length).toBeGreaterThan(0);
       expect(history[0].userId).toBe('user-123');
       expect(history[0].status).toBe('completed');
@@ -163,7 +163,7 @@ describe('planService', () => {
 
     it('should filter history by user', async () => {
       const plans = await planService.getAllPlans();
-      
+
       await planService.switchPlan({
         currentPlanId: plans[0].id,
         targetPlanId: plans[1].id,
@@ -179,15 +179,15 @@ describe('planService', () => {
       });
 
       const userHistory = await planService.getSwitchHistory('user-123');
-      
-      expect(userHistory.every(h => h.userId === 'user-123')).toBe(true);
+
+      expect(userHistory.every((h) => h.userId === 'user-123')).toBe(true);
     });
   });
 
   describe('Plan Analytics', () => {
     it('should calculate plan analytics', async () => {
       const analytics = await planService.getPlanAnalytics();
-      
+
       expect(analytics).toBeDefined();
       expect(analytics.totalPlans).toBeGreaterThan(0);
       expect(analytics.activeSubscriptionsByPlan).toBeDefined();
@@ -201,9 +201,9 @@ describe('planService', () => {
     it('should track revenue by plan', async () => {
       const analytics = await planService.getPlanAnalytics();
       const revenueKeys = Object.keys(analytics.revenueByPlan);
-      
+
       expect(revenueKeys.length).toBeGreaterThan(0);
-      revenueKeys.forEach(key => {
+      revenueKeys.forEach((key) => {
         expect(analytics.revenueByPlan[key]).toBeGreaterThanOrEqual(0);
       });
     });

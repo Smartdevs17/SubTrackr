@@ -120,19 +120,27 @@ describe('version: semver utilities', () => {
   });
 
   it('compareSemVer returns 0 for equal versions', () => {
-    expect(compareSemVer({ major: 1, minor: 2, patch: 3 }, { major: 1, minor: 2, patch: 3 })).toBe(0);
+    expect(compareSemVer({ major: 1, minor: 2, patch: 3 }, { major: 1, minor: 2, patch: 3 })).toBe(
+      0
+    );
   });
 
   it('compareSemVer returns negative when a < b (major)', () => {
-    expect(compareSemVer({ major: 1, minor: 0, patch: 0 }, { major: 2, minor: 0, patch: 0 })).toBeLessThan(0);
+    expect(
+      compareSemVer({ major: 1, minor: 0, patch: 0 }, { major: 2, minor: 0, patch: 0 })
+    ).toBeLessThan(0);
   });
 
   it('compareSemVer returns positive when a > b (minor)', () => {
-    expect(compareSemVer({ major: 1, minor: 5, patch: 0 }, { major: 1, minor: 2, patch: 0 })).toBeGreaterThan(0);
+    expect(
+      compareSemVer({ major: 1, minor: 5, patch: 0 }, { major: 1, minor: 2, patch: 0 })
+    ).toBeGreaterThan(0);
   });
 
   it('compareSemVer uses patch when major+minor are equal', () => {
-    expect(compareSemVer({ major: 1, minor: 1, patch: 5 }, { major: 1, minor: 1, patch: 2 })).toBeGreaterThan(0);
+    expect(
+      compareSemVer({ major: 1, minor: 1, patch: 5 }, { major: 1, minor: 1, patch: 2 })
+    ).toBeGreaterThan(0);
   });
 
   it('satisfiesMinVersion returns true when current >= minimum', () => {
