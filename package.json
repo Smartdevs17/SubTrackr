@@ -129,7 +129,7 @@
     "react-native-safe-area-context": "5.10.0",
     "react-native-screens": "~4.28.0",
     "react-native-svg": "15.15.5",
-    "zod": "^3.23.8",
+    "zod": "^4.6.5",
     "zustand": "^5.0.15"
   },
   "devDependencies": {
