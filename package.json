@@ -137,7 +137,7 @@
     "@commitlint/cli": "^20.5.2",
     "@commitlint/config-conventional": "^21.2.3",
     "@config-plugins/detox": "^11.0.0",
-    "@expo/cli": "^0.24.20",
+    "@expo/cli": "^57.0.27",
     "@react-native-community/cli": "^20.2.0",
     "@react-native/jest-preset": "0.87.1",
     "@semantic-release/changelog": "^6.0.3",
