@@ -1,4 +1,12 @@
 #![no_std]
+// TODO: migrate `env.events().publish(..)` to the `#[contractevent]` macro.
+// soroban-sdk 28 deprecated the imperative form; it is still functional and
+// still emits identical events, so the deprecation is allowed crate-wide
+// until the event payloads are reworked. CI lints with `-D warnings`.
+#![allow(deprecated)]
+// Contract methods take positional arguments by ABI; parameters cannot be
+// grouped into a struct without changing the contract interface.
+#![allow(clippy::too_many_arguments)]
 mod gas_optimization;
 mod gas_profiler;
 mod gas_storage;

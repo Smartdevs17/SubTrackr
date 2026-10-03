@@ -1,5 +1,9 @@
 #![no_std]
-
+// TODO: migrate `env.events().publish(..)` to the `#[contractevent]` macro.
+// soroban-sdk 28 deprecated the imperative form; it is still functional and
+// still emits identical events, so the deprecation is allowed crate-wide
+// until the event payloads are reworked. CI lints with `-D warnings`.
+#![allow(deprecated)]
 use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, String, Vec};
 use subtrackr_types::{
     FraudAction, FraudCase, FraudReport, FraudReviewStatus, MerchantId, RiskScore, RiskSignal,
@@ -325,7 +329,7 @@ impl SubTrackrFraud {
 
     pub fn assess_risk(env: Env, subscriber: Address) -> RiskScore {
         let ids = get_subscriptions(&env, &subscriber);
-        if ids.len() == 0 {
+        if ids.is_empty() {
             return RiskScore {
                 subscriber: subscriber.clone(),
                 subscription_id: 0,
@@ -455,7 +459,7 @@ impl SubTrackrFraud {
             i += 1;
         }
 
-        let average_risk = if ids.len() == 0 {
+        let average_risk = if ids.is_empty() {
             0
         } else {
             total_risk / ids.len()

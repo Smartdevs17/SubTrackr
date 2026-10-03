@@ -4,10 +4,7 @@
 //! Provides on-chain trial lifecycle tracking, conversion incentive mechanics,
 //! grace period calculations, dynamic conversion discounts, and trial conversion analytics.
 
-use soroban_sdk::{contracttype, Address, Env, String, Vec};
-use subtrackr_types::StorageKey;
-
-use crate::{storage_persistent_get, storage_persistent_set};
+use soroban_sdk::{contracttype, Address, Env};
 
 /// Basis point denominator (100% = 10,000 bps)
 pub const BPS_DENOMINATOR: u32 = 10_000;
@@ -80,8 +77,8 @@ pub enum TrialStorageKey {
 }
 
 pub fn configure_trial_for_plan(
-    env: &Env,
-    storage: &Address,
+    _env: &Env,
+    _storage: &Address,
     plan_id: u64,
     duration_secs: u64,
     grace_period_secs: u64,
@@ -96,7 +93,7 @@ pub fn configure_trial_for_plan(
     );
     assert!(duration_secs > 0, "Duration must be positive");
 
-    let config = OnChainTrialConfig {
+    OnChainTrialConfig {
         plan_id,
         duration_secs: if duration_secs == 0 {
             DEFAULT_TRIAL_DURATION_SECS
@@ -116,14 +113,12 @@ pub fn configure_trial_for_plan(
             max_extensions
         },
         incentive_extension_secs,
-    };
-
-    config
+    }
 }
 
 pub fn start_trial(
     env: &Env,
-    storage: &Address,
+    _storage: &Address,
     subscriber: &Address,
     plan_id: u64,
     config: &OnChainTrialConfig,
@@ -131,7 +126,7 @@ pub fn start_trial(
     let now = env.ledger().timestamp();
     let end_time = now + config.duration_secs;
 
-    let trial = OnChainTrialRecord {
+    OnChainTrialRecord {
         trial_id: now,
         subscriber: subscriber.clone(),
         plan_id,
@@ -143,13 +138,11 @@ pub fn start_trial(
         auto_convert: config.auto_convert,
         status: OnChainTrialStatus::Active,
         converted_at: None,
-    };
-
-    trial
+    }
 }
 
 pub fn extend_trial(
-    env: &Env,
+    _env: &Env,
     trial: &mut OnChainTrialRecord,
     config: &OnChainTrialConfig,
     additional_secs: u64,

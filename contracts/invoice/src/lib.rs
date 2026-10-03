@@ -1,13 +1,30 @@
 #![no_std]
-
+// TODO: migrate `env.events().publish(..)` to the `#[contractevent]` macro.
+// soroban-sdk 28 deprecated the imperative form; it is still functional and
+// still emits identical events, so the deprecation is allowed crate-wide
+// until the event payloads are reworked. CI lints with `-D warnings`.
+#![allow(deprecated)]
+// Contract methods take positional arguments by ABI; parameters cannot be
+// grouped into a struct without changing the contract interface.
+#![allow(clippy::too_many_arguments)]
 extern crate alloc;
 
+mod bump;
 mod pdf;
 
 use alloc::format;
-use alloc::string::ToString;
-use alloc::vec;
+use alloc::string::String as HostString;
 use soroban_sdk::{Address, Bytes, Env, IntoVal, String, TryFromVal, Val, Vec};
+
+/// Copies an SDK string into a host string.
+///
+/// `soroban_sdk::String` deliberately does not implement `Display`, so it
+/// cannot be interpolated with `format!`; its bytes have to be copied out.
+pub fn to_host_string(value: &String) -> HostString {
+    let mut buffer = alloc::vec![0u8; value.len() as usize];
+    value.copy_into_slice(&mut buffer);
+    HostString::from_utf8(buffer).unwrap_or_default()
+}
 use subtrackr_types::{
     CustomerTaxStatus, DigitalGoodsClass, Invoice, InvoiceConfig, InvoiceLineItem, InvoiceStatus,
     MaybeDigitalGoodsClass, Plan, RemittanceStatus, StorageKey, Subscription, TaxJurisdiction,
@@ -64,9 +81,9 @@ fn next_invoice_id(env: &Env) -> u64 {
 
 fn format_invoice_number(env: &Env, sequence: u64) -> String {
     let config = invoice_config(env);
-    let prefix = config.numbering_prefix.to_string();
+    let prefix = to_host_string(&config.numbering_prefix);
     let width = config.numbering_padding.max(1) as usize;
-    String::from_str(env, &format!("{prefix}-{number:0width$}", width = width))
+    String::from_str(env, &format!("{prefix}-{sequence:0width$}", width = width))
 }
 
 fn get_subscription(env: &Env, storage: &Address, subscription_id: u64) -> Subscription {
@@ -116,26 +133,36 @@ fn calculate_tax(subtotal: i128, tax_rate_bps: u32) -> i128 {
     subtotal.saturating_mul(tax_rate_bps as i128) / 10_000
 }
 
-fn build_jurisdiction_key(country: &str, state: &str, city: &str) -> String {
-    if !city.is_empty() {
-        format!(
-            "{country}-{state}-{city}",
-            country = country,
-            state = state,
-            city = city
-        )
+/// Builds the most specific jurisdiction key available from the parts given,
+/// converting once to an SDK string.
+fn build_jurisdiction_key(
+    env: &Env,
+    country: &HostString,
+    state: &HostString,
+    city: &HostString,
+) -> String {
+    let key = if !city.is_empty() {
+        format!("{country}-{state}-{city}")
     } else if !state.is_empty() {
-        format!("{country}-{state}", country = country, state = state)
+        format!("{country}-{state}")
     } else {
-        country.to_string()
-    }
+        country.clone()
+    };
+
+    String::from_str(env, key.as_str())
 }
 
+/// Resolves the effective rate for a jurisdiction.
+///
+/// Falls back from the most specific jurisdiction down to `GLOBAL`, and then
+/// to the region-scoped rate configured with `set_tax_rate`, so callers that
+/// only set a region rate still get taxed.
 fn resolve_tax_rate_entry(
     env: &Env,
     country: &String,
     state: &String,
     city: &String,
+    region: &String,
 ) -> TaxRateEntry {
     let mut lookup_keys = Vec::new(env);
 
@@ -144,16 +171,16 @@ fn resolve_tax_rate_entry(
             env,
             &format!(
                 "{}-{}-{}",
-                country.to_string(),
-                state.to_string(),
-                city.to_string()
+                to_host_string(country),
+                to_host_string(state),
+                to_host_string(city)
             ),
         ));
     }
     if !state.is_empty() && !country.is_empty() {
         lookup_keys.push_back(String::from_str(
             env,
-            &format!("{}-{}", country.to_string(), state.to_string()),
+            &format!("{}-{}", to_host_string(country), to_host_string(state)),
         ));
     }
     if !country.is_empty() {
@@ -172,7 +199,7 @@ fn resolve_tax_rate_entry(
     TaxRateEntry {
         jurisdiction_key: String::from_str(env, "GLOBAL"),
         tax_type: TaxType::None,
-        rate_bps: invoice_config(env).default_tax_bps,
+        rate_bps: get_tax_rate_bps(env, region),
         display_name: String::from_str(env, "Default"),
         effective_from: 0,
         effective_until: 0,
@@ -208,7 +235,7 @@ fn is_customer_tax_exempt(env: &Env, subscriber: &Address, jurisdiction_key: &St
         return true;
     }
     for j in status.exempt_jurisdictions.iter() {
-        if j == jurisdiction_key {
+        if j == *jurisdiction_key {
             return true;
         }
     }
@@ -263,6 +290,7 @@ fn calculate_mid_cycle_tax(
     subtotal: i128,
     jurisdiction_key: &String,
     period: &TimeRange,
+    rate_bps: u32,
 ) -> i128 {
     let log: Vec<TaxRateChangeEvent> = storage_persistent_get(
         env,
@@ -271,14 +299,12 @@ fn calculate_mid_cycle_tax(
     .unwrap_or(Vec::new(env));
 
     if log.is_empty() {
-        let rate = get_tax_rate_bps(env, jurisdiction_key);
-        return calculate_tax(subtotal, rate);
+        return calculate_tax(subtotal, rate_bps);
     }
 
     let period_duration = period.end.saturating_sub(period.start);
     if period_duration == 0 {
-        let rate = get_tax_rate_bps(env, jurisdiction_key);
-        return calculate_tax(subtotal, rate);
+        return calculate_tax(subtotal, rate_bps);
     }
 
     let mut tax_total: i128 = 0;
@@ -302,8 +328,7 @@ fn calculate_mid_cycle_tax(
     if remaining_duration > 0 && period_duration > 0 {
         let remaining_ratio = (remaining_duration as i128) * 10_000 / (period_duration as i128);
         let remaining_subtotal = (subtotal * remaining_ratio) / 10_000;
-        let final_rate = get_tax_rate_bps(env, jurisdiction_key);
-        tax_total += calculate_tax(remaining_subtotal, final_rate);
+        tax_total += calculate_tax(remaining_subtotal, rate_bps);
     }
 
     tax_total
@@ -385,7 +410,7 @@ fn store_invoice(env: &Env, invoice: &Invoice) {
         "New invoices must be drafts"
     );
     assert!(
-        invoice.line_items.len() > 0,
+        !invoice.line_items.is_empty(),
         "Invoice must contain at least one line item"
     );
 
@@ -507,13 +532,16 @@ impl SubTrackrInvoice {
             region.clone()
         };
 
-        let jurisdiction_key_str =
-            build_jurisdiction_key(&country.to_string(), &state.to_string(), &city.to_string());
-        let jurisdiction_key = String::from_str(&env, &jurisdiction_key_str);
+        let jurisdiction_key = build_jurisdiction_key(
+            &env,
+            &to_host_string(&country),
+            &to_host_string(&state),
+            &to_host_string(&city),
+        );
 
         let is_exempt = is_customer_tax_exempt(&env, &subscription.subscriber, &jurisdiction_key);
 
-        let entry = resolve_tax_rate_entry(&env, &country, &state, &city);
+        let entry = resolve_tax_rate_entry(&env, &country, &state, &city, &effective_region);
 
         let (tax_rate_bps, tax_type, reverse_charge) = if is_exempt {
             (0u32, TaxType::None, false)
@@ -527,14 +555,14 @@ impl SubTrackrInvoice {
         let tax = if tax_rate_bps == 0 || is_exempt {
             0i128
         } else {
-            calculate_mid_cycle_tax(&env, subtotal, &jurisdiction_key, &period)
+            calculate_mid_cycle_tax(&env, subtotal, &jurisdiction_key, &period, tax_rate_bps)
         };
 
         let total = subtotal + tax;
         let id = next_invoice_id(&env);
 
         let display_region = if reverse_charge {
-            String::from_str(&env, &format!("{}-RC", &jurisdiction_key_str))
+            String::from_str(&env, &format!("{}-RC", to_host_string(&jurisdiction_key)))
         } else {
             jurisdiction_key.clone()
         };
@@ -629,9 +657,12 @@ impl SubTrackrInvoice {
         assert!(admin == stored_admin, "Admin mismatch");
         stored_admin.require_auth();
 
-        let jurisdiction_key_str =
-            build_jurisdiction_key(&country.to_string(), &state.to_string(), &city.to_string());
-        let key = String::from_str(&env, &jurisdiction_key_str);
+        let key = build_jurisdiction_key(
+            &env,
+            &to_host_string(&country),
+            &to_host_string(&state),
+            &to_host_string(&city),
+        );
 
         let old_rate_bps =
             storage_persistent_get::<TaxRateEntry>(&env, StorageKey::TaxRateEntry(key.clone()))
@@ -658,7 +689,8 @@ impl SubTrackrInvoice {
     }
 
     pub fn get_tax_rate(env: Env, country: String, state: String, city: String) -> TaxRateEntry {
-        resolve_tax_rate_entry(&env, &country, &state, &city)
+        let default_region = String::from_str(&env, DEFAULT_REGION);
+        resolve_tax_rate_entry(&env, &country, &state, &city, &default_region)
     }
 
     // ── Tax-Exempt Customer Management ──
@@ -721,7 +753,7 @@ impl SubTrackrInvoice {
         if !status.is_exempt {
             return false;
         }
-        if status.certificate_id.to_string() != certificate_id.to_string() {
+        if status.certificate_id != certificate_id {
             return false;
         }
         let now = env.ledger().timestamp();
@@ -753,14 +785,17 @@ impl SubTrackrInvoice {
 
     pub fn check_nexus(
         env: Env,
-        merchant: Address,
+        _merchant: Address,
         country: String,
         state: String,
         city: String,
     ) -> bool {
-        let jurisdiction_key_str =
-            build_jurisdiction_key(&country.to_string(), &state.to_string(), &city.to_string());
-        let key = String::from_str(&env, &jurisdiction_key_str);
+        let key = build_jurisdiction_key(
+            &env,
+            &to_host_string(&country),
+            &to_host_string(&state),
+            &to_host_string(&city),
+        );
         let entry: Option<TaxRateEntry> =
             storage_persistent_get(&env, StorageKey::TaxRateEntry(key.clone()));
         if entry.is_none() {
@@ -879,8 +914,9 @@ impl SubTrackrInvoice {
 
 #[cfg(test)]
 mod tests {
+    use alloc::string::ToString;
+
     use super::*;
-    use alloc::vec;
     use soroban_sdk::testutils::{Address as _, Ledger};
     use subtrackr_storage::{SubTrackrStorage, SubTrackrStorageClient};
     use subtrackr_types::Interval;
@@ -927,8 +963,11 @@ mod tests {
             refund_requested_amount: 0,
         };
         let storage_client = SubTrackrStorageClient::new(env, storage);
-        storage_client.persistent_set(&StorageKey::Plan(1), &plan.into_val(env));
-        storage_client.persistent_set(&StorageKey::Subscription(1), &subscription.into_val(env));
+        storage_client.persistent_set(&StorageKey::Plan(1).into_val(env), &plan.into_val(env));
+        storage_client.persistent_set(
+            &StorageKey::Subscription(1).into_val(env),
+            &subscription.into_val(env),
+        );
     }
 
     fn str_empty(env: &Env) -> String {
@@ -1043,7 +1082,7 @@ mod tests {
             &0u64,
             &String::from_str(&env, "CA Tax Authority"),
             &Vec::new(&env),
-            &None,
+            &MaybeDigitalGoodsClass::None,
         );
 
         let invoice = contract.generate_invoice(
@@ -1093,12 +1132,16 @@ mod tests {
             &admin,
             &subscriber,
             &true,
-            &String::from_str(&env, "CERT-EXPIRED"),
-            &1_000_000_000u64,
+            &String::from_str(&env, "CERT"),
+            &1_750_000_001u64,
             &String::from_str(&env, "UK HMRC"),
             &Vec::new(&env),
-            &None,
+            &MaybeDigitalGoodsClass::None,
         );
+
+        // The certificate was valid when it was registered but has since
+        // lapsed, so the customer is no longer exempt.
+        env.ledger().set_timestamp(1_750_000_002);
 
         let invoice = contract.generate_invoice(
             &storage,
@@ -1266,7 +1309,7 @@ mod tests {
             &0u64,
             &String::from_str(&env, "Authority"),
             &Vec::new(&env),
-            &None,
+            &MaybeDigitalGoodsClass::None,
         );
 
         assert!(
@@ -1347,12 +1390,14 @@ mod tests {
 
         let storage_client = SubTrackrStorageClient::new(&env, &storage);
         let mut subscription: Subscription = storage_client
-            .persistent_get(&StorageKey::Subscription(1))
-            .unwrap()
-            .try_into_val(&env)
+            .persistent_get(&StorageKey::Subscription(1).into_val(&env))
+            .map(|val| Subscription::try_from_val(&env, &val).unwrap())
             .unwrap();
         subscription.status = subtrackr_types::SubscriptionStatus::Cancelled;
-        storage_client.persistent_set(&StorageKey::Subscription(1), &subscription.into_val(&env));
+        storage_client.persistent_set(
+            &StorageKey::Subscription(1).into_val(&env),
+            &subscription.into_val(&env),
+        );
 
         assert!(contract
             .try_generate_invoice(
@@ -1440,6 +1485,6 @@ mod tests {
         );
 
         let log = contract.get_tax_rate_change_log(&String::from_str(&env, "CA"));
-        assert!(log.len() >= 1);
+        assert!(!log.is_empty());
     }
 }

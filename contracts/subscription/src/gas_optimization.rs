@@ -1,3 +1,12 @@
+// Gas-tracking scaffolding for the subscription contract.
+//
+// Nothing in the contract calls into this module yet: the gas meter is
+// planned but not wired up, so most items here are unreferenced. They are
+// kept (rather than deleted) because they are a distinct capability from
+// `subtrackr-metering`, which bills usage rather than tracking gas.
+// CI lints with `-D warnings`, so the dead code is allowed explicitly.
+#![allow(dead_code)]
+
 //! Gas Optimization and Targeting Module
 //! Provides optimization recommendations and tracks gas targets.
 

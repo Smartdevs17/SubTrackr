@@ -10,10 +10,38 @@ name = "subtrackr_subscription"
 path = "src/lib.rs"
 crate-type = ["cdylib", "rlib"]
 
+[features]
+# `default = []` keeps the core-only contract as the default build: every
+# feature gate resolves to its `not(feature = ...)` branch, which is exactly
+# how this crate was compiled before these features were declared.
+default = []
+
+# Const-only gates exposed through `lazy_modules::feature_flags`. They add no
+# dependencies and cost zero WASM bytes when disabled.
+billing = []
+notifications = []
+analytics = []
+fraud_detection = []
+mev_protection = []
+
+# Pulls in the price-oracle integration used by `payment.rs`.
+oracle = ["dep:subtrackr-oracle"]
+
+# Convenience aggregate used by CI's feature matrix.
+full = [
+    "billing",
+    "notifications",
+    "analytics",
+    "fraud_detection",
+    "mev_protection",
+    "oracle",
+]
+
 [dependencies]
 soroban-sdk = { workspace = true }
 subtrackr-types = { path = "../types" }
 serde = { version = "1.0", default-features = false }
+subtrackr-oracle = { path = "../oracle", optional = true }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }

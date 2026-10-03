@@ -1,15 +1,15 @@
 # Cargo configuration for the SubTrackr contracts workspace
-# Sets wasm32v1-none as the default build target so that
-# `cargo build --release` inside `contracts/` produces WASM without
-# requiring `--target wasm32v1-none` on every command.
+#
+# There is deliberately NO `[build] target` default here. A global wasm target
+# also applies to host-side commands, which then cannot compile test code:
+# `cargo test` and `cargo clippy --all-targets` fail with unresolved `std`,
+# `serde`, and `soroban_env_host`. Every wasm build passes
+# `--target wasm32v1-none` explicitly instead.
 #
 # soroban-sdk 28 rejects wasm32-unknown-unknown: from Rust 1.82 onward that
 # target enables reference-types and multi-value, which the Soroban
 # environment does not yet support. Its build script hard-panics on it and
 # points at wasm32v1-none (Rust 1.84+), so that is the target we build for.
-
-[build]
-target = "wasm32v1-none"
 
 # Enable sparse registry protocol for faster dependency resolution
 [net]

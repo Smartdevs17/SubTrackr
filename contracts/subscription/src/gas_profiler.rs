@@ -1,7 +1,16 @@
+// Gas-tracking scaffolding for the subscription contract.
+//
+// Nothing in the contract calls into this module yet: the gas meter is
+// planned but not wired up, so most items here are unreferenced. They are
+// kept (rather than deleted) because they are a distinct capability from
+// `subtrackr-metering`, which bills usage rather than tracking gas.
+// CI lints with `-D warnings`, so the dead code is allowed explicitly.
+#![allow(dead_code)]
+
 //! Gas Profiling Module for SubTrackr Subscription Contract
 //! Tracks gas consumption for each contract function and provides optimization insights.
 
-use soroban_sdk::{Address, Env, String, Symbol, Vec};
+use soroban_sdk::{Address, Env, String, Vec};
 
 /// Gas profile entry for a function call
 #[derive(Clone)]
@@ -103,7 +112,7 @@ impl GasProfiler {
 
     /// Update function profile statistics
     fn update_profile(env: &Env, storage: &Address, function_name: &String, gas_used: u64) {
-        let key = GasStorageKey::Profile(function_name.clone());
+        let _key = GasStorageKey::Profile(function_name.clone());
 
         let mut profile: GasProfile = match Self::get_profile(env, storage, function_name) {
             Some(p) => p,
@@ -137,22 +146,26 @@ impl GasProfiler {
     }
 
     /// Get gas profile for a function
-    pub fn get_profile(env: &Env, storage: &Address, function_name: &String) -> Option<GasProfile> {
+    pub fn get_profile(
+        _env: &Env,
+        _storage: &Address,
+        _function_name: &String,
+    ) -> Option<GasProfile> {
         // This would retrieve from storage
         // Simplified for demonstration
         None
     }
 
     /// Update time series gas tracking (daily, weekly, monthly)
-    fn update_time_series(env: &Env, storage: &Address, now: u64, gas_used: u64) {
+    fn update_time_series(_env: &Env, _storage: &Address, now: u64, _gas_used: u64) {
         // Calculate day, week, month timestamps
         let secs_per_day = 86_400u64;
         let secs_per_week = 604_800u64;
         let secs_per_month = 2_592_000u64; // 30 days
 
-        let day_ts = (now / secs_per_day) * secs_per_day;
-        let week_ts = (now / secs_per_week) * secs_per_week;
-        let month_ts = (now / secs_per_month) * secs_per_month;
+        let _day_ts = (now / secs_per_day) * secs_per_day;
+        let _week_ts = (now / secs_per_week) * secs_per_week;
+        let _month_ts = (now / secs_per_month) * secs_per_month;
 
         // Update daily, weekly, monthly aggregates
         // Storage operations would happen here
@@ -161,7 +174,7 @@ impl GasProfiler {
     /// Check if gas usage exceeds optimization thresholds
     fn check_gas_thresholds(
         env: &Env,
-        storage: &Address,
+        _storage: &Address,
         function_name: &String,
         gas_used: u64,
         category: FunctionCategory,
@@ -191,7 +204,7 @@ impl GasProfiler {
     }
 
     /// Increment total counters
-    fn increment_counters(env: &Env, storage: &Address, gas_used: u64) {
+    fn increment_counters(_env: &Env, _storage: &Address, _gas_used: u64) {
         // Update total gas used and call count
         // Storage operations would happen here
     }
@@ -199,34 +212,34 @@ impl GasProfiler {
     /// Get gas metrics summary for a function
     pub fn get_gas_metrics(
         env: &Env,
-        storage: &Address,
+        _storage: &Address,
         function_name: &str,
     ) -> Option<GasMetrics> {
-        let fname = String::from_str(env, function_name);
+        let _fname = String::from_str(env, function_name);
         // Retrieve from storage
         None
     }
 
     /// Get all-time gas statistics
-    pub fn get_total_stats(env: &Env, storage: &Address) -> (u64, u64, u64) {
+    pub fn get_total_stats(_env: &Env, _storage: &Address) -> (u64, u64, u64) {
         // Returns (total_gas_used, total_calls, average_gas_per_call)
         (0, 0, 0)
     }
 
     /// Get daily gas usage for a specific day
-    pub fn get_daily_usage(env: &Env, storage: &Address, day_timestamp: u64) -> u64 {
+    pub fn get_daily_usage(_env: &Env, _storage: &Address, _day_timestamp: u64) -> u64 {
         // Returns total gas used on that day
         0
     }
 
     /// Get weekly gas usage
-    pub fn get_weekly_usage(env: &Env, storage: &Address, week_timestamp: u64) -> u64 {
+    pub fn get_weekly_usage(_env: &Env, _storage: &Address, _week_timestamp: u64) -> u64 {
         // Returns total gas used in that week
         0
     }
 
     /// Get monthly gas usage
-    pub fn get_monthly_usage(env: &Env, storage: &Address, month_timestamp: u64) -> u64 {
+    pub fn get_monthly_usage(_env: &Env, _storage: &Address, _month_timestamp: u64) -> u64 {
         // Returns total gas used in that month
         0
     }
@@ -234,8 +247,8 @@ impl GasProfiler {
     /// Get functions exceeding thresholds
     pub fn get_high_gas_functions(
         env: &Env,
-        storage: &Address,
-        threshold_percentage: u64,
+        _storage: &Address,
+        _threshold_percentage: u64,
     ) -> Vec<(String, u64)> {
         // Returns list of (function_name, gas_used)
         // that exceed threshold_percentage of their targets
@@ -243,7 +256,7 @@ impl GasProfiler {
     }
 
     /// Get optimization recommendations
-    pub fn get_optimization_recommendations(env: &Env, storage: &Address) -> Vec<String> {
+    pub fn get_optimization_recommendations(env: &Env, _storage: &Address) -> Vec<String> {
         // Returns array of optimization suggestions based on profiling data
         soroban_sdk::vec![env]
     }

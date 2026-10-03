@@ -1,17 +1,19 @@
 extern crate alloc;
 
 use alloc::format;
-use alloc::string::{String as StdString, ToString};
+use alloc::string::String as StdString;
 use soroban_sdk::{Bytes, Env};
 use subtrackr_types::{Invoice, InvoiceLineItem};
+
+use crate::to_host_string;
 
 fn line_item_text(item: &InvoiceLineItem) -> StdString {
     format!(
         "{} | qty {} | unit {} {} | total {} | tax {} bps",
-        item.description.to_string(),
+        to_host_string(&item.description),
         item.quantity,
         item.unit_price,
-        item.currency.to_string(),
+        to_host_string(&item.currency),
         item.line_total,
         item.tax_rate_bps
     )
@@ -23,13 +25,16 @@ fn collect_lines(invoice: &Invoice) -> StdString {
     body.push_str("=================\n");
     body.push_str(&format!(
         "Invoice number: {}\n",
-        invoice.invoice_number.to_string()
+        to_host_string(&invoice.invoice_number)
     ));
     body.push_str(&format!("Invoice ID: {}\n", invoice.id));
     body.push_str(&format!("Subscription ID: {}\n", invoice.subscription_id));
     body.push_str(&format!("Status: {:?}\n", invoice.status));
-    body.push_str(&format!("Currency: {}\n", invoice.currency.to_string()));
-    body.push_str(&format!("Region: {}\n", invoice.region.to_string()));
+    body.push_str(&format!(
+        "Currency: {}\n",
+        to_host_string(&invoice.currency)
+    ));
+    body.push_str(&format!("Region: {}\n", to_host_string(&invoice.region)));
     body.push_str(&format!("Due date: {}\n", invoice.due_date));
     body.push_str("\nLine items:\n");
     for item in invoice.line_items.iter() {

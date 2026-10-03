@@ -71,13 +71,15 @@ runs:
         FEATURES="${{ inputs.features }}"
         TARGET="wasm32v1-none"
 
+        # Builds are never masked. A failing contract must fail the job so a
+        # broken contract cannot reach a deployment.
         if [[ "$CONTRACTS" == "all" ]]; then
           echo "Building full workspace..."
           if [[ -n "$FEATURES" ]]; then
             cargo build --target "$TARGET" --release \
-              --features "subtrackr-subscription/$FEATURES" || true
+              --features "subtrackr-subscription/$FEATURES"
           else
-            cargo build --target "$TARGET" --release || true
+            cargo build --target "$TARGET" --release
           fi
         else
           for contract in $CONTRACTS; do
@@ -89,8 +91,7 @@ runs:
               FEATURE_FLAGS="--features $PKG/$FEATURES"
             fi
             cargo build --target "$TARGET" --release -p "$PKG" $FEATURE_FLAGS \
-              || cargo build --target "$TARGET" --release -p "$contract" $FEATURE_FLAGS \
-              || echo "::warning::Failed to build $contract (skipping)"
+              || cargo build --target "$TARGET" --release -p "$contract" $FEATURE_FLAGS
           done
         fi
 

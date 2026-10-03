@@ -1,5 +1,9 @@
 #![no_std]
-
+// TODO: migrate `env.events().publish(..)` to the `#[contractevent]` macro.
+// soroban-sdk 28 deprecated the imperative form; it is still functional and
+// still emits identical events, so the deprecation is allowed crate-wide
+// until the event payloads are reworked. CI lints with `-D warnings`.
+#![allow(deprecated)]
 pub mod errors;
 pub use errors::CoreError;
 
@@ -416,6 +420,26 @@ pub enum StorageKey {
     UserPaymentMethods(Address),
     PaymentMethodEntry(Address, u64),
     PaymentMethodCount(Address),
+
+    // ── Access control (pointer to the access_control contract) ──
+    /// Address of the access-control contract guarding this state.
+    AccessControl,
+
+    // ── Tax engine (added with the tax compliance module) ──
+    /// Tax rate entry for a jurisdiction id (`TaxJurisdiction`).
+    TaxRateEntry(String),
+    /// Append-only log of rate changes for a jurisdiction id.
+    TaxRateChangeLogByJdx(String),
+    /// Whether a customer is a tax-exempt / registered entity.
+    CustomerTaxStatus(Address),
+    /// Digital-goods classification for a plan.
+    DigitalGoodsClass(u64),
+    /// A single line of a remittance report, keyed by invoice and jurisdiction.
+    TaxRemittanceLine(u64, String),
+    /// Persisted remittance report by id.
+    TaxRemittanceReport(u64),
+    /// Number of remittance reports issued so far.
+    TaxRemittanceReportCount,
 }
 
 #[contracttype]
@@ -733,4 +757,309 @@ pub struct WebhookDelivery {
     pub next_attempt_at: u64,
     pub last_attempt_at: u64,
     pub response_status: u32,
+}
+
+// ─────────────────────────────────────────────────────────
+// API keys and rate limiting
+// ─────────────────────────────────────────────────────────
+
+/// Monotonically increasing identifier for an issued API key.
+pub type ApiKeyId = u64;
+
+/// Lifecycle state of an API key.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum ApiKeyStatus {
+    Active,
+    Revoked,
+    Expired,
+}
+
+/// Request allowances enforced over each rolling window.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct RateLimitConfig {
+    pub requests_per_minute: u32,
+    pub requests_per_hour: u32,
+    pub requests_per_day: u32,
+    /// Maximum number of requests permitted back-to-back within a window.
+    pub burst_limit: u32,
+}
+
+/// Metered-usage pricing tier applied when billing an API key.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum UsageTier {
+    Free,
+    Basic,
+    Pro,
+    Enterprise,
+}
+
+impl UsageTier {
+    /// Price per 1,000 billable requests, in the smallest token unit.
+    pub fn price_per_thousand(&self) -> i128 {
+        match self {
+            UsageTier::Free => 0,
+            UsageTier::Basic => 1_000,
+            UsageTier::Pro => 5_000,
+            UsageTier::Enterprise => 20_000,
+        }
+    }
+}
+
+/// Parameters supplied when creating a new API key.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ApiKeyConfig {
+    pub name: String,
+    pub rate_limit: RateLimitConfig,
+    pub usage_tier: UsageTier,
+    /// Unix timestamp after which the key stops validating; `0` means never.
+    pub expires_at: Timestamp,
+}
+
+/// A stored API key. The raw secret is returned once at creation and only
+/// its SHA-256 hash is retained on-chain.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ApiKey {
+    pub id: ApiKeyId,
+    pub owner: Address,
+    pub key_hash: BytesN<32>,
+    pub name: String,
+    pub rate_limit: RateLimitConfig,
+    pub usage_tier: UsageTier,
+    pub status: ApiKeyStatus,
+    pub created_at: Timestamp,
+    pub expires_at: Timestamp,
+    pub last_used_at: Timestamp,
+    pub revoked_at: Timestamp,
+}
+
+/// One entry in an API key's audit trail.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ApiKeyAuditEntry {
+    pub id: u64,
+    pub key_id: ApiKeyId,
+    pub action: String,
+    pub changed_by: Address,
+    pub timestamp: Timestamp,
+}
+
+/// Request counter for a single rate-limit window.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ApiUsageRecord {
+    pub window_start: Timestamp,
+    pub count: u32,
+}
+
+/// Outcome of a rate-limit check.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct RateLimitStatus {
+    pub is_allowed: bool,
+    /// Requests still available in the most constrained window.
+    pub remaining: u32,
+    /// Timestamp at which the earliest window resets.
+    pub reset_at: Timestamp,
+    /// Seconds the caller should wait before retrying; `0` when allowed.
+    pub retry_after: Timestamp,
+}
+
+/// Aggregated request usage for a key over a period.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct UsageReport {
+    pub key_id: ApiKeyId,
+    pub period: TimeRange,
+    pub total_requests: u32,
+}
+
+// ── Tax ──────────────────────────────────────────────────────────────────────
+
+/// Kind of tax a rate applies to.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum TaxType {
+    None,
+    SalesTax,
+    Vat,
+    Gst,
+    Excise,
+    Withholding,
+    UseTax,
+    Other,
+}
+
+/// How a subscription is classified for digital-goods tax purposes.
+///
+/// The classification decides whether digital-goods rates, reduced rates, or
+/// exemptions apply to a charge.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DigitalGoodsClass {
+    /// Subscription access delivered over a network (SaaS, streaming, API).
+    ElectronicService,
+    /// Digitally delivered goods such as licences or downloads.
+    Downloadable,
+    /// Physical goods shipped to the customer.
+    PhysicalGoods,
+    Other,
+}
+
+/// Coarse product grouping used by remittance reporting.
+///
+/// Distinct from [`DigitalGoodsClass`]: this is a reporting dimension chosen
+/// by the merchant rather than a tax determination.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DigitalGoodsCategory {
+    Saas,
+    Streaming,
+    Software,
+    Services,
+    PhysicalGoods,
+    Other,
+}
+
+/// A customer-supplied override of the plan's [`DigitalGoodsClass`].
+///
+/// Modelled as its own enum rather than `Option<DigitalGoodsClass>` because
+/// Soroban contract types cannot carry `Option` fields.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum MaybeDigitalGoodsClass {
+    /// No override; fall back to the plan's classification.
+    None,
+    /// Customer-provided classification that wins over the plan's.
+    Overridden(DigitalGoodsClass),
+}
+
+/// Tax treatment recorded for a customer.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct CustomerTaxStatus {
+    /// Whether the customer qualifies for an exemption.
+    pub is_exempt: bool,
+    /// Identifier of the exemption certificate, empty when not exempt.
+    pub certificate_id: String,
+    /// Ledger timestamp after which the certificate is no longer valid; zero
+    /// means the exemption does not expire.
+    pub certificate_expiry: u64,
+    /// Authority that issued the certificate.
+    pub issuing_authority: String,
+    /// Jurisdictions the exemption applies to; empty means all of them.
+    pub exempt_jurisdictions: Vec<String>,
+    /// Customer override of the plan's digital-goods classification.
+    pub digital_goods_override: MaybeDigitalGoodsClass,
+}
+
+/// Geographic scope a tax rate belongs to.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct TaxJurisdiction {
+    pub country: String,
+    pub state: String,
+    pub city: String,
+    pub postal_code: String,
+    pub tax_type: TaxType,
+    pub rate_bps: u32,
+    /// Human-readable name shown on an invoice.
+    pub label: String,
+    pub effective_date: u64,
+}
+
+/// An effective tax rate for one jurisdiction.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct TaxRateEntry {
+    /// Lookup key, most specific first (`country-state-city`, then
+    /// `country-state`, then `country`, then `GLOBAL`).
+    pub jurisdiction_key: String,
+    pub tax_type: TaxType,
+    /// Rate in basis points, so 1000 == 10%.
+    pub rate_bps: u32,
+    pub display_name: String,
+    pub effective_from: u64,
+    /// Timestamp the rate stops applying; zero means it never expires.
+    pub effective_until: u64,
+    pub applies_to_digital_goods: bool,
+    /// Whether the customer, rather than the merchant, remits the tax.
+    pub reverse_charge: bool,
+    /// Registration threshold below which no tax is due in this jurisdiction.
+    pub nexus_threshold: i128,
+}
+
+/// Record of a rate change, appended to a jurisdiction's change log.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct TaxRateChangeEvent {
+    pub jurisdiction: TaxJurisdiction,
+    pub old_rate_bps: u32,
+    pub new_rate_bps: u32,
+    pub effective_date: u64,
+}
+
+/// Aggregated tax owed for one invoice in one jurisdiction.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct TaxRemittanceLineItem {
+    pub jurisdiction_key: String,
+    pub tax_type: TaxType,
+    pub taxable_amount: i128,
+    pub rate_bps: u32,
+    pub tax_collected: i128,
+    pub transaction_count: u32,
+    pub currency: String,
+}
+
+/// A single invoice's contribution to a remittance report.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct TaxReportLineItem {
+    pub invoice_id: u64,
+    pub invoice_number: String,
+    pub subscription_id: u64,
+    pub customer: Address,
+    pub taxable_amount: i128,
+    pub tax_rate_bps: u32,
+    pub tax_amount: i128,
+    pub digital_goods_category: DigitalGoodsCategory,
+    pub invoice_date: u64,
+}
+
+/// Lifecycle state of a remittance report.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum RemittanceStatus {
+    Draft,
+    Submitted,
+    Filed,
+    Paid,
+    Void,
+}
+
+/// Tax owed over a period, grouped for filing.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct TaxRemittanceReport {
+    pub id: u64,
+    pub period: TimeRange,
+    pub jurisdiction: TaxJurisdiction,
+    /// Merchant the report is filed for.
+    pub merchant: Address,
+    pub total_taxable_amount: i128,
+    pub total_tax_collected: i128,
+    /// Amount actually remitted; zero until a settlement is recorded.
+    pub total_tax_remitted: i128,
+    pub transaction_count: u32,
+    pub line_items: Vec<TaxReportLineItem>,
+    pub generated_at: u64,
+    /// Timestamp the report was submitted; zero while still a draft.
+    pub submitted_at: u64,
+    pub status: RemittanceStatus,
+    pub notes: String,
 }

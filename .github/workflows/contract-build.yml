@@ -59,14 +59,14 @@ jobs:
       fail-fast: false
       matrix:
         feature:
-          - ''          # core only (no optional features)
+          - ''                  # core only (no optional features)
           - 'oracle'
-          - 'extended'
-          - 'metering'
-          - 'credit'
-          - 'fraud'
-          - 'audit-log'
-          - 'full'      # all features combined
+          - 'billing'
+          - 'notifications'
+          - 'analytics'
+          - 'fraud_detection'
+          - 'mev_protection'
+          - 'full'              # all features combined
 
     steps:
       - uses: actions/checkout@v7
@@ -91,7 +91,6 @@ jobs:
             cargo-feat-${{ runner.os }}-
 
       - name: cargo check — feature=${{ matrix.feature || 'default' }}
-        continue-on-error: true
         working-directory: contracts
         run: |
           FEATURE="${{ matrix.feature }}"
@@ -136,7 +135,7 @@ jobs:
           cargo build --target wasm32v1-none --release \
             -p subtrackr-subscription \
             -p subtrackr-storage \
-            -p subtrackr-proxy || true
+            -p subtrackr-proxy
 
       - name: Record PR sizes
         id: pr-sizes

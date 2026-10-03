@@ -1,8 +1,17 @@
+// Gas-tracking scaffolding for the subscription contract.
+//
+// Nothing in the contract calls into this module yet: the gas meter is
+// planned but not wired up, so most items here are unreferenced. They are
+// kept (rather than deleted) because they are a distinct capability from
+// `subtrackr-metering`, which bills usage rather than tracking gas.
+// CI lints with `-D warnings`, so the dead code is allowed explicitly.
+#![allow(dead_code)]
+
 //! Gas Storage Module
 //! Manages storage and retrieval of gas profiling metrics.
 
 use crate::gas_profiler::GasProfile;
-use soroban_sdk::{Address, Env, IntoVal, String as SorobanString, TryFromVal, Val, Vec};
+use soroban_sdk::{Address, Env, String as SorobanString};
 
 /// Storage keys for gas metrics
 #[derive(Clone)]
@@ -30,115 +39,120 @@ pub struct GasMetricsStorage;
 
 impl GasMetricsStorage {
     /// Store a gas profile for a function
-    pub fn store_profile(env: &Env, storage: &Address, profile: &GasProfile) {
-        let key = format_gas_profile_key(env, &profile.function_name);
+    pub fn store_profile(env: &Env, _storage: &Address, profile: &GasProfile) {
+        let _key = format_gas_profile_key(env, &profile.function_name);
         // Serialize and store profile
         // This would use actual storage
     }
 
     /// Retrieve a gas profile for a function
     pub fn get_profile(
-        env: &Env,
-        storage: &Address,
-        function_name: &SorobanString,
+        _env: &Env,
+        _storage: &Address,
+        _function_name: &SorobanString,
     ) -> Option<GasProfile> {
         // Retrieve and deserialize profile
         None
     }
 
     /// Update daily gas aggregates
-    pub fn update_daily_aggregate(env: &Env, storage: &Address, day_timestamp: u64, gas_used: u64) {
+    pub fn update_daily_aggregate(
+        _env: &Env,
+        _storage: &Address,
+        _day_timestamp: u64,
+        _gas_used: u64,
+    ) {
         // Increment daily aggregate for the given day
     }
 
     /// Update weekly gas aggregates
     pub fn update_weekly_aggregate(
-        env: &Env,
-        storage: &Address,
-        week_timestamp: u64,
-        gas_used: u64,
+        _env: &Env,
+        _storage: &Address,
+        _week_timestamp: u64,
+        _gas_used: u64,
     ) {
         // Increment weekly aggregate for the given week
     }
 
     /// Update monthly gas aggregates
     pub fn update_monthly_aggregate(
-        env: &Env,
-        storage: &Address,
-        month_timestamp: u64,
-        gas_used: u64,
+        _env: &Env,
+        _storage: &Address,
+        _month_timestamp: u64,
+        _gas_used: u64,
     ) {
         // Increment monthly aggregate for the given month
     }
 
     /// Get daily gas usage
-    pub fn get_daily_usage(env: &Env, storage: &Address, day_timestamp: u64) -> u64 {
+    pub fn get_daily_usage(_env: &Env, _storage: &Address, _day_timestamp: u64) -> u64 {
         // Retrieve daily aggregate
         0
     }
 
     /// Get weekly gas usage
-    pub fn get_weekly_usage(env: &Env, storage: &Address, week_timestamp: u64) -> u64 {
+    pub fn get_weekly_usage(_env: &Env, _storage: &Address, _week_timestamp: u64) -> u64 {
         // Retrieve weekly aggregate
         0
     }
 
     /// Get monthly gas usage
-    pub fn get_monthly_usage(env: &Env, storage: &Address, month_timestamp: u64) -> u64 {
+    pub fn get_monthly_usage(_env: &Env, _storage: &Address, _month_timestamp: u64) -> u64 {
         // Retrieve monthly aggregate
         0
     }
 
     /// Get total gas used since contract deployment
-    pub fn get_total_gas_used(env: &Env, storage: &Address) -> u64 {
+    pub fn get_total_gas_used(_env: &Env, _storage: &Address) -> u64 {
         // Retrieve total gas used
         0
     }
 
     /// Get total number of calls
-    pub fn get_total_call_count(env: &Env, storage: &Address) -> u64 {
+    pub fn get_total_call_count(_env: &Env, _storage: &Address) -> u64 {
         // Retrieve total call count
         0
     }
 
     /// Increment total gas used
-    pub fn increment_total_gas(env: &Env, storage: &Address, gas_amount: u64) {
+    pub fn increment_total_gas(_env: &Env, _storage: &Address, _gas_amount: u64) {
         // Increment total gas
     }
 
     /// Increment total call count
-    pub fn increment_call_count(env: &Env, storage: &Address) {
+    pub fn increment_call_count(_env: &Env, _storage: &Address) {
         // Increment call count
     }
 
     /// Record gas alert
-    pub fn record_alert(env: &Env, storage: &Address, alert_type: &str) {
-        let alert_key = SorobanString::from_str(env, alert_type);
+    pub fn record_alert(env: &Env, _storage: &Address, alert_type: &str) {
+        let _alert_key = SorobanString::from_str(env, alert_type);
         // Increment alert count
     }
 
     /// Get gas alert count by type
-    pub fn get_alert_count(env: &Env, storage: &Address, alert_type: &str) -> u64 {
-        let alert_key = SorobanString::from_str(env, alert_type);
+    pub fn get_alert_count(env: &Env, _storage: &Address, alert_type: &str) -> u64 {
+        let _alert_key = SorobanString::from_str(env, alert_type);
         // Retrieve alert count
         0
     }
 
     /// Update last recorded gas usage for a function
-    pub fn update_last_usage(env: &Env, storage: &Address, function_name: &str, gas_used: u64) {
-        let fname = SorobanString::from_str(env, function_name);
+    pub fn update_last_usage(env: &Env, _storage: &Address, function_name: &str, _gas_used: u64) {
+        let _fname = SorobanString::from_str(env, function_name);
         // Update last usage
     }
 
     /// Get last recorded gas usage
-    pub fn get_last_usage(env: &Env, storage: &Address, function_name: &str) -> Option<u64> {
-        let fname = SorobanString::from_str(env, function_name);
+    pub fn get_last_usage(env: &Env, _storage: &Address, function_name: &str) -> Option<u64> {
+        let _fname = SorobanString::from_str(env, function_name);
         // Retrieve last usage
         None
     }
 
     /// Clear all gas metrics (admin only)
-    pub fn clear_all_metrics(env: &Env, storage: &Address) {
+    pub fn clear_all_metrics(_env: &Env, _storage: &Address) {
         // Clear all gas-related storage
         // Note: Actual implementation would iterate over keys
     }
@@ -153,7 +167,7 @@ impl GasMetricsStorage {
 }
 
 /// Helper function to format gas profile storage key
-fn format_gas_profile_key(env: &Env, function_name: &SorobanString) -> SorobanString {
+fn format_gas_profile_key(_env: &Env, function_name: &SorobanString) -> SorobanString {
     // Format: "gas_profile_{function_name}"
     function_name.clone()
 }

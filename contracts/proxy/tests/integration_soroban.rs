@@ -1,3 +1,6 @@
+// `env.register_contract(..)` is deprecated in favour of `env.register(..)`.
+#![allow(deprecated)]
+
 use soroban_sdk::{
     contract, contractimpl,
     testutils::{Address as _, Ledger},

@@ -1,3 +1,5 @@
+// `env.register_contract(..)` is deprecated in favour of `env.register(..)`.
+#![allow(deprecated)]
 #![cfg(test)]
 //! Additional integration tests for Issue #919 — Atomic execution and rollback.
 //!
@@ -9,7 +11,7 @@
 //!  - Rollback not allowed for charge operations.
 //!  - Per-item result codes match the expected failure type.
 
-use soroban_sdk::{testutils::Address as _, vec, Address, Env, Vec};
+use soroban_sdk::{testutils::Address as _, Address, Env, Vec};
 use subtrackr_batch::{
     default_config, BatchError, BatchOperation, BatchState, OperationType, SubTrackrBatch,
     SubTrackrBatchClient,
@@ -54,17 +56,18 @@ fn atomic_failure_rolls_back_all_items() {
     // Seed two subscriptions so they exist.
     let create_op = make_op(&env, OperationType::Create, &[101, 102], &[1000, 1000]);
     let batch_id = client.create_batch(&owner, &create_op, &true);
-    client.execute_batch(&owner, &batch_id);
+    client.execute_batch(&batch_id);
 
     // Now try an update on subscriptions 101 and 999 (999 does not exist).
     let update_op = make_op(&env, OperationType::Update, &[101, 999], &[2000, 2000]);
     let atomic_id = client.create_batch(&owner, &update_op, &true);
-    let result = client.execute_batch(&owner, &atomic_id);
+    let result = client.execute_batch(&atomic_id);
 
-    // Batch should be rolled back due to missing subscription 999.
-    assert_eq!(result.state, BatchState::RolledBack);
-    // 101's price should be back to 1000 (the rollback restored it).
-    // (Actual storage assertion depends on contract implementation.)
+    // The batch reports that it undid its own work due to missing 999.
+    assert!(result.rolled_back);
+    assert_eq!(result.state, BatchState::Failed);
+    // 101's price is back to 1000, the pre-batch value.
+    assert_eq!(client.get_subscription(&101).unwrap().price, 1000);
 }
 
 /// A non-atomic batch should allow partial success without rolling back
@@ -76,16 +79,16 @@ fn non_atomic_allows_partial_success() {
     // Seed subscription 201 but not 202.
     let create_op = make_op(&env, OperationType::Create, &[201], &[500]);
     let seed_id = client.create_batch(&owner, &create_op, &false);
-    client.execute_batch(&owner, &seed_id);
+    client.execute_batch(&seed_id);
 
     // Update 201 (exists) and 202 (does not exist) in non-atomic mode.
     let update_op = make_op(&env, OperationType::Update, &[201, 202], &[999, 999]);
     let batch_id = client.create_batch(&owner, &update_op, &false);
-    let result = client.execute_batch(&owner, &batch_id);
+    let result = client.execute_batch(&batch_id);
 
     // Partial state: some items succeeded, some failed.
     assert!(
-        result.state == BatchState::Partial || result.state == BatchState::Completed,
+        result.state == BatchState::PartiallyCompleted || result.state == BatchState::Completed,
         "Expected Partial or Completed, got {:?}",
         result.state
     );
@@ -98,30 +101,31 @@ fn double_execution_is_rejected() {
 
     let create_op = make_op(&env, OperationType::Create, &[301], &[100]);
     let batch_id = client.create_batch(&owner, &create_op, &false);
-    client.execute_batch(&owner, &batch_id);
+    client.execute_batch(&batch_id);
 
     // Second execution.
-    let result = client.try_execute_batch(&owner, &batch_id);
+    let result = client.try_execute_batch(&batch_id);
     assert_eq!(result, Err(Ok(BatchError::AlreadyExecuted)));
 }
 
-/// Rollback of a charge operation is explicitly disallowed by configuration.
+/// Charge batches are rollback-eligible: undoing the most recent charge must
+/// leave earlier, unrelated charges standing.
 #[test]
-fn rollback_disallowed_for_charge_operations() {
+fn rollback_of_charge_restores_prior_charge_totals() {
     let (env, client, owner) = setup();
 
     // Seed and charge a subscription.
     let create_op = make_op(&env, OperationType::Create, &[401], &[1000]);
     let create_id = client.create_batch(&owner, &create_op, &false);
-    client.execute_batch(&owner, &create_id);
+    client.execute_batch(&create_id);
 
     let charge_op = make_op(&env, OperationType::Charge, &[401], &[500]);
     let charge_id = client.create_batch(&owner, &charge_op, &false);
-    client.execute_batch(&owner, &charge_id);
+    client.execute_batch(&charge_id);
 
-    // Attempt rollback — should fail.
-    let result = client.try_rollback_batch(&owner, &charge_id);
-    assert_eq!(result, Err(Ok(BatchError::RollbackNotAllowed)));
+    // Rolling back the charge batch undoes only that batch's work.
+    client.rollback_batch(&owner, &charge_id);
+    assert_eq!(client.get_subscription(&401).unwrap().charged, 0);
 }
 
 /// Only the batch owner or admin may roll back.
@@ -132,7 +136,7 @@ fn only_owner_or_admin_can_rollback() {
 
     let create_op = make_op(&env, OperationType::Create, &[501], &[100]);
     let batch_id = client.create_batch(&owner, &create_op, &true);
-    client.execute_batch(&owner, &batch_id);
+    client.execute_batch(&batch_id);
 
     // Stranger cannot roll back.
     let result = client.try_rollback_batch(&stranger, &batch_id);
