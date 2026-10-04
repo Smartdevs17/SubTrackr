@@ -8,10 +8,9 @@ import type {
   InvoiceFormData,
   PDFGenerationOptions,
   InvoiceFilters,
-  InvoiceStatus,
   InvoiceLineItem,
 } from '../types/invoice';
-import { InvoiceLayout } from '../types/invoice';
+import { InvoiceLayout, InvoiceStatus } from '../types/invoice';
 import { getNextSequence, generateLegalInvoiceNumber } from './sequenceService';
 
 const STORAGE_KEYS = {
@@ -148,8 +147,16 @@ export async function createInvoice(data: InvoiceFormData): Promise<Invoice> {
   const invoices = await getAllInvoices();
   const now = new Date();
 
-  const lineTotal = data.lineItems.reduce((sum, item) => sum + item.amount, 0);
-  const totalAmount = lineTotal + (data.taxAmount || 0) - (data.discountAmount || 0);
+  // Accepts either the itemised shape (lineTotal) or the flat one (amount).
+  const lineItems = (data.lineItems ?? []).map((item) => ({
+    ...item,
+    lineTotal: item.lineTotal ?? item.amount ?? 0,
+  }));
+  const lineTotal =
+    lineItems.length > 0
+      ? lineItems.reduce((sum, item) => sum + item.lineTotal, 0)
+      : (data.amount ?? 0);
+  const total = lineTotal + (data.taxAmount || 0) - (data.discountAmount || 0);
 
   // Legal numbering: fetch next persistent sequence
   // We track sequence per year to reset it annually (common legal requirement)
@@ -157,18 +164,32 @@ export async function createInvoice(data: InvoiceFormData): Promise<Invoice> {
   const sequencePrefix = `INV-${year}`;
   const sequence = await getNextSequence(sequencePrefix);
 
+  const periodEnd = data.dueDate ? new Date(data.dueDate) : now;
   const newInvoice: Invoice = {
-    ...data,
     id: generateId(),
     invoiceNumber: generateLegalInvoiceNumber(sequence, 'INV', true, true, now),
-    subscriptionName: '', // Should be fetched from subscription
-    status: 'draft' as InvoiceStatus,
-    issueDate: now,
-    billingPeriodStart: now,
-    billingPeriodEnd: new Date(data.dueDate),
-    totalAmount,
+    subscriptionId: data.subscription?.id ?? data.subscriptionId ?? '',
+    subscriptionName: data.subscription?.name ?? '',
+    merchantName: '',
+    lineItems,
+    tax: data.taxAmount ?? 0,
+    subtotal: lineTotal,
+    total,
+    totalAmount: total,
+    amount: total,
+    dueDate: periodEnd,
+    status: InvoiceStatus.DRAFT,
+    currency: data.currency ?? 'USD',
+    region: data.region ?? 'GLOBAL',
+    exchangeRate: 1,
+    period: { start: now, end: periodEnd },
     createdAt: now,
     updatedAt: now,
+    issueDate: now,
+    recipientEmail: data.recipientEmail,
+    notes: data.notes,
+    taxJurisdiction: data.taxJurisdiction,
+    tenantId: data.tenantId,
   };
 
   invoices.push(newInvoice);
@@ -190,11 +211,20 @@ export async function updateInvoice(id: string, updates: Partial<Invoice>): Prom
     updatedAt: new Date(),
   };
 
-  // Recalculate total if line items changed
-  if (updates.lineItems || updates.taxAmount || updates.discountAmount) {
-    const lineTotal = updatedInvoice.lineItems.reduce((sum, item) => sum + item.amount, 0);
-    updatedInvoice.totalAmount =
-      lineTotal + (updatedInvoice.taxAmount || 0) - (updatedInvoice.discountAmount || 0);
+  // Recalculate totals if line items changed. Normalise the flat `amount`
+  // alias onto `lineTotal` and keep the total aliases in sync.
+  if (updates.lineItems) {
+    const lineItems = updates.lineItems.map((item) => ({
+      ...item,
+      lineTotal: item.lineTotal ?? item.amount ?? 0,
+    }));
+    const subtotal = lineItems.reduce((sum, item) => sum + (item.lineTotal ?? 0), 0);
+    const total = subtotal + (updatedInvoice.tax ?? 0);
+    updatedInvoice.lineItems = lineItems;
+    updatedInvoice.subtotal = subtotal;
+    updatedInvoice.total = total;
+    updatedInvoice.totalAmount = total;
+    updatedInvoice.amount = total;
   }
 
   invoices[index] = updatedInvoice;
@@ -248,9 +278,9 @@ export async function generateInvoicePDF(options: PDFGenerationOptions): Promise
   }
 
   // Get branding and template
-  const branding = invoice.brandingId ? await getBranding() : null;
+  const branding = invoice.branding ? await getBranding() : null;
   const template = invoice.templateId
-    ? await getTemplateById(invoice.templateId)
+    ? ((await getTemplateById(invoice.templateId)) ?? (await getDefaultTemplate()))
     : await getDefaultTemplate();
 
   // Generate HTML
@@ -273,9 +303,9 @@ export async function previewInvoice(invoiceId: string): Promise<InvoicePreview>
     throw new Error(`Invoice with id ${invoiceId} not found`);
   }
 
-  const branding = invoice.brandingId ? await getBranding() : null;
+  const branding = invoice.branding ? await getBranding() : null;
   const template = invoice.templateId
-    ? await getTemplateById(invoice.templateId)
+    ? ((await getTemplateById(invoice.templateId)) ?? (await getDefaultTemplate()))
     : await getDefaultTemplate();
 
   const html = await generateInvoiceHTML(invoice, branding, template);
@@ -293,33 +323,37 @@ export async function getInvoiceAnalytics(): Promise<InvoiceAnalytics> {
   const invoices = await getAllInvoices();
 
   const totalInvoices = invoices.length;
-  const paidInvoices = invoices.filter((inv) => inv.status === 'paid').length;
-  const pendingInvoices = invoices.filter((inv) => inv.status === 'pending').length;
-  const overdueInvoices = invoices.filter((inv) => inv.status === 'overdue').length;
+  const paidInvoices = invoices.filter((inv) => inv.status === InvoiceStatus.PAID).length;
+  const pendingInvoices = invoices.filter((inv) => inv.status === InvoiceStatus.PENDING).length;
+  const overdueInvoices = invoices.filter((inv) => inv.status === InvoiceStatus.OVERDUE).length;
 
   const totalRevenue = invoices
-    .filter((inv) => inv.status === 'paid')
-    .reduce((sum, inv) => sum + inv.totalAmount, 0);
+    .filter((inv) => inv.status === InvoiceStatus.PAID)
+    .reduce((sum, inv) => sum + inv.total, 0);
 
   const averageInvoiceAmount = totalInvoices > 0 ? totalRevenue / paidInvoices || 0 : 0;
 
   // Revenue by month
   const revenueByMonth: Record<string, number> = {};
   invoices
-    .filter((inv) => inv.status === 'paid')
+    .filter((inv) => inv.status === InvoiceStatus.PAID)
     .forEach((inv) => {
-      const monthKey = `${inv.issueDate.getFullYear()}-${String(inv.issueDate.getMonth() + 1).padStart(2, '0')}`;
-      revenueByMonth[monthKey] = (revenueByMonth[monthKey] || 0) + inv.totalAmount;
+      const issued = inv.issueDate ?? inv.createdAt;
+      const monthKey = `${issued.getFullYear()}-${String(issued.getMonth() + 1).padStart(2, '0')}`;
+      revenueByMonth[monthKey] = (revenueByMonth[monthKey] || 0) + inv.total;
     });
 
   // Status breakdown
   const statusBreakdown: Record<InvoiceStatus, number> = {
-    draft: 0,
-    pending: 0,
-    paid: 0,
-    overdue: 0,
-    cancelled: 0,
-    refunded: 0,
+    [InvoiceStatus.DRAFT]: 0,
+    [InvoiceStatus.SENT]: 0,
+    [InvoiceStatus.PARTIAL]: 0,
+    [InvoiceStatus.PAID]: 0,
+    [InvoiceStatus.VOID]: 0,
+    [InvoiceStatus.PENDING]: 0,
+    [InvoiceStatus.OVERDUE]: 0,
+    [InvoiceStatus.CANCELLED]: 0,
+    [InvoiceStatus.REFUNDED]: 0,
   };
   invoices.forEach((inv) => {
     statusBreakdown[inv.status]++;
@@ -340,7 +374,7 @@ export async function getInvoiceAnalytics(): Promise<InvoiceAnalytics> {
     { revenue: number; invoiceCount: number; name: string }
   >();
   invoices
-    .filter((inv) => inv.status === 'paid')
+    .filter((inv) => inv.status === InvoiceStatus.PAID)
     .forEach((inv) => {
       const existing = subscriptionMap.get(inv.subscriptionId) || {
         revenue: 0,
@@ -348,7 +382,7 @@ export async function getInvoiceAnalytics(): Promise<InvoiceAnalytics> {
         name: inv.subscriptionName,
       };
       subscriptionMap.set(inv.subscriptionId, {
-        revenue: existing.revenue + inv.totalAmount,
+        revenue: existing.revenue + inv.total,
         invoiceCount: existing.invoiceCount + 1,
         name: inv.subscriptionName,
       });
@@ -393,10 +427,11 @@ function applyFilters(invoices: Invoice[], filters?: InvoiceFilters): Invoice[] 
   return invoices.filter((inv) => {
     if (filters.status && !filters.status.includes(inv.status)) return false;
     if (filters.subscriptionId && inv.subscriptionId !== filters.subscriptionId) return false;
-    if (filters.dateFrom && inv.issueDate < filters.dateFrom) return false;
-    if (filters.dateTo && inv.issueDate > filters.dateTo) return false;
-    if (filters.minAmount && inv.totalAmount < filters.minAmount) return false;
-    if (filters.maxAmount && inv.totalAmount > filters.maxAmount) return false;
+    const issued = inv.issueDate ?? inv.createdAt;
+    if (filters.dateFrom && issued < filters.dateFrom) return false;
+    if (filters.dateTo && issued > filters.dateTo) return false;
+    if (filters.minAmount && inv.total < filters.minAmount) return false;
+    if (filters.maxAmount && inv.total > filters.maxAmount) return false;
     return true;
   });
 }
@@ -417,7 +452,7 @@ async function generateInvoiceHTML(
       <td style="padding: 8px; border-bottom: 1px solid #E5E7EB;">${item.description}</td>
       <td style="padding: 8px; border-bottom: 1px solid #E5E7EB; text-align: center;">${item.quantity}</td>
       <td style="padding: 8px; border-bottom: 1px solid #E5E7EB; text-align: right;">${invoice.currency} ${item.unitPrice.toFixed(2)}</td>
-      <td style="padding: 8px; border-bottom: 1px solid #E5E7EB; text-align: right;">${invoice.currency} ${item.amount.toFixed(2)}</td>
+      <td style="padding: 8px; border-bottom: 1px solid #E5E7EB; text-align: right;">${invoice.currency} ${item.lineTotal.toFixed(2)}</td>
     </tr>
   `
     )
@@ -450,7 +485,7 @@ async function generateInvoiceHTML(
           <div>
             <h3 style="color: ${secondaryColor};">Invoice Details</h3>
             <p><strong>Invoice Number:</strong> ${invoice.invoiceNumber}</p>
-            <p><strong>Issue Date:</strong> ${invoice.issueDate.toLocaleDateString()}</p>
+            <p><strong>Issue Date:</strong> ${(invoice.issueDate ?? invoice.createdAt).toLocaleDateString()}</p>
             <p><strong>Due Date:</strong> ${invoice.dueDate.toLocaleDateString()}</p>
             <p><strong>Status:</strong> ${invoice.status.toUpperCase()}</p>
           </div>
@@ -477,10 +512,10 @@ async function generateInvoiceHTML(
           </tbody>
           <tfoot>
             ${invoice.discountAmount ? `<tr><td colspan="3" style="padding: 8px; text-align: right;">Discount:</td><td style="padding: 8px; text-align: right;">-${invoice.currency} ${invoice.discountAmount.toFixed(2)}</td></tr>` : ''}
-            ${invoice.taxAmount ? `<tr><td colspan="3" style="padding: 8px; text-align: right;">Tax:</td><td style="padding: 8px; text-align: right;">${invoice.currency} ${invoice.taxAmount.toFixed(2)}</td></tr>` : ''}
+            ${invoice.tax ? `<tr><td colspan="3" style="padding: 8px; text-align: right;">Tax:</td><td style="padding: 8px; text-align: right;">${invoice.currency} ${invoice.tax.toFixed(2)}</td></tr>` : ''}
             <tr class="total-row">
               <td colspan="3" style="padding: 12px; text-align: right;">Total:</td>
-              <td style="padding: 12px; text-align: right;">${invoice.currency} ${invoice.totalAmount.toFixed(2)}</td>
+              <td style="padding: 12px; text-align: right;">${invoice.currency} ${invoice.total.toFixed(2)}</td>
             </tr>
           </tfoot>
         </table>

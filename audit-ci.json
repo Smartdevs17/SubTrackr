@@ -4,7 +4,5 @@
   "critical": true,
   "report": true,
   "summary": true,
-  "allowlist": [
-    "GHSA-86w9-cpqp-85rv"
-  ]
+  "allowlist": ["GHSA-86w9-cpqp-85rv"]
 }

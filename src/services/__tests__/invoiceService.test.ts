@@ -6,10 +6,23 @@ import type { InvoiceFormData } from '../../types/invoice';
 jest.mock('@react-native-async-storage/async-storage');
 
 describe('invoiceService', () => {
+  // AsyncStorage is mocked, so give it real behaviour: the previous stub
+  // always resolved `getItem` to null, which meant anything written by one
+  // call was invisible to the next and every read-back test failed.
+  let store: Map<string, string>;
+
   beforeEach(() => {
+    store = new Map();
     jest.clearAllMocks();
-    (AsyncStorage.getItem as jest.Mock).mockResolvedValue(null);
-    (AsyncStorage.setItem as jest.Mock).mockResolvedValue(undefined);
+    (AsyncStorage.getItem as jest.Mock).mockImplementation(async (key: string) =>
+      store.has(key) ? store.get(key)! : null
+    );
+    (AsyncStorage.setItem as jest.Mock).mockImplementation(async (key: string, value: string) => {
+      store.set(key, value);
+    });
+    (AsyncStorage.removeItem as jest.Mock).mockImplementation(async (key: string) => {
+      store.delete(key);
+    });
   });
 
   describe('Branding Management', () => {
