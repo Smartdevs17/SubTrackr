@@ -4,6 +4,10 @@ description: >
   binary size reporting, and optional wasm-opt post-processing.
 
 inputs:
+  rust-version:
+    description: "Rust toolchain to build with."
+    required: false
+    default: '1.91'
   contracts:
     description: >
       Space-separated list of contract names to build.
@@ -38,10 +42,10 @@ runs:
   using: 'composite'
   steps:
     # ── Rust toolchain ────────────────────────────────────────────────────────
-    - name: Install Rust stable toolchain
+    - name: Install Rust toolchain
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
-        toolchain: stable
+        toolchain: ${{ inputs.rust-version }}
         components: clippy, rustfmt
 
     - name: Add WASM target

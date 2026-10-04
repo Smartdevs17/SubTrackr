@@ -7,9 +7,6 @@
 // Contract methods take positional arguments by ABI; parameters cannot be
 // grouped into a struct without changing the contract interface.
 #![allow(clippy::too_many_arguments)]
-mod gas_optimization;
-mod gas_profiler;
-mod gas_storage;
 mod quota;
 mod revenue;
 mod trial;
