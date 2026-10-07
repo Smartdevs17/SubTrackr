@@ -106,7 +106,7 @@ jobs:
       # ── Always upload the changelog as an artifact ──────────────────────────
       - name: Upload changelog artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: api-changelog
           path: developer-portal/docs/changelog.md
