@@ -169,6 +169,54 @@ w/\*\*
 ✓ Modal labeled with nativeID for live region
 ```
 
+### Tabbed Sections (WCAG 1.3.1, 1.4.1, 4.1.2)
+
+Applied to `src/screens/GamificationScreen.tsx`. The rule: a top-level tab
+switch must never be distinguishable by colour alone, and each tab must be a
+single named, stateful node.
+
+```tsx
+<View accessibilityRole={A11yRole.tablist}>
+  {TABS.map((tab) => {
+    const isActive = activeTab === tab.key;
+    return (
+      <TouchableOpacity
+        accessibilityRole={A11yRole.tab}
+        accessibilityLabel={tab.label}
+        accessibilityState={{ selected: isActive }}
+        testID={`gamification-tab-${tab.key}`}
+        onPress={() => setActiveTab(tab.key)}>
+```
+
+- The tab *label* is the accessible name, so the emoji glyph in the visible
+  label is decorative and is hidden from the tree with `accessible={false}`.
+- Moving between tabs is announced via `useAccessibilityAnnouncement()`, because
+  the selected tab is otherwise only conveyed visually.
+- Tests select tabs by `testID` rather than by label: a tab label and a body
+  heading can legitimately render the same string.
+
+### Toggle Groups (WCAG 4.1.2)
+
+`Switch` controls in the gamification settings dialog follow
+`docs/ACCESSIBILITY_GUIDE.md`: `accessibilityRole="switch"`, an
+`accessibilityLabel`, an `accessibilityHint` describing the effect, and
+`accessibilityState={{ checked }}`. The visual label and description are left in
+the tree so sighted and screen-reader users get the same pairing.
+
+### Icon-Only Controls (WCAG 4.1.2, 2.5.5)
+
+An icon-only button must carry an `accessibilityLabel` and a hint, its glyph must
+be `accessible={false}`, and the touch target must be at least
+`MIN_TOUCH_TARGET` (44pt). The settings button was 36x36 and has been corrected
+to 44x44; `GamificationScreen.accessibility.test.tsx` asserts the bound so it
+cannot regress.
+
+### Copy-Action Feedback (WCAG 4.1.3)
+
+Copying a coupon code used to confirm only with an `Alert`. The clipboard action
+now also calls `announce()` from `useAccessibilityAnnouncement()`, so the success
+and failure paths are both conveyed non-visually.
+
 ### Toast Component
 
 #### Notifications (WCAG 4.1.3)

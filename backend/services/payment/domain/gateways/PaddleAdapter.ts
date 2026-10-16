@@ -52,6 +52,16 @@
 import { BasePaymentGateway } from './PaymentGateway';
 import { PaymentError } from '../../errors';
 import { createLoggerFor } from '../../../shared/logging';
+import {
+  DEFAULT_MAX_ATTEMPTS,
+  DEFAULT_RETRY_BASE_DELAY_MS,
+  defaultSleep,
+  isRetryableStatus,
+  parseJsonObject,
+  resolveFetchImpl,
+  resolveMaxAttempts,
+  runWithRetries,
+} from '../../../shared/httpRetry';
 import type {
   CustomerResult,
   PaymentMethodResult,
@@ -62,9 +72,6 @@ import type {
   RefundRequest,
   RefundResult,
 } from '../../interfaces';
-
-const DEFAULT_MAX_ATTEMPTS = 3;
-const DEFAULT_RETRY_BASE_DELAY_MS = 250;
 
 const logger = createLoggerFor('payment.paddle');
 
@@ -140,22 +147,6 @@ export interface PaddleCustomer {
 type PaddleOutcome<T> =
   | { readonly status: 'ok'; readonly data: T }
   | { readonly status: 'error'; readonly code: string; readonly message: string };
-
-function defaultSleep(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
-
-function parseJson(text: string): { data?: unknown; error?: unknown } | null {
-  try {
-    const parsed: unknown = JSON.parse(text);
-    if (typeof parsed !== 'object' || parsed === null) return null;
-    return parsed as { data?: unknown; error?: unknown };
-  } catch {
-    return null;
-  }
-}
 
 /** Paddle's structured error body, when it sends one. */
 function paddleErrorMessage(parsed: { error?: unknown } | null, fallback: string): string {
@@ -471,12 +462,6 @@ export class PaddleAdapter extends BasePaymentGateway {
     };
   }
 
-  private resolveFetch(): PaddleFetch | undefined {
-    if (this.injectedFetch) return this.injectedFetch;
-    const candidate = (globalThis as { fetch?: PaddleFetch }).fetch;
-    return typeof candidate === 'function' ? candidate : undefined;
-  }
-
   private headers(idempotencyKey?: string): Record<string, string> {
     const headers: Record<string, string> = {
       Authorization: `Bearer ${this.apiKey}`,
@@ -493,7 +478,7 @@ export class PaddleAdapter extends BasePaymentGateway {
     body: Record<string, unknown> | undefined,
     options: { idempotencyKey?: string; retryable?: boolean } = {},
   ): Promise<PaddleOutcome<T>> {
-    const fetchImpl = this.resolveFetch();
+    const fetchImpl = resolveFetchImpl(this.injectedFetch);
     if (!fetchImpl) {
       return {
         status: 'error',
@@ -503,60 +488,85 @@ export class PaddleAdapter extends BasePaymentGateway {
     }
 
     const url = `${this.baseUrl}${path}`;
-    const attempts = options.retryable ? this.maxAttempts : 1;
-    let lastError = { code: 'paddle_unreachable', message: 'the request was never attempted' };
+    const headers = this.headers(options.idempotencyKey);
+    const payload = body ? JSON.stringify(body) : undefined;
+    const maxAttempts = resolveMaxAttempts(options.retryable === true, this.maxAttempts);
 
-    for (let attempt = 1; attempt <= attempts; attempt += 1) {
-      try {
-        const response = await fetchImpl(url, {
-          method,
-          headers: this.headers(options.idempotencyKey),
-          body: body ? JSON.stringify(body) : undefined,
-        });
-        const text = await response.text();
-
-        if (response.status === 429 || response.status >= 500) {
-          lastError = {
-            code: `paddle_http_${response.status}`,
-            message: text.slice(0, 300) || `Paddle API returned HTTP ${response.status}`,
-          };
-          logger.warn('Paddle request throttled or unavailable', {
-            path,
-            status: response.status,
-            attempt,
-          });
-        } else if (!response.ok) {
+    return runWithRetries<PaddleOutcome<T>>(
+      async () => {
+        let response: PaddleFetchResponse;
+        let text: string;
+        try {
+          response = await fetchImpl(url, { method, headers, body: payload });
+          text = await response.text();
+        } catch (error) {
           return {
-            status: 'error',
-            code: `paddle_http_${response.status}`,
-            message: paddleErrorMessage(parseJson(text), `Paddle API returned HTTP ${response.status}`),
+            done: false,
+            retry: true,
+            value: {
+              status: 'error',
+              code: 'paddle_transport_error',
+              message: error instanceof Error ? error.message : String(error),
+            },
           };
-        } else if (!text) {
-          return { status: 'ok', data: {} as T };
-        } else {
-          const parsed = parseJson(text);
-          if (!parsed) {
-            return {
+        }
+
+        if (isRetryableStatus(response.status)) {
+          return {
+            done: false,
+            retry: true,
+            value: {
+              status: 'error',
+              code: `paddle_http_${response.status}`,
+              message: text.slice(0, 300) || `Paddle API returned HTTP ${response.status}`,
+            },
+          };
+        }
+
+        if (!response.ok) {
+          return {
+            done: false,
+            retry: false,
+            value: {
+              status: 'error',
+              code: `paddle_http_${response.status}`,
+              message: paddleErrorMessage(
+                parseJsonObject(text),
+                `Paddle API returned HTTP ${response.status}`,
+              ),
+            },
+          };
+        }
+
+        if (!text) return { done: true, value: { status: 'ok', data: {} as T } };
+
+        const parsed = parseJsonObject(text);
+        if (!parsed) {
+          return {
+            done: false,
+            retry: false,
+            value: {
               status: 'error',
               code: 'paddle_invalid_json',
               message: 'Paddle API returned a body that is not JSON',
-            };
-          }
-          return { status: 'ok', data: parsed as T };
+            },
+          };
         }
-      } catch (error) {
-        lastError = {
-          code: 'paddle_transport_error',
-          message: error instanceof Error ? error.message : String(error),
-        };
-        logger.warn('Paddle request failed', { path, attempt, error: lastError.message });
-      }
-
-      if (attempt < attempts) {
-        await this.sleep(this.retryBaseDelayMs * attempt);
-      }
-    }
-
-    return { status: 'error', code: lastError.code, message: lastError.message };
+        return { done: true, value: { status: 'ok', data: parsed as T } };
+      },
+      {
+        maxAttempts,
+        baseDelayMs: this.retryBaseDelayMs,
+        sleep: this.sleep,
+        onRetry: ({ attempt }, outcome) => {
+          const code = outcome.status === 'error' ? outcome.code : '';
+          if (code.startsWith('paddle_http_')) {
+            logger.warn('Paddle request throttled or unavailable', { path, attempt, code });
+          } else {
+            logger.warn('Paddle request failed', { path, attempt, error: code });
+          }
+        },
+      },
+    );
   }
 }

@@ -25,7 +25,11 @@ import { performanceMonitor } from './src/services/performanceMonitor';
 import { createAppKit, defaultConfig, AppKit } from '@reown/appkit-ethers-react-native';
 
 import { EVM_RPC_URLS } from './src/config/evm';
-import { useNetworkStore, useSettingsStore } from './src/store';
+// Imported directly rather than from './src/store': the barrel re-exports every
+// persisted zustand store, and Metro cannot tree-shake a CommonJS barrel, so the
+// barrel form pulled all of them into the cold-start bundle.
+import { useNetworkStore } from './src/store/networkStore';
+import { useSettingsStore } from './src/store/settingsStore';
 import { sessionService } from './src/services/auth/session';
 
 // Get projectId from environment variable

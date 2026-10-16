@@ -146,6 +146,12 @@ bundle-report*.json
 size-limit-report*.json
 .eslintcache
 .stryker-tmp/
+.stryker-backend-tmp/
+reports/mutation/frontend/mutation.json
+reports/mutation/frontend/mutation.html
+reports/mutation/backend/mutation.json
+reports/mutation/backend/mutation.html
+reports/mutation-dashboard/dashboard.json
 lcov.info
 coverage-final.json
 
@@ -166,7 +172,6 @@ verify-*.sh
 
 # Local manifests, caches and CI scratch output
 .eslintcache
-.stryker-tmp/
 bundle-size-report.json
 size-limit-report*.json
 jest-babel.config.js.bak

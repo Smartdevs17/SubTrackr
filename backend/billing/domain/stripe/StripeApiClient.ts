@@ -30,6 +30,16 @@
  */
 
 import { createLoggerFor } from '../../../services/shared/logging';
+import {
+  DEFAULT_MAX_ATTEMPTS,
+  DEFAULT_RETRY_BASE_DELAY_MS,
+  defaultSleep,
+  isRetryableStatus,
+  resolveFetchImpl,
+  runWithRetries,
+} from '../../../services/shared/httpRetry';
+
+export { DEFAULT_MAX_ATTEMPTS, DEFAULT_RETRY_BASE_DELAY_MS, isRetryableStatus };
 
 const logger = createLoggerFor('billing.stripe');
 
@@ -38,8 +48,6 @@ export const DEFAULT_STRIPE_API_VERSION = '2024-06-20';
 export const STRIPE_API_BASE = 'https://api.stripe.com/v1';
 /** Stripe caps an `Idempotency-Key` at 255 characters. */
 export const MAX_IDEMPOTENCY_KEY_LENGTH = 255;
-export const DEFAULT_MAX_ATTEMPTS = 3;
-export const DEFAULT_RETRY_BASE_DELAY_MS = 250;
 
 export interface StripeFetchResponse {
   readonly ok: boolean;
@@ -122,12 +130,6 @@ export class StripeApiError extends Error {
     this.param = details.param ?? '';
     this.retryable = details.retryable ?? false;
   }
-}
-
-function defaultSleep(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -252,7 +254,7 @@ export class StripeApiClient {
     params: StripeParams,
     options: StripeRequestOptions,
   ): Promise<T> {
-    const fetchImpl = this.resolveFetch();
+    const fetchImpl = resolveFetchImpl(this.injectedFetch);
     if (!fetchImpl) {
       throw new StripeApiError('No fetch implementation is available in this runtime', {
         status: 0,
@@ -274,29 +276,44 @@ export class StripeApiClient {
     if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
 
     // Reads are safe to repeat; only writes get the retry budget.
-    const maxAttempts =
+    const configuredMaxAttempts =
       options.maxAttempts ?? (method === 'GET' ? 1 : this.defaultMaxAttempts);
 
-    let lastError: StripeApiError | null = null;
-
-    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-      try {
-        const response = await fetchImpl(url, {
-          method,
-          headers,
-          body: method === 'GET' ? undefined : body,
-        });
-        const text = await response.text();
+    const outcome = await runWithRetries<T | StripeApiError>(
+      async () => {
+        let response: StripeFetchResponse;
+        let text: string;
+        try {
+          response = await fetchImpl(url, {
+            method,
+            headers,
+            body: method === 'GET' ? undefined : body,
+          });
+          text = await response.text();
+        } catch (error) {
+          return {
+            done: false,
+            retry: true,
+            value: new StripeApiError(
+              error instanceof Error ? error.message : String(error),
+              { status: 0, code: 'stripe_transport_error', retryable: true },
+            ),
+          };
+        }
 
         if (response.ok) {
-          if (!text) return {} as T;
+          if (!text) return { done: true, value: {} as T };
           try {
-            return JSON.parse(text) as T;
+            return { done: true, value: JSON.parse(text) as T };
           } catch {
-            throw new StripeApiError('Stripe returned a body that is not JSON', {
-              status: response.status,
-              code: 'stripe_invalid_json',
-            });
+            return {
+              done: false,
+              retry: false,
+              value: new StripeApiError('Stripe returned a body that is not JSON', {
+                status: response.status,
+                code: 'stripe_invalid_json',
+              }),
+            };
           }
         }
 
@@ -310,44 +327,30 @@ export class StripeApiClient {
           },
         );
 
-        if (!error.retryable || attempt === maxAttempts) throw error;
-        lastError = error;
-        logger.warn('Retrying Stripe request after a transient failure', {
-          method,
-          path,
-          status: response.status,
-          attempt,
-        });
-      } catch (error) {
-        if (error instanceof StripeApiError) {
-          if (!error.retryable || attempt === maxAttempts) throw error;
-          lastError = error;
-        } else {
-          const transportError = new StripeApiError(
-            error instanceof Error ? error.message : String(error),
-            { status: 0, code: 'stripe_transport_error', retryable: true },
-          );
-          if (attempt === maxAttempts) throw transportError;
-          lastError = transportError;
-          logger.warn('Stripe request failed in transport', { method, path, attempt });
-        }
-      }
-
-      if (attempt < maxAttempts) {
-        await this.sleep(this.retryBaseDelayMs * attempt);
-      }
-    }
-
-    throw (
-      lastError ??
-      new StripeApiError('Stripe request failed', { status: 0, code: 'stripe_unreachable' })
+        return { done: false, retry: error.retryable, value: error };
+      },
+      {
+        maxAttempts: configuredMaxAttempts,
+        baseDelayMs: this.retryBaseDelayMs,
+        sleep: this.sleep,
+        onRetry: ({ attempt }, error) => {
+          const status = error instanceof StripeApiError ? error.status : 0;
+          if (status >= 400) {
+            logger.warn('Retrying Stripe request after a transient failure', {
+              method,
+              path,
+              status,
+              attempt,
+            });
+          } else {
+            logger.warn('Stripe request failed in transport', { method, path, attempt });
+          }
+        },
+      },
     );
-  }
 
-  private resolveFetch(): StripeFetch | undefined {
-    if (this.injectedFetch) return this.injectedFetch;
-    const candidate = (globalThis as { fetch?: StripeFetch }).fetch;
-    return typeof candidate === 'function' ? candidate : undefined;
+    if (outcome instanceof StripeApiError) throw outcome;
+    return outcome;
   }
 }
 
@@ -387,7 +390,3 @@ function stripeErrorMessage(text: string, fallback: string): string {
  * (`lock_timeout`); any other 409 is a conflict the retry cannot resolve.
  * Everything else in the 4xx range is a bad request the retry cannot fix.
  */
-export function isRetryableStatus(status: number, code?: string): boolean {
-  if (status === 429 || status >= 500) return true;
-  return status === 409 && code === 'lock_timeout';
-}
