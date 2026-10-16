@@ -161,7 +161,22 @@ export function createApiServer(options: CreateApiServerOptions = {}): Express {
   // registered for the webhook paths *before* the JSON parser, so
   // `req.body` is a Buffer holding the untouched payload. `type: '*/*'` is
   // required because providers do not agree on a Content-Type.
+  //
+  // These two registrations install a *body parser only*: they declare no
+  // handler and perform no state change. The routes themselves are mounted
+  // further down via `createStripeBillingRouter` / `createPaddleRouter`, and
+  // both verify an HMAC signature over the raw bytes before the payload is
+  // decoded — answering 503 when the secret is unconfigured and 401 when the
+  // signature does not match. The CSRF rule cannot see across that file
+  // boundary, hence the suppressions below.
+  //
+  // Note: verification must NOT be duplicated here. `verify()` records the
+  // event id for replay de-duplication, so a second call would report the
+  // first legitimate delivery as a duplicate and the router would answer
+  // `200 { duplicate: true }` without ever dispatching the event.
+  // nosemgrep: subtrackr.csrf.state-changing-route-without-csrf -- reason: body-parser-only registration, no handler and no state change; the request is HMAC-verified inside the Stripe router, which fails closed with 503 when unconfigured and 401 on a bad signature -- expires: 2027-04-16
   app.post('/api/v1/stripe/billing/webhook', express.raw({ type: '*/*', limit: MAX_JSON_BODY }));
+  // nosemgrep: subtrackr.csrf.state-changing-route-without-csrf -- reason: body-parser-only registration, no handler and no state change; the request is HMAC-verified inside the Paddle router, which fails closed with 503 when unconfigured and 401 on a bad signature -- expires: 2027-04-16
   app.post('/api/v1/paddle/webhook', express.raw({ type: '*/*', limit: MAX_JSON_BODY }));
 
   // An explicit cap keeps a single oversized POST from buffering the whole
