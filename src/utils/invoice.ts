@@ -14,9 +14,44 @@ import { ProrationPreview, buildProrationLineItem } from './proration';
 
 const SECOND = 1000;
 const DAY = 24 * 60 * 60 * SECOND;
+/** Basis points per whole unit (100 % = 10 000 bps). */
+const BPS_PER_UNIT = 10_000;
 
+/** Round a money value to the invoice currency's minor unit (2 decimals). */
+const roundMoney = (value: number): number => Math.round(value * 100) / 100;
+
+/**
+ * Tax owed on `subtotal` at `taxRateBps`.
+ *
+ * Tax used to be rounded to whole currency units, which silently zeroed out
+ * tax on any invoice whose tax component was below one unit (e.g. 3.00 at
+ * 5 % VAT produced 0). Every other money helper in the codebase rounds to two
+ * decimals, so tax now does too.
+ */
 export const calculateInvoiceTax = (subtotal: number, taxRateBps: number): number => {
-  return Math.round((subtotal * taxRateBps) / 10_000);
+  if (!Number.isFinite(subtotal) || !Number.isFinite(taxRateBps)) return 0;
+  if (taxRateBps <= 0) return 0;
+  return roundMoney((subtotal * taxRateBps) / BPS_PER_UNIT);
+};
+
+/**
+ * Resolve the amount a single line item contributes to the invoice subtotal.
+ *
+ * `InvoiceLineItem.lineTotal` is optional, and line items can also arrive from
+ * the flat invoice-form shape (via its `amount` alias), so summing `lineTotal`
+ * directly produced `NaN` for any item that omitted it. Fall back through
+ * `amount`, then `unitPrice * quantity`, and finally treat the line as zero.
+ */
+const resolveLineTotal = (item: InvoiceLineItem): number => {
+  const candidates = [item.lineTotal, item.amount];
+  for (const candidate of candidates) {
+    if (typeof candidate === 'number' && Number.isFinite(candidate)) return candidate;
+  }
+  if (Number.isFinite(item.unitPrice)) {
+    const quantity = Number.isFinite(item.quantity) ? item.quantity : 1;
+    return roundMoney(item.unitPrice * quantity);
+  }
+  return 0;
 };
 
 export const convertCurrencyAmount = (
@@ -42,12 +77,16 @@ export const calculateInvoiceTotals = (
   lineItems: InvoiceLineItem[],
   taxRateBps: number
 ): InvoiceTotals => {
-  const subtotal = lineItems.reduce((sum, item) => sum + item.lineTotal, 0);
+  if (!Array.isArray(lineItems)) {
+    return { subtotal: 0, tax: 0, total: 0 };
+  }
+
+  const subtotal = roundMoney(lineItems.reduce((sum, item) => sum + resolveLineTotal(item), 0));
   const tax = calculateInvoiceTax(subtotal, taxRateBps);
   return {
     subtotal,
     tax,
-    total: subtotal + tax,
+    total: roundMoney(subtotal + tax),
   };
 };
 
@@ -56,7 +95,10 @@ export const buildBillingPeriod = (subscription: Subscription): InvoicePeriod =>
   const start = new Date(end.getTime());
 
   switch (subscription.billingCycle) {
+    // `annual` bills once a year just like `yearly`; leaving it on the
+    // `default` branch made annual invoices claim a one-month period.
     case BillingCycle.YEARLY:
+    case BillingCycle.ANNUAL:
       start.setFullYear(start.getFullYear() - 1);
       break;
     case BillingCycle.WEEKLY:
