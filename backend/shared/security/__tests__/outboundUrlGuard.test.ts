@@ -72,7 +72,10 @@ describe('isPrivateHostname', () => {
 
 describe('validateOutboundUrl', () => {
   it('accepts a normal public https URL', () => {
-    const result = validateOutboundUrl('https://hooks.zapier.com/hooks/catch/1/2/');
+    // A real Zapier host, but deliberately *not* a `/hooks/catch/<n>/<n>/`
+    // path: that shape is indistinguishable from a live Zapier hook URL and
+    // trips secret detectors in CI (the assertion only needs "public host").
+    const result = validateOutboundUrl('https://hooks.zapier.com/example-endpoint');
     expect(result.protocol).toBe('https:');
     expect(result.hostname).toBe('hooks.zapier.com');
   });
