@@ -508,7 +508,10 @@ export const isOpenInvoice = (status: InvoiceStatus): boolean =>
 
 export const billingCycleToMonths = (cycle: BillingCycle): number => {
   switch (cycle) {
+    // `annual` is billed once a year; treating it as the default made annual
+    // subscriptions normalise to a single month.
     case BillingCycle.YEARLY:
+    case BillingCycle.ANNUAL:
       return 12;
     case BillingCycle.WEEKLY:
       return 1 / 4.345;
