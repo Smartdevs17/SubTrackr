@@ -7,6 +7,15 @@
  *  - Automatic retry with higher gas on timeout
  *  - Manual retry option for users
  *  - Stuck transaction alerting
+ *
+ * Recovery invariants:
+ *  - Only one recovery attempt per charge is ever in flight, so concurrent
+ *    scheduler and user-initiated retries cannot stack gas bumps.
+ *  - A retry deferred by a chain reorg or an exhausted attempt cap leaves the
+ *    stored gas price untouched, so an attempt that never happened never raises
+ *    the floor for the next one.
+ *  - The reorg guard is only consulted with a real block number, derived from
+ *    the chain head less the configured safety window.
  */
 
 import type { AlertingService } from './notification/alerting';
@@ -101,6 +110,13 @@ export interface ChainStatusProvider {
    * Used to abort recovery when reorg depth exceeds `reorgSafetyLedgers`.
    */
   detectReorg(chainId: number, sinceBlock: number): Promise<boolean>;
+
+  /**
+   * Current chain head, used to derive the block a reorg check should start
+   * from. Optional: without it the reorg guard cannot be evaluated safely and
+   * is skipped rather than being fed a meaningless block number.
+   */
+  getBlockNumber?(chainId: number): Promise<number>;
 }
 
 // ── Service ───────────────────────────────────────────────────────────────────
@@ -118,6 +134,15 @@ export class PaymentTimeoutService {
   private chainConfigs = new Map<number, ChainTimeoutConfig>(
     Object.entries(DEFAULT_CHAIN_CONFIGS).map(([k, v]) => [Number(k), v])
   );
+
+  /**
+   * Charges with an in-flight recovery attempt.
+   *
+   * Without this, the scheduler (`autoRecoverAll`) and a user-triggered
+   * `manualRetry` can both enter `attemptRecovery` for the same charge, and
+   * the gas price gets bumped twice for a single logical retry.
+   */
+  private recoveringCharges = new Set<string>();
 
   constructor(
     private readonly alerting?: AlertingService,
@@ -249,6 +274,19 @@ export class PaymentTimeoutService {
    * Handles: chain reorg detection, gas spike protection, attempt cap.
    */
   async attemptRecovery(chargeId: string): Promise<RecoveryResult | null> {
+    // A recovery already under way owns this charge; a second concurrent caller
+    // would bump the gas price again on top of the in-flight attempt.
+    if (this.recoveringCharges.has(chargeId)) return null;
+
+    this.recoveringCharges.add(chargeId);
+    try {
+      return await this.runRecovery(chargeId);
+    } finally {
+      this.recoveringCharges.delete(chargeId);
+    }
+  }
+
+  private async runRecovery(chargeId: string): Promise<RecoveryResult | null> {
     const recordId = this.byCharge.get(chargeId);
     if (!recordId) return null;
 
@@ -272,9 +310,7 @@ export class PaymentTimeoutService {
 
     // Detect chain reorg before re-submitting (edge case: reorg during timeout window).
     if (this.chainProvider && record.txHash) {
-      const hasReorg = await this.chainProvider
-        .detectReorg(record.chainId, config.reorgSafetyLedgers)
-        .catch(() => false);
+      const hasReorg = await this.hasRecentReorg(record.chainId, config.reorgSafetyLedgers);
 
       if (hasReorg) {
         record.note = 'reorg_detected_recovery_deferred';
@@ -309,6 +345,26 @@ export class PaymentTimeoutService {
   }
 
   /**
+   * Whether the chain has reorganised inside the safety window.
+   *
+   * `detectReorg` expects a block number to compare the chain head against, so
+   * the safety-window depth is subtracted from the head to derive one. Returns
+   * `false` when no block height is available: an unreachable provider must not
+   * be read as "reorganised", but neither should it be handed a bogus block
+   * number that reports a reorg on every attempt.
+   */
+  private async hasRecentReorg(chainId: number, safetyLedgers: number): Promise<boolean> {
+    const provider = this.chainProvider;
+    if (!provider?.getBlockNumber) return false;
+
+    const head = await provider.getBlockNumber(chainId).catch(() => null);
+    if (head === null || !Number.isFinite(head)) return false;
+
+    const sinceBlock = Math.max(0, Math.floor(head) - safetyLedgers);
+    return provider.detectReorg(chainId, sinceBlock).catch(() => false);
+  }
+
+  /**
    * Manual retry option for users — validates ownership then delegates to
    * `attemptRecovery` with a user-supplied gas price override.
    */
@@ -326,17 +382,45 @@ export class PaymentTimeoutService {
       throw new Error('Transaction is not in a recoverable state');
     }
 
+    // Bail out before mutating anything: an automatic recovery already owns
+    // this charge, and writing a gas price here would race with the bump that
+    // recovery is in the middle of applying.
+    if (this.recoveringCharges.has(chargeId)) return null;
+
     const config = this.getChainConfig(record.chainId);
     const minBumped =
       record.lastGasPrice +
       (record.lastGasPrice * BigInt(config.gasBumpBps)) / BigInt(10_000);
 
     const effectiveGasPrice = requestedGasPrice > minBumped ? requestedGasPrice : minBumped;
+
+    // Apply the override only for the duration of this attempt. Keeping it
+    // afterwards would permanently inflate the floor for every later retry,
+    // including attempts that never happen because recovery is deferred by a
+    // reorg or by the attempt cap.
+    const previousGasPrice = record.lastGasPrice;
+    const previousStatus = record.status;
+
     record.lastGasPrice = effectiveGasPrice;
-    record.status = 'timed_out';
+    if (record.status !== 'timed_out') {
+      record.status = 'timed_out';
+    }
     this.records.set(record.id, record);
 
-    return this.attemptRecovery(chargeId);
+    const result = await this.attemptRecovery(chargeId);
+
+    if (!result) {
+      record.lastGasPrice = previousGasPrice;
+      record.updatedAt = Date.now();
+      this.records.set(record.id, record);
+      // `attemptRecovery` owns the terminal states it sets (`abandoned`);
+      // restore the previous status for every other bail-out.
+      if (record.status !== 'abandoned') {
+        record.status = previousStatus;
+      }
+    }
+
+    return result;
   }
 
   /** Mark a payment as confirmed on-chain (called after RPC confirms the tx). */
