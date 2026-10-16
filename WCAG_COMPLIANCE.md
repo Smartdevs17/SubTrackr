@@ -325,6 +325,46 @@ If accessibility issues are discovered:
 - [ ] User testing with people with disabilities
 - [ ] Stay updated with WCAG updates
 
+## Implementation Conventions
+
+To keep the app compliant as new screens are added, follow these patterns.
+They are the concrete rules the automated screen tests assert.
+
+### Interactive elements
+
+- Every pressable (`Pressable`, `TouchableOpacity`, `FlatList` row) must set an
+  `accessibilityRole`. Use `"button"` for actions and `"link"` for navigation.
+- Icon-only controls must set an explicit `accessibilityLabel` that describes
+  the action ("Copy API key", "Close"), never the glyph.
+- Composite rows should build a single spoken label that includes the important
+  fields, e.g.
+  `Invoice INV-000001 from Netflix, total $15.99, Sent`, plus an
+  `accessibilityHint` describing what happens on activation.
+
+### State and selection
+
+- Toggle/segmented options must expose `accessibilityState={{ selected }}`.
+- Buttons that can be disabled must expose `accessibilityState={{ disabled }}`
+  so screen readers announce the state rather than leaving it implicit.
+- Section titles should use `accessibilityRole="header"` to build a navigable
+  heading outline.
+
+### Forms
+
+- Every `TextInput` must have an `accessibilityLabel`; include the unit or
+  currency when the value is ambiguous ("New price in USD").
+- Attach validation errors to the field and announce them with an
+  `accessibilityLiveRegion` so the message is not silent for screen-reader
+  users.
+
+### Lists and performance
+
+- Long, data-driven collections must render through `FlatList` (or the shared
+  `OptimizedFlatList`) rather than `Array.map` inside a `ScrollView`; this keeps
+  large invoice/subscription histories accessible without dropping frames.
+- Memoised row components should be pure and receive stable callbacks so that
+  assistive-technology traversal does not trigger full-list re-renders.
+
 ## Resources
 
 - **WCAG 2.1 Guidelines**: https://www.w3.org/WAI/WCAG21/quickref/
