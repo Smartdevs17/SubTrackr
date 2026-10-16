@@ -26,6 +26,7 @@ export {
 export type {
   RevenueSchedule,
   RevenueScheduleEntry,
+  EntryRecognitionProgress,
   RecognitionJournalEntry,
   RevenueRecognitionRepository,
   RecognitionJobMetrics,

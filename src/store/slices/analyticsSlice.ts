@@ -14,7 +14,8 @@ import {
   calculateSubscriptionAnalytics,
   SubscriptionAnalyticsReport,
 } from '../../services/analyticsService';
-import { BillingCycle, Subscription } from '../../types/subscription';
+import { Subscription } from '../../types/subscription';
+import { monthlyEquivalent } from '../../utils/billingCycleMath';
 import { generateCSV } from '../../utils/importExport';
 import { CohortService } from '../../../backend/services/analytics/cohortService';
 import { cohortTableToCsv } from '../../../backend/services/analytics/cohortReportExport';
@@ -53,12 +54,7 @@ const toSubscriberRecords = (subscriptions: Subscription[]): SubscriberRecord[] 
     signupAt: new Date(subscription.createdAt).getTime(),
     churnedAt: subscription.isActive ? undefined : new Date(subscription.updatedAt).getTime(),
     lastActiveAt: new Date(subscription.updatedAt).getTime(),
-    mrr:
-      subscription.billingCycle === BillingCycle.YEARLY
-        ? subscription.price / 12
-        : subscription.billingCycle === BillingCycle.WEEKLY
-          ? subscription.price * 4.345
-          : subscription.price,
+    mrr: monthlyEquivalent(subscription.price, subscription.billingCycle),
   }));
 
 export interface CreditMetricSnapshot {

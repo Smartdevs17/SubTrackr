@@ -317,9 +317,14 @@ export class SubscriptionAnalyticsService {
   // ── Private helpers ─────────────────────────────────────────────────────────
 
   private _monthlyRevenue(sub: Subscription): number {
-    // Normalise any billing cycle to monthly revenue
-    if (sub.billingCycle === BillingCycle.YEARLY) return sub.price / 12;
-    if (sub.billingCycle === BillingCycle.WEEKLY) return sub.price * 4.345;
+    // Normalise any billing cycle to monthly revenue. `ANNUAL` was missing
+    // here, so an annual subscription's full yearly price was reported as
+    // MRR — inflating MRR/ARR/churn by 12×. `monthlyEquivalent` also keeps
+    // the weekly factor identical to the frontend (52/12, not 4.345).
+    if (sub.billingCycle === BillingCycle.YEARLY || sub.billingCycle === BillingCycle.ANNUAL) {
+      return sub.price / 12;
+    }
+    if (sub.billingCycle === BillingCycle.WEEKLY) return sub.price * (52 / 12);
     return sub.price;
   }
 }

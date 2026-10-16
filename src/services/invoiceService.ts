@@ -12,6 +12,7 @@ import type {
 } from '../types/invoice';
 import { InvoiceLayout, InvoiceStatus } from '../types/invoice';
 import { getNextSequence, generateLegalInvoiceNumber } from './sequenceService';
+import { calculateInvoiceTotals, resolveLineTotal } from '../utils/invoiceTotals';
 
 const STORAGE_KEYS = {
   INVOICES: '@SubTrackr:invoices',
@@ -150,13 +151,15 @@ export async function createInvoice(data: InvoiceFormData): Promise<Invoice> {
   // Accepts either the itemised shape (lineTotal) or the flat one (amount).
   const lineItems = (data.lineItems ?? []).map((item) => ({
     ...item,
-    lineTotal: item.lineTotal ?? item.amount ?? 0,
+    lineTotal: resolveLineTotal(item),
   }));
-  const lineTotal =
-    lineItems.length > 0
-      ? lineItems.reduce((sum, item) => sum + item.lineTotal, 0)
-      : (data.amount ?? 0);
-  const total = lineTotal + (data.taxAmount || 0) - (data.discountAmount || 0);
+  const totals = calculateInvoiceTotals({
+    lineItems,
+    amount: data.amount,
+    tax: data.taxAmount,
+    discount: data.discountAmount,
+  });
+  const { subtotal, total } = totals;
 
   // Legal numbering: fetch next persistent sequence
   // We track sequence per year to reset it annually (common legal requirement)
@@ -173,7 +176,10 @@ export async function createInvoice(data: InvoiceFormData): Promise<Invoice> {
     merchantName: '',
     lineItems,
     tax: data.taxAmount ?? 0,
-    subtotal: lineTotal,
+    // Persist the clamped discount so a later edit can re-apply it instead of
+    // silently repricing the invoice at full value.
+    discountAmount: totals.discount,
+    subtotal,
     total,
     totalAmount: total,
     amount: total,
@@ -216,15 +222,24 @@ export async function updateInvoice(id: string, updates: Partial<Invoice>): Prom
   if (updates.lineItems) {
     const lineItems = updates.lineItems.map((item) => ({
       ...item,
-      lineTotal: item.lineTotal ?? item.amount ?? 0,
+      lineTotal: resolveLineTotal(item),
     }));
-    const subtotal = lineItems.reduce((sum, item) => sum + (item.lineTotal ?? 0), 0);
-    const total = subtotal + (updatedInvoice.tax ?? 0);
+
+    // The discount is preserved (and only overridden when the caller supplies
+    // a new one). Dropping it here meant editing any line on a discounted
+    // invoice increased the amount payable.
+    const totals = calculateInvoiceTotals({
+      lineItems,
+      tax: updatedInvoice.tax ?? 0,
+      discount: updatedInvoice.discountAmount ?? 0,
+    });
+
     updatedInvoice.lineItems = lineItems;
-    updatedInvoice.subtotal = subtotal;
-    updatedInvoice.total = total;
-    updatedInvoice.totalAmount = total;
-    updatedInvoice.amount = total;
+    updatedInvoice.subtotal = totals.subtotal;
+    updatedInvoice.discountAmount = totals.discount;
+    updatedInvoice.total = totals.total;
+    updatedInvoice.totalAmount = totals.total;
+    updatedInvoice.amount = totals.total;
   }
 
   invoices[index] = updatedInvoice;
@@ -331,7 +346,10 @@ export async function getInvoiceAnalytics(): Promise<InvoiceAnalytics> {
     .filter((inv) => inv.status === InvoiceStatus.PAID)
     .reduce((sum, inv) => sum + inv.total, 0);
 
-  const averageInvoiceAmount = totalInvoices > 0 ? totalRevenue / paidInvoices || 0 : 0;
+  // `paidInvoices` can be 0 while invoices exist (every one still a draft). The
+  // old `totalRevenue / paidInvoices || 0` then evaluated to Infinity, because
+  // `Infinity` is truthy, and the analytics screen reported an infinite average.
+  const averageInvoiceAmount = paidInvoices > 0 ? totalRevenue / paidInvoices : 0;
 
   // Revenue by month
   const revenueByMonth: Record<string, number> = {};
