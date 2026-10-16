@@ -40,13 +40,19 @@ export function createGateway(options: GatewayOptions = {}): Application {
 
   app.disable('x-powered-by');
 
-  app.use(express.json({ limit: '10mb' }));
+  // Reduced from the previous blanket 10mb. A JSON control-plane body has no
+  // legitimate need to be that large, and the old limit let a single
+  // unauthenticated request buffer 10 MB per connection into memory.
+  app.use(express.json({ limit: '256kb' }));
 
   // ── Response envelope header ──────────────────────────────────────────
   app.use((_req: Request, res: Response, next: NextFunction) => {
     res.setHeader(API_VERSION_HEADER, API_VERSION_VALUE);
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
+    // The gateway previously set no caching or referrer policy at all.
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('X-DNS-Prefetch-Control', 'off');
     next();
   });
 

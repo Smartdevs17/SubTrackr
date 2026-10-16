@@ -54,6 +54,18 @@ export interface GeneratedInvoice {
   generatedAt: string;
 }
 
+/** Rounds to minor units, mapping non-finite input to zero. */
+function roundMoney(amount: number): number {
+  if (!Number.isFinite(amount)) return 0;
+  return Math.round((amount + Number.EPSILON * Math.sign(amount)) * 100) / 100;
+}
+
+/** Constrains `value` to `[min, max]`, tolerating non-finite input. */
+function clamp(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min;
+  return Math.min(Math.max(value, min), max);
+}
+
 export class InvoiceGenerator {
   /**
    * Generate a unique invoice number.
@@ -69,10 +81,21 @@ export class InvoiceGenerator {
    * Calculate totals from line items and tax rate.
    */
   calculateTotals(items: InvoiceLineItem[], taxRate: number, discount: number = 0) {
-    const subtotal = items.reduce((sum, item) => sum + item.total, 0);
-    const taxableAmount = subtotal - discount;
-    const taxAmount = Math.round(taxableAmount * taxRate * 100) / 100;
-    const total = Math.round((taxableAmount + taxAmount) * 100) / 100;
+    const rawSubtotal = items.reduce((sum, item) => sum + item.total, 0);
+    const subtotal = roundMoney(rawSubtotal);
+
+    // A discount may not exceed the subtotal. Without this clamp a discount
+    // larger than the invoice produced a negative tax base and a negative
+    // total, which downstream reconciliation reads as a credit owed rather
+    // than an over-discounted invoice.
+    const appliedDiscount = roundMoney(clamp(discount, 0, subtotal));
+    const taxableAmount = roundMoney(subtotal - appliedDiscount);
+
+    // `taxRate` is a decimal fraction (0.2), not basis points.
+    const safeTaxRate = Number.isFinite(taxRate) ? Math.max(taxRate, 0) : 0;
+    const taxAmount = roundMoney(taxableAmount * safeTaxRate);
+    const total = roundMoney(Math.max(taxableAmount + taxAmount, 0));
+
     return { subtotal, taxAmount, total };
   }
 
