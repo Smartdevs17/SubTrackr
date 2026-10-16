@@ -138,7 +138,6 @@ FORMATTING.md
 # Backup / duplicate files
 *.backup
 *\ copy.*
-package.json.backup
 
 # Build / validation output
 build_errors*.txt
@@ -164,7 +163,6 @@ WCAG_COMPLIANCE.md
 FORMATTING.md
 fix-*.sh
 verify-*.sh
-package-fixed.json
 
 # Local manifests, caches and CI scratch output
 .eslintcache
