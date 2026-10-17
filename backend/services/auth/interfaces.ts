@@ -3,6 +3,7 @@ export interface ApiKeyRecord {
   merchantId: string;
   keyPrefix: string;
   keyHash: string;
+  scopes?: string[];
   status: 'active' | 'expired' | 'revoked';
   rotatedAt: string | null;
   revokedAt?: string | null;

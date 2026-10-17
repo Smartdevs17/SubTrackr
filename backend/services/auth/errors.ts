@@ -4,6 +4,7 @@ import { ErrorCode } from '../shared/apiResponse';
 export const AuthErrorCode = {
   API_KEY_NOT_FOUND: 'AUTH_API_KEY_NOT_FOUND' as ErrorCode,
   API_KEY_EXPIRED: 'AUTH_API_KEY_EXPIRED' as ErrorCode,
+  API_KEY_INSUFFICIENT_SCOPE: 'AUTH_API_KEY_INSUFFICIENT_SCOPE' as ErrorCode,
   API_KEY_ROTATION_FAILED: 'AUTH_API_KEY_ROTATION_FAILED' as ErrorCode,
   API_KEY_REVOKED: 'AUTH_API_KEY_REVOKED' as ErrorCode,
   API_KEY_ALREADY_REVOKED: 'AUTH_API_KEY_ALREADY_REVOKED' as ErrorCode,
@@ -27,6 +28,14 @@ export class AuthError extends DomainError {
 
   static apiKeyExpired(keyId: string): AuthError {
     return new AuthError(AuthErrorCode.API_KEY_EXPIRED, `API key expired: ${keyId}`, { keyId });
+  }
+
+  static apiKeyInsufficientScope(keyId: string, requiredScope: string): AuthError {
+    return new AuthError(
+      AuthErrorCode.API_KEY_INSUFFICIENT_SCOPE,
+      `API key ${keyId} lacks required scope: ${requiredScope}`,
+      { keyId, requiredScope }
+    );
   }
 
   static rotationFailed(keyId: string, reason: string): AuthError {
