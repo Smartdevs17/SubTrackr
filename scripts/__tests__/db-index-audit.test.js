@@ -50,7 +50,8 @@ describe('db-index-audit :: parseCreateIndex', () => {
   });
 
   it('parses CREATE INDEX CONCURRENTLY IF NOT EXISTS with composite columns', () => {
-    const sql = "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_bar ON subscriptions (user_id, status) WHERE status = 'active';";
+    const sql =
+      "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_bar ON subscriptions (user_id, status) WHERE status = 'active';";
     const idx = parseCreateIndex(sql);
     expect(idx.name).toBe('idx_bar');
     expect(idx.table).toBe('subscriptions');
@@ -73,10 +74,13 @@ describe('db-index-audit :: parseCreateIndex', () => {
 
 describe('db-index-audit :: loadIndexes', () => {
   it('loads indexes from migration files', () => {
-    writeMigration('001_init.sql', `
+    writeMigration(
+      '001_init.sql',
+      `
       CREATE INDEX IF NOT EXISTS idx_a ON users (email);
       CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_b ON subscriptions (user_id, status);
-    `);
+    `
+    );
     const indexes = loadIndexes([migrationsDir]);
     expect(indexes).toHaveLength(2);
     expect(indexes[0].name).toBe('idx_a');
@@ -84,12 +88,15 @@ describe('db-index-audit :: loadIndexes', () => {
   });
 
   it('ignores indexes in -- @down sections', () => {
-    writeMigration('001_init.sql', `
+    writeMigration(
+      '001_init.sql',
+      `
       CREATE INDEX IF NOT EXISTS idx_up ON users (email);
 
 -- @down
 DROP INDEX IF EXISTS idx_up;
-    `);
+    `
+    );
     const indexes = loadIndexes([migrationsDir]);
     expect(indexes).toHaveLength(1);
     expect(indexes[0].name).toBe('idx_up');
@@ -107,15 +114,24 @@ describe('db-index-audit :: isCoveredByIndex', () => {
   ];
 
   it('covers a single-column query when index first column matches', () => {
-    expect(isCoveredByIndex({ table: 'users', columns: ['email'], type: 'WHERE' }, indexes)).toBe(true);
+    expect(isCoveredByIndex({ table: 'users', columns: ['email'], type: 'WHERE' }, indexes)).toBe(
+      true
+    );
   });
 
   it('covers a composite query when index is a prefix match', () => {
-    expect(isCoveredByIndex({ table: 'subscriptions', columns: ['user_id', 'status'], type: 'WHERE' }, indexes)).toBe(true);
+    expect(
+      isCoveredByIndex(
+        { table: 'subscriptions', columns: ['user_id', 'status'], type: 'WHERE' },
+        indexes
+      )
+    ).toBe(true);
   });
 
   it('does not cover when no index exists for the table', () => {
-    expect(isCoveredByIndex({ table: 'orders', columns: ['user_id'], type: 'WHERE' }, indexes)).toBe(false);
+    expect(
+      isCoveredByIndex({ table: 'orders', columns: ['user_id'], type: 'WHERE' }, indexes)
+    ).toBe(false);
   });
 
   it('always covers id lookups (primary key)', () => {
@@ -123,13 +139,15 @@ describe('db-index-audit :: isCoveredByIndex', () => {
   });
 
   it('does not cover when the column is not the leading column', () => {
-    expect(isCoveredByIndex({ table: 'subscriptions', columns: ['status'], type: 'WHERE' }, indexes)).toBe(false);
+    expect(
+      isCoveredByIndex({ table: 'subscriptions', columns: ['status'], type: 'WHERE' }, indexes)
+    ).toBe(false);
   });
 });
 
 describe('db-index-audit :: extractQueryPatterns', () => {
   it('extracts WHERE column = $N patterns', () => {
-    const content = "`SELECT * FROM users WHERE email = $1`";
+    const content = '`SELECT * FROM users WHERE email = $1`';
     const patterns = extractQueryPatterns(content, 'test.ts');
     expect(patterns).toContainEqual({
       table: 'users',
@@ -140,7 +158,7 @@ describe('db-index-audit :: extractQueryPatterns', () => {
   });
 
   it('extracts FROM table WHERE column patterns', () => {
-    const content = "`SELECT * FROM subscriptions WHERE user_id = $1 ORDER BY created_at DESC`";
+    const content = '`SELECT * FROM subscriptions WHERE user_id = $1 ORDER BY created_at DESC`';
     const patterns = extractQueryPatterns(content, 'test.ts');
     const wherePattern = patterns.find((p) => p.type === 'WHERE');
     expect(wherePattern.table).toBe('subscriptions');
@@ -165,7 +183,11 @@ describe('db-index-audit :: run', () => {
     writeMigration('001.sql', 'CREATE INDEX IF NOT EXISTS idx_email ON users (email);');
     const srcDir = path.join(tmpDir, 'src');
     fs.mkdirSync(srcDir, { recursive: true });
-    fs.writeFileSync(path.join(srcDir, 'repo.ts'), "`SELECT * FROM users WHERE email = $1`", 'utf8');
+    fs.writeFileSync(
+      path.join(srcDir, 'repo.ts'),
+      '`SELECT * FROM users WHERE email = $1`',
+      'utf8'
+    );
 
     const code = run(['--migrations-dir', migrationsDir, '--src-dir', srcDir]);
     expect(code).toBe(0);
@@ -174,7 +196,11 @@ describe('db-index-audit :: run', () => {
   it('exits 1 when gaps are found', () => {
     const srcDir = path.join(tmpDir, 'src');
     fs.mkdirSync(srcDir, { recursive: true });
-    fs.writeFileSync(path.join(srcDir, 'repo.ts'), "`SELECT * FROM users WHERE email = $1`", 'utf8');
+    fs.writeFileSync(
+      path.join(srcDir, 'repo.ts'),
+      '`SELECT * FROM users WHERE email = $1`',
+      'utf8'
+    );
 
     const code = run(['--migrations-dir', migrationsDir, '--src-dir', srcDir]);
     expect(code).toBe(1);
@@ -184,7 +210,11 @@ describe('db-index-audit :: run', () => {
     writeMigration('001.sql', 'CREATE INDEX IF NOT EXISTS idx_email ON users (email);');
     const srcDir = path.join(tmpDir, 'src');
     fs.mkdirSync(srcDir, { recursive: true });
-    fs.writeFileSync(path.join(srcDir, 'repo.ts'), "`SELECT * FROM users WHERE email = $1`", 'utf8');
+    fs.writeFileSync(
+      path.join(srcDir, 'repo.ts'),
+      '`SELECT * FROM users WHERE email = $1`',
+      'utf8'
+    );
 
     const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
     run(['--json', '--migrations-dir', migrationsDir, '--src-dir', srcDir]);

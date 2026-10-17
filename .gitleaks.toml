@@ -4,7 +4,7 @@ title = "SubTrackr secret scanning configuration"
 useDefault = true
 
 [allowlist]
-description = "Allow test fixtures, documentation examples, and lockfiles to avoid noisy findings."
+description = "Allow test fixtures, documentation examples, demo UI placeholder credentials, and lockfiles to avoid noisy findings."
 paths = [
     '''\.env\.example$''',
     '''.*\.test\.ts$''',
@@ -18,4 +18,13 @@ paths = [
     '''.*pnpm-lock\.yaml$''',
     '''.*yarn\.lock$''',
     '''.*Cargo\.lock$''',
+    # Developer-portal demo screen: mock API-key fixtures rendered in the UI.
+    # These are fake values in local state, never real credentials.
+    '''developer-portal/pages/ApiKeysPage\.tsx$''',
+]
+# Literal placeholder tokens used in docs snippets and demo copy.
+stopwords = [
+    'YOUR_API_KEY',
+    'YOUR_API_KEY_HERE',
+    'sk_test_your_key',
 ]

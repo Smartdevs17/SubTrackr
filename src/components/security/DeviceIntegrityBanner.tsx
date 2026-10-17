@@ -1,11 +1,5 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  AccessibilityInfo,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, AccessibilityInfo } from 'react-native';
 import { useDeviceIntegrity } from '../../hooks/useDeviceIntegrity';
 import { colors, spacing, typography, borderRadius } from '../../utils/constants';
 
@@ -13,11 +7,8 @@ export interface DeviceIntegrityBannerProps {
   onLearnMore?: () => void;
 }
 
-export const DeviceIntegrityBanner: React.FC<DeviceIntegrityBannerProps> = ({
-  onLearnMore,
-}) => {
-  const { result, isCompromised, riskLevel, bannerDismissed, dismissBanner } =
-    useDeviceIntegrity();
+export const DeviceIntegrityBanner: React.FC<DeviceIntegrityBannerProps> = ({ onLearnMore }) => {
+  const { result, isCompromised, riskLevel, bannerDismissed, dismissBanner } = useDeviceIntegrity();
   const [showDetails, setShowDetails] = useState(false);
 
   // Only render if device is compromised or at high/critical risk and not dismissed
@@ -35,10 +26,10 @@ export const DeviceIntegrityBanner: React.FC<DeviceIntegrityBannerProps> = ({
   const title = result?.isRooted
     ? 'Rooted Android Device Detected'
     : result?.isJailbroken
-    ? 'Jailbroken iOS Device Detected'
-    : result?.isTampered
-    ? 'Application Tampering Detected'
-    : 'Device Integrity Compromised';
+      ? 'Jailbroken iOS Device Detected'
+      : result?.isTampered
+        ? 'Application Tampering Detected'
+        : 'Device Integrity Compromised';
 
   const defaultMessage =
     result?.degradationPolicy?.warningMessage ||
@@ -105,9 +96,7 @@ export const DeviceIntegrityBanner: React.FC<DeviceIntegrityBannerProps> = ({
             style={styles.linkButton}
             accessibilityRole="button"
             accessibilityLabel="Learn more about device integrity policy">
-            <Text style={[styles.linkText, { color: colors.accent }]}>
-              Security policy
-            </Text>
+            <Text style={[styles.linkText, { color: colors.accent }]}>Security policy</Text>
           </TouchableOpacity>
         )}
       </View>

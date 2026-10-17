@@ -193,6 +193,7 @@ node scripts/db-index-audit.js --json    # JSON output for CI
 ```
 
 The tool:
+
 1. Parses `CREATE INDEX` statements from `db/migrations/*.sql` and
    `backend/migrations/*.sql` (excluding `-- @down` sections).
 2. Scans `backend/services/`, `backend/graphql/`, and `backend/notification/`
@@ -210,18 +211,18 @@ Exit code: 0 = no gaps, 1 = gaps found, 2 = usage error.
 The initial audit found 10 query patterns with no matching index. Migration
 `009_index_audit_hot_queries.sql` adds indexes for all of them:
 
-| Table | Column(s) | Query source | Index |
-|---|---|---|---|
-| users | address | postgres.ts:382 | idx_users_address |
-| users | email | postgres.ts:391 | idx_users_email |
-| merchants | merchant_address | postgres.ts:470 | idx_merchants_merchant_address |
-| merchants | status | postgres.ts:481 | idx_merchants_status |
-| loyalty | subscriber_id | postgres.ts:570 | idx_loyalty_subscriber_id |
-| loyalty | points DESC | postgres.ts:582 | idx_loyalty_points_desc |
-| subscriptions | created_at DESC | resolvers.ts:71 | idx_subscriptions_created_at |
-| user_devices | user_id | NotificationServiceImpl.ts | idx_user_devices_user_id |
-| usage_alerts | created_at DESC | usageAlertsController.ts:144 | idx_usage_alerts_created_at |
-| usage_alert_configs | subscription_id | usageAlertsController.ts | idx_usage_alert_configs_subscription |
+| Table               | Column(s)        | Query source                 | Index                                |
+| ------------------- | ---------------- | ---------------------------- | ------------------------------------ |
+| users               | address          | postgres.ts:382              | idx_users_address                    |
+| users               | email            | postgres.ts:391              | idx_users_email                      |
+| merchants           | merchant_address | postgres.ts:470              | idx_merchants_merchant_address       |
+| merchants           | status           | postgres.ts:481              | idx_merchants_status                 |
+| loyalty             | subscriber_id    | postgres.ts:570              | idx_loyalty_subscriber_id            |
+| loyalty             | points DESC      | postgres.ts:582              | idx_loyalty_points_desc              |
+| subscriptions       | created_at DESC  | resolvers.ts:71              | idx_subscriptions_created_at         |
+| user_devices        | user_id          | NotificationServiceImpl.ts   | idx_user_devices_user_id             |
+| usage_alerts        | created_at DESC  | usageAlertsController.ts:144 | idx_usage_alerts_created_at          |
+| usage_alert_configs | subscription_id  | usageAlertsController.ts     | idx_usage_alert_configs_subscription |
 
 After applying migration 009, re-run the audit to confirm zero gaps:
 

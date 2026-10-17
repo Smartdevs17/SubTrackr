@@ -1082,6 +1082,69 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
         return;
       }
 
+      // POST /sessions/rebind — bind a session to the current device after
+      // step-up authentication (issue #1766). Requires X-Session-Token (the
+      // session to rebind) plus X-Reauth-Token: a passkey-authenticated
+      // session issued to the same user within the last 5 minutes, proving the
+      // caller still controls the account. A stolen token alone can therefore
+      // never move a session to a different device.
+      if (pathname === '/sessions/rebind' && method === 'POST') {
+        const token = req.headers['x-session-token'] as string;
+        if (!token) {
+          sendJson(res, 400, { error: 'X-Session-Token header is required' });
+          return;
+        }
+        const reauthToken = req.headers['x-reauth-token'] as string;
+        if (!reauthToken) {
+          sendJson(res, 403, {
+            error: 'step_up_required',
+            message:
+              'X-Reauth-Token (fresh passkey-authenticated session for the same user) is required to rebind a device',
+          });
+          return;
+        }
+
+        const target = serverSessionService.getSession(token);
+        if (!target) {
+          sendJson(res, 404, { error: 'Session not found' });
+          return;
+        }
+
+        const reauth = serverSessionService.getSession(reauthToken);
+        const stepUpValid =
+          !!reauth &&
+          reauth.status === 'active' &&
+          Date.now() <= reauth.expiresAt &&
+          reauth.userId === target.userId &&
+          reauth.metadata?.authMethod === 'passkey' &&
+          Date.now() - reauth.createdAt <= 5 * 60 * 1000;
+        if (!stepUpValid) {
+          sendJson(res, 403, {
+            error: 'step_up_invalid',
+            message:
+              'X-Reauth-Token must be a passkey-authenticated session for the same user, issued within the last 5 minutes',
+          });
+          return;
+        }
+
+        const result = serverSessionService.rebindSession(token, req, { reauthenticated: true });
+        if (!result.rebound) {
+          if (result.reason === 'same_device') {
+            sendJson(res, 200, { rebound: false, reason: result.reason });
+            return;
+          }
+          sendJson(res, 409, { error: result.reason });
+          return;
+        }
+        sendJson(res, 200, {
+          rebound: true,
+          id: result.session!.id,
+          device: result.session!.device,
+          expiresAt: result.session!.expiresAt,
+        });
+        return;
+      }
+
       // POST /sessions/touch — extend session TTL
       if (pathname === '/sessions/touch' && method === 'POST') {
         const token = req.headers['x-session-token'] as string;

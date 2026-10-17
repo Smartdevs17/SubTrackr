@@ -25,10 +25,14 @@ import type { IncomingMessage } from 'node:http';
 export type SessionStatus = 'active' | 'expired' | 'revoked';
 export type SuspiciousReason =
   | 'new_device'
+  | 'device_mismatch'
   | 'concurrent_session_limit'
   | 'rapid_ip_change'
   | 'impossible_travel'
   | 'unusual_activity';
+
+/** Device binding enforcement mode (issue #1766). */
+export type DeviceBindingMode = 'off' | 'warn' | 'enforce';
 
 export interface DeviceInfo {
   /** SHA-256 fingerprint of (userAgent + platform + language) */
@@ -96,16 +100,40 @@ export interface SessionServiceConfig {
   slidingExpiry: boolean;
   /** Suspicious threshold: new device + N concurrent sessions */
   suspiciousConcurrentThreshold: number;
+  /**
+   * Bind sessions to the device fingerprint observed at creation time
+   * (issue #1766): `enforce` rejects requests whose fingerprint differs,
+   * `warn` only flags them, `off` disables the check. Default: `enforce`.
+   */
+  deviceBinding: DeviceBindingMode;
 }
 
 export interface SessionAuditEntry {
   sessionId: string;
   userId: string;
-  action: 'created' | 'validated' | 'touched' | 'revoked' | 'expired' | 'suspicious_flagged';
+  action:
+    | 'created'
+    | 'validated'
+    | 'touched'
+    | 'revoked'
+    | 'expired'
+    | 'suspicious_flagged'
+    | 'rebound';
   ip: string;
   userAgent: string;
   timestamp: number;
   detail?: string;
+}
+
+export interface RebindResult {
+  rebound: boolean;
+  reason?:
+    | 'session_not_found'
+    | 'session_revoked'
+    | 'session_expired'
+    | 'step_up_required'
+    | 'same_device';
+  session?: SessionRecord;
 }
 
 // ---------------------------------------------------------------------------
@@ -152,6 +180,13 @@ function buildDeviceInfo(req: IncomingMessage, isKnownDevice: boolean): DeviceIn
     isKnownDevice,
     ...parsed,
   };
+}
+
+/** Fingerprint of the device making `req`, computed the same way as at creation. */
+function currentDeviceFingerprint(req: IncomingMessage): string {
+  const userAgent = (req.headers['user-agent'] as string) ?? 'unknown';
+  const acceptLanguage = (req.headers['accept-language'] as string) ?? '';
+  return fingerprintDevice(userAgent, acceptLanguage);
 }
 
 // ---------------------------------------------------------------------------
@@ -224,6 +259,7 @@ export class ServerSessionService {
       maxConcurrentSessions: 5,
       slidingExpiry: true,
       suspiciousConcurrentThreshold: 3,
+      deviceBinding: 'enforce',
       ...config,
     };
   }
@@ -352,6 +388,41 @@ export class ServerSessionService {
       return { valid: false, session, reason: 'session_expired' };
     }
 
+    // Device binding (issue #1766): the session is pinned to the fingerprint
+    // observed at creation (or last rebind). A stolen token replayed from
+    // another device produces a different fingerprint and is rejected.
+    if (req && this.config.deviceBinding !== 'off') {
+      const fingerprint = currentDeviceFingerprint(req);
+      if (fingerprint !== session.device.fingerprint) {
+        if (this.config.deviceBinding === 'enforce') {
+          this.audit({
+            sessionId: session.id,
+            userId: session.userId,
+            action: 'suspicious_flagged',
+            ip: session.geo.ip,
+            userAgent: session.device.userAgent,
+            timestamp: now,
+            detail: `device_binding_mismatch bound=${session.device.fingerprint} presented=${fingerprint}`,
+          });
+          return { valid: false, session, reason: 'device_binding_mismatch' };
+        }
+
+        if (!session.suspiciousReasons.includes('device_mismatch')) {
+          session.suspiciousReasons.push('device_mismatch');
+          session.isSuspicious = true;
+          this.audit({
+            sessionId: session.id,
+            userId: session.userId,
+            action: 'suspicious_flagged',
+            ip: session.geo.ip,
+            userAgent: session.device.userAgent,
+            timestamp: now,
+            detail: `device_mismatch flagged (warn mode) bound=${session.device.fingerprint} presented=${fingerprint}`,
+          });
+        }
+      }
+    }
+
     // Sliding expiry
     if (this.config.slidingExpiry) {
       session.lastActiveAt = now;
@@ -417,6 +488,75 @@ export class ServerSessionService {
       timestamp: now,
     });
     return session;
+  }
+
+  // -------------------------------------------------------------------------
+  // Device rebinding (issue #1766)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Rebind a session to the device making `req` after the user has completed
+   * step-up authentication (passkey / password re-verification).
+   *
+   * The route is responsible for verifying the step-up credential and only
+   * passes `reauthenticated: true` once it has; without it the rebind is
+   * refused so a stolen token alone can never move a session to a new device.
+   */
+  rebindSession(
+    token: string,
+    req: IncomingMessage,
+    opts: { reauthenticated?: boolean } = {}
+  ): RebindResult {
+    const session = this.sessions.get(token);
+    if (!session) return { rebound: false, reason: 'session_not_found' };
+
+    const now = Date.now();
+    if (session.status === 'revoked') return { rebound: false, reason: 'session_revoked' };
+    if (now > session.expiresAt) {
+      session.status = 'expired';
+      return { rebound: false, reason: 'session_expired' };
+    }
+
+    const presented = currentDeviceFingerprint(req);
+    if (presented === session.device.fingerprint) {
+      return { rebound: false, reason: 'same_device', session };
+    }
+
+    if (!opts.reauthenticated) {
+      this.audit({
+        sessionId: session.id,
+        userId: session.userId,
+        action: 'suspicious_flagged',
+        ip: session.geo.ip,
+        userAgent: session.device.userAgent,
+        timestamp: now,
+        detail: 'rebind attempted without step-up authentication',
+      });
+      return { rebound: false, reason: 'step_up_required' };
+    }
+
+    const previous = session.device.fingerprint;
+    const knownFingerprints = this.knownDevices.get(session.userId) ?? new Set<string>();
+    const device = buildDeviceInfo(req, knownFingerprints.size > 0);
+    knownFingerprints.add(device.fingerprint);
+    this.knownDevices.set(session.userId, knownFingerprints);
+
+    session.device = device;
+    session.geo = buildGeoInfo(req);
+    session.suspiciousReasons = session.suspiciousReasons.filter((r) => r !== 'device_mismatch');
+    session.isSuspicious = session.suspiciousReasons.length > 0;
+
+    this.audit({
+      sessionId: session.id,
+      userId: session.userId,
+      action: 'rebound',
+      ip: session.geo.ip,
+      userAgent: device.userAgent,
+      timestamp: now,
+      detail: `device ${previous} -> ${device.fingerprint} (step-up verified)`,
+    });
+
+    return { rebound: true, session };
   }
 
   // -------------------------------------------------------------------------

@@ -40,10 +40,7 @@ export function useDeviceIntegrity(): DeviceIntegrityState {
 
   const isOperationAllowed = useCallback(
     (operation: SensitiveOperation): boolean => {
-      return deviceAttestationService.isOperationAllowed(
-        operation,
-        result?.degradationPolicy
-      );
+      return deviceAttestationService.isOperationAllowed(operation, result?.degradationPolicy);
     },
     [result]
   );
@@ -90,7 +87,8 @@ export function useDeviceIntegrity(): DeviceIntegrityState {
   }, []);
 
   const riskLevel = result?.riskLevel ?? 'low';
-  const isCompromised = !result?.isIntact && (result?.isRooted || result?.isJailbroken || result?.isTampered || false);
+  const isCompromised =
+    !result?.isIntact && (result?.isRooted || result?.isJailbroken || result?.isTampered || false);
 
   return {
     result,

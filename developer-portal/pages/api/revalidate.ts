@@ -88,7 +88,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   // arbitrary value lets a holder of the secret force revalidation of
   // unrelated routes, so it is restricted to the documented set.
   if (path !== undefined && !ALLOWED_PATHS.has(path)) {
-    return res.status(400).json({ revalidated: false, error: `Path "${path}" is not revalidatable` });
+    return res
+      .status(400)
+      .json({ revalidated: false, error: `Path "${path}" is not revalidatable` });
   }
 
   const pathsToRevalidate: string[] = path ? [path] : (TAG_TO_PATHS[tag as string] ?? []);

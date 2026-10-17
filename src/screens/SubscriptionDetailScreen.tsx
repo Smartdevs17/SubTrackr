@@ -25,6 +25,7 @@ import { CreditPaymentMethod } from '../types/credit';
 import { useGroupStore } from '../store/groupStore';
 import { shareSubscriptionLink } from '../utils/shareLink';
 import { validateSubscriptionId } from '../utils/deepLinkValidator';
+import { BiometricGateError, sensitiveActionGuard } from '../services/auth/sensitiveActionGuard';
 
 // Components
 import { Button } from '../components/common/Button';
@@ -224,16 +225,26 @@ const SubscriptionDetailScreen: React.FC = () => {
       return;
     }
 
-    await transferCredit(
-      {
-        amount,
-        currency: subscription?.currency,
-        reference: `transfer:${subscription?.id ?? 'subscription'}`,
-        note: `Transfer from ${accountId} to ${transferRecipient.trim()}`,
-      },
-      transferRecipient.trim(),
-      accountId
-    );
+    try {
+      await sensitiveActionGuard.withBiometricGuard('transfer_funds', () =>
+        transferCredit(
+          {
+            amount,
+            currency: subscription?.currency,
+            reference: `transfer:${subscription?.id ?? 'subscription'}`,
+            note: `Transfer from ${accountId} to ${transferRecipient.trim()}`,
+          },
+          transferRecipient.trim(),
+          accountId
+        )
+      );
+    } catch (err) {
+      if (err instanceof BiometricGateError) {
+        Alert.alert('Authentication Required', err.message);
+        return;
+      }
+      throw err;
+    }
 
     Alert.alert('Credit transferred', 'The recipient balance was updated.');
   }, [

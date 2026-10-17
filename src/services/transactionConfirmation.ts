@@ -32,9 +32,7 @@ export class TransactionRevertedError extends Error {
   readonly transactionHash: string;
 
   constructor(transactionHash: string, detail?: string) {
-    super(
-      `Transaction ${transactionHash} was reverted on-chain${detail ? `: ${detail}` : '.'}`
-    );
+    super(`Transaction ${transactionHash} was reverted on-chain${detail ? `: ${detail}` : '.'}`);
     this.name = 'TransactionRevertedError';
     this.transactionHash = transactionHash;
     Object.setPrototypeOf(this, new.target.prototype);

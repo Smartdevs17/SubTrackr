@@ -128,12 +128,7 @@ export const IOS_JAILBREAK_PATHS = [
 /**
  * Custom URL schemes registered by jailbreak package managers.
  */
-export const IOS_JAILBREAK_SCHEMES = [
-  'cydia://',
-  'sileo://',
-  'zbra://',
-  'undecimus://',
-];
+export const IOS_JAILBREAK_SCHEMES = ['cydia://', 'sileo://', 'zbra://', 'undecimus://'];
 
 /**
  * Pluggable probe provider to allow native module integration or test mocking.
@@ -238,7 +233,10 @@ class DeviceAttestationService {
         parsed.isJailbroken = parsed.isJailbroken ?? false;
         parsed.isTampered = parsed.isTampered ?? false;
         parsed.compromiseIndicators = parsed.compromiseIndicators ?? [];
-        parsed.degradationPolicy = this.computeDegradationPolicy(riskLevel, parsed.compromiseIndicators);
+        parsed.degradationPolicy = this.computeDegradationPolicy(
+          riskLevel,
+          parsed.compromiseIndicators
+        );
       }
       return parsed;
     } catch {
@@ -401,7 +399,9 @@ class DeviceAttestationService {
     // 3. Sandbox write test
     if (this.customProvider?.canWriteRestrictedPath) {
       try {
-        const canWrite = await this.customProvider.canWriteRestrictedPath('/private/subtrackr_jailbreak.txt');
+        const canWrite = await this.customProvider.canWriteRestrictedPath(
+          '/private/subtrackr_jailbreak.txt'
+        );
         if (canWrite) {
           detected = true;
           indicators.push('ios_sandbox_violation');
@@ -476,8 +476,7 @@ class DeviceAttestationService {
 
     if (Platform.OS === 'ios') {
       const isSim =
-        (Platform as any).constants?.isSimulator ||
-        process.env.SIMULATOR_DEVICE_NAME !== undefined;
+        (Platform as any).constants?.isSimulator || process.env.SIMULATOR_DEVICE_NAME !== undefined;
 
       if (isSim) {
         indicators.push('emulator_ios_simulator_detected');

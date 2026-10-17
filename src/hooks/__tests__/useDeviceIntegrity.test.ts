@@ -94,7 +94,9 @@ describe('useDeviceIntegrity hook', () => {
   });
 
   it('allows dismissing banner state', async () => {
-    (deviceAttestationService.getCachedIntegrity as jest.Mock).mockResolvedValue(mockCompromisedResult);
+    (deviceAttestationService.getCachedIntegrity as jest.Mock).mockResolvedValue(
+      mockCompromisedResult
+    );
 
     const { result, waitForNextUpdate } = renderHook(() => useDeviceIntegrity());
     await waitForNextUpdate();
