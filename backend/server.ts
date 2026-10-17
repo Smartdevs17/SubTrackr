@@ -54,6 +54,10 @@ import {
 } from './services/shared/ipWhitelistService';
 import { serverSessionService } from './services/auth/serverSessionService';
 import { buildMetricsService } from './services/shared/buildMetricsService';
+import { createVersionMiddleware, versionRegistry } from './services/shared/apiVersioning';
+import { createLoggerFor } from './services/shared/logging';
+import { createTracerFromEnv, type Tracer } from './services/shared/tracing';
+import { createRequestObservability } from './shared/middleware/requestObservability';
 
 export interface StartServerOptions {
   port?: number;
@@ -63,6 +67,8 @@ export interface StartServerOptions {
   planBootstrap?: PlanCacheBootstrap;
   /** When true, binds to port (default). Set false in tests. */
   listen?: boolean;
+  /** Tracer for request spans. Defaults to one configured from OTEL_* env vars. */
+  tracer?: Tracer;
 }
 
 export interface RunningServer {
@@ -433,7 +439,13 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
       { origin: process.env['CORS_ALLOWED_ORIGIN'] ?? '*', isWildcard: true },
     ],
     allowCredentials: false,
-    exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
+    exposedHeaders: [
+      'X-RateLimit-Limit',
+      'X-RateLimit-Remaining',
+      'X-RateLimit-Reset',
+      'X-Request-Id',
+      'api-version',
+    ],
     maxAge: 86400,
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowHeaders: [
@@ -446,7 +458,16 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
     active: true,
   });
 
-  const server = http.createServer(async (req, res) => {
+  const observeRequest = createRequestObservability({
+    tracer: options.tracer ?? createTracerFromEnv('subtrackr-backend'),
+    logger: createLoggerFor('http'),
+  });
+  const versionMiddleware = createVersionMiddleware(versionRegistry);
+
+  const handleRequest = async (
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+  ): Promise<void> => {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
     const { pathname } = url;
     const method = req.method ?? 'GET';
@@ -489,6 +510,20 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
         res.end();
         return;
       }
+
+      // -----------------------------------------------------------------
+      // API version (issue #1789): sets `api-version`, adds deprecation
+      // headers, and answers 400/410 for unknown or sunset versions.
+      // -----------------------------------------------------------------
+      let versionAccepted = false;
+      await versionMiddleware(
+        { path: pathname, headers: req.headers, query: Object.fromEntries(url.searchParams) },
+        res,
+        () => {
+          versionAccepted = true;
+        },
+      );
+      if (!versionAccepted) return;
 
       // -----------------------------------------------------------------
       // IP Whitelist gate (issue #1158) — applied before all auth/rate-limit
@@ -1738,7 +1773,11 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
       console.error('[Server] Request error:', err);
       sendJson(res, 500, { error: 'Internal server error' });
     }
-  });
+  };
+
+  const server = http.createServer((req, res) =>
+    observeRequest(req, res, () => handleRequest(req, res)),
+  );
 
   const port = options.port ?? Number(process.env.PORT ?? 3001);
   const host = options.host ?? process.env.HOST ?? '0.0.0.0';

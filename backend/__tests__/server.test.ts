@@ -12,6 +12,7 @@ import type { RedisClient } from '../shared/cache/types';
 import { setPlanCacheService } from '../subscription/planCacheRegistry';
 import { buildMetricsService } from '../services/shared/buildMetricsService';
 import { rateLimitingService } from '../services/shared/rateLimitingService';
+import { InMemorySpanExporter, Sampler, Tracer } from '../services/shared/tracing';
 
 class FakeRedis implements RedisClient {
   private store = new Map<string, string>();
@@ -513,5 +514,75 @@ describe('backend server', () => {
         expect(res.status).toBe(201);
       }
     });
+  });
+});
+
+describe('backend server: conditional requests, versioning and request tracing', () => {
+  let running: Awaited<ReturnType<typeof startServer>>;
+  let port: number;
+  const exporter = new InMemorySpanExporter();
+
+  beforeEach(async () => {
+    exporter.reset();
+    const tracer = new Tracer({
+      serviceName: 'subtrackr-backend',
+      exporter,
+      sampler: new Sampler({ defaultRatio: 1, alwaysSampleErrors: true }),
+    });
+    running = await startServer({
+      pool: makeMockPool(),
+      planBootstrap: makeBootstrap(),
+      listen: false,
+      tracer,
+    });
+    port = await listenEphemeral(running.server);
+    jest.spyOn(console, 'log').mockImplementation(() => undefined);
+  });
+
+  afterEach(async () => {
+    jest.restoreAllMocks();
+    await running.shutdown();
+    setPlanCacheService(null);
+  });
+
+  it('emits an ETag and answers 304 to a matching If-None-Match (issue #1788)', async () => {
+    const first = await request(port, '/plans/plan-1');
+    const etag = first.headers['etag'];
+    expect(first.status).toBe(200);
+    expect(etag).toMatch(/^"[^"]+"$/);
+
+    const exact = await request(port, '/plans/plan-1', 'GET', undefined, { 'If-None-Match': etag });
+    expect(exact.status).toBe(304);
+    expect(exact.body).toBe('');
+
+    const list = await request(port, '/plans/plan-1', 'GET', undefined, {
+      'If-None-Match': `"stale", W/${etag}`,
+    });
+    expect(list.status).toBe(304);
+
+    const stale = await request(port, '/plans/plan-1', 'GET', undefined, { 'If-None-Match': '"stale"' });
+    expect(stale.status).toBe(200);
+  });
+
+  it('labels responses with the API version and rejects unknown versions (issue #1789)', async () => {
+    const ok = await request(port, '/health');
+    expect(ok.headers['api-version']).toBe('v1');
+    expect(ok.headers['deprecation']).toBeUndefined();
+
+    const unknown = await request(port, '/health', 'GET', undefined, { 'api-version': 'v9' });
+    expect(unknown.status).toBe(400);
+    expect(JSON.parse(unknown.body).error.code).toBe('VERSION_NOT_FOUND');
+  });
+
+  it('echoes the request id and exports a server span for it (issues #1790, #1791)', async () => {
+    const traceId = '4bf92f3577b34da6a3ce929d0e0e4736';
+    const res = await request(port, '/plans/plan-1', 'GET', undefined, {
+      'X-Request-Id': 'req-server-1',
+      traceparent: `00-${traceId}-00f067aa0ba902b7-01`,
+    });
+
+    expect(res.headers['x-request-id']).toBe('req-server-1');
+    const span = exporter.getFinishedSpans().find((s) => s.attributes['request.id'] === 'req-server-1');
+    expect(span).toMatchObject({ traceId, kind: 'server', name: 'GET /plans/plan-1' });
   });
 });

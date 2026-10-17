@@ -25,6 +25,10 @@ import {
   createThemeRouter,
 } from '../subscription/router';
 import { API_VERSION_HEADER, API_VERSION_VALUE } from '../services/shared/apiResponse';
+import { createVersionMiddleware, versionRegistry } from '../services/shared/apiVersioning';
+import { createLoggerFor } from '../services/shared/logging';
+import { createTracerFromEnv } from '../services/shared/tracing';
+import { createRequestObservability } from '../shared/middleware/requestObservability';
 import { createApiKeyRevocationRouter, createPasskeyRouter } from '../services/auth/router/authRouter';
 
 // ── Zapier integration ────────────────────────────────────────────────────────
@@ -156,6 +160,14 @@ export function createApiServer(options: CreateApiServerOptions = {}): Express {
 
   app.disable('x-powered-by');
 
+  // Request id, structured access log and server span for every request.
+  app.use(
+    createRequestObservability({
+      tracer: createTracerFromEnv('subtrackr-api'),
+      logger: createLoggerFor('http'),
+    }),
+  );
+
   // Provider webhooks are signed over the exact bytes that were sent, and
   // `express.json()` consumes the request stream. `express.raw` is therefore
   // registered for the webhook paths *before* the JSON parser, so
@@ -193,6 +205,9 @@ export function createApiServer(options: CreateApiServerOptions = {}): Express {
     res.setHeader(API_VERSION_HEADER, API_VERSION_VALUE);
     next();
   });
+  // Resolves the version from /api/vN, the `api-version` header or `?version=`;
+  // adds deprecation headers and rejects unknown or sunset versions.
+  app.use(createVersionMiddleware(versionRegistry) as unknown as express.RequestHandler);
 
   // ── CDN-cached public routes ───────────────────────────────────────────────
   app.use(cacheHeadersMiddleware());

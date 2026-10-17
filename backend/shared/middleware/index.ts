@@ -42,3 +42,10 @@ export {
   applySecurityHeadersToResponse,
 } from './securityHeaders';
 export type { SecurityHeadersOptions } from './securityHeaders';
+export {
+  REQUEST_ID_HEADER,
+  createRequestObservability,
+  resolveRequestId,
+  sanitizePath,
+} from './requestObservability';
+export type { RequestObservabilityOptions } from './requestObservability';
