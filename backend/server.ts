@@ -69,6 +69,8 @@ export interface StartServerOptions {
   listen?: boolean;
   /** Tracer for request spans. Defaults to one configured from OTEL_* env vars. */
   tracer?: Tracer;
+  /** Maximum time in milliseconds to wait for in-flight requests to drain during shutdown. Defaults to 10,000ms. */
+  drainTimeoutMs?: number;
 }
 
 export interface RunningServer {
@@ -78,7 +80,11 @@ export interface RunningServer {
   monitoredPool: MonitoredPool;
   port: number;
   shutdown: () => Promise<void>;
+  getInFlightRequests?: () => number;
+  isDraining?: () => boolean;
+  removeSignalListeners?: () => void;
 }
+
 
 async function ensurePlanCache(pool: Pool): Promise<PlanCacheBootstrap> {
   const bootstrapped = await bootstrapPlanCache({ pool, warmOnStart: true });
@@ -180,11 +186,16 @@ function buildRateLimitMiddleware() {
     allowMissingKey: true,
     skipPaths: [
       '/health',
+      '/health/live',
+      '/health/ready',
+      '/livez',
+      '/readyz',
       '/metrics/plan-cache',
       '/metrics/compression',
       '/metrics/pool',
       '/metrics/build',
     ],
+
     // Per-key tier: resolved from the server-side record, not from a
     // client-supplied header. See resolveTierForApiKey.
     getTier: (apiKey, req) => resolveTierForApiKey(apiKey, req),
@@ -417,11 +428,16 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
     },
     bypassPaths: [
       '/health',
+      '/health/live',
+      '/health/ready',
+      '/livez',
+      '/readyz',
       '/metrics/plan-cache',
       '/metrics/compression',
       '/metrics/pool',
       '/metrics/build',
     ],
+
   });
 
   // ---------------------------------------------------------------------------
@@ -464,6 +480,11 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
   });
   const versionMiddleware = createVersionMiddleware(versionRegistry);
 
+  let isShuttingDown = false;
+  let inFlightRequests = 0;
+  const activeSockets = new Set<import('node:net').Socket>();
+  const drainTimeoutMs = options.drainTimeoutMs ?? Number(process.env.DRAIN_TIMEOUT_MS ?? 10_000);
+
   const handleRequest = async (
     req: http.IncomingMessage,
     res: http.ServerResponse,
@@ -472,7 +493,25 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
     const { pathname } = url;
     const method = req.method ?? 'GET';
 
+    if (isShuttingDown && pathname !== '/health/live' && pathname !== '/livez') {
+      res.setHeader('Connection', 'close');
+      sendJson(res, 503, { error: 'Server is shutting down' });
+      return;
+    }
+
+    inFlightRequests++;
+    let inFlightDecremented = false;
+    const onReqFinished = () => {
+      if (!inFlightDecremented) {
+        inFlightDecremented = true;
+        inFlightRequests = Math.max(0, inFlightRequests - 1);
+      }
+    };
+    res.once('finish', onReqFinished);
+    res.once('close', onReqFinished);
+
     applySecurityHeadersToResponse(res);
+
 
     const originalWriteHead = res.writeHead.bind(res);
     res.writeHead = ((statusCode: number, statusMessage?: string | Record<string, string>) => {
@@ -543,8 +582,64 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
       if (!proceed) return; // 429 already sent
 
       // -----------------------------------------------------------------
-      // Health (bypass rate limiting)
+      // Health Probes: Liveness & Readiness (bypass rate limiting)
       // -----------------------------------------------------------------
+      if ((pathname === '/health/live' || pathname === '/livez') && method === 'GET') {
+        sendJson(res, 200, {
+          status: 'ok',
+          uptime: process.uptime(),
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+
+      if ((pathname === '/health/ready' || pathname === '/readyz') && method === 'GET') {
+        if (isShuttingDown) {
+          sendJson(res, 503, {
+            status: 'terminating',
+            ready: false,
+            message: 'Server is draining in-flight requests and shutting down',
+          });
+          return;
+        }
+
+        let dbStatus: 'ok' | 'failed' = 'ok';
+        let dbError: string | undefined;
+        try {
+          if (pool && typeof pool.query === 'function') {
+            await pool.query('SELECT 1');
+          }
+        } catch (err) {
+          dbStatus = 'failed';
+          dbError = (err as Error).message;
+        }
+
+        let cacheStatus: 'ok' | 'failed' = 'ok';
+        let cacheError: string | undefined;
+        try {
+          const cacheOk = await planBootstrap.planCache.isHealthy();
+          if (!cacheOk) {
+            cacheStatus = 'failed';
+          }
+        } catch (err) {
+          cacheStatus = 'failed';
+          cacheError = (err as Error).message;
+        }
+
+        const isReady = dbStatus === 'ok' && cacheStatus === 'ok';
+        sendJson(res, isReady ? 200 : 503, {
+          status: isReady ? 'ok' : 'degraded',
+          ready: isReady,
+          checks: {
+            database: dbStatus,
+            cache: cacheStatus,
+            ...(dbError ? { dbError } : {}),
+            ...(cacheError ? { cacheError } : {}),
+          },
+        });
+        return;
+      }
+
       if (pathname === '/health' && method === 'GET') {
         const cacheHealthy = await planBootstrap.planCache.isHealthy();
         sendJson(res, 200, {
@@ -553,6 +648,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
         });
         return;
       }
+
 
       // -----------------------------------------------------------------
       // Prometheus metrics (bypass rate limiting)
@@ -1770,8 +1866,12 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
         sendJson(res, err.status, { error: err.message });
         return;
       }
+      if ((err as any)?.code === 'ECONNRESET' || (err as any)?.message === 'aborted') {
+        return;
+      }
       console.error('[Server] Request error:', err);
       sendJson(res, 500, { error: 'Internal server error' });
+
     }
   };
 
@@ -1779,14 +1879,63 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
     observeRequest(req, res, () => handleRequest(req, res)),
   );
 
+  server.on('connection', (socket) => {
+    activeSockets.add(socket);
+    socket.once('close', () => {
+      activeSockets.delete(socket);
+    });
+  });
+
   const port = options.port ?? Number(process.env.PORT ?? 3001);
   const host = options.host ?? process.env.HOST ?? '0.0.0.0';
 
   const shutdown = async (): Promise<void> => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
     clearInterval(sessionSweepTimer);
-    await new Promise<void>((resolve, reject) => {
+
+    // Stop accepting new connections
+    const closeServerPromise = new Promise<void>((resolve, reject) => {
       server.close((err) => (err ? reject(err) : resolve()));
     });
+
+    // Close idle keep-alive connections immediately
+    if (typeof (server as any).closeIdleConnections === 'function') {
+      (server as any).closeIdleConnections();
+    }
+
+    // Drain in-flight connections with bounded drain timeout
+    await new Promise<void>((resolve) => {
+      if (inFlightRequests === 0) {
+        resolve();
+        return;
+      }
+
+      const checkInterval = setInterval(() => {
+        if (inFlightRequests === 0) {
+          clearInterval(checkInterval);
+          clearTimeout(timeoutTimer);
+          resolve();
+        }
+      }, 50);
+
+      const timeoutTimer = setTimeout(() => {
+        clearInterval(checkInterval);
+        console.warn(
+          `[Server] Drain timeout of ${drainTimeoutMs}ms exceeded with ${inFlightRequests} in-flight requests remaining; forcing connection termination.`,
+        );
+        for (const socket of activeSockets) {
+          socket.destroy();
+        }
+        resolve();
+      }, drainTimeoutMs);
+
+      checkInterval.unref();
+      timeoutTimer.unref();
+    });
+
+    await closeServerPromise.catch(() => {});
+
     await shutdownPlanCache(planBootstrap);
     if (!options.pool) {
       await closePool();
@@ -1869,7 +2018,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
   }
 
   const handleSignal = (signal: string) => {
-    console.info(`[Server] Received ${signal}, shutting down…`);
+    console.info(`[Server] Received ${signal}, draining connections and shutting down…`);
     shutdown()
       .then(() => process.exit(0))
       .catch((err) => {
@@ -1878,10 +2027,28 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
       });
   };
 
-  process.once('SIGTERM', () => handleSignal('SIGTERM'));
-  process.once('SIGINT', () => handleSignal('SIGINT'));
+  const sigtermListener = () => handleSignal('SIGTERM');
+  const sigintListener = () => handleSignal('SIGINT');
 
-  return { server, pool, planBootstrap, monitoredPool, port, shutdown };
+  process.once('SIGTERM', sigtermListener);
+  process.once('SIGINT', sigintListener);
+
+  const removeSignalListeners = () => {
+    process.removeListener('SIGTERM', sigtermListener);
+    process.removeListener('SIGINT', sigintListener);
+  };
+
+  return {
+    server,
+    pool,
+    planBootstrap,
+    monitoredPool,
+    port,
+    shutdown,
+    getInFlightRequests: () => inFlightRequests,
+    isDraining: () => isShuttingDown,
+    removeSignalListeners,
+  };
 }
 
 if (require.main === module) {
@@ -1890,3 +2057,4 @@ if (require.main === module) {
     process.exit(1);
   });
 }
+
