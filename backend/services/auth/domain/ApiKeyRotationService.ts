@@ -63,6 +63,24 @@ export function hashApiKey(rawKey: string): string {
   return createHmac(KEY_HASH_ALGORITHM, apiKeyPepper()).update(rawKey).digest('hex');
 }
 
+/**
+ * Checks if a set of granted scopes satisfies a required scope.
+ * Supports exact match, universal wildcard ('*'), and prefix wildcards ('read:*').
+ */
+export function hasScope(grantedScopes: string[] | undefined, requiredScope: string): boolean {
+  if (!grantedScopes || grantedScopes.length === 0) return false;
+  if (grantedScopes.includes('*')) return true;
+  if (grantedScopes.includes(requiredScope)) return true;
+
+  return grantedScopes.some((scope) => {
+    if (scope.endsWith(':*')) {
+      const prefix = scope.slice(0, -1);
+      return requiredScope.startsWith(prefix);
+    }
+    return false;
+  });
+}
+
 export class ApiKeyRotationService implements IApiKeyRotationService {
   private keys = new Map<string, ApiKeyRecord>();
   private history = new Map<string, ApiKeyRecord[]>();
@@ -97,6 +115,7 @@ export class ApiKeyRotationService implements IApiKeyRotationService {
       merchantId: existing.merchantId,
       keyPrefix: newKey.prefix,
       keyHash: newKey.hash,
+      scopes: existing.scopes ? [...existing.scopes] : ['*'],
       status: 'active',
       rotatedAt: null,
       expiresAt: expiresAt.toISOString(),
@@ -128,6 +147,7 @@ export class ApiKeyRotationService implements IApiKeyRotationService {
       merchantId: existing.merchantId,
       keyPrefix: newKey.prefix,
       keyHash: newKey.hash,
+      scopes: existing.scopes ? [...existing.scopes] : ['*'],
       status: 'active',
       rotatedAt: null,
       expiresAt: expiresAt.toISOString(),
@@ -160,18 +180,23 @@ export class ApiKeyRotationService implements IApiKeyRotationService {
     return updated;
   }
 
-  async registerKey(merchantId: string): Promise<{ keyId: string; rawKey: string; record: ApiKeyRecord }> {
+  async registerKey(
+    merchantId: string,
+    options?: { scopes?: string[]; expiresInDays?: number }
+  ): Promise<{ keyId: string; rawKey: string; record: ApiKeyRecord }> {
     const keyId = `key_${randomBytes(8).toString('hex')}`;
     const key = this.generateKey();
     const policy = this.policies.get(merchantId) ?? this.policies.get('default')!;
     const now = new Date();
-    const expiresAt = new Date(now.getTime() + policy.intervalDays * 24 * 60 * 60 * 1000);
+    const intervalDays = options?.expiresInDays ?? policy.intervalDays;
+    const expiresAt = new Date(now.getTime() + intervalDays * 24 * 60 * 60 * 1000);
 
     const record: ApiKeyRecord = {
       id: keyId,
       merchantId,
       keyPrefix: key.prefix,
       keyHash: key.hash,
+      scopes: options?.scopes ? [...options.scopes] : ['*'],
       status: 'active',
       rotatedAt: null,
       expiresAt: expiresAt.toISOString(),
@@ -183,13 +208,17 @@ export class ApiKeyRotationService implements IApiKeyRotationService {
     return { keyId, rawKey: key.raw, record };
   }
 
-  async validateKey(rawKey: string): Promise<ApiKeyRecord | null> {
+  async validateKey(rawKey: string, requiredScope?: string): Promise<ApiKeyRecord | null> {
     const hash = hashApiKey(rawKey);
     for (const [, record] of this.keys) {
       if (record.keyHash === hash) {
         if (record.status === 'revoked') throw AuthError.apiKeyRevoked(record.id);
-        if (record.expiresAt && new Date(record.expiresAt) < new Date()) {
+        if (record.expiresAt && new Date(record.expiresAt) <= new Date()) {
+          record.status = 'expired';
           throw AuthError.apiKeyExpired(record.id);
+        }
+        if (requiredScope && !hasScope(record.scopes, requiredScope)) {
+          throw AuthError.apiKeyInsufficientScope(record.id, requiredScope);
         }
         return record;
       }
