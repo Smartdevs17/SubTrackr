@@ -32,6 +32,7 @@ import { createLoggerFor } from '../services/shared/logging';
 import { createTracerFromEnv } from '../services/shared/tracing';
 import { createRequestObservability } from '../shared/middleware/requestObservability';
 import { createApiKeyRevocationRouter, createPasskeyRouter } from '../services/auth/router/authRouter';
+import { serveOpenApiSpec, serveSwaggerUI } from '../services/shared/swaggerUI';
 
 // ── Zapier integration ────────────────────────────────────────────────────────
 import {
@@ -257,6 +258,11 @@ export function createApiServer(options: CreateApiServerOptions = {}): Express {
   // Resolves the version from /api/vN, the `api-version` header or `?version=`;
   // adds deprecation headers and rejects unknown or sunset versions.
   app.use(createVersionMiddleware(versionRegistry) as unknown as express.RequestHandler);
+
+  // ── OpenAPI & Swagger UI (Issue #1784) ──────────────────────────────────────
+  app.get('/api/docs/openapi.json', serveOpenApiSpec);
+  app.get('/api/docs', serveSwaggerUI);
+  app.get('/api/docs/', serveSwaggerUI);
 
   // ── CDN-cached public routes ───────────────────────────────────────────────
   app.use(cacheHeadersMiddleware());

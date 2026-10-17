@@ -91,7 +91,7 @@ export interface CursorPayload {
 }
 
 function sign(data: string): string {
-  return createHmac('sha256', CURSOR_SECRET).update(data).digest('base64url').slice(0, 16);
+  return createHmac('sha256', cursorSecret()).update(data).digest('base64url').slice(0, 16);
 }
 
 /** Encode a cursor payload into an opaque base64url string. */

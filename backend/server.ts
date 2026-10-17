@@ -16,6 +16,8 @@
  */
 
 import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
 import { timingSafeEqual } from 'node:crypto';
 import { URL } from 'node:url';
 import { makeExecutableSchema } from '@graphql-tools/schema';
@@ -580,6 +582,49 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
       // -----------------------------------------------------------------
       const proceed = await applyRateLimit(rateLimitMw, req, res, pathname);
       if (!proceed) return; // 429 already sent
+
+      // -----------------------------------------------------------------
+      // OpenAPI specification and Swagger UI (Issue #1784)
+      // -----------------------------------------------------------------
+      if (pathname === '/api/docs/openapi.json' && method === 'GET') {
+        const specPath = path.join(__dirname, '../developer-portal/docs/openapi.json');
+        if (fs.existsSync(specPath)) {
+          const content = fs.readFileSync(specPath, 'utf8');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(content);
+          return;
+        }
+      }
+
+      if ((pathname === '/api/docs' || pathname === '/api/docs/') && method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>SubTrackr API Explorer - OpenAPI 3.1</title>
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
+</head>
+<body>
+  <div id="swagger-ui"></div>
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+  <script>
+    window.onload = function() {
+      SwaggerUIBundle({
+        url: "/api/docs/openapi.json",
+        dom_id: '#swagger-ui',
+        deepLinking: true,
+        presets: [
+          SwaggerUIBundle.presets.apis,
+          SwaggerUIBundle.SwaggerUIStandalonePreset
+        ]
+      });
+    };
+  </script>
+</body>
+</html>`);
+        return;
+      }
 
       // -----------------------------------------------------------------
       // Health Probes: Liveness & Readiness (bypass rate limiting)

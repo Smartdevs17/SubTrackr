@@ -76,6 +76,9 @@ jobs:
       - name: Run ESLint
         run: npm run lint
 
+      - name: Verify OpenAPI specification (no drift)
+        run: pnpm run openapi:check
+
   npm-audit:
     name: NPM Audit (High/Critical)
     runs-on: ubuntu-latest
