@@ -1,8 +1,11 @@
 {
   "package-manager": "pnpm",
-  "high": true,
   "critical": true,
+  "high": true,
+  "moderate": true,
   "report": true,
   "summary": true,
-  "allowlist": ["GHSA-86w9-cpqp-85rv"]
+  "allowlist": [
+    "GHSA-86w9-cpqp-85rv"
+  ]
 }
