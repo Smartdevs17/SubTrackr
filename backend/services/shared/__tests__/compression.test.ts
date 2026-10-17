@@ -174,6 +174,21 @@ describe('isETagMatch', () => {
     const req = mockReq({ headers: {} });
     expect(isETagMatch(req, '"abc"')).toBe(false);
   });
+
+  it('matches any tag in a comma-separated list', () => {
+    const req = mockReq({ headers: { 'if-none-match': '"old", "abc123" , "other"' } });
+    expect(isETagMatch(req, '"abc123"')).toBe(true);
+  });
+
+  it('uses weak comparison so a W/ prefix still matches', () => {
+    const req = mockReq({ headers: { 'if-none-match': 'W/"abc123"' } });
+    expect(isETagMatch(req, '"abc123"')).toBe(true);
+  });
+
+  it('does not match a tag that only shares a prefix', () => {
+    const req = mockReq({ headers: { 'if-none-match': '"abc"' } });
+    expect(isETagMatch(req, '"abc123"')).toBe(false);
+  });
 });
 
 // ─── applyCompression — core behaviour ───────────────────────────────────────
