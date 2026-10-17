@@ -18,6 +18,8 @@ import { randomBytes } from 'node:crypto';
 
 import express, { type Express, type Request, type Response } from 'express';
 import { cacheHeadersMiddleware } from '../shared/middleware';
+import { createCspMiddleware, DEFAULT_CSP_POLICY } from '../services/shared/cspMiddleware';
+import { createCsrfMiddleware } from '../services/shared/csrfService';
 import {
   createPublicApiRouter,
   createSearchRouter,
@@ -160,6 +162,17 @@ export function createApiServer(options: CreateApiServerOptions = {}): Express {
 
   app.disable('x-powered-by');
 
+  // ── Security headers (CSP + HSTS + framing) — #1769 ──────────────────────
+  // Applied before all routes so every response carries the policy.
+  app.use(
+    createCspMiddleware({
+      ...DEFAULT_CSP_POLICY,
+      // Collect violation reports at a dedicated endpoint so we can monitor
+      // policy regressions in production without blocking legitimate traffic.
+      reportUri: ['/api/v1/csp-report'],
+    }) as unknown as express.RequestHandler,
+  );
+
   // Request id, structured access log and server span for every request.
   app.use(
     createRequestObservability({
@@ -194,6 +207,42 @@ export function createApiServer(options: CreateApiServerOptions = {}): Express {
   // An explicit cap keeps a single oversized POST from buffering the whole
   // body into memory before it is parsed.
   app.use(express.json({ limit: MAX_JSON_BODY }));
+
+  // ── CSRF protection — #1770 ───────────────────────────────────────────────
+  // Double-submit cookie strategy: safe methods (GET/HEAD/OPTIONS) issue a
+  // token; unsafe methods verify that X-CSRF-Token matches __Host-csrf.
+  // Webhook paths are skipped — they use HMAC-based authentication instead.
+  app.use(
+    createCsrfMiddleware({
+      cookie: { sameSite: 'Strict', secure: process.env['NODE_ENV'] === 'production' },
+      skipPaths: [
+        '/api/v1/stripe/billing/webhook',
+        '/api/v1/paddle/webhook',
+        '/api/v1/webhooks',
+      ],
+    }) as unknown as express.RequestHandler,
+  );
+
+  // Bootstrap endpoint: clients call GET /api/v1/csrf-token once on startup
+  // to receive their first token before issuing any mutating request.
+  app.get('/api/v1/csrf-token', (_req: Request, res: Response) => {
+    // The CSRF middleware already set the cookie + header on this safe GET.
+    res.json({ ok: true });
+  });
+
+  // CSP violation report collector — browsers POST here when a directive is
+  // violated.  The body is logged at warn level and discarded (no state is
+  // mutated, so it is exempt from CSRF verification by the skip-path above).
+  app.post(
+    '/api/v1/csp-report',
+    express.json({ type: 'application/csp-report', limit: '4kb' }),
+    (req: Request, res: Response) => {
+      const report = req.body?.['csp-report'] ?? req.body;
+      const logger = (req as unknown as { log?: { warn: (msg: string, ctx: unknown) => void } }).log;
+      (logger?.warn ?? console.warn).call(logger ?? console, 'CSP violation', { report });
+      res.status(204).end();
+    },
+  );
 
   if (options.beforeCache) {
     for (const mw of options.beforeCache) {
