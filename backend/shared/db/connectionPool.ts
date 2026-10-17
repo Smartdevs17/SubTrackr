@@ -56,6 +56,8 @@ export interface Pool {
   totalCount: number;
   idleCount: number;
   waitingCount: number;
+  /** Configured max connections (pg-pool exposes this) */
+  max?: number;
 }
 
 function defaultPoolConfig(): Required<PoolConfig> {
@@ -124,3 +126,5 @@ export async function closePool(): Promise<void> {
 }
 
 export type { ReadWritePool };
+export { PoolMetricsCollector } from './poolMetrics';
+export type { PoolMetricsSnapshot, PoolMetricsOptions, ReplicaLagState } from './poolMetrics';
