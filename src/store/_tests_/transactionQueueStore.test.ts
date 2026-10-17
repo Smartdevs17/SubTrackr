@@ -276,10 +276,8 @@ describe('transactionQueueStore', () => {
   });
 
   it('keeps the connectivity listener alive while another consumer is mounted', async () => {
-    const unsubscribeFirst =
-      useTransactionQueueStore.getState().initializeConnectivityListener();
-    const unsubscribeSecond =
-      useTransactionQueueStore.getState().initializeConnectivityListener();
+    const unsubscribeFirst = useTransactionQueueStore.getState().initializeConnectivityListener();
+    const unsubscribeSecond = useTransactionQueueStore.getState().initializeConnectivityListener();
 
     unsubscribeFirst();
 

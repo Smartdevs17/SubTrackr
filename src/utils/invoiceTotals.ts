@@ -34,8 +34,7 @@ export interface LineTotalSource {
  * and flat (`amount`) shapes.
  */
 export function resolveLineTotal(item: LineTotalSource): number {
-  const derived =
-    item.quantity !== undefined ? (item.unitPrice ?? 0) * item.quantity : undefined;
+  const derived = item.quantity !== undefined ? (item.unitPrice ?? 0) * item.quantity : undefined;
   const candidates = [item.lineTotal, item.amount, derived];
 
   for (const candidate of candidates) {

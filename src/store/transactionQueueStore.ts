@@ -153,11 +153,7 @@ const isDefinitelyNotBroadcast = (error: unknown): boolean => {
   const err = error as { code?: unknown; userMessage?: unknown; message?: unknown };
 
   const code = typeof err.code === 'string' ? err.code : '';
-  if (
-    code === 'USER_REJECTED' ||
-    code === 'WALLET_NOT_CONNECTED' ||
-    code === 'INVALID_PARAMS'
-  ) {
+  if (code === 'USER_REJECTED' || code === 'WALLET_NOT_CONNECTED' || code === 'INVALID_PARAMS') {
     return true;
   }
 

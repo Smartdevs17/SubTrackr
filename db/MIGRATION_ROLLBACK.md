@@ -68,6 +68,7 @@ node scripts/db-migrate-dryrun.js --json
 ```
 
 The dry-run tool reports:
+
 - Destructive changes (DROP / TRUNCATE)
 - Statements requiring ACCESS EXCLUSIVE locks
 - NOT NULL columns added without DEFAULT
@@ -80,7 +81,7 @@ The dry-run tool reports:
    `BEGIN/COMMIT` block. A failure rolls back the entire migration.
 
 2. **CONCURRENTLY note**: `CREATE INDEX CONCURRENTLY` and `DROP INDEX
-   CONCURRENTLY` cannot run inside a transaction. The runner wraps each
+CONCURRENTLY` cannot run inside a transaction. The runner wraps each
    migration in a transaction, so migrations using `CONCURRENTLY` should
    structure their down section to match. The ledger insert is in the same
    transaction as the migration body.
@@ -95,9 +96,9 @@ The dry-run tool reports:
 
 ## Migration directories
 
-| Directory | Contents |
-|---|---|
-| `db/migrations/` | Core schema migrations (indexes, views, tables) |
+| Directory             | Contents                                            |
+| --------------------- | --------------------------------------------------- |
+| `db/migrations/`      | Core schema migrations (indexes, views, tables)     |
 | `backend/migrations/` | Backend-specific migrations (cache columns, themes) |
 
 Default migration directory for the runner is `backend/migrations/`. Use

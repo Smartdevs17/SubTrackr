@@ -108,7 +108,9 @@ describe('deviceAttestationService', () => {
 
     it('detects root when known root management packages are installed', async () => {
       const mockProvider: IntegrityProbeProvider = {
-        getInstalledPackages: jest.fn().mockResolvedValue(['com.topjohnwu.magisk', 'com.other.app']),
+        getInstalledPackages: jest
+          .fn()
+          .mockResolvedValue(['com.topjohnwu.magisk', 'com.other.app']),
       };
       deviceAttestationService.setCustomProbeProvider(mockProvider);
 
@@ -284,19 +286,47 @@ describe('deviceAttestationService', () => {
       expect(result.riskLevel).toBe('critical');
 
       // Safe / Basic operations are allowed under graceful degradation
-      expect(deviceAttestationService.isOperationAllowed('VIEW_SUBSCRIPTIONS', result.degradationPolicy)).toBe(true);
-      expect(deviceAttestationService.isOperationAllowed('VIEW_ANALYTICS', result.degradationPolicy)).toBe(true);
-      expect(deviceAttestationService.isOperationAllowed('MANAGE_CATEGORIES', result.degradationPolicy)).toBe(true);
-      expect(deviceAttestationService.isOperationAllowed('CHANGE_SETTINGS', result.degradationPolicy)).toBe(true);
-      expect(deviceAttestationService.isOperationAllowed('READ_DOCUMENTATION', result.degradationPolicy)).toBe(true);
+      expect(
+        deviceAttestationService.isOperationAllowed('VIEW_SUBSCRIPTIONS', result.degradationPolicy)
+      ).toBe(true);
+      expect(
+        deviceAttestationService.isOperationAllowed('VIEW_ANALYTICS', result.degradationPolicy)
+      ).toBe(true);
+      expect(
+        deviceAttestationService.isOperationAllowed('MANAGE_CATEGORIES', result.degradationPolicy)
+      ).toBe(true);
+      expect(
+        deviceAttestationService.isOperationAllowed('CHANGE_SETTINGS', result.degradationPolicy)
+      ).toBe(true);
+      expect(
+        deviceAttestationService.isOperationAllowed('READ_DOCUMENTATION', result.degradationPolicy)
+      ).toBe(true);
 
       // Sensitive operations are RESTRICTED under graceful degradation
-      expect(deviceAttestationService.isOperationAllowed('EXECUTE_PAYMENT', result.degradationPolicy)).toBe(false);
-      expect(deviceAttestationService.isOperationAllowed('SIGN_TRANSACTION', result.degradationPolicy)).toBe(false);
-      expect(deviceAttestationService.isOperationAllowed('EXPORT_PRIVATE_KEYS', result.degradationPolicy)).toBe(false);
-      expect(deviceAttestationService.isOperationAllowed('BIOMETRIC_AUTH', result.degradationPolicy)).toBe(false);
-      expect(deviceAttestationService.isOperationAllowed('EXPORT_SENSITIVE_DATA', result.degradationPolicy)).toBe(false);
-      expect(deviceAttestationService.isOperationAllowed('PERSIST_PLAINTEXT_TOKENS', result.degradationPolicy)).toBe(false);
+      expect(
+        deviceAttestationService.isOperationAllowed('EXECUTE_PAYMENT', result.degradationPolicy)
+      ).toBe(false);
+      expect(
+        deviceAttestationService.isOperationAllowed('SIGN_TRANSACTION', result.degradationPolicy)
+      ).toBe(false);
+      expect(
+        deviceAttestationService.isOperationAllowed('EXPORT_PRIVATE_KEYS', result.degradationPolicy)
+      ).toBe(false);
+      expect(
+        deviceAttestationService.isOperationAllowed('BIOMETRIC_AUTH', result.degradationPolicy)
+      ).toBe(false);
+      expect(
+        deviceAttestationService.isOperationAllowed(
+          'EXPORT_SENSITIVE_DATA',
+          result.degradationPolicy
+        )
+      ).toBe(false);
+      expect(
+        deviceAttestationService.isOperationAllowed(
+          'PERSIST_PLAINTEXT_TOKENS',
+          result.degradationPolicy
+        )
+      ).toBe(false);
     });
 
     it('assertOperationAllowed throws DeviceIntegrityError for restricted operations on compromised device', async () => {
@@ -349,7 +379,9 @@ describe('deviceAttestationService', () => {
       ];
 
       for (const op of allOps) {
-        expect(deviceAttestationService.isOperationAllowed(op, result.degradationPolicy)).toBe(true);
+        expect(deviceAttestationService.isOperationAllowed(op, result.degradationPolicy)).toBe(
+          true
+        );
         expect(() => deviceAttestationService.assertOperationAllowed(op, result)).not.toThrow();
       }
     });

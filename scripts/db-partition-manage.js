@@ -21,9 +21,13 @@
 const { spawnSync } = require('child_process');
 
 function psql(databaseUrl, sql) {
-  const result = spawnSync('psql', ['-v', 'ON_ERROR_STOP=1', '--no-psqlrc', '-tAq', databaseUrl, '-c', sql], {
-    encoding: 'utf8',
-  });
+  const result = spawnSync(
+    'psql',
+    ['-v', 'ON_ERROR_STOP=1', '--no-psqlrc', '-tAq', databaseUrl, '-c', sql],
+    {
+      encoding: 'utf8',
+    }
+  );
   if (result.error) return { ok: false, output: result.error.message };
   return { ok: result.status === 0, output: result.stdout || result.stderr };
 }
@@ -74,7 +78,9 @@ function createPartitions(databaseUrl, monthsAhead) {
 
     const result = psql(databaseUrl, `SELECT create_audit_events_partition(${year}, ${month});`);
     if (!result.ok) {
-      console.error(`[partition] Failed to create partition for ${year}-${month}: ${result.output}`);
+      console.error(
+        `[partition] Failed to create partition for ${year}-${month}: ${result.output}`
+      );
       continue;
     }
     console.log(`[partition] ${result.output.trim()}`);

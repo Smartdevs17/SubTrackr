@@ -5,11 +5,7 @@
  * @see https://github.com/Smartdevs17/SubTrackr/issues/1684
  */
 
-import {
-  calculateInvoiceTotals,
-  resolveLineTotal,
-  roundMoney,
-} from '../invoiceTotals';
+import { calculateInvoiceTotals, resolveLineTotal, roundMoney } from '../invoiceTotals';
 
 describe('roundMoney', () => {
   it('rounds half away from zero at two decimal places', () => {

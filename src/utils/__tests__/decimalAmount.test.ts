@@ -5,11 +5,7 @@
  * @see https://github.com/Smartdevs17/SubTrackr/issues/1683
  */
 
-import {
-  compareDecimalAmounts,
-  exceedsLimit,
-  normalizeDecimal,
-} from '../decimalAmount';
+import { compareDecimalAmounts, exceedsLimit, normalizeDecimal } from '../decimalAmount';
 
 describe('normalizeDecimal', () => {
   it('splits a decimal string into sign, digits and scale', () => {

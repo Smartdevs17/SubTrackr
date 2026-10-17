@@ -72,11 +72,7 @@ describe('GroupBillingService', () => {
     const now = Date.now();
     // The window is anchored to the period, not to "the last N days from
     // now" — a period that ended long ago must not pick up today's charges.
-    const items = service.aggregateCharges(
-      sampleGroup,
-      now - 90 * 86400000,
-      now - 60 * 86400000
-    );
+    const items = service.aggregateCharges(sampleGroup, now - 90 * 86400000, now - 60 * 86400000);
     const ownerItem = items.find((i) => i.memberAddress === '0xOWNER');
     expect(ownerItem?.amount).toBe(0);
   });

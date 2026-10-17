@@ -64,7 +64,10 @@ function parseArgs(argv) {
 /** Parse a CREATE INDEX statement into a structured index definition. */
 function parseCreateIndex(sql) {
   // Match: CREATE [UNIQUE] INDEX [CONCURRENTLY] IF NOT EXISTS name ON table (cols) [WHERE ...]
-  const match = /\bCREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:CONCURRENTLY\s+)?IF\s+NOT\s+EXISTS\s+(\w+)\s+ON\s+(\w+)\s*\(([^)]+)\)(?:\s+WHERE\s+(.+?))?;/i.exec(sql);
+  const match =
+    /\bCREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:CONCURRENTLY\s+)?IF\s+NOT\s+EXISTS\s+(\w+)\s+ON\s+(\w+)\s*\(([^)]+)\)(?:\s+WHERE\s+(.+?))?;/i.exec(
+      sql
+    );
   if (!match) return null;
   return {
     name: match[1],
@@ -76,7 +79,10 @@ function parseCreateIndex(sql) {
 
 /** Parse a CREATE INDEX without IF NOT EXISTS (some migrations use plain CREATE INDEX). */
 function parseCreateIndexAlt(sql) {
-  const match = /\bCREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:CONCURRENTLY\s+)?(\w+)\s+ON\s+(\w+)\s*\(([^)]+)\)(?:\s+WHERE\s+(.+?))?;/i.exec(sql);
+  const match =
+    /\bCREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:CONCURRENTLY\s+)?(\w+)\s+ON\s+(\w+)\s*\(([^)]+)\)(?:\s+WHERE\s+(.+?))?;/i.exec(
+      sql
+    );
   if (!match) return null;
   return {
     name: match[1],
@@ -118,7 +124,12 @@ function findTsFiles(dir) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory() && entry.name !== '__tests__' && entry.name !== 'node_modules') {
       results.push(...findTsFiles(full));
-    } else if (entry.isFile() && (entry.name.endsWith('.ts') || entry.name.endsWith('.js')) && !entry.name.endsWith('.test.ts') && !entry.name.endsWith('.test.js')) {
+    } else if (
+      entry.isFile() &&
+      (entry.name.endsWith('.ts') || entry.name.endsWith('.js')) &&
+      !entry.name.endsWith('.test.ts') &&
+      !entry.name.endsWith('.test.js')
+    ) {
       results.push(full);
     }
   }
@@ -258,7 +269,9 @@ function run(argv) {
   }
 
   if (options.help) {
-    console.log('Usage: node scripts/db-index-audit.js [--json] [--src-dir <path>] [--migrations-dir <path>]');
+    console.log(
+      'Usage: node scripts/db-index-audit.js [--json] [--src-dir <path>] [--migrations-dir <path>]'
+    );
     return 0;
   }
 
@@ -294,9 +307,19 @@ function run(argv) {
       covered: covered.length,
       gaps: gaps.length,
     },
-    indexes: indexes.map((i) => ({ name: i.name, table: i.table, columns: i.columns, source: i.source })),
+    indexes: indexes.map((i) => ({
+      name: i.name,
+      table: i.table,
+      columns: i.columns,
+      source: i.source,
+    })),
     gaps: gaps.map((g) => ({ table: g.table, columns: g.columns, type: g.type, file: g.file })),
-    covered: covered.map((c) => ({ table: c.table, columns: c.columns, type: c.type, file: c.file })),
+    covered: covered.map((c) => ({
+      table: c.table,
+      columns: c.columns,
+      type: c.type,
+      file: c.file,
+    })),
   };
 
   if (options.json) {

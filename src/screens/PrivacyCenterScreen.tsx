@@ -15,6 +15,7 @@ import { useThemeColors } from '../hooks/useThemeColors';
 import { gdprService } from '../services/gdpr';
 import { useUserStore } from '../store/userStore';
 import { CONSENT_CATEGORIES } from '../services/consentService';
+import { BiometricGateError, sensitiveActionGuard } from '../services/auth/sensitiveActionGuard';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -37,14 +38,20 @@ const PrivacyCenterScreen = () => {
           onPress: async () => {
             setLoading(true);
             try {
-              const result = await gdprService.requestDeletion(true);
+              const result = await sensitiveActionGuard.withBiometricGuard('delete_account', () =>
+                gdprService.requestDeletion(true)
+              );
               if (!result.success) {
                 Alert.alert('Blocked', result.message);
               } else {
                 Alert.alert('Deletion Requested', result.message);
               }
-            } catch {
-              Alert.alert('Error', 'Deletion request failed. Please try again.');
+            } catch (err) {
+              if (err instanceof BiometricGateError) {
+                Alert.alert('Authentication Required', err.message);
+              } else {
+                Alert.alert('Error', 'Deletion request failed. Please try again.');
+              }
             } finally {
               setLoading(false);
             }
