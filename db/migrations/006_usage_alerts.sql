@@ -105,3 +105,9 @@ ANALYZE usage_metrics;
 ANALYZE usage_alert_configs;
 ANALYZE usage_alerts;
 ANALYZE overage_approvals;
+
+-- @down
+DROP TABLE IF EXISTS overage_approvals;
+DROP TABLE IF EXISTS usage_alerts;
+DROP TABLE IF EXISTS usage_alert_configs;
+DROP TABLE IF EXISTS usage_metrics;

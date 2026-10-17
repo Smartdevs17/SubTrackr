@@ -82,3 +82,13 @@ ANALYZE communication_preferences;
 ANALYZE communication_preference_events;
 ANALYZE voice_call_reminders;
 ANALYZE sms_inbound_messages;
+
+-- @down
+DROP INDEX CONCURRENTLY IF EXISTS idx_sms_inbound_user;
+DROP INDEX CONCURRENTLY IF EXISTS idx_voice_reminders_subscription;
+DROP INDEX CONCURRENTLY IF EXISTS idx_voice_reminders_user;
+DROP INDEX CONCURRENTLY IF EXISTS idx_comm_pref_events_user;
+DROP TABLE IF EXISTS sms_inbound_messages;
+DROP TABLE IF EXISTS voice_call_reminders;
+DROP TABLE IF EXISTS communication_preference_events;
+DROP TABLE IF EXISTS communication_preferences;
