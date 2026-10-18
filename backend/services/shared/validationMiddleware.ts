@@ -12,7 +12,7 @@
 
 import { z, type ZodSchema, type ZodError } from 'zod';
 import type { IncomingMessage } from 'http';
-import { ErrorCode } from './apiResponse';
+import { fail, type ErrorCode } from './apiResponse';
 
 // ── XSS Sanitization ─────────────────────────────────────────────────────────
 
@@ -263,27 +263,42 @@ export function validateRequest(
 
 // ── Express-style Middleware Factory ──────────────────────────────────────────
 
+function sendValidationResponse(
+  res: any,
+  status: number,
+  payload: any,
+): void {
+  if (typeof res.status === 'function' && typeof res.json === 'function') {
+    res.status(status).json(payload);
+  } else if (typeof res.writeHead === 'function' && typeof res.end === 'function') {
+    res.writeHead(status, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(payload));
+  }
+}
+
 export function createValidationMiddleware(
   schemas: ValidationSchemas,
   options: ValidationOptions = {}
 ) {
   return function validationMiddleware(
-    req: { body?: unknown; query?: unknown; params?: unknown; method?: string; url?: string },
-    res: { writeHead: (status: number, headers?: Record<string, string>) => void; end: (body: string) => void },
+    req: { body?: unknown; query?: unknown; params?: unknown; method?: string; url?: string; headers?: Record<string, any> },
+    res: { writeHead?: (status: number, headers?: Record<string, string>) => void; end?: (body: string) => void; status?: (code: number) => any; json?: (data: any) => any },
     next: () => void
   ): void {
+    const reqHeaders = req.headers as Record<string, string | string[] | undefined> | undefined;
+    const rawRequestId = reqHeaders?.['x-request-id'];
+    const requestId = typeof rawRequestId === 'string' ? rawRequestId : Array.isArray(rawRequestId) ? rawRequestId[0] : undefined;
+
     // Check body size for POST/PUT/PATCH
     if (req.body && ['POST', 'PUT', 'PATCH'].includes(req.method ?? '')) {
       const bodyStr = JSON.stringify(req.body);
       if (bodyStr.length > (options.maxBodySize ?? BODY_SIZE_LIMITS.medium)) {
-        res.writeHead(413, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-          success: false,
-          error: {
-            code: 'PAYLOAD_TOO_LARGE',
-            message: `Request body exceeds maximum size of ${options.maxBodySize ?? BODY_SIZE_LIMITS.medium} bytes`,
-          },
-        }));
+        const payload = fail(
+          'BAD_REQUEST',
+          `Request body exceeds maximum size of ${options.maxBodySize ?? BODY_SIZE_LIMITS.medium} bytes`,
+          requestId,
+        );
+        sendValidationResponse(res, 413, payload);
         return;
       }
     }
@@ -295,18 +310,17 @@ export function createValidationMiddleware(
     );
 
     if (!result.success) {
-      res.writeHead(422, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        success: false,
-        error: {
-          code: ErrorCode.VALIDATION_ERROR,
-          message: 'Request validation failed',
-          details: result.errors?.reduce((acc, e) => {
-            acc[e.field] = e.message;
-            return acc;
-          }, {} as Record<string, string>),
-        },
-      }));
+      const details = result.errors?.reduce((acc, e) => {
+        acc[e.field] = e.message;
+        return acc;
+      }, {} as Record<string, string>);
+      const isSqlInjection = result.errors?.some((e) => e.code === 'SQL_INJECTION_DETECTED');
+      const errorCode: ErrorCode = isSqlInjection ? 'BAD_REQUEST' : 'VALIDATION_ERROR';
+      const statusCode = isSqlInjection ? 400 : 422;
+      const message = isSqlInjection ? 'Invalid characters detected' : 'Request validation failed';
+      const payload = fail(errorCode, message, requestId, details);
+
+      sendValidationResponse(res, statusCode, payload);
       return;
     }
 

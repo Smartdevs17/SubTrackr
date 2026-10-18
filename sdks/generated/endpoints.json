@@ -20,6 +20,96 @@
       "method": "POST",
       "operation": "createSubscription",
       "summary": "Create subscription"
+    },
+    {
+      "path": "/subscriptions/{id}",
+      "method": "GET",
+      "operation": "getSubscription",
+      "summary": "Get subscription"
+    },
+    {
+      "path": "/subscriptions/{id}",
+      "method": "PUT",
+      "operation": "updateSubscription",
+      "summary": "Update subscription"
+    },
+    {
+      "path": "/subscriptions/{id}",
+      "method": "DELETE",
+      "operation": "deleteSubscription",
+      "summary": "Delete subscription"
+    },
+    {
+      "path": "/subscriptions/{id}/cancel",
+      "method": "POST",
+      "operation": "cancelSubscription",
+      "summary": "Cancel subscription"
+    },
+    {
+      "path": "/plans",
+      "method": "GET",
+      "operation": "listPlans",
+      "summary": "List plans"
+    },
+    {
+      "path": "/plans",
+      "method": "POST",
+      "operation": "createPlan",
+      "summary": "Create plan"
+    },
+    {
+      "path": "/plans/{id}",
+      "method": "GET",
+      "operation": "getPlanById",
+      "summary": "Get plan by ID"
+    },
+    {
+      "path": "/plans/{id}",
+      "method": "PATCH",
+      "operation": "updatePlan",
+      "summary": "Update plan"
+    },
+    {
+      "path": "/payments",
+      "method": "GET",
+      "operation": "listPayments",
+      "summary": "List payments"
+    },
+    {
+      "path": "/payments",
+      "method": "POST",
+      "operation": "recordPayment",
+      "summary": "Record or initiate payment"
+    },
+    {
+      "path": "/invoices",
+      "method": "GET",
+      "operation": "listInvoices",
+      "summary": "List invoices"
+    },
+    {
+      "path": "/webhooks",
+      "method": "GET",
+      "operation": "listWebhooks",
+      "summary": "List webhooks"
+    },
+    {
+      "path": "/webhooks",
+      "method": "POST",
+      "operation": "createWebhook",
+      "summary": "Create webhook endpoint"
+    },
+    {
+      "path": "/analytics/usage",
+      "method": "GET",
+      "operation": "getUsageAnalytics",
+      "summary": "Get usage analytics"
+    },
+    {
+      "path": "/themes",
+      "method": "GET",
+      "operation": "getThemes",
+      "summary": "Get theme settings"
     }
   ]
 }
