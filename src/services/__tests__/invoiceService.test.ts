@@ -6,10 +6,23 @@ import type { InvoiceFormData } from '../../types/invoice';
 jest.mock('@react-native-async-storage/async-storage');
 
 describe('invoiceService', () => {
+  // AsyncStorage is mocked, so give it real behaviour: the previous stub
+  // always resolved `getItem` to null, which meant anything written by one
+  // call was invisible to the next and every read-back test failed.
+  let store: Map<string, string>;
+
   beforeEach(() => {
+    store = new Map();
     jest.clearAllMocks();
-    (AsyncStorage.getItem as jest.Mock).mockResolvedValue(null);
-    (AsyncStorage.setItem as jest.Mock).mockResolvedValue(undefined);
+    (AsyncStorage.getItem as jest.Mock).mockImplementation(async (key: string) =>
+      store.has(key) ? store.get(key)! : null
+    );
+    (AsyncStorage.setItem as jest.Mock).mockImplementation(async (key: string, value: string) => {
+      store.set(key, value);
+    });
+    (AsyncStorage.removeItem as jest.Mock).mockImplementation(async (key: string) => {
+      store.delete(key);
+    });
   });
 
   describe('Branding Management', () => {
@@ -166,9 +179,9 @@ describe('invoiceService', () => {
     it('should throw error when updating non-existent template', async () => {
       (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify([]));
 
-      await expect(
-        invoiceService.updateTemplate('non-existent', { name: 'Test' })
-      ).rejects.toThrow('Template with id non-existent not found');
+      await expect(invoiceService.updateTemplate('non-existent', { name: 'Test' })).rejects.toThrow(
+        'Template with id non-existent not found'
+      );
     });
 
     it('should delete template', async () => {
@@ -315,7 +328,7 @@ describe('invoiceService', () => {
 
     it('should filter invoices by date range', async () => {
       const invoice1 = await invoiceService.createInvoice(mockInvoiceData);
-      
+
       // Create invoice with past date
       const oldInvoice = await invoiceService.createInvoice(mockInvoiceData);
       await invoiceService.updateInvoice(oldInvoice.id, {
@@ -327,7 +340,7 @@ describe('invoiceService', () => {
       });
 
       expect(recentInvoices.length).toBeGreaterThan(0);
-      expect(recentInvoices.every(inv => inv.issueDate >= new Date('2026-07-01'))).toBe(true);
+      expect(recentInvoices.every((inv) => inv.issueDate >= new Date('2026-07-01'))).toBe(true);
     });
 
     it('should delete invoice', async () => {
@@ -335,7 +348,7 @@ describe('invoiceService', () => {
       await invoiceService.deleteInvoice(invoice.id);
 
       const invoices = await invoiceService.getAllInvoices();
-      expect(invoices.find(inv => inv.id === invoice.id)).toBeUndefined();
+      expect(invoices.find((inv) => inv.id === invoice.id)).toBeUndefined();
     });
 
     it('should get invoice by id', async () => {

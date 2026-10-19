@@ -23,8 +23,15 @@ export function selectedStateLabel(selected: boolean): string {
   return selected ? 'selected' : 'not selected';
 }
 
-/** Common accessibility roles re-exported for convenience */
-export const A11yRole: Record<string, AccessibilityRole> = {
+/**
+ * Common accessibility roles re-exported for convenience.
+ *
+ * Declared `as const satisfies` so each entry keeps its literal type — a plain
+ * `Record<string, AccessibilityRole>` annotation would widen every entry to
+ * `AccessibilityRole`, which is then too broad to pass to components that
+ * declare a narrower literal union for `accessibilityRole`.
+ */
+export const A11yRole = {
   button: 'button',
   link: 'link',
   header: 'header',
@@ -39,4 +46,4 @@ export const A11yRole: Record<string, AccessibilityRole> = {
   adjustable: 'adjustable',
   summary: 'summary',
   none: 'none',
-};
+} as const satisfies Record<string, AccessibilityRole>;

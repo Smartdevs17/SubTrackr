@@ -655,7 +655,10 @@ function parseArgs(argv) {
     else if (arg === '--paths') {
       const value = argv[i + 1];
       if (!value) throw new Error('--paths requires a comma-separated list of paths');
-      options.paths = value.split(',').map((p) => p.trim()).filter(Boolean);
+      options.paths = value
+        .split(',')
+        .map((p) => p.trim())
+        .filter(Boolean);
       i += 1;
     } else if (arg.startsWith('--paths=')) {
       options.paths = arg

@@ -26,6 +26,14 @@ export interface AuditVerificationResult {
   lastAnchoredAt: number | null;
 }
 
+export interface AuditExportResult {
+  format: 'csv' | 'json';
+  contentType: 'text/csv' | 'application/json';
+  filename: string;
+  content: string;
+  count: number;
+}
+
 export class AuditController {
   constructor(
     private chain: HashChainService,
@@ -67,6 +75,60 @@ export class AuditController {
     const data = events.slice(start, start + limit);
 
     return { data, meta: { page, limit, total, totalPages } };
+  }
+
+  /** Export all events matching the audit filters in an auditor-friendly format. */
+  async exportReport(
+    filter: Omit<AuditQueryFilter, 'page' | 'limit'>,
+    format: 'csv' | 'json',
+  ): Promise<AuditExportResult> {
+    const result = await this.query({ ...filter, page: 1, limit: Number.MAX_SAFE_INTEGER });
+    const events = result.data as Array<{
+      id: string;
+      actorId: string;
+      action: string;
+      resourceType: string;
+      resourceId: string;
+      timestamp: number;
+      metadata: Record<string, unknown>;
+    }>;
+    const date = new Date().toISOString().slice(0, 10);
+
+    if (format === 'json') {
+      const rows = events.map((event) => ({
+        ...event,
+        occurredAt: new Date(event.timestamp).toISOString(),
+      }));
+      return {
+        format,
+        contentType: 'application/json',
+        filename: `audit-report-${date}.json`,
+        content: JSON.stringify(rows, null, 2),
+        count: rows.length,
+      };
+    }
+
+    const escape = (value: unknown): string =>
+      `"${String(value ?? '').replace(/"/g, '""')}"`;
+    const header = ['id', 'actor_id', 'occurred_at', 'action', 'resource_type', 'resource_id', 'metadata'];
+    const rows = events.map((event) =>
+      [
+        event.id,
+        event.actorId,
+        new Date(event.timestamp).toISOString(),
+        event.action,
+        event.resourceType,
+        event.resourceId,
+        JSON.stringify(event.metadata),
+      ].map(escape).join(','),
+    );
+    return {
+      format,
+      contentType: 'text/csv',
+      filename: `audit-report-${date}.csv`,
+      content: [header.join(','), ...rows].join('\n'),
+      count: rows.length,
+    };
   }
 
   async verify(): Promise<AuditVerificationResult> {

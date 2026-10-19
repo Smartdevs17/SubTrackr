@@ -136,8 +136,7 @@ export function dayKeyFor(instant: string | Date, timezone: string): string {
       month: '2-digit',
       day: '2-digit',
     }).formatToParts(date);
-    const get = (type: string): string =>
-      parts.find((part) => part.type === type)?.value ?? '';
+    const get = (type: string): string => parts.find((part) => part.type === type)?.value ?? '';
     return `${get('year')}-${get('month')}-${get('day')}`;
   } catch {
     // An invalid IANA zone must not break the feed; fall back to UTC.
@@ -200,15 +199,19 @@ export function buildSections(
   if (grouping === 'none') {
     return sorted.length === 0
       ? []
-      : [{ key: 'all', heading: 'All notifications', entries: sorted, unreadCount: unreadOf(sorted) }];
+      : [
+          {
+            key: 'all',
+            heading: 'All notifications',
+            entries: sorted,
+            unreadCount: unreadOf(sorted),
+          },
+        ];
   }
 
   const groups = new Map<string, InboxEntry[]>();
   for (const entry of sorted) {
-    const key =
-      grouping === 'day'
-        ? dayKeyFor(entry.createdAt, timezone)
-        : entry.category;
+    const key = grouping === 'day' ? dayKeyFor(entry.createdAt, timezone) : entry.category;
     const bucket = groups.get(key);
     if (bucket) bucket.push(entry);
     else groups.set(key, [entry]);
@@ -217,8 +220,7 @@ export function buildSections(
   return [...groups.entries()]
     .map(([key, groupEntries]) => ({
       key,
-      heading:
-        grouping === 'day' ? relativeDayLabel(key, now, timezone) : key,
+      heading: grouping === 'day' ? relativeDayLabel(key, now, timezone) : key,
       entries: groupEntries,
       unreadCount: unreadOf(groupEntries),
     }))
@@ -251,7 +253,10 @@ export function buildBadge(entries: InboxEntry[], max: number = 99): Notificatio
  * has not seen yet is the one thing the inbox exists to deliver, and losing it
  * to a retention policy is worse than keeping a few extra rows.
  */
-export function trimEntries(entries: InboxEntry[], limit: number = MAX_INBOX_ENTRIES): InboxEntry[] {
+export function trimEntries(
+  entries: InboxEntry[],
+  limit: number = MAX_INBOX_ENTRIES
+): InboxEntry[] {
   const sorted = sortEntries(entries);
   if (sorted.length <= limit) return sorted;
 
@@ -323,20 +328,30 @@ export const useNotificationCenterStore = create<NotificationCenterStore>()(
             const existing = byId.get(incoming.id);
             // Merge rather than replace so a read state earned on the device
             // is not undone by a fresh copy from the server.
-            byId.set(incoming.id, existing ? { ...incoming, readAt: incoming.readAt ?? existing.readAt, dismissedAt: existing.dismissedAt, clickedAt: incoming.clickedAt ?? existing.clickedAt } : incoming);
+            byId.set(
+              incoming.id,
+              existing
+                ? {
+                    ...incoming,
+                    readAt: incoming.readAt ?? existing.readAt,
+                    dismissedAt: existing.dismissedAt,
+                    clickedAt: incoming.clickedAt ?? existing.clickedAt,
+                  }
+                : incoming
+            );
           }
           return { entries: trimEntries([...byId.values()]) };
         }),
 
       add: (entry) =>
-        set((state) => ({ entries: trimEntries([entry, ...state.entries.filter((e) => e.id !== entry.id)]) })),
+        set((state) => ({
+          entries: trimEntries([entry, ...state.entries.filter((e) => e.id !== entry.id)]),
+        })),
 
       markRead: (entryId) =>
         set((state) => ({
           entries: state.entries.map((entry) =>
-            entry.id === entryId && !entry.readAt
-              ? { ...entry, readAt: nowIso() }
-              : entry
+            entry.id === entryId && !entry.readAt ? { ...entry, readAt: nowIso() } : entry
           ),
         })),
 
@@ -359,7 +374,11 @@ export const useNotificationCenterStore = create<NotificationCenterStore>()(
           return {
             entries: state.entries.map((entry) =>
               entry.id === entryId
-                ? { ...entry, readAt: entry.readAt ?? timestamp, clickedAt: entry.clickedAt ?? timestamp }
+                ? {
+                    ...entry,
+                    readAt: entry.readAt ?? timestamp,
+                    clickedAt: entry.clickedAt ?? timestamp,
+                  }
                 : entry
             ),
           };
@@ -390,7 +409,8 @@ export const useNotificationCenterStore = create<NotificationCenterStore>()(
       setGrouping: (grouping) => set({ grouping }),
       setTimezone: (timezone) => set({ timezone }),
 
-      getFeed: (filter) => sortEntries(get().entries.filter((entry) => isVisibleInFeed(entry, filter))),
+      getFeed: (filter) =>
+        sortEntries(get().entries.filter((entry) => isVisibleInFeed(entry, filter))),
 
       getSections: (filter) =>
         buildSections(

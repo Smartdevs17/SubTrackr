@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { SubscriptionPlan, SubscriptionTier } from '../../types/subscription';
 import { colors, spacing, typography } from '../../utils/constants';
@@ -7,9 +7,28 @@ interface PlanComparisonHeatmapProps {
   plans: SubscriptionPlan[];
 }
 
+/**
+ * Hoisted to module scope: it is a constant, and rebuilding it on every render
+ * allocated a new array each time.
+ */
+const TIER_ORDER: SubscriptionTier[] = [
+  SubscriptionTier.FREE,
+  SubscriptionTier.BASIC,
+  SubscriptionTier.PREMIUM,
+  SubscriptionTier.ENTERPRISE,
+];
+
 export const PlanComparisonHeatmap: React.FC<PlanComparisonHeatmapProps> = ({ plans }) => {
+  // Coverage is relative to the widest plan. Computed once per `plans` change
+  // rather than once per plan, which was O(n^2) with an array + spread
+  // allocation on every comparison.
+  const maxFeatures = useMemo(
+    () => Math.max(1, ...plans.map((plan) => plan.features?.length || 0)),
+    [plans]
+  );
+
   const getFeatureCoverage = (plan: SubscriptionPlan): number => {
-    return ((plan.features?.length || 0) / Math.max(...plans.map(p => p.features?.length || 0))) * 100;
+    return ((plan.features?.length || 0) / maxFeatures) * 100;
   };
 
   const getHeatColor = (coverage: number): string => {
@@ -20,15 +39,11 @@ export const PlanComparisonHeatmap: React.FC<PlanComparisonHeatmapProps> = ({ pl
     return colors.success;
   };
 
-  const tierOrder: SubscriptionTier[] = [
-    SubscriptionTier.FREE,
-    SubscriptionTier.BASIC,
-    SubscriptionTier.PREMIUM,
-    SubscriptionTier.ENTERPRISE,
-  ];
-
-  const sortedPlans = plans.sort(
-    (a, b) => tierOrder.indexOf(a.tier) - tierOrder.indexOf(b.tier)
+  // Copy before sorting: `plans.sort(...)` sorted the caller's array in place,
+  // mutating the parent's state.
+  const sortedPlans = useMemo(
+    () => [...plans].sort((a, b) => TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier)),
+    [plans]
   );
 
   return (
@@ -41,11 +56,7 @@ export const PlanComparisonHeatmap: React.FC<PlanComparisonHeatmapProps> = ({ pl
             return (
               <View key={plan.id} style={styles.planColumn}>
                 <Text style={styles.planName}>{plan.name}</Text>
-                <View
-                  style={[
-                    styles.heatCell,
-                    { backgroundColor: getHeatColor(coverage) },
-                  ]}>
+                <View style={[styles.heatCell, { backgroundColor: getHeatColor(coverage) }]}>
                   <Text style={styles.cellText}>{Math.round(coverage)}%</Text>
                 </View>
                 <Text style={styles.featuresCount}>{plan.features?.length || 0} features</Text>

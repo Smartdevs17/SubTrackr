@@ -74,7 +74,10 @@ interface SubscriptionSlaState {
   recordMetric: (subscriptionId: string, sample: Omit<SlaMetricSample, 'subscriptionId'>) => void;
 
   /** Record a batch of metric samples and evaluate */
-  recordMetricBatch: (subscriptionId: string, samples: Omit<SlaMetricSample, 'subscriptionId'>[]) => void;
+  recordMetricBatch: (
+    subscriptionId: string,
+    samples: Omit<SlaMetricSample, 'subscriptionId'>[]
+  ) => void;
 
   /** Manually trigger SLA evaluation for a subscription */
   evaluateSla: (subscriptionId: string) => SubscriptionSlaStatus | null;
@@ -214,9 +217,7 @@ export const useSubscriptionSlaStore = create<SubscriptionSlaState>()(
         if (!config) return null;
 
         const metrics = state.metricSamples[subscriptionId] ?? [];
-        const existingBreaches = state.breaches.filter(
-          (b) => b.subscriptionId === subscriptionId
-        );
+        const existingBreaches = state.breaches.filter((b) => b.subscriptionId === subscriptionId);
 
         try {
           const result = evaluateSubscriptionSla({
@@ -266,9 +267,7 @@ export const useSubscriptionSlaStore = create<SubscriptionSlaState>()(
       resolveBreach: (breachId) => {
         const now = Date.now();
         set((state) => ({
-          breaches: state.breaches.map((b) =>
-            b.id === breachId ? { ...b, resolvedAt: now } : b
-          ),
+          breaches: state.breaches.map((b) => (b.id === breachId ? { ...b, resolvedAt: now } : b)),
           alerts: state.alerts.map((a) =>
             a.breachId === breachId ? { ...a, isResolved: true, resolvedAt: now } : a
           ),
@@ -299,11 +298,7 @@ export const useSubscriptionSlaStore = create<SubscriptionSlaState>()(
 
       getAnalytics: (days = 30) => {
         const state = get();
-        return buildSubscriptionSlaAnalytics(
-          Object.values(state.statuses),
-          state.breaches,
-          days
-        );
+        return buildSubscriptionSlaAnalytics(Object.values(state.statuses), state.breaches, days);
       },
 
       generateReport: (reportType, periodStart, periodEnd) => {

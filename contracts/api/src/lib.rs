@@ -1,4 +1,6 @@
 #![no_std]
+// Deprecated `env.register_contract(..)` is still used by the test fixtures.
+#![allow(deprecated)]
 
 mod auth;
 mod ratelimit;

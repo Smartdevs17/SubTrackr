@@ -152,7 +152,9 @@ describe('isVisibleInFeed', () => {
 
   it('shows a dismissed entry when asked to include them', () => {
     expect(
-      isVisibleInFeed(entry('a', { dismissedAt: '2026-03-15T09:00:00.000Z' }), { includeDismissed: true })
+      isVisibleInFeed(entry('a', { dismissedAt: '2026-03-15T09:00:00.000Z' }), {
+        includeDismissed: true,
+      })
     ).toBe(true);
   });
 
@@ -162,7 +164,9 @@ describe('isVisibleInFeed', () => {
   });
 
   it('filters to unread only', () => {
-    expect(isVisibleInFeed(entry('a', { readAt: '2026-03-15T09:00:00.000Z' }), { unreadOnly: true })).toBe(false);
+    expect(
+      isVisibleInFeed(entry('a', { readAt: '2026-03-15T09:00:00.000Z' }), { unreadOnly: true })
+    ).toBe(false);
   });
 
   it('filters to important only', () => {
@@ -171,9 +175,15 @@ describe('isVisibleInFeed', () => {
   });
 
   it('searches the title, body and label', () => {
-    expect(isVisibleInFeed(entry('a', { title: 'Netflix renews' }), { query: 'netflix' })).toBe(true);
-    expect(isVisibleInFeed(entry('a', { body: 'card ending 42' }), { query: 'CARD ENDING' })).toBe(true);
-    expect(isVisibleInFeed(entry('a', { label: 'Renewal reminders' }), { query: 'renewal' })).toBe(true);
+    expect(isVisibleInFeed(entry('a', { title: 'Netflix renews' }), { query: 'netflix' })).toBe(
+      true
+    );
+    expect(isVisibleInFeed(entry('a', { body: 'card ending 42' }), { query: 'CARD ENDING' })).toBe(
+      true
+    );
+    expect(isVisibleInFeed(entry('a', { label: 'Renewal reminders' }), { query: 'renewal' })).toBe(
+      true
+    );
     expect(isVisibleInFeed(entry('a'), { query: 'nothing' })).toBe(false);
   });
 });
@@ -441,18 +451,30 @@ describe('selectors', () => {
       record('old', { createdAt: '2026-03-14T08:00:00.000Z' }),
       record('new', { createdAt: '2026-03-15T08:00:00.000Z' }),
     ]);
-    expect(store().getFeed().map((e) => e.id)).toEqual(['new', 'old']);
+    expect(
+      store()
+        .getFeed()
+        .map((e) => e.id)
+    ).toEqual(['new', 'old']);
   });
 
   it('applies a filter to the feed', () => {
     store().ingest([record('n1', { type: 'promotion' }), record('n2')]);
-    expect(store().getFeed({ type: 'promotion' }).map((e) => e.id)).toEqual(['n1']);
+    expect(
+      store()
+        .getFeed({ type: 'promotion' })
+        .map((e) => e.id)
+    ).toEqual(['n1']);
   });
 
   it('applies the store grouping to sections', () => {
     store().ingest([record('n1', { type: 'promotion' }), record('n2', { type: 'charge_failed' })]);
     store().setGrouping('type');
-    expect(store().getSections().map((s) => s.key)).toEqual(['charge failed', 'promotion']);
+    expect(
+      store()
+        .getSections()
+        .map((s) => s.key)
+    ).toEqual(['charge failed', 'promotion']);
   });
 
   it('counts categories for a filter chip row, most frequent first', () => {

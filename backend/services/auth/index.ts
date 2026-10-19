@@ -2,6 +2,7 @@ export {
   ApiKeyRotationService,
   apiKeyRotationService,
   hashApiKey,
+  hasScope,
 } from './domain/ApiKeyRotationService';
 export {
   ApiKeyRevocationService,
@@ -43,4 +44,28 @@ export type {
   PasskeyRegistrationOptions,
   PasskeyRegistrationResponse,
 } from './interfaces';
+export {
+  LoginAnomalyService,
+  loginAnomalyService,
+  DEFAULT_ANOMALY_CONFIG,
+  calculateHaversineDistanceKm,
+} from './domain/LoginAnomalyService';
+export type {
+  LoginAnomalyAlert,
+  LoginAnomalyConfig,
+  LoginAttempt,
+  AnomalySeverity,
+} from './domain/LoginAnomalyService';
+export {
+  AccountRecoveryService,
+  accountRecoveryService,
+  DEFAULT_RECOVERY_CONFIG,
+} from './domain/AccountRecoveryService';
+export type {
+  AccountRecoveryConfig,
+  RecoveryAction,
+  RecoveryAuditEntry,
+  RecoverySession,
+} from './domain/AccountRecoveryService';
 export { AuthError, AuthErrorCode } from './errors';
+

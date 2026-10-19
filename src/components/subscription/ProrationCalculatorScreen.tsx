@@ -1,12 +1,5 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  TextInput,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput } from 'react-native';
 import { useProrationCalculator } from '../../hooks/useProrationCalculator';
 import { BillingCycle } from '../../types/subscription';
 import type { ProrationCalculationResult } from '../../types/prorationCalculator';
@@ -64,16 +57,14 @@ export const ProrationCalculatorScreen: React.FC = () => {
       <View style={styles.tabContainer}>
         <TouchableOpacity
           style={[styles.tabButton, activeTab === 'calculator' && styles.tabButtonActive]}
-          onPress={() => setActiveTab('calculator')}
-        >
+          onPress={() => setActiveTab('calculator')}>
           <Text style={[styles.tabText, activeTab === 'calculator' && styles.tabTextActive]}>
             Calculator
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tabButton, activeTab === 'analytics' && styles.tabButtonActive]}
-          onPress={() => setActiveTab('analytics')}
-        >
+          onPress={() => setActiveTab('analytics')}>
           <Text style={[styles.tabText, activeTab === 'analytics' && styles.tabTextActive]}>
             Analytics
           </Text>
@@ -109,11 +100,7 @@ export const ProrationCalculatorScreen: React.FC = () => {
             <View style={styles.row}>
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>New Plan Name</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newPlanName}
-                  onChangeText={setNewPlanName}
-                />
+                <TextInput style={styles.input} value={newPlanName} onChangeText={setNewPlanName} />
               </View>
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>New Price ($)</Text>
@@ -186,8 +173,7 @@ export const ProrationCalculatorScreen: React.FC = () => {
 
               <TouchableOpacity
                 style={styles.secondaryButton}
-                onPress={() => applyProration('sub-123', activePreview)}
-              >
+                onPress={() => applyProration('sub-123', activePreview)}>
                 <Text style={styles.secondaryButtonText}>Apply & Confirm Change</Text>
               </TouchableOpacity>
             </View>
@@ -208,7 +194,9 @@ export const ProrationCalculatorScreen: React.FC = () => {
               <Text style={styles.statLabel}>Upgrades</Text>
             </View>
             <View style={styles.statBox}>
-              <Text style={styles.statNumber}>${analytics.totalProratedRevenueCollected.toFixed(2)}</Text>
+              <Text style={styles.statNumber}>
+                ${analytics.totalProratedRevenueCollected.toFixed(2)}
+              </Text>
               <Text style={styles.statLabel}>Revenue Collected</Text>
             </View>
             <View style={styles.statBox}>

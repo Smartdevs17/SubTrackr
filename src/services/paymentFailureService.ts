@@ -19,10 +19,7 @@ import type {
   NotificationDeliveryStatus,
   PaymentFailureStatus,
 } from '../types/paymentFailure';
-import {
-  DEFAULT_ESCALATION_RULES,
-  DEFAULT_SMART_RETRY_CONFIG,
-} from '../types/paymentFailure';
+import { DEFAULT_ESCALATION_RULES, DEFAULT_SMART_RETRY_CONFIG } from '../types/paymentFailure';
 
 const STORAGE_KEYS = {
   FAILURES: '@SubTrackr:paymentFailures',
@@ -36,7 +33,9 @@ const STORAGE_KEYS = {
 // Payment Failure Management
 // ══════════════════════════════════════════════════════════════════════════════
 
-export async function recordPaymentFailure(failure: Omit<PaymentFailure, 'id' | 'failedAt'>): Promise<PaymentFailure> {
+export async function recordPaymentFailure(
+  failure: Omit<PaymentFailure, 'id' | 'failedAt'>
+): Promise<PaymentFailure> {
   const newFailure: PaymentFailure = {
     ...failure,
     id: generateId(),
@@ -71,7 +70,7 @@ export async function getAllFailures(userId?: string): Promise<PaymentFailure[]>
     failures = failures.map(deserializeFailure);
 
     if (userId) {
-      return failures.filter(f => f.userId === userId);
+      return failures.filter((f) => f.userId === userId);
     }
 
     return failures;
@@ -83,12 +82,12 @@ export async function getAllFailures(userId?: string): Promise<PaymentFailure[]>
 
 export async function getFailureById(id: string): Promise<PaymentFailure | null> {
   const failures = await getAllFailures();
-  return failures.find(f => f.id === id) || null;
+  return failures.find((f) => f.id === id) || null;
 }
 
 export async function getUnresolvedFailures(userId: string): Promise<PaymentFailure[]> {
   const failures = await getAllFailures(userId);
-  return failures.filter(f => !f.isResolved);
+  return failures.filter((f) => !f.isResolved);
 }
 
 export async function resolveFailure(
@@ -225,7 +224,7 @@ export async function getAllRetries(failureId?: string): Promise<PaymentRetryStr
     retries = retries.map(deserializeRetry);
 
     if (failureId) {
-      return retries.filter(r => r.failureId === failureId);
+      return retries.filter((r) => r.failureId === failureId);
     }
 
     return retries;
@@ -237,7 +236,7 @@ export async function getAllRetries(failureId?: string): Promise<PaymentRetryStr
 
 export async function getRetryById(id: string): Promise<PaymentRetryStrategy | null> {
   const retries = await getAllRetries();
-  return retries.find(r => r.id === id) || null;
+  return retries.find((r) => r.id === id) || null;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -264,7 +263,7 @@ export async function sendFailureNotification(
 
   // Determine channels to use
   const channels = request.channels || escalationRule.notificationChannels;
-  const enabledChannels = channels.filter(ch => preferences.enabledChannels[ch]);
+  const enabledChannels = channels.filter((ch) => preferences.enabledChannels[ch]);
 
   const notifications: PaymentFailureNotification[] = [];
   const deliveredChannels: NotificationChannel[] = [];
@@ -310,7 +309,7 @@ export async function sendFailureNotification(
 
   return {
     success: notifications.length > 0,
-    notificationIds: notifications.map(n => n.id),
+    notificationIds: notifications.map((n) => n.id),
     channelsUsed: enabledChannels,
     deliveredChannels,
     failedChannels,
@@ -330,10 +329,10 @@ export async function getAllNotifications(
     notifications = notifications.map(deserializeNotification);
 
     if (failureId) {
-      notifications = notifications.filter(n => n.failureId === failureId);
+      notifications = notifications.filter((n) => n.failureId === failureId);
     }
     if (userId) {
-      notifications = notifications.filter(n => n.userId === userId);
+      notifications = notifications.filter((n) => n.userId === userId);
     }
 
     return notifications.sort((a, b) => b.sentAt.getTime() - a.sentAt.getTime());
@@ -345,7 +344,7 @@ export async function getAllNotifications(
 
 export async function markNotificationAsRead(notificationId: string): Promise<void> {
   const notifications = await getAllNotifications();
-  const notification = notifications.find(n => n.id === notificationId);
+  const notification = notifications.find((n) => n.id === notificationId);
 
   if (notification && !notification.readAt) {
     notification.readAt = new Date();
@@ -355,7 +354,7 @@ export async function markNotificationAsRead(notificationId: string): Promise<vo
 
 export async function markNotificationAsClicked(notificationId: string): Promise<void> {
   const notifications = await getAllNotifications();
-  const notification = notifications.find(n => n.id === notificationId);
+  const notification = notifications.find((n) => n.id === notificationId);
 
   if (notification && !notification.clickedAt) {
     notification.clickedAt = new Date();
@@ -367,34 +366,42 @@ export async function markNotificationAsClicked(notificationId: string): Promise
 // Analytics
 // ══════════════════════════════════════════════════════════════════════════════
 
-export async function getPaymentFailureAnalytics(userId?: string): Promise<PaymentFailureAnalytics> {
+export async function getPaymentFailureAnalytics(
+  userId?: string
+): Promise<PaymentFailureAnalytics> {
   const failures = await getAllFailures(userId);
   const notifications = await getAllNotifications(undefined, userId);
   const retries = await getAllRetries();
 
-  const resolvedFailures = failures.filter(f => f.isResolved);
-  const unresolvedFailures = failures.filter(f => !f.isResolved);
+  const resolvedFailures = failures.filter((f) => f.isResolved);
+  const unresolvedFailures = failures.filter((f) => !f.isResolved);
 
-  const failuresByReason = failures.reduce((acc, f) => {
-    acc[f.failureReason] = (acc[f.failureReason] || 0) + 1;
-    return acc;
-  }, {} as Record<PaymentFailureReason, number>);
+  const failuresByReason = failures.reduce(
+    (acc, f) => {
+      acc[f.failureReason] = (acc[f.failureReason] || 0) + 1;
+      return acc;
+    },
+    {} as Record<PaymentFailureReason, number>
+  );
 
-  const failuresByEscalation = failures.reduce((acc, f) => {
-    acc[f.escalationLevel] = (acc[f.escalationLevel] || 0) + 1;
-    return acc;
-  }, {} as Record<EscalationLevel, number>);
+  const failuresByEscalation = failures.reduce(
+    (acc, f) => {
+      acc[f.escalationLevel] = (acc[f.escalationLevel] || 0) + 1;
+      return acc;
+    },
+    {} as Record<EscalationLevel, number>
+  );
 
-  const deliveredNotifications = notifications.filter(n => n.status === 'delivered');
-  const clickedNotifications = notifications.filter(n => n.clickedAt);
+  const deliveredNotifications = notifications.filter((n) => n.status === 'delivered');
+  const clickedNotifications = notifications.filter((n) => n.clickedAt);
 
-  const successfulRetries = retries.filter(r => r.status === 'succeeded');
-  const failedRetries = retries.filter(r => r.status === 'failed');
+  const successfulRetries = retries.filter((r) => r.status === 'succeeded');
+  const failedRetries = retries.filter((r) => r.status === 'failed');
 
   // Calculate resolution times
   const resolutionTimes = resolvedFailures
-    .filter(f => f.resolvedAt && f.failedAt)
-    .map(f => (f.resolvedAt!.getTime() - f.failedAt.getTime()) / (1000 * 60 * 60)); // hours
+    .filter((f) => f.resolvedAt && f.failedAt)
+    .map((f) => (f.resolvedAt!.getTime() - f.failedAt.getTime()) / (1000 * 60 * 60)); // hours
 
   const averageResolutionTimeHours =
     resolutionTimes.length > 0
@@ -414,7 +421,9 @@ export async function getPaymentFailureAnalytics(userId?: string): Promise<Payme
   // Revenue calculations
   const revenueAtRisk = unresolvedFailures.reduce((sum, f) => sum + f.amount, 0);
   const revenueRecovered = resolvedFailures
-    .filter(f => f.resolutionMethod === 'auto_retry_success' || f.resolutionMethod === 'manual_payment')
+    .filter(
+      (f) => f.resolutionMethod === 'auto_retry_success' || f.resolutionMethod === 'manual_payment'
+    )
     .reduce((sum, f) => sum + f.amount, 0);
 
   return {
@@ -428,9 +437,12 @@ export async function getPaymentFailureAnalytics(userId?: string): Promise<Payme
     notificationsSent: notifications.length,
     notificationsDelivered: deliveredNotifications.length,
     notificationsClicked: clickedNotifications.length,
-    deliveryRate: notifications.length > 0 ? (deliveredNotifications.length / notifications.length) * 100 : 0,
+    deliveryRate:
+      notifications.length > 0 ? (deliveredNotifications.length / notifications.length) * 100 : 0,
     clickThroughRate:
-      deliveredNotifications.length > 0 ? (clickedNotifications.length / deliveredNotifications.length) * 100 : 0,
+      deliveredNotifications.length > 0
+        ? (clickedNotifications.length / deliveredNotifications.length) * 100
+        : 0,
     retrySuccessRate:
       successfulRetries.length + failedRetries.length > 0
         ? (successfulRetries.length / (successfulRetries.length + failedRetries.length)) * 100
@@ -438,7 +450,10 @@ export async function getPaymentFailureAnalytics(userId?: string): Promise<Payme
     topFailureReasons,
     revenueAtRisk,
     revenueRecovered,
-    recoveryRate: revenueAtRisk + revenueRecovered > 0 ? (revenueRecovered / (revenueAtRisk + revenueRecovered)) * 100 : 0,
+    recoveryRate:
+      revenueAtRisk + revenueRecovered > 0
+        ? (revenueRecovered / (revenueAtRisk + revenueRecovered)) * 100
+        : 0,
   };
 }
 
@@ -454,12 +469,12 @@ export async function getPaymentFailureHistory(
   const startIndex = (page - 1) * pageSize;
   const failures = allFailures.slice(startIndex, startIndex + pageSize);
 
-  const failureIds = failures.map(f => f.id);
+  const failureIds = failures.map((f) => f.id);
   const allNotifications = await getAllNotifications();
   const allRetries = await getAllRetries();
 
-  const notifications = allNotifications.filter(n => failureIds.includes(n.failureId));
-  const retries = allRetries.filter(r => failureIds.includes(r.failureId));
+  const notifications = allNotifications.filter((n) => failureIds.includes(n.failureId));
+  const retries = allRetries.filter((r) => failureIds.includes(r.failureId));
 
   return {
     failures,
@@ -475,7 +490,9 @@ export async function getPaymentFailureHistory(
 // Preferences & Configuration
 // ══════════════════════════════════════════════════════════════════════════════
 
-export async function getNotificationPreferences(userId: string): Promise<FailureNotificationPreferences> {
+export async function getNotificationPreferences(
+  userId: string
+): Promise<FailureNotificationPreferences> {
   try {
     const data = await AsyncStorage.getItem(`${STORAGE_KEYS.PREFERENCES}_${userId}`);
     if (!data) {
@@ -530,7 +547,7 @@ function determineEscalationLevel(retryCount: number): EscalationLevel {
 }
 
 function getEscalationRuleForLevel(level: EscalationLevel): EscalationRule {
-  return DEFAULT_ESCALATION_RULES.find(r => r.level === level) || DEFAULT_ESCALATION_RULES[0];
+  return DEFAULT_ESCALATION_RULES.find((r) => r.level === level) || DEFAULT_ESCALATION_RULES[0];
 }
 
 function getNotificationPriority(escalationLevel: EscalationLevel): NotificationPriority {
@@ -561,19 +578,22 @@ function getNotificationTemplate(
   const templates: Record<FailureNotificationType, { title: string; message: string }> = {
     initial_failure: {
       title: 'Payment Failed',
-      message: 'Your payment for {{subscriptionName}} could not be processed. We\'ll retry automatically.',
+      message:
+        "Your payment for {{subscriptionName}} could not be processed. We'll retry automatically.",
     },
     retry_scheduled: {
       title: 'Payment Retry Scheduled',
-      message: 'We\'ll retry your payment for {{subscriptionName}} on {{retryTime}}.',
+      message: "We'll retry your payment for {{subscriptionName}} on {{retryTime}}.",
     },
     retry_failed: {
       title: 'Payment Retry Failed',
-      message: 'Another payment attempt for {{subscriptionName}} has failed. Please update your payment method.',
+      message:
+        'Another payment attempt for {{subscriptionName}} has failed. Please update your payment method.',
     },
     final_warning: {
       title: '🚨 Urgent: Final Payment Attempt',
-      message: 'This is the final attempt to process payment for {{subscriptionName}}. Your service may be suspended.',
+      message:
+        'This is the final attempt to process payment for {{subscriptionName}}. Your service may be suspended.',
     },
     suspension_notice: {
       title: 'Service Suspended',
@@ -585,11 +605,13 @@ function getNotificationTemplate(
     },
     action_required: {
       title: 'Action Required: Update Payment',
-      message: 'Please update your payment method for {{subscriptionName}} to avoid service interruption.',
+      message:
+        'Please update your payment method for {{subscriptionName}} to avoid service interruption.',
     },
     grace_period_ending: {
       title: 'Grace Period Ending Soon',
-      message: 'Your grace period for {{subscriptionName}} ends in {{daysLeft}} days. Please update payment.',
+      message:
+        'Your grace period for {{subscriptionName}} ends in {{daysLeft}} days. Please update payment.',
     },
   };
 
@@ -646,7 +668,7 @@ async function saveFailure(failure: PaymentFailure): Promise<void> {
 
 async function updateFailure(failure: PaymentFailure): Promise<void> {
   const failures = await getAllFailures();
-  const index = failures.findIndex(f => f.id === failure.id);
+  const index = failures.findIndex((f) => f.id === failure.id);
   if (index >= 0) {
     failures[index] = failure;
     await AsyncStorage.setItem(STORAGE_KEYS.FAILURES, JSON.stringify(failures));
@@ -661,7 +683,7 @@ async function saveRetry(retry: PaymentRetryStrategy): Promise<void> {
 
 async function updateRetry(retry: PaymentRetryStrategy): Promise<void> {
   const retries = await getAllRetries();
-  const index = retries.findIndex(r => r.id === retry.id);
+  const index = retries.findIndex((r) => r.id === retry.id);
   if (index >= 0) {
     retries[index] = retry;
     await AsyncStorage.setItem(STORAGE_KEYS.RETRIES, JSON.stringify(retries));
@@ -676,7 +698,7 @@ async function saveNotification(notification: PaymentFailureNotification): Promi
 
 async function updateNotification(notification: PaymentFailureNotification): Promise<void> {
   const notifications = await getAllNotifications();
-  const index = notifications.findIndex(n => n.id === notification.id);
+  const index = notifications.findIndex((n) => n.id === notification.id);
   if (index >= 0) {
     notifications[index] = notification;
     await AsyncStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(notifications));

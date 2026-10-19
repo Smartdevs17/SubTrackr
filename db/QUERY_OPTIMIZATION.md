@@ -179,3 +179,54 @@ If `idx_scan` stays at 0 after a representative window, or write latency
 regresses on `usage_metrics`, drop the offending index (`DROP INDEX
 CONCURRENTLY …`) — it is safe to remove because no application code depends on an
 index existing.
+
+## 7. Index audit tool (issue #1798)
+
+A static analysis tool scans backend source files for SQL query patterns and
+checks them against the indexes declared in migration files.
+
+### Running the audit
+
+```bash
+node scripts/db-index-audit.js           # human-readable report
+node scripts/db-index-audit.js --json    # JSON output for CI
+```
+
+The tool:
+
+1. Parses `CREATE INDEX` statements from `db/migrations/*.sql` and
+   `backend/migrations/*.sql` (excluding `-- @down` sections).
+2. Scans `backend/services/`, `backend/graphql/`, and `backend/notification/`
+   for `FROM <table> WHERE <col>`, `WHERE <alias>.<col>`, `ORDER BY <col>`,
+   and composite `WHERE col1 = $N AND col2 = $N` patterns.
+3. Resolves single-letter table aliases (`s` → `subscriptions`, `t` →
+   `transactions`, etc.).
+4. Treats `id` column lookups as always covered (primary key).
+5. Reports covered patterns and gaps (query patterns with no matching index).
+
+Exit code: 0 = no gaps, 1 = gaps found, 2 = usage error.
+
+### Audit results (migration 009)
+
+The initial audit found 10 query patterns with no matching index. Migration
+`009_index_audit_hot_queries.sql` adds indexes for all of them:
+
+| Table               | Column(s)        | Query source                 | Index                                |
+| ------------------- | ---------------- | ---------------------------- | ------------------------------------ |
+| users               | address          | postgres.ts:382              | idx_users_address                    |
+| users               | email            | postgres.ts:391              | idx_users_email                      |
+| merchants           | merchant_address | postgres.ts:470              | idx_merchants_merchant_address       |
+| merchants           | status           | postgres.ts:481              | idx_merchants_status                 |
+| loyalty             | subscriber_id    | postgres.ts:570              | idx_loyalty_subscriber_id            |
+| loyalty             | points DESC      | postgres.ts:582              | idx_loyalty_points_desc              |
+| subscriptions       | created_at DESC  | resolvers.ts:71              | idx_subscriptions_created_at         |
+| user_devices        | user_id          | NotificationServiceImpl.ts   | idx_user_devices_user_id             |
+| usage_alerts        | created_at DESC  | usageAlertsController.ts:144 | idx_usage_alerts_created_at          |
+| usage_alert_configs | subscription_id  | usageAlertsController.ts     | idx_usage_alert_configs_subscription |
+
+After applying migration 009, re-run the audit to confirm zero gaps:
+
+```bash
+node scripts/db-index-audit.js
+# Expected: Gaps (no index): 0
+```

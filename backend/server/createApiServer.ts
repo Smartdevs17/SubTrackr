@@ -14,8 +14,12 @@
  *   /api/v1/webhooks/verify     — Incoming webhook signature verification demo
  */
 
+import { randomBytes } from 'node:crypto';
+
 import express, { type Express, type Request, type Response } from 'express';
 import { cacheHeadersMiddleware } from '../shared/middleware';
+import { createCspMiddleware, DEFAULT_CSP_POLICY } from '../services/shared/cspMiddleware';
+import { createCsrfMiddleware } from '../services/shared/csrfService';
 import {
   createPublicApiRouter,
   createSearchRouter,
@@ -23,7 +27,12 @@ import {
   createThemeRouter,
 } from '../subscription/router';
 import { API_VERSION_HEADER, API_VERSION_VALUE } from '../services/shared/apiResponse';
+import { createVersionMiddleware, versionRegistry } from '../services/shared/apiVersioning';
+import { createLoggerFor } from '../services/shared/logging';
+import { createTracerFromEnv } from '../services/shared/tracing';
+import { createRequestObservability } from '../shared/middleware/requestObservability';
 import { createApiKeyRevocationRouter, createPasskeyRouter } from '../services/auth/router/authRouter';
+import { serveOpenApiSpec, serveSwaggerUI } from '../services/shared/swaggerUI';
 
 // ── Zapier integration ────────────────────────────────────────────────────────
 import {
@@ -104,7 +113,45 @@ const renewalScheduler = new RenewalReminderScheduler(calendarSyncService);
 const calendarController = createCalendarSyncController({ syncService: calendarSyncService });
 const reminderController = createRenewalReminderController({ scheduler: renewalScheduler });
 
-const webhookKeyStore = new KeyStore(process.env['WEBHOOK_SIGNING_KEY'] ?? 'default-dev-key-change-in-prod');
+/**
+ * Resolves the outbound webhook signing key.
+ *
+ * This previously fell back to the literal `'default-dev-key-change-in-prod'`.
+ * Because the same key signs every webhook the platform emits, a single
+ * deployed default meant anyone reading the repository could forge a valid
+ * signature for arbitrary merchant webhooks.
+ *
+ * In production an unset or default value is a hard startup failure. Outside
+ * production an ephemeral random key is generated so local development still
+ * works without silently weakening verification.
+ */
+function resolveWebhookSigningKey(): string {
+  const configured = process.env['WEBHOOK_SIGNING_KEY'];
+  const placeholder = 'default-dev-key-change-in-prod';
+
+  if (configured && configured !== placeholder && configured.length >= 16) {
+    return configured;
+  }
+
+  if (process.env['NODE_ENV'] === 'production') {
+    throw new Error(
+      'WEBHOOK_SIGNING_KEY must be set to a random value of at least 16 characters in production.'
+    );
+  }
+
+  if (configured === placeholder) {
+    console.warn(
+      '[createApiServer] WEBHOOK_SIGNING_KEY is still the public default; using an ephemeral key for this process.'
+    );
+  }
+
+  return randomBytes(32).toString('hex');
+}
+
+const webhookKeyStore = new KeyStore(resolveWebhookSigningKey());
+
+/** Ceiling for request bodies accepted by the public API (256 KiB). */
+const MAX_JSON_BODY = '256kb';
 
 export interface CreateApiServerOptions {
   /** Optional middleware applied before cache headers (e.g. auth). */
@@ -116,15 +163,87 @@ export function createApiServer(options: CreateApiServerOptions = {}): Express {
 
   app.disable('x-powered-by');
 
+  // ── Security headers (CSP + HSTS + framing) — #1769 ──────────────────────
+  // Applied before all routes so every response carries the policy.
+  app.use(
+    createCspMiddleware({
+      ...DEFAULT_CSP_POLICY,
+      // Collect violation reports at a dedicated endpoint so we can monitor
+      // policy regressions in production without blocking legitimate traffic.
+      reportUri: ['/api/v1/csp-report'],
+    }) as unknown as express.RequestHandler,
+  );
+
+  // Request id, structured access log and server span for every request.
+  app.use(
+    createRequestObservability({
+      tracer: createTracerFromEnv('subtrackr-api'),
+      logger: createLoggerFor('http'),
+    }),
+  );
+
   // Provider webhooks are signed over the exact bytes that were sent, and
   // `express.json()` consumes the request stream. `express.raw` is therefore
   // registered for the webhook paths *before* the JSON parser, so
   // `req.body` is a Buffer holding the untouched payload. `type: '*/*'` is
   // required because providers do not agree on a Content-Type.
-  app.post('/api/v1/stripe/billing/webhook', express.raw({ type: '*/*' }));
-  app.post('/api/v1/paddle/webhook', express.raw({ type: '*/*' }));
+  //
+  // These two registrations install a *body parser only*: they declare no
+  // handler and perform no state change. The routes themselves are mounted
+  // further down via `createStripeBillingRouter` / `createPaddleRouter`, and
+  // both verify an HMAC signature over the raw bytes before the payload is
+  // decoded — answering 503 when the secret is unconfigured and 401 when the
+  // signature does not match. The CSRF rule cannot see across that file
+  // boundary, hence the suppressions below.
+  //
+  // Note: verification must NOT be duplicated here. `verify()` records the
+  // event id for replay de-duplication, so a second call would report the
+  // first legitimate delivery as a duplicate and the router would answer
+  // `200 { duplicate: true }` without ever dispatching the event.
+  // nosemgrep: subtrackr.csrf.state-changing-route-without-csrf -- reason: body-parser-only registration, no handler and no state change; the request is HMAC-verified inside the Stripe router, which fails closed with 503 when unconfigured and 401 on a bad signature -- expires: 2027-04-16
+  app.post('/api/v1/stripe/billing/webhook', express.raw({ type: '*/*', limit: MAX_JSON_BODY }));
+  // nosemgrep: subtrackr.csrf.state-changing-route-without-csrf -- reason: body-parser-only registration, no handler and no state change; the request is HMAC-verified inside the Paddle router, which fails closed with 503 when unconfigured and 401 on a bad signature -- expires: 2027-04-16
+  app.post('/api/v1/paddle/webhook', express.raw({ type: '*/*', limit: MAX_JSON_BODY }));
 
-  app.use(express.json());
+  // An explicit cap keeps a single oversized POST from buffering the whole
+  // body into memory before it is parsed.
+  app.use(express.json({ limit: MAX_JSON_BODY }));
+
+  // ── CSRF protection — #1770 ───────────────────────────────────────────────
+  // Double-submit cookie strategy: safe methods (GET/HEAD/OPTIONS) issue a
+  // token; unsafe methods verify that X-CSRF-Token matches __Host-csrf.
+  // Webhook paths are skipped — they use HMAC-based authentication instead.
+  app.use(
+    createCsrfMiddleware({
+      cookie: { sameSite: 'Strict', secure: process.env['NODE_ENV'] === 'production' },
+      skipPaths: [
+        '/api/v1/stripe/billing/webhook',
+        '/api/v1/paddle/webhook',
+        '/api/v1/webhooks',
+      ],
+    }) as unknown as express.RequestHandler,
+  );
+
+  // Bootstrap endpoint: clients call GET /api/v1/csrf-token once on startup
+  // to receive their first token before issuing any mutating request.
+  app.get('/api/v1/csrf-token', (_req: Request, res: Response) => {
+    // The CSRF middleware already set the cookie + header on this safe GET.
+    res.json({ ok: true });
+  });
+
+  // CSP violation report collector — browsers POST here when a directive is
+  // violated.  The body is logged at warn level and discarded (no state is
+  // mutated, so it is exempt from CSRF verification by the skip-path above).
+  app.post(
+    '/api/v1/csp-report',
+    express.json({ type: 'application/csp-report', limit: '4kb' }),
+    (req: Request, res: Response) => {
+      const report = req.body?.['csp-report'] ?? req.body;
+      const logger = (req as unknown as { log?: { warn: (msg: string, ctx: unknown) => void } }).log;
+      (logger?.warn ?? console.warn).call(logger ?? console, 'CSP violation', { report });
+      res.status(204).end();
+    },
+  );
 
   if (options.beforeCache) {
     for (const mw of options.beforeCache) {
@@ -136,6 +255,14 @@ export function createApiServer(options: CreateApiServerOptions = {}): Express {
     res.setHeader(API_VERSION_HEADER, API_VERSION_VALUE);
     next();
   });
+  // Resolves the version from /api/vN, the `api-version` header or `?version=`;
+  // adds deprecation headers and rejects unknown or sunset versions.
+  app.use(createVersionMiddleware(versionRegistry) as unknown as express.RequestHandler);
+
+  // ── OpenAPI & Swagger UI (Issue #1784) ──────────────────────────────────────
+  app.get('/api/docs/openapi.json', serveOpenApiSpec);
+  app.get('/api/docs', serveSwaggerUI);
+  app.get('/api/docs/', serveSwaggerUI);
 
   // ── CDN-cached public routes ───────────────────────────────────────────────
   app.use(cacheHeadersMiddleware());

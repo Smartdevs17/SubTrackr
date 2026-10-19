@@ -1,12 +1,5 @@
 import React, { useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  ActivityIndicator,
-  Dimensions,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Dimensions } from 'react-native';
 import { useFraudStore } from '../store/fraudStore';
 import { useTheme } from '../theme/useTheme';
 
@@ -33,7 +26,11 @@ export default function FraudAnalyticsScreen() {
     <View style={[styles.metricCard, { backgroundColor: theme.colors.card }]}>
       <Text style={[styles.metricTitle, { color: theme.colors.textSecondary }]}>{title}</Text>
       <Text style={[styles.metricValue, { color: color || theme.colors.text }]}>{value}</Text>
-      {subtitle && <Text style={[styles.metricSubtitle, { color: theme.colors.textSecondary }]}>{subtitle}</Text>}
+      {subtitle && (
+        <Text style={[styles.metricSubtitle, { color: theme.colors.textSecondary }]}>
+          {subtitle}
+        </Text>
+      )}
       {trend && <Text style={[styles.trendText, { color: trend.color }]}>{trend.text}</Text>}
     </View>
   );
@@ -41,9 +38,17 @@ export default function FraudAnalyticsScreen() {
   return (
     <ScrollView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {monitoring && (
-        <View style={[styles.monitoringBanner, { backgroundColor: monitoring.systemHealth === 'healthy' ? '#10B981' : '#F59E0B' }]}>
+        <View
+          style={[
+            styles.monitoringBanner,
+            { backgroundColor: monitoring.systemHealth === 'healthy' ? '#10B981' : '#F59E0B' },
+          ]}>
           <Text style={styles.monitoringText}>
-            🛡️ {monitoring.systemHealth === 'healthy' ? 'Real-time Monitoring Active' : 'System Degraded'} • {monitoring.transactionsMonitored} monitored
+            🛡️{' '}
+            {monitoring.systemHealth === 'healthy'
+              ? 'Real-time Monitoring Active'
+              : 'System Degraded'}{' '}
+            • {monitoring.transactionsMonitored} monitored
           </Text>
         </View>
       )}
@@ -90,13 +95,27 @@ export default function FraudAnalyticsScreen() {
       </View>
 
       <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Risk Level Distribution</Text>
+        <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+          Risk Level Distribution
+        </Text>
         <View style={styles.distributionContainer}>
           {Object.entries(analytics.detectionsByLevel).map(([level, count]) => {
-            const color = level === 'critical' ? '#DC2626' : level === 'high' ? '#EF4444' : level === 'medium' ? '#F59E0B' : '#10B981';
-            const percentage = analytics.totalDetections > 0 ? (count / analytics.totalDetections * 100).toFixed(1) : 0;
+            const color =
+              level === 'critical'
+                ? '#DC2626'
+                : level === 'high'
+                  ? '#EF4444'
+                  : level === 'medium'
+                    ? '#F59E0B'
+                    : '#10B981';
+            const percentage =
+              analytics.totalDetections > 0
+                ? ((count / analytics.totalDetections) * 100).toFixed(1)
+                : 0;
             return (
-              <View key={level} style={[styles.distributionBar, { backgroundColor: theme.colors.card }]}>
+              <View
+                key={level}
+                style={[styles.distributionBar, { backgroundColor: theme.colors.card }]}>
                 <View style={styles.distributionInfo}>
                   <Text style={[styles.distributionLevel, { color: theme.colors.text }]}>
                     {level.charAt(0).toUpperCase() + level.slice(1)}
@@ -115,7 +134,9 @@ export default function FraudAnalyticsScreen() {
       </View>
 
       <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Top Fraud Indicators</Text>
+        <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+          Top Fraud Indicators
+        </Text>
         {Object.entries(analytics.indicatorBreakdown)
           .filter(([, count]) => count > 0)
           .sort(([, a], [, b]) => b - a)
@@ -125,9 +146,7 @@ export default function FraudAnalyticsScreen() {
               <Text style={[styles.indicatorType, { color: theme.colors.text }]}>
                 {type.replace(/_/g, ' ').toUpperCase()}
               </Text>
-              <Text style={[styles.indicatorCount, { color: theme.colors.primary }]}>
-                {count}
-              </Text>
+              <Text style={[styles.indicatorCount, { color: theme.colors.primary }]}>{count}</Text>
             </View>
           ))}
       </View>
@@ -136,7 +155,9 @@ export default function FraudAnalyticsScreen() {
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>High-Risk Users</Text>
           {analytics.topRiskUsers.slice(0, 5).map((user, index) => (
-            <View key={user.userId} style={[styles.userCard, { backgroundColor: theme.colors.card }]}>
+            <View
+              key={user.userId}
+              style={[styles.userCard, { backgroundColor: theme.colors.card }]}>
               <View style={styles.userRank}>
                 <Text style={[styles.rankText, { color: theme.colors.primary }]}>#{index + 1}</Text>
               </View>
@@ -180,7 +201,16 @@ const styles = StyleSheet.create({
   section: { padding: 16, marginBottom: 8 },
   sectionTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 16 },
   metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  metricCard: { width: (width - 44) / 2, padding: 16, borderRadius: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
+  metricCard: {
+    width: (width - 44) / 2,
+    padding: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
   metricTitle: { fontSize: 12, fontWeight: '600', marginBottom: 8 },
   metricValue: { fontSize: 24, fontWeight: 'bold', marginBottom: 4 },
   metricSubtitle: { fontSize: 12 },
@@ -192,16 +222,46 @@ const styles = StyleSheet.create({
   distributionCount: { fontSize: 14, fontWeight: 'bold' },
   barContainer: { height: 8, backgroundColor: '#E5E7EB', borderRadius: 4, overflow: 'hidden' },
   bar: { height: '100%', borderRadius: 4 },
-  indicatorRow: { flexDirection: 'row', justifyContent: 'space-between', padding: 16, borderRadius: 8, marginBottom: 8 },
+  indicatorRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
   indicatorType: { fontSize: 14, fontWeight: '500', flex: 1 },
   indicatorCount: { fontSize: 16, fontWeight: 'bold' },
-  userCard: { flexDirection: 'row', padding: 16, borderRadius: 12, marginBottom: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
-  userRank: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  userCard: {
+    flexDirection: 'row',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  userRank: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
   rankText: { fontSize: 16, fontWeight: 'bold' },
   userInfo: { flex: 1 },
   userId: { fontSize: 16, fontWeight: '600', marginBottom: 4 },
   userStats: { fontSize: 14 },
-  methodRow: { flexDirection: 'row', justifyContent: 'space-between', padding: 16, borderRadius: 8, marginBottom: 8 },
+  methodRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
   methodName: { fontSize: 14, fontWeight: '500' },
   methodCount: { fontSize: 14 },
 });

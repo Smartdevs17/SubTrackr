@@ -56,8 +56,8 @@ function AlertCard({
     alert.severity === 'critical'
       ? colors.status.error
       : alert.severity === 'warning'
-      ? colors.status.warning
-      : colors.status.success;
+        ? colors.status.warning
+        : colors.status.success;
 
   return (
     <View
@@ -142,9 +142,7 @@ function OverageCard({
         </View>
       </View>
       {!notification.isAcknowledged && (
-        <TouchableOpacity
-          onPress={() => onAcknowledge(notification.id)}
-          style={styles.ackBtn}>
+        <TouchableOpacity onPress={() => onAcknowledge(notification.id)} style={styles.ackBtn}>
           <Text style={[styles.alertBtnText, { color: '#fff' }]}>Acknowledge</Text>
         </TouchableOpacity>
       )}
@@ -205,10 +203,7 @@ const UsageAlertsScreen: React.FC = () => {
     checkAlerts(usageMap);
   }, [subscriptions, getCurrentPeriodConsumption, checkAlerts]);
 
-  const visibleAlerts = useMemo(
-    () => alerts.filter((a) => !a.isDismissed),
-    [alerts]
-  );
+  const visibleAlerts = useMemo(() => alerts.filter((a) => !a.isDismissed), [alerts]);
   const pendingOverages = useMemo(
     () => overageNotifications.filter((n) => !n.isAcknowledged),
     [overageNotifications]
@@ -252,14 +247,14 @@ const UsageAlertsScreen: React.FC = () => {
           <TouchableOpacity
             style={[styles.actionBtn, { backgroundColor: colors.primary }]}
             onPress={handleRunCheck}>
-            <Text style={styles.actionBtnText}>
-              {isLoading ? 'Checking…' : '🔍 Run Check'}
-            </Text>
+            <Text style={styles.actionBtnText}>{isLoading ? 'Checking…' : '🔍 Run Check'}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.actionBtn, { backgroundColor: colors.background.card }]}
             onPress={markAllRead}>
-            <Text style={[styles.actionBtnText, { color: colors.text.primary }]}>✓ Mark All Read</Text>
+            <Text style={[styles.actionBtnText, { color: colors.text.primary }]}>
+              ✓ Mark All Read
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.actionBtn, { backgroundColor: colors.background.card }]}
@@ -294,7 +289,7 @@ const UsageAlertsScreen: React.FC = () => {
         )}
 
         {/* Overage notifications */}
-        {(overageNotifications.length > 0) && (
+        {overageNotifications.length > 0 && (
           <>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Overage Notifications</Text>
@@ -341,9 +336,7 @@ const UsageAlertsScreen: React.FC = () => {
                     trackColor={{ false: colors.border.default, true: colors.primary }}
                   />
                 </View>
-                <Text style={styles.thresholdSub}>
-                  Sub: {t.subscriptionId.slice(0, 8)}…
-                </Text>
+                <Text style={styles.thresholdSub}>Sub: {t.subscriptionId.slice(0, 8)}…</Text>
                 <View style={styles.thresholdRow}>
                   <View style={styles.thresholdItem}>
                     <Text style={[styles.thresholdPct, { color: colors.status.warning }]}>
@@ -410,7 +403,12 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     sectionTitle: { ...typography.h3, color: colors.text.primary, marginBottom: spacing.sm },
 
     emptyCard: { marginBottom: spacing.md },
-    emptyText: { ...typography.body, color: colors.text.secondary, textAlign: 'center', padding: spacing.md },
+    emptyText: {
+      ...typography.body,
+      color: colors.text.secondary,
+      textAlign: 'center',
+      padding: spacing.md,
+    },
 
     // Alert card
     alertCard: {

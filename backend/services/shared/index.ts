@@ -246,4 +246,22 @@ export type {
   RejectionReason,
 } from './buildMetricsService';
 
+// ── Provider Circuit Breakers & Outbound Resilience ─────────────────────────
+export {
+  ProviderCircuitBreakerRegistry,
+  providerCircuitBreakerRegistry,
+  executeWithProviderFallback,
+  CircuitOpenError,
+} from './providerCircuitBreaker';
+export type { ProviderFallback, ProviderCircuitBreakerRegistryOptions } from './providerCircuitBreaker';
+
+export {
+  outboundRequest,
+  isIdempotentMethod,
+  isIdempotentRequest,
+  OutboundTimeoutError,
+} from './outboundRequest';
+export type { OutboundRequestOptions, OutboundRequestInit } from './outboundRequest';
+
+
 

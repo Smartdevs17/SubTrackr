@@ -1,10 +1,6 @@
 import React from 'react';
 import { render } from '@testing-library/react-native';
-import {
-  HealthScoreGauge,
-  getHealthStatusInfo,
-  getTrendSymbol,
-} from '../HealthScoreGauge';
+import { HealthScoreGauge, getHealthStatusInfo, getTrendSymbol } from '../HealthScoreGauge';
 
 describe('HealthScoreGauge Component', () => {
   describe('getHealthStatusInfo', () => {

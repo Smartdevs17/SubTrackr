@@ -8,12 +8,7 @@
  */
 
 import React from 'react';
-import {
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ApiPlayground } from '../components/ApiPlayground';
 
 export const PlaygroundPage: React.FC = () => (
@@ -21,15 +16,15 @@ export const PlaygroundPage: React.FC = () => (
     <View style={styles.header}>
       <Text style={styles.title}>API Playground</Text>
       <Text style={styles.subtitle}>
-        Interactively explore every SubTrackr API endpoint right here — requests run against
-        the sandbox environment so no production data is touched.
+        Interactively explore every SubTrackr API endpoint right here — requests run against the
+        sandbox environment so no production data is touched.
       </Text>
     </View>
 
     <View style={styles.notice}>
       <Text style={styles.noticeText}>
-        🔒 All requests use your sandbox API key. Switch to a production key only when you
-        are ready to go live.
+        🔒 All requests use your sandbox API key. Switch to a production key only when you are ready
+        to go live.
       </Text>
     </View>
 

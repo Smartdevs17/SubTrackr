@@ -22,6 +22,7 @@ export type RootStackParamList = {
   DataExport: undefined;
   DPALog: undefined;
   Settings: undefined;
+  NotificationPreferences: undefined;
   CalendarIntegration: undefined;
   WebhookSettings: undefined;
   AccountingExport: undefined;

@@ -31,7 +31,10 @@ jest.mock('ethers', () => {
     ...actual,
     providers: {
       JsonRpcProvider: jest.fn().mockImplementation(() => ({
-        getBalance: jest.fn().mockResolvedValue({ gte: jest.fn().mockReturnValue(true), toString: () => '1000000000000000000' }),
+        getBalance: jest.fn().mockResolvedValue({
+          gte: jest.fn().mockReturnValue(true),
+          toString: () => '1000000000000000000',
+        }),
         getGasPrice: jest.fn().mockResolvedValue({ toString: () => '20000000000' }),
         getCode: jest.fn().mockResolvedValue('0x1234'),
       })),
@@ -54,7 +57,10 @@ jest.mock('ethers', () => {
     Contract: jest.fn().mockImplementation(() => ({
       decimals: jest.fn().mockResolvedValue(18),
       symbol: jest.fn().mockResolvedValue('ETH'),
-      balanceOf: jest.fn().mockResolvedValue({ gte: jest.fn().mockReturnValue(true), toString: () => '1000000000000000000' }),
+      balanceOf: jest.fn().mockResolvedValue({
+        gte: jest.fn().mockReturnValue(true),
+        toString: () => '1000000000000000000',
+      }),
     })),
   };
 });
@@ -164,7 +170,9 @@ describe('PaymentMethodService', () => {
 
   describe('validatePaymentMethodForm', () => {
     let svc: PaymentMethodService;
-    beforeEach(() => { svc = freshService(); });
+    beforeEach(() => {
+      svc = freshService();
+    });
 
     const validInput = {
       tokenType: TokenType.NATIVE,
@@ -236,13 +244,17 @@ describe('PaymentMethodService', () => {
   describe('isDuplicateMethod', () => {
     it('detects duplicates by tokenAddress + chainId + tokenType', () => {
       const svc = freshService();
-      const existing = [makeMethod({ tokenAddress: '0xABCD', chainId: 1, tokenType: TokenType.USDC })];
+      const existing = [
+        makeMethod({ tokenAddress: '0xABCD', chainId: 1, tokenType: TokenType.USDC }),
+      ];
       expect(svc.isDuplicateMethod(existing, '0xabcd', 1, TokenType.USDC)).toBe(true);
     });
 
     it('returns false for different chain', () => {
       const svc = freshService();
-      const existing = [makeMethod({ tokenAddress: '0xABCD', chainId: 1, tokenType: TokenType.USDC })];
+      const existing = [
+        makeMethod({ tokenAddress: '0xABCD', chainId: 1, tokenType: TokenType.USDC }),
+      ];
       expect(svc.isDuplicateMethod(existing, '0xABCD', 137, TokenType.USDC)).toBe(false);
     });
   });
@@ -265,8 +277,14 @@ describe('PaymentMethodService', () => {
 
     it('within same priority, prefers more recently used', () => {
       const svc = freshService();
-      const older = makeMethod({ priority: PaymentPriority.PRIMARY, lastUsedAt: new Date('2025-01-01') });
-      const newer = makeMethod({ priority: PaymentPriority.PRIMARY, lastUsedAt: new Date('2026-01-01') });
+      const older = makeMethod({
+        priority: PaymentPriority.PRIMARY,
+        lastUsedAt: new Date('2025-01-01'),
+      });
+      const newer = makeMethod({
+        priority: PaymentPriority.PRIMARY,
+        lastUsedAt: new Date('2026-01-01'),
+      });
       const sorted = svc.sortByPriority([older, newer]);
       expect(sorted[0]).toBe(newer);
     });
@@ -478,15 +496,19 @@ describe('PaymentMethodService', () => {
       const chain = makeChain({ methodIds: [m1.id, m2.id] });
 
       // Mock gas and balance checks to pass
-      jest.spyOn(svc, 'validateGasPrice').mockResolvedValue({ acceptable: true, currentGasPrice: '20' });
-      jest.spyOn(svc, 'checkBalance').mockResolvedValue({ sufficient: true, balance: '1000', symbol: 'ETH' });
+      jest
+        .spyOn(svc, 'validateGasPrice')
+        .mockResolvedValue({ acceptable: true, currentGasPrice: '20' });
+      jest
+        .spyOn(svc, 'checkBalance')
+        .mockResolvedValue({ sufficient: true, balance: '1000', symbol: 'ETH' });
 
       const result: ChainPaymentResult = await svc.processPaymentWithChain(
         chain,
         [m1, m2],
         'sub_1',
         '10',
-        1,
+        1
       );
 
       expect(result.success).toBe(true);
@@ -501,7 +523,9 @@ describe('PaymentMethodService', () => {
       const m2 = makeMethod({ id: 'pm_b' });
       const chain = makeChain({ methodIds: [m1.id, m2.id] });
 
-      jest.spyOn(svc, 'validateGasPrice').mockResolvedValue({ acceptable: true, currentGasPrice: '20' });
+      jest
+        .spyOn(svc, 'validateGasPrice')
+        .mockResolvedValue({ acceptable: true, currentGasPrice: '20' });
       jest
         .spyOn(svc, 'checkBalance')
         .mockResolvedValueOnce({ sufficient: false, balance: '0', symbol: 'ETH' })
@@ -520,7 +544,9 @@ describe('PaymentMethodService', () => {
       const m1 = makeMethod({ id: 'pm_a' });
       const chain = makeChain({ methodIds: [m1.id] });
 
-      jest.spyOn(svc, 'validateGasPrice').mockResolvedValue({ acceptable: false, currentGasPrice: '999' });
+      jest
+        .spyOn(svc, 'validateGasPrice')
+        .mockResolvedValue({ acceptable: false, currentGasPrice: '999' });
 
       const result = await svc.processPaymentWithChain(chain, [m1], 'sub_1', '10', 1);
 
@@ -554,8 +580,12 @@ describe('PaymentMethodService', () => {
       // We need to circumvent resolveChainMethods by manually injecting.
       jest.spyOn(svc, 'resolveChainMethods').mockReturnValue([expired, backup]);
 
-      jest.spyOn(svc, 'validateGasPrice').mockResolvedValue({ acceptable: true, currentGasPrice: '20' });
-      jest.spyOn(svc, 'checkBalance').mockResolvedValue({ sufficient: true, balance: '1000', symbol: 'ETH' });
+      jest
+        .spyOn(svc, 'validateGasPrice')
+        .mockResolvedValue({ acceptable: true, currentGasPrice: '20' });
+      jest
+        .spyOn(svc, 'checkBalance')
+        .mockResolvedValue({ sufficient: true, balance: '1000', symbol: 'ETH' });
 
       const result = await svc.processPaymentWithChain(chain, [expired, backup], 'sub_1', '10', 1);
       expect(result.haltedOnHardDecline).toBe(true);
@@ -752,16 +782,20 @@ describe('PaymentMethodService', () => {
   describe('processPaymentWithFallback', () => {
     it('throws when no methods are available', async () => {
       const svc = freshService();
-      await expect(
-        svc.processPaymentWithFallback([], 'sub_1', '10', 1)
-      ).rejects.toBeInstanceOf(PaymentMethodError);
+      await expect(svc.processPaymentWithFallback([], 'sub_1', '10', 1)).rejects.toBeInstanceOf(
+        PaymentMethodError
+      );
     });
 
     it('succeeds when primary method has sufficient balance', async () => {
       const svc = freshService();
       const m = makeMethod({ id: 'pm_ok' });
-      jest.spyOn(svc, 'validateGasPrice').mockResolvedValue({ acceptable: true, currentGasPrice: '20' });
-      jest.spyOn(svc, 'checkBalance').mockResolvedValue({ sufficient: true, balance: '1000', symbol: 'ETH' });
+      jest
+        .spyOn(svc, 'validateGasPrice')
+        .mockResolvedValue({ acceptable: true, currentGasPrice: '20' });
+      jest
+        .spyOn(svc, 'checkBalance')
+        .mockResolvedValue({ sufficient: true, balance: '1000', symbol: 'ETH' });
 
       const result = await svc.processPaymentWithFallback([m], 'sub_1', '10', 1);
       expect(result.success).toBe(true);

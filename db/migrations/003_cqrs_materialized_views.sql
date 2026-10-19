@@ -132,3 +132,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_ltv_mv_month
 COMMENT ON MATERIALIZED VIEW mrr_mv IS 'MRR view - refresh every 5 minutes';
 COMMENT ON MATERIALIZED VIEW cohort_retention_mv IS 'Cohort retention view - refresh every 1 hour';
 COMMENT ON MATERIALIZED VIEW ltv_mv IS 'LTV view - refresh every 24 hours';
+
+-- @down
+DROP MATERIALIZED VIEW IF EXISTS ltv_mv;
+DROP MATERIALIZED VIEW IF EXISTS cohort_retention_mv;
+DROP MATERIALIZED VIEW IF EXISTS mrr_mv;

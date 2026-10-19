@@ -12,11 +12,89 @@ import { MeterUsageBreakdown } from '../types/usage';
 import { formatCurrency, formatDate } from './formatting';
 import { ProrationPreview, buildProrationLineItem } from './proration';
 
+/** Limits keep invoice metadata useful while preventing oversized persisted/PDF payloads. */
+export const MAX_LINE_ITEM_METADATA_ENTRIES = 50;
+export const MAX_LINE_ITEM_METADATA_KEY_LENGTH = 100;
+export const MAX_LINE_ITEM_METADATA_VALUE_LENGTH = 500;
+
+export const validateInvoiceLineItemMetadata = (
+  metadata: unknown,
+  fieldName = 'line item metadata'
+): string[] => {
+  if (metadata === undefined) return [];
+  if (metadata === null || typeof metadata !== 'object' || Array.isArray(metadata)) {
+    return [`${fieldName} must be an object of string key/value pairs`];
+  }
+  const entries = Object.entries(metadata as Record<string, unknown>);
+  const errors: string[] = [];
+  if (entries.length > MAX_LINE_ITEM_METADATA_ENTRIES) {
+    errors.push(`${fieldName} cannot contain more than ${MAX_LINE_ITEM_METADATA_ENTRIES} entries`);
+  }
+  for (const [key, value] of entries) {
+    if (!key.trim()) errors.push(`${fieldName} keys must not be empty`);
+    if (key.length > MAX_LINE_ITEM_METADATA_KEY_LENGTH) {
+      errors.push(
+        `${fieldName} keys must be ${MAX_LINE_ITEM_METADATA_KEY_LENGTH} characters or fewer`
+      );
+    }
+    if (typeof value !== 'string') errors.push(`${fieldName}.${key} must be a string`);
+    else if (value.length > MAX_LINE_ITEM_METADATA_VALUE_LENGTH) {
+      errors.push(
+        `${fieldName}.${key} must be ${MAX_LINE_ITEM_METADATA_VALUE_LENGTH} characters or fewer`
+      );
+    }
+  }
+  return errors;
+};
+
 const SECOND = 1000;
 const DAY = 24 * 60 * 60 * SECOND;
+/** Basis points per whole unit (100 % = 10 000 bps). */
+const BPS_PER_UNIT = 10_000;
 
+/** Round a money value to the invoice currency's minor unit (2 decimals). */
+const roundMoney = (value: number): number => Math.round(value * 100) / 100;
+
+const escapeHtml = (value: unknown): string =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+/**
+ * Tax owed on `subtotal` at `taxRateBps`.
+ *
+ * Tax used to be rounded to whole currency units, which silently zeroed out
+ * tax on any invoice whose tax component was below one unit (e.g. 3.00 at
+ * 5 % VAT produced 0). Every other money helper in the codebase rounds to two
+ * decimals, so tax now does too.
+ */
 export const calculateInvoiceTax = (subtotal: number, taxRateBps: number): number => {
-  return Math.round((subtotal * taxRateBps) / 10_000);
+  if (!Number.isFinite(subtotal) || !Number.isFinite(taxRateBps)) return 0;
+  if (taxRateBps <= 0) return 0;
+  return roundMoney((subtotal * taxRateBps) / BPS_PER_UNIT);
+};
+
+/**
+ * Resolve the amount a single line item contributes to the invoice subtotal.
+ *
+ * `InvoiceLineItem.lineTotal` is optional, and line items can also arrive from
+ * the flat invoice-form shape (via its `amount` alias), so summing `lineTotal`
+ * directly produced `NaN` for any item that omitted it. Fall back through
+ * `amount`, then `unitPrice * quantity`, and finally treat the line as zero.
+ */
+const resolveLineTotal = (item: InvoiceLineItem): number => {
+  const candidates = [item.lineTotal, item.amount];
+  for (const candidate of candidates) {
+    if (typeof candidate === 'number' && Number.isFinite(candidate)) return candidate;
+  }
+  if (Number.isFinite(item.unitPrice)) {
+    const quantity = Number.isFinite(item.quantity) ? item.quantity : 1;
+    return roundMoney(item.unitPrice * quantity);
+  }
+  return 0;
 };
 
 export const convertCurrencyAmount = (
@@ -42,12 +120,16 @@ export const calculateInvoiceTotals = (
   lineItems: InvoiceLineItem[],
   taxRateBps: number
 ): InvoiceTotals => {
-  const subtotal = lineItems.reduce((sum, item) => sum + item.lineTotal, 0);
+  if (!Array.isArray(lineItems)) {
+    return { subtotal: 0, tax: 0, total: 0 };
+  }
+
+  const subtotal = roundMoney(lineItems.reduce((sum, item) => sum + resolveLineTotal(item), 0));
   const tax = calculateInvoiceTax(subtotal, taxRateBps);
   return {
     subtotal,
     tax,
-    total: subtotal + tax,
+    total: roundMoney(subtotal + tax),
   };
 };
 
@@ -56,7 +138,10 @@ export const buildBillingPeriod = (subscription: Subscription): InvoicePeriod =>
   const start = new Date(end.getTime());
 
   switch (subscription.billingCycle) {
+    // `annual` bills once a year just like `yearly`; leaving it on the
+    // `default` branch made annual invoices claim a one-month period.
     case BillingCycle.YEARLY:
+    case BillingCycle.ANNUAL:
       start.setFullYear(start.getFullYear() - 1);
       break;
     case BillingCycle.WEEKLY:
@@ -257,10 +342,10 @@ export const generateInvoicePdfPreview = (invoice: Invoice): string => {
     `Tax: ${formatCurrency(invoice.tax, invoice.currency)}`,
     `Total: ${formatCurrency(invoice.total, invoice.currency)}`,
     'Items:',
-    ...invoice.lineItems.map(
-      (item) =>
-        `${item.description} x${item.quantity} @ ${formatCurrency(item.unitPrice, item.currency)}`
-    ),
+    ...invoice.lineItems.flatMap((item) => [
+      `${item.description} x${item.quantity} @ ${formatCurrency(item.unitPrice, item.currency)}`,
+      ...Object.entries(item.metadata ?? {}).map(([key, value]) => `  ${key}: ${value}`),
+    ]),
   ];
 
   return lines.join('\n');
@@ -327,8 +412,14 @@ export const generatePrintableInvoiceHtml = (invoice: Invoice): string => {
         <td style="padding: 10px; border-bottom: 1px solid #e5e7eb;">${item.description}</td>
         <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: center;">${item.quantity}</td>
         <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">${formatCurrency(item.unitPrice, item.currency)}</td>
-        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">${formatCurrency(item.lineTotal, item.currency)}</td>
-      </tr>`
+        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">${formatCurrency(item.lineTotal ?? item.amount ?? 0, item.currency)}</td>
+      </tr>
+      ${Object.entries(item.metadata ?? {})
+        .map(
+          ([key, value]) =>
+            `<tr><td colspan="4" style="padding: 0 10px 8px; color: #6b7280; font-size: 12px;"><strong>${escapeHtml(key)}:</strong> ${escapeHtml(value)}</td></tr>`
+        )
+        .join('')}`
     )
     .join('');
 
@@ -408,4 +499,3 @@ export const generatePrintableInvoiceHtml = (invoice: Invoice): string => {
 </body>
 </html>`;
 };
-

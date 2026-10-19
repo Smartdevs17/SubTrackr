@@ -79,11 +79,7 @@ const TrialOptimizationDashboard: React.FC = () => {
                 key={tab}
                 style={[styles.tabItem, activeTab === tab && styles.tabItemActive]}
                 onPress={() => setActiveTab(tab)}>
-                <Text
-                  style={[
-                    styles.tabText,
-                    activeTab === tab && styles.tabTextActive,
-                  ]}>
+                <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
                   {tab.toUpperCase()}
                 </Text>
               </TouchableOpacity>
@@ -160,7 +156,8 @@ const TrialOptimizationDashboard: React.FC = () => {
                         Trial #{trial.id.slice(0, 8)} ({trial.status.toUpperCase()})
                       </Text>
                       <Text style={styles.alertMessage}>
-                        Engagement Score: {trial.engagementScore}/100 • Extensions: {trial.extensionsGranted}
+                        Engagement Score: {trial.engagementScore}/100 • Extensions:{' '}
+                        {trial.extensionsGranted}
                       </Text>
                     </View>
                     {trial.status !== 'converted' && (
@@ -226,7 +223,8 @@ const TrialOptimizationDashboard: React.FC = () => {
             <Card style={styles.cardSection}>
               <Text style={styles.chartTitle}>Export Trial Conversion Performance</Text>
               <Text style={styles.alertMessage}>
-                Download standardized trial conversion metrics, extension logs, and subscriber cohort data.
+                Download standardized trial conversion metrics, extension logs, and subscriber
+                cohort data.
               </Text>
               <View style={styles.exportBtnRow}>
                 <TouchableOpacity

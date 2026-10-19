@@ -1,9 +1,5 @@
 export type UsageMetricType =
-  | 'api_calls'
-  | 'storage_gb'
-  | 'compute_minutes'
-  | 'data_transfer_gb'
-  | 'custom';
+  'api_calls' | 'storage_gb' | 'compute_minutes' | 'data_transfer_gb' | 'custom';
 
 export interface UsageMetric {
   id: string;

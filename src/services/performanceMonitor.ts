@@ -2,15 +2,7 @@ import { Platform, AppState, AppStateStatus, InteractionManager } from 'react-na
 import performance from 'react-native-performance';
 
 export type MetricType =
-  | 'render'
-  | 'interaction'
-  | 'network'
-  | 'memory'
-  | 'route'
-  | 'bundle'
-  | 'tti'
-  | 'inp'
-  | 'cls';
+  'render' | 'interaction' | 'network' | 'memory' | 'route' | 'bundle' | 'tti' | 'inp' | 'cls';
 
 // ── Core Web Vitals ───────────────────────────────────────────────────────────
 
@@ -185,7 +177,7 @@ const DEFAULT_BUDGET: PerformanceBudget = {
   lcpMs: 2500,
   fidMs: 100,
   clsScore: 0.1,
-  clsFrameDrops: 5,   // legacy compat
+  clsFrameDrops: 5, // legacy compat
   bundleSizeBytes: 5 * 1024 * 1024,
   ttiMs: 3800,
   inpMs: 200,
@@ -319,35 +311,32 @@ class PerformanceMonitorService {
   // ── App state monitoring ──────────────────────────────────────────────────
 
   private _initAppStateMonitor(): void {
-    this.appStateSubscription = AppState.addEventListener(
-      'change',
-      (nextState: AppStateStatus) => {
-        const now = Date.now();
-        const record: AppStateChangeRecord = {
-          from: this.lastAppState,
-          to: nextState,
-          at: now,
-          durationMs: now - this.lastAppStateChangeAt,
-        };
-        this.appStateRecords.push(record);
-        if (this.appStateRecords.length > MAX_APP_STATE_RECORDS) {
-          this.appStateRecords = this.appStateRecords.slice(-MAX_APP_STATE_RECORDS);
-        }
-
-        // Resume TTI tracking when app comes to foreground
-        if (nextState === 'active' && this.lastAppState !== 'active') {
-          this.ttiState = {
-            startTime: nowHr(),
-            quietPeriodStart: null,
-            quietWindowMs: TTI_QUIET_WINDOW_MS,
-            resolved: false,
-          };
-        }
-
-        this.lastAppState = nextState;
-        this.lastAppStateChangeAt = now;
+    this.appStateSubscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      const now = Date.now();
+      const record: AppStateChangeRecord = {
+        from: this.lastAppState,
+        to: nextState,
+        at: now,
+        durationMs: now - this.lastAppStateChangeAt,
+      };
+      this.appStateRecords.push(record);
+      if (this.appStateRecords.length > MAX_APP_STATE_RECORDS) {
+        this.appStateRecords = this.appStateRecords.slice(-MAX_APP_STATE_RECORDS);
       }
-    );
+
+      // Resume TTI tracking when app comes to foreground
+      if (nextState === 'active' && this.lastAppState !== 'active') {
+        this.ttiState = {
+          startTime: nowHr(),
+          quietPeriodStart: null,
+          quietWindowMs: TTI_QUIET_WINDOW_MS,
+          resolved: false,
+        };
+      }
+
+      this.lastAppState = nextState;
+      this.lastAppStateChangeAt = now;
+    });
   }
 
   // ── Marks & Measures ──────────────────────────────────────────────────────
@@ -524,8 +513,7 @@ class PerformanceMonitorService {
         },
         budget: this.budget.clsScore,
         actual: clsSessionScore,
-        exceedancePercent:
-          ((clsSessionScore - this.budget.clsScore) / this.budget.clsScore) * 100,
+        exceedancePercent: ((clsSessionScore - this.budget.clsScore) / this.budget.clsScore) * 100,
       });
     }
   }
@@ -835,7 +823,15 @@ class PerformanceMonitorService {
     const p95: PerformanceSummary['p95'] = {};
 
     const types: MetricType[] = [
-      'render', 'interaction', 'network', 'memory', 'route', 'bundle', 'tti', 'inp', 'cls',
+      'render',
+      'interaction',
+      'network',
+      'memory',
+      'route',
+      'bundle',
+      'tti',
+      'inp',
+      'cls',
     ];
     for (const type of types) {
       const values = this.metrics

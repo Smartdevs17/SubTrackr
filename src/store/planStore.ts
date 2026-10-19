@@ -63,7 +63,7 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
   },
 
   getPlanById: (id: string) => {
-    return get().plans.find(p => p.id === id);
+    return get().plans.find((p) => p.id === id);
   },
 
   getPlansByTier: async (tier: PlanTier) => {
@@ -93,10 +93,10 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const response = await planService.switchPlan(request);
-      
+
       // Reload history
       await get().loadSwitchHistory(request.userId);
-      
+
       set({ isLoading: false });
       return response;
     } catch (error) {

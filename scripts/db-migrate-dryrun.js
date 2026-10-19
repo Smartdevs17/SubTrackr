@@ -48,9 +48,7 @@ function parseArgs(argv) {
     return index !== -1 && argv[index + 1] ? argv[index + 1] : fallback;
   };
 
-  options.migrationsDir = path.resolve(
-    getArg('--migrations-dir', options.migrationsDir)
-  );
+  options.migrationsDir = path.resolve(getArg('--migrations-dir', options.migrationsDir));
   options.allowDestructive = argv.includes('--allow-destructive');
   options.json = argv.includes('--json');
   const failOn = getArg('--fail-on', 'error');

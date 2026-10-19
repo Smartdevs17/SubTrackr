@@ -1,4 +1,11 @@
-import { calculateSubscriptionAnalytics, toMonthlyRevenue, calculateRetentionCurve, calculateDetailedMrrBreakdown, calculateCohortRetentionMatrix, calculateCustomerUnitEconomics } from '../analyticsService';
+import {
+  calculateSubscriptionAnalytics,
+  toMonthlyRevenue,
+  calculateRetentionCurve,
+  calculateDetailedMrrBreakdown,
+  calculateCohortRetentionMatrix,
+  calculateCustomerUnitEconomics,
+} from '../analyticsService';
 import { Subscription, SubscriptionCategory, BillingCycle } from '../../types/subscription';
 
 const makeSubscription = (overrides: Partial<Subscription> = {}): Subscription => ({
@@ -103,8 +110,18 @@ describe('calculateSubscriptionAnalytics', () => {
   it('calculates linear regression vs exponential forecasting models', () => {
     const sub1 = makeSubscription({ id: '1', price: 50, createdAt: new Date('2026-01-01') });
     const sub2 = makeSubscription({ id: '2', price: 100, createdAt: new Date('2026-02-01') });
-    const linearResult = calculateSubscriptionAnalytics([sub1, sub2], new Date('2026-03-01'), 'linear', 3);
-    const expResult = calculateSubscriptionAnalytics([sub1, sub2], new Date('2026-03-01'), 'exponential', 3);
+    const linearResult = calculateSubscriptionAnalytics(
+      [sub1, sub2],
+      new Date('2026-03-01'),
+      'linear',
+      3
+    );
+    const expResult = calculateSubscriptionAnalytics(
+      [sub1, sub2],
+      new Date('2026-03-01'),
+      'exponential',
+      3
+    );
     expect(linearResult.forecast).toHaveLength(3);
     expect(expResult.forecast).toHaveLength(3);
     // In linear model with upward trend, M+1 expected revenue will differ from exponential decay

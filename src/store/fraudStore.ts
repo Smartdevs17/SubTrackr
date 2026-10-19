@@ -281,24 +281,51 @@ const dedupeSignals = (signals: FraudSignal[]): FraudSignal[] => {
   return Array.from(byKind.values()).sort((left, right) => right.score - left.score);
 };
 
+/**
+ * Subscriptions grouped by subscriber.
+ *
+ * Velocity scoring only ever compares a record against others from the *same*
+ * subscriber, so a scoring pass builds this index once and reuses it instead of
+ * re-filtering the full list for every record. That turns a scoring pass from
+ * O(n^2) (with two array allocations and two `Date` parses per comparison) into
+ * O(n).
+ */
+type SubscriberIndex = Map<string, FraudSubscriptionRecord[]>;
+
+const buildSubscriberIndex = (subscriptions: FraudSubscriptionRecord[]): SubscriberIndex => {
+  const index: SubscriberIndex = new Map();
+  for (const subscription of subscriptions) {
+    const bucket = index.get(subscription.subscriberId);
+    if (bucket) {
+      bucket.push(subscription);
+    } else {
+      index.set(subscription.subscriberId, [subscription]);
+    }
+  }
+  return index;
+};
+
 const countVelocitySignals = (
   item: FraudSubscriptionRecord,
-  subscriptions: FraudSubscriptionRecord[]
+  bySubscriber: SubscriberIndex
 ): number => {
-  const sameSubscriber = subscriptions.filter(
-    (candidate) => candidate.subscriberId === item.subscriberId
-  );
-  const recentWindow = sameSubscriber.filter((candidate) => {
+  const current = new Date(item.createdAt).getTime();
+  const sameSubscriber = bySubscriber.get(item.subscriberId) ?? [];
+  const windowMs = 24 * 60 * 60 * 1000;
+  let recent = 0;
+
+  for (const candidate of sameSubscriber) {
     const createdAt = new Date(candidate.createdAt).getTime();
-    const current = new Date(item.createdAt).getTime();
-    return (
+    if (
       Number.isFinite(createdAt) &&
       Number.isFinite(current) &&
-      Math.abs(current - createdAt) <= 24 * 60 * 60 * 1000
-    );
-  });
+      Math.abs(current - createdAt) <= windowMs
+    ) {
+      recent += 1;
+    }
+  }
 
-  return recentWindow.length > 2 ? 24 : recentWindow.length > 1 ? 14 : 0;
+  return recent > 2 ? 24 : recent > 1 ? 14 : 0;
 };
 
 const determineAction = (score: number): FraudAction => {
@@ -315,11 +342,11 @@ const determineAction = (score: number): FraudAction => {
 
 const buildDerivedSignals = (
   item: FraudSubscriptionRecord,
-  subscriptions: FraudSubscriptionRecord[]
+  bySubscriber: SubscriberIndex
 ): FraudSignal[] => {
   const derived: FraudSignal[] = [];
 
-  const velocityScore = countVelocitySignals(item, subscriptions);
+  const velocityScore = countVelocitySignals(item, bySubscriber);
   if (velocityScore > 0) {
     derived.push({
       kind: 'velocity',
@@ -395,9 +422,9 @@ const buildDerivedSignals = (
 
 const scoreSubscription = (
   item: FraudSubscriptionRecord,
-  subscriptions: FraudSubscriptionRecord[] = []
+  bySubscriber: SubscriberIndex
 ): FraudRiskScore => {
-  const signals = buildDerivedSignals(item, subscriptions);
+  const signals = buildDerivedSignals(item, bySubscriber);
   const velocityScore = signals.find((signal) => signal.kind === 'velocity')?.score ?? 0;
   const anomalyScore = signals.find((signal) => signal.kind === 'usage-anomaly')?.score ?? 0;
   const chargebackScore = signals.find((signal) => signal.kind === 'chargeback')?.score ?? 0;
@@ -484,11 +511,21 @@ const scoreSubscription = (
   };
 };
 
+/**
+ * Scores a whole list against a single shared subscriber index, so the index is
+ * built once per pass instead of once per record.
+ */
+const scoreAll = (subscriptions: FraudSubscriptionRecord[]): FraudRiskScore[] => {
+  if (subscriptions.length === 0) return [];
+  const bySubscriber = buildSubscriberIndex(subscriptions);
+  return subscriptions.map((item) => scoreSubscription(item, bySubscriber));
+};
+
 const computeAnalytics = (
   subscriptions: FraudSubscriptionRecord[],
   reviewQueue: FraudCase[]
 ): FraudAnalytics => {
-  const scores = subscriptions.map((item) => scoreSubscription(item, subscriptions));
+  const scores = scoreAll(subscriptions);
   const approved = subscriptions.filter((item) => item.action === 'approve').length;
   const flagged = subscriptions.filter((item) => item.action === 'flag').length;
   const blocked = subscriptions.filter((item) => item.action === 'block').length;
@@ -542,7 +579,7 @@ interface FraudState {
 }
 
 const hydrateAssessments = (subscriptions: FraudSubscriptionRecord[]): FraudRiskScore[] =>
-  subscriptions.map((item) => scoreSubscription(item, subscriptions));
+  scoreAll(subscriptions);
 
 const hydrateReviewQueue = (reviews: FraudCase[]): FraudCase[] => reviews.map(cloneCase);
 
@@ -563,7 +600,7 @@ const buildMerchantReport = (
   const merchantName = merchant?.name ?? 'Unknown merchant';
   const scoped = subscriptions.filter((item) => item.merchantId === merchantId);
   const scopedCases = reviewQueue.filter((entry) => entry.merchantId === merchantId);
-  const scoredScoped = scoped.map((item) => scoreSubscription(item, scoped));
+  const scoredScoped = scoreAll(scoped);
 
   return {
     merchantId,
@@ -605,8 +642,9 @@ export const useFraudStore = create<FraudState>()(
 
       refreshFraudSignals: () => {
         const { subscriptions, reviewQueue, merchants } = get();
+        const bySubscriber = buildSubscriberIndex(subscriptions);
         const rescored = subscriptions.map((item) => {
-          const score = scoreSubscription(item, subscriptions);
+          const score = scoreSubscription(item, bySubscriber);
           return {
             ...item,
             riskScore: score.totalScore,
@@ -646,9 +684,9 @@ export const useFraudStore = create<FraudState>()(
 
       assessRisk: (subscriberId: string) => {
         const subscriptions = get().subscriptions;
-        const assessments = subscriptions
-          .filter((item) => item.subscriberId === subscriberId)
-          .map((item) => scoreSubscription(item, subscriptions));
+        const assessments = scoreAll(
+          subscriptions.filter((item) => item.subscriberId === subscriberId)
+        );
 
         set((state) => ({
           assessments: [
@@ -666,7 +704,7 @@ export const useFraudStore = create<FraudState>()(
         const current = subscriptions.find((item) => item.id === subscriptionId);
         if (!current) return;
 
-        const score = scoreSubscription(current, subscriptions);
+        const score = scoreSubscription(current, buildSubscriberIndex(subscriptions));
         const action: FraudAction = score.totalScore >= 80 ? 'block' : 'flag';
         const status: FraudReviewStatus = score.totalScore >= 80 ? 'escalated' : 'pending';
         const nextCase: FraudCase = {

@@ -1,3 +1,5 @@
+// `env.register_contract(..)` is deprecated in favour of `env.register(..)`.
+#![allow(deprecated)]
 #![allow(clippy::too_many_arguments)]
 use soroban_sdk::{
     contract, contractimpl,

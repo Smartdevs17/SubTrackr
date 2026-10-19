@@ -27,8 +27,7 @@ if (specObj && specObj.paths) {
       if (pathItem[method]) {
         const op = pathItem[method];
         const operationId =
-          op.operationId ||
-          `${method}${pathKey.replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_')}`;
+          op.operationId || `${method}${pathKey.replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_')}`;
         endpoints.push({
           path: pathKey,
           method: method.toUpperCase(),

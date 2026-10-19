@@ -4,10 +4,7 @@
 //! Provides on-chain trial lifecycle tracking, conversion incentive mechanics,
 //! grace period calculations, dynamic conversion discounts, and trial conversion analytics.
 
-use soroban_sdk::{contracttype, Address, Env, String, Vec};
-use subtrackr_types::{StorageKey};
-
-use crate::{storage_persistent_get, storage_persistent_set};
+use soroban_sdk::{contracttype, Address, Env};
 
 /// Basis point denominator (100% = 10,000 bps)
 pub const BPS_DENOMINATOR: u32 = 10_000;
@@ -80,8 +77,8 @@ pub enum TrialStorageKey {
 }
 
 pub fn configure_trial_for_plan(
-    env: &Env,
-    storage: &Address,
+    _env: &Env,
+    _storage: &Address,
     plan_id: u64,
     duration_secs: u64,
     grace_period_secs: u64,
@@ -90,25 +87,38 @@ pub fn configure_trial_for_plan(
     max_extensions: u32,
     incentive_extension_secs: u64,
 ) -> OnChainTrialConfig {
-    assert!(conversion_discount_bps <= BPS_DENOMINATOR, "Discount cannot exceed 100%");
+    assert!(
+        conversion_discount_bps <= BPS_DENOMINATOR,
+        "Discount cannot exceed 100%"
+    );
     assert!(duration_secs > 0, "Duration must be positive");
 
-    let config = OnChainTrialConfig {
+    OnChainTrialConfig {
         plan_id,
-        duration_secs: if duration_secs == 0 { DEFAULT_TRIAL_DURATION_SECS } else { duration_secs },
-        grace_period_secs: if grace_period_secs == 0 { DEFAULT_GRACE_PERIOD_SECS } else { grace_period_secs },
+        duration_secs: if duration_secs == 0 {
+            DEFAULT_TRIAL_DURATION_SECS
+        } else {
+            duration_secs
+        },
+        grace_period_secs: if grace_period_secs == 0 {
+            DEFAULT_GRACE_PERIOD_SECS
+        } else {
+            grace_period_secs
+        },
         auto_convert,
         conversion_discount_bps,
-        max_extensions: if max_extensions == 0 { MAX_TRIAL_EXTENSIONS } else { max_extensions },
+        max_extensions: if max_extensions == 0 {
+            MAX_TRIAL_EXTENSIONS
+        } else {
+            max_extensions
+        },
         incentive_extension_secs,
-    };
-
-    config
+    }
 }
 
 pub fn start_trial(
     env: &Env,
-    storage: &Address,
+    _storage: &Address,
     subscriber: &Address,
     plan_id: u64,
     config: &OnChainTrialConfig,
@@ -116,7 +126,7 @@ pub fn start_trial(
     let now = env.ledger().timestamp();
     let end_time = now + config.duration_secs;
 
-    let trial = OnChainTrialRecord {
+    OnChainTrialRecord {
         trial_id: now,
         subscriber: subscriber.clone(),
         plan_id,
@@ -128,13 +138,11 @@ pub fn start_trial(
         auto_convert: config.auto_convert,
         status: OnChainTrialStatus::Active,
         converted_at: None,
-    };
-
-    trial
+    }
 }
 
 pub fn extend_trial(
-    env: &Env,
+    _env: &Env,
     trial: &mut OnChainTrialRecord,
     config: &OnChainTrialConfig,
     additional_secs: u64,
@@ -169,7 +177,9 @@ pub fn convert_trial(
     trial: &mut OnChainTrialRecord,
     promotional_discount_bps: Option<u32>,
 ) -> bool {
-    if trial.status == OnChainTrialStatus::Converted || trial.status == OnChainTrialStatus::Cancelled {
+    if trial.status == OnChainTrialStatus::Converted
+        || trial.status == OnChainTrialStatus::Cancelled
+    {
         return false;
     }
 

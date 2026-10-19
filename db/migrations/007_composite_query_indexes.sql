@@ -80,3 +80,8 @@ ANALYZE usage_metrics;
 --
 -- None of these indexes duplicate an existing one; verify with the audit query
 -- in db/QUERY_OPTIMIZATION.md before and after applying.
+
+-- @down
+DROP INDEX CONCURRENTLY IF EXISTS idx_usage_metrics_subscription_meter;
+DROP INDEX CONCURRENTLY IF EXISTS idx_payment_methods_user_id;
+DROP INDEX CONCURRENTLY IF EXISTS idx_alerts_subscription_created;

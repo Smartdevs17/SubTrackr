@@ -64,11 +64,7 @@ export interface ForecastAccuracy {
 // ── Alerts ─────────────────────────────────────────────────────────────────
 
 export type ForecastAlertType =
-  | 'revenue_decline'
-  | 'growth_spike'
-  | 'high_deviation'
-  | 'seasonal_pattern'
-  | 'subscriber_churn';
+  'revenue_decline' | 'growth_spike' | 'high_deviation' | 'seasonal_pattern' | 'subscriber_churn';
 
 export type ForecastAlertSeverity = 'info' | 'warning' | 'critical';
 

@@ -37,20 +37,22 @@ export class ReconciliationService {
       timestamp: sub.updatedAt || now.toISOString(),
     }));
 
-    const mockStatements: BankStatementRecord[] = bankStatements || subscriptions.map((sub, idx) => {
-      // Simulate minor fee deduction or discrepancy on odd index
-      const fee = idx % 3 === 0 ? 0.5 : 0;
-      const discrepancy = idx % 5 === 0 ? 2.0 : 0;
-      return {
-        id: `stmt-${sub.id}`,
-        statementId: `STMT-2026-${idx + 100}`,
-        amount: sub.price - fee - discrepancy,
-        currency: sub.currency,
-        fees: fee,
-        reference: sub.id,
-        timestamp: now.toISOString(),
-      };
-    });
+    const mockStatements: BankStatementRecord[] =
+      bankStatements ||
+      subscriptions.map((sub, idx) => {
+        // Simulate minor fee deduction or discrepancy on odd index
+        const fee = idx % 3 === 0 ? 0.5 : 0;
+        const discrepancy = idx % 5 === 0 ? 2.0 : 0;
+        return {
+          id: `stmt-${sub.id}`,
+          statementId: `STMT-2026-${idx + 100}`,
+          amount: sub.price - fee - discrepancy,
+          currency: sub.currency,
+          fees: fee,
+          reference: sub.id,
+          timestamp: now.toISOString(),
+        };
+      });
 
     const newMatches: ReconciliationMatch[] = [];
 
@@ -140,9 +142,7 @@ export class ReconciliationService {
   /**
    * Update reconciliation scheduling configuration
    */
-  public static updateSchedule(
-    config: Partial<ReconciliationSchedule>
-  ): ReconciliationSchedule {
+  public static updateSchedule(config: Partial<ReconciliationSchedule>): ReconciliationSchedule {
     this.schedule = { ...this.schedule, ...config };
     return this.schedule;
   }

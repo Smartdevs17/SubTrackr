@@ -94,3 +94,53 @@ describe('database config', () => {
     ]);
   });
 });
+
+// ── Pool tuning options (issue #1797) ───────────────────────────────────────
+
+describe('pool tuning configuration (issue #1797)', () => {
+  it('loads default pool tuning when env vars are unset', () => {
+    const config = loadDatabaseConfig({});
+    expect(config.poolTuning.minConnections).toBe(0);
+    expect(config.poolTuning.maxClientUses).toBe(0);
+    expect(config.poolTuning.queryWaitWarningMs).toBe(5_000);
+    expect(config.poolTuning.metricsEnabled).toBe(true);
+    expect(config.poolTuning.metricsIntervalMs).toBe(10_000);
+    expect(config.poolTuning.metricsAlertThreshold).toBe(0.8);
+  });
+
+  it('reads custom pool tuning from env', () => {
+    const config = loadDatabaseConfig({
+      DB_POOL_MIN: '5',
+      DB_POOL_MAX_USES: '100',
+      DB_QUERY_WAIT_WARNING_MS: '2000',
+      DB_POOL_METRICS_ENABLED: 'false',
+      DB_POOL_METRICS_INTERVAL_MS: '5000',
+      DB_POOL_METRICS_ALERT_THRESHOLD: '0.9',
+    });
+    expect(config.poolTuning.minConnections).toBe(5);
+    expect(config.poolTuning.maxClientUses).toBe(100);
+    expect(config.poolTuning.queryWaitWarningMs).toBe(2_000);
+    expect(config.poolTuning.metricsEnabled).toBe(false);
+    expect(config.poolTuning.metricsIntervalMs).toBe(5_000);
+    expect(config.poolTuning.metricsAlertThreshold).toBe(0.9);
+  });
+
+  it('falls back for invalid pool tuning values', () => {
+    const config = loadDatabaseConfig({
+      DB_POOL_MIN: '-1',
+      DB_POOL_MAX_USES: 'not-a-number',
+      DB_POOL_METRICS_ALERT_THRESHOLD: '2.0',
+      DB_POOL_METRICS_INTERVAL_MS: '-5',
+    });
+    expect(config.poolTuning.minConnections).toBe(0);
+    expect(config.poolTuning.maxClientUses).toBe(0);
+    expect(config.poolTuning.metricsAlertThreshold).toBe(0.8);
+    expect(config.poolTuning.metricsIntervalMs).toBe(10_000);
+  });
+
+  it('DB_POOL_METRICS_ENABLED only disables on "false"', () => {
+    expect(loadDatabaseConfig({ DB_POOL_METRICS_ENABLED: 'false' }).poolTuning.metricsEnabled).toBe(false);
+    expect(loadDatabaseConfig({ DB_POOL_METRICS_ENABLED: 'true' }).poolTuning.metricsEnabled).toBe(true);
+    expect(loadDatabaseConfig({ DB_POOL_METRICS_ENABLED: undefined }).poolTuning.metricsEnabled).toBe(true);
+  });
+});

@@ -1,3 +1,5 @@
+import { timingSafeEqual } from 'node:crypto';
+
 import type { NextApiRequest, NextApiResponse } from 'next';
 
 type RevalidateResult = { revalidated: boolean; paths?: string[]; error?: string };
@@ -36,6 +38,31 @@ const TAG_TO_PATHS: Record<string, string[]> = {
   sdks: ['/docs/webhook-integration'],
 };
 
+/** Every path the endpoint is permitted to revalidate, regardless of input. */
+const ALLOWED_PATHS = new Set(Object.values(TAG_TO_PATHS).flat());
+
+/**
+ * Constant-time secret comparison.
+ *
+ * `secret !== expectedSecret` short-circuits on the first differing byte,
+ * which leaks the secret length and prefix through response timing and lets
+ * an attacker recover it one character at a time.
+ */
+function secretsMatch(provided: unknown, expected: string): boolean {
+  if (typeof provided !== 'string') return false;
+
+  const a = Buffer.from(provided, 'utf8');
+  const b = Buffer.from(expected, 'utf8');
+
+  if (a.length !== b.length) {
+    // Still perform a comparison so the fast path is not measurably faster.
+    timingSafeEqual(a, a);
+    return false;
+  }
+
+  return timingSafeEqual(a, b);
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse<RevalidateResult>) {
   if (req.method !== 'POST') {
     return res.status(405).json({ revalidated: false, error: 'Method not allowed' });
@@ -49,12 +76,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
   // Verify caller secret
   const expectedSecret = process.env.REVALIDATE_SECRET;
-  if (!expectedSecret || secret !== expectedSecret) {
+  if (!expectedSecret || !secretsMatch(secret, expectedSecret)) {
     return res.status(401).json({ revalidated: false, error: 'Invalid secret' });
   }
 
   if (!path && !tag) {
     return res.status(400).json({ revalidated: false, error: 'Provide "path" or "tag"' });
+  }
+
+  // `path` is caller-supplied and goes straight into `res.revalidate()`. An
+  // arbitrary value lets a holder of the secret force revalidation of
+  // unrelated routes, so it is restricted to the documented set.
+  if (path !== undefined && !ALLOWED_PATHS.has(path)) {
+    return res
+      .status(400)
+      .json({ revalidated: false, error: `Path "${path}" is not revalidatable` });
   }
 
   const pathsToRevalidate: string[] = path ? [path] : (TAG_TO_PATHS[tag as string] ?? []);

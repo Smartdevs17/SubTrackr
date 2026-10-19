@@ -189,7 +189,10 @@ const DashboardFilterBar: React.FC<FilterBarProps> = ({
       {SORT_OPTIONS.map((opt) => (
         <TouchableOpacity
           key={opt.key}
-          style={[filterBarStyles.sortChip, sortField === opt.key && filterBarStyles.sortChipActive]}
+          style={[
+            filterBarStyles.sortChip,
+            sortField === opt.key && filterBarStyles.sortChipActive,
+          ]}
           onPress={() => onSortChange(opt.key)}
           accessibilityRole="button"
           accessibilityLabel={`Sort by ${opt.label} ${sortField === opt.key ? sortDir : ''}`}>
@@ -496,7 +499,10 @@ const CategoryBreakdown: React.FC<CategoryBreakdownProps> = ({ breakdown, total 
       <Text style={categoryStyles.title}>By Category</Text>
       <View style={categoryStyles.grid}>
         {entries.map(([category, count]) => (
-          <View key={category} style={categoryStyles.item} accessibilityLabel={`${category}: ${count}`}>
+          <View
+            key={category}
+            style={categoryStyles.item}
+            accessibilityLabel={`${category}: ${count}`}>
             <Text style={categoryStyles.icon}>{CATEGORY_ICONS[category] ?? '📦'}</Text>
             <Text style={categoryStyles.count}>{count}</Text>
             <Text style={categoryStyles.label} numberOfLines={1}>
@@ -670,9 +676,7 @@ const SubscriptionDashboardScreen: React.FC = () => {
         isWide={isWide}
         onPress={() => navigation.navigate('SubscriptionDetail', { id: item.id })}
         onChangePlan={() => navigation.navigate('ChangePlan', { subscriptionId: item.id })}
-        onCancelPress={() =>
-          navigation.navigate('CancellationFlow', { subscriptionId: item.id })
-        }
+        onCancelPress={() => navigation.navigate('CancellationFlow', { subscriptionId: item.id })}
       />
     ),
     [currency, isWide, navigation]
@@ -693,7 +697,9 @@ const SubscriptionDashboardScreen: React.FC = () => {
           { borderBottomColor: themeColors.border },
         ]}>
         <View>
-          <Text style={[screenStyles.title, { color: themeColors.text }]} accessibilityRole="header">
+          <Text
+            style={[screenStyles.title, { color: themeColors.text }]}
+            accessibilityRole="header">
             Subscription Dashboard
           </Text>
           <Text style={[screenStyles.subtitle, { color: themeColors.textSecondary }]}>
@@ -722,10 +728,7 @@ const SubscriptionDashboardScreen: React.FC = () => {
               <StatsCardSkeleton />
             ) : (
               <View
-                style={[
-                  screenStyles.metricsRow,
-                  isWide && screenStyles.metricsRowWide,
-                ]}
+                style={[screenStyles.metricsRow, isWide && screenStyles.metricsRowWide]}
                 accessibilityRole="summary">
                 {metrics.map((m) => (
                   <MetricCard key={m.label} metric={m} wide={isWide} />
@@ -780,13 +783,9 @@ const SubscriptionDashboardScreen: React.FC = () => {
           </>
         }
         ListEmptyComponent={
-          !isLoading ? (
-            <EmptyState onAdd={() => navigation.navigate('AddSubscription')} />
-          ) : null
+          !isLoading ? <EmptyState onAdd={() => navigation.navigate('AddSubscription')} /> : null
         }
-        contentContainerStyle={
-          displayedSubs.length === 0 ? screenStyles.listEmpty : undefined
-        }
+        contentContainerStyle={displayedSubs.length === 0 ? screenStyles.listEmpty : undefined}
         showsVerticalScrollIndicator={false}
       />
     </SafeAreaView>

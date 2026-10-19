@@ -65,7 +65,8 @@ export interface GooglePlayValidatorConfig {
 
 export class GooglePlayBillingValidator {
   private config: GooglePlayValidatorConfig;
-  private validationCache: Map<string, { result: GooglePlayValidationResult; cachedAt: number }> = new Map();
+  private validationCache: Map<string, { result: GooglePlayValidationResult; cachedAt: number }> =
+    new Map();
   private cacheTtlMs: number = 60 * 1000;
 
   constructor(config: GooglePlayValidatorConfig = {}) {
@@ -75,7 +76,9 @@ export class GooglePlayBillingValidator {
   /**
    * Validate a Google Play in-app product or subscription purchase token.
    */
-  public async validatePurchase(payload: GooglePlayPurchasePayload): Promise<GooglePlayValidationResult> {
+  public async validatePurchase(
+    payload: GooglePlayPurchasePayload
+  ): Promise<GooglePlayValidationResult> {
     if (!payload.packageName || !payload.productId || !payload.purchaseToken) {
       return {
         isValid: false,
@@ -135,11 +138,15 @@ export class GooglePlayBillingValidator {
     }
   }
 
-  private async validateSubscription(payload: GooglePlayPurchasePayload): Promise<GooglePlayValidationResult> {
+  private async validateSubscription(
+    payload: GooglePlayPurchasePayload
+  ): Promise<GooglePlayValidationResult> {
     const mockResponse: SubscriptionPurchaseResponse = await this.fetchSubscriptionFromApi(payload);
 
     const startTime = parseInt(mockResponse.startTimeMillis || '0', 10);
-    const expiryTime = mockResponse.expiryTimeMillis ? parseInt(mockResponse.expiryTimeMillis, 10) : undefined;
+    const expiryTime = mockResponse.expiryTimeMillis
+      ? parseInt(mockResponse.expiryTimeMillis, 10)
+      : undefined;
     const now = Date.now();
 
     let purchaseState: GooglePlayPurchaseState = 'PURCHASED';
@@ -171,7 +178,9 @@ export class GooglePlayBillingValidator {
     };
   }
 
-  private async validateProduct(payload: GooglePlayPurchasePayload): Promise<GooglePlayValidationResult> {
+  private async validateProduct(
+    payload: GooglePlayPurchasePayload
+  ): Promise<GooglePlayValidationResult> {
     const mockResponse: ProductPurchaseResponse = await this.fetchProductFromApi(payload);
 
     const purchaseTime = parseInt(mockResponse.purchaseTimeMillis || '0', 10);
@@ -198,12 +207,15 @@ export class GooglePlayBillingValidator {
     };
   }
 
-  protected async fetchSubscriptionFromApi(payload: GooglePlayPurchasePayload): Promise<SubscriptionPurchaseResponse> {
+  protected async fetchSubscriptionFromApi(
+    payload: GooglePlayPurchasePayload
+  ): Promise<SubscriptionPurchaseResponse> {
     if (payload.purchaseToken.startsWith('invalid')) {
       throw new Error('Invalid purchase token');
     }
 
-    const isTestToken = payload.purchaseToken.includes('test') || payload.purchaseToken.includes('sandbox');
+    const isTestToken =
+      payload.purchaseToken.includes('test') || payload.purchaseToken.includes('sandbox');
     const now = Date.now();
 
     return {
@@ -220,12 +232,15 @@ export class GooglePlayBillingValidator {
     };
   }
 
-  protected async fetchProductFromApi(payload: GooglePlayPurchasePayload): Promise<ProductPurchaseResponse> {
+  protected async fetchProductFromApi(
+    payload: GooglePlayPurchasePayload
+  ): Promise<ProductPurchaseResponse> {
     if (payload.purchaseToken.startsWith('invalid')) {
       throw new Error('Invalid purchase token');
     }
 
-    const isTestToken = payload.purchaseToken.includes('test') || payload.purchaseToken.includes('sandbox');
+    const isTestToken =
+      payload.purchaseToken.includes('test') || payload.purchaseToken.includes('sandbox');
 
     return {
       kind: 'androidpublisher#productPurchase',

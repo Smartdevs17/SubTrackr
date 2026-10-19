@@ -69,22 +69,16 @@ const AutomatedComplianceDashboard: React.FC = () => {
 
         {/* Navigation Tabs */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabBar}>
-          {(['dashboard', 'monitoring', 'alerts', 'audit', 'reporting'] as TabType[]).map(
-            (tab) => (
-              <TouchableOpacity
-                key={tab}
-                style={[styles.tabItem, activeTab === tab && styles.tabItemActive]}
-                onPress={() => setActiveTab(tab)}>
-                <Text
-                  style={[
-                    styles.tabText,
-                    activeTab === tab && styles.tabTextActive,
-                  ]}>
-                  {tab.toUpperCase()}
-                </Text>
-              </TouchableOpacity>
-            )
-          )}
+          {(['dashboard', 'monitoring', 'alerts', 'audit', 'reporting'] as TabType[]).map((tab) => (
+            <TouchableOpacity
+              key={tab}
+              style={[styles.tabItem, activeTab === tab && styles.tabItemActive]}
+              onPress={() => setActiveTab(tab)}>
+              <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
+                {tab.toUpperCase()}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </ScrollView>
 
         {/* Score & Run Button */}
@@ -151,10 +145,7 @@ const AutomatedComplianceDashboard: React.FC = () => {
               alerts.map((alert) => (
                 <Card
                   key={alert.id}
-                  style={[
-                    styles.alertCard,
-                    alert.isAcknowledged && styles.alertAcknowledged,
-                  ]}>
+                  style={[styles.alertCard, alert.isAcknowledged && styles.alertAcknowledged]}>
                   <View style={styles.alertHeader}>
                     <Text style={styles.alertTitle}>{alert.title}</Text>
                     {!alert.isAcknowledged && (
@@ -199,7 +190,8 @@ const AutomatedComplianceDashboard: React.FC = () => {
             <Card style={styles.cardSection}>
               <Text style={styles.chartTitle}>Export Regulatory Reports</Text>
               <Text style={styles.alertMessage}>
-                Export comprehensive audit logs, rules status, and compliance summaries for external audits.
+                Export comprehensive audit logs, rules status, and compliance summaries for external
+                audits.
               </Text>
               <View style={styles.exportBtnRow}>
                 <TouchableOpacity

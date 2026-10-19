@@ -289,11 +289,7 @@ const PlanTemplatesScreen: React.FC = () => {
             />
           )}
           {template.ownerId === currentUserId && (
-            <Button
-              title="Delete"
-              variant="secondary"
-              onPress={() => handleDelete(template)}
-            />
+            <Button title="Delete" variant="secondary" onPress={() => handleDelete(template)} />
           )}
         </View>
       </View>

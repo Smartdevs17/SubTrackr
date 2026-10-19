@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Subscription } from '../../types/subscription';
-import { renewalPredictionService, ChurnRiskAssessment } from '../../services/renewalPredictionService';
+import {
+  renewalPredictionService,
+  ChurnRiskAssessment,
+} from '../../services/renewalPredictionService';
 
 interface UseRenewalPredictionOptions {
   subscriptions: Subscription[];
@@ -23,11 +26,11 @@ export function useRenewalPrediction({
       const newAssessments = renewalPredictionService.batchAssessChurnRisk(subscriptions);
       setAssessments(newAssessments);
 
-      const highRisk = newAssessments.filter(a => a.riskLevel === 'high');
+      const highRisk = newAssessments.filter((a) => a.riskLevel === 'high');
       setHighRiskCount(highRisk.length);
 
       // Notify about new high-risk subscriptions
-      highRisk.forEach(assessment => {
+      highRisk.forEach((assessment) => {
         onHighRiskDetected?.(assessment);
       });
     };
@@ -41,6 +44,6 @@ export function useRenewalPrediction({
   return {
     assessments,
     highRiskCount,
-    highRiskSubscriptions: assessments.filter(a => a.riskLevel === 'high'),
+    highRiskSubscriptions: assessments.filter((a) => a.riskLevel === 'high'),
   };
 }

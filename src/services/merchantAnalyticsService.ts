@@ -67,7 +67,20 @@ export class MerchantAnalyticsService {
     }));
 
     // Historical monthly breakdown
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     const currentMonth = new Date().getMonth();
     const revenueHistory = months.slice(0, currentMonth + 1).map((m, idx) => {
       const subsInMonth = subscriptions.filter((s) => new Date(s.createdAt).getMonth() <= idx);
@@ -128,7 +141,8 @@ export class MerchantAnalyticsService {
         description: `Your churn rate is currently at ${subscribers.churnRate}%, which is above the industry benchmark of 5%.`,
         category: 'churn',
         severity: 'warning',
-        actionableRecommendation: 'Consider offering discount incentives or feedback surveys prior to subscription cancellation.',
+        actionableRecommendation:
+          'Consider offering discount incentives or feedback surveys prior to subscription cancellation.',
         createdAt: now.toISOString(),
       });
     } else {
@@ -138,7 +152,8 @@ export class MerchantAnalyticsService {
         description: `Subscriber retention rate is strong with a low churn rate of ${subscribers.churnRate}%.`,
         category: 'retention',
         severity: 'success',
-        actionableRecommendation: 'Maintain user engagement with periodic feature updates and reward loyal subscribers.',
+        actionableRecommendation:
+          'Maintain user engagement with periodic feature updates and reward loyal subscribers.',
         createdAt: now.toISOString(),
       });
     }
@@ -150,7 +165,8 @@ export class MerchantAnalyticsService {
         description: `Projected ARR stands at $${revenue.annualRecurringRevenue.toFixed(2)} based on current active subscribers.`,
         category: 'revenue',
         severity: 'info',
-        actionableRecommendation: 'Introduce premium tiered subscriptions to increase Average Revenue Per User (ARPU).',
+        actionableRecommendation:
+          'Introduce premium tiered subscriptions to increase Average Revenue Per User (ARPU).',
         createdAt: now.toISOString(),
       });
     }

@@ -323,7 +323,21 @@ export function fail(
   requestId?: string,
   details?: Record<string, string> | { version?: number },
 ): ApiErrorResponse {
-  const errorPayload: ApiError = { code, message, ...details };
+  const errorPayload: ApiError = { code, message };
+  if (details) {
+    if ('version' in details && typeof (details as { version?: unknown }).version === 'number') {
+      errorPayload.version = (details as { version: number }).version;
+    }
+    const fieldDetails: Record<string, string> = {};
+    for (const [k, v] of Object.entries(details)) {
+      if (k !== 'version' && typeof v === 'string') {
+        fieldDetails[k] = v;
+      }
+    }
+    if (Object.keys(fieldDetails).length > 0) {
+      errorPayload.details = fieldDetails;
+    }
+  }
   return {
     success: false,
     error: errorPayload,

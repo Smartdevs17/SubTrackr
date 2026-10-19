@@ -1,12 +1,20 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  ActivityIndicator,
+} from 'react-native';
 import { useSLAStore } from '../store/slaStore';
 import { useTheme } from '../theme/useTheme';
 import type { SLATracking, SLAStatus } from '../types/sla';
 
 export default function SLAMonitoringScreen({ navigation }: any) {
   const { theme } = useTheme();
-  const { trackings, breaches, isLoading, loadTrackings, loadBreaches, loadDashboard, dashboard } = useSLAStore();
+  const { trackings, breaches, isLoading, loadTrackings, loadBreaches, loadDashboard, dashboard } =
+    useSLAStore();
   const [filterStatus, setFilterStatus] = useState<SLAStatus | 'all'>('all');
 
   useEffect(() => {
@@ -15,34 +23,52 @@ export default function SLAMonitoringScreen({ navigation }: any) {
     loadDashboard();
   }, []);
 
-  const filteredTrackings = trackings.filter(t => filterStatus === 'all' || t.status === filterStatus);
+  const filteredTrackings = trackings.filter(
+    (t) => filterStatus === 'all' || t.status === filterStatus
+  );
 
   const getStatusColor = (status: SLAStatus) => {
     switch (status) {
-      case 'compliant': return '#10B981';
-      case 'at_risk': return '#F59E0B';
-      case 'breached': return '#EF4444';
-      case 'critical': return '#DC2626';
-      default: return theme.colors.text;
+      case 'compliant':
+        return '#10B981';
+      case 'at_risk':
+        return '#F59E0B';
+      case 'breached':
+        return '#EF4444';
+      case 'critical':
+        return '#DC2626';
+      default:
+        return theme.colors.text;
     }
   };
 
   const renderTracking = ({ item }: { item: SLATracking }) => (
-    <TouchableOpacity style={[styles.card, { backgroundColor: theme.colors.card }]} onPress={() => navigation.navigate('SLADetail', { id: item.id })}>
+    <TouchableOpacity
+      style={[styles.card, { backgroundColor: theme.colors.card }]}
+      onPress={() => navigation.navigate('SLADetail', { id: item.id })}>
       <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.colors.text }]}>Subscription: {item.subscriptionId.substring(0, 12)}...</Text>
+        <Text style={[styles.title, { color: theme.colors.text }]}>
+          Subscription: {item.subscriptionId.substring(0, 12)}...
+        </Text>
         <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
-          <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>{item.status.toUpperCase()}</Text>
+          <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
+            {item.status.toUpperCase()}
+          </Text>
         </View>
       </View>
       <View style={styles.metrics}>
         <View style={styles.metricRow}>
           <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Compliance:</Text>
-          <Text style={[styles.value, { color: getStatusColor(item.status) }]}>{item.compliancePercentage.toFixed(1)}%</Text>
+          <Text style={[styles.value, { color: getStatusColor(item.status) }]}>
+            {item.compliancePercentage.toFixed(1)}%
+          </Text>
         </View>
         <View style={styles.metricRow}>
           <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Breaches:</Text>
-          <Text style={[styles.value, { color: item.breachCount > 0 ? '#EF4444' : theme.colors.text }]}>{item.breachCount}</Text>
+          <Text
+            style={[styles.value, { color: item.breachCount > 0 ? '#EF4444' : theme.colors.text }]}>
+            {item.breachCount}
+          </Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -63,29 +89,49 @@ export default function SLAMonitoringScreen({ navigation }: any) {
           <Text style={[styles.overviewTitle, { color: theme.colors.text }]}>SLA Overview</Text>
           <View style={styles.overviewGrid}>
             <View style={styles.overviewItem}>
-              <Text style={[styles.overviewValue, { color: '#10B981' }]}>{dashboard.overview.compliantPercentage.toFixed(1)}%</Text>
-              <Text style={[styles.overviewLabel, { color: theme.colors.textSecondary }]}>Compliant</Text>
+              <Text style={[styles.overviewValue, { color: '#10B981' }]}>
+                {dashboard.overview.compliantPercentage.toFixed(1)}%
+              </Text>
+              <Text style={[styles.overviewLabel, { color: theme.colors.textSecondary }]}>
+                Compliant
+              </Text>
             </View>
             <View style={styles.overviewItem}>
-              <Text style={[styles.overviewValue, { color: '#EF4444' }]}>{dashboard.overview.activeBreaches}</Text>
-              <Text style={[styles.overviewLabel, { color: theme.colors.textSecondary }]}>Active Breaches</Text>
+              <Text style={[styles.overviewValue, { color: '#EF4444' }]}>
+                {dashboard.overview.activeBreaches}
+              </Text>
+              <Text style={[styles.overviewLabel, { color: theme.colors.textSecondary }]}>
+                Active Breaches
+              </Text>
             </View>
             <View style={styles.overviewItem}>
-              <Text style={[styles.overviewValue, { color: theme.colors.primary }]}>${dashboard.overview.creditsIssued.toFixed(2)}</Text>
-              <Text style={[styles.overviewLabel, { color: theme.colors.textSecondary }]}>Credits Issued</Text>
+              <Text style={[styles.overviewValue, { color: theme.colors.primary }]}>
+                ${dashboard.overview.creditsIssued.toFixed(2)}
+              </Text>
+              <Text style={[styles.overviewLabel, { color: theme.colors.textSecondary }]}>
+                Credits Issued
+              </Text>
             </View>
           </View>
         </View>
       )}
 
       <View style={styles.filterContainer}>
-        {(['all', 'compliant', 'at_risk', 'breached', 'critical'] as const).map(filter => (
+        {(['all', 'compliant', 'at_risk', 'breached', 'critical'] as const).map((filter) => (
           <TouchableOpacity
             key={filter}
-            style={[styles.filterButton, { backgroundColor: theme.colors.card }, filterStatus === filter && { backgroundColor: theme.colors.primary }]}
-            onPress={() => setFilterStatus(filter)}
-          >
-            <Text style={[styles.filterText, { color: theme.colors.text }, filterStatus === filter && { color: '#FFFFFF' }]}>
+            style={[
+              styles.filterButton,
+              { backgroundColor: theme.colors.card },
+              filterStatus === filter && { backgroundColor: theme.colors.primary },
+            ]}
+            onPress={() => setFilterStatus(filter)}>
+            <Text
+              style={[
+                styles.filterText,
+                { color: theme.colors.text },
+                filterStatus === filter && { color: '#FFFFFF' },
+              ]}>
               {filter.toUpperCase()}
             </Text>
           </TouchableOpacity>
@@ -95,11 +141,13 @@ export default function SLAMonitoringScreen({ navigation }: any) {
       <FlatList
         data={filteredTrackings}
         renderItem={renderTracking}
-        keyExtractor={item => item.id}
+        keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>No SLA trackings found</Text>
+            <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+              No SLA trackings found
+            </Text>
           </View>
         }
       />

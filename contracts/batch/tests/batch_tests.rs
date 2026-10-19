@@ -1,3 +1,5 @@
+// `env.register_contract(..)` is deprecated in favour of `env.register(..)`.
+#![allow(deprecated)]
 #![cfg(test)]
 //! Integration tests for the batch operations contract.
 
@@ -257,7 +259,7 @@ fn batch_cancel_deactivates_subscriptions() {
     let reason = cancel_reason_code(&CancelReason::TooExpensive);
     let id = client.create_batch_operation(
         &owner,
-        &op(&env, OperationType::Cancel, &[1], &[reason]),
+        &op(&env, OperationType::Cancel, &[1], &[reason as i128]),
         &false,
     );
     let result = client.execute_batch(&id);

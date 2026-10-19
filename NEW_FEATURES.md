@@ -5,25 +5,30 @@ This document describes the three new subscription features implemented to impro
 ## 1. Subscription Comparison Heatmap (#1329)
 
 ### Overview
+
 A visual heatmap component that helps users compare feature coverage across different subscription tiers at a glance.
 
 ### Files
+
 - `src/components/subscription/PlanComparisonHeatmap.tsx` - React Native component
 
 ### Usage
+
 ```tsx
 import { PlanComparisonHeatmap } from './components/subscription';
 
-<PlanComparisonHeatmap plans={subscriptionPlans} />
+<PlanComparisonHeatmap plans={subscriptionPlans} />;
 ```
 
 ### Features
+
 - Color-coded feature coverage percentage (red → yellow → green)
 - Plan names and pricing information
 - Legend explaining coverage ranges
 - Horizontally scrollable for mobile devices
 
 ### Integration
+
 The heatmap is automatically integrated into the `SubscriptionPlans` component and displays above the plan cards.
 
 ---
@@ -31,14 +36,17 @@ The heatmap is automatically integrated into the `SubscriptionPlans` component a
 ## 2. Smart Renewal Prediction Notifications (#1327)
 
 ### Overview
+
 A service that analyzes subscription patterns to predict churn risk and generate proactive renewal notifications.
 
 ### Files
+
 - `src/services/renewalPredictionService.ts` - Core service
 - `src/services/__tests__/renewalPredictionService.test.ts` - Unit tests
 - `src/components/hooks/useRenewalPrediction.ts` - React hook for integration
 
 ### Usage
+
 ```typescript
 import { renewalPredictionService } from './services/renewalPredictionService';
 
@@ -53,6 +61,7 @@ const atRisk = renewalPredictionService.getHighRiskSubscriptions(subscriptions);
 ```
 
 ### React Hook Usage
+
 ```tsx
 import { useRenewalPrediction } from './components/hooks/useRenewalPrediction';
 
@@ -66,7 +75,9 @@ const { highRiskSubscriptions, assessments } = useRenewalPrediction({
 ```
 
 ### Risk Factors
+
 The service considers multiple factors:
+
 - **Days until renewal**: Subscriptions within 7 days of renewal are flagged
 - **Notifications disabled**: Higher risk if user has disabled notifications
 - **Paused subscriptions**: Significantly elevated risk
@@ -74,6 +85,7 @@ The service considers multiple factors:
 - **Price sensitivity**: Higher-priced subscriptions get slight adjustment
 
 ### Risk Levels
+
 - **Low**: Score < 40 - Likely to renew
 - **Medium**: Score 40-70 - Moderate churn risk
 - **High**: Score > 70 - High churn risk, proactive intervention recommended
@@ -83,22 +95,23 @@ The service considers multiple factors:
 ## 3. Annual Plan Value Indicator with Savings Badge (#1326)
 
 ### Overview
+
 Visual badge component that displays annual savings percentage and amount when comparing monthly vs annual billing plans.
 
 ### Files
+
 - `src/components/subscription/AnnualSavingsBadge.tsx` - React Native component
 
 ### Usage
+
 ```tsx
 import { AnnualSavingsBadge } from './components/subscription';
 
-<AnnualSavingsBadge 
-  monthlyPlan={monthlyPlan} 
-  annualPlan={annualPlan} 
-/>
+<AnnualSavingsBadge monthlyPlan={monthlyPlan} annualPlan={annualPlan} />;
 ```
 
 ### Features
+
 - Green success-colored badge
 - Shows percentage savings (e.g., "Save 20%")
 - Displays annual savings amount
@@ -106,11 +119,13 @@ import { AnnualSavingsBadge } from './components/subscription';
 - Automatically positioned in plan cards
 
 ### Calculation
+
 - Monthly yearly total: `monthlyPrice × 12`
 - Savings: `monthlyYearlyTotal - annualYearlyTotal`
 - Percentage: `(savings / monthlyYearlyTotal) × 100`
 
 ### Integration
+
 The badge is automatically integrated into the `SubscriptionPlans` component and displays on monthly plan cards when an equivalent annual plan exists.
 
 ---
@@ -118,6 +133,7 @@ The badge is automatically integrated into the `SubscriptionPlans` component and
 ## Testing
 
 Run the renewal prediction service tests:
+
 ```bash
 npm run test -- src/services/__tests__/renewalPredictionService.test.ts
 ```

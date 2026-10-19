@@ -2,7 +2,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BillingCycle, Subscription } from '../types/subscription';
 
 export type MerchantId = string;
-export type AccountingFormat = 'csv' | 'json' | 'quickbooks' | 'xero' | 'pdf' | 'excel_xml' | 'ndjson' | 'ofx' | 'iif' | 'tsv';
+export type AccountingFormat =
+  'csv' | 'json' | 'quickbooks' | 'xero' | 'pdf' | 'excel_xml' | 'ndjson' | 'ofx' | 'iif' | 'tsv';
 export type ExportFrequency = 'daily' | 'weekly' | 'monthly';
 export type ExportDestination = 'download' | 'email' | 'webhook';
 export type ExportStatus = 'success' | 'failed';
@@ -147,14 +148,34 @@ export const ACCOUNTING_EXPORT_JSON_SCHEMA = {
     $schema: { type: 'string', description: 'JSON Schema URI used to validate this document.' },
     schemaVersion: { type: 'string', const: '1.0.0', description: 'Export schema version.' },
     merchantId: { type: 'string', description: 'Unique merchant identifier.' },
-    exportedAt: { type: 'string', format: 'date', description: 'ISO-8601 date of export generation.' },
-    recordCount: { type: 'integer', minimum: 0, description: 'Total number of subscription records in this export.' },
+    exportedAt: {
+      type: 'string',
+      format: 'date',
+      description: 'ISO-8601 date of export generation.',
+    },
+    recordCount: {
+      type: 'integer',
+      minimum: 0,
+      description: 'Total number of subscription records in this export.',
+    },
     records: {
       type: 'array',
       description: 'Subscription accounting records.',
       items: {
         type: 'object',
-        required: ['merchantId', 'subscriptionId', 'subscriptionName', 'transactionType', 'price', 'currency', 'billingCycle', 'nextBillingDate', 'status', 'createdAt', 'updatedAt'],
+        required: [
+          'merchantId',
+          'subscriptionId',
+          'subscriptionName',
+          'transactionType',
+          'price',
+          'currency',
+          'billingCycle',
+          'nextBillingDate',
+          'status',
+          'createdAt',
+          'updatedAt',
+        ],
         properties: {
           merchantId: { type: 'string' },
           subscriptionId: { type: 'string' },
@@ -169,7 +190,10 @@ export const ACCOUNTING_EXPORT_JSON_SCHEMA = {
           status: { type: 'string', enum: ['active', 'inactive'] },
           createdAt: { type: 'string', format: 'date' },
           updatedAt: { type: 'string', format: 'date' },
-          deferredRevenue: { type: 'string', description: 'Deferred revenue amount (GAAP), as a decimal string.' },
+          deferredRevenue: {
+            type: 'string',
+            description: 'Deferred revenue amount (GAAP), as a decimal string.',
+          },
         },
         additionalProperties: true,
       },
@@ -820,9 +844,7 @@ export async function run_due_exports(
  * Increments `downloadCount` and updates `lastDownloadedAt`.
  * Returns the updated entry, or null if not found.
  */
-export async function record_export_download(
-  exportId: string
-): Promise<ExportHistoryEntry | null> {
+export async function record_export_download(exportId: string): Promise<ExportHistoryEntry | null> {
   const history = await readJsonArray<ExportHistoryEntry>(HISTORY_STORAGE_KEY);
   const index = history.findIndex((entry) => entry.id === exportId);
   if (index < 0) return null;

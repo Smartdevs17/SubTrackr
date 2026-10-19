@@ -19,10 +19,10 @@
 'use strict';
 
 const https = require('https');
-const http  = require('http');
-const fs    = require('fs');
-const path  = require('path');
-const os    = require('os');
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
 
 // ── Version ──────────────────────────────────────────────────────────────────
 
@@ -31,7 +31,7 @@ const CLI_VERSION = '1.0.0';
 // ── Config file location ──────────────────────────────────────────────────────
 // Credentials are stored in ~/.subtrackr/config.json (never committed to git).
 
-const CONFIG_DIR  = path.join(os.homedir(), '.subtrackr');
+const CONFIG_DIR = path.join(os.homedir(), '.subtrackr');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 
 // ── ANSI colour helpers ───────────────────────────────────────────────────────
@@ -39,26 +39,34 @@ const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 const NO_COLOR = process.env.NO_COLOR || !process.stdout.isTTY;
 
 const c = {
-  reset:  (s) => NO_COLOR ? s : `\x1b[0m${s}\x1b[0m`,
-  bold:   (s) => NO_COLOR ? s : `\x1b[1m${s}\x1b[0m`,
-  dim:    (s) => NO_COLOR ? s : `\x1b[2m${s}\x1b[0m`,
-  green:  (s) => NO_COLOR ? s : `\x1b[32m${s}\x1b[0m`,
-  yellow: (s) => NO_COLOR ? s : `\x1b[33m${s}\x1b[0m`,
-  red:    (s) => NO_COLOR ? s : `\x1b[31m${s}\x1b[0m`,
-  cyan:   (s) => NO_COLOR ? s : `\x1b[36m${s}\x1b[0m`,
-  blue:   (s) => NO_COLOR ? s : `\x1b[34m${s}\x1b[0m`,
+  reset: (s) => (NO_COLOR ? s : `\x1b[0m${s}\x1b[0m`),
+  bold: (s) => (NO_COLOR ? s : `\x1b[1m${s}\x1b[0m`),
+  dim: (s) => (NO_COLOR ? s : `\x1b[2m${s}\x1b[0m`),
+  green: (s) => (NO_COLOR ? s : `\x1b[32m${s}\x1b[0m`),
+  yellow: (s) => (NO_COLOR ? s : `\x1b[33m${s}\x1b[0m`),
+  red: (s) => (NO_COLOR ? s : `\x1b[31m${s}\x1b[0m`),
+  cyan: (s) => (NO_COLOR ? s : `\x1b[36m${s}\x1b[0m`),
+  blue: (s) => (NO_COLOR ? s : `\x1b[34m${s}\x1b[0m`),
 };
 
-function ok(msg)   { console.log(`${c.green('✔')} ${msg}`); }
-function info(msg) { console.log(`${c.blue('ℹ')} ${msg}`); }
-function warn(msg) { console.warn(`${c.yellow('⚠')} ${msg}`); }
-function fail(msg) { console.error(`${c.red('✖')} ${msg}`); }
+function ok(msg) {
+  console.log(`${c.green('✔')} ${msg}`);
+}
+function info(msg) {
+  console.log(`${c.blue('ℹ')} ${msg}`);
+}
+function warn(msg) {
+  console.warn(`${c.yellow('⚠')} ${msg}`);
+}
+function fail(msg) {
+  console.error(`${c.red('✖')} ${msg}`);
+}
 
 // ── Argument parser ───────────────────────────────────────────────────────────
 // Minimal hand-rolled parser; avoids external deps.
 
 function parseArgs(argv) {
-  const args   = { _: [], flags: {}, options: {} };
+  const args = { _: [], flags: {}, options: {} };
   let i = 0;
   while (i < argv.length) {
     const a = argv[i];
@@ -121,18 +129,18 @@ function saveConfig(cfg) {
  */
 function apiRequest(baseUrl, endpoint, method, body, apiKey) {
   return new Promise((resolve, reject) => {
-    const url    = new URL(endpoint, baseUrl);
+    const url = new URL(endpoint, baseUrl);
     const isHttps = url.protocol === 'https:';
-    const lib   = isHttps ? https : http;
+    const lib = isHttps ? https : http;
     const payload = body ? JSON.stringify(body) : null;
 
     const options = {
       hostname: url.hostname,
-      port:     url.port || (isHttps ? 443 : 80),
-      path:     url.pathname + url.search,
-      method:   method.toUpperCase(),
+      port: url.port || (isHttps ? 443 : 80),
+      path: url.pathname + url.search,
+      method: method.toUpperCase(),
       headers: {
-        'Accept':       'application/json',
+        Accept: 'application/json',
         'Content-Type': 'application/json',
         'X-SDK-Version': `subtrackr-cli/${CLI_VERSION}`,
         ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
@@ -142,11 +150,16 @@ function apiRequest(baseUrl, endpoint, method, body, apiKey) {
 
     const req = lib.request(options, (res) => {
       let data = '';
-      res.on('data', (chunk) => { data += chunk; });
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
       res.on('end', () => {
         let parsed;
-        try { parsed = data ? JSON.parse(data) : null; }
-        catch (_) { parsed = data; }
+        try {
+          parsed = data ? JSON.parse(data) : null;
+        } catch (_) {
+          parsed = data;
+        }
         resolve({ status: res.statusCode, body: parsed });
       });
     });
@@ -192,10 +205,10 @@ function printOutput(data, format) {
 
 function statusBadge(status) {
   const s = String(status).toLowerCase();
-  if (s === 'active')    return c.green(status);
-  if (s === 'paused')    return c.yellow(status);
+  if (s === 'active') return c.green(status);
+  if (s === 'paused') return c.yellow(status);
   if (s === 'cancelled') return c.red(status);
-  if (s === 'past_due')  return c.red(status);
+  if (s === 'past_due') return c.red(status);
   return status;
 }
 
@@ -252,9 +265,12 @@ ${c.bold('Quick start:')}
 
 function resolveConfig(args) {
   const stored = loadConfig();
-  const apiKey  = args.options['api-key']  || process.env.SUBTRACKR_API_KEY  || stored.apiKey;
-  const baseUrl = args.options['base-url'] || process.env.SUBTRACKR_BASE_URL || stored.baseUrl
-                  || 'http://localhost:3000';
+  const apiKey = args.options['api-key'] || process.env.SUBTRACKR_API_KEY || stored.apiKey;
+  const baseUrl =
+    args.options['base-url'] ||
+    process.env.SUBTRACKR_BASE_URL ||
+    stored.baseUrl ||
+    'http://localhost:3000';
   return { apiKey, baseUrl };
 }
 
@@ -268,7 +284,7 @@ function requireAuth(cfg) {
 // ── Commands: auth ────────────────────────────────────────────────────────────
 
 async function cmdAuthLogin(args) {
-  const apiKey  = args.options['api-key']  || args.options['k'];
+  const apiKey = args.options['api-key'] || args.options['k'];
   const baseUrl = args.options['base-url'] || args.options['u'] || 'http://localhost:3000';
 
   if (!apiKey) {
@@ -322,10 +338,10 @@ async function cmdSubList(args, cfg) {
   const format = args.options['format'] || args.options['f'];
 
   const params = new URLSearchParams();
-  if (args.options['status'])   params.set('status',   args.options['status']);
+  if (args.options['status']) params.set('status', args.options['status']);
   if (args.options['category']) params.set('category', args.options['category']);
-  if (args.options['page'])     params.set('page',     args.options['page']);
-  if (args.options['limit'])    params.set('limit',    args.options['limit']);
+  if (args.options['page']) params.set('page', args.options['page']);
+  if (args.options['limit']) params.set('limit', args.options['limit']);
 
   const endpoint = `/v1/subscriptions${params.toString() ? '?' + params.toString() : ''}`;
   const res = await apiRequest(cfg.baseUrl, endpoint, 'GET', null, cfg.apiKey);
@@ -335,7 +351,7 @@ async function cmdSubList(args, cfg) {
     process.exit(1);
   }
 
-  const subs = Array.isArray(res.body) ? res.body : (res.body && res.body.data ? res.body.data : []);
+  const subs = Array.isArray(res.body) ? res.body : res.body && res.body.data ? res.body.data : [];
 
   if (format === 'json') {
     printOutput(res.body, 'json');
@@ -344,11 +360,11 @@ async function cmdSubList(args, cfg) {
 
   console.log(`\n${c.bold('Subscriptions')}  ${c.dim(`(${subs.length} total)`)}\n`);
   printTable(subs, [
-    { key: 'id',     label: 'ID'       },
-    { key: 'name',   label: 'Name'     },
-    { key: 'status', label: 'Status'   },
-    { key: 'price',  label: 'Price'    },
-    { key: 'currency', label: 'Token'  },
+    { key: 'id', label: 'ID' },
+    { key: 'name', label: 'Name' },
+    { key: 'status', label: 'Status' },
+    { key: 'price', label: 'Price' },
+    { key: 'currency', label: 'Token' },
     { key: 'next_charge_at', label: 'Next Charge' },
   ]);
   console.log('');
@@ -357,15 +373,27 @@ async function cmdSubList(args, cfg) {
 async function cmdSubGet(args, cfg) {
   requireAuth(cfg);
   const id = args._[0];
-  if (!id) { fail('Usage: subtrackr subscriptions get <id>'); process.exit(1); }
+  if (!id) {
+    fail('Usage: subtrackr subscriptions get <id>');
+    process.exit(1);
+  }
 
   const format = args.options['format'] || args.options['f'];
   const res = await apiRequest(cfg.baseUrl, `/v1/subscriptions/${id}`, 'GET', null, cfg.apiKey);
 
-  if (res.status === 404) { fail(`Subscription ${id} not found.`); process.exit(1); }
-  if (res.status !== 200) { fail(`API error ${res.status}: ${JSON.stringify(res.body)}`); process.exit(1); }
+  if (res.status === 404) {
+    fail(`Subscription ${id} not found.`);
+    process.exit(1);
+  }
+  if (res.status !== 200) {
+    fail(`API error ${res.status}: ${JSON.stringify(res.body)}`);
+    process.exit(1);
+  }
 
-  if (format === 'json') { printOutput(res.body, 'json'); return; }
+  if (format === 'json') {
+    printOutput(res.body, 'json');
+    return;
+  }
 
   const s = res.body;
   console.log(`\n${c.bold('Subscription')} ${c.cyan('#' + s.id)}\n`);
@@ -373,7 +401,9 @@ async function cmdSubGet(args, cfg) {
   console.log(`  Status        : ${statusBadge(s.status)}`);
   console.log(`  Plan ID       : ${s.plan_id ?? c.dim('—')}`);
   console.log(`  Subscriber    : ${s.subscriber || c.dim('—')}`);
-  console.log(`  Price         : ${s.price != null ? s.price + ' ' + (s.currency || 'XLM') : c.dim('—')}`);
+  console.log(
+    `  Price         : ${s.price != null ? s.price + ' ' + (s.currency || 'XLM') : c.dim('—')}`
+  );
   console.log(`  Started       : ${s.started_at || c.dim('—')}`);
   console.log(`  Last charged  : ${s.last_charged_at || c.dim('—')}`);
   console.log(`  Next charge   : ${s.next_charge_at || c.dim('—')}`);
@@ -384,21 +414,27 @@ async function cmdSubGet(args, cfg) {
 async function cmdSubCreate(args, cfg) {
   requireAuth(cfg);
 
-  const planId     = args.options['plan-id'];
+  const planId = args.options['plan-id'];
   const subscriber = args.options['subscriber'] || args.options['s'];
-  const name       = args.options['name'] || args.options['n'];
-  const price      = args.options['price'];
-  const currency   = args.options['currency'] || args.options['token'] || 'XLM';
+  const name = args.options['name'] || args.options['n'];
+  const price = args.options['price'];
+  const currency = args.options['currency'] || args.options['token'] || 'XLM';
 
-  if (!planId) { fail('--plan-id <id> is required.'); process.exit(1); }
-  if (!subscriber) { fail('--subscriber <address> is required.'); process.exit(1); }
+  if (!planId) {
+    fail('--plan-id <id> is required.');
+    process.exit(1);
+  }
+  if (!subscriber) {
+    fail('--subscriber <address> is required.');
+    process.exit(1);
+  }
 
   const body = {
-    plan_id:    parseInt(planId, 10),
+    plan_id: parseInt(planId, 10),
     subscriber,
-    ...(name     ? { name }            : {}),
-    ...(price    ? { price: parseFloat(price) } : {}),
-    ...(currency ? { currency }        : {}),
+    ...(name ? { name } : {}),
+    ...(price ? { price: parseFloat(price) } : {}),
+    ...(currency ? { currency } : {}),
   };
 
   const res = await apiRequest(cfg.baseUrl, '/v1/subscriptions', 'POST', body, cfg.apiKey);
@@ -409,7 +445,10 @@ async function cmdSubCreate(args, cfg) {
   }
 
   const format = args.options['format'] || args.options['f'];
-  if (format === 'json') { printOutput(res.body, 'json'); return; }
+  if (format === 'json') {
+    printOutput(res.body, 'json');
+    return;
+  }
 
   const s = res.body;
   ok(`Subscription created — ID: ${c.cyan(String(s.id))}`);
@@ -421,10 +460,13 @@ async function cmdSubCreate(args, cfg) {
 async function cmdSubCancel(args, cfg) {
   requireAuth(cfg);
   const id = args._[0];
-  if (!id) { fail('Usage: subtrackr subscriptions cancel <id>'); process.exit(1); }
+  if (!id) {
+    fail('Usage: subtrackr subscriptions cancel <id>');
+    process.exit(1);
+  }
 
   const atPeriodEnd = !args.flags['now'];
-  const reason      = args.options['reason'] || '';
+  const reason = args.options['reason'] || '';
 
   const res = await apiRequest(
     cfg.baseUrl,
@@ -434,8 +476,14 @@ async function cmdSubCancel(args, cfg) {
     cfg.apiKey
   );
 
-  if (res.status === 404) { fail(`Subscription ${id} not found.`); process.exit(1); }
-  if (res.status >= 400) { fail(`API error ${res.status}: ${JSON.stringify(res.body)}`); process.exit(1); }
+  if (res.status === 404) {
+    fail(`Subscription ${id} not found.`);
+    process.exit(1);
+  }
+  if (res.status >= 400) {
+    fail(`API error ${res.status}: ${JSON.stringify(res.body)}`);
+    process.exit(1);
+  }
 
   ok(`Subscription ${c.cyan(id)} cancelled${atPeriodEnd ? ' at period end' : ' immediately'}.`);
 }
@@ -443,13 +491,27 @@ async function cmdSubCancel(args, cfg) {
 async function cmdSubPause(args, cfg) {
   requireAuth(cfg);
   const id = args._[0];
-  if (!id) { fail('Usage: subtrackr subscriptions pause <id>'); process.exit(1); }
+  if (!id) {
+    fail('Usage: subtrackr subscriptions pause <id>');
+    process.exit(1);
+  }
 
-  const res = await apiRequest(cfg.baseUrl, `/v1/subscriptions/${id}`, 'PUT',
-    { status: 'paused' }, cfg.apiKey);
+  const res = await apiRequest(
+    cfg.baseUrl,
+    `/v1/subscriptions/${id}`,
+    'PUT',
+    { status: 'paused' },
+    cfg.apiKey
+  );
 
-  if (res.status === 404) { fail(`Subscription ${id} not found.`); process.exit(1); }
-  if (res.status >= 400) { fail(`API error ${res.status}: ${JSON.stringify(res.body)}`); process.exit(1); }
+  if (res.status === 404) {
+    fail(`Subscription ${id} not found.`);
+    process.exit(1);
+  }
+  if (res.status >= 400) {
+    fail(`API error ${res.status}: ${JSON.stringify(res.body)}`);
+    process.exit(1);
+  }
 
   ok(`Subscription ${c.cyan(id)} paused.`);
 }
@@ -457,13 +519,27 @@ async function cmdSubPause(args, cfg) {
 async function cmdSubResume(args, cfg) {
   requireAuth(cfg);
   const id = args._[0];
-  if (!id) { fail('Usage: subtrackr subscriptions resume <id>'); process.exit(1); }
+  if (!id) {
+    fail('Usage: subtrackr subscriptions resume <id>');
+    process.exit(1);
+  }
 
-  const res = await apiRequest(cfg.baseUrl, `/v1/subscriptions/${id}`, 'PUT',
-    { status: 'active' }, cfg.apiKey);
+  const res = await apiRequest(
+    cfg.baseUrl,
+    `/v1/subscriptions/${id}`,
+    'PUT',
+    { status: 'active' },
+    cfg.apiKey
+  );
 
-  if (res.status === 404) { fail(`Subscription ${id} not found.`); process.exit(1); }
-  if (res.status >= 400) { fail(`API error ${res.status}: ${JSON.stringify(res.body)}`); process.exit(1); }
+  if (res.status === 404) {
+    fail(`Subscription ${id} not found.`);
+    process.exit(1);
+  }
+  if (res.status >= 400) {
+    fail(`API error ${res.status}: ${JSON.stringify(res.body)}`);
+    process.exit(1);
+  }
 
   ok(`Subscription ${c.cyan(id)} resumed.`);
 }
@@ -471,13 +547,27 @@ async function cmdSubResume(args, cfg) {
 async function cmdSubCharge(args, cfg) {
   requireAuth(cfg);
   const id = args._[0];
-  if (!id) { fail('Usage: subtrackr subscriptions charge <id>'); process.exit(1); }
+  if (!id) {
+    fail('Usage: subtrackr subscriptions charge <id>');
+    process.exit(1);
+  }
 
-  const res = await apiRequest(cfg.baseUrl, `/charge_subscription`, 'POST',
-    { subscription_id: parseInt(id, 10) }, cfg.apiKey);
+  const res = await apiRequest(
+    cfg.baseUrl,
+    `/charge_subscription`,
+    'POST',
+    { subscription_id: parseInt(id, 10) },
+    cfg.apiKey
+  );
 
-  if (res.status === 404) { fail(`Subscription ${id} not found.`); process.exit(1); }
-  if (res.status >= 400) { fail(`API error ${res.status}: ${JSON.stringify(res.body)}`); process.exit(1); }
+  if (res.status === 404) {
+    fail(`Subscription ${id} not found.`);
+    process.exit(1);
+  }
+  if (res.status >= 400) {
+    fail(`API error ${res.status}: ${JSON.stringify(res.body)}`);
+    process.exit(1);
+  }
 
   ok(`Charge triggered for subscription ${c.cyan(id)}.`);
 }
@@ -490,20 +580,26 @@ async function cmdPlanList(args, cfg) {
 
   const res = await apiRequest(cfg.baseUrl, '/v1/plans', 'GET', null, cfg.apiKey);
 
-  if (res.status !== 200) { fail(`API error ${res.status}: ${JSON.stringify(res.body)}`); process.exit(1); }
+  if (res.status !== 200) {
+    fail(`API error ${res.status}: ${JSON.stringify(res.body)}`);
+    process.exit(1);
+  }
 
-  const plans = Array.isArray(res.body) ? res.body : (res.body && res.body.data ? res.body.data : []);
+  const plans = Array.isArray(res.body) ? res.body : res.body && res.body.data ? res.body.data : [];
 
-  if (format === 'json') { printOutput(res.body, 'json'); return; }
+  if (format === 'json') {
+    printOutput(res.body, 'json');
+    return;
+  }
 
   console.log(`\n${c.bold('Plans')}  ${c.dim(`(${plans.length} total)`)}\n`);
   printTable(plans, [
-    { key: 'id',       label: 'ID'       },
-    { key: 'name',     label: 'Name'     },
-    { key: 'price',    label: 'Price'    },
-    { key: 'token',    label: 'Token'    },
+    { key: 'id', label: 'ID' },
+    { key: 'name', label: 'Name' },
+    { key: 'price', label: 'Price' },
+    { key: 'token', label: 'Token' },
     { key: 'interval', label: 'Interval' },
-    { key: 'active',   label: 'Active'   },
+    { key: 'active', label: 'Active' },
   ]);
   console.log('');
 }
@@ -511,15 +607,27 @@ async function cmdPlanList(args, cfg) {
 async function cmdPlanGet(args, cfg) {
   requireAuth(cfg);
   const id = args._[0];
-  if (!id) { fail('Usage: subtrackr plans get <id>'); process.exit(1); }
+  if (!id) {
+    fail('Usage: subtrackr plans get <id>');
+    process.exit(1);
+  }
 
   const format = args.options['format'] || args.options['f'];
   const res = await apiRequest(cfg.baseUrl, `/v1/plans/${id}`, 'GET', null, cfg.apiKey);
 
-  if (res.status === 404) { fail(`Plan ${id} not found.`); process.exit(1); }
-  if (res.status !== 200) { fail(`API error ${res.status}: ${JSON.stringify(res.body)}`); process.exit(1); }
+  if (res.status === 404) {
+    fail(`Plan ${id} not found.`);
+    process.exit(1);
+  }
+  if (res.status !== 200) {
+    fail(`API error ${res.status}: ${JSON.stringify(res.body)}`);
+    process.exit(1);
+  }
 
-  if (format === 'json') { printOutput(res.body, 'json'); return; }
+  if (format === 'json') {
+    printOutput(res.body, 'json');
+    return;
+  }
 
   const p = res.body;
   console.log(`\n${c.bold('Plan')} ${c.cyan('#' + p.id)}\n`);
@@ -535,15 +643,24 @@ async function cmdPlanGet(args, cfg) {
 async function cmdPlanCreate(args, cfg) {
   requireAuth(cfg);
 
-  const name     = args.options['name']     || args.options['n'];
-  const price    = args.options['price'];
-  const token    = args.options['token']    || 'XLM';
+  const name = args.options['name'] || args.options['n'];
+  const price = args.options['price'];
+  const token = args.options['token'] || 'XLM';
   const interval = args.options['interval'] || 'Monthly';
   const merchant = args.options['merchant'] || args.options['m'];
 
-  if (!name)     { fail('--name <name> is required.');             process.exit(1); }
-  if (!price)    { fail('--price <amount> is required.');          process.exit(1); }
-  if (!merchant) { fail('--merchant <address> is required.');      process.exit(1); }
+  if (!name) {
+    fail('--name <name> is required.');
+    process.exit(1);
+  }
+  if (!price) {
+    fail('--price <amount> is required.');
+    process.exit(1);
+  }
+  if (!merchant) {
+    fail('--merchant <address> is required.');
+    process.exit(1);
+  }
 
   const VALID_INTERVALS = ['Weekly', 'Monthly', 'Quarterly', 'Yearly'];
   if (!VALID_INTERVALS.includes(interval)) {
@@ -554,10 +671,16 @@ async function cmdPlanCreate(args, cfg) {
   const body = { name, price: parseFloat(price), token, interval, merchant };
   const res = await apiRequest(cfg.baseUrl, '/create_plan', 'POST', body, cfg.apiKey);
 
-  if (res.status >= 400) { fail(`API error ${res.status}: ${JSON.stringify(res.body)}`); process.exit(1); }
+  if (res.status >= 400) {
+    fail(`API error ${res.status}: ${JSON.stringify(res.body)}`);
+    process.exit(1);
+  }
 
   const format = args.options['format'] || args.options['f'];
-  if (format === 'json') { printOutput(res.body, 'json'); return; }
+  if (format === 'json') {
+    printOutput(res.body, 'json');
+    return;
+  }
 
   ok(`Plan created — ID: ${c.cyan(String(res.body))}`);
   info(`  Name    : ${name}`);
@@ -568,16 +691,33 @@ async function cmdPlanCreate(args, cfg) {
 async function cmdPlanDeactivate(args, cfg) {
   requireAuth(cfg);
   const id = args._[0];
-  if (!id) { fail('Usage: subtrackr plans deactivate <id>'); process.exit(1); }
+  if (!id) {
+    fail('Usage: subtrackr plans deactivate <id>');
+    process.exit(1);
+  }
 
   const merchant = args.options['merchant'] || args.options['m'];
-  if (!merchant) { fail('--merchant <address> is required.'); process.exit(1); }
+  if (!merchant) {
+    fail('--merchant <address> is required.');
+    process.exit(1);
+  }
 
-  const res = await apiRequest(cfg.baseUrl, '/deactivate_plan', 'POST',
-    { plan_id: parseInt(id, 10), merchant }, cfg.apiKey);
+  const res = await apiRequest(
+    cfg.baseUrl,
+    '/deactivate_plan',
+    'POST',
+    { plan_id: parseInt(id, 10), merchant },
+    cfg.apiKey
+  );
 
-  if (res.status === 404) { fail(`Plan ${id} not found.`); process.exit(1); }
-  if (res.status >= 400) { fail(`API error ${res.status}: ${JSON.stringify(res.body)}`); process.exit(1); }
+  if (res.status === 404) {
+    fail(`Plan ${id} not found.`);
+    process.exit(1);
+  }
+  if (res.status >= 400) {
+    fail(`API error ${res.status}: ${JSON.stringify(res.body)}`);
+    process.exit(1);
+  }
 
   ok(`Plan ${c.cyan(id)} deactivated.`);
 }
@@ -589,16 +729,22 @@ async function cmdWebhookList(args, cfg) {
   const format = args.options['format'] || args.options['f'];
 
   const res = await apiRequest(cfg.baseUrl, '/v1/webhooks', 'GET', null, cfg.apiKey);
-  if (res.status !== 200) { fail(`API error ${res.status}: ${JSON.stringify(res.body)}`); process.exit(1); }
+  if (res.status !== 200) {
+    fail(`API error ${res.status}: ${JSON.stringify(res.body)}`);
+    process.exit(1);
+  }
 
-  const hooks = Array.isArray(res.body) ? res.body : (res.body && res.body.data ? res.body.data : []);
+  const hooks = Array.isArray(res.body) ? res.body : res.body && res.body.data ? res.body.data : [];
 
-  if (format === 'json') { printOutput(res.body, 'json'); return; }
+  if (format === 'json') {
+    printOutput(res.body, 'json');
+    return;
+  }
 
   console.log(`\n${c.bold('Webhooks')}  ${c.dim(`(${hooks.length} total)`)}\n`);
   printTable(hooks, [
-    { key: 'id',     label: 'ID'     },
-    { key: 'url',    label: 'URL'    },
+    { key: 'id', label: 'ID' },
+    { key: 'url', label: 'URL' },
     { key: 'events', label: 'Events' },
   ]);
   console.log('');
@@ -607,21 +753,41 @@ async function cmdWebhookList(args, cfg) {
 async function cmdWebhookCreate(args, cfg) {
   requireAuth(cfg);
 
-  const url    = args.options['url']    || args.options['u'];
+  const url = args.options['url'] || args.options['u'];
   const events = args.options['events'] || args.options['e'];
 
-  if (!url)    { fail('--url <url> is required.');       process.exit(1); }
-  if (!events) { fail('--events <event,...> is required.'); process.exit(1); }
+  if (!url) {
+    fail('--url <url> is required.');
+    process.exit(1);
+  }
+  if (!events) {
+    fail('--events <event,...> is required.');
+    process.exit(1);
+  }
 
-  const eventList = events.split(',').map((e) => e.trim()).filter(Boolean);
+  const eventList = events
+    .split(',')
+    .map((e) => e.trim())
+    .filter(Boolean);
 
-  const res = await apiRequest(cfg.baseUrl, '/v1/webhooks', 'POST',
-    { url, events: eventList }, cfg.apiKey);
+  const res = await apiRequest(
+    cfg.baseUrl,
+    '/v1/webhooks',
+    'POST',
+    { url, events: eventList },
+    cfg.apiKey
+  );
 
-  if (res.status >= 400) { fail(`API error ${res.status}: ${JSON.stringify(res.body)}`); process.exit(1); }
+  if (res.status >= 400) {
+    fail(`API error ${res.status}: ${JSON.stringify(res.body)}`);
+    process.exit(1);
+  }
 
   const format = args.options['format'] || args.options['f'];
-  if (format === 'json') { printOutput(res.body, 'json'); return; }
+  if (format === 'json') {
+    printOutput(res.body, 'json');
+    return;
+  }
 
   ok(`Webhook registered — ID: ${c.cyan(String(res.body && res.body.id ? res.body.id : '?'))}`);
   info(`  URL   : ${url}`);
@@ -631,12 +797,21 @@ async function cmdWebhookCreate(args, cfg) {
 async function cmdWebhookDelete(args, cfg) {
   requireAuth(cfg);
   const id = args._[0];
-  if (!id) { fail('Usage: subtrackr webhooks delete <id>'); process.exit(1); }
+  if (!id) {
+    fail('Usage: subtrackr webhooks delete <id>');
+    process.exit(1);
+  }
 
   const res = await apiRequest(cfg.baseUrl, `/v1/webhooks/${id}`, 'DELETE', null, cfg.apiKey);
 
-  if (res.status === 404) { fail(`Webhook ${id} not found.`); process.exit(1); }
-  if (res.status >= 400)  { fail(`API error ${res.status}: ${JSON.stringify(res.body)}`); process.exit(1); }
+  if (res.status === 404) {
+    fail(`Webhook ${id} not found.`);
+    process.exit(1);
+  }
+  if (res.status >= 400) {
+    fail(`API error ${res.status}: ${JSON.stringify(res.body)}`);
+    process.exit(1);
+  }
 
   ok(`Webhook ${c.cyan(id)} deleted.`);
 }
@@ -648,13 +823,20 @@ async function dispatchSubscriptions(subArgs, cfg) {
   const args = { ...subArgs, _: rest };
 
   switch (subCmd) {
-    case 'list':       return cmdSubList(args, cfg);
-    case 'get':        return cmdSubGet(args, cfg);
-    case 'create':     return cmdSubCreate(args, cfg);
-    case 'cancel':     return cmdSubCancel(args, cfg);
-    case 'pause':      return cmdSubPause(args, cfg);
-    case 'resume':     return cmdSubResume(args, cfg);
-    case 'charge':     return cmdSubCharge(args, cfg);
+    case 'list':
+      return cmdSubList(args, cfg);
+    case 'get':
+      return cmdSubGet(args, cfg);
+    case 'create':
+      return cmdSubCreate(args, cfg);
+    case 'cancel':
+      return cmdSubCancel(args, cfg);
+    case 'pause':
+      return cmdSubPause(args, cfg);
+    case 'resume':
+      return cmdSubResume(args, cfg);
+    case 'charge':
+      return cmdSubCharge(args, cfg);
     default:
       console.log(`${c.bold('subtrackr subscriptions')} — manage subscriptions\n`);
       console.log('  list                        List all subscriptions');
@@ -690,10 +872,14 @@ async function dispatchPlans(subArgs, cfg) {
   const args = { ...subArgs, _: rest };
 
   switch (subCmd) {
-    case 'list':       return cmdPlanList(args, cfg);
-    case 'get':        return cmdPlanGet(args, cfg);
-    case 'create':     return cmdPlanCreate(args, cfg);
-    case 'deactivate': return cmdPlanDeactivate(args, cfg);
+    case 'list':
+      return cmdPlanList(args, cfg);
+    case 'get':
+      return cmdPlanGet(args, cfg);
+    case 'create':
+      return cmdPlanCreate(args, cfg);
+    case 'deactivate':
+      return cmdPlanDeactivate(args, cfg);
     default:
       console.log(`${c.bold('subtrackr plans')} — manage subscription plans\n`);
       console.log('  list                        List all plans');
@@ -703,7 +889,9 @@ async function dispatchPlans(subArgs, cfg) {
       console.log('    --price <amount>  (required)');
       console.log('    --merchant <address>  (required)');
       console.log('    --token <symbol>          Token (default: XLM)');
-      console.log('    --interval <interval>     Weekly|Monthly|Quarterly|Yearly (default: Monthly)');
+      console.log(
+        '    --interval <interval>     Weekly|Monthly|Quarterly|Yearly (default: Monthly)'
+      );
       console.log('  deactivate <id>             Deactivate a plan');
       console.log('    --merchant <address>  (required)');
       console.log('');
@@ -715,15 +903,20 @@ async function dispatchWebhooks(subArgs, cfg) {
   const args = { ...subArgs, _: rest };
 
   switch (subCmd) {
-    case 'list':   return cmdWebhookList(args, cfg);
-    case 'create': return cmdWebhookCreate(args, cfg);
-    case 'delete': return cmdWebhookDelete(args, cfg);
+    case 'list':
+      return cmdWebhookList(args, cfg);
+    case 'create':
+      return cmdWebhookCreate(args, cfg);
+    case 'delete':
+      return cmdWebhookDelete(args, cfg);
     default:
       console.log(`${c.bold('subtrackr webhooks')} — manage webhook endpoints\n`);
       console.log('  list                        List registered webhooks');
       console.log('  create                      Register a new webhook');
       console.log('    --url <url>  (required)');
-      console.log('    --events <event,...>  (required)  e.g. subscription.created,payment.succeeded');
+      console.log(
+        '    --events <event,...>  (required)  e.g. subscription.created,payment.succeeded'
+      );
       console.log('  delete <id>                 Remove a webhook');
       console.log('');
   }
@@ -734,9 +927,12 @@ async function dispatchAuth(subArgs) {
   const args = { ...subArgs, _: rest };
 
   switch (subCmd) {
-    case 'login':   return cmdAuthLogin(args);
-    case 'logout':  return cmdAuthLogout();
-    case 'status':  return cmdAuthStatus();
+    case 'login':
+      return cmdAuthLogin(args);
+    case 'logout':
+      return cmdAuthLogout();
+    case 'status':
+      return cmdAuthStatus();
     default:
       console.log(`${c.bold('subtrackr auth')} — configure API credentials\n`);
       console.log('  login   --api-key <key> [--base-url <url>]   Save credentials');

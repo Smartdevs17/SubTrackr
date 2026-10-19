@@ -3,7 +3,7 @@ name: Lighthouse CI
 on: workflow_dispatch
 
 env:
-  NODE_VERSION: '20'
+  NODE_VERSION: '24'
 
 jobs:
   lighthouse:
@@ -21,7 +21,7 @@ jobs:
       - name: Build developer portal
         run: |
           cd developer-portal
-          npm ci --legacy-peer-deps || true
+          pnpm install --frozen-lockfile || true
           npx next build || echo "Build skipped (no next.config present yet)"
 
       # Serve the portal locally for auditing
@@ -52,7 +52,7 @@ jobs:
       # Post report link to PR as a check annotation
       - name: Comment Lighthouse results on PR
         if: github.event_name == 'pull_request' && always()
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');
@@ -85,7 +85,7 @@ jobs:
       - name: Build developer portal
         run: |
           cd developer-portal
-          npm ci --legacy-peer-deps || true
+          pnpm install --frozen-lockfile || true
           npx next build || echo "Build skipped"
 
       - name: Serve portal

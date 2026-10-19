@@ -8,12 +8,79 @@
  *  - Integration with the existing ApiResponse / PaginationMeta envelope
  */
 
-import { createHmac } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 
 // ─── Cursor Encoding ──────────────────────────────────────────────────────────
 
-const CURSOR_SECRET = process.env['CURSOR_HMAC_SECRET'] ?? 'subtrackr-cursor-secret';
 const CURSOR_VERSION = 1;
+
+/**
+ * Resolves the cursor HMAC secret.
+ *
+ * This previously fell back to the literal `'subtrackr-cursor-secret'`, which
+ * is published in the repository. Anyone could therefore mint a cursor with a
+ * forged `field`, and that identifier is interpolated straight into `ORDER BY`
+ * and `WHERE` — a known-secret cursor is a SQL identifier-injection primitive.
+ *
+ * Outside production (tests, local development) a per-process random secret is
+ * generated instead, so the integrity guarantee still holds rather than being
+ * silently disabled. In production an unset secret is a hard failure.
+ */
+function resolveCursorSecret(): string {
+  const configured = process.env['CURSOR_HMAC_SECRET'];
+
+  if (configured && configured.trim().length >= 16) {
+    return configured;
+  }
+
+  if (process.env['NODE_ENV'] === 'production') {
+    throw new Error(
+      'CURSOR_HMAC_SECRET must be set to a random value of at least 16 characters in production.'
+    );
+  }
+
+  if (configured) {
+    console.warn(
+      '[pagination] CURSOR_HMAC_SECRET is too short (min 16 chars); using an ephemeral secret. Cursors will not survive a restart.'
+    );
+  }
+
+  return createHmac('sha256', `${process.pid}:${process.hrtime.bigint()}:${Math.random()}`)
+    .update('cursor-secret')
+    .digest('hex');
+}
+
+let _cursorSecret: string | null = null;
+
+/** Lazily resolved so importing this module never throws in production. */
+function cursorSecret(): string {
+  if (_cursorSecret === null) {
+    _cursorSecret = resolveCursorSecret();
+  }
+  return _cursorSecret;
+}
+
+/** Test seam: forces a specific secret, or `null` to re-resolve. */
+export function __setCursorSecretForTesting(secret: string | null): void {
+  _cursorSecret = secret;
+}
+
+function sign(data: string): string {
+  return createHmac('sha256', cursorSecret()).update(data).digest('base64url').slice(0, 16);
+}
+
+/**
+ * Restricts a sort/identifier to a safe SQL identifier.
+ *
+ * Anything outside `[A-Za-z0-9_]` is rejected outright rather than sanitised,
+ * because a partially-stripped identifier is still attacker-influenced.
+ */
+export function assertSafeIdentifier(identifier: string, label: string): string {
+  if (!/^[A-Za-z0-9_]+$/.test(identifier)) {
+    throw new Error(`Unsafe SQL identifier for ${label}: ${JSON.stringify(identifier)}`);
+  }
+  return identifier;
+}
 
 export interface CursorPayload {
   v: number;
@@ -24,7 +91,7 @@ export interface CursorPayload {
 }
 
 function sign(data: string): string {
-  return createHmac('sha256', CURSOR_SECRET).update(data).digest('base64url').slice(0, 16);
+  return createHmac('sha256', cursorSecret()).update(data).digest('base64url').slice(0, 16);
 }
 
 /** Encode a cursor payload into an opaque base64url string. */
@@ -43,9 +110,22 @@ export function decodeCursor(cursor: string): CursorPayload | null {
     if (sepIdx === -1) return null;
     const json = raw.slice(0, sepIdx);
     const sig = raw.slice(sepIdx + 1);
-    if (sign(json) !== sig) return null;
+
+    // Constant-time so a forged signature cannot be refined byte by byte.
+    const bufA = Buffer.from(sign(json), 'utf8');
+    const bufB = Buffer.from(sig, 'utf8');
+    if (bufA.length !== bufB.length) return null;
+    if (!timingSafeEqual(bufA, bufB)) return null;
+
     const payload = JSON.parse(json) as CursorPayload;
     if (payload.v !== CURSOR_VERSION) return null;
+
+    // The signature is only trustworthy if the secret actually is. When a
+    // short/absent secret yields an ephemeral key we still refuse to trust a
+    // cursor's `field`, because it is interpolated into SQL below.
+    if (!/^[A-Za-z0-9_]+$/.test(String(payload.field ?? ''))) {
+      return null;
+    }
     return payload;
   } catch {
     return null;
@@ -97,7 +177,7 @@ export interface SqlCursorClause {
  */
 export function buildCursorClause(options: PageOptions = {}): SqlCursorClause {
   const dir = options.direction ?? 'asc';
-  const sortField = options.sortField ?? 'id';
+  const sortField = assertSafeIdentifier(options.sortField ?? 'id', 'sortField');
   const rawLimit = options.limit ?? 20;
   const limit = Math.min(Math.max(1, rawLimit), options.maxLimit ?? 100);
   const op = dir === 'asc' ? '>' : '<';
@@ -117,10 +197,15 @@ export function buildCursorClause(options: PageOptions = {}): SqlCursorClause {
     return { where: '', param: null, orderBy: `"${sortField}" ${orderDir}`, limit };
   }
 
+  // `decodeCursor` has already restricted `field` to `[A-Za-z0-9_]`, so it is
+  // safe to interpolate as a quoted SQL identifier. Re-check rather than trust
+  // the caller's own type-checking to have held.
+  const cursorField = assertSafeIdentifier(decoded.field, 'cursor.field');
+
   return {
-    where: `("${decoded.field}", id) ${op} ($1, $2)`,
+    where: `("${cursorField}", id) ${op} ($1, $2)`,
     param: decoded.value,
-    orderBy: `"${decoded.field}" ${orderDir}, id ${orderDir}`,
+    orderBy: `"${cursorField}" ${orderDir}, id ${orderDir}`,
     limit,
   };
 }

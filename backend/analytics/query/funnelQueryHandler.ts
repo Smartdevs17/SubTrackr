@@ -140,7 +140,7 @@ export class FunnelQueryHandler {
     if (result.rows.length === 0) {
       return this.emptyResult();
     }
-    return this.transformRow(result.rows[0]);
+    return this.transformRow({ ...result.rows[0], period: 'aggregated', cohort: null });
   }
 
   /**

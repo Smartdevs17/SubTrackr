@@ -43,3 +43,9 @@ CREATE INDEX IF NOT EXISTS idx_gateway_failed_status ON gateway_failed_attempts(
 CREATE INDEX IF NOT EXISTS idx_gateway_failed_next_retry ON gateway_failed_attempts(next_retry_at);
 
 COMMIT;
+
+-- @down
+BEGIN;
+DROP TABLE IF EXISTS gateway_failed_attempts;
+DROP TABLE IF EXISTS merchant_gateway_configs;
+COMMIT;
