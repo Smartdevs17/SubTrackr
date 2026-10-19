@@ -42,6 +42,20 @@ export { BasePaymentGateway } from './domain/gateways/PaymentGateway';
 export { GatewayConfigController, gatewayConfigController } from './controller/gatewayConfigController';
 export type { IPaymentGateway, IPaymentRouter, PaymentRequest, PaymentResult, RefundRequest, RefundResult, CustomerResult, PaymentMethodResult, PayoutRequest, PayoutResult, GatewayConfig } from './interfaces';
 export { PaymentError, PaymentErrorCode } from './errors';
+// ── Cross-account payment splitting (Issue #1720) ────────────────────────────
+export { PaymentSplitService, validateSplits, splitAmount } from './domain/PaymentSplitService';
+export type {
+  PaymentSplitEntry,
+  SplitPaymentRequest,
+  SplitEntryResult,
+  SplitPaymentResult,
+} from './domain/PaymentSplitService';
+export {
+  PaymentSplitController,
+  paymentSplitController,
+  defaultSplitService,
+} from './controller/paymentSplitController';
+export { createPaymentSplitRouter } from './router/paymentSplitRouter';
 export {
   upsertFallbackChain,
   getFallbackChain,
