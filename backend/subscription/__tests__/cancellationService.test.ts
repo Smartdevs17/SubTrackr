@@ -4,7 +4,10 @@
  * @see https://github.com/Smartdevs17/SubTrackr/issues/1119
  */
 
-import { CancellationService } from '../domain/cancellationService';
+import {
+  CancellationService,
+  DEFAULT_CANCELLATION_REASONS,
+} from '../domain/cancellationService';
 
 describe('CancellationService', () => {
   let service: CancellationService;
@@ -236,6 +239,168 @@ describe('CancellationService', () => {
       expect(analytics.byReason['too_expensive']).toBe(1);
       expect(analytics.byReason['not_using']).toBe(1);
       expect(analytics.averageTimeToCancel).toBeGreaterThan(0);
+    });
+  });
+
+  describe('per-plan cancellation reasons', () => {
+    it('falls back to the default vocabulary when a plan is not configured', () => {
+      expect(service.getPlanReasons()).toEqual(DEFAULT_CANCELLATION_REASONS);
+      expect(service.getPlanReasons('unconfigured')).toEqual(DEFAULT_CANCELLATION_REASONS);
+      expect(service.getPlanReasonConfig('unconfigured')).toBeNull();
+    });
+
+    it('stores a plan-specific reason list', () => {
+      const config = service.configurePlanReasons({
+        planId: 'plan_pro',
+        reasons: ['too_expensive', 'missing_features', 'integration_limits'],
+      });
+
+      expect(config.reasons).toEqual([
+        'too_expensive',
+        'missing_features',
+        'integration_limits',
+      ]);
+      expect(config.requireReason).toBe(false);
+      expect(service.getPlanReasons('plan_pro')).toEqual(config.reasons);
+      expect(service.listPlanReasonConfigs()).toHaveLength(1);
+    });
+
+    it('deduplicates and trims configured reasons', () => {
+      const config = service.configurePlanReasons({
+        planId: 'plan_pro',
+        reasons: [' too_expensive ', 'too_expensive', 'not_using'],
+      });
+
+      expect(config.reasons).toEqual(['too_expensive', 'not_using']);
+    });
+
+    it('rejects an empty reason list', () => {
+      expect(() => service.configurePlanReasons({ planId: 'plan_pro', reasons: [] })).toThrow(
+        'At least one cancellation reason is required',
+      );
+    });
+
+    it('keeps the reason optional by default', () => {
+      service.configurePlanReasons({
+        planId: 'plan_pro',
+        reasons: ['too_expensive', 'not_using'],
+      });
+
+      const { cancellation, retentionOffer } = service.initiate({
+        subscriptionId: 'sub_optional',
+        userId: 'user_001',
+        planId: 'plan_pro',
+        mode: 'end_of_period',
+      });
+
+      expect(cancellation.reason).toBeUndefined();
+      expect(cancellation.planId).toBe('plan_pro');
+      expect(retentionOffer).toBeNull();
+    });
+
+    it('can require a reason for a plan', () => {
+      service.configurePlanReasons({
+        planId: 'plan_enterprise',
+        reasons: ['too_expensive', 'found_alternative'],
+        requireReason: true,
+      });
+
+      expect(() =>
+        service.initiate({
+          subscriptionId: 'sub_required',
+          userId: 'user_001',
+          planId: 'plan_enterprise',
+          mode: 'end_of_period',
+        }),
+      ).toThrow('Cancellation reason is required');
+    });
+
+    it('rejects a reason that is not configured for the plan', () => {
+      service.configurePlanReasons({
+        planId: 'plan_pro',
+        reasons: ['too_expensive', 'not_using'],
+      });
+
+      expect(() =>
+        service.initiate({
+          subscriptionId: 'sub_invalid',
+          userId: 'user_001',
+          planId: 'plan_pro',
+          mode: 'end_of_period',
+          reason: 'found_alternative',
+        }),
+      ).toThrow('is not configured for plan');
+    });
+
+    it('accepts a custom reason configured by the plan', () => {
+      service.configurePlanReasons({
+        planId: 'plan_pro',
+        reasons: ['integration_limits'],
+      });
+
+      const { cancellation } = service.initiate({
+        subscriptionId: 'sub_custom',
+        userId: 'user_001',
+        planId: 'plan_pro',
+        mode: 'end_of_period',
+        reason: 'integration_limits',
+      });
+
+      expect(cancellation.reason).toBe('integration_limits');
+    });
+
+    it('aggregates cancellation counts by plan and reason', () => {
+      service.initiate({
+        subscriptionId: 'sub_1',
+        userId: 'user_001',
+        planId: 'plan_pro',
+        mode: 'end_of_period',
+        reason: 'too_expensive',
+      });
+      service.initiate({
+        subscriptionId: 'sub_2',
+        userId: 'user_002',
+        planId: 'plan_pro',
+        mode: 'immediate',
+        reason: 'too_expensive',
+      });
+      service.initiate({
+        subscriptionId: 'sub_3',
+        userId: 'user_003',
+        planId: 'plan_basic',
+        mode: 'end_of_period',
+        reason: 'not_using',
+      });
+
+      const analytics = service.getAnalytics();
+
+      expect(analytics.byPlan['plan_pro']).toBe(2);
+      expect(analytics.byPlan['plan_basic']).toBe(1);
+      expect(analytics.byPlanReason['plan_pro']['too_expensive']).toBe(2);
+      expect(analytics.byPlanReason['plan_basic']['not_using']).toBe(1);
+    });
+
+    it('filters analytics to a single plan', () => {
+      service.initiate({
+        subscriptionId: 'sub_1',
+        userId: 'user_001',
+        planId: 'plan_pro',
+        mode: 'end_of_period',
+        reason: 'too_expensive',
+      });
+      service.initiate({
+        subscriptionId: 'sub_2',
+        userId: 'user_002',
+        planId: 'plan_basic',
+        mode: 'end_of_period',
+        reason: 'not_using',
+      });
+
+      const analytics = service.getAnalytics({ planId: 'plan_pro' });
+
+      expect(analytics.totalCancellations).toBe(1);
+      expect(analytics.byReason).toEqual({ too_expensive: 1 });
+      expect(analytics.byPlan).toEqual({ plan_pro: 1 });
     });
   });
 });

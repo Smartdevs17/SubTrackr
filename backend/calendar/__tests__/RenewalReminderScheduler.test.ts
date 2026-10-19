@@ -326,3 +326,104 @@ describe('RenewalReminderScheduler — default config uses DEFAULT_LEAD_TIMES', 
     expect(result.created).toBe(DEFAULT_LEAD_TIMES.length);
   });
 });
+
+describe('RenewalReminderScheduler — configurable intervals', () => {
+  it('exposes the default lead times via getConfig', () => {
+    const scheduler = new RenewalReminderScheduler(makeService());
+    expect(scheduler.getConfig().leadTimes).toEqual(DEFAULT_LEAD_TIMES);
+  });
+
+  it('applies custom intervals set at construction time', () => {
+    const svc = makeService();
+    connectCalendar(svc, 'user_001');
+
+    const scheduler = new RenewalReminderScheduler(svc, {
+      leadTimes: [{ daysBeforeRenewal: 14, eventType: 'renewal', label: 'Two Weeks Out' }],
+    });
+
+    const result = scheduler.scheduleRenewals([makeSubscription({ nextBillingDate: isoDateIn(21) })], new Date());
+    expect(result.created).toBe(1);
+    expect(scheduler.getRemindersForSubscription('sub_001')[0]?.eventType).toBe('renewal');
+  });
+
+  it('updates intervals at runtime via configure', () => {
+    const svc = makeService();
+    connectCalendar(svc, 'user_001');
+
+    const scheduler = new RenewalReminderScheduler(svc, {
+      leadTimes: [{ daysBeforeRenewal: 7, eventType: 'renewal', label: 'Upcoming' }],
+    });
+
+    const updated = scheduler.configure({
+      leadTimes: [
+        { daysBeforeRenewal: 10, eventType: 'renewal', label: 'Ten Days Out' },
+        { daysBeforeRenewal: 2, eventType: 'payment_due', label: 'Two Days Out' },
+      ],
+    });
+
+    expect(updated.leadTimes).toHaveLength(2);
+
+    // Bill 21 days out so both 10-day and 2-day reminders are still ahead.
+    const result = scheduler.scheduleRenewals(
+      [makeSubscription({ nextBillingDate: isoDateIn(21) })],
+      new Date(),
+    );
+    expect(result.created).toBe(2);
+  });
+
+  it('rejects invalid intervals', () => {
+    const scheduler = new RenewalReminderScheduler(makeService());
+
+    expect(() => scheduler.configure({ leadTimes: [] })).toThrow();
+    expect(() =>
+      scheduler.configure({
+        leadTimes: [{ daysBeforeRenewal: 0, eventType: 'renewal', label: 'Nope' }],
+      }),
+    ).toThrow();
+    expect(() =>
+      scheduler.configure({
+        leadTimes: [{ daysBeforeRenewal: 7, eventType: 'renewal', label: '' }],
+      }),
+    ).toThrow();
+  });
+});
+
+describe('RenewalReminderScheduler — notification preferences', () => {
+  it('skips reminder types that the account preference hook disables', () => {
+    const svc = makeService();
+    connectCalendar(svc, 'user_001');
+
+    const scheduler = new RenewalReminderScheduler(svc, {
+      leadTimes: [
+        { daysBeforeRenewal: 7, eventType: 'renewal', label: 'Upcoming' },
+        { daysBeforeRenewal: 1, eventType: 'payment_due', label: 'Tomorrow' },
+      ],
+      isReminderEnabled: (_userId, eventType) => eventType !== 'payment_due',
+    });
+
+    const result = scheduler.scheduleRenewals([makeSubscription()], new Date());
+
+    expect(result.created).toBe(1);
+    expect(result.skipped).toBe(1);
+    expect(scheduler.getRemindersForSubscription('sub_001')[0]?.eventType).toBe('renewal');
+  });
+
+  it('cancels and suppresses reminders when notificationsEnabled is false', () => {
+    const svc = makeService();
+    connectCalendar(svc, 'user_001');
+
+    const scheduler = new RenewalReminderScheduler(svc, {
+      leadTimes: [{ daysBeforeRenewal: 7, eventType: 'renewal', label: 'Upcoming' }],
+    });
+
+    scheduler.scheduleRenewals([makeSubscription()], new Date());
+    expect(scheduler.getRemindersForSubscription('sub_001')).toHaveLength(1);
+
+    const disabled = makeSubscription({ notificationsEnabled: false });
+    const result = scheduler.scheduleRenewals([disabled], new Date());
+
+    expect(result.deleted).toBe(1);
+    expect(result.created).toBe(0);
+    expect(scheduler.getRemindersForSubscription('sub_001')).toHaveLength(0);
+  });
+});

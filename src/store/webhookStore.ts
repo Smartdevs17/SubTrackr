@@ -118,6 +118,7 @@ export const useWebhookStore = create<WebhookState>()(
         const webhook: WebhookConfig = {
           ...input,
           secretKey,
+          signingEnabled: true,
           secrets: [{ key: secretKey, createdAt, validFrom: createdAt }],
           id: createId('whk'),
           createdAt,
