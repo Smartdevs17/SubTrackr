@@ -444,6 +444,42 @@ describe('StripeBillingService', () => {
       expect(calls[0].init.headers['Idempotency-Key']).toBe('subtrackr:subscription:update:sub_1');
     });
 
+    it.each([1, 5])('prorates a quantity change to %i seats on the existing item', async (quantity) => {
+      const invoice = { id: 'in_proration', total: 1200 };
+      const { service, calls } = createService([json({ id: 'sub_1', latest_invoice: invoice })]);
+
+      const updated = await service.updateSubscription('sub_1', {
+        items: [{ priceId: 'price_seat', subscriptionItemId: 'si_seat', quantity }],
+      });
+
+      expect(calls[0].params.get('items[0][id]')).toBe('si_seat');
+      expect(calls[0].params.get('items[0][price]')).toBe('price_seat');
+      expect(calls[0].params.get('items[0][quantity]')).toBe(String(quantity));
+      expect(calls[0].params.get('proration_behavior')).toBe('create_prorations');
+      expect(calls[0].params.getAll('expand[]')).toContain('latest_invoice.payment_intent');
+      expect(updated.latest_invoice).toEqual(invoice);
+    });
+
+    it('preserves an explicit proration behavior for item changes', async () => {
+      const { service, calls } = createService([json({ id: 'sub_1' })]);
+
+      await service.updateSubscription('sub_1', {
+        items: [{ priceId: 'price_seat', subscriptionItemId: 'si_seat', quantity: 0 }],
+        prorationBehavior: 'none',
+      });
+
+      expect(calls[0].params.get('proration_behavior')).toBe('none');
+      expect(calls[0].params.get('items[0][quantity]')).toBe('0');
+    });
+
+    it('does not set proration for metadata-only updates', async () => {
+      const { service, calls } = createService([json({ id: 'sub_1' })]);
+
+      await service.updateSubscription('sub_1', { metadata: { source: 'admin' } });
+
+      expect(calls[0].params.has('proration_behavior')).toBe(false);
+    });
+
     it('ends a trial early with trial_end=now', async () => {
       const { service, calls } = createService([json({ id: 'sub_1' })]);
 
