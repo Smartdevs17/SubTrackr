@@ -51,6 +51,24 @@ export const SettingsScreen = () => {
       </View>
 
       <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Notifications</Text>
+        <TouchableOpacity
+          style={styles.linkRow}
+          testID="notification-preferences-link"
+          accessibilityRole="button"
+          accessibilityLabel="Open notification preferences"
+          onPress={() => navigation.navigate('NotificationPreferences')}>
+          <View style={styles.modeTextWrap}>
+            <Text style={styles.rowLabel}>Notification Preferences</Text>
+            <Text style={styles.modeSubLabel}>
+              Categories, channels, digest schedule, and quiet hours
+            </Text>
+          </View>
+          <Text style={styles.chevron}>›</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.section}>
         <Text style={styles.sectionTitle}>Delivery Channels</Text>
         <View style={styles.row}>
           <Text style={styles.rowLabel}>Push Notifications</Text>
@@ -160,6 +178,22 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
       justifyContent: 'space-between',
       alignItems: 'center',
       marginBottom: 12,
+    },
+    linkRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 14,
+      paddingHorizontal: 12,
+      borderRadius: 12,
+      backgroundColor: colors.background.secondary,
+      borderWidth: 1,
+      borderColor: colors.border.default,
+    },
+    chevron: {
+      fontSize: 22,
+      fontWeight: '600',
+      color: colors.text.secondary,
+      paddingLeft: 8,
     },
     rowLabel: {
       flex: 1,
