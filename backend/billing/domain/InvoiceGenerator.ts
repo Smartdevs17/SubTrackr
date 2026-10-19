@@ -7,6 +7,14 @@
  * Closes #1132
  */
 
+import { formatDate, formatMoney } from './formatting';
+
+export interface InvoiceBranding {
+  logoUrl?: string;
+  primaryColor?: string;
+  accentColor?: string;
+}
+
 export interface InvoiceLineItem {
   description: string;
   quantity: number;
@@ -40,6 +48,8 @@ export interface InvoiceData {
   discount: number;
   total: number;
   currency: string;
+  locale: string;
+  branding: InvoiceBranding;
 
   // Metadata
   subscriptionId?: string;
@@ -114,10 +124,15 @@ export class InvoiceGenerator {
     subscriptionId?: string;
     notes?: string;
     dueInDays?: number;
+    locale?: string;
+    branding?: InvoiceBranding;
+    senderAddress?: string;
+    customerAddress?: string;
   }): InvoiceData {
     const taxRate = params.taxRate ?? 0;
     const discount = params.discount ?? 0;
-    const currency = params.currency ?? "USD";
+    const currency = (params.currency ?? "USD").toUpperCase();
+    const locale = params.locale ?? "en-US";
     const now = new Date();
     const dueDate = new Date(now);
     dueDate.setDate(dueDate.getDate() + (params.dueInDays ?? 30));
@@ -142,6 +157,8 @@ export class InvoiceGenerator {
       discount,
       total,
       currency,
+      locale,
+      branding: { ...params.branding },
       subscriptionId: params.subscriptionId,
       notes: params.notes,
     };
@@ -173,19 +190,26 @@ export class InvoiceGenerator {
     const content: string[] = [];
 
     // Build text content
-    const fmt = (n: number) => `${invoice.currency === "USD" ? "$" : ""}${n.toFixed(2)}`;
+    const fmt = (n: number) => formatMoney(n, invoice.currency, invoice.locale);
+    const primaryColor = this.pdfColor(invoice.branding.primaryColor ?? '#4F46E5');
 
     content.push(`BT`);
     content.push(`/F1 24 Tf`);
     content.push(`72 720 Td`);
+    content.push(`${primaryColor} rg`);
     content.push(`(INVOICE) Tj`);
+    content.push(`0 0 0 rg`);
+    if (invoice.branding.logoUrl) {
+      content.push(`0 -18 Td`);
+      content.push(`(${this.escapePdfString(`Logo: ${invoice.branding.logoUrl}`)}) Tj`);
+    }
     content.push(`/F1 12 Tf`);
     content.push(`0 -30 Td`);
     content.push(`(${this.escapePdfString(`Invoice #: ${invoice.invoiceNumber}`)}) Tj`);
     content.push(`0 -18 Td`);
-    content.push(`(${this.escapePdfString(`Date: ${new Date(invoice.invoiceDate).toLocaleDateString()}`)}) Tj`);
+    content.push(`(${this.escapePdfString(`Date: ${formatDate(invoice.invoiceDate, invoice.locale)}`)}) Tj`);
     content.push(`0 -18 Td`);
-    content.push(`(${this.escapePdfString(`Due: ${new Date(invoice.dueDate).toLocaleDateString()}`)}) Tj`);
+    content.push(`(${this.escapePdfString(`Due: ${formatDate(invoice.dueDate, invoice.locale)}`)}) Tj`);
     content.push(`0 -18 Td`);
     content.push(`(${this.escapePdfString(`Status: ${invoice.status}`)}) Tj`);
 
@@ -286,5 +310,12 @@ export class InvoiceGenerator {
    */
   private escapePdfString(str: string): string {
     return str.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
+  }
+
+  private pdfColor(hex: string): string {
+    const match = /^#?([0-9a-f]{6})$/i.exec(hex);
+    if (!match) return '0.31 0.27 0.90';
+    const value = match[1];
+    return `${parseInt(value.slice(0, 2), 16) / 255} ${parseInt(value.slice(2, 4), 16) / 255} ${parseInt(value.slice(4), 16) / 255}`;
   }
 }
