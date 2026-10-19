@@ -13,12 +13,21 @@ import type {
 import { InvoiceLayout, InvoiceStatus } from '../types/invoice';
 import { getNextSequence, generateLegalInvoiceNumber } from './sequenceService';
 import { calculateInvoiceTotals, resolveLineTotal } from '../utils/invoiceTotals';
+import { validateInvoiceLineItemMetadata } from '../utils/invoice';
 
 const STORAGE_KEYS = {
   INVOICES: '@SubTrackr:invoices',
   BRANDING: '@SubTrackr:invoiceBranding',
   TEMPLATES: '@SubTrackr:invoiceTemplates',
 } as const;
+
+const escapeHtmlForInvoice = (value: unknown): string =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 
 // Branding Management
 export async function saveBranding(
@@ -149,6 +158,10 @@ export async function createInvoice(data: InvoiceFormData): Promise<Invoice> {
   const now = new Date();
 
   // Accepts either the itemised shape (lineTotal) or the flat one (amount).
+  const metadataErrors = (data.lineItems ?? []).flatMap((item, index) =>
+    validateInvoiceLineItemMetadata(item.metadata, `line item ${index + 1} metadata`)
+  );
+  if (metadataErrors.length > 0) throw new Error(metadataErrors.join('; '));
   const lineItems = (data.lineItems ?? []).map((item) => ({
     ...item,
     lineTotal: resolveLineTotal(item),
@@ -220,6 +233,10 @@ export async function updateInvoice(id: string, updates: Partial<Invoice>): Prom
   // Recalculate totals if line items changed. Normalise the flat `amount`
   // alias onto `lineTotal` and keep the total aliases in sync.
   if (updates.lineItems) {
+    const metadataErrors = updates.lineItems.flatMap((item, index) =>
+      validateInvoiceLineItemMetadata(item.metadata, `line item ${index + 1} metadata`)
+    );
+    if (metadataErrors.length > 0) throw new Error(metadataErrors.join('; '));
     const lineItems = updates.lineItems.map((item) => ({
       ...item,
       lineTotal: resolveLineTotal(item),
@@ -470,7 +487,13 @@ async function generateInvoiceHTML(
       <td style="padding: 8px; border-bottom: 1px solid #E5E7EB;">${item.description}</td>
       <td style="padding: 8px; border-bottom: 1px solid #E5E7EB; text-align: center;">${item.quantity}</td>
       <td style="padding: 8px; border-bottom: 1px solid #E5E7EB; text-align: right;">${invoice.currency} ${item.unitPrice.toFixed(2)}</td>
-      <td style="padding: 8px; border-bottom: 1px solid #E5E7EB; text-align: right;">${invoice.currency} ${item.lineTotal.toFixed(2)}</td>
+      <td style="padding: 8px; border-bottom: 1px solid #E5E7EB; text-align: right;">${invoice.currency} ${(item.lineTotal ?? item.amount ?? 0).toFixed(2)}</td>
+      ${Object.entries(item.metadata ?? {})
+        .map(
+          ([key, value]) =>
+            `<tr><td colspan="4" style="padding: 0 8px 6px; color: #6B7280; font-size: 11px;"><strong>${escapeHtmlForInvoice(key)}:</strong> ${escapeHtmlForInvoice(value)}</td></tr>`
+        )
+        .join('')}
     </tr>
   `
     )

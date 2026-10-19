@@ -7,7 +7,7 @@
 pub mod errors;
 pub use errors::CoreError;
 
-use soroban_sdk::{contracttype, Address, BytesN, String, Vec};
+use soroban_sdk::{contracttype, Address, BytesN, Map, String, Vec};
 
 /// Billing interval in seconds.
 #[contracttype]
@@ -62,6 +62,8 @@ pub struct TimeRange {
 #[derive(Clone, Debug, PartialEq)]
 pub struct InvoiceLineItem {
     pub description: String,
+    /// Arbitrary string key/value references associated with this line.
+    pub metadata: Map<String, String>,
     pub quantity: u32,
     pub unit_price: i128,
     pub currency: String,

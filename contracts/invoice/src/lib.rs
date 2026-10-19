@@ -372,6 +372,7 @@ fn build_line_item(
     let unit_price = convert_amount(plan.price, exchange_rate, config.exchange_rate_scale);
     InvoiceLineItem {
         description: plan.name.clone(),
+        metadata: soroban_sdk::Map::new(env),
         quantity: 1,
         unit_price,
         currency: if invoice_currency.is_empty() {
@@ -392,6 +393,13 @@ fn validate_invoice_period(period: &TimeRange) {
     );
 }
 
+fn validate_line_item_metadata(item: &InvoiceLineItem) {
+    assert!(item.metadata.len() <= 50, "Line item metadata has too many entries");
+    for (key, value) in item.metadata.iter() {
+        assert!(key.len() > 0 && key.len() <= 100, "Invalid line item metadata key");
+        assert!(value.len() <= 500, "Line item metadata value is too long");
+    }
+}
 fn validate_invoice_amounts(invoice: &Invoice) {
     assert!(invoice.subtotal >= 0, "Invoice subtotal cannot be negative");
     assert!(invoice.tax >= 0, "Invoice tax cannot be negative");
@@ -413,6 +421,9 @@ fn store_invoice(env: &Env, invoice: &Invoice) {
         !invoice.line_items.is_empty(),
         "Invoice must contain at least one line item"
     );
+    for item in invoice.line_items.iter() {
+        validate_line_item_metadata(&item);
+    }
 
     storage_persistent_set(env, StorageKey::Invoice(invoice.id), invoice.clone());
     let mut list: Vec<u64> = storage_instance_get(

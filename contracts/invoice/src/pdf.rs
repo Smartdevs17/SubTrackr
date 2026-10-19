@@ -9,13 +9,17 @@ use crate::to_host_string;
 
 fn line_item_text(item: &InvoiceLineItem) -> StdString {
     format!(
-        "{} | qty {} | unit {} {} | total {} | tax {} bps",
+        "{} | qty {} | unit {} {} | total {} | tax {} bps{}",
         to_host_string(&item.description),
         item.quantity,
         item.unit_price,
         to_host_string(&item.currency),
         item.line_total,
-        item.tax_rate_bps
+        item.tax_rate_bps,
+        item.metadata
+            .iter()
+            .map(|(key, value)| format!(" | {}={}", to_host_string(&key), to_host_string(&value)))
+            .collect::<StdString>()
     )
 }
 

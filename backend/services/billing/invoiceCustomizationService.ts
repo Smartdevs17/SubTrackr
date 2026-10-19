@@ -143,9 +143,12 @@ function renderLineItems(items: InvoiceLineItem[], currency: string, branding: I
     .map((item) => {
       const amount = formatMoney(Number(item.lineTotal ?? 0), currency);
       const quantity = item.quantity ?? 1;
+      const metadata = Object.entries(item.metadata ?? {})
+        .map(([key, value]) => `<div class="line-metadata"><strong>${escapeHtml(key)}:</strong> ${escapeHtml(value)}</div>`)
+        .join('');
       return [
         '<tr>',
-        `<td>${escapeHtml(item.description ?? 'Item')}</td>`,
+        `<td>${escapeHtml(item.description ?? 'Item')}${metadata}</td>`,
         `<td class="num">${escapeHtml(quantity)}</td>`,
         `<td class="num" style="color:${branding.textColor}">${escapeHtml(amount)}</td>`,
         '</tr>',
@@ -227,6 +230,7 @@ export class InvoiceCustomizationService {
       'th,td{padding:8px 12px;text-align:left}',
       '.num{text-align:right}',
       '.empty{color:#5f6368;font-style:italic}',
+      '.line-metadata{font-size:11px;color:#5f6368;margin-top:3px}',
       `.total{font-weight:700;color:${branding.accentColor}}`,
       'footer{margin-top:32px;font-size:12px;color:#5f6368}',
       '</style></head><body>',

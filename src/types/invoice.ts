@@ -247,10 +247,14 @@ export interface TaxInvoiceGenerationInput {
   reverseCharge?: boolean;
 }
 
+export type InvoiceLineItemMetadata = Record<string, string>;
+
 export interface InvoiceLineItem {
   /** Optional line identifier assigned by the caller. */
   id?: string;
   description: string;
+  /** Arbitrary string key/value references attached to this line item. */
+  metadata?: InvoiceLineItemMetadata;
   quantity: number;
   unitPrice: number;
   currency: string;

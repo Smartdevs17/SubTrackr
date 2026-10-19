@@ -12,6 +12,41 @@ import { MeterUsageBreakdown } from '../types/usage';
 import { formatCurrency, formatDate } from './formatting';
 import { ProrationPreview, buildProrationLineItem } from './proration';
 
+/** Limits keep invoice metadata useful while preventing oversized persisted/PDF payloads. */
+export const MAX_LINE_ITEM_METADATA_ENTRIES = 50;
+export const MAX_LINE_ITEM_METADATA_KEY_LENGTH = 100;
+export const MAX_LINE_ITEM_METADATA_VALUE_LENGTH = 500;
+
+export const validateInvoiceLineItemMetadata = (
+  metadata: unknown,
+  fieldName = 'line item metadata'
+): string[] => {
+  if (metadata === undefined) return [];
+  if (metadata === null || typeof metadata !== 'object' || Array.isArray(metadata)) {
+    return [`${fieldName} must be an object of string key/value pairs`];
+  }
+  const entries = Object.entries(metadata as Record<string, unknown>);
+  const errors: string[] = [];
+  if (entries.length > MAX_LINE_ITEM_METADATA_ENTRIES) {
+    errors.push(`${fieldName} cannot contain more than ${MAX_LINE_ITEM_METADATA_ENTRIES} entries`);
+  }
+  for (const [key, value] of entries) {
+    if (!key.trim()) errors.push(`${fieldName} keys must not be empty`);
+    if (key.length > MAX_LINE_ITEM_METADATA_KEY_LENGTH) {
+      errors.push(
+        `${fieldName} keys must be ${MAX_LINE_ITEM_METADATA_KEY_LENGTH} characters or fewer`
+      );
+    }
+    if (typeof value !== 'string') errors.push(`${fieldName}.${key} must be a string`);
+    else if (value.length > MAX_LINE_ITEM_METADATA_VALUE_LENGTH) {
+      errors.push(
+        `${fieldName}.${key} must be ${MAX_LINE_ITEM_METADATA_VALUE_LENGTH} characters or fewer`
+      );
+    }
+  }
+  return errors;
+};
+
 const SECOND = 1000;
 const DAY = 24 * 60 * 60 * SECOND;
 /** Basis points per whole unit (100 % = 10 000 bps). */
@@ -19,6 +54,14 @@ const BPS_PER_UNIT = 10_000;
 
 /** Round a money value to the invoice currency's minor unit (2 decimals). */
 const roundMoney = (value: number): number => Math.round(value * 100) / 100;
+
+const escapeHtml = (value: unknown): string =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 
 /**
  * Tax owed on `subtotal` at `taxRateBps`.
@@ -299,10 +342,10 @@ export const generateInvoicePdfPreview = (invoice: Invoice): string => {
     `Tax: ${formatCurrency(invoice.tax, invoice.currency)}`,
     `Total: ${formatCurrency(invoice.total, invoice.currency)}`,
     'Items:',
-    ...invoice.lineItems.map(
-      (item) =>
-        `${item.description} x${item.quantity} @ ${formatCurrency(item.unitPrice, item.currency)}`
-    ),
+    ...invoice.lineItems.flatMap((item) => [
+      `${item.description} x${item.quantity} @ ${formatCurrency(item.unitPrice, item.currency)}`,
+      ...Object.entries(item.metadata ?? {}).map(([key, value]) => `  ${key}: ${value}`),
+    ]),
   ];
 
   return lines.join('\n');
@@ -369,8 +412,14 @@ export const generatePrintableInvoiceHtml = (invoice: Invoice): string => {
         <td style="padding: 10px; border-bottom: 1px solid #e5e7eb;">${item.description}</td>
         <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: center;">${item.quantity}</td>
         <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">${formatCurrency(item.unitPrice, item.currency)}</td>
-        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">${formatCurrency(item.lineTotal, item.currency)}</td>
-      </tr>`
+        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">${formatCurrency(item.lineTotal ?? item.amount ?? 0, item.currency)}</td>
+      </tr>
+      ${Object.entries(item.metadata ?? {})
+        .map(
+          ([key, value]) =>
+            `<tr><td colspan="4" style="padding: 0 10px 8px; color: #6b7280; font-size: 12px;"><strong>${escapeHtml(key)}:</strong> ${escapeHtml(value)}</td></tr>`
+        )
+        .join('')}`
     )
     .join('');
 
