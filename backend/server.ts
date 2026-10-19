@@ -60,6 +60,7 @@ import { createVersionMiddleware, versionRegistry } from './services/shared/apiV
 import { createLoggerFor } from './services/shared/logging';
 import { createTracerFromEnv, type Tracer } from './services/shared/tracing';
 import { createRequestObservability } from './shared/middleware/requestObservability';
+import { cohortAnalyticsRouter } from './analytics/cohortAnalyticsRouter';
 
 export interface StartServerOptions {
   port?: number;
@@ -1966,6 +1967,14 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
         const result = await planController.deactivatePlan(planId);
         sendJson(res, result.success ? 200 : (result.status ?? 400), result);
         return;
+      }
+
+      // -----------------------------------------------------------------
+      // Cohort & churn analytics  /analytics/cohorts  (issue #1755)
+      // -----------------------------------------------------------------
+      if (pathname.startsWith('/analytics/cohorts')) {
+        const handled = await cohortAnalyticsRouter(req, res, pathname);
+        if (handled) return;
       }
 
       sendJson(res, 404, { error: 'Not found' });
