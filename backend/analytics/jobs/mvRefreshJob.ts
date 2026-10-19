@@ -33,6 +33,22 @@ const DEFAULT_VIEWS: ViewConfig[] = [
   { name: 'ltv_mv',                       intervalMs: 86_400_000, lastRefreshedAt: null, isRefreshing: false },
 ];
 
+/**
+ * Pre-built parameterised-safe SQL strings for REFRESH MATERIALIZED VIEW.
+ * REFRESH MATERIALIZED VIEW is DDL and does not support parameterised identifiers.
+ * We store one static SQL string per known view so that no runtime string
+ * interpolation ever appears in a query() call.
+ */
+const REFRESH_SQL: ReadonlyMap<string, string> = new Map([
+  ['active_subscriptions_summary', 'REFRESH MATERIALIZED VIEW CONCURRENTLY active_subscriptions_summary'],
+  ['subscriber_balance_mv',        'REFRESH MATERIALIZED VIEW CONCURRENTLY subscriber_balance_mv'],
+  ['monthly_revenue_mv',           'REFRESH MATERIALIZED VIEW CONCURRENTLY monthly_revenue_mv'],
+  ['churn_summary_mv',             'REFRESH MATERIALIZED VIEW CONCURRENTLY churn_summary_mv'],
+  ['mrr_mv',                       'REFRESH MATERIALIZED VIEW CONCURRENTLY mrr_mv'],
+  ['cohort_retention_mv',          'REFRESH MATERIALIZED VIEW CONCURRENTLY cohort_retention_mv'],
+  ['ltv_mv',                       'REFRESH MATERIALIZED VIEW CONCURRENTLY ltv_mv'],
+]);
+
 export interface RefreshMetric {
   viewName: string;
   lastRefreshedAt: Date | null;
@@ -73,11 +89,20 @@ export class MVRefreshJob {
     const view = this.views.find((v) => v.name === viewName);
     if (!view || view.isRefreshing) return;
 
+    // Look up the pre-built static SQL string for this view.
+    // REFRESH MATERIALIZED VIEW is DDL with no parameterised-identifier support;
+    // using a static map ensures no runtime string interpolation reaches query().
+    const sql = REFRESH_SQL.get(viewName);
+    if (!sql) {
+      console.error(`[MVRefreshJob] No refresh SQL registered for view: ${viewName}`);
+      return;
+    }
+
     view.isRefreshing = true;
     const start = Date.now();
 
     try {
-      await this.db.query(`REFRESH MATERIALIZED VIEW CONCURRENTLY ${viewName}`);
+      await this.db.query(sql);
       view.lastRefreshedAt = new Date();
       console.info(`[MVRefreshJob] Refreshed ${viewName} in ${Date.now() - start}ms`);
     } catch (err) {
