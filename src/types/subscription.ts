@@ -108,3 +108,25 @@ export interface SubscriptionStats {
   categoryBreakdown: Record<SubscriptionCategory, number>;
   totalGasSpent?: number;
 }
+
+// ── Lifecycle history ─────────────────────────────────────────────────────────
+
+export type SubscriptionLifecycleEventType =
+  | 'created'
+  | 'updated'
+  | 'price_changed'
+  | 'plan_changed'
+  | 'activated'
+  | 'paused'
+  | 'resumed'
+  | 'cancelled';
+
+/** A single timestamped state transition in a subscription's lifecycle. */
+export interface SubscriptionLifecycleEvent {
+  id: string;
+  subscriptionId: string;
+  type: SubscriptionLifecycleEventType;
+  occurredAt: Date;
+  /** Optional human-readable context, e.g. "9.99 USD → 12.99 USD". */
+  details?: string;
+}
