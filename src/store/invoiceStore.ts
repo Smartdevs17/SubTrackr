@@ -24,7 +24,11 @@ import {
   buildJurisdictionKey,
   isTaxExempt as checkIsTaxExempt,
 } from '../types/invoice';
-import { buildInvoice, calculateInvoiceTotals } from '../utils/invoice';
+import {
+  buildInvoice,
+  calculateInvoiceTotals,
+  validateInvoiceLineItemMetadata,
+} from '../utils/invoice';
 import { errorHandler, AppError } from '../services/errorHandler';
 import { presentLocalNotification } from '../services/notificationService';
 import { getNextSequence, generateLegalInvoiceNumber } from '../services/sequenceService';
@@ -63,7 +67,15 @@ const normalizeInvoice = (raw: Partial<Invoice>): Invoice => {
     subscriptionId: raw.subscriptionId ?? 'unknown',
     subscriptionName: raw.subscriptionName ?? 'Subscription',
     merchantName: raw.merchantName ?? 'Merchant',
-    lineItems: Array.isArray(raw.lineItems) ? raw.lineItems : [],
+    lineItems: Array.isArray(raw.lineItems)
+      ? raw.lineItems.map((item) => ({
+          ...item,
+          metadata:
+            validateInvoiceLineItemMetadata(item?.metadata).length === 0
+              ? item?.metadata
+              : undefined,
+        }))
+      : [],
     tax: Number.isFinite(raw.tax) ? (raw.tax as number) : 0,
     total: Number.isFinite(raw.total) ? (raw.total as number) : 0,
     subtotal: Number.isFinite(raw.subtotal) ? (raw.subtotal as number) : 0,
