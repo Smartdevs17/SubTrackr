@@ -24,14 +24,19 @@ on:
   workflow_dispatch:
     inputs:
       fuzz_seconds:
-        description: "Seconds per fuzz target"
+        description: "Seconds per fuzz target (time-based; ignored when fuzz_runs is set)"
         required: false
         default: "1800"
+      fuzz_runs:
+        description: "Iteration count per fuzz target (-runs=N). When set, overrides fuzz_seconds."
+        required: false
+        default: ""
 
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
   FUZZ_SECONDS: ${{ github.event.inputs.fuzz_seconds || '1800' }}
+  FUZZ_RUNS: ${{ github.event.inputs.fuzz_runs || '' }}
 
 jobs:
   fuzz:
@@ -94,10 +99,17 @@ jobs:
         working-directory: contracts
         run: |
           mkdir -p fuzz/artifacts/${{ matrix.target }}
+          if [ -n "${FUZZ_RUNS}" ]; then
+            LIMIT_FLAG="-runs=${FUZZ_RUNS}"
+            echo "Running ${FUZZ_RUNS} iterations (iteration-based)"
+          else
+            LIMIT_FLAG="-max_total_time=${FUZZ_SECONDS}"
+            echo "Running for ${FUZZ_SECONDS}s (time-based)"
+          fi
           cargo +nightly fuzz run "${{ matrix.target }}" \
             "fuzz/corpus/${{ matrix.target }}" \
             -- \
-            -max_total_time="${FUZZ_SECONDS}" \
+            ${LIMIT_FLAG} \
             -artifact_prefix="fuzz/artifacts/${{ matrix.target }}/" \
             -print_final_stats=1
 
@@ -110,3 +122,35 @@ jobs:
             contracts/fuzz/corpus/${{ matrix.target }}
             contracts/fuzz/artifacts/${{ matrix.target }}
           if-no-files-found: ignore
+
+  # Stable-toolchain regression replay: deterministically re-runs every crash
+  # artifact under contracts/subscription/tests/regressions/ plus a seeded
+  # in-process fuzz smoke. Runs on PRs without requiring nightly/libfuzzer.
+  regression-replay:
+    name: regression replay (stable)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      FUZZ_REGRESSION_ITERATIONS: "128"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            contracts/target
+          key: ${{ runner.os }}-cargo-fuzz-regression-${{ hashFiles('contracts/**/Cargo.lock', 'contracts/**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-fuzz-
+
+      - name: Replay crash artifacts and seeded fuzz smoke
+        run: |
+          cargo test --manifest-path contracts/subscription/Cargo.toml \
+            --test fuzz_regressions -- --nocapture
