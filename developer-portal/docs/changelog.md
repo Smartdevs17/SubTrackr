@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.0.0] - 2026-10-19
+
+_No API changes detected._
+
 All notable changes to the SubTrackr API and SDKs will be documented in this file.
 
 ## [1.2.0] - 2026-07-24

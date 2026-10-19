@@ -61,6 +61,9 @@ import { PaddleAdapter } from '../services/payment/domain/gateways/PaddleAdapter
 import { PaddleWebhookVerifier } from '../services/payment/domain/paddle/PaddleWebhookVerifier';
 import { createPaddleRouter } from '../services/payment/router/paddleRouter';
 
+// ── Payment splitting (issue #1720) ───────────────────────────────────────────
+import { createPaymentSplitRouter } from '../services/payment/router/paymentSplitRouter';
+
 // ── Calendar + renewal reminders ──────────────────────────────────────────────
 import { calendarSyncService } from '../calendar/domain/CalendarSyncService';
 import { createCalendarSyncController } from '../calendar/controller/calendarSyncController';
@@ -309,6 +312,11 @@ export function createApiServer(options: CreateApiServerOptions = {}): Express {
       verifier: paddleWebhookVerifier,
     }),
   );
+
+  // ── Payment splitting (issue #1720) ────────────────────────────────────────
+  // POST /api/v1/payments/split — split a charge across multiple destination accounts.
+  // The router itself adds the /payments prefix to the route path.
+  app.use('/api/v1', createPaymentSplitRouter());
 
   // ── Webhook signature verification demo endpoint ───────────────────────────
   // Uses captureRawBody only on this specific route so the stream isn't
