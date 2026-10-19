@@ -64,6 +64,8 @@ export interface StripeCustomerInput {
 export interface StripeSubscriptionItemInput {
   readonly priceId: string;
   readonly quantity?: number;
+  /** Existing Stripe subscription item to update instead of adding a new item. */
+  readonly subscriptionItemId?: string;
 }
 
 /**
@@ -270,7 +272,11 @@ export class StripeBillingService {
   ): Promise<any> {
     const params: StripeParams = { expand: ['latest_invoice.payment_intent'] };
     if (input.items) params.items = input.items.map((item) => this.itemParams(item));
-    if (input.prorationBehavior) params.proration_behavior = input.prorationBehavior;
+    if (input.prorationBehavior) {
+      params.proration_behavior = input.prorationBehavior;
+    } else if (input.items) {
+      params.proration_behavior = 'create_prorations';
+    }
     if (input.coupon !== undefined) params.coupon = input.coupon;
     if (input.cancelAtPeriodEnd !== undefined) {
       params.cancel_at_period_end = input.cancelAtPeriodEnd;
@@ -503,6 +509,7 @@ export class StripeBillingService {
 
   private itemParams(item: StripeSubscriptionItemInput): Record<string, unknown> {
     const params: Record<string, unknown> = { price: item.priceId };
+    if (item.subscriptionItemId) params.id = item.subscriptionItemId;
     if (item.quantity !== undefined) params.quantity = item.quantity;
     return params;
   }
