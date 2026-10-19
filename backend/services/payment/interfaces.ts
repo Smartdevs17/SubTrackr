@@ -1,3 +1,13 @@
+export interface PaymentSplit {
+  /** Destination account / customer identifier. */
+  destinationAccountId: string;
+  /**
+   * Percentage of the total amount directed to this account.
+   * All percentages in a request must sum to exactly 100.
+   */
+  percentage: number;
+}
+
 export interface PaymentRequest {
   amount: number;
   currency: string;
@@ -7,6 +17,12 @@ export interface PaymentRequest {
   chainId?: number;
   chainType?: 'evm' | 'stellar' | 'fiat';
   metadata?: Record<string, string>;
+  /**
+   * Optional cross-account split configuration (Issue #1720).
+   * When present the payment router distributes the amount across multiple
+   * destination accounts proportionally to the listed percentages.
+   */
+  splits?: PaymentSplit[];
 }
 
 export interface PaymentResult {
