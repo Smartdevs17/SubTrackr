@@ -22,7 +22,13 @@ export interface RegisterWebhookInput {
   merchantId: string;
   url: string;
   events: WebhookEventType[];
-  secretKey: string;
+  /**
+   * Signing secret. Required when `signingEnabled` is true (default). Partners
+   * that opt out of signing leave this undefined and set `signingEnabled: false`.
+   */
+  secretKey?: string;
+  /** When false, deliveries are sent unsigned. Default: true. Closes #1751. */
+  signingEnabled?: boolean;
   retryPolicy?: Partial<WebhookRetryPolicy>;
   rateLimitPerMinute?: number;
   rateLimit?: WebhookRateLimitConfig;
@@ -126,12 +132,14 @@ export const isWebhookEventAllowed = (
 
 /** Returns true if `signature` matches any signing secret currently valid for `webhook`. */
 export const verifyWebhookSignatureAny = (
-  webhook: Pick<WebhookConfig, 'secrets' | 'secretKey'>,
+  webhook: Pick<WebhookConfig, 'secrets' | 'secretKey' | 'signingEnabled'>,
   signature: string,
   payload: WebhookEventPayload,
   at: number = Date.now()
 ): boolean => {
-  const secrets = webhook.secrets?.length ? webhook.secrets : [{ key: webhook.secretKey, createdAt: at, validFrom: at }];
+  // Unsigned webhooks have no secrets to verify against.
+  if (webhook.signingEnabled === false) return false;
+  const secrets = webhook.secrets?.length ? webhook.secrets : webhook.secretKey ? [{ key: webhook.secretKey, createdAt: at, validFrom: at }] : [];
   return secrets.some((secret) => {
     if (at < secret.validFrom) return false;
     if (secret.validUntil !== undefined && at > secret.validUntil) return false;
@@ -157,13 +165,22 @@ export class WebhookDeliveryService {
   registerWebhook(input: RegisterWebhookInput): WebhookConfig {
     const id = createId('whk');
     const createdAt = now();
+    const signingEnabled = input.signingEnabled ?? true;
+    // When signing is enabled a secret is required; when disabled, no secret
+    // is stored and outbound deliveries skip the signature header.
+    if (signingEnabled && !input.secretKey) {
+      throw new Error('secretKey is required when signingEnabled is true');
+    }
     const config: WebhookConfig = {
       id,
       merchantId: input.merchantId,
       url: input.url,
       events: [...input.events],
-      secretKey: input.secretKey,
-      secrets: [{ key: input.secretKey, createdAt, validFrom: createdAt }],
+      secretKey: signingEnabled ? input.secretKey : undefined,
+      secrets: signingEnabled && input.secretKey
+        ? [{ key: input.secretKey, createdAt, validFrom: createdAt }]
+        : [],
+      signingEnabled,
       retryPolicy: clampRetryPolicy(input.retryPolicy),
       rateLimitPerMinute: input.rateLimitPerMinute,
       rateLimit: input.rateLimit,
@@ -188,11 +205,18 @@ export class WebhookDeliveryService {
     const existing = this.webhooks.get(id);
     if (!existing) throw new Error(`Webhook ${id} not found`);
 
+    const signingEnabled = input.signingEnabled ?? existing.signingEnabled;
+    if (signingEnabled && !input.secretKey && !existing.secretKey) {
+      throw new Error('secretKey is required when signingEnabled is true');
+    }
+
+    const secretKey = input.secretKey ?? existing.secretKey;
     const next: WebhookConfig = {
       ...existing,
       url: input.url ?? existing.url,
       events: input.events ? [...input.events] : existing.events,
-      secretKey: input.secretKey ?? existing.secretKey,
+      signingEnabled,
+      secretKey: signingEnabled ? secretKey : undefined,
       retryPolicy: clampRetryPolicy(input.retryPolicy ?? existing.retryPolicy),
       rateLimitPerMinute: input.rateLimitPerMinute ?? existing.rateLimitPerMinute,
       rateLimit: input.rateLimit ?? existing.rateLimit,
@@ -423,7 +447,9 @@ export class WebhookDeliveryService {
     if (!isWebhookEventAllowed(webhook, input.eventType)) return null;
 
     const payload = buildWebhookPayload(input);
-    const signature = signWebhookPayload(payload, webhook.secretKey);
+    const signature = webhook.signingEnabled && webhook.secretKey
+      ? signWebhookPayload(payload, webhook.secretKey)
+      : undefined;
     const idempotencyKey = input.idempotencyKey ?? `${payload.id}:${webhook.id}`;
     if (this.isWithinIdempotencyWindow(idempotencyKey)) {
       const delivery: WebhookDelivery = {
@@ -537,7 +563,9 @@ export class WebhookDeliveryService {
       ...(customPayload as Partial<WebhookEventPayload>),
     };
 
-    const signature = signWebhookPayload(testPayload, webhook.secretKey);
+    const signature = webhook.signingEnabled && webhook.secretKey
+      ? signWebhookPayload(testPayload, webhook.secretKey)
+      : undefined;
     const idempotencyKey = `test:${testId}`;
 
     const delivery: WebhookDelivery = {
@@ -607,11 +635,14 @@ export class WebhookDeliveryService {
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'X-SubTrackr-Signature': delivery.signature,
       'X-SubTrackr-Event-Type': delivery.eventType,
       'X-SubTrackr-Event-Id': delivery.eventId,
       [WEBHOOK_IDEMPOTENCY_HEADER]: delivery.idempotencyKey,
     };
+    // Only attach the signature header when signing is enabled for this webhook.
+    if (delivery.signature) {
+      headers['X-SubTrackr-Signature'] = delivery.signature;
+    }
     if (payloadTruncated) {
       headers['X-SubTrackr-Payload-Truncated'] = 'true';
       headers['X-SubTrackr-Payload-Hash'] = payloadHash as string;
