@@ -65,6 +65,8 @@ import { createScheduledReportPoller } from './services/notification/jobs/schedu
 import { createEmailProviderFromEnv } from './services/notification/emailProvider';
 import type { ReportAnalyticsSnapshot } from './services/notification/scheduledReportService';
 import { createRequestObservability } from './shared/middleware/requestObservability';
+import { createRevenueByCurrencyReportService } from './services/analytics/revenueByCurrencyReport';
+import { createRevenueByCurrencyRouter } from './services/analytics/revenueByCurrencyRouter';
 
 export interface StartServerOptions {
   port?: number;
