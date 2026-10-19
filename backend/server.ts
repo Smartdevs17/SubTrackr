@@ -59,8 +59,14 @@ import { buildMetricsService } from './services/shared/buildMetricsService';
 import { createVersionMiddleware, versionRegistry } from './services/shared/apiVersioning';
 import { createLoggerFor } from './services/shared/logging';
 import { createTracerFromEnv, type Tracer } from './services/shared/tracing';
+import { createScheduledReportService } from './services/notification/scheduledReportService';
+import { createScheduledReportRouter } from './services/notification/scheduledReportRouter';
+import { createScheduledReportPoller } from './services/notification/jobs/scheduledReportJob';
+import { createEmailProviderFromEnv } from './services/notification/emailProvider';
+import type { ReportAnalyticsSnapshot } from './services/notification/scheduledReportService';
 import { createRequestObservability } from './shared/middleware/requestObservability';
-import { cohortAnalyticsRouter } from './analytics/cohortAnalyticsRouter';
+import { createRevenueByCurrencyReportService } from './services/analytics/revenueByCurrencyReport';
+import { createRevenueByCurrencyRouter } from './services/analytics/revenueByCurrencyRouter';
 
 export interface StartServerOptions {
   port?: number;
@@ -450,6 +456,49 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
     serverSessionService.sweepExpiredSessions();
   }, 5 * 60 * 1000);
   sessionSweepTimer.unref();
+
+  // ---------------------------------------------------------------------------
+  // Scheduled email reports — issue #1758
+  // ---------------------------------------------------------------------------
+  const scheduledReportEmailProvider = createEmailProviderFromEnv();
+  const scheduledReportService = createScheduledReportService({
+    emailProvider: scheduledReportEmailProvider,
+    fromAddress: process.env['REPORT_FROM_ADDRESS'] ?? process.env['EMAIL_FROM_ADDRESS'] ?? 'reports@subtrackr.io',
+  });
+
+  // Snapshot factory: returns a minimal live analytics snapshot per merchant.
+  // In production wire this to SubscriptionAnalyticsService.compute(); the
+  // stub values here keep the server startable without analytics dependencies.
+  const reportSnapshotFactory = async (merchantId: string): Promise<ReportAnalyticsSnapshot> => {
+    const now = new Date();
+    const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    return {
+      merchantId,
+      mrr: 0,
+      arr: 0,
+      mrrGrowthRate: 0,
+      activeSubscribers: 0,
+      newSubscribersThisPeriod: 0,
+      churned: 0,
+      grossChurnRate: 0,
+      netChurnRate: 0,
+      arpu: 0,
+      ltv: 0,
+      currencySymbol: '$',
+      periodStart: monthStart.toISOString(),
+      periodEnd: now.toISOString(),
+    };
+  };
+
+  const scheduledReportRouter = createScheduledReportRouter(
+    scheduledReportService,
+    reportSnapshotFactory
+  );
+
+  const reportPoller = createScheduledReportPoller(
+    scheduledReportService,
+    reportSnapshotFactory
+  );
 
   // Seed a default permissive CORS policy for the server's own tenant.
   // In production, policies should be loaded from the database per-tenant.
@@ -1970,10 +2019,10 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
       }
 
       // -----------------------------------------------------------------
-      // Cohort & churn analytics  /analytics/cohorts  (issue #1755)
+      // Scheduled email reports  /scheduled-reports  (issue #1758)
       // -----------------------------------------------------------------
-      if (pathname.startsWith('/analytics/cohorts')) {
-        const handled = await cohortAnalyticsRouter(req, res, pathname);
+      if (pathname.startsWith('/scheduled-reports')) {
+        const handled = await scheduledReportRouter(req, res, pathname);
         if (handled) return;
       }
 
@@ -2010,6 +2059,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
     if (isShuttingDown) return;
     isShuttingDown = true;
     clearInterval(sessionSweepTimer);
+    reportPoller.stop();
 
     // Stop accepting new connections
     const closeServerPromise = new Promise<void>((resolve, reject) => {
@@ -2129,6 +2179,14 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
         console.info(`[Server] HubSpot  → POST /hubspot/webhook`);
         console.info(`[Server] HubSpot  → GET /hubspot/sync-status`);
         console.info(`[Server] HubSpot  → GET /hubspot/metrics`);
+        console.info(`[Server] Reports  → POST   /scheduled-reports`);
+        console.info(`[Server] Reports  → GET    /scheduled-reports?merchantId=…`);
+        console.info(`[Server] Reports  → GET    /scheduled-reports/:id`);
+        console.info(`[Server] Reports  → PATCH  /scheduled-reports/:id`);
+        console.info(`[Server] Reports  → DELETE /scheduled-reports/:id`);
+        console.info(`[Server] Reports  → POST   /scheduled-reports/:id/recipients`);
+        console.info(`[Server] Reports  → DELETE /scheduled-reports/:id/recipients`);
+        console.info(`[Server] Reports  → POST   /scheduled-reports/:id/send-now`);
         resolve();
       });
     });
