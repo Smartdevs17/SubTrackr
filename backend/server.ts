@@ -60,6 +60,8 @@ import { createVersionMiddleware, versionRegistry } from './services/shared/apiV
 import { createLoggerFor } from './services/shared/logging';
 import { createTracerFromEnv, type Tracer } from './services/shared/tracing';
 import { createRequestObservability } from './shared/middleware/requestObservability';
+import { createRevenueByCurrencyReportService } from './services/analytics/revenueByCurrencyReport';
+import { createRevenueByCurrencyRouter } from './services/analytics/revenueByCurrencyRouter';
 
 export interface StartServerOptions {
   port?: number;
@@ -449,6 +451,24 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
     serverSessionService.sweepExpiredSessions();
   }, 5 * 60 * 1000);
   sessionSweepTimer.unref();
+
+  // ---------------------------------------------------------------------------
+  // Revenue-by-currency report — issue #1757
+  // ---------------------------------------------------------------------------
+  const revenueByCurrencyService = createRevenueByCurrencyReportService();
+
+  // Stub subscription provider — in production wire to the subscription
+  // repository: `repo.findAll({ limit: 10000 }).items`.
+  const revenueByCurrencySubscriptionProvider = async (merchantId: string) => {
+    // Return empty list when no repository is available; the endpoint
+    // will still produce a valid (zero-row) report.
+    return [] as Array<{ amount: number; currency: string; billingCycle: string; status?: string }>;
+  };
+
+  const revenueByCurrencyRouter = createRevenueByCurrencyRouter(
+    revenueByCurrencyService,
+    revenueByCurrencySubscriptionProvider
+  );
 
   // Seed a default permissive CORS policy for the server's own tenant.
   // In production, policies should be loaded from the database per-tenant.
@@ -1966,6 +1986,14 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
         const result = await planController.deactivatePlan(planId);
         sendJson(res, result.success ? 200 : (result.status ?? 400), result);
         return;
+      }
+
+      // -----------------------------------------------------------------
+      // Revenue-by-currency report  /reports/revenue-by-currency  (issue #1757)
+      // -----------------------------------------------------------------
+      if (pathname.startsWith('/reports/revenue-by-currency')) {
+        const handled = await revenueByCurrencyRouter(req, res, pathname);
+        if (handled) return;
       }
 
       sendJson(res, 404, { error: 'Not found' });
