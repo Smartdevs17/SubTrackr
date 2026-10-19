@@ -33,6 +33,7 @@ export class CancellationController {
     const subscriptionId = req.params.id;
     const body = req.body as {
       userId: string;
+      planId?: string;
       mode?: CancellationMode;
       reason?: CancellationReason;
       nextBillingDate?: string;
@@ -47,6 +48,7 @@ export class CancellationController {
       const result = this.service.initiate({
         subscriptionId,
         userId: body.userId,
+        planId: body.planId,
         mode: body.mode ?? 'end_of_period',
         reason: body.reason,
         nextBillingDate: body.nextBillingDate,
@@ -154,10 +156,50 @@ export class CancellationController {
     send(res, ok({ cancellations, feedback }, requestId));
   }
 
-  /** GET /cancellation/analytics */
+  /** PUT /cancellation/plans/:planId/reasons */
+  configureReasons(req: Request, res: Response): void {
+    const requestId = requestIdFrom(req);
+    const planId = req.params.planId;
+    const body = req.body as {
+      reasons?: CancellationReason[];
+      requireReason?: boolean;
+    };
+
+    try {
+      const config = this.service.configurePlanReasons({
+        planId,
+        reasons: body.reasons ?? [],
+        requireReason: body.requireReason,
+      });
+      send(res, ok(config, requestId));
+    } catch (err) {
+      send(res, fail('VALIDATION_ERROR', (err as Error).message, requestId));
+    }
+  }
+
+  /** GET /cancellation/plans/:planId/reasons */
+  reasons(req: Request, res: Response): void {
+    const requestId = requestIdFrom(req);
+    const planId = req.params.planId;
+
+    send(
+      res,
+      ok(
+        {
+          planId,
+          reasons: this.service.getPlanReasons(planId),
+          config: this.service.getPlanReasonConfig(planId),
+        },
+        requestId,
+      ),
+    );
+  }
+
+  /** GET /cancellation/analytics?planId=... */
   analytics(req: Request, res: Response): void {
     const requestId = requestIdFrom(req);
-    const report = this.service.getAnalytics();
+    const planId = typeof req.query['planId'] === 'string' ? req.query['planId'] : undefined;
+    const report = this.service.getAnalytics({ planId });
     send(res, ok(report, requestId));
   }
 }
