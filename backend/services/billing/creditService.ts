@@ -50,6 +50,7 @@ import type {
   PrepaymentWallet,
   TopAccount,
   TransferCreditInput,
+  LowBalanceAlert,
 } from './creditTypes';
 import { BillingError } from './errors';
 
@@ -98,8 +99,11 @@ export class CreditService {
   private nextTxId = 1;
   private readonly now: () => number;
 
-  constructor(opts: { clock?: () => number } = {}) {
+  private readonly lowBalanceNotifier?: (alert: LowBalanceAlert) => void | Promise<void>;
+
+  constructor(opts: { clock?: () => number; onLowBalance?: (alert: LowBalanceAlert) => void | Promise<void> } = {}) {
     this.now = opts.clock ?? nowSec;
+    this.lowBalanceNotifier = opts.onLowBalance;
   }
 
   // ─── Account housekeeping ───────────────────────────────────────────────
@@ -347,6 +351,7 @@ export class CreditService {
     accountId: string;
     subscriptionId: string;
     currency: string;
+    lowBalanceThreshold?: number;
   }): PrepaymentWallet {
     const now = this.now();
     const wallet: PrepaymentWallet = {
@@ -359,6 +364,7 @@ export class CreditService {
       totalWithdrawn: 0,
       createdAt: now,
       updatedAt: now,
+      lowBalanceThreshold: input.lowBalanceThreshold,
     };
     this.wallets.set(wallet.id, wallet);
     this.walletTx.set(wallet.id, []);
@@ -388,6 +394,7 @@ export class CreditService {
     const txs = this.walletTx.get(wallet.id) ?? [];
     txs.push(tx);
     this.walletTx.set(wallet.id, txs);
+    this.notifyIfLow(wallet);
     return { ...wallet };
   }
 
@@ -438,7 +445,10 @@ export class CreditService {
       throw BillingError.walletNotFound(input.walletId);
     }
     const drawdownAmount = Math.min(wallet.balance, input.amount);
-    if (drawdownAmount <= 0) return { ...wallet };
+    if (drawdownAmount <= 0) {
+      this.notifyIfLow(wallet);
+      return { ...wallet };
+    }
     const now = this.now();
     wallet.balance -= drawdownAmount;
     wallet.totalWithdrawn += drawdownAmount;
@@ -455,7 +465,36 @@ export class CreditService {
     const txs = this.walletTx.get(wallet.id) ?? [];
     txs.push(tx);
     this.walletTx.set(wallet.id, txs);
+    this.notifyIfLow(wallet);
     return { ...wallet };
+  }
+
+  /** Apply prepaid funds before any card or crypto gateway is called. */
+  applyPrepaymentBeforeCharge(input: {
+    walletId: number;
+    accountId: string;
+    invoiceId: string;
+    amountDue: number;
+  }): { applied: number; remainingDue: number; wallet: PrepaymentWallet } {
+    if (input.amountDue < 0) throw BillingError.creditInvalidAmount('amountDue may not be negative');
+    const before = this.getWallet(input.walletId);
+    if (!before || before.accountId !== input.accountId) throw BillingError.walletNotFound(input.walletId);
+    const wallet = this.drawdown(input);
+    return { applied: before.balance - wallet.balance, remainingDue: input.amountDue - (before.balance - wallet.balance), wallet };
+  }
+
+  private notifyIfLow(wallet: PrepaymentWallet): void {
+    const threshold = wallet.lowBalanceThreshold;
+    if (threshold !== undefined && wallet.balance <= threshold && this.lowBalanceNotifier) {
+      void this.lowBalanceNotifier({
+        walletId: wallet.id,
+        accountId: wallet.accountId,
+        subscriptionId: wallet.subscriptionId,
+        balance: wallet.balance,
+        threshold,
+        currency: wallet.currency,
+      });
+    }
   }
 
   getWallet(walletId: number): PrepaymentWallet | undefined {

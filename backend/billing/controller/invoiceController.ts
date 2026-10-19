@@ -6,7 +6,7 @@
  */
 
 import type { Pool } from "../../shared/db/connectionPool";
-import { InvoiceGenerator, type InvoiceData, type GeneratedInvoice } from "../domain/InvoiceGenerator";
+import { InvoiceGenerator, type InvoiceData, type GeneratedInvoice, type InvoiceBranding } from "../domain/InvoiceGenerator";
 import { InvoiceEmailService, type EmailConfig, type EmailResult } from "../domain/InvoiceEmailService";
 
 export interface InvoiceControllerDeps {
@@ -39,6 +39,8 @@ export function createInvoiceController(deps: InvoiceControllerDeps) {
         subscriptionId?: string;
         notes?: string;
         dueInDays?: number;
+        locale?: string;
+        branding?: InvoiceBranding;
       },
     ): Promise<{ success: boolean; data?: { invoice: InvoiceData; pdfBase64: string; fileSize: number }; status?: number; error?: string }> {
       try {
@@ -68,6 +70,8 @@ export function createInvoiceController(deps: InvoiceControllerDeps) {
           subscriptionId: body.subscriptionId,
           notes: body.notes,
           dueInDays: body.dueInDays,
+          locale: body.locale,
+          branding: body.branding,
         });
 
         const generated = generator.generatePdf(invoice);
@@ -76,14 +80,14 @@ export function createInvoiceController(deps: InvoiceControllerDeps) {
         await deps.pool.query(
           `INSERT INTO invoices
            (invoice_number, customer_name, customer_email, status, subtotal,
-            tax_rate, tax_amount, discount, total, currency, pdf_base64,
+           tax_rate, tax_amount, discount, total, currency, pdf_base64, locale, branding,
             subscription_id, notes, invoice_date, due_date, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
           [
             invoice.invoiceNumber, invoice.customerName, invoice.customerEmail,
             invoice.status, invoice.subtotal, invoice.taxRate, invoice.taxAmount,
             invoice.discount, invoice.total, invoice.currency, generated.pdfBase64,
-            invoice.subscriptionId ?? null, invoice.notes ?? null,
+            invoice.locale, JSON.stringify(invoice.branding), invoice.subscriptionId ?? null, invoice.notes ?? null,
             invoice.invoiceDate, invoice.dueDate, new Date().toISOString(),
           ],
         );
@@ -131,6 +135,8 @@ export function createInvoiceController(deps: InvoiceControllerDeps) {
           discount: parseFloat(row.discount),
           total: parseFloat(row.total),
           currency: row.currency,
+          locale: row.locale ?? "en-US",
+          branding: row.branding ?? {},
         };
 
         const generated: GeneratedInvoice = {
