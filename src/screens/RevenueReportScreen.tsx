@@ -22,6 +22,7 @@ import {
   splitRecognisedDeferred,
 } from '../store/accountingStore';
 import { useThemeColors } from '../hooks/useThemeColors';
+import { recentPeriodWindow } from '../services/revenueRecognitionExport';
 
 const { width: screenWidth } = Dimensions.get('window');
 const CHART_WIDTH = screenWidth - spacing.xl * 2;
@@ -62,6 +63,7 @@ const RevenueReportScreen: React.FC = () => {
     generateRevenueSchedule,
     getRevenueAnalyticsByPeriod,
     exportWaterfall,
+    exportRecognitionEntries,
   } = useAccountingStore();
 
   const [periodRange, setPeriodRange] = useState<PeriodRange>('month');
@@ -171,6 +173,25 @@ const RevenueReportScreen: React.FC = () => {
     [subscriptions, exportWaterfall]
   );
 
+  const handleRecognitionExport = useCallback(
+    async (format: 'csv' | 'json') => {
+      const window = recentPeriodWindow(Math.round(PERIOD_RANGE_MS[periodRange] / MS_PER_DAY));
+      const content = exportRecognitionEntries({ format, ...window });
+      const mimeType = format === 'csv' ? 'text/csv' : 'application/json';
+      const filename = `revenue_recognition_entries.${format}`;
+      try {
+        await Share.share({ message: content, title: filename });
+      } catch {
+        Alert.alert(
+          `Recognition export (${format.toUpperCase()})`,
+          `Content type: ${mimeType}\n\n${content.slice(0, 400)}${content.length > 400 ? '\n…' : ''}`,
+          [{ text: 'Close' }]
+        );
+      }
+    },
+    [periodRange, exportRecognitionEntries]
+  );
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   if (!subscriptions.length) {
@@ -223,6 +244,23 @@ const RevenueReportScreen: React.FC = () => {
             style={styles.exportBtn}
             onPress={() => void handleExport('json')}
             accessibilityLabel="Export revenue waterfall as JSON">
+            <Text style={styles.exportBtnText}>JSON</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Recognition entries export (Issue #1743) */}
+        <View style={styles.exportRow}>
+          <Text style={styles.exportLabel}>Export recognition entries:</Text>
+          <TouchableOpacity
+            style={styles.exportBtn}
+            onPress={() => void handleRecognitionExport('csv')}
+            accessibilityLabel="Export revenue recognition entries as CSV">
+            <Text style={styles.exportBtnText}>CSV</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.exportBtn}
+            onPress={() => void handleRecognitionExport('json')}
+            accessibilityLabel="Export revenue recognition entries as JSON">
             <Text style={styles.exportBtnText}>JSON</Text>
           </TouchableOpacity>
         </View>
