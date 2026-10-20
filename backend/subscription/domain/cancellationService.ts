@@ -17,6 +17,7 @@ export type CancellationReason =
   | 'found_alternative'
   | 'poor_experience'
   | 'technical_issues'
+  | 'payment_expired'
   | 'other';
 
 export type RetentionOfferType =

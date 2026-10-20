@@ -37,3 +37,37 @@ export type {
   GatewayName,
   FallbackStatus,
 } from './domain/fallbackChainService';
+
+// ── Payment intents (Issues #1716, #1717, #1719) ─────────────────────────────
+export {
+  PaymentIntentService,
+  paymentIntentService,
+} from './domain/paymentIntentService';
+export type {
+  PaymentIntent,
+  PaymentIntentStatus,
+  PaymentIntentRepository,
+} from './domain/PaymentIntent';
+export { InMemoryPaymentIntentRepository } from './domain/PaymentIntent';
+export {
+  AssetPolicyService,
+  assetPolicyService,
+} from './domain/AssetPolicyService';
+export type {
+  AssetPolicyRule,
+  AssetPolicyChain,
+  AssetPolicyMode,
+} from './domain/AssetPolicyService';
+export { AssetNotAllowedError } from './domain/AssetPolicyService';
+export {
+  PaymentExpiryService,
+  paymentExpiryService,
+  cancelSubscriptionOnExpiry,
+} from './domain/paymentExpiryService';
+export { FinalityService, finalityService } from './domain/finalityService';
+export {
+  PaymentExpirySweeper,
+  startPaymentExpirySweeper,
+} from './jobs/paymentExpirySweeper';
+export { createPaymentRouter } from './router/paymentIntentRouter';
+export { createAssetPolicyRouter } from './router/assetPolicyRouter';

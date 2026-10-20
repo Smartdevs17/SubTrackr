@@ -7,6 +7,12 @@ export interface PaymentRequest {
   chainId?: number;
   chainType?: 'evm' | 'stellar' | 'fiat';
   metadata?: Record<string, string>;
+  /** Merchant whose asset policy is enforced at charge time (Issue #1717). */
+  merchantId?: string;
+  /** Asset code being charged (defaults to `currency`). */
+  asset?: string;
+  /** Stellar asset issuer (path payments only). */
+  issuer?: string;
 }
 
 export interface PaymentResult {

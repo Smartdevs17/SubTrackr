@@ -1,5 +1,9 @@
 import { PaymentError } from '../errors';
 import { logger } from '../../shared/logging';
+import {
+  AssetPolicyService,
+  assetPolicyService as defaultAssetPolicyService,
+} from './AssetPolicyService';
 import type {
   GatewayConfig,
   IPaymentGateway,
@@ -59,12 +63,53 @@ export class MultiChainPaymentRoutingStrategy implements PaymentRoutingStrategy 
 
     return ['stripe', 'circle', 'stellar'];
   }
+}
+
+export class PaymentRouter implements IPaymentRouter {
+  private gateways = new Map<string, IPaymentGateway>();
+  private merchantConfigs = new Map<string, GatewayConfig>();
+  private routingStrategy: PaymentRoutingStrategy;
+  private assetPolicyService: AssetPolicyService;
+
+  constructor(
+    routingStrategy: PaymentRoutingStrategy = new MultiChainPaymentRoutingStrategy(),
+    assetPolicyService: AssetPolicyService = defaultAssetPolicyService,
+  ) {
+    this.routingStrategy = routingStrategy;
+    this.assetPolicyService = assetPolicyService;
+  }
+
+  setAssetPolicyService(service: AssetPolicyService): void {
+    this.assetPolicyService = service;
+  }
+
+  /**
+   * Issue #1717 – reject charges for assets outside the merchant's
+   * allowlist / inside the merchant's denylist before any gateway is hit.
+   */
+  private async enforceAssetPolicy(request: PaymentRequest): Promise<void> {
+    const merchantId = request.merchantId ?? request.metadata?.merchantId;
+    if (!merchantId) {
+      return;
+    }
+
+    const allowed = await this.assetPolicyService.isAllowed({
+      merchantId,
+      chain: this.resolveChainType(request),
+      asset: request.asset ?? request.currency,
+      issuer: request.issuer,
+    });
+
+    if (!allowed) {
+      const asset = request.asset ?? request.currency;
+      throw PaymentError.assetNotAllowed(merchantId, asset, request.issuer);
+    }
+  }
 
   private resolveChainType(request: PaymentRequest): 'evm' | 'stellar' | 'fiat' {
     if (request.chainType) {
       return request.chainType;
     }
-
     const metadataChainType = request.metadata?.chainType;
     if (
       metadataChainType === 'evm' ||
@@ -73,22 +118,10 @@ export class MultiChainPaymentRoutingStrategy implements PaymentRoutingStrategy 
     ) {
       return metadataChainType;
     }
-
     if (normalizedCurrency(request.currency) === 'XLM') {
       return 'stellar';
     }
-
     return 'fiat';
-  }
-}
-
-export class PaymentRouter implements IPaymentRouter {
-  private gateways = new Map<string, IPaymentGateway>();
-  private merchantConfigs = new Map<string, GatewayConfig>();
-  private routingStrategy: PaymentRoutingStrategy;
-
-  constructor(routingStrategy: PaymentRoutingStrategy = new MultiChainPaymentRoutingStrategy()) {
-    this.routingStrategy = routingStrategy;
   }
 
   registerGateway(name: string, gateway: IPaymentGateway): void {
@@ -115,6 +148,8 @@ export class PaymentRouter implements IPaymentRouter {
   }
 
   async charge(request: PaymentRequest): Promise<PaymentResult> {
+    await this.enforceAssetPolicy(request);
+
     const config = this.merchantConfigs.get(request.customerId);
     const gateways = this.routingStrategy.resolveChargeGateways({
       request,

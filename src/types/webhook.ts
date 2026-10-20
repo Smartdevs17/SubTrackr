@@ -23,6 +23,9 @@ export type WebhookEventType =
   | 'payment.chargeback'
   | 'payment.method_updated'
   | 'payment.retry_scheduled'
+  | 'payment.finalized'
+  | 'payment.expired'
+  | 'payment.cancelled'
   // Invoice
   | 'invoice.created'
   | 'invoice.finalized'

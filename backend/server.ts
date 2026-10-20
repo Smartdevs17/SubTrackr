@@ -50,6 +50,7 @@ import {
   createIpWhitelistGate,
 } from './services/shared/ipWhitelistService';
 import { serverSessionService } from './services/auth/serverSessionService';
+import { startPaymentExpirySweeper, type PaymentExpirySweeper } from './services/payment/jobs/paymentExpirySweeper';
 
 export interface StartServerOptions {
   port?: number;
@@ -316,6 +317,12 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
     serverSessionService.sweepExpiredSessions();
   }, 5 * 60 * 1000);
   sessionSweepTimer.unref();
+
+  // ---------------------------------------------------------------------------
+  // Payment expiry sweep — every PAYMENT_EXPIRY_SWEEP_INTERVAL_MS (issue #1716)
+  // Expires overdue payment intents and cancels their subscriptions.
+  // ---------------------------------------------------------------------------
+  const paymentExpirySweeper: PaymentExpirySweeper = startPaymentExpirySweeper();
 
   // ── IP Whitelist gate ────────────────────────────────────────────────────
   const checkIpAccess = createIpWhitelistGate({
@@ -1580,6 +1587,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
 
   const shutdown = async (): Promise<void> => {
     clearInterval(sessionSweepTimer);
+    paymentExpirySweeper.stop();
     await new Promise<void>((resolve, reject) => {
       server.close((err) => (err ? reject(err) : resolve()));
     });
