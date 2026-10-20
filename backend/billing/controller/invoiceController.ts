@@ -10,12 +10,15 @@ import { InvoiceGenerator, type InvoiceData, type GeneratedInvoice, type Invoice
 import { InvoiceEmailService, type EmailConfig, type EmailResult } from "../domain/InvoiceEmailService";
 import type { InvoiceNumberingService } from "../domain/InvoiceNumberingService";
 import { TaxService } from "../../services/billing/taxService";
+import type { TaxExemptionService } from "../../services/billing/taxExemptionService";
 
 export interface InvoiceControllerDeps {
   pool: Pool;
   emailConfig?: EmailConfig;
   /** Optional per-merchant numbering (issue #1738); falls back to the legacy generator when absent or failing. */
   numbering?: InvoiceNumberingService;
+  /** Optional per-customer tax exemptions (issue #1740); falls back to charging region tax when absent or failing. */
+  taxExemptions?: TaxExemptionService;
 }
 
 export function createInvoiceController(deps: InvoiceControllerDeps) {
@@ -49,6 +52,8 @@ export function createInvoiceController(deps: InvoiceControllerDeps) {
         branding?: InvoiceBranding;
         /** Merchant whose numbering scheme applies (issue #1738). */
         merchantId?: string;
+        /** Customer whose tax-exemption flag applies (issue #1740); defaults to customerEmail. */
+        customerId?: string;
       },
     ): Promise<{ success: boolean; data?: { invoice: InvoiceData; pdfBase64: string; fileSize: number }; status?: number; error?: string }> {
       try {
@@ -81,6 +86,22 @@ export function createInvoiceController(deps: InvoiceControllerDeps) {
           }
         }
 
+        // Per-customer exemption (issue #1740): a customer flagged exempt in
+        // this jurisdiction is not taxed. Lookup failures fall back to the
+        // region rate rather than blocking the invoice (mirrors numbering).
+        let taxExempt = false;
+        const taxCustomerId = body.customerId ?? body.customerEmail;
+        if (deps.taxExemptions && taxCustomerId) {
+          try {
+            taxExempt = await deps.taxExemptions.isExempt(taxCustomerId, taxRegion ?? "");
+          } catch (err) {
+            console.error("[Invoice] Tax exemption lookup failed, applying region rate:", err);
+          }
+        }
+        if (taxExempt) {
+          taxRate = 0;
+        }
+
         // Allocate from the merchant's numbering scheme when one is wired in.
         // Numbering is best-effort: a scheme/store failure falls back to the
         // legacy generator instead of failing the whole invoice.
@@ -102,6 +123,7 @@ export function createInvoiceController(deps: InvoiceControllerDeps) {
           taxRate,
           taxRegion,
           taxType,
+          taxExempt,
           discount: body.discount,
           currency: body.currency,
           subscriptionId: body.subscriptionId,
@@ -118,13 +140,13 @@ export function createInvoiceController(deps: InvoiceControllerDeps) {
         await deps.pool.query(
           `INSERT INTO invoices
            (invoice_number, customer_name, customer_email, status, subtotal,
-           tax_rate, tax_amount, tax_region, tax_type, discount, total, currency, pdf_base64, locale, branding,
+           tax_rate, tax_amount, tax_region, tax_type, is_tax_exempt, discount, total, currency, pdf_base64, locale, branding,
             subscription_id, notes, invoice_date, due_date, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`,
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)`,
           [
             invoice.invoiceNumber, invoice.customerName, invoice.customerEmail,
             invoice.status, invoice.subtotal, invoice.taxRate, invoice.taxAmount,
-            invoice.taxRegion ?? null, invoice.taxType ?? null,
+            invoice.taxRegion ?? null, invoice.taxType ?? null, invoice.isTaxExempt === true,
             invoice.discount, invoice.total, invoice.currency, generated.pdfBase64,
             invoice.locale, JSON.stringify(invoice.branding), invoice.subscriptionId ?? null, invoice.notes ?? null,
             invoice.invoiceDate, invoice.dueDate, new Date().toISOString(),
@@ -173,6 +195,7 @@ export function createInvoiceController(deps: InvoiceControllerDeps) {
           taxAmount: parseFloat(row.tax_amount),
           taxRegion: row.tax_region ?? undefined,
           taxType: row.tax_type ?? undefined,
+          isTaxExempt: row.is_tax_exempt === true,
           discount: parseFloat(row.discount),
           total: parseFloat(row.total),
           currency: row.currency,

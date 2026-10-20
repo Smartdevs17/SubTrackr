@@ -72,6 +72,12 @@ import { createPostgresOverdueInvoiceSource } from './services/notification/over
 import { createOverdueReminderPoller } from './services/notification/jobs/overdueInvoiceReminderJob';
 import { createInvoiceNumberingService, PostgresInvoiceNumberingStore } from './billing/domain/InvoiceNumberingService';
 import { createInvoiceNumberingRouter } from './billing/router/invoiceNumberingRouter';
+import {
+  createTaxExemptionService,
+  PostgresCustomerTaxStatusStore,
+} from './services/billing/taxExemptionService';
+import { createTaxExemptionRouter } from './services/billing/taxExemptionRouter';
+import { HashChainService, AuditWriter, SensitiveOpsAuditController } from './audit';
 import { createRequestObservability } from './shared/middleware/requestObservability';
 import { createRevenueByCurrencyReportService } from './services/analytics/revenueByCurrencyReport';
 import { createRevenueByCurrencyRouter } from './services/analytics/revenueByCurrencyRouter';
@@ -551,6 +557,19 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
     store: new PostgresInvoiceNumberingStore(pool),
   });
   const invoiceNumberingRouter = createInvoiceNumberingRouter(invoiceNumberingService);
+
+  // ---------------------------------------------------------------------------
+  // Customer tax exemptions — issue #1740
+  // ---------------------------------------------------------------------------
+  const auditChain = new HashChainService();
+  const auditWriter = new AuditWriter(auditChain);
+  const sensitiveOpsAuditController = new SensitiveOpsAuditController(auditWriter);
+  const taxExemptionService = createTaxExemptionService({
+    store: new PostgresCustomerTaxStatusStore(pool),
+    auditController: sensitiveOpsAuditController,
+    auditChain,
+  });
+  const taxExemptionRouter = createTaxExemptionRouter(taxExemptionService);
 
   // Seed a default permissive CORS policy for the server's own tenant.
   // In production, policies should be loaded from the database per-tenant.
@@ -2099,6 +2118,14 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
       // -----------------------------------------------------------------
       if (pathname.startsWith('/invoice-numbering')) {
         const handled = await invoiceNumberingRouter(req, res, pathname);
+        if (handled) return;
+      }
+
+      // -----------------------------------------------------------------
+      // Customer tax exemptions  /tax-exemptions  (issue #1740)
+      // -----------------------------------------------------------------
+      if (pathname.startsWith('/tax-exemptions')) {
+        const handled = await taxExemptionRouter(req, res, pathname);
         if (handled) return;
       }
 

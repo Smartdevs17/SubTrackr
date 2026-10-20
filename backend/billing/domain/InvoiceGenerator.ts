@@ -61,6 +61,8 @@ export interface InvoiceData {
   taxRegion?: string;
   /** Tax type applied, e.g. "vat", "gst", "sales_tax". */
   taxType?: string;
+  /** Whether the customer was tax-exempt when the invoice was generated (issue #1740). */
+  isTaxExempt?: boolean;
   discount: number;
   total: number;
   currency: string;
@@ -159,6 +161,8 @@ export class InvoiceGenerator {
     taxRate?: number;
     taxRegion?: string;
     taxType?: string;
+    /** Customer exempt in the invoice's jurisdiction; forces tax to zero (issue #1740). */
+    taxExempt?: boolean;
     discount?: number;
     currency?: string;
     subscriptionId?: string;
@@ -171,7 +175,7 @@ export class InvoiceGenerator {
     /** Pre-allocated number from a numbering scheme (issue #1738); defaults to the legacy generator. */
     invoiceNumber?: string;
   }): InvoiceData {
-    const taxRate = params.taxRate ?? 0;
+    const taxRate = params.taxExempt ? 0 : (params.taxRate ?? 0);
     const discount = params.discount ?? 0;
     const currency = (params.currency ?? "USD").toUpperCase();
     const locale = params.locale ?? "en-US";
@@ -202,6 +206,7 @@ export class InvoiceGenerator {
       taxAmount,
       taxRegion: params.taxRegion,
       taxType: params.taxType,
+      isTaxExempt: params.taxExempt === true,
       discount,
       total,
       currency,
