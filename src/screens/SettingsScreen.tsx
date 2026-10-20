@@ -132,6 +132,12 @@ export const SettingsScreen = () => {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.linkButton}
+          testID="sms-consent-link"
+          onPress={() => navigation.navigate('SmsConsent')}>
+          <Text style={styles.linkButtonText}>SMS Consent</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.linkButton}
           testID="privacy-center-link"
           onPress={() => navigation.navigate('PrivacyCenter')}>
           <Text style={styles.linkButtonText}>Privacy Center</Text>
