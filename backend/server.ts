@@ -70,6 +70,8 @@ import { createOverdueInvoiceReminderService } from './services/notification/ove
 import { createOverdueInvoiceReminderRouter } from './services/notification/overdueInvoiceReminderRouter';
 import { createPostgresOverdueInvoiceSource } from './services/notification/overdueInvoiceSource';
 import { createOverdueReminderPoller } from './services/notification/jobs/overdueInvoiceReminderJob';
+import { createInvoiceNumberingService, PostgresInvoiceNumberingStore } from './billing/domain/InvoiceNumberingService';
+import { createInvoiceNumberingRouter } from './billing/router/invoiceNumberingRouter';
 import { createRequestObservability } from './shared/middleware/requestObservability';
 import { createRevenueByCurrencyReportService } from './services/analytics/revenueByCurrencyReport';
 import { createRevenueByCurrencyRouter } from './services/analytics/revenueByCurrencyRouter';
@@ -541,6 +543,14 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
       ? overdueReminderPollMs
       : undefined
   );
+
+  // ---------------------------------------------------------------------------
+  // Invoice numbering schemes — issue #1738
+  // ---------------------------------------------------------------------------
+  const invoiceNumberingService = createInvoiceNumberingService({
+    store: new PostgresInvoiceNumberingStore(pool),
+  });
+  const invoiceNumberingRouter = createInvoiceNumberingRouter(invoiceNumberingService);
 
   // Seed a default permissive CORS policy for the server's own tenant.
   // In production, policies should be loaded from the database per-tenant.
@@ -2081,6 +2091,14 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
       // -----------------------------------------------------------------
       if (pathname.startsWith('/overdue-reminders')) {
         const handled = await overdueReminderRouter(req, res, pathname);
+        if (handled) return;
+      }
+
+      // -----------------------------------------------------------------
+      // Invoice numbering schemes  /invoice-numbering  (issue #1738)
+      // -----------------------------------------------------------------
+      if (pathname.startsWith('/invoice-numbering')) {
+        const handled = await invoiceNumberingRouter(req, res, pathname);
         if (handled) return;
       }
 
