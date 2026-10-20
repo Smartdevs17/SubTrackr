@@ -61,6 +61,8 @@ import { createLoggerFor } from './services/shared/logging';
 import { createTracerFromEnv, type Tracer } from './services/shared/tracing';
 import { createScheduledReportService } from './services/notification/scheduledReportService';
 import { createScheduledReportRouter } from './services/notification/scheduledReportRouter';
+import { createDeliveryStatusRouter } from './services/notification/deliveryStatusRouter';
+import { deliveryReceiptService } from './services/notification/deliveryReceiptService';
 import { createScheduledReportPoller } from './services/notification/jobs/scheduledReportJob';
 import { createEmailProviderFromEnv } from './services/notification/emailProvider';
 import type { ReportAnalyticsSnapshot } from './services/notification/scheduledReportService';
@@ -492,6 +494,10 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
     scheduledReportService,
     reportSnapshotFactory
   );
+
+  const deliveryStatusRouter = createDeliveryStatusRouter(deliveryReceiptService, {
+    accountSid: process.env.TWILIO_ACCOUNT_SID || undefined,
+  });
 
   const reportPoller = createScheduledReportPoller(
     scheduledReportService,
@@ -2014,6 +2020,14 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
         const result = await planController.deactivatePlan(planId);
         sendJson(res, result.success ? 200 : (result.status ?? 400), result);
         return;
+      }
+
+      // -----------------------------------------------------------------
+      // Notification delivery receipts  /api/delivery-receipts  (issue #1749)
+      // -----------------------------------------------------------------
+      if (pathname.startsWith('/api/delivery-receipts')) {
+        const handled = await deliveryStatusRouter(req, res, pathname);
+        if (handled) return;
       }
 
       // -----------------------------------------------------------------

@@ -69,6 +69,24 @@ export const SettingsScreen = () => {
       </View>
 
       <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Delivery Status</Text>
+        <TouchableOpacity
+          style={styles.linkRow}
+          testID="delivery-status-link"
+          accessibilityRole="button"
+          accessibilityLabel="Open delivery status"
+          onPress={() => navigation.navigate('DeliveryStatus')}>
+          <View style={styles.modeTextWrap}>
+            <Text style={styles.rowLabel}>Delivery Status</Text>
+            <Text style={styles.modeSubLabel}>
+              Whether each notification was delivered, and any errors
+            </Text>
+          </View>
+          <Text style={styles.chevron}>›</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.section}>
         <Text style={styles.sectionTitle}>Delivery Channels</Text>
         <View style={styles.row}>
           <Text style={styles.rowLabel}>Push Notifications</Text>

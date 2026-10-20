@@ -23,6 +23,7 @@ export type RootStackParamList = {
   DPALog: undefined;
   Settings: undefined;
   NotificationPreferences: undefined;
+  DeliveryStatus: undefined;
   CalendarIntegration: undefined;
   WebhookSettings: undefined;
   AccountingExport: undefined;
