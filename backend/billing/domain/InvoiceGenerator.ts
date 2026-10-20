@@ -168,6 +168,8 @@ export class InvoiceGenerator {
     branding?: InvoiceBranding;
     senderAddress?: string;
     customerAddress?: string;
+    /** Pre-allocated number from a numbering scheme (issue #1738); defaults to the legacy generator. */
+    invoiceNumber?: string;
   }): InvoiceData {
     const taxRate = params.taxRate ?? 0;
     const discount = params.discount ?? 0;
@@ -184,7 +186,7 @@ export class InvoiceGenerator {
     );
 
     return {
-      invoiceNumber: this.generateInvoiceNumber(),
+      invoiceNumber: params.invoiceNumber ?? this.generateInvoiceNumber(),
       invoiceDate: now.toISOString(),
       dueDate: dueDate.toISOString(),
       status: "draft",

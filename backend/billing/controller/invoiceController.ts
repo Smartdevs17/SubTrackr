@@ -8,11 +8,14 @@
 import type { Pool } from "../../shared/db/connectionPool";
 import { InvoiceGenerator, type InvoiceData, type GeneratedInvoice, type InvoiceBranding } from "../domain/InvoiceGenerator";
 import { InvoiceEmailService, type EmailConfig, type EmailResult } from "../domain/InvoiceEmailService";
+import type { InvoiceNumberingService } from "../domain/InvoiceNumberingService";
 import { TaxService } from "../../services/billing/taxService";
 
 export interface InvoiceControllerDeps {
   pool: Pool;
   emailConfig?: EmailConfig;
+  /** Optional per-merchant numbering (issue #1738); falls back to the legacy generator when absent or failing. */
+  numbering?: InvoiceNumberingService;
 }
 
 export function createInvoiceController(deps: InvoiceControllerDeps) {
@@ -44,6 +47,8 @@ export function createInvoiceController(deps: InvoiceControllerDeps) {
         dueInDays?: number;
         locale?: string;
         branding?: InvoiceBranding;
+        /** Merchant whose numbering scheme applies (issue #1738). */
+        merchantId?: string;
       },
     ): Promise<{ success: boolean; data?: { invoice: InvoiceData; pdfBase64: string; fileSize: number }; status?: number; error?: string }> {
       try {
@@ -76,6 +81,18 @@ export function createInvoiceController(deps: InvoiceControllerDeps) {
           }
         }
 
+        // Allocate from the merchant's numbering scheme when one is wired in.
+        // Numbering is best-effort: a scheme/store failure falls back to the
+        // legacy generator instead of failing the whole invoice.
+        let invoiceNumber: string | undefined;
+        if (deps.numbering && body.merchantId) {
+          try {
+            invoiceNumber = (await deps.numbering.nextNumber(body.merchantId)).invoiceNumber;
+          } catch (err) {
+            console.error("[Invoice] Numbering scheme unavailable, using legacy number:", err);
+          }
+        }
+
         const invoice = generator.createInvoice({
           senderName: deps.emailConfig?.fromName ?? "SubTrackr",
           senderEmail: deps.emailConfig?.fromEmail ?? "billing@subtrackr.com",
@@ -92,6 +109,7 @@ export function createInvoiceController(deps: InvoiceControllerDeps) {
           dueInDays: body.dueInDays,
           locale: body.locale,
           branding: body.branding,
+          invoiceNumber,
         });
 
         const generated = generator.generatePdf(invoice);
