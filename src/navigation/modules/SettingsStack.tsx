@@ -17,6 +17,9 @@ const NotificationPreferencesScreen = lazyScreen(
 const EmailTemplateEditorScreen = lazyScreen(
   () => import('../../screens/EmailTemplateEditorScreen')
 );
+const TemplateVersionHistoryScreen = lazyScreen(
+  () => import('../../screens/TemplateVersionHistoryScreen')
+);
 const GDPRSettingsScreen = lazyScreen(() => import('../../screens/GDPRSettingsScreen'));
 const PrivacyCenterScreen = lazyScreen(() => import('../../screens/PrivacyCenterScreen'));
 const ConsentManagementScreen = lazyScreen(() => import('../../screens/ConsentManagementScreen'));
@@ -48,6 +51,11 @@ export const SettingsStack = () => (
       name="EmailTemplateEditor"
       component={EmailTemplateEditorScreen}
       options={{ title: 'Email Template Editor', headerShown: true }}
+    />
+    <Stack.Screen
+      name="TemplateVersionHistory"
+      component={TemplateVersionHistoryScreen}
+      options={{ title: 'Template Versions', headerShown: true }}
     />
     <Stack.Screen
       name="GDPRSettings"

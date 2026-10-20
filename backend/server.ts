@@ -61,6 +61,8 @@ import { createLoggerFor } from './services/shared/logging';
 import { createTracerFromEnv, type Tracer } from './services/shared/tracing';
 import { createScheduledReportService } from './services/notification/scheduledReportService';
 import { createScheduledReportRouter } from './services/notification/scheduledReportRouter';
+import { createNotificationTemplateRouter } from './services/notification/notificationTemplateRouter';
+import { notificationTemplateVersionService } from './services/notification/notificationTemplateVersionService';
 import { createScheduledReportPoller } from './services/notification/jobs/scheduledReportJob';
 import { createEmailProviderFromEnv } from './services/notification/emailProvider';
 import type { ReportAnalyticsSnapshot } from './services/notification/scheduledReportService';
@@ -491,6 +493,10 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
   const scheduledReportRouter = createScheduledReportRouter(
     scheduledReportService,
     reportSnapshotFactory
+  );
+
+  const notificationTemplateRouter = createNotificationTemplateRouter(
+    notificationTemplateVersionService
   );
 
   const reportPoller = createScheduledReportPoller(
@@ -2014,6 +2020,14 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
         const result = await planController.deactivatePlan(planId);
         sendJson(res, result.success ? 200 : (result.status ?? 400), result);
         return;
+      }
+
+      // -----------------------------------------------------------------
+      // Notification template versions  /api/notification-templates  (issue #1748)
+      // -----------------------------------------------------------------
+      if (pathname.startsWith('/api/notification-templates')) {
+        const handled = await notificationTemplateRouter(req, res, pathname);
+        if (handled) return;
       }
 
       // -----------------------------------------------------------------
