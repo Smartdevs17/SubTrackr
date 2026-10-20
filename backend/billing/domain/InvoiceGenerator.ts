@@ -20,6 +20,18 @@ export interface InvoiceLineItem {
   quantity: number;
   unitPrice: number;
   total: number;
+  /**
+   * Discriminates a chargeable line (`'item'`, the default) from an itemised
+   * discount (`'discount'`). Discount line items reduce the subtotal instead of
+   * adding to it. This is deliberately distinct from coupons, which are a
+   * checkout-time promotion concept.
+   */
+  kind?: "item" | "discount";
+}
+
+/** A line item that reduces the amount payable rather than adding to it. */
+function isDiscountLineItem(item: InvoiceLineItem): boolean {
+  return item.kind === "discount";
 }
 
 export interface InvoiceData {
@@ -104,16 +116,27 @@ export class InvoiceGenerator {
 
   /**
    * Calculate totals from line items and tax rate.
+   *
+   * Discount line items (and the legacy scalar `discount`) are applied to the
+   * subtotal before tax. The returned `discount` is the total reduction so the
+   * rendered invoice can show it even when it arrived itemised.
    */
   calculateTotals(items: InvoiceLineItem[], taxRate: number, discount: number = 0) {
-    const rawSubtotal = items.reduce((sum, item) => sum + item.total, 0);
+    const chargeItems = items.filter((item) => !isDiscountLineItem(item));
+    const discountItems = items.filter((item) => isDiscountLineItem(item));
+
+    const rawSubtotal = chargeItems.reduce((sum, item) => sum + item.total, 0);
     const subtotal = roundMoney(rawSubtotal);
+
+    const lineDiscount = roundMoney(
+      discountItems.reduce((sum, item) => sum + Math.abs(item.total), 0)
+    );
 
     // A discount may not exceed the subtotal. Without this clamp a discount
     // larger than the invoice produced a negative tax base and a negative
     // total, which downstream reconciliation reads as a credit owed rather
     // than an over-discounted invoice.
-    const appliedDiscount = roundMoney(clamp(discount, 0, subtotal));
+    const appliedDiscount = roundMoney(clamp(discount + lineDiscount, 0, subtotal));
     const taxableAmount = roundMoney(subtotal - appliedDiscount);
 
     // `taxRate` is a decimal fraction (0.2), not basis points.
@@ -121,7 +144,7 @@ export class InvoiceGenerator {
     const taxAmount = roundMoney(taxableAmount * safeTaxRate);
     const total = roundMoney(Math.max(taxableAmount + taxAmount, 0));
 
-    return { subtotal, taxAmount, total };
+    return { subtotal, discount: appliedDiscount, taxAmount, total };
   }
 
   /**
@@ -154,7 +177,11 @@ export class InvoiceGenerator {
     const dueDate = new Date(now);
     dueDate.setDate(dueDate.getDate() + (params.dueInDays ?? 30));
 
-    const { subtotal, taxAmount, total } = this.calculateTotals(params.items, taxRate, discount);
+    const { subtotal, discount: appliedDiscount, taxAmount, total } = this.calculateTotals(
+      params.items,
+      taxRate,
+      discount
+    );
 
     return {
       invoiceNumber: this.generateInvoiceNumber(),
@@ -249,8 +276,10 @@ export class InvoiceGenerator {
     content.push(`(${this.escapePdfString(`Items:`)}) Tj`);
 
     for (const item of invoice.items) {
+      const isDiscount = isDiscountLineItem(item);
+      const amount = isDiscount ? `-${fmt(Math.abs(item.total))}` : fmt(item.total);
       content.push(`0 -16 Td`);
-      content.push(`(${this.escapePdfString(`  ${item.description}  x${item.quantity}  ${fmt(item.total)}`)}) Tj`);
+      content.push(`(${this.escapePdfString(`  ${item.description}  x${item.quantity}  ${amount}`)}) Tj`);
     }
 
     // Totals

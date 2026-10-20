@@ -33,7 +33,7 @@ export function createInvoiceController(deps: InvoiceControllerDeps) {
       body: {
         customerName: string;
         customerEmail: string;
-        items: Array<{ description: string; quantity: number; unitPrice: number }>;
+        items: Array<{ description: string; quantity: number; unitPrice: number; kind?: "item" | "discount" }>;
         taxRate?: number;
         /** Region key such as "DE" or "US-CA"; resolves the configured rate at invoice time. */
         region?: string;
@@ -59,6 +59,7 @@ export function createInvoiceController(deps: InvoiceControllerDeps) {
           quantity: i.quantity,
           unitPrice: i.unitPrice,
           total: Math.round(i.quantity * i.unitPrice * 100) / 100,
+          kind: i.kind === "discount" ? ("discount" as const) : ("item" as const),
         }));
 
         // Apply the configured per-region tax rate at invoice time. An explicit

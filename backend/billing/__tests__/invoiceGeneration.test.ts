@@ -38,6 +38,34 @@ describe("InvoiceGenerator", () => {
       expect(total).toBe(65.99); // 59.99 + 6
     });
 
+    it("itemises discount line items instead of adding them to the subtotal", () => {
+      const withDiscount: InvoiceLineItem[] = [
+        ...items,
+        { description: "Promo", quantity: 1, unitPrice: 10, total: 10, kind: "discount" },
+      ];
+
+      const { subtotal, discount, taxAmount, total } = generator.calculateTotals(withDiscount, 0.1);
+      expect(subtotal).toBe(69.99);
+      expect(discount).toBe(10);
+      expect(taxAmount).toBe(6.0); // (69.99 - 10) * 0.1
+      expect(total).toBe(65.99);
+    });
+
+    it("still reports a scalar discount", () => {
+      const { discount } = generator.calculateTotals(items, 0, 12);
+      expect(discount).toBe(12);
+    });
+
+    it("clamps a discount larger than the subtotal", () => {
+      const withDiscount: InvoiceLineItem[] = [
+        { description: "Promo", quantity: 1, unitPrice: 200, total: 200, kind: "discount" },
+      ];
+      const { subtotal, discount, total } = generator.calculateTotals(withDiscount, 0);
+      expect(subtotal).toBe(0);
+      expect(discount).toBe(0);
+      expect(total).toBe(0);
+    });
+
     it("handles zero tax", () => {
       const { taxAmount, total } = generator.calculateTotals(items, 0);
       expect(taxAmount).toBe(0);
