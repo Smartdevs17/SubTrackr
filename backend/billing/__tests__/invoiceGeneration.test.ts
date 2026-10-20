@@ -107,21 +107,21 @@ describe("InvoiceGenerator", () => {
       expect(diffDays).toBeLessThanOrEqual(31);
     });
 
-    it("records an itemised discount on the invoice", () => {
+    it("records the tax region and type on the invoice", () => {
       const invoice = generator.createInvoice({
         senderName: "SubTrackr",
         senderEmail: "billing@subtrackr.com",
         customerName: "John Doe",
         customerEmail: "john@example.com",
-        items: [
-          ...items,
-          { description: "Promo", quantity: 1, unitPrice: 10, total: 10, kind: "discount" },
-        ],
-        taxRate: 0.08,
+        items,
+        taxRate: 0.19,
+        taxRegion: "DE",
+        taxType: "vat",
       });
 
-      expect(invoice.discount).toBe(10);
-      expect(invoice.total).toBeLessThan(invoice.subtotal);
+      expect(invoice.taxRegion).toBe("DE");
+      expect(invoice.taxType).toBe("vat");
+      expect(invoice.taxAmount).toBe(13.3); // 69.99 * 0.19 = 13.2981
     });
   });
 
@@ -144,22 +144,24 @@ describe("InvoiceGenerator", () => {
       expect(pdfHeader).toBe("%PDF-1.4");
     });
 
-    it("renders discount line items with a negative amount", () => {
+    it("reports tax separately with its region and type", () => {
       const invoice = generator.createInvoice({
         senderName: "SubTrackr",
         senderEmail: "billing@subtrackr.com",
         customerName: "John Doe",
         customerEmail: "john@example.com",
-        items: [
-          ...items,
-          { description: "Promo", quantity: 1, unitPrice: 10, total: 10, kind: "discount" },
-        ],
+        items,
+        taxRate: 0.19,
+        taxRegion: "DE",
+        taxType: "vat",
       });
       const generated = generator.generatePdf(invoice);
       const pdf = generated.pdfBuffer.toString("latin1");
 
-      expect(pdf).toContain("Promo");
-      expect(pdf).toMatch(/Promo\s+x1\s+-\$/);
+      expect(pdf).toContain("Subtotal:");
+      // PDF literal-string syntax escapes parentheses in the displayed text.
+      expect(pdf).toContain("Tax \\(VAT 19.0% · DE\\)");
+      expect(pdf).toContain("Total:");
     });
   });
 });
@@ -203,6 +205,22 @@ describe("InvoiceEmailService", () => {
       expect(text).toContain(invoice.invoiceNumber);
       expect(text).toContain("Pro Plan");
       expect(text).toContain("Total:");
+    });
+
+    it("labels tax with its region and type", () => {
+      const taxedInvoice = generator.createInvoice({
+        senderName: "SubTrackr",
+        senderEmail: "billing@subtrackr.com",
+        customerName: "John Doe",
+        customerEmail: "john@example.com",
+        items: [{ description: "Pro Plan", quantity: 1, unitPrice: 49.99, total: 49.99 }],
+        taxRate: 0.19,
+        taxRegion: "DE",
+        taxType: "vat",
+      });
+
+      expect(emailService.buildHtmlBody(taxedInvoice)).toContain("Tax (VAT 19.0% · DE):");
+      expect(emailService.buildTextBody(taxedInvoice)).toContain("Tax (VAT 19.0% · DE):");
     });
   });
 

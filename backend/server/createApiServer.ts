@@ -451,6 +451,15 @@ export function createApiServer(options: CreateApiServerOptions = {}): Express {
     res.status(result.success ? 200 : (result.status ?? 400)).json(result);
   });
 
+  calRouter.get('/reminders/config', (_req: Request, res: Response) => {
+    res.json(reminderController.getConfig());
+  });
+
+  calRouter.put('/reminders/config', (req: Request, res: Response) => {
+    const result = reminderController.updateConfig(req.body);
+    res.status(result.success ? 200 : (result.status ?? 400)).json(result);
+  });
+
   app.use('/api/v1/calendar', calRouter);
 
   // ── 404 fallback ───────────────────────────────────────────────────────────

@@ -57,6 +57,10 @@ export interface InvoiceData {
   subtotal: number;
   taxRate: number;
   taxAmount: number;
+  /** Region the tax was calculated for, e.g. "DE" or "US-CA". */
+  taxRegion?: string;
+  /** Tax type applied, e.g. "vat", "gst", "sales_tax". */
+  taxType?: string;
   discount: number;
   total: number;
   currency: string;
@@ -80,6 +84,17 @@ export interface GeneratedInvoice {
 function roundMoney(amount: number): number {
   if (!Number.isFinite(amount)) return 0;
   return Math.round((amount + Number.EPSILON * Math.sign(amount)) * 100) / 100;
+}
+
+/**
+ * Human-readable tax label for invoice documents, e.g. "VAT 19.0% · DE".
+ */
+export function formatTaxLabel(invoice: Pick<InvoiceData, 'taxRate' | 'taxRegion' | 'taxType'>): string {
+  const rate = `${(invoice.taxRate * 100).toFixed(1)}%`;
+  if (!invoice.taxType && !invoice.taxRegion) return rate;
+  const type = invoice.taxType ? invoice.taxType.toUpperCase() : 'Tax';
+  const region = invoice.taxRegion ? ` · ${invoice.taxRegion.toUpperCase()}` : '';
+  return `${type} ${rate}${region}`;
 }
 
 /** Constrains `value` to `[min, max]`, tolerating non-finite input. */
@@ -142,6 +157,8 @@ export class InvoiceGenerator {
     customerEmail: string;
     items: InvoiceLineItem[];
     taxRate?: number;
+    taxRegion?: string;
+    taxType?: string;
     discount?: number;
     currency?: string;
     subscriptionId?: string;
@@ -181,7 +198,9 @@ export class InvoiceGenerator {
       subtotal: Math.round(subtotal * 100) / 100,
       taxRate,
       taxAmount,
-      discount: appliedDiscount,
+      taxRegion: params.taxRegion,
+      taxType: params.taxType,
+      discount,
       total,
       currency,
       locale,
@@ -272,7 +291,7 @@ export class InvoiceGenerator {
     }
     if (invoice.taxAmount > 0) {
       content.push(`0 -16 Td`);
-      content.push(`(${this.escapePdfString(`Tax (${(invoice.taxRate * 100).toFixed(1)}%): ${fmt(invoice.taxAmount)}`)}) Tj`);
+      content.push(`(${this.escapePdfString(`Tax (${formatTaxLabel(invoice)}): ${fmt(invoice.taxAmount)}`)}) Tj`);
     }
     content.push(`0 -20 Td`);
     content.push(`/F1 14 Tf`);

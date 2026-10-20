@@ -61,9 +61,15 @@ import { createLoggerFor } from './services/shared/logging';
 import { createTracerFromEnv, type Tracer } from './services/shared/tracing';
 import { createScheduledReportService } from './services/notification/scheduledReportService';
 import { createScheduledReportRouter } from './services/notification/scheduledReportRouter';
+import { createNotificationInboxRouter } from './services/notification/notificationInboxRouter';
+import { notificationCenterService } from './services/notification/notificationCenterService';
 import { createScheduledReportPoller } from './services/notification/jobs/scheduledReportJob';
 import { createEmailProviderFromEnv } from './services/notification/emailProvider';
 import type { ReportAnalyticsSnapshot } from './services/notification/scheduledReportService';
+import { createOverdueInvoiceReminderService } from './services/notification/overdueInvoiceReminderService';
+import { createOverdueInvoiceReminderRouter } from './services/notification/overdueInvoiceReminderRouter';
+import { createPostgresOverdueInvoiceSource } from './services/notification/overdueInvoiceSource';
+import { createOverdueReminderPoller } from './services/notification/jobs/overdueInvoiceReminderJob';
 import { createRequestObservability } from './shared/middleware/requestObservability';
 import { createRevenueByCurrencyReportService } from './services/analytics/revenueByCurrencyReport';
 import { createRevenueByCurrencyRouter } from './services/analytics/revenueByCurrencyRouter';
@@ -495,9 +501,45 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
     reportSnapshotFactory
   );
 
+  // ---------------------------------------------------------------------------
+  // In-app notification inbox — issue #1750
+  // ---------------------------------------------------------------------------
+  const notificationInboxRouter = createNotificationInboxRouter(notificationCenterService);
+
   const reportPoller = createScheduledReportPoller(
     scheduledReportService,
     reportSnapshotFactory
+  );
+
+  // ---------------------------------------------------------------------------
+  // Overdue invoice reminders — issue #1737
+  // ---------------------------------------------------------------------------
+  const overdueReminderEmailProvider = createEmailProviderFromEnv();
+  const overdueInvoiceSource = createPostgresOverdueInvoiceSource(pool, {
+    merchantId: process.env['DEFAULT_MERCHANT_ID'],
+    appBaseUrl: process.env['APP_BASE_URL'],
+  });
+  const overdueReminderService = createOverdueInvoiceReminderService({
+    emailProvider: overdueReminderEmailProvider,
+    fromAddress:
+      process.env['INVOICE_FROM_EMAIL'] ??
+      process.env['EMAIL_FROM_ADDRESS'] ??
+      'billing@subtrackr.com',
+    supportEmail: process.env['SUPPORT_EMAIL'],
+    merchantName: process.env['MERCHANT_NAME'] ?? process.env['INVOICE_FROM_NAME'],
+    appBaseUrl: process.env['APP_BASE_URL'],
+  });
+  const overdueReminderRouter = createOverdueInvoiceReminderRouter(
+    overdueReminderService,
+    overdueInvoiceSource
+  );
+  const overdueReminderPollMs = Number(process.env['OVERDUE_REMINDER_POLL_MS'] ?? Number.NaN);
+  const overdueReminderPoller = createOverdueReminderPoller(
+    overdueReminderService,
+    overdueInvoiceSource,
+    Number.isFinite(overdueReminderPollMs) && overdueReminderPollMs > 0
+      ? overdueReminderPollMs
+      : undefined
   );
 
   // Seed a default permissive CORS policy for the server's own tenant.
@@ -2019,10 +2061,26 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
       }
 
       // -----------------------------------------------------------------
+      // In-app notification inbox  /api/notifications  (issue #1750)
+      // -----------------------------------------------------------------
+      if (pathname.startsWith('/api/notifications')) {
+        const handled = await notificationInboxRouter(req, res, pathname);
+        if (handled) return;
+      }
+
+      // -----------------------------------------------------------------
       // Scheduled email reports  /scheduled-reports  (issue #1758)
       // -----------------------------------------------------------------
       if (pathname.startsWith('/scheduled-reports')) {
         const handled = await scheduledReportRouter(req, res, pathname);
+        if (handled) return;
+      }
+
+      // -----------------------------------------------------------------
+      // Overdue invoice reminders  /overdue-reminders  (issue #1737)
+      // -----------------------------------------------------------------
+      if (pathname.startsWith('/overdue-reminders')) {
+        const handled = await overdueReminderRouter(req, res, pathname);
         if (handled) return;
       }
 
@@ -2060,6 +2118,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
     isShuttingDown = true;
     clearInterval(sessionSweepTimer);
     reportPoller.stop();
+    overdueReminderPoller.stop();
 
     // Stop accepting new connections
     const closeServerPromise = new Promise<void>((resolve, reject) => {
@@ -2187,6 +2246,14 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
         console.info(`[Server] Reports  → POST   /scheduled-reports/:id/recipients`);
         console.info(`[Server] Reports  → DELETE /scheduled-reports/:id/recipients`);
         console.info(`[Server] Reports  → POST   /scheduled-reports/:id/send-now`);
+        console.info(`[Server] Overdue  → POST   /overdue-reminders`);
+        console.info(`[Server] Overdue  → GET    /overdue-reminders?merchantId=…`);
+        console.info(`[Server] Overdue  → GET    /overdue-reminders/:id`);
+        console.info(`[Server] Overdue  → PATCH  /overdue-reminders/:id`);
+        console.info(`[Server] Overdue  → DELETE /overdue-reminders/:id`);
+        console.info(`[Server] Overdue  → GET    /overdue-reminders/entries`);
+        console.info(`[Server] Overdue  → POST   /overdue-reminders/run-now`);
+        console.info(`[Server] Overdue  → POST   /overdue-reminders/invoices/:invoiceId/stop`);
         resolve();
       });
     });
