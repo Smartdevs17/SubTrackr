@@ -31,7 +31,12 @@ const DEFAULT_TIERS: PlanTier[] = [
     name: 'Pro',
     price: 29,
     billingCycle: 'monthly',
-    features: ['Unlimited subscriptions', 'Advanced cohort analytics', 'Priority support', 'Export CSV & PDF'],
+    features: [
+      'Unlimited subscriptions',
+      'Advanced cohort analytics',
+      'Priority support',
+      'Export CSV & PDF',
+    ],
     isPopular: true,
   },
 ];
@@ -115,76 +120,77 @@ export const DragDropPlanBuilder: React.FC<DragDropPlanBuilderProps> = ({
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-      <Text style={[styles.title, { color: colors.text.primary }]}>Plan Builder & Reorder Tiers</Text>
+      <Text style={[styles.title, { color: colors.text.primary }]}>
+        Plan Builder & Reorder Tiers
+      </Text>
 
       {tiers.map((tier, tierIdx) => (
         <View
           key={tier.id}
-          style={[styles.tierCard, { backgroundColor: colors.card, borderColor: colors.border.default }]}
-          testID={`tier-card-${tier.id}`}
-        >
+          style={[
+            styles.tierCard,
+            { backgroundColor: colors.card, borderColor: colors.border.default },
+          ]}
+          testID={`tier-card-${tier.id}`}>
           <View style={styles.tierHeader}>
             <View style={styles.tierTitleContainer}>
               <Text style={[styles.tierName, { color: colors.text.primary }]}>{tier.name}</Text>
-              <Text style={[styles.tierPrice, { color: colors.brand.primary }]}>${tier.price}/mo</Text>
+              <Text style={[styles.tierPrice, { color: colors.brand.primary }]}>
+                ${tier.price}/mo
+              </Text>
             </View>
             <View style={styles.reorderControls}>
               <Pressable
                 disabled={tierIdx === 0}
                 onPress={() => moveTier(tierIdx, 'up')}
                 style={[styles.iconButton, tierIdx === 0 && styles.disabledBtn]}
-                testID={`move-up-tier-${tier.id}`}
-              >
+                testID={`move-up-tier-${tier.id}`}>
                 <Text style={[styles.btnSymbol, { color: colors.text.primary }]}>▲</Text>
               </Pressable>
               <Pressable
                 disabled={tierIdx === tiers.length - 1}
                 onPress={() => moveTier(tierIdx, 'down')}
                 style={[styles.iconButton, tierIdx === tiers.length - 1 && styles.disabledBtn]}
-                testID={`move-down-tier-${tier.id}`}
-              >
+                testID={`move-down-tier-${tier.id}`}>
                 <Text style={[styles.btnSymbol, { color: colors.text.primary }]}>▼</Text>
               </Pressable>
               <Pressable
                 onPress={() => handleRemoveTier(tier.id)}
                 style={styles.deleteBtn}
-                testID={`delete-tier-${tier.id}`}
-              >
+                testID={`delete-tier-${tier.id}`}>
                 <Text style={styles.deleteTxt}>✕</Text>
               </Pressable>
             </View>
           </View>
 
-          <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>Features (Drag/Reorder):</Text>
+          <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
+            Features (Drag/Reorder):
+          </Text>
           {tier.features.map((feature, fIdx) => (
             <View
               key={fIdx}
               style={[styles.featureRow, { backgroundColor: colors.surfaceVariant }]}
-              testID={`feature-row-${tier.id}-${fIdx}`}
-            >
+              testID={`feature-row-${tier.id}-${fIdx}`}>
               <Text style={[styles.featureText, { color: colors.text.primary }]}>• {feature}</Text>
               <View style={styles.featureReorder}>
                 <Pressable
                   disabled={fIdx === 0}
                   onPress={() => moveFeature(tier.id, fIdx, 'up')}
                   style={styles.smallIconButton}
-                  testID={`move-up-feature-${tier.id}-${fIdx}`}
-                >
+                  testID={`move-up-feature-${tier.id}-${fIdx}`}>
                   <Text style={{ color: colors.textSecondary, fontSize: 10 }}>▲</Text>
                 </Pressable>
                 <Pressable
                   disabled={fIdx === tier.features.length - 1}
                   onPress={() => moveFeature(tier.id, fIdx, 'down')}
                   style={styles.smallIconButton}
-                  testID={`move-down-feature-${tier.id}-${fIdx}`}
-                >
+                  testID={`move-down-feature-${tier.id}-${fIdx}`}>
                   <Text style={{ color: colors.textSecondary, fontSize: 10 }}>▼</Text>
                 </Pressable>
                 <Pressable
                   onPress={() => handleRemoveFeature(tier.id, fIdx)}
                   style={styles.smallDeleteButton}
-                  testID={`delete-feature-${tier.id}-${fIdx}`}
-                >
+                  testID={`delete-feature-${tier.id}-${fIdx}`}>
                   <Text style={{ color: colors.status.error, fontSize: 11 }}>✕</Text>
                 </Pressable>
               </View>
@@ -193,29 +199,40 @@ export const DragDropPlanBuilder: React.FC<DragDropPlanBuilderProps> = ({
 
           <View style={styles.addFeatureContainer}>
             <TextInput
-              style={[styles.input, { color: colors.text.primary, borderColor: colors.border.default }]}
+              style={[
+                styles.input,
+                { color: colors.text.primary, borderColor: colors.border.default },
+              ]}
               placeholder="Add feature..."
               placeholderTextColor={colors.textSecondary}
               value={editingFeatureInput[tier.id] || ''}
-              onChangeText={(val) => setEditingFeatureInput((prev) => ({ ...prev, [tier.id]: val }))}
+              onChangeText={(val) =>
+                setEditingFeatureInput((prev) => ({ ...prev, [tier.id]: val }))
+              }
               testID={`add-feature-input-${tier.id}`}
             />
             <Pressable
               style={[styles.addFeatureBtn, { backgroundColor: colors.brand.primary }]}
               onPress={() => handleAddFeature(tier.id)}
-              testID={`add-feature-btn-${tier.id}`}
-            >
+              testID={`add-feature-btn-${tier.id}`}>
               <Text style={styles.btnText}>+ Add</Text>
             </Pressable>
           </View>
         </View>
       ))}
 
-      <View style={[styles.addTierBox, { backgroundColor: colors.card, borderColor: colors.border.default }]}>
+      <View
+        style={[
+          styles.addTierBox,
+          { backgroundColor: colors.card, borderColor: colors.border.default },
+        ]}>
         <Text style={[styles.addTierTitle, { color: colors.text.primary }]}>Add New Tier</Text>
         <View style={styles.addTierInputs}>
           <TextInput
-            style={[styles.input, { flex: 2, color: colors.text.primary, borderColor: colors.border.default }]}
+            style={[
+              styles.input,
+              { flex: 2, color: colors.text.primary, borderColor: colors.border.default },
+            ]}
             placeholder="Tier Name (e.g., Enterprise)"
             placeholderTextColor={colors.textSecondary}
             value={newTierName}
@@ -223,7 +240,10 @@ export const DragDropPlanBuilder: React.FC<DragDropPlanBuilderProps> = ({
             testID="new-tier-name-input"
           />
           <TextInput
-            style={[styles.input, { flex: 1, color: colors.text.primary, borderColor: colors.border.default }]}
+            style={[
+              styles.input,
+              { flex: 1, color: colors.text.primary, borderColor: colors.border.default },
+            ]}
             placeholder="Price ($)"
             keyboardType="numeric"
             placeholderTextColor={colors.textSecondary}
@@ -235,8 +255,7 @@ export const DragDropPlanBuilder: React.FC<DragDropPlanBuilderProps> = ({
         <Pressable
           style={[styles.saveTierBtn, { backgroundColor: colors.brand.primary }]}
           onPress={handleAddTier}
-          testID="add-tier-button"
-        >
+          testID="add-tier-button">
           <Text style={styles.btnText}>+ Create Tier</Text>
         </Pressable>
       </View>
@@ -245,8 +264,7 @@ export const DragDropPlanBuilder: React.FC<DragDropPlanBuilderProps> = ({
         <Pressable
           style={[styles.saveAllBtn, { backgroundColor: colors.status.success }]}
           onPress={() => onSave(tiers)}
-          testID="save-plan-builder-btn"
-        >
+          testID="save-plan-builder-btn">
           <Text style={styles.btnText}>Save Plan Changes</Text>
         </Pressable>
       )}
@@ -257,16 +275,35 @@ export const DragDropPlanBuilder: React.FC<DragDropPlanBuilderProps> = ({
 const styles = StyleSheet.create({
   container: { flex: 1, padding: spacing.md },
   title: { fontSize: 20, fontWeight: '700', marginBottom: spacing.md },
-  tierCard: { padding: spacing.md, borderRadius: borderRadius.md, borderWidth: 1, marginBottom: spacing.md },
-  tierHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
+  tierCard: {
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    marginBottom: spacing.md,
+  },
+  tierHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
   tierTitleContainer: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs },
   tierName: { fontSize: 17, fontWeight: '700' },
   tierPrice: { fontSize: 15, fontWeight: '600' },
   reorderControls: { flexDirection: 'row', gap: spacing.xs, alignItems: 'center' },
-  iconButton: { padding: spacing.xs, borderRadius: borderRadius.xs, borderWidth: 1, borderColor: '#ccc' },
+  iconButton: {
+    padding: spacing.xs,
+    borderRadius: borderRadius.xs,
+    borderWidth: 1,
+    borderColor: '#ccc',
+  },
   btnSymbol: { fontSize: 12, fontWeight: '700' },
   disabledBtn: { opacity: 0.3 },
-  deleteBtn: { padding: spacing.xs, backgroundColor: 'rgba(239, 68, 68, 0.1)', borderRadius: borderRadius.xs },
+  deleteBtn: {
+    padding: spacing.xs,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderRadius: borderRadius.xs,
+  },
   deleteTxt: { color: '#ef4444', fontWeight: '700' },
   sectionSubtitle: { fontSize: 12, fontWeight: '600', marginBottom: spacing.xs },
   featureRow: {
@@ -282,13 +319,33 @@ const styles = StyleSheet.create({
   smallIconButton: { paddingHorizontal: 4, paddingVertical: 2 },
   smallDeleteButton: { paddingHorizontal: 4, paddingVertical: 2 },
   addFeatureContainer: { flexDirection: 'row', gap: spacing.xs, marginTop: spacing.xs },
-  addTierBox: { padding: spacing.md, borderRadius: borderRadius.md, borderWidth: 1, marginBottom: spacing.md },
+  addTierBox: {
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    marginBottom: spacing.md,
+  },
   addTierTitle: { fontSize: 15, fontWeight: '600', marginBottom: spacing.xs },
   addTierInputs: { flexDirection: 'row', gap: spacing.xs, marginBottom: spacing.xs },
-  input: { borderWidth: 1, borderRadius: borderRadius.xs, paddingHorizontal: spacing.sm, height: 38, fontSize: 13 },
-  addFeatureBtn: { paddingHorizontal: spacing.sm, borderRadius: borderRadius.xs, justifyContent: 'center' },
+  input: {
+    borderWidth: 1,
+    borderRadius: borderRadius.xs,
+    paddingHorizontal: spacing.sm,
+    height: 38,
+    fontSize: 13,
+  },
+  addFeatureBtn: {
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.xs,
+    justifyContent: 'center',
+  },
   saveTierBtn: { paddingVertical: spacing.xs, borderRadius: borderRadius.xs, alignItems: 'center' },
-  saveAllBtn: { paddingVertical: spacing.sm, borderRadius: borderRadius.md, alignItems: 'center', marginBottom: spacing.xl },
+  saveAllBtn: {
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    alignItems: 'center',
+    marginBottom: spacing.xl,
+  },
   btnText: { color: '#ffffff', fontWeight: '700', fontSize: 13 },
 });
 

@@ -6,10 +6,23 @@ import type { InvoiceFormData } from '../../types/invoice';
 jest.mock('@react-native-async-storage/async-storage');
 
 describe('invoiceService', () => {
+  // AsyncStorage is mocked, so give it real behaviour: the previous stub
+  // always resolved `getItem` to null, which meant anything written by one
+  // call was invisible to the next and every read-back test failed.
+  let store: Map<string, string>;
+
   beforeEach(() => {
+    store = new Map();
     jest.clearAllMocks();
-    (AsyncStorage.getItem as jest.Mock).mockResolvedValue(null);
-    (AsyncStorage.setItem as jest.Mock).mockResolvedValue(undefined);
+    (AsyncStorage.getItem as jest.Mock).mockImplementation(async (key: string) =>
+      store.has(key) ? store.get(key)! : null
+    );
+    (AsyncStorage.setItem as jest.Mock).mockImplementation(async (key: string, value: string) => {
+      store.set(key, value);
+    });
+    (AsyncStorage.removeItem as jest.Mock).mockImplementation(async (key: string) => {
+      store.delete(key);
+    });
   });
 
   describe('Branding Management', () => {
@@ -166,9 +179,9 @@ describe('invoiceService', () => {
     it('should throw error when updating non-existent template', async () => {
       (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify([]));
 
-      await expect(
-        invoiceService.updateTemplate('non-existent', { name: 'Test' })
-      ).rejects.toThrow('Template with id non-existent not found');
+      await expect(invoiceService.updateTemplate('non-existent', { name: 'Test' })).rejects.toThrow(
+        'Template with id non-existent not found'
+      );
     });
 
     it('should delete template', async () => {
@@ -290,6 +303,73 @@ describe('invoiceService', () => {
       expect(updated.totalAmount).toBe(125);
     });
 
+    it('itemises the discount amount as an explicit discount line item', async () => {
+      const invoice = await invoiceService.createInvoice({
+        ...mockInvoiceData,
+        discountAmount: 5,
+      });
+
+      const discountLines = invoice.lineItems.filter((item) => item.kind === 'discount');
+      expect(discountLines).toHaveLength(1);
+      expect(discountLines[0].description).toBe('Discount');
+      expect(discountLines[0].lineTotal).toBe(5);
+      expect(invoice.discountAmount).toBe(5);
+      expect(invoice.subtotal).toBe(99.99);
+      expect(invoice.totalAmount).toBe(94.99); // 99.99 - 5
+    });
+
+    it('preserves an explicit discount line item supplied by the caller', async () => {
+      const invoice = await invoiceService.createInvoice({
+        subscriptionId: 'sub-123',
+        currency: 'USD',
+        lineItems: [
+          { description: 'Plan', quantity: 1, unitPrice: 100, amount: 100 },
+          {
+            description: 'Loyalty credit',
+            kind: 'discount',
+            quantity: 1,
+            unitPrice: 10,
+            amount: 10,
+          },
+        ],
+      });
+
+      expect(invoice.subtotal).toBe(100);
+      expect(invoice.discountAmount).toBe(10);
+      expect(invoice.totalAmount).toBe(90);
+      expect(invoice.lineItems).toHaveLength(2);
+    });
+
+    it('keeps the discount itemised when line items are updated', async () => {
+      const invoice = await invoiceService.createInvoice({
+        ...mockInvoiceData,
+        discountAmount: 5,
+      });
+
+      const updated = await invoiceService.updateInvoice(invoice.id, {
+        lineItems: [
+          { id: 'item-1', description: 'Item 1', quantity: 1, unitPrice: 50, amount: 50 },
+        ],
+      });
+
+      expect(updated.discountAmount).toBe(5);
+      expect(updated.totalAmount).toBe(45);
+      expect(updated.lineItems.filter((item) => item.kind === 'discount')).toHaveLength(1);
+    });
+
+    it('replaces the itemised discount when a new amount is supplied', async () => {
+      const invoice = await invoiceService.createInvoice({
+        ...mockInvoiceData,
+        discountAmount: 5,
+      });
+
+      const updated = await invoiceService.updateInvoice(invoice.id, { discountAmount: 20 });
+
+      expect(updated.discountAmount).toBe(20);
+      expect(updated.totalAmount).toBe(79.99);
+      expect(updated.lineItems.filter((item) => item.kind === 'discount')).toHaveLength(1);
+    });
+
     it('should get all invoices', async () => {
       await invoiceService.createInvoice(mockInvoiceData);
       await invoiceService.createInvoice(mockInvoiceData);
@@ -315,7 +395,7 @@ describe('invoiceService', () => {
 
     it('should filter invoices by date range', async () => {
       const invoice1 = await invoiceService.createInvoice(mockInvoiceData);
-      
+
       // Create invoice with past date
       const oldInvoice = await invoiceService.createInvoice(mockInvoiceData);
       await invoiceService.updateInvoice(oldInvoice.id, {
@@ -327,7 +407,7 @@ describe('invoiceService', () => {
       });
 
       expect(recentInvoices.length).toBeGreaterThan(0);
-      expect(recentInvoices.every(inv => inv.issueDate >= new Date('2026-07-01'))).toBe(true);
+      expect(recentInvoices.every((inv) => inv.issueDate >= new Date('2026-07-01'))).toBe(true);
     });
 
     it('should delete invoice', async () => {
@@ -335,7 +415,7 @@ describe('invoiceService', () => {
       await invoiceService.deleteInvoice(invoice.id);
 
       const invoices = await invoiceService.getAllInvoices();
-      expect(invoices.find(inv => inv.id === invoice.id)).toBeUndefined();
+      expect(invoices.find((inv) => inv.id === invoice.id)).toBeUndefined();
     });
 
     it('should get invoice by id', async () => {
@@ -409,6 +489,24 @@ describe('invoiceService', () => {
       expect(preview.html).toContain(invoice.invoiceNumber);
       expect(preview.html).toContain('Test Item');
       expect(preview.invoiceId).toBe(invoice.id);
+    });
+
+    it('shows itemised discounts in the HTML preview', async () => {
+      const invoice = await invoiceService.createInvoice({
+        subscriptionId: 'sub-123',
+        amount: 100,
+        currency: 'USD',
+        dueDate: new Date('2026-08-26'),
+        lineItems: [
+          { id: 'item-1', description: 'Plan', quantity: 1, unitPrice: 100, amount: 100 },
+        ],
+        discountAmount: 10,
+      });
+
+      const preview = await invoiceService.previewInvoice(invoice.id);
+
+      expect(preview.html).toContain('Discount');
+      expect(preview.html).toContain('-USD 10.00');
     });
   });
 

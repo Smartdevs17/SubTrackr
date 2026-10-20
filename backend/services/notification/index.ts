@@ -248,6 +248,55 @@ export type {
   SlackDeliveryResult,
   SubscriptionAlertContext,
 } from './slack';
+export {
+  SlackThreadStore,
+  SlackThreadedNotifier,
+  threadKeyFor,
+  updateKeyFor,
+  renderThreadSummary,
+  summarizeThreadByEvent,
+  createThreadTransport,
+} from './slackThreads';
+export type {
+  ThreadEntry,
+  ThreadMessage,
+  ThreadStats,
+  ThreadKeyStrategy,
+  ThreadTransport,
+  ThreadedMessageOptions,
+  ThreadedNotifierDeps,
+  ThreadedSendResult,
+  SlackTs,
+} from './slackThreads';
+
+// ── Digest ──────────────────────────────────────────────────────────────────────
+export {
+  DigestEmailService,
+  createDigestEmailService,
+  buildDigestWindow,
+  windowForSubscriber,
+  isWithinWindow,
+  selectDigestRecords,
+  groupIntoSections,
+  renderDigest,
+  summariseDigestRun,
+  assertValidFrequency,
+  DIGEST_FREQUENCIES,
+  DIGEST_INLINE_LIMIT,
+} from './digestService';
+export type {
+  DigestContent,
+  DigestFrequency,
+  DigestItem,
+  DigestResult,
+  DigestRunSummary,
+  DigestSection,
+  DigestServiceDeps,
+  DigestSubscriberSource,
+  DigestSubscription,
+  DigestWindow,
+  DigestPreferencesSource,
+} from './digestService';
 
 // ── Webhook Queue (BullMQ) ────────────────────────────────────────────────────
 export {
@@ -271,3 +320,63 @@ export type {
   SubscriptionContext,
   SubscriptionNotifierDeps,
 } from './subscriptionNotifier';
+
+// ── Overdue Invoice Reminders (#1737) ─────────────────────────────────────────
+export {
+  OverdueInvoiceReminderService,
+  createOverdueInvoiceReminderService,
+  InMemoryScheduleStore,
+  InMemoryEntryStore,
+  DEFAULT_OVERDUE_REMINDER_STAGES,
+  MAX_REMINDER_STAGES,
+  FAILURE_RETRY_MS,
+  MAX_STAGE_ATTEMPTS,
+  MIN_REMINDER_GAP_MS,
+  stopReasonForStatus,
+  stageDueAt,
+  daysOverdueAt,
+  overduePhrase,
+  validateStages,
+  resolveRecipients,
+  initialStageIndex,
+} from './overdueInvoiceReminderService';
+export type {
+  OverdueInvoice,
+  OverdueInvoiceSource,
+  OverdueReminderStage,
+  OverdueReminderEntry,
+  OverdueReminderEntryStatus,
+  OverdueReminderSchedule,
+  OverdueReminderStopReason,
+  OverdueReminderRunSummary,
+  CreateOverdueReminderScheduleInput,
+  UpdateOverdueReminderScheduleInput,
+  OverdueReminderScheduleStore,
+  OverdueReminderEntryStore,
+  OverdueInvoiceReminderServiceDeps,
+} from './overdueInvoiceReminderService';
+export { createOverdueInvoiceReminderRouter } from './overdueInvoiceReminderRouter';
+export {
+  createPostgresOverdueInvoiceSource,
+  createInvoiceListSource,
+  SETTLED_INVOICE_STATUSES,
+  DEFAULT_MERCHANT_ID,
+  DEFAULT_INVOICE_SOURCE_LIMIT,
+  DEFAULT_SETTLED_LOOKBACK_DAYS,
+} from './overdueInvoiceSource';
+export type {
+  PostgresOverdueInvoiceSourceOptions,
+  InvoiceListSourceOptions,
+} from './overdueInvoiceSource';
+export {
+  OVERDUE_REMINDER_JOB_NAME,
+  DEFAULT_OVERDUE_REMINDER_JOB_CRON,
+  DEFAULT_OVERDUE_REMINDER_POLL_MS,
+  registerOverdueReminderJob,
+  createOverdueReminderPoller,
+  createOverdueReminderHandler,
+} from './jobs/overdueInvoiceReminderJob';
+export type {
+  OverdueReminderJobOptions,
+  OverdueReminderJobHandle,
+} from './jobs/overdueInvoiceReminderJob';

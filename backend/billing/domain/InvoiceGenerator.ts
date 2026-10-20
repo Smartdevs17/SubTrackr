@@ -7,11 +7,31 @@
  * Closes #1132
  */
 
+import { formatDate, formatMoney } from './formatting';
+
+export interface InvoiceBranding {
+  logoUrl?: string;
+  primaryColor?: string;
+  accentColor?: string;
+}
+
 export interface InvoiceLineItem {
   description: string;
   quantity: number;
   unitPrice: number;
   total: number;
+  /**
+   * Discriminates a chargeable line (`'item'`, the default) from an itemised
+   * discount (`'discount'`). Discount line items reduce the subtotal instead of
+   * adding to it. This is deliberately distinct from coupons, which are a
+   * checkout-time promotion concept.
+   */
+  kind?: "item" | "discount";
+}
+
+/** A line item that reduces the amount payable rather than adding to it. */
+function isDiscountLineItem(item: InvoiceLineItem): boolean {
+  return item.kind === "discount";
 }
 
 export interface InvoiceData {
@@ -37,9 +57,17 @@ export interface InvoiceData {
   subtotal: number;
   taxRate: number;
   taxAmount: number;
+  /** Region the tax was calculated for, e.g. "DE" or "US-CA". */
+  taxRegion?: string;
+  /** Tax type applied, e.g. "vat", "gst", "sales_tax". */
+  taxType?: string;
+  /** Whether the customer was tax-exempt when the invoice was generated (issue #1740). */
+  isTaxExempt?: boolean;
   discount: number;
   total: number;
   currency: string;
+  locale: string;
+  branding: InvoiceBranding;
 
   // Metadata
   subscriptionId?: string;
@@ -52,6 +80,29 @@ export interface GeneratedInvoice {
   pdfBuffer: Buffer;
   fileSize: number;
   generatedAt: string;
+}
+
+/** Rounds to minor units, mapping non-finite input to zero. */
+function roundMoney(amount: number): number {
+  if (!Number.isFinite(amount)) return 0;
+  return Math.round((amount + Number.EPSILON * Math.sign(amount)) * 100) / 100;
+}
+
+/**
+ * Human-readable tax label for invoice documents, e.g. "VAT 19.0% · DE".
+ */
+export function formatTaxLabel(invoice: Pick<InvoiceData, 'taxRate' | 'taxRegion' | 'taxType'>): string {
+  const rate = `${(invoice.taxRate * 100).toFixed(1)}%`;
+  if (!invoice.taxType && !invoice.taxRegion) return rate;
+  const type = invoice.taxType ? invoice.taxType.toUpperCase() : 'Tax';
+  const region = invoice.taxRegion ? ` · ${invoice.taxRegion.toUpperCase()}` : '';
+  return `${type} ${rate}${region}`;
+}
+
+/** Constrains `value` to `[min, max]`, tolerating non-finite input. */
+function clamp(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min;
+  return Math.min(Math.max(value, min), max);
 }
 
 export class InvoiceGenerator {
@@ -67,13 +118,35 @@ export class InvoiceGenerator {
 
   /**
    * Calculate totals from line items and tax rate.
+   *
+   * Discount line items (and the legacy scalar `discount`) are applied to the
+   * subtotal before tax. The returned `discount` is the total reduction so the
+   * rendered invoice can show it even when it arrived itemised.
    */
   calculateTotals(items: InvoiceLineItem[], taxRate: number, discount: number = 0) {
-    const subtotal = items.reduce((sum, item) => sum + item.total, 0);
-    const taxableAmount = subtotal - discount;
-    const taxAmount = Math.round(taxableAmount * taxRate * 100) / 100;
-    const total = Math.round((taxableAmount + taxAmount) * 100) / 100;
-    return { subtotal, taxAmount, total };
+    const chargeItems = items.filter((item) => !isDiscountLineItem(item));
+    const discountItems = items.filter((item) => isDiscountLineItem(item));
+
+    const rawSubtotal = chargeItems.reduce((sum, item) => sum + item.total, 0);
+    const subtotal = roundMoney(rawSubtotal);
+
+    const lineDiscount = roundMoney(
+      discountItems.reduce((sum, item) => sum + Math.abs(item.total), 0)
+    );
+
+    // A discount may not exceed the subtotal. Without this clamp a discount
+    // larger than the invoice produced a negative tax base and a negative
+    // total, which downstream reconciliation reads as a credit owed rather
+    // than an over-discounted invoice.
+    const appliedDiscount = roundMoney(clamp(discount + lineDiscount, 0, subtotal));
+    const taxableAmount = roundMoney(subtotal - appliedDiscount);
+
+    // `taxRate` is a decimal fraction (0.2), not basis points.
+    const safeTaxRate = Number.isFinite(taxRate) ? Math.max(taxRate, 0) : 0;
+    const taxAmount = roundMoney(taxableAmount * safeTaxRate);
+    const total = roundMoney(Math.max(taxableAmount + taxAmount, 0));
+
+    return { subtotal, discount: appliedDiscount, taxAmount, total };
   }
 
   /**
@@ -86,23 +159,38 @@ export class InvoiceGenerator {
     customerEmail: string;
     items: InvoiceLineItem[];
     taxRate?: number;
+    taxRegion?: string;
+    taxType?: string;
+    /** Customer exempt in the invoice's jurisdiction; forces tax to zero (issue #1740). */
+    taxExempt?: boolean;
     discount?: number;
     currency?: string;
     subscriptionId?: string;
     notes?: string;
     dueInDays?: number;
+    locale?: string;
+    branding?: InvoiceBranding;
+    senderAddress?: string;
+    customerAddress?: string;
+    /** Pre-allocated number from a numbering scheme (issue #1738); defaults to the legacy generator. */
+    invoiceNumber?: string;
   }): InvoiceData {
-    const taxRate = params.taxRate ?? 0;
+    const taxRate = params.taxExempt ? 0 : (params.taxRate ?? 0);
     const discount = params.discount ?? 0;
-    const currency = params.currency ?? "USD";
+    const currency = (params.currency ?? "USD").toUpperCase();
+    const locale = params.locale ?? "en-US";
     const now = new Date();
     const dueDate = new Date(now);
     dueDate.setDate(dueDate.getDate() + (params.dueInDays ?? 30));
 
-    const { subtotal, taxAmount, total } = this.calculateTotals(params.items, taxRate, discount);
+    const { subtotal, discount: appliedDiscount, taxAmount, total } = this.calculateTotals(
+      params.items,
+      taxRate,
+      discount
+    );
 
     return {
-      invoiceNumber: this.generateInvoiceNumber(),
+      invoiceNumber: params.invoiceNumber ?? this.generateInvoiceNumber(),
       invoiceDate: now.toISOString(),
       dueDate: dueDate.toISOString(),
       status: "draft",
@@ -116,9 +204,14 @@ export class InvoiceGenerator {
       subtotal: Math.round(subtotal * 100) / 100,
       taxRate,
       taxAmount,
+      taxRegion: params.taxRegion,
+      taxType: params.taxType,
+      isTaxExempt: params.taxExempt === true,
       discount,
       total,
       currency,
+      locale,
+      branding: { ...params.branding },
       subscriptionId: params.subscriptionId,
       notes: params.notes,
     };
@@ -150,19 +243,26 @@ export class InvoiceGenerator {
     const content: string[] = [];
 
     // Build text content
-    const fmt = (n: number) => `${invoice.currency === "USD" ? "$" : ""}${n.toFixed(2)}`;
+    const fmt = (n: number) => formatMoney(n, invoice.currency, invoice.locale);
+    const primaryColor = this.pdfColor(invoice.branding.primaryColor ?? '#4F46E5');
 
     content.push(`BT`);
     content.push(`/F1 24 Tf`);
     content.push(`72 720 Td`);
+    content.push(`${primaryColor} rg`);
     content.push(`(INVOICE) Tj`);
+    content.push(`0 0 0 rg`);
+    if (invoice.branding.logoUrl) {
+      content.push(`0 -18 Td`);
+      content.push(`(${this.escapePdfString(`Logo: ${invoice.branding.logoUrl}`)}) Tj`);
+    }
     content.push(`/F1 12 Tf`);
     content.push(`0 -30 Td`);
     content.push(`(${this.escapePdfString(`Invoice #: ${invoice.invoiceNumber}`)}) Tj`);
     content.push(`0 -18 Td`);
-    content.push(`(${this.escapePdfString(`Date: ${new Date(invoice.invoiceDate).toLocaleDateString()}`)}) Tj`);
+    content.push(`(${this.escapePdfString(`Date: ${formatDate(invoice.invoiceDate, invoice.locale)}`)}) Tj`);
     content.push(`0 -18 Td`);
-    content.push(`(${this.escapePdfString(`Due: ${new Date(invoice.dueDate).toLocaleDateString()}`)}) Tj`);
+    content.push(`(${this.escapePdfString(`Due: ${formatDate(invoice.dueDate, invoice.locale)}`)}) Tj`);
     content.push(`0 -18 Td`);
     content.push(`(${this.escapePdfString(`Status: ${invoice.status}`)}) Tj`);
 
@@ -183,8 +283,10 @@ export class InvoiceGenerator {
     content.push(`(${this.escapePdfString(`Items:`)}) Tj`);
 
     for (const item of invoice.items) {
+      const isDiscount = isDiscountLineItem(item);
+      const amount = isDiscount ? `-${fmt(Math.abs(item.total))}` : fmt(item.total);
       content.push(`0 -16 Td`);
-      content.push(`(${this.escapePdfString(`  ${item.description}  x${item.quantity}  ${fmt(item.total)}`)}) Tj`);
+      content.push(`(${this.escapePdfString(`  ${item.description}  x${item.quantity}  ${amount}`)}) Tj`);
     }
 
     // Totals
@@ -196,7 +298,7 @@ export class InvoiceGenerator {
     }
     if (invoice.taxAmount > 0) {
       content.push(`0 -16 Td`);
-      content.push(`(${this.escapePdfString(`Tax (${(invoice.taxRate * 100).toFixed(1)}%): ${fmt(invoice.taxAmount)}`)}) Tj`);
+      content.push(`(${this.escapePdfString(`Tax (${formatTaxLabel(invoice)}): ${fmt(invoice.taxAmount)}`)}) Tj`);
     }
     content.push(`0 -20 Td`);
     content.push(`/F1 14 Tf`);
@@ -263,5 +365,12 @@ export class InvoiceGenerator {
    */
   private escapePdfString(str: string): string {
     return str.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
+  }
+
+  private pdfColor(hex: string): string {
+    const match = /^#?([0-9a-f]{6})$/i.exec(hex);
+    if (!match) return '0.31 0.27 0.90';
+    const value = match[1];
+    return `${parseInt(value.slice(0, 2), 16) / 255} ${parseInt(value.slice(2, 4), 16) / 255} ${parseInt(value.slice(4), 16) / 255}`;
   }
 }

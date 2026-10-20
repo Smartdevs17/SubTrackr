@@ -157,6 +157,15 @@ export type ErrorCode =
   | 'AUTH_API_KEY_EXPIRED'
   | 'AUTH_API_KEY_ROTATION_FAILED'
   | 'AUTH_API_KEY_REVOKED'
+  | 'AUTH_API_KEY_ALREADY_REVOKED'
+  | 'AUTH_LEAK_INCIDENT_NOT_FOUND'
+  | 'AUTH_LEAK_INCIDENT_CLOSED'
+  // ── Auth / Passkeys (Issue #1272) ────────────────────────────────────────
+  | 'AUTH_PASSKEY_CHALLENGE_INVALID'
+  | 'AUTH_PASSKEY_VERIFICATION_FAILED'
+  | 'AUTH_PASSKEY_CREDENTIAL_NOT_FOUND'
+  | 'AUTH_PASSKEY_CREDENTIAL_EXISTS'
+  | 'AUTH_PASSKEY_COUNTER_REGRESSION'
   // ── Payment Gateway (Issue #581) ─────────────────────────────────────────
   | 'PAYMENT_GATEWAY_NOT_FOUND'
   | 'PAYMENT_GATEWAY_ERROR'
@@ -242,6 +251,15 @@ export const ERROR_HTTP_STATUS_MAP: Record<ErrorCode, number> = {
   AUTH_API_KEY_EXPIRED: 401,
   AUTH_API_KEY_ROTATION_FAILED: 500,
   AUTH_API_KEY_REVOKED: 401,
+  AUTH_API_KEY_ALREADY_REVOKED: 409,
+  AUTH_LEAK_INCIDENT_NOT_FOUND: 404,
+  AUTH_LEAK_INCIDENT_CLOSED: 409,
+  // Auth / Passkeys (Issue #1272)
+  AUTH_PASSKEY_CHALLENGE_INVALID: 400,
+  AUTH_PASSKEY_VERIFICATION_FAILED: 401,
+  AUTH_PASSKEY_CREDENTIAL_NOT_FOUND: 404,
+  AUTH_PASSKEY_CREDENTIAL_EXISTS: 409,
+  AUTH_PASSKEY_COUNTER_REGRESSION: 401,
   // Payment Gateway (Issue #581)
   PAYMENT_GATEWAY_NOT_FOUND: 404,
   PAYMENT_GATEWAY_ERROR: 502,
@@ -307,7 +325,21 @@ export function fail(
   requestId?: string,
   details?: Record<string, string> | { version?: number },
 ): ApiErrorResponse {
-  const errorPayload: ApiError = { code, message, ...details };
+  const errorPayload: ApiError = { code, message };
+  if (details) {
+    if ('version' in details && typeof (details as { version?: unknown }).version === 'number') {
+      errorPayload.version = (details as { version: number }).version;
+    }
+    const fieldDetails: Record<string, string> = {};
+    for (const [k, v] of Object.entries(details)) {
+      if (k !== 'version' && typeof v === 'string') {
+        fieldDetails[k] = v;
+      }
+    }
+    if (Object.keys(fieldDetails).length > 0) {
+      errorPayload.details = fieldDetails;
+    }
+  }
   return {
     success: false,
     error: errorPayload,

@@ -94,7 +94,9 @@ export const HealthScoreGauge: React.FC<HealthScoreGaugeProps> = ({
             {Math.round(clampedScore)}
           </Text>
           {trendSymbol ? (
-            <Text style={[styles.trendText, { color: statusInfo.color }]} testID={`${testID}-trend`}>
+            <Text
+              style={[styles.trendText, { color: statusInfo.color }]}
+              testID={`${testID}-trend`}>
               {trendSymbol}
             </Text>
           ) : null}

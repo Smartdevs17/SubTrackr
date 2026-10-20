@@ -12,12 +12,7 @@ import { darkNavigationTheme, lightNavigationTheme } from '../theme/navigationTh
 import { NavigationErrorBoundary } from './NavigationErrorBoundary';
 
 // Import feature-based stack modules
-import {
-  SubscriptionStack,
-  AnalyticsStack,
-  SettingsStack,
-  WalletStack,
-} from './modules';
+import { SubscriptionStack, AnalyticsStack, SettingsStack, WalletStack } from './modules';
 
 const Tab = createBottomTabNavigator<TabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();

@@ -14,9 +14,7 @@ describe('WidgetCustomizationModal (Issue #1274)', () => {
   });
 
   it('renders modal content when visible', () => {
-    const { getByText } = render(
-      <WidgetCustomizationModal visible={true} onClose={mockOnClose} />
-    );
+    const { getByText } = render(<WidgetCustomizationModal visible={true} onClose={mockOnClose} />);
 
     expect(getByText('Dashboard Customizer')).toBeTruthy();
     expect(getByText('MRR & ARR Overview')).toBeTruthy();
@@ -39,9 +37,7 @@ describe('WidgetCustomizationModal (Issue #1274)', () => {
   });
 
   it('switches forecast model selection', () => {
-    const { getByText } = render(
-      <WidgetCustomizationModal visible={true} onClose={mockOnClose} />
-    );
+    const { getByText } = render(<WidgetCustomizationModal visible={true} onClose={mockOnClose} />);
 
     const linearOption = getByText('Linear Regression');
     fireEvent.press(linearOption);
@@ -60,4 +56,3 @@ describe('WidgetCustomizationModal (Issue #1274)', () => {
     expect(mockOnClose).toHaveBeenCalledTimes(1);
   });
 });
-

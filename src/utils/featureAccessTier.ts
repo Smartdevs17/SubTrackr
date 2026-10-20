@@ -75,11 +75,7 @@ export const DEFAULT_TIER_CONFIGS: Record<SubscriptionTier, FeatureAccessTier> =
       export_rows: 10000,
       team_members: 5,
     },
-    inheritanceHierarchy: [
-      SubscriptionTier.FREE,
-      SubscriptionTier.BASIC,
-      SubscriptionTier.PREMIUM,
-    ],
+    inheritanceHierarchy: [SubscriptionTier.FREE, SubscriptionTier.BASIC, SubscriptionTier.PREMIUM],
   },
   [SubscriptionTier.ENTERPRISE]: {
     tier: SubscriptionTier.ENTERPRISE,
@@ -121,7 +117,10 @@ export const DEFAULT_TIER_CONFIGS: Record<SubscriptionTier, FeatureAccessTier> =
 /**
  * Checks if current user tier satisfies required minimum tier.
  */
-export function isTierAtLeast(currentTier: SubscriptionTier, requiredTier: SubscriptionTier): boolean {
+export function isTierAtLeast(
+  currentTier: SubscriptionTier,
+  requiredTier: SubscriptionTier
+): boolean {
   const currentRank = TIER_RANK[currentTier] ?? 1;
   const requiredRank = TIER_RANK[requiredTier] ?? 1;
   return currentRank >= requiredRank;

@@ -2,7 +2,7 @@
 ///
 /// These tests verify:
 ///   1. The temporary storage bridge methods work correctly.
-///   2. Rate-limit timestamps stored via TmpLastCall expire after the TTL.
+///   2. Rate-limit timestamps stored via LastCall expire after the TTL.
 ///   3. ProxyScheduledUpgrade stored in temporary storage behaves correctly.
 ///   4. No regression in the external API or state guarantees.
 ///
@@ -47,14 +47,14 @@ mod tests {
 
         let caller = Address::generate(&env);
         let fname = SorobanString::from_str(&env, "subscribe");
-        let key = StorageKey::TmpLastCall(caller.clone(), fname.clone());
+        let key = StorageKey::LastCall(caller.clone(), fname.clone());
         let timestamp: u64 = 1_000_000;
 
         // Write with a 12-ledger TTL (≈ 60 s)
-        client.temporary_set(&key, &timestamp.into_val(&env), &12u32);
+        client.temporary_set(&key.into_val(&env), &timestamp.into_val(&env), &12u32);
 
         let result: Option<u64> = client
-            .temporary_get(&key)
+            .temporary_get(&key.into_val(&env))
             .map(|v| TryFromVal::try_from_val(&env, &v).unwrap());
         assert_eq!(result, Some(timestamp));
     }
@@ -66,9 +66,9 @@ mod tests {
 
         let caller = Address::generate(&env);
         let fname = SorobanString::from_str(&env, "nonexistent");
-        let key = StorageKey::TmpLastCall(caller, fname);
+        let key = StorageKey::LastCall(caller, fname);
 
-        let result = client.temporary_get(&key);
+        let result = client.temporary_get(&key.into_val(&env));
         assert!(result.is_none());
     }
 
@@ -79,14 +79,14 @@ mod tests {
 
         let caller = Address::generate(&env);
         let fname = SorobanString::from_str(&env, "cancel_subscription");
-        let key = StorageKey::TmpLastCall(caller, fname);
+        let key = StorageKey::LastCall(caller, fname);
         let ts: u64 = 999;
 
-        client.temporary_set(&key, &ts.into_val(&env), &10u32);
-        assert!(client.temporary_get(&key).is_some());
+        client.temporary_set(&key.into_val(&env), &ts.into_val(&env), &10u32);
+        assert!(client.temporary_get(&key.into_val(&env)).is_some());
 
-        client.temporary_remove(&key);
-        assert!(client.temporary_get(&key).is_none());
+        client.temporary_remove(&key.into_val(&env));
+        assert!(client.temporary_get(&key.into_val(&env)).is_none());
     }
 
     // ── TTL expiry ────────────────────────────────────────────────────────────
@@ -98,13 +98,13 @@ mod tests {
 
         let caller = Address::generate(&env);
         let fname = SorobanString::from_str(&env, "create_plan");
-        let key = StorageKey::TmpLastCall(caller, fname);
+        let key = StorageKey::LastCall(caller, fname);
         let ts: u64 = 500;
 
         // Write with TTL = 5 ledgers.
-        client.temporary_set(&key, &ts.into_val(&env), &5u32);
+        client.temporary_set(&key.into_val(&env), &ts.into_val(&env), &5u32);
         assert!(
-            client.temporary_get(&key).is_some(),
+            client.temporary_get(&key.into_val(&env)).is_some(),
             "entry should exist before expiry"
         );
 
@@ -116,12 +116,12 @@ mod tests {
 
         // After TTL the entry should be gone
         assert!(
-            client.temporary_get(&key).is_none(),
+            client.temporary_get(&key.into_val(&env)).is_none(),
             "entry should have expired after TTL"
         );
     }
 
-    // ── TmpLastCall key isolation ─────────────────────────────────────────────
+    // ── LastCall key isolation ─────────────────────────────────────────────
 
     #[test]
     fn test_tmp_last_call_keys_are_isolated_per_caller() {
@@ -132,18 +132,22 @@ mod tests {
         let caller_b = Address::generate(&env);
         let fname = SorobanString::from_str(&env, "subscribe");
 
-        let key_a = StorageKey::TmpLastCall(caller_a.clone(), fname.clone());
-        let key_b = StorageKey::TmpLastCall(caller_b.clone(), fname.clone());
+        let key_a = StorageKey::LastCall(caller_a.clone(), fname.clone());
+        let key_b = StorageKey::LastCall(caller_b.clone(), fname.clone());
 
-        client.temporary_set(&key_a, &100u64.into_val(&env), &20u32);
-        client.temporary_set(&key_b, &200u64.into_val(&env), &20u32);
+        client.temporary_set(&key_a.into_val(&env), &100u64.into_val(&env), &20u32);
+        client.temporary_set(&key_b.into_val(&env), &200u64.into_val(&env), &20u32);
 
-        let val_a: u64 =
-            soroban_sdk::TryFromVal::try_from_val(&env, &client.temporary_get(&key_a).unwrap())
-                .unwrap();
-        let val_b: u64 =
-            soroban_sdk::TryFromVal::try_from_val(&env, &client.temporary_get(&key_b).unwrap())
-                .unwrap();
+        let val_a: u64 = soroban_sdk::TryFromVal::try_from_val(
+            &env,
+            &client.temporary_get(&key_a.into_val(&env)).unwrap(),
+        )
+        .unwrap();
+        let val_b: u64 = soroban_sdk::TryFromVal::try_from_val(
+            &env,
+            &client.temporary_get(&key_b.into_val(&env)).unwrap(),
+        )
+        .unwrap();
 
         assert_eq!(val_a, 100);
         assert_eq!(val_b, 200);
@@ -158,18 +162,22 @@ mod tests {
         let fname_a = SorobanString::from_str(&env, "subscribe");
         let fname_b = SorobanString::from_str(&env, "cancel_subscription");
 
-        let key_a = StorageKey::TmpLastCall(caller.clone(), fname_a);
-        let key_b = StorageKey::TmpLastCall(caller.clone(), fname_b);
+        let key_a = StorageKey::LastCall(caller.clone(), fname_a);
+        let key_b = StorageKey::LastCall(caller.clone(), fname_b);
 
-        client.temporary_set(&key_a, &111u64.into_val(&env), &20u32);
-        client.temporary_set(&key_b, &222u64.into_val(&env), &20u32);
+        client.temporary_set(&key_a.into_val(&env), &111u64.into_val(&env), &20u32);
+        client.temporary_set(&key_b.into_val(&env), &222u64.into_val(&env), &20u32);
 
-        let val_a: u64 =
-            soroban_sdk::TryFromVal::try_from_val(&env, &client.temporary_get(&key_a).unwrap())
-                .unwrap();
-        let val_b: u64 =
-            soroban_sdk::TryFromVal::try_from_val(&env, &client.temporary_get(&key_b).unwrap())
-                .unwrap();
+        let val_a: u64 = soroban_sdk::TryFromVal::try_from_val(
+            &env,
+            &client.temporary_get(&key_a.into_val(&env)).unwrap(),
+        )
+        .unwrap();
+        let val_b: u64 = soroban_sdk::TryFromVal::try_from_val(
+            &env,
+            &client.temporary_get(&key_b.into_val(&env)).unwrap(),
+        )
+        .unwrap();
 
         assert_eq!(val_a, 111);
         assert_eq!(val_b, 222);
@@ -192,10 +200,10 @@ mod tests {
 
         let key = StorageKey::ProxyScheduledUpgrade;
         // TTL = 120 960 ledgers (≈ 7 days)
-        client.temporary_set(&key, &upgrade.into_val(&env), &120_960u32);
+        client.temporary_set(&key.into_val(&env), &upgrade.into_val(&env), &120_960u32);
 
         let stored: Option<subtrackr_types::ScheduledUpgrade> = client
-            .temporary_get(&key)
+            .temporary_get(&key.into_val(&env))
             .map(|v| TryFromVal::try_from_val(&env, &v).unwrap());
 
         assert!(stored.is_some());
@@ -216,12 +224,12 @@ mod tests {
         };
 
         let key = StorageKey::ProxyScheduledUpgrade;
-        client.temporary_set(&key, &upgrade.into_val(&env), &120_960u32);
-        assert!(client.temporary_get(&key).is_some());
+        client.temporary_set(&key.into_val(&env), &upgrade.into_val(&env), &120_960u32);
+        assert!(client.temporary_get(&key.into_val(&env)).is_some());
 
         // Simulate upgrade execution: clear the entry
-        client.temporary_remove(&key);
-        assert!(client.temporary_get(&key).is_none());
+        client.temporary_remove(&key.into_val(&env));
+        assert!(client.temporary_get(&key.into_val(&env)).is_none());
     }
 
     // ── Persistent storage unaffected ─────────────────────────────────────────
@@ -236,18 +244,18 @@ mod tests {
         let key = StorageKey::Plan(plan_id);
         // We can't easily write a full Plan here without the subscription crate,
         // so we write a simple u64 to verify the persistent bridge is unaffected.
-        client.persistent_set(&key, &42u64.into_val(&env));
+        client.persistent_set(&key.into_val(&env), &42u64.into_val(&env));
 
         // Write and remove a temporary value with the same numeric id
         let caller = Address::generate(&env);
         let fname = SorobanString::from_str(&env, "test");
-        let tmp_key = StorageKey::TmpLastCall(caller, fname);
-        client.temporary_set(&tmp_key, &99u64.into_val(&env), &5u32);
-        client.temporary_remove(&tmp_key);
+        let tmp_key = StorageKey::LastCall(caller, fname);
+        client.temporary_set(&tmp_key.into_val(&env), &99u64.into_val(&env), &5u32);
+        client.temporary_remove(&tmp_key.into_val(&env));
 
         // Persistent value must still be intact
         let persisted: Option<u64> = client
-            .persistent_get(&key)
+            .persistent_get(&key.into_val(&env))
             .map(|v| TryFromVal::try_from_val(&env, &v).unwrap());
         assert_eq!(persisted, Some(42u64));
     }
@@ -265,8 +273,8 @@ mod tests {
         // Write and expire a temporary entry
         let caller = Address::generate(&env);
         let fname = SorobanString::from_str(&env, "test_fn");
-        let tmp_key = StorageKey::TmpLastCall(caller, fname);
-        client.temporary_set(&tmp_key, &1u64.into_val(&env), &1u32);
+        let tmp_key = StorageKey::LastCall(caller, fname);
+        client.temporary_set(&tmp_key.into_val(&env), &1u64.into_val(&env), &1u32);
 
         // Advance past TTL
         env.ledger().set(LedgerInfo {
@@ -287,10 +295,10 @@ mod tests {
 
         let caller = Address::generate(&env);
         let fname = SorobanString::from_str(&env, "fn");
-        let key = StorageKey::TmpLastCall(caller, fname);
+        let key = StorageKey::LastCall(caller, fname);
 
         // TTL = 0 should be treated as 1 ledger (minimum)
-        client.temporary_set(&key, &1u64.into_val(&env), &0u32);
-        assert!(client.temporary_get(&key).is_some());
+        client.temporary_set(&key.into_val(&env), &1u64.into_val(&env), &0u32);
+        assert!(client.temporary_get(&key.into_val(&env)).is_some());
     }
 }

@@ -223,16 +223,14 @@ const AnalyticsScreen: React.FC = () => {
                   subscriptionAnalytics.mrrGrowthRate >= 0
                     ? styles.badgeSuccess
                     : styles.badgeDanger,
-                ]}
-              >
+                ]}>
                 <Text
                   style={[
                     styles.growthText,
                     subscriptionAnalytics.mrrGrowthRate >= 0
                       ? styles.textSuccess
                       : styles.textDanger,
-                  ]}
-                >
+                  ]}>
                   {subscriptionAnalytics.mrrGrowthRate >= 0 ? '+' : ''}
                   {subscriptionAnalytics.mrrGrowthRate.toFixed(1)}% MoM
                 </Text>
@@ -251,16 +249,14 @@ const AnalyticsScreen: React.FC = () => {
                   subscriptionAnalytics.arrGrowthRate >= 0
                     ? styles.badgeSuccess
                     : styles.badgeDanger,
-                ]}
-              >
+                ]}>
                 <Text
                   style={[
                     styles.growthText,
                     subscriptionAnalytics.arrGrowthRate >= 0
                       ? styles.textSuccess
                       : styles.textDanger,
-                  ]}
-                >
+                  ]}>
                   {subscriptionAnalytics.arrGrowthRate >= 0 ? '+' : ''}
                   {subscriptionAnalytics.arrGrowthRate.toFixed(1)}% YoY
                 </Text>
@@ -274,12 +270,12 @@ const AnalyticsScreen: React.FC = () => {
 
         <TouchableOpacity
           style={styles.dashboardBanner}
-          onPress={() => navigation?.navigate?.('AnalyticsDashboard')}
-        >
+          onPress={() => navigation?.navigate?.('AnalyticsDashboard')}>
           <View style={styles.bannerContent}>
             <Text style={styles.bannerTitle}>🔥 Advanced Cohort & MRR Suite</Text>
             <Text style={styles.bannerSubtitle}>
-              Interactive retention heatmaps, LTV by channel, linear & exponential forecasting & customizable widgets
+              Interactive retention heatmaps, LTV by channel, linear & exponential forecasting &
+              customizable widgets
             </Text>
           </View>
           <Text style={styles.bannerArrow}>→</Text>
@@ -449,7 +445,11 @@ const AnalyticsScreen: React.FC = () => {
         <TouchableOpacity
           onPress={() => navigation.navigate('ForecastingDashboard')}
           activeOpacity={0.85}>
-          <Card style={[styles.chartCard, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
+          <Card
+            style={[
+              styles.chartCard,
+              { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+            ]}>
             <View>
               <Text style={styles.chartTitle}>📈 Revenue Forecasting</Text>
               <Text style={{ ...typography.caption, color: colors.textSecondary }}>

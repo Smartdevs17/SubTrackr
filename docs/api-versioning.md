@@ -12,6 +12,49 @@ Deprecated versions continue to serve requests but receive RFC 8594 headers (`De
 
 ---
 
+## Current state
+
+| Version | Lifecycle | Served at |
+|---|---|---|
+| `v1` | active (default) | every route in `backend/server.ts` and `/api/v1/*` in `backend/server/createApiServer.ts` |
+
+Both servers run `createVersionMiddleware(versionRegistry)` on every request.
+Responses carry `api-version: v1` (the Express app also keeps the older
+`X-API-Version: 1`). A request that names a version the registry does not know,
+for example `api-version: v9` or `/v9/plans`, is rejected with
+`400 VERSION_NOT_FOUND` instead of being served as v1.
+
+## Strategy
+
+- **Major versions only.** A new version (`v2`, `v3`, …) is created only for a
+  breaking change: removing or renaming a field, endpoint or enum value,
+  changing a type or a default, or making an optional input required.
+- **Additive changes stay in the current version.** New endpoints, new optional
+  fields and new enum values for output are not breaking. Clients must ignore
+  unknown response fields.
+- **One codebase.** Old and new versions are served side by side; handlers
+  branch on the resolved version instead of forking the code.
+- **New versions start as `draft`**, are exercised internally, then
+  `registry.activate()` makes them public and, once stable, `setDefault()`
+  moves unversioned requests over.
+
+## Deprecation policy
+
+1. A version can be deprecated only after its successor is `active`.
+2. Deprecation is announced in `CHANGELOG.md` and the developer portal with the
+   sunset date and a migration guide (`migrationUrl`).
+3. From the deprecation date every response on that version carries
+   `Deprecation`, `Sunset`, `Link: <…>; rel="successor-version"` and `Warning`
+   headers.
+4. The sunset date is at least **6 months** after the deprecation date.
+5. Usage is watched through `registry.getStats()` and the deprecation report
+   (`backend/services/shared/apiDeprecationReport.ts`); remaining heavy users
+   are contacted before sunset.
+6. On the sunset date `registry.sunset()` is called and the version answers
+   `410 Gone` with `VERSION_SUNSET`.
+
+---
+
 ## Quick start
 
 ```ts
@@ -39,6 +82,10 @@ For every request the middleware checks in priority order:
 2. **`api-version` header** — `api-version: v2`
 3. **`version` query param** — `?version=v2`
 4. **Default** — whatever `registry.setDefault()` was called with
+
+If any of steps 1 to 3 names a version that is not registered, resolution stops
+and the middleware answers `400 VERSION_NOT_FOUND`. The default only applies
+when the request does not name a version at all.
 
 ---
 
@@ -196,8 +243,10 @@ The pre-configured registry (`versionRegistry`) is exported for application-wide
 
 ```ts
 import { versionRegistry } from '../services/shared/apiVersioning';
-// v1: deprecated (sunsets 2026-06-01), v2: active (default)
+// v1: active (default)
 ```
+
+Register the next version here as `draft` when its first breaking change lands.
 
 ---
 

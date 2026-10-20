@@ -81,7 +81,7 @@ export class TrialOptimizationService {
         extensionsGranted: idx % 4 === 0 ? 1 : 0,
         convertedAt: isConverted ? now.toISOString() : undefined,
         conversionTrigger: isConverted ? 'automatic_time_based' : undefined,
-        engagementScore: Math.min(100, 40 + (idx * 15) % 60),
+        engagementScore: Math.min(100, 40 + ((idx * 15) % 60)),
       };
     });
 
@@ -141,15 +141,14 @@ export class TrialOptimizationService {
    */
   public static getAnalyticsSummary(subscriptions: Subscription[] = []): TrialAnalyticsSummary {
     const totalTrials = this.trialRecords.length;
-    const active = this.trialRecords.filter((t) => t.status === 'active' || t.status === 'extended').length;
+    const active = this.trialRecords.filter(
+      (t) => t.status === 'active' || t.status === 'extended'
+    ).length;
     const converted = this.trialRecords.filter((t) => t.status === 'converted').length;
     const extended = this.trialRecords.filter((t) => t.status === 'extended').length;
 
     const conversionRate = totalTrials > 0 ? (converted / totalTrials) * 100 : 0;
-    const estimatedRev = subscriptions.reduce(
-      (acc, s) => acc + (s.isActive ? s.price : 0),
-      0
-    );
+    const estimatedRev = subscriptions.reduce((acc, s) => acc + (s.isActive ? s.price : 0), 0);
 
     return {
       totalTrialsStarted: totalTrials,

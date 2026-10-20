@@ -212,10 +212,7 @@ function parseDate(value: string): Date {
     return new Date(`${normalized}T00:00:00Z`);
   }
 
-  const formats = [
-    /^(\d{2})\/(\d{2})\/(\d{4})$/,
-    /^(\d{2})-(\d{2})-(\d{4})$/,
-  ];
+  const formats = [/^(\d{2})\/(\d{2})\/(\d{4})$/, /^(\d{2})-(\d{2})-(\d{4})$/];
 
   for (const format of formats) {
     const match = normalized.match(format);
@@ -253,7 +250,10 @@ function parseSubscriptionField(field: keyof SubscriptionInput, rawValue?: strin
   }
 }
 
-function buildSubscriptionFromInput(input: SubscriptionInput, existing?: Subscription): Subscription {
+function buildSubscriptionFromInput(
+  input: SubscriptionInput,
+  existing?: Subscription
+): Subscription {
   const now = new Date();
   const id = existing?.id ?? input.id ?? generateUniqueId();
 
@@ -278,7 +278,10 @@ function buildSubscriptionFromInput(input: SubscriptionInput, existing?: Subscri
   };
 }
 
-function buildImportActions(data: ImportData, existingSubscriptions: Subscription[]): {
+function buildImportActions(
+  data: ImportData,
+  existingSubscriptions: Subscription[]
+): {
   actions: ImportAction[];
   errors: ImportError[];
   warnings: ImportWarning[];
@@ -357,7 +360,11 @@ function buildImportActions(data: ImportData, existingSubscriptions: Subscriptio
         return;
       }
 
-      actions.push({ type: 'create', row: rowNum, subscription: buildSubscriptionFromInput(input) });
+      actions.push({
+        type: 'create',
+        row: rowNum,
+        subscription: buildSubscriptionFromInput(input),
+      });
       return;
     }
 

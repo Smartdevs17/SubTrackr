@@ -37,16 +37,20 @@ describe('GamificationScreen', () => {
   });
 
   it('switches navigation tabs (Dashboard, Rewards, Leaderboard)', () => {
-    const { getByText } = render(<GamificationScreen />);
-    
-    // Switch to Rewards tab
-    const rewardsTab = getByText(/Rewards/);
-    fireEvent.press(rewardsTab);
-    expect(getByText('🎁 Earned Rewards')).toBeTruthy();
+    const { getByTestId, getByText } = render(<GamificationScreen />);
 
-    // Switch to Leaderboard tab
-    const leaderboardTab = getByText('🏆 Leaderboard');
-    fireEvent.press(leaderboardTab);
-    expect(getByText('🏆 Community Leaderboard')).toBeTruthy();
+    // The tab label and the leaderboard heading are both "🏆 Leaderboard", so
+    // drive the tabs by testID and assert the tab body by its own text.
+    fireEvent.press(getByTestId('gamification-tab-rewards'));
+    expect(
+      getByText(
+        'No rewards unlocked yet. Complete achievements to earn discounts and loyalty credits!'
+      )
+    ).toBeTruthy();
+
+    fireEvent.press(getByTestId('gamification-tab-leaderboard'));
+    // The leaderboard body renders its category filter; the "🏆 Leaderboard"
+    // heading is shared with the tab label, so assert on the filter instead.
+    expect(getByTestId('leaderboard-category-all_time')).toBeTruthy();
   });
 });

@@ -1,13 +1,5 @@
 import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Modal,
-  Pressable,
-  ScrollView,
-  SafeAreaView,
-} from 'react-native';
+import { View, Text, StyleSheet, Modal, Pressable, ScrollView, SafeAreaView } from 'react-native';
 import { useWidgetStore } from '../../store/widgetStore';
 import { spacing, typography, borderRadius } from '../../utils/constants';
 
@@ -86,157 +78,142 @@ export const WidgetCustomizationModal: React.FC<WidgetCustomizationModalProps> =
   return (
     <View style={styles.modalOverlay}>
       <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.header}>
-            <View>
-              <Text style={styles.title}>Dashboard Customizer</Text>
-              <Text style={styles.subtitle}>Configure analytics widgets & forecast models</Text>
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.title}>Dashboard Customizer</Text>
+            <Text style={styles.subtitle}>Configure analytics widgets & forecast models</Text>
+          </View>
+          <Pressable onPress={onClose} style={styles.closeButton}>
+            <Text style={styles.closeButtonText}>✕</Text>
+          </Pressable>
+        </View>
+
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          {/* Forecast Model Selection Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>🔮 Revenue Forecasting Model</Text>
+            <Text style={styles.sectionDesc}>
+              Select the algorithmic model used to project future MRR and ARR trajectories.
+            </Text>
+            <View style={styles.modelSelectorContainer}>
+              <Pressable
+                style={[
+                  styles.modelOption,
+                  forecastModel === 'exponential' && styles.modelOptionActive,
+                ]}
+                onPress={() => setForecastModel('exponential')}>
+                <Text
+                  style={[
+                    styles.modelOptionTitle,
+                    forecastModel === 'exponential' && styles.modelOptionTitleActive,
+                  ]}>
+                  Exponential Decay
+                </Text>
+                <Text
+                  style={[
+                    styles.modelOptionDesc,
+                    forecastModel === 'exponential' && styles.modelOptionDescActive,
+                  ]}>
+                  Compound retention & expansion rate model
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[styles.modelOption, forecastModel === 'linear' && styles.modelOptionActive]}
+                onPress={() => setForecastModel('linear')}>
+                <Text
+                  style={[
+                    styles.modelOptionTitle,
+                    forecastModel === 'linear' && styles.modelOptionTitleActive,
+                  ]}>
+                  Linear Regression
+                </Text>
+                <Text
+                  style={[
+                    styles.modelOptionDesc,
+                    forecastModel === 'linear' && styles.modelOptionDescActive,
+                  ]}>
+                  Trend-line slope based on recent months
+                </Text>
+              </Pressable>
             </View>
-            <Pressable onPress={onClose} style={styles.closeButton}>
-              <Text style={styles.closeButtonText}>✕</Text>
-            </Pressable>
           </View>
 
-          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-            {/* Forecast Model Selection Section */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>🔮 Revenue Forecasting Model</Text>
-              <Text style={styles.sectionDesc}>
-                Select the algorithmic model used to project future MRR and ARR trajectories.
-              </Text>
-              <View style={styles.modelSelectorContainer}>
-                <Pressable
-                  style={[
-                    styles.modelOption,
-                    forecastModel === 'exponential' && styles.modelOptionActive,
-                  ]}
-                  onPress={() => setForecastModel('exponential')}
-                >
-                  <Text
-                    style={[
-                      styles.modelOptionTitle,
-                      forecastModel === 'exponential' && styles.modelOptionTitleActive,
-                    ]}
-                  >
-                    Exponential Decay
-                  </Text>
-                  <Text
-                    style={[
-                      styles.modelOptionDesc,
-                      forecastModel === 'exponential' && styles.modelOptionDescActive,
-                    ]}
-                  >
-                    Compound retention & expansion rate model
-                  </Text>
-                </Pressable>
-
-                <Pressable
-                  style={[
-                    styles.modelOption,
-                    forecastModel === 'linear' && styles.modelOptionActive,
-                  ]}
-                  onPress={() => setForecastModel('linear')}
-                >
-                  <Text
-                    style={[
-                      styles.modelOptionTitle,
-                      forecastModel === 'linear' && styles.modelOptionTitleActive,
-                    ]}
-                  >
-                    Linear Regression
-                  </Text>
-                  <Text
-                    style={[
-                      styles.modelOptionDesc,
-                      forecastModel === 'linear' && styles.modelOptionDescActive,
-                    ]}
-                  >
-                    Trend-line slope based on recent months
-                  </Text>
-                </Pressable>
-              </View>
+          {/* Widget Toggles & Order Section */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>🛠️ Widget Layout & Visibility</Text>
+              <Pressable onPress={resetWidgetConfig} style={styles.resetButton}>
+                <Text style={styles.resetButtonText}>Reset Default</Text>
+              </Pressable>
             </View>
+            <Text style={styles.sectionDesc}>
+              Toggle widgets on/off and use up/down arrows to reorder dashboard cards.
+            </Text>
 
-            {/* Widget Toggles & Order Section */}
-            <View style={styles.section}>
-              <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionTitle}>🛠️ Widget Layout & Visibility</Text>
-                <Pressable onPress={resetWidgetConfig} style={styles.resetButton}>
-                  <Text style={styles.resetButtonText}>Reset Default</Text>
-                </Pressable>
-              </View>
-              <Text style={styles.sectionDesc}>
-                Toggle widgets on/off and use up/down arrows to reorder dashboard cards.
-              </Text>
+            {widgetOrder.map((widgetId, index) => {
+              const info = WIDGET_LABELS[widgetId] || {
+                title: widgetId,
+                description: 'Custom widget',
+                icon: '📊',
+              };
+              const isEnabled = enabledWidgets.includes(widgetId);
 
-              {widgetOrder.map((widgetId, index) => {
-                const info = WIDGET_LABELS[widgetId] || {
-                  title: widgetId,
-                  description: 'Custom widget',
-                  icon: '📊',
-                };
-                const isEnabled = enabledWidgets.includes(widgetId);
+              return (
+                <View
+                  key={widgetId}
+                  style={[styles.widgetItem, !isEnabled && styles.widgetItemDisabled]}>
+                  <View style={styles.widgetIconBox}>
+                    <Text style={styles.widgetIcon}>{info.icon}</Text>
+                  </View>
 
-                return (
-                  <View
-                    key={widgetId}
-                    style={[styles.widgetItem, !isEnabled && styles.widgetItemDisabled]}
-                  >
-                    <View style={styles.widgetIconBox}>
-                      <Text style={styles.widgetIcon}>{info.icon}</Text>
-                    </View>
+                  <View style={styles.widgetInfo}>
+                    <Text style={[styles.widgetTitle, !isEnabled && styles.widgetTitleDisabled]}>
+                      {info.title}
+                    </Text>
+                    <Text style={styles.widgetDescription}>{info.description}</Text>
+                  </View>
 
-                    <View style={styles.widgetInfo}>
-                      <Text style={[styles.widgetTitle, !isEnabled && styles.widgetTitleDisabled]}>
-                        {info.title}
-                      </Text>
-                      <Text style={styles.widgetDescription}>{info.description}</Text>
-                    </View>
-
-                    <View style={styles.widgetActions}>
-                      <View style={styles.reorderButtons}>
-                        <Pressable
-                          onPress={() => handleMoveUp(index)}
-                          disabled={index === 0}
-                          style={[styles.arrowBtn, index === 0 && styles.arrowBtnDisabled]}
-                        >
-                          <Text style={styles.arrowText}>▲</Text>
-                        </Pressable>
-                        <Pressable
-                          onPress={() => handleMoveDown(index)}
-                          disabled={index === widgetOrder.length - 1}
-                          style={[
-                            styles.arrowBtn,
-                            index === widgetOrder.length - 1 && styles.arrowBtnDisabled,
-                          ]}
-                        >
-                          <Text style={styles.arrowText}>▼</Text>
-                        </Pressable>
-                      </View>
-
+                  <View style={styles.widgetActions}>
+                    <View style={styles.reorderButtons}>
                       <Pressable
-                        style={[styles.toggleBtn, isEnabled && styles.toggleBtnActive]}
-                        onPress={() => toggleWidget(widgetId)}
-                      >
-                        <Text
-                          style={[styles.toggleBtnText, isEnabled && styles.toggleBtnTextActive]}
-                        >
-                          {isEnabled ? 'ON' : 'OFF'}
-                        </Text>
+                        onPress={() => handleMoveUp(index)}
+                        disabled={index === 0}
+                        style={[styles.arrowBtn, index === 0 && styles.arrowBtnDisabled]}>
+                        <Text style={styles.arrowText}>▲</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => handleMoveDown(index)}
+                        disabled={index === widgetOrder.length - 1}
+                        style={[
+                          styles.arrowBtn,
+                          index === widgetOrder.length - 1 && styles.arrowBtnDisabled,
+                        ]}>
+                        <Text style={styles.arrowText}>▼</Text>
                       </Pressable>
                     </View>
-                  </View>
-                );
-              })}
-            </View>
-          </ScrollView>
 
-          <View style={styles.footer}>
-            <Pressable style={styles.doneButton} onPress={onClose} testID="save-apply-button">
-              <Text style={styles.doneButtonText}>Save & Apply Changes</Text>
-            </Pressable>
+                    <Pressable
+                      style={[styles.toggleBtn, isEnabled && styles.toggleBtnActive]}
+                      onPress={() => toggleWidget(widgetId)}>
+                      <Text style={[styles.toggleBtnText, isEnabled && styles.toggleBtnTextActive]}>
+                        {isEnabled ? 'ON' : 'OFF'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              );
+            })}
           </View>
-        </SafeAreaView>
-      </View>
+        </ScrollView>
+
+        <View style={styles.footer}>
+          <Pressable style={styles.doneButton} onPress={onClose} testID="save-apply-button">
+            <Text style={styles.doneButtonText}>Save & Apply Changes</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    </View>
   );
 };
 

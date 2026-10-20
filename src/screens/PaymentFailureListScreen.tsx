@@ -14,14 +14,8 @@ import type { PaymentFailure, EscalationLevel } from '../types/paymentFailure';
 const MOCK_USER_ID = 'user-123'; // In real app, get from auth context
 
 export default function PaymentFailureListScreen({ navigation }: any) {
-  const {
-    failures,
-    analytics,
-    loading,
-    loadUnresolvedFailures,
-    loadAnalytics,
-    resolveFailure,
-  } = usePaymentFailureStore();
+  const { failures, analytics, loading, loadUnresolvedFailures, loadAnalytics, resolveFailure } =
+    usePaymentFailureStore();
 
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<'all' | 'unresolved'>('unresolved');
@@ -60,27 +54,27 @@ export default function PaymentFailureListScreen({ navigation }: any) {
     return (
       <View style={styles.analyticsCard}>
         <Text style={styles.analyticsTitle}>Payment Failures Overview</Text>
-        
+
         <View style={styles.statsGrid}>
           <View style={styles.statBox}>
             <Text style={styles.statValue}>{analytics.unresolvedFailures}</Text>
             <Text style={styles.statLabel}>Unresolved</Text>
           </View>
-          
+
           <View style={styles.statBox}>
             <Text style={[styles.statValue, { color: '#34C759' }]}>
               {analytics.resolutionRate.toFixed(1)}%
             </Text>
             <Text style={styles.statLabel}>Resolution Rate</Text>
           </View>
-          
+
           <View style={styles.statBox}>
             <Text style={[styles.statValue, { color: '#FF3B30' }]}>
               ${analytics.revenueAtRisk.toLocaleString()}
             </Text>
             <Text style={styles.statLabel}>At Risk</Text>
           </View>
-          
+
           <View style={styles.statBox}>
             <Text style={[styles.statValue, { color: '#007AFF' }]}>
               {analytics.retrySuccessRate.toFixed(1)}%
@@ -115,18 +109,15 @@ export default function PaymentFailureListScreen({ navigation }: any) {
       <TouchableOpacity
         key={failure.id}
         style={styles.failureCard}
-        onPress={() => handleFailurePress(failure)}
-      >
+        onPress={() => handleFailurePress(failure)}>
         <View style={styles.failureHeader}>
           <View style={styles.failureHeaderLeft}>
             <Text style={styles.subscriptionName}>{failure.subscriptionName}</Text>
             <View style={[styles.escalationBadge, getEscalationStyle(failure.escalationLevel)]}>
-              <Text style={styles.escalationText}>
-                {failure.escalationLevel.toUpperCase()}
-              </Text>
+              <Text style={styles.escalationText}>{failure.escalationLevel.toUpperCase()}</Text>
             </View>
           </View>
-          
+
           <View style={styles.amountContainer}>
             <Text style={styles.amount}>
               {failure.currency} {failure.amount.toFixed(2)}
@@ -139,14 +130,14 @@ export default function PaymentFailureListScreen({ navigation }: any) {
             <Text style={styles.infoLabel}>Reason:</Text>
             <Text style={styles.infoValue}>{formatReason(failure.failureReason)}</Text>
           </View>
-          
+
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Attempts:</Text>
             <Text style={styles.infoValue}>
               {failure.retryCount} / {failure.maxRetries}
             </Text>
           </View>
-          
+
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Failed:</Text>
             <Text style={styles.infoValue}>
@@ -175,8 +166,7 @@ export default function PaymentFailureListScreen({ navigation }: any) {
               onPress={(e) => {
                 e.stopPropagation();
                 handleResolve(failure);
-              }}
-            >
+              }}>
               <Text style={styles.resolveButtonText}>Mark Resolved</Text>
             </TouchableOpacity>
           )}
@@ -205,10 +195,7 @@ export default function PaymentFailureListScreen({ navigation }: any) {
   return (
     <ScrollView
       style={styles.container}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-      }
-    >
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}>
       <View style={styles.header}>
         <Text style={styles.title}>Payment Failures</Text>
         <Text style={styles.subtitle}>Monitor and resolve payment issues</Text>
@@ -219,17 +206,15 @@ export default function PaymentFailureListScreen({ navigation }: any) {
       <View style={styles.filterSection}>
         <TouchableOpacity
           style={[styles.filterButton, filter === 'unresolved' && styles.filterButtonActive]}
-          onPress={() => setFilter('unresolved')}
-        >
+          onPress={() => setFilter('unresolved')}>
           <Text style={[styles.filterText, filter === 'unresolved' && styles.filterTextActive]}>
             Unresolved ({analytics?.unresolvedFailures || 0})
           </Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           style={[styles.filterButton, filter === 'all' && styles.filterButtonActive]}
-          onPress={() => setFilter('all')}
-        >
+          onPress={() => setFilter('all')}>
           <Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>
             All ({analytics?.totalFailures || 0})
           </Text>
@@ -240,14 +225,10 @@ export default function PaymentFailureListScreen({ navigation }: any) {
         <View style={styles.emptyState}>
           <Text style={styles.emptyIcon}>✅</Text>
           <Text style={styles.emptyTitle}>No Payment Failures</Text>
-          <Text style={styles.emptySubtitle}>
-            All your payments are processing successfully
-          </Text>
+          <Text style={styles.emptySubtitle}>All your payments are processing successfully</Text>
         </View>
       ) : (
-        <View style={styles.failuresList}>
-          {failures.map(renderFailureCard)}
-        </View>
+        <View style={styles.failuresList}>{failures.map(renderFailureCard)}</View>
       )}
 
       <View style={styles.bottomSpacing} />
@@ -258,14 +239,14 @@ export default function PaymentFailureListScreen({ navigation }: any) {
 function formatReason(reason: string): string {
   return reason
     .split('_')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
 }
 
 function formatStatus(status: string): string {
   return status
     .split('_')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
 }
 
@@ -273,7 +254,7 @@ function formatResolutionMethod(method?: string): string {
   if (!method) return 'Unknown';
   return method
     .split('_')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
 }
 

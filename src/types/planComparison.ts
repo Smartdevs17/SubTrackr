@@ -8,12 +8,7 @@ export type BillingCycle = 'daily' | 'weekly' | 'monthly' | 'yearly';
 export type UsageLevel = 'light' | 'moderate' | 'heavy' | 'enterprise';
 
 export type RecommendationEventType =
-  | 'impression'
-  | 'click'
-  | 'accept'
-  | 'dismiss'
-  | 'share'
-  | 'compare';
+  'impression' | 'click' | 'accept' | 'dismiss' | 'share' | 'compare';
 
 export interface PlanFeature {
   id: string;

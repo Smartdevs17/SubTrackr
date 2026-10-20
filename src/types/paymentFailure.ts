@@ -60,9 +60,9 @@ export enum PaymentMethodType {
 }
 
 export enum EscalationLevel {
-  LOW = 'low',           // First failure
-  MEDIUM = 'medium',     // 2-3 failures
-  HIGH = 'high',         // 4+ failures
+  LOW = 'low', // First failure
+  MEDIUM = 'medium', // 2-3 failures
+  HIGH = 'high', // 4+ failures
   CRITICAL = 'critical', // Final attempt before suspension
 }
 

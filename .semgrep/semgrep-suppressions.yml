@@ -6,4 +6,31 @@
 # The security workflow fails when a nosemgrep comment omits a reason or
 # justification. Add accepted suppressions here during security review so future
 # reviewers can audit the exception history.
-accepted_suppressions: []
+accepted_suppressions:
+  # backend/server/createApiServer.ts — POST /api/v1/stripe/billing/webhook
+  # `app.post(path, express.raw(...))` registers a body parser before
+  # `express.json()` so the HMAC-signed bytes survive; it declares no handler.
+  # The route is mounted by `createStripeBillingRouter`, which verifies the
+  # signature (503 when unconfigured, 401 on mismatch) before decoding.
+  - rule_id: subtrackr.csrf.state-changing-route-without-csrf
+    path: backend/server/createApiServer.ts
+    reason: >-
+      Body-parser registration only; signed-webhook verification lives in
+      createStripeBillingRouter. Not duplicated at the app level because
+      verify() mutates the replay-dedup map and a second call would mark the
+      first legitimate delivery as a duplicate.
+    reviewed_by: security review of PR #1703
+    expires: 2027-04-16
+
+  # backend/server/createApiServer.ts — POST /api/v1/paddle/webhook
+  # Same shape as the Stripe registration above; verification lives in
+  # `createPaddleRouter`.
+  - rule_id: subtrackr.csrf.state-changing-route-without-csrf
+    path: backend/server/createApiServer.ts
+    reason: >-
+      Body-parser registration only; signed-webhook verification lives in
+      createPaddleRouter. Not duplicated at the app level because verify()
+      mutates the replay-dedup map and a second call would mark the first
+      legitimate delivery as a duplicate.
+    reviewed_by: security review of PR #1703
+    expires: 2027-04-16

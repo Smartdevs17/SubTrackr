@@ -55,15 +55,30 @@ const makeAuditEntry = (
 
 const DEFAULT_RATE_LIMITS: Record<string, RateLimitConfig> = {
   free: { requestsPerMinute: 100, requestsPerHour: 1000, requestsPerDay: 10_000, burstLimit: 10 },
-  basic: { requestsPerMinute: 1_000, requestsPerHour: 10_000, requestsPerDay: 100_000, burstLimit: 50 },
-  pro: { requestsPerMinute: 10_000, requestsPerHour: 100_000, requestsPerDay: 1_000_000, burstLimit: 200 },
-  enterprise: { requestsPerMinute: 100_000, requestsPerHour: 1_000_000, requestsPerDay: 10_000_000, burstLimit: 1_000 },
+  basic: {
+    requestsPerMinute: 1_000,
+    requestsPerHour: 10_000,
+    requestsPerDay: 100_000,
+    burstLimit: 50,
+  },
+  pro: {
+    requestsPerMinute: 10_000,
+    requestsPerHour: 100_000,
+    requestsPerDay: 1_000_000,
+    burstLimit: 200,
+  },
+  enterprise: {
+    requestsPerMinute: 100_000,
+    requestsPerHour: 1_000_000,
+    requestsPerDay: 10_000_000,
+    burstLimit: 1_000,
+  },
 };
 
 export const TIER_LABELS: Record<string, { label: string; desc: string }> = {
-  free:       { label: 'Free',       desc: '100 req/min · 10K/day' },
-  basic:      { label: 'Basic',      desc: '1K req/min · 100K/day' },
-  pro:        { label: 'Pro',        desc: '10K req/min · 1M/day' },
+  free: { label: 'Free', desc: '100 req/min · 10K/day' },
+  basic: { label: 'Basic', desc: '1K req/min · 100K/day' },
+  pro: { label: 'Pro', desc: '10K req/min · 1M/day' },
   enterprise: { label: 'Enterprise', desc: '100K req/min · 10M/day' },
 };
 
@@ -91,26 +106,30 @@ interface ApiKeyState {
   error: string | null;
 
   // CRUD
-  createApiKey: (name: string, tier: keyof typeof DEFAULT_RATE_LIMITS, description?: string) => ApiKey;
-  revokeApiKey:  (keyId: string) => void;
-  rotateApiKey:  (keyId: string) => string | null;
-  deleteApiKey:  (keyId: string) => void;
+  createApiKey: (
+    name: string,
+    tier: keyof typeof DEFAULT_RATE_LIMITS,
+    description?: string
+  ) => ApiKey;
+  revokeApiKey: (keyId: string) => void;
+  rotateApiKey: (keyId: string) => string | null;
+  deleteApiKey: (keyId: string) => void;
 
   // Getters
-  getApiKey:    (keyId: string) => ApiKey | undefined;
+  getApiKey: (keyId: string) => ApiKey | undefined;
   getActiveKeys: () => ApiKey[];
-  getKeyStats:  () => { total: number; active: number; revoked: number; expired: number };
+  getKeyStats: () => { total: number; active: number; revoked: number; expired: number };
   getKeyAuditLog: (keyId: string) => ApiKeyAuditEntry[];
   getKeyUsageSummary: (keyId: string) => KeyUsageSummary;
 
   // Updates
   updateKeyPermissions: (keyId: string, scopes: ApiKeyScope[]) => boolean;
-  updateKeyExpiry:      (keyId: string, expiresAt: Date | null) => boolean;
+  updateKeyExpiry: (keyId: string, expiresAt: Date | null) => boolean;
   updateKeyDescription: (keyId: string, description: string) => boolean;
 
   // Utilities
-  maskKey:   (key: string) => string;
-  logUsage:  (keyId: string, endpoint: string, statusCode: number) => void;
+  maskKey: (key: string) => string;
+  logUsage: (keyId: string, endpoint: string, statusCode: number) => void;
   clearError: () => void;
 }
 
@@ -220,8 +239,8 @@ export const useApiStore = create<ApiKeyState>()(
       getKeyStats: () => {
         const keys = get().apiKeys;
         return {
-          total:   keys.length,
-          active:  keys.filter((k) => k.status === ApiKeyStatus.ACTIVE).length,
+          total: keys.length,
+          active: keys.filter((k) => k.status === ApiKeyStatus.ACTIVE).length,
           revoked: keys.filter((k) => k.status === ApiKeyStatus.REVOKED).length,
           expired: keys.filter((k) => k.status === ApiKeyStatus.EXPIRED).length,
         };
@@ -237,9 +256,9 @@ export const useApiStore = create<ApiKeyState>()(
         return logs.reduce<KeyUsageSummary>(
           (acc, l) => ({
             keyId,
-            totalRequests:      acc.totalRequests      + l.totalRequests,
+            totalRequests: acc.totalRequests + l.totalRequests,
             successfulRequests: acc.successfulRequests + l.successfulRequests,
-            failedRequests:     acc.failedRequests     + l.failedRequests,
+            failedRequests: acc.failedRequests + l.failedRequests,
           }),
           { keyId, totalRequests: 0, successfulRequests: 0, failedRequests: 0 }
         );
@@ -261,11 +280,7 @@ export const useApiStore = create<ApiKeyState>()(
               updatedAt: new Date(),
               auditLogs: [
                 ...(k.auditLogs ?? []),
-                makeAuditEntry(
-                  k.id,
-                  'validated',
-                  `Scopes updated to: ${scopes.join(', ')}`
-                ),
+                makeAuditEntry(k.id, 'validated', `Scopes updated to: ${scopes.join(', ')}`),
               ],
             };
           }),
@@ -317,13 +332,13 @@ export const useApiStore = create<ApiKeyState>()(
       logUsage: (keyId, _endpoint, statusCode) => {
         const now = new Date();
         const entry: UsageStats = {
-          totalRequests:      1,
+          totalRequests: 1,
           successfulRequests: statusCode < 400 ? 1 : 0,
-          failedRequests:     statusCode >= 400 ? 1 : 0,
+          failedRequests: statusCode >= 400 ? 1 : 0,
           averageResponseTime: 0,
           totalDataTransferred: 0,
           periodStart: now,
-          periodEnd:   now,
+          periodEnd: now,
         };
         set((state) => ({
           apiKeys: state.apiKeys.map((k) =>

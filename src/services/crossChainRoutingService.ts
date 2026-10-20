@@ -3,7 +3,10 @@ import { ChainType } from '../types/wallet';
 import { walletServiceManager, WalletError, WalletErrorCode } from './walletService';
 import { logger } from './logging';
 import { simulateStellarTransaction } from './stellarTransactionService';
+feat/stellar-wave-issues
 import { isStellarPublicKey, signViaDeepLink } from './sep0007Service';
+
+ main
 
 export interface CrossChainPaymentRoute {
   sourceChainType: ChainType;

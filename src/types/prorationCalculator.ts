@@ -11,7 +11,8 @@ import { BillingCycle } from './subscription';
 
 export type ProrationPolicy = 'exact_day' | 'calendar_month' | 'immediate_charge' | 'next_invoice';
 
-export type ProrationMode = 'upgrade' | 'downgrade' | 'cancellation' | 'addon_change' | 'billing_cycle_change';
+export type ProrationMode =
+  'upgrade' | 'downgrade' | 'cancellation' | 'addon_change' | 'billing_cycle_change';
 
 export interface ProrationConfig {
   policy: ProrationPolicy;

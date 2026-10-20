@@ -51,3 +51,9 @@ CREATE TRIGGER trg_single_active_theme
   FOR EACH ROW
   WHEN (NEW.is_active = true)
   EXECUTE FUNCTION ensure_single_active_theme();
+
+-- @down
+DROP TRIGGER IF EXISTS trg_single_active_theme ON merchant_themes;
+DROP FUNCTION IF EXISTS ensure_single_active_theme();
+DROP TABLE IF EXISTS theme_variant_pairs;
+DROP TABLE IF EXISTS merchant_themes;

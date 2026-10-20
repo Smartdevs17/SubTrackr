@@ -4,6 +4,10 @@ description: >
   binary size reporting, and optional wasm-opt post-processing.
 
 inputs:
+  rust-version:
+    description: "Rust toolchain to build with."
+    required: false
+    default: '1.91'
   contracts:
     description: >
       Space-separated list of contract names to build.
@@ -38,14 +42,14 @@ runs:
   using: 'composite'
   steps:
     # ── Rust toolchain ────────────────────────────────────────────────────────
-    - name: Install Rust stable toolchain
+    - name: Install Rust toolchain
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
-        toolchain: stable
+        toolchain: ${{ inputs.rust-version }}
         components: clippy, rustfmt
 
     - name: Add WASM target
-      run: rustup target add wasm32-unknown-unknown
+      run: rustup target add wasm32v1-none
       shell: bash
 
     # ── Cargo cache ───────────────────────────────────────────────────────────
@@ -69,15 +73,17 @@ runs:
 
         CONTRACTS="${{ inputs.contracts }}"
         FEATURES="${{ inputs.features }}"
-        TARGET="wasm32-unknown-unknown"
+        TARGET="wasm32v1-none"
 
+        # Builds are never masked. A failing contract must fail the job so a
+        # broken contract cannot reach a deployment.
         if [[ "$CONTRACTS" == "all" ]]; then
           echo "Building full workspace..."
           if [[ -n "$FEATURES" ]]; then
             cargo build --target "$TARGET" --release \
-              --features "subtrackr-subscription/$FEATURES" || true
+              --features "subtrackr-subscription/$FEATURES"
           else
-            cargo build --target "$TARGET" --release || true
+            cargo build --target "$TARGET" --release
           fi
         else
           for contract in $CONTRACTS; do
@@ -89,8 +95,7 @@ runs:
               FEATURE_FLAGS="--features $PKG/$FEATURES"
             fi
             cargo build --target "$TARGET" --release -p "$PKG" $FEATURE_FLAGS \
-              || cargo build --target "$TARGET" --release -p "$contract" $FEATURE_FLAGS \
-              || echo "::warning::Failed to build $contract (skipping)"
+              || cargo build --target "$TARGET" --release -p "$contract" $FEATURE_FLAGS
           done
         fi
 
@@ -109,7 +114,7 @@ runs:
       shell: bash
       working-directory: contracts
       run: |
-        WASM_DIR="target/wasm32-unknown-unknown/release"
+        WASM_DIR="target/wasm32v1-none/release"
         for f in "$WASM_DIR"/*.wasm; do
           [[ -f "$f" ]] || continue
           echo "Optimising $(basename "$f")..."
@@ -124,7 +129,7 @@ runs:
       shell: bash
       working-directory: contracts
       run: |
-        WASM_DIR="target/wasm32-unknown-unknown/release"
+        WASM_DIR="target/wasm32v1-none/release"
         REPORT=""
         SUMMARY="| Contract | Size |\n|----------|------|\n"
         BUDGET_KB=500  # Fail if any single WASM exceeds this
@@ -168,7 +173,7 @@ runs:
       id: set-output
       shell: bash
       run: |
-        echo "wasm-dir=contracts/target/wasm32-unknown-unknown/release" >> "$GITHUB_OUTPUT"
+        echo "wasm-dir=contracts/target/wasm32v1-none/release" >> "$GITHUB_OUTPUT"
 
     # ── Upload artefacts ──────────────────────────────────────────────────────
     - name: Upload WASM artifacts
@@ -176,6 +181,6 @@ runs:
       uses: actions/upload-artifact@v4
       with:
         name: contracts-wasm-${{ github.sha }}
-        path: contracts/target/wasm32-unknown-unknown/release/*.wasm
+        path: contracts/target/wasm32v1-none/release/*.wasm
         if-no-files-found: warn
         retention-days: 30

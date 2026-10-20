@@ -13,12 +13,7 @@ import {
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
-const makeAttempt = (
-  methodId: string,
-  success: boolean,
-  daysAgo = 0,
-  latencyMs?: number
-) => ({
+const makeAttempt = (methodId: string, success: boolean, daysAgo = 0, latencyMs?: number) => ({
   paymentMethodId: methodId,
   success,
   timestamp: new Date(Date.now() - daysAgo * 86_400_000),
@@ -95,10 +90,7 @@ describe('FallbackChainHealthMonitor', () => {
   });
 
   it('should compute average latency correctly', () => {
-    const attempts = [
-      makeAttempt('m1', true, 0, 100),
-      makeAttempt('m1', true, 0, 300),
-    ];
+    const attempts = [makeAttempt('m1', true, 0, 100), makeAttempt('m1', true, 0, 300)];
 
     const snapshot = monitor.snapshotChainHealth('chain1', ['m1'], attempts);
     const m1 = snapshot.methods[0];
@@ -149,8 +141,22 @@ describe('FallbackChainHealthMonitor', () => {
       checkedAt: new Date().toISOString(),
       overallStatus: 'yellow',
       methods: [
-        { methodId: 'm1', successRate: 0.2, avgLatencyMs: 0, healthy: false, lastSuccessAt: null, consecutiveFailures: 3 },
-        { methodId: 'm2', successRate: 1, avgLatencyMs: 0, healthy: true, lastSuccessAt: new Date().toISOString(), consecutiveFailures: 0 },
+        {
+          methodId: 'm1',
+          successRate: 0.2,
+          avgLatencyMs: 0,
+          healthy: false,
+          lastSuccessAt: null,
+          consecutiveFailures: 3,
+        },
+        {
+          methodId: 'm2',
+          successRate: 1,
+          avgLatencyMs: 0,
+          healthy: true,
+          lastSuccessAt: new Date().toISOString(),
+          consecutiveFailures: 0,
+        },
       ],
     };
 
@@ -176,8 +182,22 @@ describe('FallbackChainHealthMonitor', () => {
       checkedAt: new Date().toISOString(),
       overallStatus: 'green',
       methods: [
-        { methodId: 'm1', successRate: 1, avgLatencyMs: 0, healthy: true, lastSuccessAt: new Date().toISOString(), consecutiveFailures: 0 },
-        { methodId: 'm2', successRate: 1, avgLatencyMs: 0, healthy: true, lastSuccessAt: new Date().toISOString(), consecutiveFailures: 0 },
+        {
+          methodId: 'm1',
+          successRate: 1,
+          avgLatencyMs: 0,
+          healthy: true,
+          lastSuccessAt: new Date().toISOString(),
+          consecutiveFailures: 0,
+        },
+        {
+          methodId: 'm2',
+          successRate: 1,
+          avgLatencyMs: 0,
+          healthy: true,
+          lastSuccessAt: new Date().toISOString(),
+          consecutiveFailures: 0,
+        },
       ],
     };
 
@@ -202,8 +222,22 @@ describe('FallbackChainHealthMonitor', () => {
       checkedAt: new Date().toISOString(),
       overallStatus: 'red',
       methods: [
-        { methodId: 'm1', successRate: 0, avgLatencyMs: 0, healthy: false, lastSuccessAt: null, consecutiveFailures: 5 },
-        { methodId: 'm2', successRate: 1, avgLatencyMs: 0, healthy: true, lastSuccessAt: new Date().toISOString(), consecutiveFailures: 0 },
+        {
+          methodId: 'm1',
+          successRate: 0,
+          avgLatencyMs: 0,
+          healthy: false,
+          lastSuccessAt: null,
+          consecutiveFailures: 5,
+        },
+        {
+          methodId: 'm2',
+          successRate: 1,
+          avgLatencyMs: 0,
+          healthy: true,
+          lastSuccessAt: new Date().toISOString(),
+          consecutiveFailures: 0,
+        },
       ],
     };
 
@@ -227,8 +261,22 @@ describe('SmartFallbackSelector', () => {
       checkedAt: new Date().toISOString(),
       overallStatus: 'green',
       methods: [
-        { methodId: 'm1', successRate: 1, avgLatencyMs: 0, healthy: true, lastSuccessAt: null, consecutiveFailures: 0 },
-        { methodId: 'm2', successRate: 1, avgLatencyMs: 0, healthy: true, lastSuccessAt: null, consecutiveFailures: 0 },
+        {
+          methodId: 'm1',
+          successRate: 1,
+          avgLatencyMs: 0,
+          healthy: true,
+          lastSuccessAt: null,
+          consecutiveFailures: 0,
+        },
+        {
+          methodId: 'm2',
+          successRate: 1,
+          avgLatencyMs: 0,
+          healthy: true,
+          lastSuccessAt: null,
+          consecutiveFailures: 0,
+        },
       ],
     };
 
@@ -244,8 +292,22 @@ describe('SmartFallbackSelector', () => {
       checkedAt: new Date().toISOString(),
       overallStatus: 'yellow',
       methods: [
-        { methodId: 'm1', successRate: 0, avgLatencyMs: 0, healthy: false, lastSuccessAt: null, consecutiveFailures: 5 },
-        { methodId: 'm2', successRate: 1, avgLatencyMs: 0, healthy: true, lastSuccessAt: null, consecutiveFailures: 0 },
+        {
+          methodId: 'm1',
+          successRate: 0,
+          avgLatencyMs: 0,
+          healthy: false,
+          lastSuccessAt: null,
+          consecutiveFailures: 5,
+        },
+        {
+          methodId: 'm2',
+          successRate: 1,
+          avgLatencyMs: 0,
+          healthy: true,
+          lastSuccessAt: null,
+          consecutiveFailures: 0,
+        },
       ],
     };
 
@@ -262,8 +324,22 @@ describe('SmartFallbackSelector', () => {
       checkedAt: new Date().toISOString(),
       overallStatus: 'green',
       methods: [
-        { methodId: 'm1', successRate: 0.8, avgLatencyMs: 0, healthy: true, lastSuccessAt: null, consecutiveFailures: 0 },
-        { methodId: 'm2', successRate: 0.9, avgLatencyMs: 0, healthy: true, lastSuccessAt: null, consecutiveFailures: 0 },
+        {
+          methodId: 'm1',
+          successRate: 0.8,
+          avgLatencyMs: 0,
+          healthy: true,
+          lastSuccessAt: null,
+          consecutiveFailures: 0,
+        },
+        {
+          methodId: 'm2',
+          successRate: 0.9,
+          avgLatencyMs: 0,
+          healthy: true,
+          lastSuccessAt: null,
+          consecutiveFailures: 0,
+        },
       ],
     };
 
@@ -292,7 +368,14 @@ describe('buildFallbackChainDiagnosticReport', () => {
       checkedAt: new Date().toISOString(),
       overallStatus: 'green',
       methods: [
-        { methodId: 'm1', successRate: 1, avgLatencyMs: 120, healthy: true, lastSuccessAt: new Date().toISOString(), consecutiveFailures: 0 },
+        {
+          methodId: 'm1',
+          successRate: 1,
+          avgLatencyMs: 120,
+          healthy: true,
+          lastSuccessAt: new Date().toISOString(),
+          consecutiveFailures: 0,
+        },
       ],
     };
     const selection = {

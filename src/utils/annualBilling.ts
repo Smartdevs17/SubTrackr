@@ -11,9 +11,7 @@ export function calculateAnnualDiscount(
   const annualFromMonthly = monthlyPrice * 12;
   const savingsAmount = Math.max(0, Math.round((annualFromMonthly - annualPrice) * 100) / 100);
   const savingsPercentage =
-    annualFromMonthly > 0
-      ? Math.max(0, Math.round((savingsAmount / annualFromMonthly) * 100))
-      : 0;
+    annualFromMonthly > 0 ? Math.max(0, Math.round((savingsAmount / annualFromMonthly) * 100)) : 0;
 
   return {
     monthlyPrice,

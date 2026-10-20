@@ -2,6 +2,7 @@
 import { Injectable, ConflictException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { hasPermission } from './permission-matcher';
+import { permissionCache } from './permissionCache';
 
 @Injectable()
 export class RoleService {
@@ -29,6 +30,11 @@ export class RoleService {
       // Cascading drops permissions and the role entity itself
       await tx.role.delete({ where: { id: roleId } });
     });
+
+    // The re-assignment touched an unknown set of users, so every cached
+    // permission list is potentially stale. Deletions are rare admin actions,
+    // so a full reset is cheaper and safer than trying to enumerate them.
+    permissionCache.clear();
   }
 
   /**
@@ -58,8 +64,14 @@ export class RoleService {
       }
     }
 
-    return this.prisma.userRole.create({
+    const created = await this.prisma.userRole.create({
       data: { userId: targetUserId, roleId: targetRoleId },
     });
+
+    // Both parties' cached permission lists may now be stale.
+    permissionCache.invalidate(actorId);
+    permissionCache.invalidate(targetUserId);
+
+    return created;
   }
 }

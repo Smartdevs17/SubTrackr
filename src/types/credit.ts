@@ -1,12 +1,7 @@
 export type CreditPaymentMethod = 'card' | 'bank_transfer' | 'wallet' | 'manual' | 'crypto';
 
 export type CreditLedgerEntryType =
-  | 'purchase'
-  | 'application'
-  | 'expiration'
-  | 'transfer_in'
-  | 'transfer_out'
-  | 'adjustment';
+  'purchase' | 'application' | 'expiration' | 'transfer_in' | 'transfer_out' | 'adjustment';
 
 export type CreditApplicationStatus = 'partial' | 'paid';
 
@@ -239,4 +234,3 @@ export interface CreditAccountBalance {
   createdAt: Date;
   updatedAt: Date;
 }
-

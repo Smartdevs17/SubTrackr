@@ -27,21 +27,47 @@
     }
   ],
   "tags": [
-    { "name": "Auth", "description": "Authentication" },
-    { "name": "Subscriptions", "description": "Manage subscriptions" },
-    { "name": "Plans", "description": "Plans and pricing" },
-    { "name": "Payments", "description": "Payment records" },
-    { "name": "Invoices", "description": "Invoices and billing" },
-    { "name": "Webhooks", "description": "Webhook configuration and delivery" },
-    { "name": "Analytics", "description": "Usage and subscription analytics" },
-    { "name": "Themes", "description": "Theme management for merchants" }
+    {
+      "name": "Auth",
+      "description": "Authentication"
+    },
+    {
+      "name": "Subscriptions",
+      "description": "Manage subscriptions"
+    },
+    {
+      "name": "Plans",
+      "description": "Plans and pricing"
+    },
+    {
+      "name": "Payments",
+      "description": "Payment records"
+    },
+    {
+      "name": "Invoices",
+      "description": "Invoices and billing"
+    },
+    {
+      "name": "Webhooks",
+      "description": "Webhook configuration and delivery"
+    },
+    {
+      "name": "Analytics",
+      "description": "Usage and subscription analytics"
+    },
+    {
+      "name": "Themes",
+      "description": "Theme management for merchants"
+    }
   ],
   "paths": {
     "/auth/login": {
       "post": {
         "summary": "Authenticate user",
         "operationId": "loginUser",
-        "tags": ["Auth"],
+        "tags": [
+          "Auth"
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -49,11 +75,22 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "email": { "type": "string", "format": "email" },
-                  "password": { "type": "string" }
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "password": {
+                    "type": "string"
+                  }
                 },
-                "required": ["email", "password"],
-                "example": { "email": "dev@example.com", "password": "secret" }
+                "required": [
+                  "email",
+                  "password"
+                ],
+                "example": {
+                  "email": "dev@example.com",
+                  "password": "secret"
+                }
               }
             }
           }
@@ -66,14 +103,20 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "token": { "type": "string" },
-                    "expiresIn": { "type": "integer" }
+                    "token": {
+                      "type": "string"
+                    },
+                    "expiresIn": {
+                      "type": "integer"
+                    }
                   }
                 }
               }
             }
           },
-          "401": { "$ref": "#/components/responses/Unauthorized" }
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
         }
       }
     },
@@ -81,35 +124,103 @@
       "get": {
         "summary": "List subscriptions",
         "operationId": "listSubscriptions",
-        "tags": ["Subscriptions"],
-        "security": [{ "BearerAuth": [] }],
+        "tags": [
+          "Subscriptions"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
         "parameters": [
-          { "name": "status", "in": "query", "schema": { "type": "string", "enum": ["active", "cancelled", "paused"] } },
-          { "name": "category", "in": "query", "schema": { "type": "string" } },
-          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
-          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 20, "maximum": 100 } }
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "paused",
+                "cancelled",
+                "past_due",
+                "trialing"
+              ]
+            }
+          },
+          {
+            "name": "customerId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "planId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Opaque pagination cursor"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "maximum": 100
+            }
+          }
         ],
         "responses": {
           "200": {
             "description": "List of subscriptions",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/SubscriptionList" }
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionList"
+                }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       },
       "post": {
         "summary": "Create subscription",
         "operationId": "createSubscription",
-        "tags": ["Subscriptions"],
-        "security": [{ "BearerAuth": [] }],
+        "tags": [
+          "Subscriptions"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/SubscriptionInput" }
+              "schema": {
+                "$ref": "#/components/schemas/SubscriptionInput"
+              }
             }
           }
         },
@@ -118,11 +229,18 @@
             "description": "Subscription created",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/Subscription" }
+                "schema": {
+                  "$ref": "#/components/schemas/Subscription"
+                }
               }
             }
           },
-          "400": { "description": "Invalid request body" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
         }
       }
     },
@@ -130,32 +248,68 @@
       "get": {
         "summary": "Get subscription",
         "operationId": "getSubscription",
-        "tags": ["Subscriptions"],
-        "security": [{ "BearerAuth": [] }],
-        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "tags": [
+          "Subscriptions"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Subscription",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/Subscription" }
+                "schema": {
+                  "$ref": "#/components/schemas/Subscription"
+                }
               }
             }
           },
-          "404": { "description": "Subscription not found" }
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
         }
       },
       "put": {
         "summary": "Update subscription",
         "operationId": "updateSubscription",
-        "tags": ["Subscriptions"],
-        "security": [{ "BearerAuth": [] }],
-        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "tags": [
+          "Subscriptions"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/SubscriptionInput" }
+              "schema": {
+                "$ref": "#/components/schemas/SubscriptionUpdate"
+              }
             }
           }
         },
@@ -164,20 +318,48 @@
             "description": "Updated subscription",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/Subscription" }
+                "schema": {
+                  "$ref": "#/components/schemas/Subscription"
+                }
               }
             }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
           }
         }
       },
       "delete": {
         "summary": "Delete subscription",
         "operationId": "deleteSubscription",
-        "tags": ["Subscriptions"],
-        "security": [{ "BearerAuth": [] }],
-        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "tags": [
+          "Subscriptions"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
-          "204": { "description": "Subscription deleted" }
+          "204": {
+            "description": "Subscription deleted"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
         }
       }
     },
@@ -185,18 +367,29 @@
       "post": {
         "summary": "Cancel subscription",
         "operationId": "cancelSubscription",
-        "tags": ["Subscriptions"],
-        "security": [{ "BearerAuth": [] }],
-        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "tags": [
+          "Subscriptions"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "reason": { "type": "string" },
-                  "atPeriodEnd": { "type": "boolean", "default": true }
-                }
+                "$ref": "#/components/schemas/SubscriptionCancel"
               }
             }
           }
@@ -206,9 +399,14 @@
             "description": "Subscription cancelled",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/Subscription" }
+                "schema": {
+                  "$ref": "#/components/schemas/Subscription"
+                }
               }
             }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           }
         }
       }
@@ -217,100 +415,81 @@
       "get": {
         "summary": "List plans",
         "operationId": "listPlans",
-        "tags": ["Plans"],
-        "security": [{ "ApiKeyAuth": [] }],
-        "responses": {
-          "200": {
-            "description": "List of plans",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": { "type": "boolean" },
-                    "data": {
-                      "type": "array",
-                      "items": { "$ref": "#/components/schemas/Plan" }
-                    }
-                  }
-                }
-              }
+        "tags": [
+          "Plans"
+        ],
+        "parameters": [
+          {
+            "name": "active",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "currency",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 3
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Opaque pagination cursor"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
             }
           }
-        }
-      }
-    },
-    "/payments": {
-      "get": {
-        "summary": "List payments",
-        "operationId": "listPayments",
-        "tags": ["Payments"],
-        "security": [{ "BearerAuth": [] }],
+        ],
         "responses": {
           "200": {
-            "description": "List of payments",
+            "description": "List of plans with cursor pagination",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "required": [
+                    "success",
+                    "data",
+                    "meta"
+                  ],
                   "properties": {
-                    "success": { "type": "boolean" },
-                    "data": {
-                      "type": "array",
-                      "items": { "$ref": "#/components/schemas/Payment" }
+                    "success": {
+                      "type": "boolean",
+                      "const": true
                     },
-                    "pagination": { "$ref": "#/components/schemas/Pagination" }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/invoices": {
-      "get": {
-        "summary": "List invoices",
-        "operationId": "listInvoices",
-        "tags": ["Invoices"],
-        "security": [{ "BearerAuth": [] }],
-        "responses": {
-          "200": {
-            "description": "List of invoices",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": { "type": "boolean" },
                     "data": {
                       "type": "array",
-                      "items": { "$ref": "#/components/schemas/Invoice" }
+                      "items": {
+                        "$ref": "#/components/schemas/Plan"
+                      }
+                    },
+                    "pagination": {
+                      "$ref": "#/components/schemas/Pagination"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
                     }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/webhooks": {
-      "get": {
-        "summary": "List webhooks",
-        "operationId": "listWebhooks",
-        "tags": ["Webhooks"],
-        "security": [{ "BearerAuth": [] }],
-        "responses": {
-          "200": {
-            "description": "List of webhook endpoints",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": { "type": "boolean" },
-                    "data": { "type": "array", "items": { "$ref": "#/components/schemas/Webhook" } }
                   }
                 }
               }
@@ -319,15 +498,335 @@
         }
       },
       "post": {
-        "summary": "Create webhook",
-        "operationId": "createWebhook",
-        "tags": ["Webhooks"],
-        "security": [{ "BearerAuth": [] }],
+        "summary": "Create plan",
+        "operationId": "createPlan",
+        "tags": [
+          "Plans"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/WebhookInput" }
+              "schema": {
+                "$ref": "#/components/schemas/PlanInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Plan created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Plan"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/plans/{id}": {
+      "get": {
+        "summary": "Get plan by ID",
+        "operationId": "getPlanById",
+        "tags": [
+          "Plans"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Plan details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Plan"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update plan",
+        "operationId": "updatePlan",
+        "tags": [
+          "Plans"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated plan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Plan"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/payments": {
+      "get": {
+        "summary": "List payments",
+        "operationId": "listPayments",
+        "tags": [
+          "Payments"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "customerId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "succeeded",
+                "failed",
+                "pending"
+              ]
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of payments",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Payment"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "summary": "Record or initiate payment",
+        "operationId": "recordPayment",
+        "tags": [
+          "Payments"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaymentInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Payment recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Payment"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/invoices": {
+      "get": {
+        "summary": "List invoices",
+        "operationId": "listInvoices",
+        "tags": [
+          "Invoices"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "subscriptionId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "paid",
+                "open",
+                "void"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of invoices",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Invoice"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/webhooks": {
+      "get": {
+        "summary": "List webhooks",
+        "operationId": "listWebhooks",
+        "tags": [
+          "Webhooks"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of webhooks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Webhook"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create webhook endpoint",
+        "operationId": "createWebhook",
+        "tags": [
+          "Webhooks"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookInput"
+              }
             }
           }
         },
@@ -337,14 +836,13 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": { "type": "boolean" },
-                    "data": { "$ref": "#/components/schemas/Webhook" }
-                  }
+                  "$ref": "#/components/schemas/Webhook"
                 }
               }
             }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
           }
         }
       }
@@ -353,52 +851,93 @@
       "get": {
         "summary": "Get usage analytics",
         "operationId": "getUsageAnalytics",
-        "tags": ["Analytics"],
-        "security": [{ "BearerAuth": [] }],
+        "tags": [
+          "Analytics"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "startDate",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "granularity",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "hour",
+                "day",
+                "week",
+                "month"
+              ],
+              "default": "day"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "Usage analytics",
+            "description": "Usage analytics data",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "success": { "type": "boolean" },
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "requests": { "type": "object" },
-                        "credits": { "type": "object" },
-                        "rateLimit": { "type": "object" }
-                      }
+                    "period": {
+                      "type": "string"
+                    },
+                    "totalRequests": {
+                      "type": "integer"
+                    },
+                    "activeSubscriptions": {
+                      "type": "integer"
+                    },
+                    "revenue": {
+                      "type": "number"
                     }
                   }
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
     },
     "/themes": {
       "get": {
-        "summary": "List themes",
-        "operationId": "listThemes",
-        "tags": ["Themes"],
-        "security": [{ "BearerAuth": [] }],
+        "summary": "Get theme settings",
+        "operationId": "getThemes",
+        "tags": [
+          "Themes"
+        ],
         "responses": {
           "200": {
-            "description": "List of themes",
+            "description": "Theme settings",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": { "type": "boolean" },
-                    "data": {
-                      "type": "array",
-                      "items": { "$ref": "#/components/schemas/Theme" }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Theme"
                   }
                 }
               }
@@ -413,8 +952,7 @@
       "BearerAuth": {
         "type": "http",
         "scheme": "bearer",
-        "bearerFormat": "JWT",
-        "description": "Bearer token (sk_test_... or sk_live_...)"
+        "bearerFormat": "JWT"
       },
       "ApiKeyAuth": {
         "type": "apiKey",
@@ -426,109 +964,906 @@
       "Subscription": {
         "type": "object",
         "properties": {
-          "id": { "type": "string" },
-          "name": { "type": "string" },
-          "category": { "type": "string" },
-          "price": { "type": "number" },
-          "currency": { "type": "string" },
-          "billingCycle": { "type": "string", "enum": ["monthly", "yearly"] },
-          "status": { "type": "string", "enum": ["active", "paused", "cancelled"] },
-          "nextBillingDate": { "type": "string", "format": "date-time" },
-          "createdAt": { "type": "string", "format": "date-time" }
+          "id": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "planId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "paused",
+              "cancelled",
+              "past_due",
+              "trialing"
+            ]
+          },
+          "currentPeriodStart": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "currentPeriodEnd": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
         }
       },
       "SubscriptionInput": {
         "type": "object",
-        "required": ["name", "price", "currency", "billingCycle"],
         "properties": {
-          "name": { "type": "string" },
-          "category": { "type": "string" },
-          "price": { "type": "number", "exclusiveMinimum": 0 },
-          "currency": { "type": "string" },
-          "billingCycle": { "type": "string", "enum": ["monthly", "yearly"] },
-          "startDate": { "type": "string", "format": "date-time" }
-        }
+          "customerId": {
+            "type": "string",
+            "pattern": "^0x[a-fA-F0-9]{40}$"
+          },
+          "planId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "paymentMethodId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "trialEnd": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "metadata": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "customerId",
+          "planId",
+          "paymentMethodId"
+        ],
+        "additionalProperties": false
+      },
+      "SubscriptionUpdate": {
+        "type": "object",
+        "properties": {
+          "planId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "paymentMethodId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "cancelAtPeriodEnd": {
+            "type": "boolean"
+          },
+          "metadata": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "SubscriptionCancel": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "feedback": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "immediate": {
+            "default": false,
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "immediate"
+        ],
+        "additionalProperties": false
+      },
+      "SubscriptionPause": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "resumeAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "pauseDurationDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365
+          }
+        },
+        "additionalProperties": false
       },
       "SubscriptionList": {
         "type": "object",
         "properties": {
-          "success": { "type": "boolean" },
-          "data": { "type": "array", "items": { "$ref": "#/components/schemas/Subscription" } },
-          "pagination": { "$ref": "#/components/schemas/Pagination" }
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Subscription"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/Pagination"
+          }
         }
       },
       "Pagination": {
         "type": "object",
         "properties": {
-          "page": { "type": "integer" },
-          "limit": { "type": "integer" },
-          "total": { "type": "integer" },
-          "hasNext": { "type": "boolean" }
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "limit": {
+            "type": "integer"
+          }
+        }
+      },
+      "Meta": {
+        "type": "object",
+        "required": [
+          "timestamp",
+          "requestId",
+          "apiVersion"
+        ],
+        "properties": {
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "apiVersion": {
+            "type": "string"
+          }
+        }
+      },
+      "StandardErrorEnvelope": {
+        "type": "object",
+        "required": [
+          "success",
+          "error",
+          "meta"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "version": {
+                "type": "string"
+              }
+            }
+          },
+          "meta": {
+            "type": "object",
+            "required": [
+              "timestamp",
+              "requestId",
+              "apiVersion"
+            ],
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "requestId": {
+                "type": "string"
+              },
+              "apiVersion": {
+                "type": "string"
+              }
+            }
+          }
         }
       },
       "Plan": {
         "type": "object",
         "properties": {
-          "id": { "type": "string" },
-          "name": { "type": "string" },
-          "price": { "type": "number" },
-          "currency": { "type": "string" },
-          "interval": { "type": "string", "enum": ["monthly", "yearly"] }
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "interval": {
+            "type": "string",
+            "enum": [
+              "day",
+              "week",
+              "month",
+              "year"
+            ]
+          },
+          "active": {
+            "type": "boolean"
+          }
         }
+      },
+      "PlanInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "amount": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "currency": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 3
+          },
+          "interval": {
+            "type": "string",
+            "enum": [
+              "day",
+              "week",
+              "month",
+              "year"
+            ]
+          },
+          "intervalCount": {
+            "default": 1,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 12
+          },
+          "trialPeriodDays": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 365
+          },
+          "metadata": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "active": {
+            "default": true,
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "amount",
+          "currency",
+          "interval",
+          "intervalCount",
+          "active"
+        ],
+        "additionalProperties": false
+      },
+      "PlanUpdate": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "amount": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "currency": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 3
+          },
+          "interval": {
+            "type": "string",
+            "enum": [
+              "day",
+              "week",
+              "month",
+              "year"
+            ]
+          },
+          "intervalCount": {
+            "default": 1,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 12
+          },
+          "trialPeriodDays": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 365
+          },
+          "metadata": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "active": {
+            "default": true,
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
       },
       "Payment": {
         "type": "object",
         "properties": {
-          "id": { "type": "string" },
-          "subscriptionId": { "type": "string" },
-          "amount": { "type": "number" },
-          "currency": { "type": "string" },
-          "status": { "type": "string" },
-          "createdAt": { "type": "string", "format": "date-time" }
+          "id": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "succeeded",
+              "failed",
+              "pending"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
         }
+      },
+      "PaymentInput": {
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "currency": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 3
+          },
+          "customerId": {
+            "type": "string",
+            "pattern": "^0x[a-fA-F0-9]{40}$"
+          },
+          "paymentMethodId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "metadata": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "gatewayPreference": {
+            "type": "string",
+            "enum": [
+              "stripe",
+              "circle",
+              "stellar"
+            ]
+          }
+        },
+        "required": [
+          "amount",
+          "currency",
+          "customerId",
+          "paymentMethodId",
+          "idempotencyKey"
+        ],
+        "additionalProperties": false
+      },
+      "RefundInput": {
+        "type": "object",
+        "properties": {
+          "chargeId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "amount": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "metadata": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "chargeId"
+        ],
+        "additionalProperties": false
       },
       "Invoice": {
         "type": "object",
         "properties": {
-          "id": { "type": "string" },
-          "subscriptionId": { "type": "string" },
-          "total": { "type": "number" },
-          "currency": { "type": "string" },
-          "status": { "type": "string", "enum": ["draft", "open", "paid", "partial"] },
-          "dueAt": { "type": "string", "format": "date-time" }
+          "id": {
+            "type": "string"
+          },
+          "subscriptionId": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "paid",
+              "open",
+              "void"
+            ]
+          },
+          "dueDate": {
+            "type": "string",
+            "format": "date-time"
+          }
         }
       },
       "Webhook": {
         "type": "object",
         "properties": {
-          "id": { "type": "string" },
-          "url": { "type": "string", "format": "uri" },
-          "events": { "type": "array", "items": { "type": "string" } },
-          "status": { "type": "string", "enum": ["enabled", "disabled"] },
-          "createdAt": { "type": "string", "format": "date-time" }
+          "id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "enabled",
+              "disabled"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
         }
       },
       "WebhookInput": {
         "type": "object",
-        "required": ["url", "events"],
         "properties": {
-          "url": { "type": "string", "format": "uri" },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
           "events": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "secret": {
+            "type": "string",
+            "minLength": 16,
+            "maxLength": 255
+          },
+          "active": {
+            "default": true,
+            "type": "boolean"
+          },
+          "metadata": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "url",
+          "events",
+          "active"
+        ],
+        "additionalProperties": false
+      },
+      "ApiKeyInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "tier": {
+            "default": "free",
+            "type": "string",
+            "enum": [
+              "free",
+              "basic",
+              "pro",
+              "enterprise"
+            ]
+          },
+          "rateLimit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "metadata": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "name",
+          "tier"
+        ],
+        "additionalProperties": false
+      },
+      "AnalyticsQuery": {
+        "type": "object",
+        "properties": {
+          "startDate": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "granularity": {
+            "default": "day",
+            "type": "string",
+            "enum": [
+              "hour",
+              "day",
+              "week",
+              "month"
+            ]
+          },
+          "metrics": {
             "type": "array",
             "items": {
               "type": "string",
-              "enum": ["subscription.created", "subscription.updated", "subscription.cancelled", "payment.completed", "payment.failed", "invoice.generated"]
+              "enum": [
+                "revenue",
+                "subscribers",
+                "churn_rate",
+                "mrr",
+                "arr",
+                "ltv",
+                "conversion_rate"
+              ]
+            }
+          },
+          "groupBy": {
+            "type": "string",
+            "enum": [
+              "plan",
+              "currency",
+              "gateway",
+              "country"
+            ]
+          }
+        },
+        "required": [
+          "granularity"
+        ],
+        "additionalProperties": false
+      },
+      "ForecastRequest": {
+        "type": "object",
+        "properties": {
+          "horizon": {
+            "default": 3,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 24
+          },
+          "granularity": {
+            "default": "month",
+            "type": "string",
+            "enum": [
+              "day",
+              "week",
+              "month"
+            ]
+          },
+          "includeConfidence": {
+            "default": true,
+            "type": "boolean"
+          },
+          "confidenceLevel": {
+            "default": 0.95,
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 0.99
+          }
+        },
+        "required": [
+          "horizon",
+          "granularity",
+          "includeConfidence",
+          "confidenceLevel"
+        ],
+        "additionalProperties": false
+      },
+      "FallbackChain": {
+        "type": "object",
+        "properties": {
+          "merchantId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "chain": {
+            "minItems": 2,
+            "maxItems": 5,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "gateway": {
+                  "type": "string",
+                  "enum": [
+                    "stripe",
+                    "circle",
+                    "stellar"
+                  ]
+                },
+                "priority": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "enabled": {
+                  "default": true,
+                  "type": "boolean"
+                },
+                "timeoutMs": {
+                  "default": 5000,
+                  "type": "integer",
+                  "minimum": 100,
+                  "maximum": 30000
+                }
+              },
+              "required": [
+                "gateway",
+                "priority",
+                "enabled",
+                "timeoutMs"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "retryAttempts": {
+            "default": 1,
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5
+          },
+          "retryDelayMs": {
+            "default": 1000,
+            "type": "integer",
+            "minimum": 100,
+            "maximum": 10000
+          }
+        },
+        "required": [
+          "merchantId",
+          "chain",
+          "retryAttempts",
+          "retryDelayMs"
+        ],
+        "additionalProperties": false
+      },
+      "CorsPolicy": {
+        "type": "object",
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "allowedOrigins": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          "allowCredentials": {
+            "default": false,
+            "type": "boolean"
+          },
+          "exposedHeaders": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "maxAge": {
+            "default": 86400,
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 86400
+          },
+          "allowMethods": {
+            "default": [
+              "GET",
+              "POST",
+              "PUT",
+              "PATCH",
+              "DELETE"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "GET",
+                "POST",
+                "PUT",
+                "PATCH",
+                "DELETE",
+                "OPTIONS"
+              ]
+            }
+          },
+          "allowHeaders": {
+            "default": [
+              "Content-Type",
+              "Authorization"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
             }
           }
-        }
+        },
+        "required": [
+          "tenantId",
+          "allowedOrigins",
+          "allowCredentials",
+          "maxAge",
+          "allowMethods",
+          "allowHeaders"
+        ],
+        "additionalProperties": false
       },
       "Theme": {
         "type": "object",
         "properties": {
-          "id": { "type": "string" },
-          "name": { "type": "string" },
-          "primaryColor": { "type": "string" },
-          "status": { "type": "string", "enum": ["active", "draft"] }
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "primaryColor": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "draft"
+            ]
+          }
         }
       }
     },
@@ -538,11 +1873,37 @@
         "content": {
           "application/json": {
             "schema": {
-              "type": "object",
-              "properties": {
-                "success": { "type": "boolean", "const": false },
-                "error": { "type": "object", "properties": { "code": { "type": "string" }, "message": { "type": "string" } } }
-              }
+              "$ref": "#/components/schemas/StandardErrorEnvelope"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Resource not found",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/StandardErrorEnvelope"
+            }
+          }
+        }
+      },
+      "BadRequest": {
+        "description": "Bad request",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/StandardErrorEnvelope"
+            }
+          }
+        }
+      },
+      "ValidationError": {
+        "description": "Request payload validation failed",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/StandardErrorEnvelope"
             }
           }
         }

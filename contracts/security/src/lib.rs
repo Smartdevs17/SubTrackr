@@ -1,4 +1,9 @@
 #![no_std]
+// TODO: migrate `env.events().publish(..)` to the `#[contractevent]` macro.
+// soroban-sdk 28 deprecated the imperative form; it is still functional and
+// still emits identical events, so the deprecation is allowed crate-wide
+// until the event payloads are reworked. CI lints with `-D warnings`.
+#![allow(deprecated)]
 //! SubTrackr Security contract.
 //!
 //! Provides encryption at rest for subscriber PII (GDPR compliance), with

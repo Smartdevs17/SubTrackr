@@ -1,4 +1,7 @@
 #![no_std]
+// `env.register_contract(..)` is deprecated in favour of `env.register(..)`;
+// the test fixtures still use the older form.
+#![allow(deprecated)]
 
 use soroban_sdk::{Address, Env, Val};
 use subtrackr_types::StorageKey;

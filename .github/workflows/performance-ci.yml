@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 env:
-  NODE_VERSION: '20'
+  NODE_VERSION: '24'
 
 jobs:
   # ── 1. Frontend performance budget ──────────────────────────────────────────
@@ -40,14 +40,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Install Rust stable toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v2
         with:
-          toolchain: stable
+          toolchain: '1.91'
           components: clippy, rustfmt
 
       - name: Cache Cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
@@ -63,7 +63,7 @@ jobs:
           python-version: '3.11'
 
       - name: Restore gas baseline
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: gas-benchmarks/baseline.json
           key: gas-baseline-${{ hashFiles('contracts/subscription/src/**/*.rs', 'contracts/types/src/**/*.rs') }}
@@ -81,7 +81,7 @@ jobs:
 
       - name: Save updated baseline (main branch only)
         if: github.ref == 'refs/heads/main'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: gas-benchmarks/baseline.json
           key: gas-baseline-${{ hashFiles('contracts/subscription/src/**/*.rs', 'contracts/types/src/**/*.rs') }}
@@ -101,7 +101,7 @@ jobs:
       - name: Post gas benchmark results to PR
         if: github.event_name == 'pull_request' && always()
         continue-on-error: true
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');

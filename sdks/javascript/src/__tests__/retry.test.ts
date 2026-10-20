@@ -3,12 +3,7 @@
  */
 
 import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
-import {
-  withRetry,
-  RetryableError,
-  isRetryableStatus,
-  parseRetryAfterMs,
-} from '../retry';
+import { withRetry, RetryableError, isRetryableStatus, parseRetryAfterMs } from '../retry';
 
 // ── withRetry ─────────────────────────────────────────────────────────────────
 
@@ -51,7 +46,9 @@ describe('withRetry()', () => {
   });
 
   it('throws after exhausting maxAttempts', async () => {
-    const fn = jest.fn(async () => { throw new RetryableError('always fails', 503); });
+    const fn = jest.fn(async () => {
+      throw new RetryableError('always fails', 503);
+    });
 
     const promise = withRetry(fn, {
       maxAttempts: 3,
@@ -59,8 +56,8 @@ describe('withRetry()', () => {
       jitter: false,
     });
 
-    await jest.advanceTimersByTimeAsync(10);  // retry 1
-    await jest.advanceTimersByTimeAsync(20);  // retry 2 (backoff x2)
+    await jest.advanceTimersByTimeAsync(10); // retry 1
+    await jest.advanceTimersByTimeAsync(20); // retry 2 (backoff x2)
 
     await expect(promise).rejects.toThrow('always fails');
     expect(fn).toHaveBeenCalledTimes(3);
@@ -89,7 +86,9 @@ describe('withRetry()', () => {
 
   it('applies exponential back-off without jitter', async () => {
     const delays: number[] = [];
-    const fn = jest.fn(async () => { throw new Error('fail'); });
+    const fn = jest.fn(async () => {
+      throw new Error('fail');
+    });
 
     const promise = withRetry(fn, {
       maxAttempts: 4,
@@ -99,9 +98,9 @@ describe('withRetry()', () => {
       onRetry: (_, delayMs) => delays.push(delayMs),
     });
 
-    await jest.advanceTimersByTimeAsync(100);  // attempt 1 → wait 100
-    await jest.advanceTimersByTimeAsync(200);  // attempt 2 → wait 200
-    await jest.advanceTimersByTimeAsync(400);  // attempt 3 → wait 400
+    await jest.advanceTimersByTimeAsync(100); // attempt 1 → wait 100
+    await jest.advanceTimersByTimeAsync(200); // attempt 2 → wait 200
+    await jest.advanceTimersByTimeAsync(400); // attempt 3 → wait 400
 
     await promise.catch(() => {});
 
@@ -110,7 +109,9 @@ describe('withRetry()', () => {
 
   it('caps delay at maxDelayMs', async () => {
     const delays: number[] = [];
-    const fn = jest.fn(async () => { throw new Error('fail'); });
+    const fn = jest.fn(async () => {
+      throw new Error('fail');
+    });
 
     const promise = withRetry(fn, {
       maxAttempts: 3,

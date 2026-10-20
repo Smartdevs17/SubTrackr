@@ -527,3 +527,100 @@ describe('TaxService', () => {
     expect(entry).not.toBeNull();
   });
 });
+
+// ── Configurable per-region rates (issue #1732) ───────────────────────────────
+
+describe('TaxService — configurable region rates', () => {
+  beforeEach(() => {
+    TaxService.clearRegionRates();
+  });
+
+  afterAll(() => {
+    TaxService.clearRegionRates();
+  });
+
+  it('applies a configured override instead of the built-in rate', () => {
+    const builtIn = TaxService.getTaxRate(makeJurisdiction({ country: 'DE' }));
+    expect(builtIn!.rateBps).toBe(1900);
+
+    TaxService.configureRegionRate({ region: 'DE', rateBps: 1600, taxType: 'vat' });
+
+    // The cached built-in lookup must not mask the new override
+    const entry = TaxService.getTaxRate(makeJurisdiction({ country: 'DE' }));
+    expect(entry!.rateBps).toBe(1600);
+    expect(entry!.displayName).toBe('German VAT Standard Rate');
+  });
+
+  it('registers a brand-new region with a default tax type', () => {
+    const entry = TaxService.configureRegionRate({ region: 'ES', rateBps: 2100 });
+
+    expect(entry.jurisdictionKey).toBe('ES');
+    expect(entry.taxType).toBe('vat');
+
+    expect(TaxService.resolveRegionTaxRate('es')!.rateBps).toBe(2100);
+    expect(TaxService.getTaxRateByKey('ES')!.rateBps).toBe(2100);
+    expect(TaxService.getSupportedJurisdictions()).toContain('ES');
+  });
+
+  it('resolves region keys with state and city fallbacks', () => {
+    TaxService.configureRegionRate({ region: 'US-CA', rateBps: 725, taxType: 'sales_tax' });
+
+    const entry = TaxService.resolveRegionTaxRate('US-CA-SF');
+
+    expect(entry).not.toBeNull();
+    expect(entry!.jurisdictionKey).toBe('US-CA');
+    expect(entry!.rateBps).toBe(725);
+  });
+
+  it('lists and clears configured regions', () => {
+    TaxService.configureRegionRate({ region: 'DE', rateBps: 1600 });
+    TaxService.configureRegionRate({ region: 'ES', rateBps: 2100 });
+
+    expect(
+      TaxService.listRegionRates()
+        .map((e) => e.jurisdictionKey)
+        .sort()
+    ).toEqual(['DE', 'ES']);
+    expect(TaxService.getRegionRate('de')!.rateBps).toBe(1600);
+
+    expect(TaxService.clearRegionRate('DE')).toBe(true);
+    expect(TaxService.clearRegionRate('DE')).toBe(false);
+
+    // Falls back to the built-in rate once the override is cleared
+    expect(TaxService.getTaxRate(makeJurisdiction({ country: 'DE' }))!.rateBps).toBe(1900);
+  });
+
+  it('feeds overrides into tax calculation', () => {
+    TaxService.configureRegionRate({ region: 'DE', rateBps: 1000, taxType: 'vat' });
+
+    const result = TaxService.calculateTax({
+      subscriptionId: 'sub-1',
+      planId: 'plan-1',
+      merchantId: 'merchant-1',
+      subscriberId: 'cust-1',
+      jurisdiction: makeJurisdiction({ country: 'DE' }),
+      subtotal: 10000,
+      currency: 'EUR',
+      periodStart: Date.now() - 30 * 86400000,
+      periodEnd: Date.now(),
+      digitalGoodsClass: 'standard',
+    });
+
+    expect(result.taxRateBps).toBe(1000);
+    expect(result.taxAmount).toBe(1000);
+    expect(result.taxType).toBe('vat');
+  });
+
+  it('rejects invalid region configurations', () => {
+    expect(() => TaxService.configureRegionRate({ region: '', rateBps: 1000 })).toThrow();
+    expect(() => TaxService.configureRegionRate({ region: 'DE', rateBps: -1 })).toThrow();
+    expect(() => TaxService.configureRegionRate({ region: 'DE', rateBps: 10001 })).toThrow();
+    expect(() => TaxService.configureRegionRate({ region: 'DE', rateBps: NaN })).toThrow();
+  });
+
+  it('returns null for unknown or empty regions', () => {
+    expect(TaxService.resolveRegionTaxRate('')).toBeNull();
+    expect(TaxService.resolveRegionTaxRate('ZZ')).toBeNull();
+    expect(TaxService.getRegionRate('ZZ')).toBeNull();
+  });
+});

@@ -91,13 +91,19 @@ const segStyles = StyleSheet.create({
 
 // ── Alert badge ────────────────────────────────────────────────────────────
 
-function AlertBadge({ alert, colors }: { alert: ForecastAlert; colors: ReturnType<typeof useThemeColors> }) {
+function AlertBadge({
+  alert,
+  colors,
+}: {
+  alert: ForecastAlert;
+  colors: ReturnType<typeof useThemeColors>;
+}) {
   const bg =
     alert.severity === 'critical'
       ? colors.status.error
       : alert.severity === 'warning'
-      ? colors.status.warning
-      : colors.status.success;
+        ? colors.status.warning
+        : colors.status.success;
 
   return (
     <View style={[alertStyles.container, { borderLeftColor: bg }]}>
@@ -137,10 +143,7 @@ function ForecastChart({
   const minVal = Math.min(...allRevenues, 0);
   const range = maxVal - minVal || 1;
 
-  const allPeriods = [
-    ...historicalData.map((d) => d.period),
-    ...forecasts.map((f) => f.period),
-  ];
+  const allPeriods = [...historicalData.map((d) => d.period), ...forecasts.map((f) => f.period)];
   const totalPoints = allPeriods.length;
   if (totalPoints === 0) return null;
 
@@ -287,13 +290,7 @@ function ForecastChart({
 
       {/* Historical dots */}
       {historicalData.map((d, i) => (
-        <Circle
-          key={i}
-          cx={xPos(i)}
-          cy={yPos(d.revenue)}
-          r={3}
-          fill={colors.text.primary}
-        />
+        <Circle key={i} cx={xPos(i)} cy={yPos(d.revenue)} r={3} fill={colors.text.primary} />
       ))}
     </Svg>
   );
@@ -421,15 +418,11 @@ const ForecastingScreen: React.FC = () => {
           <View style={styles.kpiRow}>
             <Card style={styles.kpiCard}>
               <Text style={styles.kpiLabel}>Current MRR</Text>
-              <Text style={styles.kpiValue}>
-                {formatCurrency(vizSummary.currentMrr, 'USD')}
-              </Text>
+              <Text style={styles.kpiValue}>{formatCurrency(vizSummary.currentMrr, 'USD')}</Text>
             </Card>
             <Card style={styles.kpiCard}>
               <Text style={styles.kpiLabel}>Projected MRR</Text>
-              <Text style={styles.kpiValue}>
-                {formatCurrency(vizSummary.projectedMrr, 'USD')}
-              </Text>
+              <Text style={styles.kpiValue}>{formatCurrency(vizSummary.projectedMrr, 'USD')}</Text>
             </Card>
             <Card style={styles.kpiCard}>
               <Text style={styles.kpiLabel}>Growth</Text>
@@ -454,15 +447,15 @@ const ForecastingScreen: React.FC = () => {
                       forecast.trend.direction === 'up'
                         ? colors.status.success
                         : forecast.trend.direction === 'down'
-                        ? colors.status.error
-                        : colors.text.secondary,
+                          ? colors.status.error
+                          : colors.text.secondary,
                   },
                 ]}>
                 {forecast.trend.direction === 'up'
                   ? '▲ Upward'
                   : forecast.trend.direction === 'down'
-                  ? '▼ Downward'
-                  : '→ Stable'}
+                    ? '▼ Downward'
+                    : '→ Stable'}
               </Text>
             </View>
             <View style={[styles.trendBadge, { backgroundColor: colors.background.card }]}>
@@ -672,7 +665,12 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     alertsCard: { marginBottom: spacing.md },
 
     accuracyCard: { marginBottom: spacing.md },
-    accuracyGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginBottom: spacing.md },
+    accuracyGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.md,
+      marginBottom: spacing.md,
+    },
     accuracyItem: { flex: 1, minWidth: 80, alignItems: 'center' },
     accLabel: { ...typography.small, color: colors.text.secondary },
     accValue: { ...typography.h3, color: colors.text.primary },

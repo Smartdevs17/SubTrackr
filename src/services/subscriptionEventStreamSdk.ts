@@ -163,10 +163,13 @@ export class SubscriptionEventStreamClient {
     this.reconnectAttempts++;
     this.setStatus('RECONNECTING');
 
-    setTimeout(() => {
-      if (!this.isExplicitDisconnect) {
-        this.connect().catch(() => {});
-      }
-    }, this.config.reconnectIntervalMs * Math.pow(1.5, this.reconnectAttempts - 1));
+    setTimeout(
+      () => {
+        if (!this.isExplicitDisconnect) {
+          this.connect().catch(() => {});
+        }
+      },
+      this.config.reconnectIntervalMs * Math.pow(1.5, this.reconnectAttempts - 1)
+    );
   }
 }

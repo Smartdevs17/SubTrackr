@@ -2,7 +2,22 @@ export { HashChainService, AuditWriter, BlockchainAnchor } from './domain';
 export type { AuditChainEntry, AuditEventInput, AnchorRecord } from './domain';
 export { AuditController } from './controller';
 export type { AuditQueryFilter, AuditQueryResult, AuditVerificationResult } from './controller';
+export { SensitiveOpsAuditController } from './controller';
+export type { SensitiveOpContext, SensitiveOpResult } from './controller';
 export { LogRotationJob, IntegrityCheckerJob, BlockchainAnchorJob } from './jobs';
 export type { IntegrityCheckResult } from './jobs';
 export { AuditLoggingMiddleware } from '../shared/middleware/auditLoggingMiddleware';
 export type { RequestContext } from '../shared/middleware/auditLoggingMiddleware';
+export {
+  SENSITIVE_OPERATIONS,
+  getSensitiveOperation,
+  isSensitiveOperation,
+  listSensitiveOperations,
+  listSensitiveOperationsByCategory,
+  listSensitiveOperationsBySeverity,
+} from './sensitiveOperations';
+export type {
+  SensitiveOperationDefinition,
+  SensitiveOperationCategory,
+  Severity,
+} from './sensitiveOperations';

@@ -113,9 +113,13 @@ function toKebab(camel: string): string {
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
   const clean = hex.replace('#', '');
-  const full = clean.length === 3
-    ? clean.split('').map((c) => c + c).join('')
-    : clean;
+  const full =
+    clean.length === 3
+      ? clean
+          .split('')
+          .map((c) => c + c)
+          .join('')
+      : clean;
   const int = parseInt(full, 16);
   if (isNaN(int)) return null;
   return { r: (int >> 16) & 255, g: (int >> 8) & 255, b: int & 255 };

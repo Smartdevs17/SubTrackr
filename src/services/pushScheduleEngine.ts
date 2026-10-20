@@ -154,22 +154,9 @@ export class PushScheduleEngine {
     date: Date,
     qh: { startHour: number; endHour: number; timezone: string }
   ): Date {
-    const result = new Date(date);
-    // Simple UTC-based check (production: use Intl.DateTimeFormat with timezone)
-    const hour = result.getUTCHours();
-    const inQuiet =
-      qh.startHour < qh.endHour
-        ? hour >= qh.startHour && hour < qh.endHour
-        : hour >= qh.startHour || hour < qh.endHour;
-
-    if (inQuiet) {
-      // Push to end of quiet period
-      result.setUTCHours(qh.endHour, 0, 0, 0);
-      if (result <= date) {
-        result.setUTCDate(result.getUTCDate() + 1);
-      }
-    }
-    return result;
+    if (!isWithinQuietHoursDate(date, { ...qh, enabled: true })) return date;
+    // Push to the end of the quiet period, read in the subscriber's timezone.
+    return utcInstantForLocalHour(date, qh.endHour, qh.timezone);
   }
 
   private _setHour(date: Date, hour: number): Date {
@@ -182,7 +169,128 @@ export class PushScheduleEngine {
   }
 }
 
+// ─── Timezone helpers (Issue #1744) ──────────────────────────────────────────
+
+export interface QuietHoursWindow {
+  enabled: boolean;
+  startHour: number; // 0-23, local to `timezone`
+  endHour: number; // 0-23, local to `timezone`
+  timezone: string; // IANA zone, e.g. 'Europe/Berlin'
+}
+
+function timeZoneOffsetMs(at: Date, timezone: string): number {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(at);
+  const get = (type: string): number => Number(parts.find((p) => p.type === type)?.value ?? '0');
+  const truncated = Math.floor(at.getTime() / 1000) * 1000;
+  const asUtc = Date.UTC(
+    get('year'),
+    get('month') - 1,
+    get('day'),
+    get('hour'),
+    get('minute'),
+    get('second')
+  );
+  return asUtc - truncated;
+}
+
+/** The wall-clock hour (0-23) `date` falls on in `timezone`, or UTC if unknown. */
+export function localHourOf(date: Date, timezone: string): number {
+  try {
+    const hour = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      hour: '2-digit',
+      hourCycle: 'h23',
+    }).format(date);
+    return Number(hour) % 24;
+  } catch {
+    return date.getUTCHours();
+  }
+}
+
+/**
+ * The first UTC instant at or after `date` whose wall-clock time in
+ * `timezone` is `hour:00`. Two passes handle DST offsets correctly.
+ */
+export function utcInstantForLocalHour(date: Date, hour: number, timezone: string): Date {
+  try {
+    const local = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(date);
+    const get = (type: string): number => Number(local.find((p) => p.type === type)?.value ?? '0');
+
+    const base = Date.UTC(get('year'), get('month') - 1, get('day'), hour);
+    let candidate = base - timeZoneOffsetMs(new Date(base), timezone);
+    candidate = base - timeZoneOffsetMs(new Date(candidate), timezone);
+    if (candidate <= date.getTime()) {
+      const nextDay = new Date(candidate);
+      const shifted = Date.UTC(
+        nextDay.getUTCFullYear(),
+        nextDay.getUTCMonth(),
+        nextDay.getUTCDate() + 1,
+        hour
+      );
+      candidate = shifted - timeZoneOffsetMs(new Date(shifted), timezone);
+    }
+    return new Date(candidate);
+  } catch {
+    const fallback = new Date(date);
+    fallback.setUTCHours(hour, 0, 0, 0);
+    if (fallback <= date) fallback.setUTCDate(fallback.getUTCDate() + 1);
+    return fallback;
+  }
+}
+
+/** True when `date` sits inside the quiet window, evaluated in `timezone`. */
+export function isWithinQuietHoursDate(date: Date, qh: QuietHoursWindow): boolean {
+  if (!qh.enabled || qh.startHour === qh.endHour) return false;
+  const hour = localHourOf(date, qh.timezone);
+  return qh.startHour < qh.endHour
+    ? hour >= qh.startHour && hour < qh.endHour
+    : hour >= qh.startHour || hour < qh.endHour;
+}
+
+/** The next UTC instant outside the quiet window (or `date` when outside). */
+export function nextQuietHoursEnd(date: Date, qh: QuietHoursWindow): Date {
+  if (!isWithinQuietHoursDate(date, qh)) return date;
+  return utcInstantForLocalHour(date, qh.endHour, qh.timezone);
+}
+
 // ─── DigestBuilder ────────────────────────────────────────────────────────────
+
+/**
+ * The UTC instant a digest for items buffered at `now` should go out (Issue
+ * #1746): 09:00 UTC on the next day (daily) or next Monday (weekly).
+ */
+export function digestWindowFor(frequency: 'daily' | 'weekly', now: Date = new Date()): Date {
+  const window = new Date(now.getTime());
+  if (frequency === 'daily') {
+    window.setUTCHours(9, 0, 0, 0);
+    if (window.getTime() <= now.getTime()) {
+      window.setUTCDate(window.getUTCDate() + 1);
+    }
+    return window;
+  }
+  // Weekly: next Monday at 09:00 UTC (strictly after `now`).
+  const daysUntilMonday = (8 - window.getUTCDay()) % 7 || 7;
+  window.setUTCDate(window.getUTCDate() + daysUntilMonday);
+  window.setUTCHours(9, 0, 0, 0);
+  if (window.getTime() <= now.getTime()) {
+    window.setUTCDate(window.getUTCDate() + 7);
+  }
+  return window;
+}
 
 export class DigestBuilder {
   private queue = new Map<string, { title: string; body: string; category: OptInCategory }[]>();
@@ -220,6 +328,12 @@ export class DigestBuilder {
 
   getPendingCount(userId: string): number {
     return this.queue.get(userId)?.length ?? 0;
+  }
+
+  /** Drop buffered items (all users, or just one). */
+  clear(userId?: string): void {
+    if (userId === undefined) this.queue.clear();
+    else this.queue.delete(userId);
   }
 }
 

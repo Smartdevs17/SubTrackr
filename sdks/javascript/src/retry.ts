@@ -39,7 +39,7 @@ export interface RetryResult<T> {
 
 export async function withRetry<T>(
   fn: (attempt: number) => Promise<T>,
-  options: RetryOptions = {},
+  options: RetryOptions = {}
 ): Promise<RetryResult<T>> {
   const maxAttempts = options.maxAttempts ?? 3;
   const initialDelayMs = options.initialDelayMs ?? 200;
@@ -98,7 +98,7 @@ export function isRetryableStatus(
   status: number,
   method: string,
   retryableStatuses = DEFAULT_RETRYABLE_STATUSES,
-  retryableMethods = DEFAULT_RETRYABLE_METHODS,
+  retryableMethods = DEFAULT_RETRYABLE_METHODS
 ): boolean {
   const methodUpper = method.toUpperCase();
   // Never retry mutating methods unless the status is 429/503 (safe to retry)

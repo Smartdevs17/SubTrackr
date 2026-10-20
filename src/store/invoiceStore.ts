@@ -24,7 +24,11 @@ import {
   buildJurisdictionKey,
   isTaxExempt as checkIsTaxExempt,
 } from '../types/invoice';
-import { buildInvoice, calculateInvoiceTotals } from '../utils/invoice';
+import {
+  buildInvoice,
+  calculateInvoiceTotals,
+  validateInvoiceLineItemMetadata,
+} from '../utils/invoice';
 import { errorHandler, AppError } from '../services/errorHandler';
 import { presentLocalNotification } from '../services/notificationService';
 import { getNextSequence, generateLegalInvoiceNumber } from '../services/sequenceService';
@@ -63,7 +67,15 @@ const normalizeInvoice = (raw: Partial<Invoice>): Invoice => {
     subscriptionId: raw.subscriptionId ?? 'unknown',
     subscriptionName: raw.subscriptionName ?? 'Subscription',
     merchantName: raw.merchantName ?? 'Merchant',
-    lineItems: Array.isArray(raw.lineItems) ? raw.lineItems : [],
+    lineItems: Array.isArray(raw.lineItems)
+      ? raw.lineItems.map((item) => ({
+          ...item,
+          metadata:
+            validateInvoiceLineItemMetadata(item?.metadata).length === 0
+              ? item?.metadata
+              : undefined,
+        }))
+      : [],
     tax: Number.isFinite(raw.tax) ? (raw.tax as number) : 0,
     total: Number.isFinite(raw.total) ? (raw.total as number) : 0,
     subtotal: Number.isFinite(raw.subtotal) ? (raw.subtotal as number) : 0,
@@ -478,11 +490,11 @@ export const useInvoiceStore = create<InvoiceState>()(
           const state = get();
           const region = data.region ?? state.config.defaultRegion;
           const currency = data.currency ?? state.config.defaultCurrency;
-          
+
           const year = new Date().getFullYear();
           const prefix = `INV-${year}`;
           const sequence = await getNextSequence(prefix);
-          
+
           const invoice = buildInvoice(
             data.subscription,
             sequence,
@@ -506,10 +518,12 @@ export const useInvoiceStore = create<InvoiceState>()(
           if (resolved.displayName) {
             invoice.merchantName = resolved.displayName;
           }
-          
+
           invoice.invoiceNumber = generateLegalInvoiceNumber(
             sequence,
-            resolved.numberingPrefix !== state.config.numberingPrefix ? resolved.numberingPrefix : state.config.numberingPrefix,
+            resolved.numberingPrefix !== state.config.numberingPrefix
+              ? resolved.numberingPrefix
+              : state.config.numberingPrefix,
             true,
             true
           );
@@ -569,7 +583,7 @@ export const useInvoiceStore = create<InvoiceState>()(
           }
 
           invoice.lineItems[0].taxRateBps = effectiveRateBps;
-          
+
           invoice.invoiceNumber = generateLegalInvoiceNumber(
             sequence,
             state.config.numberingPrefix,

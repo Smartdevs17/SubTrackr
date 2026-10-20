@@ -58,7 +58,7 @@ describe('fraudDetectionService', () => {
       });
 
       expect(response.riskScore).toBeGreaterThan(30);
-      expect(response.indicators.some(i => i.type === 'rapid_transactions')).toBe(true);
+      expect(response.indicators.some((i) => i.type === 'rapid_transactions')).toBe(true);
     });
 
     it('should detect amount anomaly', async () => {
@@ -78,7 +78,7 @@ describe('fraudDetectionService', () => {
         transactionId: 'txn-anomaly',
       });
 
-      expect(response.indicators.some(i => i.type === 'unusual_amount')).toBe(true);
+      expect(response.indicators.some((i) => i.type === 'unusual_amount')).toBe(true);
       expect(response.riskScore).toBeGreaterThan(0);
     });
 
@@ -94,7 +94,7 @@ describe('fraudDetectionService', () => {
 
       const response = await fraudService.performFraudCheck(lateNightRequest);
 
-      expect(response.indicators.some(i => i.type === 'unusual_time')).toBe(true);
+      expect(response.indicators.some((i) => i.type === 'unusual_time')).toBe(true);
 
       jest.restoreAllMocks();
     });
@@ -140,7 +140,7 @@ describe('fraudDetectionService', () => {
 
       if (response.riskScore >= 30) {
         expect(response.detectionId).toBeDefined();
-        
+
         const detection = await fraudService.getDetectionById(response.detectionId!);
         expect(detection).toBeDefined();
         expect(detection?.riskScore).toBe(response.riskScore);
@@ -164,7 +164,7 @@ describe('fraudDetectionService', () => {
       };
 
       const response = await fraudService.performFraudCheck(request);
-      
+
       if (response.detectionId) {
         const updated = await fraudService.updateDetectionStatus(
           response.detectionId,
@@ -190,7 +190,7 @@ describe('fraudDetectionService', () => {
         riskLevel: ['high', 'critical'],
       });
 
-      detections.forEach(d => {
+      detections.forEach((d) => {
         expect(['high', 'critical']).toContain(d.riskLevel);
       });
     });
@@ -204,7 +204,7 @@ describe('fraudDetectionService', () => {
         dateTo,
       });
 
-      detections.forEach(d => {
+      detections.forEach((d) => {
         expect(d.timestamp >= dateFrom).toBe(true);
         expect(d.timestamp <= dateTo).toBe(true);
       });
@@ -219,22 +219,22 @@ describe('fraudDetectionService', () => {
 
     it('should mark alert as read', async () => {
       const alerts = await fraudService.getAllAlerts();
-      
+
       if (alerts.length > 0) {
         await fraudService.markAlertAsRead(alerts[0].id);
         const updated = await fraudService.getAllAlerts();
-        const alert = updated.find(a => a.id === alerts[0].id);
+        const alert = updated.find((a) => a.id === alerts[0].id);
         expect(alert?.isRead).toBe(true);
       }
     });
 
     it('should resolve alert', async () => {
       const alerts = await fraudService.getAllAlerts();
-      
+
       if (alerts.length > 0) {
         await fraudService.resolveAlert(alerts[0].id, 'Investigated and resolved');
         const updated = await fraudService.getAllAlerts();
-        const alert = updated.find(a => a.id === alerts[0].id);
+        const alert = updated.find((a) => a.id === alerts[0].id);
         expect(alert?.isResolved).toBe(true);
         expect(alert?.actionTaken).toBe('Investigated and resolved');
       }

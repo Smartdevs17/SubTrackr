@@ -1,4 +1,4 @@
-import { SubscriptionTier } from '../../src/types/subscription';
+import { SubscriptionTier } from '../../../src/types/subscription';
 import {
   TIER_RATE_LIMITS,
   SOFT_LIMIT_WARNINGS,
@@ -14,7 +14,7 @@ import {
   type UsageAnalytics,
   type UsageMeteringEntry,
   type TierUpgradeRecommendation,
-} from '../../src/types/rateLimiting';
+} from '../../../src/types/rateLimiting';
 import { TokenBucket } from './tokenBucket';
 
 const ONE_HOUR_MS = 3_600_000;
@@ -108,6 +108,20 @@ export class RateLimitingService {
 
   listBypassUsers(): string[] {
     return Array.from(this.bypass.userIds ?? []);
+  }
+
+  // -------------------------------------------------------------------------
+  // Tier resolution
+  // -------------------------------------------------------------------------
+
+  /**
+   * Returns the tier recorded for `apiKey`, or FREE when unknown.
+   *
+   * This is the only trustworthy source for a caller's tier. Reading it from
+   * a request header lets any caller self-select the ENTERPRISE allowance.
+   */
+  getTierForApiKey(apiKey: string): SubscriptionTier {
+    return this.usages.get(apiKey)?.tier ?? SubscriptionTier.FREE;
   }
 
   // -------------------------------------------------------------------------

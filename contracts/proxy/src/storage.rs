@@ -1,8 +1,8 @@
 use soroban_sdk::{Address, Env, Vec};
-use subtrackr_types::{ScheduledUpgrade, StorageKey, StorageKeyExt, UpgradeEvent};
+use subtrackr_types::{ScheduledUpgrade, StorageKey, UpgradeEvent};
 
 pub(crate) fn is_initialized(env: &Env) -> bool {
-    env.storage().instance().has(&StorageKeyExt::ProxyStorage)
+    env.storage().instance().has(&StorageKey::ProxyStorage)
 }
 
 pub(crate) fn admin(env: &Env) -> Address {
@@ -30,14 +30,14 @@ pub(crate) fn set_implementation(env: &Env, implementation: &Address) {
 pub(crate) fn storage_address(env: &Env) -> Address {
     env.storage()
         .instance()
-        .get(&StorageKeyExt::ProxyStorage)
+        .get(&StorageKey::ProxyStorage)
         .expect("Storage address not set")
 }
 
 pub(crate) fn set_storage_address(env: &Env, storage: &Address) {
     env.storage()
         .instance()
-        .set(&StorageKeyExt::ProxyStorage, storage);
+        .set(&StorageKey::ProxyStorage, storage);
 }
 
 pub(crate) fn version(env: &Env) -> u32 {
@@ -111,7 +111,7 @@ pub(crate) fn clear_scheduled_upgrade(env: &Env) {
 pub(crate) fn previous_count(env: &Env) -> u32 {
     env.storage()
         .instance()
-        .get(&StorageKey::ProxyPrevImplCount)
+        .get(&StorageKey::ProxyPreviousImplementationCount)
         .unwrap_or(0)
 }
 
@@ -133,7 +133,7 @@ pub(crate) fn push_previous(env: &Env, implementation: &Address) {
     );
     env.storage()
         .instance()
-        .set(&StorageKey::ProxyPrevImplCount, &(count + 1));
+        .set(&StorageKey::ProxyPreviousImplementationCount, &(count + 1));
 }
 
 pub(crate) fn swap_previous_top(env: &Env, new_top: &Address) -> Address {

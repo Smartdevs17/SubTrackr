@@ -1,5 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+} from 'react-native';
 import { usePlanStore } from '../store/planStore';
 import { useTheme } from '../theme/useTheme';
 import type { SubscriptionPlan } from '../types/plan';
@@ -14,8 +21,8 @@ export default function PlanComparisonScreen({ navigation }: any) {
   }, []);
 
   const togglePlanSelection = (planId: string) => {
-    setSelectedPlans(prev => 
-      prev.includes(planId) ? prev.filter(id => id !== planId) : [...prev, planId]
+    setSelectedPlans((prev) =>
+      prev.includes(planId) ? prev.filter((id) => id !== planId) : [...prev, planId]
     );
   };
 
@@ -30,7 +37,7 @@ export default function PlanComparisonScreen({ navigation }: any) {
 
   const renderPlanCard = (plan: SubscriptionPlan) => {
     const isSelected = selectedPlans.includes(plan.id);
-    
+
     return (
       <TouchableOpacity
         key={plan.id}
@@ -40,23 +47,24 @@ export default function PlanComparisonScreen({ navigation }: any) {
           isSelected && { borderColor: theme.colors.primary, borderWidth: 2 },
           plan.isPopular && styles.popularCard,
         ]}
-        onPress={() => togglePlanSelection(plan.id)}
-      >
+        onPress={() => togglePlanSelection(plan.id)}>
         {plan.isPopular && (
           <View style={[styles.popularBadge, { backgroundColor: theme.colors.primary }]}>
             <Text style={styles.popularText}>POPULAR</Text>
           </View>
         )}
-        
+
         <Text style={[styles.planName, { color: theme.colors.text }]}>{plan.name}</Text>
         <Text style={[styles.planDescription, { color: theme.colors.textSecondary }]}>
           {plan.description}
         </Text>
-        
+
         <View style={styles.priceContainer}>
           <Text style={[styles.currency, { color: theme.colors.text }]}>{plan.currency}</Text>
           <Text style={[styles.price, { color: theme.colors.text }]}>{plan.price.toFixed(2)}</Text>
-          <Text style={[styles.cycle, { color: theme.colors.textSecondary }]}>/{plan.billingCycle}</Text>
+          <Text style={[styles.cycle, { color: theme.colors.textSecondary }]}>
+            /{plan.billingCycle}
+          </Text>
         </View>
 
         {plan.discount && (
@@ -66,14 +74,13 @@ export default function PlanComparisonScreen({ navigation }: any) {
         )}
 
         <View style={styles.features}>
-          {plan.features.slice(0, 3).map(feature => (
+          {plan.features.slice(0, 3).map((feature) => (
             <View key={feature.id} style={styles.featureRow}>
-              <Text style={[styles.featureIcon, { color: feature.included ? '#10B981' : '#EF4444' }]}>
+              <Text
+                style={[styles.featureIcon, { color: feature.included ? '#10B981' : '#EF4444' }]}>
                 {feature.included ? '✓' : '✗'}
               </Text>
-              <Text style={[styles.featureName, { color: theme.colors.text }]}>
-                {feature.name}
-              </Text>
+              <Text style={[styles.featureName, { color: theme.colors.text }]}>{feature.name}</Text>
             </View>
           ))}
         </View>
@@ -81,11 +88,17 @@ export default function PlanComparisonScreen({ navigation }: any) {
         <TouchableOpacity
           style={[
             styles.selectButton,
-            { backgroundColor: isSelected ? theme.colors.primary : theme.colors.card, borderColor: theme.colors.primary },
+            {
+              backgroundColor: isSelected ? theme.colors.primary : theme.colors.card,
+              borderColor: theme.colors.primary,
+            },
           ]}
-          onPress={() => togglePlanSelection(plan.id)}
-        >
-          <Text style={[styles.selectButtonText, { color: isSelected ? '#FFFFFF' : theme.colors.primary }]}>
+          onPress={() => togglePlanSelection(plan.id)}>
+          <Text
+            style={[
+              styles.selectButtonText,
+              { color: isSelected ? '#FFFFFF' : theme.colors.primary },
+            ]}>
             {isSelected ? 'Selected' : 'Select'}
           </Text>
         </TouchableOpacity>
@@ -111,9 +124,7 @@ export default function PlanComparisonScreen({ navigation }: any) {
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.plansScroll}>
-        <View style={styles.plansContainer}>
-          {plans.map(renderPlanCard)}
-        </View>
+        <View style={styles.plansContainer}>{plans.map(renderPlanCard)}</View>
       </ScrollView>
 
       {selectedPlans.length >= 2 && (
@@ -121,14 +132,11 @@ export default function PlanComparisonScreen({ navigation }: any) {
           <TouchableOpacity
             style={[styles.compareButton, { backgroundColor: theme.colors.primary }]}
             onPress={handleCompare}
-            disabled={isLoading}
-          >
+            disabled={isLoading}>
             {isLoading ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
-              <Text style={styles.compareButtonText}>
-                Compare {selectedPlans.length} Plans
-              </Text>
+              <Text style={styles.compareButtonText}>Compare {selectedPlans.length} Plans</Text>
             )}
           </TouchableOpacity>
         </View>
@@ -145,9 +153,22 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 14 },
   plansScroll: { flex: 1 },
   plansContainer: { flexDirection: 'row', padding: 16, gap: 16 },
-  planCard: { width: 280, padding: 20, borderRadius: 16, borderWidth: 1, borderColor: 'transparent' },
+  planCard: {
+    width: 280,
+    padding: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
   popularCard: { transform: [{ scale: 1.05 }] },
-  popularBadge: { position: 'absolute', top: 12, right: 12, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 },
+  popularBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
   popularText: { color: '#FFFFFF', fontSize: 10, fontWeight: 'bold' },
   planName: { fontSize: 22, fontWeight: 'bold', marginBottom: 8 },
   planDescription: { fontSize: 14, marginBottom: 16, minHeight: 40 },
@@ -155,7 +176,13 @@ const styles = StyleSheet.create({
   currency: { fontSize: 16, fontWeight: '600', marginRight: 4 },
   price: { fontSize: 36, fontWeight: 'bold' },
   cycle: { fontSize: 14, marginLeft: 4 },
-  discountBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, alignSelf: 'flex-start', marginBottom: 16 },
+  discountBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    marginBottom: 16,
+  },
   discountText: { color: '#FFFFFF', fontSize: 12, fontWeight: '600' },
   features: { marginBottom: 20, gap: 8 },
   featureRow: { flexDirection: 'row', alignItems: 'center' },

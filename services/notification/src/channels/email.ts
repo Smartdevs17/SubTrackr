@@ -1,20 +1,20 @@
 /**
  * Email channel provider for the notification microservice.
  *
- * Delegates to the backend's `SendGridEmailProvider` / `SesEmailProvider`
+ * Delegates to the shared `SendGridEmailProvider` / `SesEmailProvider`
  * (selected via EMAIL_PROVIDER env var) instead of the previous no-op stub.
  */
 
-import { ChannelProvider } from '../types/channel';
-import type { Notification } from '../types/notification';
+import { ChannelProvider } from '../types/channel.js';
+import type { Notification } from '../types/notification.js';
 import {
   createEmailProviderFromEnv,
   getEmailFromAddress,
-  type EmailProvider as BackendEmailProvider,
-} from '../../../../backend/services/notification/emailProvider';
+  type EmailProvider as SharedEmailProvider,
+} from '@subtrackr/notification-providers';
 
 export class EmailProvider implements ChannelProvider {
-  private readonly provider: BackendEmailProvider;
+  private readonly provider: SharedEmailProvider;
 
   constructor(apiKey: string) {
     // `apiKey` param kept for backward-compat with the factory that passes it.

@@ -48,7 +48,7 @@ export class RestPaginationBenchmark {
       items[i] = {
         id: `sub_${(i + 1).toString().padStart(6, '0')}`,
         createdAt: baseTime + i * 1000,
-        customerId: `cust_${(i % 100 + 1).toString().padStart(4, '0')}`,
+        customerId: `cust_${((i % 100) + 1).toString().padStart(4, '0')}`,
         amount: 1000 + (i % 50) * 100,
         status: i % 10 === 0 ? 'canceled' : 'active',
       };

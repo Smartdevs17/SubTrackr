@@ -14,7 +14,9 @@ jest.mock('react-native/Libraries/Components/Switch/Switch', () =>
   require('../../components/privacy/__tests__/mockHostComponent').mockHostComponent('Switch')
 );
 jest.mock('react-native/Libraries/Components/Touchable/TouchableOpacity', () =>
-  require('../../components/privacy/__tests__/mockHostComponent').mockHostComponent('TouchableOpacity')
+  require('../../components/privacy/__tests__/mockHostComponent').mockHostComponent(
+    'TouchableOpacity'
+  )
 );
 jest.mock('react-native/Libraries/Modal/Modal', () =>
   require('../../components/privacy/__tests__/mockHostComponent').mockHostComponent('Modal')
@@ -61,7 +63,12 @@ describe('ConsentManagementScreen', () => {
   beforeEach(() => {
     useAppStore.setState({
       userId: 'user-1',
-      consent: { analytics: false, marketing: false, notifications: true, hasAcceptedPolicy: false },
+      consent: {
+        analytics: false,
+        marketing: false,
+        notifications: true,
+        hasAcceptedPolicy: false,
+      },
     });
   });
 
