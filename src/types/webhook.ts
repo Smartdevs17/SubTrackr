@@ -87,9 +87,17 @@ export interface WebhookConfig {
   merchantId: string;
   url: string;
   events: WebhookEventType[];
-  secretKey: string;
+  /**
+   * Signing secret. When `signingEnabled` is true (default) this must be set and
+   * is used to compute the `X-SubTrackr-Signature` header on outbound deliveries.
+   * Partners that do not want signing can register a webhook with
+   * `signingEnabled: false` and leave `secretKey` undefined.
+   */
+  secretKey?: string;
   /** Signing secret history; the most recently added entry is the active signing secret. */
   secrets: WebhookSecret[];
+  /** When false, outbound deliveries are sent unsigned (partner opt-out). Default: true. */
+  signingEnabled: boolean;
   retryPolicy: WebhookRetryPolicy;
   /** @deprecated use rateLimit.steadyPerMinute instead. Kept for backward compatibility. */
   rateLimitPerMinute?: number;
@@ -179,7 +187,8 @@ export interface WebhookDelivery {
   nextRetryAt?: number;
   responseCode?: number;
   errorMessage?: string;
-  signature: string;
+  /** HMAC signature header value. Absent on unsigned deliveries (signingEnabled=false). */
+  signature?: string;
   idempotencyKey: string;
   latencyMs?: number;
   /** Truncated preview of the request body sent, for delivery logs/receipts. */

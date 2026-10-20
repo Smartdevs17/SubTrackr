@@ -33,6 +33,18 @@ export interface TaxRateEntry {
   nexusThreshold: number;
 }
 
+/** Configurable per-region tax rate override, applied at invoice time. */
+export interface RegionTaxRateConfig {
+  /** Jurisdiction key, e.g. "DE", "US-NY", or "GLOBAL". */
+  region: string;
+  /** Rate in basis points (e.g. 1900 = 19%). */
+  rateBps: number;
+  /** Optional tax type; defaults to the region's existing type or "vat". */
+  taxType?: TaxType;
+  /** Optional display name; defaults to the region's existing name or "${region} Tax Rate". */
+  displayName?: string;
+}
+
 export interface TaxRateChangeEvent {
   jurisdictionKey: string;
   oldRateBps: number;
