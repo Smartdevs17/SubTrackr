@@ -61,6 +61,8 @@ import { createLoggerFor } from './services/shared/logging';
 import { createTracerFromEnv, type Tracer } from './services/shared/tracing';
 import { createScheduledReportService } from './services/notification/scheduledReportService';
 import { createScheduledReportRouter } from './services/notification/scheduledReportRouter';
+import { createNotificationInboxRouter } from './services/notification/notificationInboxRouter';
+import { notificationCenterService } from './services/notification/notificationCenterService';
 import { createScheduledReportPoller } from './services/notification/jobs/scheduledReportJob';
 import { createEmailProviderFromEnv } from './services/notification/emailProvider';
 import type { ReportAnalyticsSnapshot } from './services/notification/scheduledReportService';
@@ -492,6 +494,11 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
     scheduledReportService,
     reportSnapshotFactory
   );
+
+  // ---------------------------------------------------------------------------
+  // In-app notification inbox — issue #1750
+  // ---------------------------------------------------------------------------
+  const notificationInboxRouter = createNotificationInboxRouter(notificationCenterService);
 
   const reportPoller = createScheduledReportPoller(
     scheduledReportService,
@@ -2014,6 +2021,14 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
         const result = await planController.deactivatePlan(planId);
         sendJson(res, result.success ? 200 : (result.status ?? 400), result);
         return;
+      }
+
+      // -----------------------------------------------------------------
+      // In-app notification inbox  /api/notifications  (issue #1750)
+      // -----------------------------------------------------------------
+      if (pathname.startsWith('/api/notifications')) {
+        const handled = await notificationInboxRouter(req, res, pathname);
+        if (handled) return;
       }
 
       // -----------------------------------------------------------------
