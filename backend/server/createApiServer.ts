@@ -1,8 +1,12 @@
 /**
  * SubTrackr public API HTTP server factory.
  *
- * Mounts CDn-cacheable routes behind edge-cache header middleware.
+ * Mounts CDN-cacheable routes behind edge-cache header middleware.
  * Additional batch subscription routes are mounted with atomic execution support.
+feat/stellar-wave-issues
+ * Payment intent and asset-policy routes are mounted for the Stellar Wave
+ * payment lifecycle (Issues #1716, #1717).
+
  *
  * Integration routes (not CDN-cached):
  *   /api/v1/zapier/*            — Zapier REST-hook integration
@@ -12,6 +16,7 @@
  *   /api/v1/paddle/*            — Paddle checkout + billing notifications
  *   /api/v1/calendar/*          — Calendar sync + renewal reminders
  *   /api/v1/webhooks/verify     — Incoming webhook signature verification demo
+ main
  */
 
 import { randomBytes } from 'node:crypto';
@@ -26,6 +31,8 @@ import {
   createSubscriptionOpsRouter,
   createThemeRouter,
 } from '../subscription/router';
+import { createPaymentRouter } from '../services/payment/router/paymentIntentRouter';
+import { createAssetPolicyRouter } from '../services/payment/router/assetPolicyRouter';
 import { API_VERSION_HEADER, API_VERSION_VALUE } from '../services/shared/apiResponse';
 import { createVersionMiddleware, versionRegistry } from '../services/shared/apiVersioning';
 import { createLoggerFor } from '../services/shared/logging';
@@ -273,6 +280,9 @@ export function createApiServer(options: CreateApiServerOptions = {}): Express {
   app.use(createSubscriptionOpsRouter());
   app.use('/api/v1/search', createSearchRouter());
   app.use('/api/v1/merchant', createThemeRouter());
+  feat/stellar-wave-issues
+  app.use('/api/payments', createPaymentRouter());
+  app.use(createAssetPolicyRouter());
   // Batch execution is served by `createSubscriptionOpsRouter()` above, which
   // already exposes POST /subscriptions/batch and GET /subscriptions/batch/:runId.
   app.use('/api/v1/auth', createPasskeyRouter());
@@ -461,6 +471,7 @@ export function createApiServer(options: CreateApiServerOptions = {}): Express {
   });
 
   app.use('/api/v1/calendar', calRouter);
+  main
 
   // ── 404 fallback ───────────────────────────────────────────────────────────
   app.use((_req, res) => {

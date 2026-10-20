@@ -17,12 +17,21 @@ export interface PaymentRequest {
   chainId?: number;
   chainType?: 'evm' | 'stellar' | 'fiat';
   metadata?: Record<string, string>;
+  feat/stellar-wave-issues
+  /** Merchant whose asset policy is enforced at charge time (Issue #1717). */
+  merchantId?: string;
+  /** Asset code being charged (defaults to `currency`). */
+  asset?: string;
+  /** Stellar asset issuer (path payments only). */
+  issuer?: string;
+  
   /**
    * Optional cross-account split configuration (Issue #1720).
    * When present the payment router distributes the amount across multiple
    * destination accounts proportionally to the listed percentages.
    */
   splits?: PaymentSplit[];
+  main
 }
 
 export interface PaymentResult {

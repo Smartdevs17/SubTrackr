@@ -17,6 +17,7 @@ export type KnownCancellationReason =
   | 'found_alternative'
   | 'poor_experience'
   | 'technical_issues'
+  | 'payment_expired'
   | 'other';
 
 /**

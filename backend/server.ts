@@ -55,6 +55,9 @@ import {
   createIpWhitelistGate,
 } from './services/shared/ipWhitelistService';
 import { serverSessionService } from './services/auth/serverSessionService';
+feat/stellar-wave-issues
+import { startPaymentExpirySweeper, type PaymentExpirySweeper } from './services/payment/jobs/paymentExpirySweeper';
+
 import { buildMetricsService } from './services/shared/buildMetricsService';
 import { createVersionMiddleware, versionRegistry } from './services/shared/apiVersioning';
 import { createLoggerFor } from './services/shared/logging';
@@ -81,6 +84,7 @@ import { HashChainService, AuditWriter, SensitiveOpsAuditController } from './au
 import { createRequestObservability } from './shared/middleware/requestObservability';
 import { createRevenueByCurrencyReportService } from './services/analytics/revenueByCurrencyReport';
 import { createRevenueByCurrencyRouter } from './services/analytics/revenueByCurrencyRouter';
+ main
 
 export interface StartServerOptions {
   port?: number;
@@ -472,6 +476,20 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
   sessionSweepTimer.unref();
 
   // ---------------------------------------------------------------------------
+feat/stellar-wave-issues
+  // Payment expiry sweep — every PAYMENT_EXPIRY_SWEEP_INTERVAL_MS (issue #1716)
+  // Expires overdue payment intents and cancels their subscriptions.
+  // ---------------------------------------------------------------------------
+  const paymentExpirySweeper: PaymentExpirySweeper = startPaymentExpirySweeper();
+
+  // ── IP Whitelist gate ────────────────────────────────────────────────────
+  const checkIpAccess = createIpWhitelistGate({
+    service: ipWhitelistService,
+    getTenantId: (req) => {
+      const tid = req.headers['x-tenant-id'];
+      return (typeof tid === 'string' ? tid : undefined) ?? 'default';
+    },
+
   // Scheduled email reports — issue #1758
   // ---------------------------------------------------------------------------
   const scheduledReportEmailProvider = createEmailProviderFromEnv();
@@ -555,6 +573,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
   // ---------------------------------------------------------------------------
   const invoiceNumberingService = createInvoiceNumberingService({
     store: new PostgresInvoiceNumberingStore(pool),
+  main
   });
   const invoiceNumberingRouter = createInvoiceNumberingRouter(invoiceNumberingService);
 
@@ -2162,11 +2181,16 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
     if (isShuttingDown) return;
     isShuttingDown = true;
     clearInterval(sessionSweepTimer);
+ feat/stellar-wave-issues
+    paymentExpirySweeper.stop();
+    await new Promise<void>((resolve, reject) => {
+
     reportPoller.stop();
     overdueReminderPoller.stop();
 
     // Stop accepting new connections
     const closeServerPromise = new Promise<void>((resolve, reject) => {
+    main
       server.close((err) => (err ? reject(err) : resolve()));
     });
 
