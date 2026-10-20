@@ -303,6 +303,73 @@ describe('invoiceService', () => {
       expect(updated.totalAmount).toBe(125);
     });
 
+    it('itemises the discount amount as an explicit discount line item', async () => {
+      const invoice = await invoiceService.createInvoice({
+        ...mockInvoiceData,
+        discountAmount: 5,
+      });
+
+      const discountLines = invoice.lineItems.filter((item) => item.kind === 'discount');
+      expect(discountLines).toHaveLength(1);
+      expect(discountLines[0].description).toBe('Discount');
+      expect(discountLines[0].lineTotal).toBe(5);
+      expect(invoice.discountAmount).toBe(5);
+      expect(invoice.subtotal).toBe(99.99);
+      expect(invoice.totalAmount).toBe(94.99); // 99.99 - 5
+    });
+
+    it('preserves an explicit discount line item supplied by the caller', async () => {
+      const invoice = await invoiceService.createInvoice({
+        subscriptionId: 'sub-123',
+        currency: 'USD',
+        lineItems: [
+          { description: 'Plan', quantity: 1, unitPrice: 100, amount: 100 },
+          {
+            description: 'Loyalty credit',
+            kind: 'discount',
+            quantity: 1,
+            unitPrice: 10,
+            amount: 10,
+          },
+        ],
+      });
+
+      expect(invoice.subtotal).toBe(100);
+      expect(invoice.discountAmount).toBe(10);
+      expect(invoice.totalAmount).toBe(90);
+      expect(invoice.lineItems).toHaveLength(2);
+    });
+
+    it('keeps the discount itemised when line items are updated', async () => {
+      const invoice = await invoiceService.createInvoice({
+        ...mockInvoiceData,
+        discountAmount: 5,
+      });
+
+      const updated = await invoiceService.updateInvoice(invoice.id, {
+        lineItems: [
+          { id: 'item-1', description: 'Item 1', quantity: 1, unitPrice: 50, amount: 50 },
+        ],
+      });
+
+      expect(updated.discountAmount).toBe(5);
+      expect(updated.totalAmount).toBe(45);
+      expect(updated.lineItems.filter((item) => item.kind === 'discount')).toHaveLength(1);
+    });
+
+    it('replaces the itemised discount when a new amount is supplied', async () => {
+      const invoice = await invoiceService.createInvoice({
+        ...mockInvoiceData,
+        discountAmount: 5,
+      });
+
+      const updated = await invoiceService.updateInvoice(invoice.id, { discountAmount: 20 });
+
+      expect(updated.discountAmount).toBe(20);
+      expect(updated.totalAmount).toBe(79.99);
+      expect(updated.lineItems.filter((item) => item.kind === 'discount')).toHaveLength(1);
+    });
+
     it('should get all invoices', async () => {
       await invoiceService.createInvoice(mockInvoiceData);
       await invoiceService.createInvoice(mockInvoiceData);
@@ -422,6 +489,24 @@ describe('invoiceService', () => {
       expect(preview.html).toContain(invoice.invoiceNumber);
       expect(preview.html).toContain('Test Item');
       expect(preview.invoiceId).toBe(invoice.id);
+    });
+
+    it('shows itemised discounts in the HTML preview', async () => {
+      const invoice = await invoiceService.createInvoice({
+        subscriptionId: 'sub-123',
+        amount: 100,
+        currency: 'USD',
+        dueDate: new Date('2026-08-26'),
+        lineItems: [
+          { id: 'item-1', description: 'Plan', quantity: 1, unitPrice: 100, amount: 100 },
+        ],
+        discountAmount: 10,
+      });
+
+      const preview = await invoiceService.previewInvoice(invoice.id);
+
+      expect(preview.html).toContain('Discount');
+      expect(preview.html).toContain('-USD 10.00');
     });
   });
 
