@@ -6,9 +6,13 @@
  *   POST   /passkeys/register/options        – creation options (session required)
  *   POST   /passkeys/register/verify         – verify attestation, store passkey (session required)
  *   POST   /passkeys/login/options           – assertion options (optional userId)
- *   POST   /passkeys/login/verify            – verify assertion, issue session (X-Session-Token)
+ *   POST   /passkeys/login/verify            – verify assertion, issue session + refresh token
+ *                                               (X-Session-Token / X-Refresh-Token, #1776/#1778)
  *   GET    /passkeys                         – list the caller's passkeys (session required)
  *   DELETE /passkeys/:credentialId           – remove one of the caller's passkeys (session required)
+ *
+ * Managing passkeys needs a session holding the `auth:manage` scope, which
+ * interactive sign-ins have and device-flow tokens never get (#1779).
  *
  * API key routes (mount at /api/v1/api-keys):
  *   POST   /:keyId/revoke                    – revoke a key immediately
@@ -37,6 +41,8 @@ import {
   type ServerSessionService,
   type SessionRecord,
 } from '../serverSessionService';
+import { sessionTokenService, SessionTokenService } from '../domain/SessionTokenService';
+import { hasScope } from '../domain/ApiKeyRotationService';
 import { ERROR_HTTP_STATUS_MAP, fail, type ApiResponse } from '../../shared/apiResponse';
 import type { LeakIncidentStatus } from '../interfaces';
 
@@ -67,19 +73,41 @@ function queryString(value: unknown): string | undefined {
 export interface PasskeyRouterOptions {
   controller?: PasskeyController;
   sessions?: ServerSessionService;
+  /** Issues the session + refresh-token family on login (#1776). */
+  tokens?: SessionTokenService;
 }
 
 export function createPasskeyRouter(options: PasskeyRouterOptions = {}): Router {
   const controller = options.controller ?? defaultPasskeyController;
-  const sessions = options.sessions ?? serverSessionService;
+  const sessions = options.sessions ?? options.tokens?.sessionStore ?? serverSessionService;
+  const tokens =
+    options.tokens ??
+    (options.sessions ? new SessionTokenService({ sessions }) : sessionTokenService);
   const router = Router();
 
-  /** Adding or removing passkeys requires an existing authenticated session. */
+  /**
+   * Adding or removing passkeys requires an existing authenticated session
+   * with the `auth:manage` scope.
+   */
   function requireSession(req: Request, res: Response): SessionRecord | null {
     const token = req.headers['x-session-token'];
     const result = typeof token === 'string' ? sessions.validateSession(token, req) : null;
     if (!result?.valid || !result.session) {
       send(res, fail('UNAUTHORIZED', 'A valid X-Session-Token is required', requestIdOf(req)));
+      return null;
+    }
+    if (!hasScope(result.session.scopes, 'auth:manage')) {
+      send(
+        res,
+        fail(
+          'AUTH_INSUFFICIENT_SCOPE',
+          'Access token lacks required scope: auth:manage',
+          requestIdOf(req),
+          {
+            requiredScope: 'auth:manage',
+          }
+        )
+      );
       return null;
     }
     return result.session;
@@ -139,13 +167,18 @@ export function createPasskeyRouter(options: PasskeyRouterOptions = {}): Router 
         return;
       }
 
-      const session = sessions.createSession({
+      const issued = tokens.issue({
         userId: result.data.userId,
         req,
-        metadata: { authMethod: 'passkey', credentialId: result.data.credentialId },
+        authMethod: 'passkey',
+        metadata: { credentialId: result.data.credentialId },
       });
-      // Same convention as POST /sessions: the raw token travels in a header.
-      res.setHeader('X-Session-Token', session.token);
+      const session = issued.session;
+      // Same convention as POST /sessions: raw tokens travel in headers, never
+      // in the body. The refresh token rotates on every use (#1776).
+      res.setHeader('Cache-Control', 'no-store');
+      res.setHeader('X-Session-Token', issued.accessToken);
+      res.setHeader('X-Refresh-Token', issued.refreshToken);
       send(res, {
         ...result,
         data: {
@@ -153,6 +186,8 @@ export function createPasskeyRouter(options: PasskeyRouterOptions = {}): Router 
           session: {
             id: session.id,
             expiresAt: session.expiresAt,
+            refreshTokenExpiresAt: issued.refreshTokenExpiresAt,
+            scopes: issued.scopes,
             isSuspicious: session.isSuspicious,
           },
         },
