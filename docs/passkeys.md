@@ -27,7 +27,7 @@ SubTrackr supports passwordless sign-in with **passkeys** (WebAuthn / FIDO2 cred
 | `PasskeyController` | `backend/services/auth/controller/passkeyController.ts` | Wraps service calls in the standard `ApiResponse` envelope |
 | `createPasskeyRouter` | `backend/services/auth/router/authRouter.ts` | Express routes mounted at `/api/v1/auth`; issues a server session on successful login |
 
-A successful passkey login creates a regular server session through `serverSessionService` (the same mechanism as `POST /sessions`), so device tracking, concurrent-session limits and revocation work unchanged. The session metadata records `authMethod: "passkey"` and the credential ID.
+A successful passkey login creates a regular server session through `SessionTokenService.issue()`, which wraps `serverSessionService` (the same mechanism as `POST /sessions`), so device tracking, concurrent-session limits and revocation work unchanged. Since #1776 the login also returns a rotating refresh token (`X-Refresh-Token`), and since #1778 a password can be used as a fallback sign-in method that issues exactly the same session pair. See [sessions-and-tokens.md](./sessions-and-tokens.md). The session metadata records `authMethod: "passkey"` and the credential ID.
 
 Supported algorithms: **ES256** (`-7`), **EdDSA / Ed25519** (`-8`) and **RS256** (`-257`).
 Supported attestation formats: **`none`** (requested by default) and **`packed`** (self attestation or `x5c` signature check).
@@ -48,7 +48,7 @@ Other options (`challengeTtlMs` — 5 minutes, `userVerification` — `preferred
 
 ## Registration Flow
 
-Adding a passkey requires an existing authenticated session (`X-Session-Token`), so a passkey can only be attached to the account that is currently signed in.
+Adding a passkey requires an existing authenticated session (`X-Session-Token`) holding the `auth:manage` scope, so a passkey can only be attached to the account that is currently signed in. Interactive sessions (passkey or password) have every scope; tokens obtained through the [device flow](./oauth-device-flow.md) never get `auth:manage` and receive `403 AUTH_INSUFFICIENT_SCOPE`.
 
 ```
 Client                                   Backend
@@ -69,8 +69,23 @@ Client                                   Backend
   │ ◄── PublicKeyCredentialRequestOptions
   │ navigator.credentials.get()
   │ POST /passkeys/login/verify      ──►  verify signature + counter
-  │ ◄── 200 + X-Session-Token header      create server session
+  │ ◄── 200 + X-Session-Token             create server session +
+  │          + X-Refresh-Token              refresh-token family
 ```
+
+### Fallback to password (#1778)
+
+Passkey sign-in can fail for reasons that are not an attack: the device has no platform authenticator, the user dismissed the prompt, or the passkey was deleted. Clients should then offer the password form:
+
+```
+navigator.credentials.get() unavailable / NotAllowedError
+  or POST /passkeys/login/verify → 4xx
+        │
+        ▼
+POST /login/password { userId, password }   → 200 + X-Session-Token + X-Refresh-Token
+```
+
+Both paths return the same headers and body shape and create the same kind of session, so the rest of the client does not need to know which one was used. A password is set (or changed, which requires the current password) with `PUT /api/v1/auth/password`. See [sessions-and-tokens.md](./sessions-and-tokens.md#password-fallback).
 
 ---
 
@@ -98,7 +113,7 @@ All routes are mounted at `/api/v1/auth` and return the standard `ApiResponse` e
 | `POST` | `/passkeys/register/options` | `X-Session-Token` | `{ userName, displayName? }` | Creation options for `navigator.credentials.create()` |
 | `POST` | `/passkeys/register/verify` | `X-Session-Token` | `{ response, deviceName? }` | Verify and store the new passkey |
 | `POST` | `/passkeys/login/options` | — | `{ userId? }` | Request options for `navigator.credentials.get()` |
-| `POST` | `/passkeys/login/verify` | — | `{ response }` | Verify the assertion; returns `X-Session-Token` header |
+| `POST` | `/passkeys/login/verify` | — | `{ response }` | Verify the assertion; returns `X-Session-Token` and `X-Refresh-Token` headers |
 | `GET` | `/passkeys` | `X-Session-Token` | — | List the caller's passkeys (public keys are never returned) |
 | `DELETE` | `/passkeys/:credentialId` | `X-Session-Token` | — | Remove one of the caller's passkeys |
 
@@ -116,6 +131,7 @@ All routes are mounted at `/api/v1/auth` and return the standard `ApiResponse` e
 | `AUTH_PASSKEY_CREDENTIAL_EXISTS` | 409 | Credential already registered |
 | `AUTH_PASSKEY_COUNTER_REGRESSION` | 401 | Signature counter did not increase — credential suspended |
 | `UNAUTHORIZED` | 401 | Missing or invalid `X-Session-Token` on a management route |
+| `AUTH_INSUFFICIENT_SCOPE` | 403 | The session lacks `auth:manage` (e.g. a device-flow token) |
 
 ---
 
@@ -153,6 +169,25 @@ const res = await api.post('/api/v1/auth/passkeys/login/verify', {
   },
 });
 const sessionToken = res.headers['x-session-token'];
+const refreshToken = res.headers['x-refresh-token']; // store securely; rotates on every refresh
+```
+
+Falling back to the password when the passkey path fails:
+
+```ts
+async function signIn(userId: string, askPassword: () => Promise<string>) {
+  try {
+    return await signInWithPasskey(userId); // the code above
+  } catch {
+    // No authenticator, prompt dismissed, or the server rejected the assertion.
+    const password = await askPassword();
+    const res = await api.post('/api/v1/auth/login/password', { userId, password });
+    return {
+      sessionToken: res.headers['x-session-token'],
+      refreshToken: res.headers['x-refresh-token'],
+    };
+  }
+}
 ```
 
 ---
