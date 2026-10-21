@@ -15,6 +15,10 @@ COPY onnx-serving/server.py ./server.py
 ENV PYTHONUNBUFFERED=1
 ENV MODEL_DIR=/app/models
 
+# Run as non-root user to reduce container attack surface
+RUN useradd -m -u 1001 appuser
+USER appuser
+
 EXPOSE 8000
 
 CMD ["python", "server.py", "--port", "8000", "--model-dir", "/app/models"]

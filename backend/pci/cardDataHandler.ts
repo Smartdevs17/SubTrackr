@@ -133,7 +133,7 @@ export class CardDataHandler {
 
       // Use createDecipheriv — note: in production this would use a HSM
       const { createDecipheriv } = require('crypto');
-      const decipher = createDecipheriv('aes-256-gcm', ENCRYPTION_KEY, iv);
+      const decipher = createDecipheriv('aes-256-gcm', ENCRYPTION_KEY, iv, { authTagLength: 16 });
       decipher.setAuthTag(authTag);
       const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
       return { success: true, pan: decrypted.toString('utf8') };

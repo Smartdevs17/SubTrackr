@@ -68,11 +68,14 @@ runs:
     - name: Build contracts (modular)
       shell: bash
       working-directory: contracts
+      env:
+        INPUT_CONTRACTS: ${{ inputs.contracts }}
+        INPUT_FEATURES: ${{ inputs.features }}
       run: |
         set -euo pipefail
 
-        CONTRACTS="${{ inputs.contracts }}"
-        FEATURES="${{ inputs.features }}"
+        CONTRACTS="$INPUT_CONTRACTS"
+        FEATURES="$INPUT_FEATURES"
         TARGET="wasm32v1-none"
 
         # Builds are never masked. A failing contract must fail the job so a
