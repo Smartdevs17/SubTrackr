@@ -55,6 +55,7 @@ import {
   createIpWhitelistGate,
 } from './services/shared/ipWhitelistService';
 import { serverSessionService } from './services/auth/serverSessionService';
+import { sessionTokenService } from './services/auth/domain/SessionTokenService';
 feat/stellar-wave-issues
 import { startPaymentExpirySweeper, type PaymentExpirySweeper } from './services/payment/jobs/paymentExpirySweeper';
 
@@ -472,6 +473,8 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
   // ---------------------------------------------------------------------------
   const sessionSweepTimer = setInterval(() => {
     serverSessionService.sweepExpiredSessions();
+    // Drop refresh-token families past their absolute lifetime (#1776).
+    sessionTokenService.sweep();
   }, 5 * 60 * 1000);
   sessionSweepTimer.unref();
 
