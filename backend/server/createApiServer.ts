@@ -39,6 +39,7 @@ import { createLoggerFor } from '../services/shared/logging';
 import { createTracerFromEnv } from '../services/shared/tracing';
 import { createRequestObservability } from '../shared/middleware/requestObservability';
 import { createApiKeyRevocationRouter, createPasskeyRouter } from '../services/auth/router/authRouter';
+import { createSessionRouter } from '../services/auth/router/sessionRouter';
 import { serveOpenApiSpec, serveSwaggerUI } from '../services/shared/swaggerUI';
 
 // ── Zapier integration ────────────────────────────────────────────────────────
@@ -230,6 +231,11 @@ export function createApiServer(options: CreateApiServerOptions = {}): Express {
         '/api/v1/stripe/billing/webhook',
         '/api/v1/paddle/webhook',
         '/api/v1/webhooks',
+        // OAuth endpoints for non-browser clients (#1776, #1779). They carry no
+        // ambient credentials: the refresh token / device code is in the body,
+        // so a cross-site request cannot ride on a victim's cookies.
+        '/api/v1/auth/oauth/token',
+        '/api/v1/auth/oauth/device_authorization',
       ],
     }) as unknown as express.RequestHandler,
   );
@@ -286,6 +292,10 @@ export function createApiServer(options: CreateApiServerOptions = {}): Express {
   // Batch execution is served by `createSubscriptionOpsRouter()` above, which
   // already exposes POST /subscriptions/batch and GET /subscriptions/batch/:runId.
   app.use('/api/v1/auth', createPasskeyRouter());
+  // Password fallback, refresh-token rotation, session listing / revocation and
+  // the OAuth device flow (#1776-#1779). Shares the session + token singletons
+  // with the passkey router above.
+  app.use('/api/v1/auth', createSessionRouter());
   app.use('/api/v1/api-keys', createApiKeyRevocationRouter());
 
   // ── Zapier integration ─────────────────────────────────────────────────────

@@ -67,5 +67,33 @@ export type {
   RecoveryAuditEntry,
   RecoverySession,
 } from './domain/AccountRecoveryService';
+export {
+  SessionTokenService,
+  sessionTokenService,
+  DEFAULT_REFRESH_TOKEN_CONFIG,
+  hashRefreshToken,
+} from './domain/SessionTokenService';
+export type {
+  AuthMethod,
+  IssuedSession,
+  RefreshTokenConfig,
+  SessionSummary,
+  TokenFamily,
+} from './domain/SessionTokenService';
+export {
+  PasswordCredentialService,
+  passwordCredentialService,
+  DEFAULT_PASSWORD_POLICY,
+} from './domain/PasswordCredentialService';
+export {
+  DeviceAuthorizationService,
+  deviceAuthorizationService,
+  DEFAULT_DEVICE_FLOW_CONFIG,
+  DEVICE_CODE_GRANT_TYPE,
+  OAuthError,
+} from './domain/DeviceAuthorizationService';
+export type { DeviceClient, DeviceFlowConfig } from './domain/DeviceAuthorizationService';
+export { createRequireAuth, extractAccessToken } from './middleware/sessionAuth';
+export { createSessionRouter } from './router/sessionRouter';
 export { AuthError, AuthErrorCode } from './errors';
 
