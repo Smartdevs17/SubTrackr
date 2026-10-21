@@ -1,4 +1,4 @@
-fastapi>=0.143.3
+fastapi>=0.146.0
 uvicorn[standard]>=0.54.0
 onnxruntime>=1.31.0
 onnxruntime-gpu>=1.31.0; platform_system == "Linux"
