@@ -17,6 +17,82 @@ use subtrackr_types::{
     Subscription, SubscriptionStatus, TimeRange,
 };
 
+// ── Feature types (defined locally to avoid StorageKey enum growth) ──
+
+/// A discount coupon created by a merchant.
+#[soroban_sdk::contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct Coupon {
+    pub code: String,
+    pub merchant: Address,
+    /// Discount in basis points (10_000 = 100%).
+    pub discount_bps: u32,
+    pub max_redemptions: u32,
+    pub current_redemptions: u32,
+    pub active: bool,
+    /// Ledger timestamp after which the coupon expires; 0 = never.
+    pub expires_at: u64,
+    pub created_at: u64,
+}
+
+/// A coupon currently applied to a subscription (consumed at next charge).
+#[soroban_sdk::contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct AppliedCoupon {
+    pub code: String,
+    pub discount_bps: u32,
+    pub applied_at: u64,
+}
+
+/// A plan upgrade/downgrade scheduled to take effect at the next billing cycle.
+#[soroban_sdk::contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PendingPlanChange {
+    pub subscription_id: u64,
+    pub current_plan_id: u64,
+    pub new_plan_id: u64,
+    pub requested_at: u64,
+}
+
+/// Admin-configurable window during which a cancelled subscription can be
+/// reactivated.
+#[soroban_sdk::contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ReactivationConfig {
+    pub window_secs: u64,
+}
+
+/// Direct persistent-storage keys for features that must not grow the
+/// shared `StorageKey` enum (which is at the Soroban 64-variant limit).
+#[soroban_sdk::contracttype]
+#[derive(Clone, Debug, PartialEq)]
+enum FeatureStoreKey {
+    /// subscription_id -> u32 seat quantity (absent = 1).
+    Quantity(u64),
+    /// coupon code -> Coupon.
+    Coupon(String),
+    /// subscription_id -> AppliedCoupon (pending, consumed at next charge).
+    AppliedCoupon(u64),
+    /// subscription_id -> PendingPlanChange.
+    PendingPlanChange(u64),
+    /// Global reactivation configuration.
+    ReactivationConfig,
+    /// subscription_id -> cancellation timestamp (for reactivation window).
+    CancelledAt(u64),
+}
+
+fn feature_get<V: TryFromVal<Env, Val>>(env: &Env, key: FeatureStoreKey) -> Option<V> {
+    env.storage().persistent().get(&key)
+}
+
+fn feature_set<V: IntoVal<Env, Val>>(env: &Env, key: FeatureStoreKey, value: V) {
+    env.storage().persistent().set(&key, &value);
+}
+
+fn feature_remove(env: &Env, key: FeatureStoreKey) {
+    env.storage().persistent().remove(&key);
+}
+
 /// Billing interval in seconds.
 const MAX_PAUSE_DURATION: u64 = 2_592_000; // 30 days
 const DEFAULT_COMMIT_REVEAL_THRESHOLD: i128 = i128::MAX;
@@ -317,13 +393,36 @@ fn charge_subscription_guarded(
         .expect("Plan not found");
     let mev_config = get_mev_config(env, storage);
 
-    if !revealed_commitment && plan.price >= mev_config.large_charge_threshold {
+    // Seat quantity (default 1) multiplies the base price.
+    let quantity: u32 = feature_get(env, FeatureStoreKey::Quantity(subscription_id)).unwrap_or(1);
+    let base_price = plan
+        .price
+        .checked_mul(quantity as i128)
+        .expect("Price overflow with quantity");
+
+    // Apply coupon discount if one is pending.
+    let applied: Option<AppliedCoupon> =
+        feature_get(env, FeatureStoreKey::AppliedCoupon(subscription_id));
+    let discount: i128 = match &applied {
+        Some(a) => base_price
+            .checked_mul(a.discount_bps as i128)
+            .expect("Discount overflow")
+            .checked_div(10_000)
+            .expect("Discount division failed"),
+        None => 0,
+    };
+    let charge_amount = base_price
+        .checked_sub(discount)
+        .expect("Charge amount underflow");
+    assert!(charge_amount > 0, "Charge amount must be positive");
+
+    if !revealed_commitment && base_price >= mev_config.large_charge_threshold {
         panic!("Commit reveal required for large charge");
     }
 
     if max_charge_amount != i128::MAX {
-        assert!(max_charge_amount >= plan.price, "Charge exceeds max bound");
-        let configured_bound = max_charge_with_fee_bound(plan.price, mev_config.max_fee_bps);
+        assert!(max_charge_amount >= base_price, "Charge exceeds max bound");
+        let configured_bound = max_charge_with_fee_bound(base_price, mev_config.max_fee_bps);
         assert!(
             max_charge_amount <= configured_bound,
             "Max fee bound exceeds configured tolerance"
@@ -342,11 +441,11 @@ fn charge_subscription_guarded(
         mev_config.gas_price_alert_threshold,
     );
 
-    token::Client::new(env, &plan.token).transfer(&sub.subscriber, &plan.merchant, &plan.price);
+    token::Client::new(env, &plan.token).transfer(&sub.subscriber, &plan.merchant, &charge_amount);
 
     sub.last_charged_at = now;
     sub.next_charge_at = now + plan.interval.seconds();
-    sub.total_paid += plan.price;
+    sub.total_paid += charge_amount;
     sub.total_gas_spent += 100_000;
     sub.charge_count += 1;
 
@@ -357,24 +456,100 @@ fn charge_subscription_guarded(
         sub.clone(),
     );
 
+    // Consume the applied coupon: bump redemption count and clear it.
+    if let Some(a) = &applied {
+        let mut coupon: Coupon = feature_get(env, FeatureStoreKey::Coupon(a.code.clone()))
+            .expect("Coupon not found");
+        coupon.current_redemptions += 1;
+        feature_set(
+            env,
+            FeatureStoreKey::Coupon(a.code.clone()),
+            coupon,
+        );
+        feature_remove(env, FeatureStoreKey::AppliedCoupon(subscription_id));
+    }
+
+    // The revenue schedule covers the billing period that was just charged,
+    // so it uses the old plan's id, merchant, and interval even if a plan
+    // change follows.
+    let charged_plan_id = sub.plan_id;
+    let charged_merchant = plan.merchant.clone();
+    let charged_interval_secs = plan.interval.seconds();
+
+    // Apply any pending plan change scheduled for this cycle boundary.
+    if let Some(pending) =
+        feature_get::<PendingPlanChange>(env, FeatureStoreKey::PendingPlanChange(subscription_id))
+    {
+        // Update subscriber counts on both plans.
+        let mut old_plan: Plan =
+            storage_persistent_get(env, storage, StorageKey::Plan(pending.current_plan_id))
+                .expect("Old plan not found");
+        if old_plan.subscriber_count > 0 {
+            old_plan.subscriber_count -= 1;
+        }
+        storage_persistent_set(
+            env,
+            storage,
+            StorageKey::Plan(pending.current_plan_id),
+            old_plan,
+        );
+
+        let mut new_plan: Plan =
+            storage_persistent_get(env, storage, StorageKey::Plan(pending.new_plan_id))
+                .expect("New plan not found");
+        new_plan.subscriber_count += 1;
+        storage_persistent_set(
+            env,
+            storage,
+            StorageKey::Plan(pending.new_plan_id),
+            new_plan.clone(),
+        );
+
+        // Update the plan index for duplicate-subscription checks.
+        remove_user_plan_index(env, storage, &sub.subscriber, pending.current_plan_id);
+        set_user_plan_index(
+            env,
+            storage,
+            &sub.subscriber,
+            pending.new_plan_id,
+            subscription_id,
+        );
+
+        // Point the subscription at the new plan.
+        sub.plan_id = pending.new_plan_id;
+        storage_persistent_set(
+            env,
+            storage,
+            StorageKey::Subscription(subscription_id),
+            sub.clone(),
+        );
+
+        feature_remove(env, FeatureStoreKey::PendingPlanChange(subscription_id));
+
+        env.events().publish(
+            (String::from_str(env, "plan_changed"), subscription_id),
+            (pending.current_plan_id, pending.new_plan_id, now),
+        );
+    }
+
     revenue::generate_revenue_schedule(
         env,
         storage,
         subscription_id,
-        sub.plan_id,
-        plan.price,
+        charged_plan_id,
+        charge_amount,
         now,
-        plan.interval.seconds(),
+        charged_interval_secs,
     );
-    revenue::update_merchant_revenue_balances(env, storage, &plan.merchant, 0, plan.price);
-    revenue::track_merchant_subscription(env, storage, &plan.merchant, subscription_id);
+    revenue::update_merchant_revenue_balances(env, storage, &charged_merchant, 0, charge_amount);
+    revenue::track_merchant_subscription(env, storage, &charged_merchant, subscription_id);
 
     env.events().publish(
         (
             String::from_str(env, "subscription_charged"),
             subscription_id,
         ),
-        (sub.subscriber.clone(), plan.price, 100_000u64, now),
+        (sub.subscriber.clone(), charge_amount, 100_000u64, now),
     );
 
     if let Some(invoice_addr) = invoice_contract(env, storage) {
@@ -840,6 +1015,13 @@ impl SubTrackrSubscription {
             &storage,
             StorageKey::Subscription(subscription_id),
             sub.clone(),
+        );
+
+        // Record cancellation timestamp for the reactivation window (#1727).
+        feature_set(
+            &env,
+            FeatureStoreKey::CancelledAt(subscription_id),
+            env.ledger().timestamp(),
         );
 
         // Remove index
@@ -1410,5 +1592,385 @@ impl SubTrackrSubscription {
             storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
                 .expect("Subscription not found");
         usage::check_quota(&env, &storage, subscription_id, sub.plan_id, metric)
+    }
+
+    // ── Seat-based plan quantities (#1724) ──
+
+    /// Set the number of seats (quantity) for a subscription. The quantity
+    /// multiplies the plan price on every charge. Mid-cycle changes do not
+    /// trigger proration; the new quantity takes effect at the next charge.
+    pub fn set_subscription_quantity(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscriber: Address,
+        subscription_id: u64,
+        quantity: u32,
+    ) {
+        proxy.require_auth();
+        if subscriber != get_admin(&env, &storage) {
+            enforce_rate_limit(&env, &storage, &subscriber, "set_subscription_quantity");
+        }
+        subscriber.require_auth();
+
+        let sub: Subscription =
+            storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
+                .expect("Subscription not found");
+        assert!(sub.subscriber == subscriber, "Only subscriber can change quantity");
+        assert!(
+            sub.status == SubscriptionStatus::Active,
+            "Subscription not active"
+        );
+        assert!(quantity > 0, "Quantity must be positive");
+        assert!(quantity <= 1_000, "Quantity exceeds maximum of 1000");
+
+        let old_quantity: u32 =
+            feature_get(&env, FeatureStoreKey::Quantity(subscription_id)).unwrap_or(1);
+
+        feature_set(&env, FeatureStoreKey::Quantity(subscription_id), quantity);
+
+        env.events().publish(
+            (String::from_str(&env, "quantity_changed"), subscription_id),
+            (old_quantity, quantity, env.ledger().timestamp()),
+        );
+    }
+
+    /// Return the current seat quantity for a subscription. Defaults to 1.
+    pub fn get_subscription_quantity(
+        env: Env,
+        proxy: Address,
+        _storage: Address,
+        subscription_id: u64,
+    ) -> u32 {
+        proxy.require_auth();
+        feature_get(&env, FeatureStoreKey::Quantity(subscription_id)).unwrap_or(1)
+    }
+
+    // ── Coupons & promo codes (#1725) ──
+
+    /// Create a discount coupon. `discount_bps` is in basis points (10_000 =
+    /// 100 %). `expires_at` of 0 means the coupon never expires.
+    pub fn create_coupon(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        merchant: Address,
+        code: String,
+        discount_bps: u32,
+        max_redemptions: u32,
+        expires_at: u64,
+    ) {
+        proxy.require_auth();
+        if merchant != get_admin(&env, &storage) {
+            enforce_rate_limit(&env, &storage, &merchant, "create_coupon");
+        }
+        merchant.require_auth();
+
+        assert!(
+            discount_bps > 0 && discount_bps <= 10_000,
+            "Discount bps must be between 1 and 10000"
+        );
+        assert!(max_redemptions > 0, "Max redemptions must be positive");
+
+        let existing: Option<Coupon> =
+            feature_get(&env, FeatureStoreKey::Coupon(code.clone()));
+        assert!(existing.is_none(), "Coupon code already exists");
+
+        let coupon = Coupon {
+            code: code.clone(),
+            merchant: merchant.clone(),
+            discount_bps,
+            max_redemptions,
+            current_redemptions: 0,
+            active: true,
+            expires_at,
+            created_at: env.ledger().timestamp(),
+        };
+
+        feature_set(&env, FeatureStoreKey::Coupon(code.clone()), coupon);
+
+        env.events().publish(
+            (String::from_str(&env, "coupon_created"), code),
+            (merchant, discount_bps, max_redemptions, expires_at),
+        );
+    }
+
+    /// Return a coupon by its code.
+    pub fn get_coupon(env: Env, proxy: Address, _storage: Address, code: String) -> Coupon {
+        proxy.require_auth();
+        feature_get(&env, FeatureStoreKey::Coupon(code)).expect("Coupon not found")
+    }
+
+    /// Deactivate a coupon so it can no longer be applied or redeemed.
+    pub fn deactivate_coupon(
+        env: Env,
+        proxy: Address,
+        _storage: Address,
+        merchant: Address,
+        code: String,
+    ) {
+        proxy.require_auth();
+        merchant.require_auth();
+
+        let mut coupon: Coupon = feature_get(&env, FeatureStoreKey::Coupon(code.clone()))
+            .expect("Coupon not found");
+        assert!(
+            coupon.merchant == merchant,
+            "Only coupon creator can deactivate"
+        );
+
+        coupon.active = false;
+        feature_set(&env, FeatureStoreKey::Coupon(code.clone()), coupon);
+
+        env.events().publish(
+            (String::from_str(&env, "coupon_deactivated"), code),
+            merchant,
+        );
+    }
+
+    /// Apply a coupon to a subscription. The discount is consumed at the
+    /// next charge. Only one coupon may be pending per subscription.
+    pub fn apply_coupon(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscriber: Address,
+        subscription_id: u64,
+        code: String,
+    ) {
+        proxy.require_auth();
+        if subscriber != get_admin(&env, &storage) {
+            enforce_rate_limit(&env, &storage, &subscriber, "apply_coupon");
+        }
+        subscriber.require_auth();
+
+        let sub: Subscription =
+            storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
+                .expect("Subscription not found");
+        assert!(sub.subscriber == subscriber, "Only subscriber can apply coupon");
+        assert!(
+            sub.status == SubscriptionStatus::Active,
+            "Subscription not active"
+        );
+
+        let coupon: Coupon = feature_get(&env, FeatureStoreKey::Coupon(code.clone()))
+            .expect("Coupon not found");
+        assert!(coupon.active, "Coupon is not active");
+        assert!(
+            coupon.expires_at == 0 || env.ledger().timestamp() < coupon.expires_at,
+            "Coupon has expired"
+        );
+        assert!(
+            coupon.current_redemptions < coupon.max_redemptions,
+            "Coupon redemption limit reached"
+        );
+
+        let existing: Option<AppliedCoupon> =
+            feature_get(&env, FeatureStoreKey::AppliedCoupon(subscription_id));
+        assert!(existing.is_none(), "A coupon is already applied to this subscription");
+
+        let applied = AppliedCoupon {
+            code: code.clone(),
+            discount_bps: coupon.discount_bps,
+            applied_at: env.ledger().timestamp(),
+        };
+
+        feature_set(&env, FeatureStoreKey::AppliedCoupon(subscription_id), applied);
+
+        env.events().publish(
+            (String::from_str(&env, "coupon_applied"), subscription_id),
+            (code, coupon.discount_bps),
+        );
+    }
+
+    // ── Scheduled plan changes at cycle end (#1726) ──
+
+    /// Schedule a plan upgrade/downgrade that takes effect at the next
+    /// billing cycle boundary (i.e. after the next successful charge).
+    pub fn schedule_plan_change(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscriber: Address,
+        subscription_id: u64,
+        new_plan_id: u64,
+    ) {
+        proxy.require_auth();
+        if subscriber != get_admin(&env, &storage) {
+            enforce_rate_limit(&env, &storage, &subscriber, "schedule_plan_change");
+        }
+        subscriber.require_auth();
+
+        let sub: Subscription =
+            storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
+                .expect("Subscription not found");
+        assert!(
+            sub.subscriber == subscriber,
+            "Only subscriber can schedule plan change"
+        );
+        assert!(
+            sub.status == SubscriptionStatus::Active,
+            "Subscription not active"
+        );
+        assert!(sub.plan_id != new_plan_id, "Already on this plan");
+
+        let new_plan: Plan =
+            storage_persistent_get(&env, &storage, StorageKey::Plan(new_plan_id))
+                .expect("New plan not found");
+        assert!(new_plan.active, "New plan is not active");
+
+        let existing: Option<PendingPlanChange> =
+            feature_get(&env, FeatureStoreKey::PendingPlanChange(subscription_id));
+        assert!(existing.is_none(), "A plan change is already pending");
+
+        let pending = PendingPlanChange {
+            subscription_id,
+            current_plan_id: sub.plan_id,
+            new_plan_id,
+            requested_at: env.ledger().timestamp(),
+        };
+
+        feature_set(&env, FeatureStoreKey::PendingPlanChange(subscription_id), pending);
+
+        env.events().publish(
+            (String::from_str(&env, "plan_change_scheduled"), subscription_id),
+            (sub.plan_id, new_plan_id, env.ledger().timestamp()),
+        );
+    }
+
+    /// Cancel a pending plan change before it is applied.
+    pub fn cancel_plan_change(
+        env: Env,
+        proxy: Address,
+        _storage: Address,
+        subscriber: Address,
+        subscription_id: u64,
+    ) {
+        proxy.require_auth();
+        subscriber.require_auth();
+
+        let existing: Option<PendingPlanChange> =
+            feature_get(&env, FeatureStoreKey::PendingPlanChange(subscription_id));
+        assert!(existing.is_some(), "No pending plan change");
+
+        feature_remove(&env, FeatureStoreKey::PendingPlanChange(subscription_id));
+
+        env.events().publish(
+            (String::from_str(&env, "plan_change_cancelled"), subscription_id),
+            subscriber,
+        );
+    }
+
+    /// Return the pending plan change for a subscription, if any.
+    pub fn get_pending_plan_change(
+        env: Env,
+        proxy: Address,
+        _storage: Address,
+        subscription_id: u64,
+    ) -> Option<PendingPlanChange> {
+        proxy.require_auth();
+        feature_get(&env, FeatureStoreKey::PendingPlanChange(subscription_id))
+    }
+
+    // ── Subscription reactivation window (#1727) ──
+
+    /// Configure how long after cancellation a subscriber may reactivate.
+    /// Admin-only.
+    pub fn set_reactivation_window(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        admin: Address,
+        window_secs: u64,
+    ) {
+        proxy.require_auth();
+        assert!(admin == get_admin(&env, &storage), "Admin mismatch");
+        admin.require_auth();
+
+        assert!(window_secs > 0, "Window must be positive");
+        assert!(window_secs <= 31_536_000, "Window exceeds maximum of 1 year");
+
+        let config = ReactivationConfig { window_secs };
+        feature_set(&env, FeatureStoreKey::ReactivationConfig, config);
+
+        env.events().publish(
+            (String::from_str(&env, "reactivation_window_set"), admin),
+            window_secs,
+        );
+    }
+
+    /// Return the configured reactivation window in seconds (0 = disabled).
+    pub fn get_reactivation_window(env: Env, proxy: Address, _storage: Address) -> u64 {
+        proxy.require_auth();
+        let config: Option<ReactivationConfig> =
+            feature_get(&env, FeatureStoreKey::ReactivationConfig);
+        config.map(|c| c.window_secs).unwrap_or(0)
+    }
+
+    /// Reactivate a cancelled subscription within the configured window.
+    /// Restores the Active status, the plan index, and the subscriber count.
+    pub fn reactivate_subscription(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscriber: Address,
+        subscription_id: u64,
+    ) {
+        proxy.require_auth();
+        if subscriber != get_admin(&env, &storage) {
+            enforce_rate_limit(&env, &storage, &subscriber, "reactivate_subscription");
+        }
+        subscriber.require_auth();
+
+        let mut sub: Subscription =
+            storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
+                .expect("Subscription not found");
+        assert!(sub.subscriber == subscriber, "Only subscriber can reactivate");
+        assert!(
+            sub.status == SubscriptionStatus::Cancelled,
+            "Subscription not cancelled"
+        );
+
+        let cancelled_at: u64 = feature_get(&env, FeatureStoreKey::CancelledAt(subscription_id))
+            .expect("No cancellation timestamp found");
+        let config: ReactivationConfig =
+            feature_get(&env, FeatureStoreKey::ReactivationConfig)
+                .expect("Reactivation window not configured");
+
+        let now = env.ledger().timestamp();
+        assert!(
+            now <= cancelled_at + config.window_secs,
+            "Reactivation window has expired"
+        );
+
+        let plan: Plan = storage_persistent_get(&env, &storage, StorageKey::Plan(sub.plan_id))
+            .expect("Plan not found");
+        assert!(plan.active, "Plan is no longer active");
+
+        // Restore the subscription to Active with a fresh billing cycle.
+        sub.status = SubscriptionStatus::Active;
+        sub.next_charge_at = now + plan.interval.seconds();
+        storage_persistent_set(
+            &env,
+            &storage,
+            StorageKey::Subscription(subscription_id),
+            sub.clone(),
+        );
+
+        // Restore the plan index for duplicate-subscription checks.
+        set_user_plan_index(&env, &storage, &subscriber, sub.plan_id, subscription_id);
+
+        // Restore the plan subscriber count.
+        let mut plan_update = plan.clone();
+        plan_update.subscriber_count += 1;
+        storage_persistent_set(&env, &storage, StorageKey::Plan(sub.plan_id), plan_update);
+
+        // Clean up the cancellation timestamp.
+        feature_remove(&env, FeatureStoreKey::CancelledAt(subscription_id));
+
+        env.events().publish(
+            (String::from_str(&env, "subscription_reactivated"), subscriber),
+            (subscription_id, sub.plan_id, now),
+        );
     }
 }
