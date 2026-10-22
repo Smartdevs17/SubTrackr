@@ -3,6 +3,9 @@
  * with idempotency key checking and ordering guarantees.
  */
 
+import { createHmac } from 'node:crypto';
+import { validateOutboundUrl } from '../../shared/security/outboundUrlGuard';
+
 export interface ReplayRequest {
   eventIds: string[];
   webhookId: string;
@@ -97,7 +100,12 @@ export class EventReplayWorker {
   ): Promise<{ ok: boolean; status: number }> {
     const body = JSON.stringify(payload);
 
-    const res = await fetch(url, {
+    // Replay targets come from stored webhook configuration; validate before
+    // fetching so a compromised or misconfigured record cannot be turned into
+    // an SSRF pivot.
+    const target = validateOutboundUrl(url);
+
+    const res = await fetch(target.toString(), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -113,14 +121,11 @@ export class EventReplayWorker {
   }
 
   private computeSignature(body: string, secret: string): string {
-    // In production, use HMAC-SHA256
-    // Placeholder: simple hash for structure
-    let hash = 0;
-    const input = secret + body;
-    for (let i = 0; i < input.length; i++) {
-      hash = ((hash << 5) - hash + input.charCodeAt(i)) | 0;
-    }
-    return `sha256=${Math.abs(hash).toString(16)}`;
+    // This was a 31-bit rolling hash that merely *claimed* to be SHA-256 in
+    // the header value. It was trivially forgeable and, because replayed
+    // deliveries are signed with it, a receiver relying on it had no
+    // authenticity guarantee at all. Use a real keyed HMAC.
+    return `sha256=${createHmac('sha256', secret).update(body).digest('hex')}`;
   }
 
   getEventHistory(webhookId: string, limit = 50): StoredEvent[] {

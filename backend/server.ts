@@ -157,13 +157,31 @@ function decodeJwtSubject(token: string): string | undefined {
   }
 }
 
-/** Resolve the caller tier from the x-subscription-tier header (default FREE). */
-function resolveTierFromRequest(
-  req: { headers: Record<string, string | string[] | undefined> },
-): SubscriptionTier {
-  const raw = req.headers['x-subscription-tier'];
-  const value = typeof raw === 'string' ? raw : Array.isArray(raw) ? raw[0] : undefined;
-  return parseSubscriptionTier(value ?? null) ?? SubscriptionTier.FREE;
+/**
+ * Resolve the caller's rate-limit tier for an API key.
+ *
+ * This previously read the client-supplied `x-subscription-tier` header
+ * verbatim, so any caller presenting a key could send
+ * `X-Subscription-Tier: enterprise` and receive the 10,000 req/hr allowance
+ * instead of the FREE tier's 100 req/hr — a 100× rate-limit bypass requiring
+ * no privilege at all.
+ *
+ * The tier now comes from the server-side record for that key. The header is
+ * honoured only when an explicit trusted-proxy opt-in is configured, which
+ * suits deployments where an authenticating gateway sits in front of this
+ * process and strips the header from inbound requests.
+ */
+function resolveTierForApiKey(apiKey: string, req: {
+  headers: Record<string, string | string[] | undefined>;
+}): SubscriptionTier {
+  if (process.env['TRUST_TIER_HEADER'] === 'true') {
+    const raw = req.headers['x-subscription-tier'];
+    const value = typeof raw === 'string' ? raw : Array.isArray(raw) ? raw[0] : undefined;
+    const parsed = parseSubscriptionTier(value ?? null);
+    if (parsed) return parsed;
+  }
+
+  return rateLimitingService.getTierForApiKey(apiKey);
 }
 
 /**
@@ -205,11 +223,10 @@ function buildRateLimitMiddleware() {
       '/metrics/pool',
       '/metrics/build',
     ],
-    // Per-key tier: read x-subscription-tier header; defaults to FREE.
-    getTier: (apiKey, req) => {
-      void apiKey;
-      return resolveTierFromRequest(req);
-    },
+
+    // Per-key tier: resolved from the server-side record, not from a
+    // client-supplied header. See resolveTierForApiKey.
+    getTier: (apiKey, req) => resolveTierForApiKey(apiKey, req),
     // Per-user aggregate limiting: x-user-id header or Bearer JWT sub claim.
     getUserId: (req) => resolveUserIdFromRequest(req),
   });
@@ -289,20 +306,31 @@ class HttpError extends Error {
 const MAX_BUILD_REPORT_BYTES = 1024 * 1024;
 
 /**
+ * Default ceiling for any other JSON request body (256 KiB).
+ *
+ * `maxBytes` was optional and 31 of 32 call sites omitted it, so every
+ * non-build-metrics route buffered an unbounded amount into memory before
+ * parsing. A single oversized POST was enough to exhaust the heap. A sane
+ * default is applied everywhere; individual routes may still raise it.
+ */
+const MAX_DEFAULT_BODY_BYTES = 256 * 1024;
+
+/**
  * Read and parse a JSON request body.
  *
- * @param maxBytes - Optional hard cap; exceeding it aborts with 413 so an
- *   untrusted upload cannot buffer unbounded memory. Omit for trusted routes
- *   to preserve the previous unlimited behaviour.
+ * @param maxBytes - Optional explicit cap; defaults to MAX_DEFAULT_BODY_BYTES.
+ *   Exceeding it aborts with 413 so an untrusted upload cannot buffer
+ *   unbounded memory. Set `Infinity` only for genuinely trusted routes.
  */
 async function readJsonBody(req: http.IncomingMessage, maxBytes?: number): Promise<unknown> {
+  const limit = maxBytes ?? MAX_DEFAULT_BODY_BYTES;
   const chunks: Buffer[] = [];
   let received = 0;
   for await (const chunk of req) {
     const buf = typeof chunk === 'string' ? Buffer.from(chunk) : chunk;
     received += buf.length;
-    if (maxBytes !== undefined && received > maxBytes) {
-      throw new HttpError(413, `request body exceeds ${maxBytes} bytes`);
+    if (Number.isFinite(limit) && received > limit) {
+      throw new HttpError(413, `request body exceeds ${limit} bytes`);
     }
     chunks.push(buf);
   }
@@ -1957,9 +1985,21 @@ feat/stellar-wave-issues
       // HubSpot — POST /hubspot/webhook  (ingest from HubSpot)
       // -----------------------------------------------------------------
       if (pathname === '/hubspot/webhook' && method === 'POST') {
+        // Bounded read: this accumulated every chunk with no cap before the
+        // signature was even checked, so an anonymous caller could exhaust
+        // memory with a single oversized POST.
         const rawBody = await new Promise<string>((resolve, reject) => {
           const chunks: Buffer[] = [];
-          req.on('data', (c: Buffer) => chunks.push(c));
+          let received = 0;
+          req.on('data', (c: Buffer) => {
+            received += c.length;
+            if (received > MAX_DEFAULT_BODY_BYTES) {
+              reject(new HttpError(413, `request body exceeds ${MAX_DEFAULT_BODY_BYTES} bytes`));
+              req.destroy();
+              return;
+            }
+            chunks.push(c);
+          });
           req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
           req.on('error', reject);
         });

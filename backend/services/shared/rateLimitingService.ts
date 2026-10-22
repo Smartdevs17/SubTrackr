@@ -111,6 +111,20 @@ export class RateLimitingService {
   }
 
   // -------------------------------------------------------------------------
+  // Tier resolution
+  // -------------------------------------------------------------------------
+
+  /**
+   * Returns the tier recorded for `apiKey`, or FREE when unknown.
+   *
+   * This is the only trustworthy source for a caller's tier. Reading it from
+   * a request header lets any caller self-select the ENTERPRISE allowance.
+   */
+  getTierForApiKey(apiKey: string): SubscriptionTier {
+    return this.usages.get(apiKey)?.tier ?? SubscriptionTier.FREE;
+  }
+
+  // -------------------------------------------------------------------------
   // Custom limit configuration
   // -------------------------------------------------------------------------
 
