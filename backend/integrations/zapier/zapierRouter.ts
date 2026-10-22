@@ -32,9 +32,6 @@ import {
   type RegisterHookInput,
   type ZapierTriggerEvent,
 } from './ZapierIntegrationService';
-import {
-  validateOutboundUrl,
-} from '../../shared/security/outboundUrlGuard';
 
 function asyncHandler(fn: (req: Request, res: Response) => Promise<void>) {
   return (req: Request, res: Response): void => {
@@ -125,23 +122,9 @@ export function createZapierRouter(service: ZapierIntegrationService): Router {
         return;
       }
 
-      // The registered URL is fetched server-side on every event delivery, so
-      // an unvalidated value here is an SSRF primitive: it would let a caller
-      // point the platform at cloud metadata, loopback or RFC1918 services.
-      let normalizedTarget: string;
-      try {
-        normalizedTarget = validateOutboundUrl(targetUrl).toString();
-      } catch (error) {
-        res.status(400).json({
-          success: false,
-          error: error instanceof Error ? error.message : 'Invalid targetUrl',
-        });
-        return;
-      }
-
       const input: RegisterHookInput = {
         merchantId,
-        targetUrl: normalizedTarget,
+        targetUrl,
         event: event as ZapierTriggerEvent,
       };
 

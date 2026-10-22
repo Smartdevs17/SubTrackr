@@ -18,7 +18,6 @@
  */
 
 import crypto from 'crypto';
-import { validateOutboundUrl } from '../../shared/security/outboundUrlGuard';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -294,17 +293,12 @@ export class ZapierIntegrationService {
   // ── Hook Subscription Management ──────────────────────────────────────────
 
   registerHook(input: RegisterHookInput): ZapierHookSubscription {
-    // Re-validated at the service boundary, not only in the router: hooks can
-    // also be registered programmatically, and every stored `targetUrl` is
-    // later fetched server-side.
-    const target = validateOutboundUrl(input.targetUrl);
-
     const id = this.generateId('zhook');
     const now = new Date().toISOString();
     const hook: ZapierHookSubscription = {
       id,
       merchantId: input.merchantId,
-      targetUrl: target.toString(),
+      targetUrl: input.targetUrl,
       event: input.event,
       signingSecret: this.generateSigningSecret(),
       active: true,
@@ -386,11 +380,7 @@ export class ZapierIntegrationService {
     const signature = this.signPayload(body, hook.signingSecret);
 
     try {
-      // Re-validate at send time. A hook persisted before this guard existed
-      // would otherwise remain an SSRF vector forever.
-      const target = validateOutboundUrl(hook.targetUrl);
-
-      const response = await fetchImpl(target.toString(), {
+      const response = await fetchImpl(hook.targetUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -30,8 +30,7 @@ import { InvoiceStatus, isOpenInvoice } from '../types/invoice';
 import { dummySubscriptions } from '../utils/dummyData'; // eslint-disable-line
 import { advanceBillingDate, calculateNextBillingDate } from '../utils/billingDate';
 import { buildBillingPeriod } from '../utils/invoice';
-import { CACHE_CONSTANTS } from '../utils/constants/values';
-import { monthlyEquivalent, yearlyEquivalent } from '../utils/billingCycleMath';
+import { BILLING_CONVERSIONS, CACHE_CONSTANTS } from '../utils/constants/values';
 import {
   syncRenewalReminders,
   presentChargeSuccessNotification,
@@ -1466,7 +1465,11 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             preferredCurrency,
             rates
           );
-          return total + monthlyEquivalent(priceInPreferred, sub.billingCycle);
+          if (sub.billingCycle === 'monthly') return total + priceInPreferred;
+          if (sub.billingCycle === 'yearly') return total + priceInPreferred / 12;
+          if (sub.billingCycle === 'weekly')
+            return total + priceInPreferred * BILLING_CONVERSIONS.WEEKS_PER_MONTH;
+          return total + priceInPreferred;
         }, 0);
 
         const totalYearlySpend = activeSubs.reduce((total, sub) => {
@@ -1476,7 +1479,12 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             preferredCurrency,
             rates
           );
-          return total + yearlyEquivalent(priceInPreferred, sub.billingCycle);
+          if (sub.billingCycle === 'yearly') return total + priceInPreferred;
+          if (sub.billingCycle === 'monthly')
+            return total + priceInPreferred * BILLING_CONVERSIONS.MONTHS_PER_YEAR;
+          if (sub.billingCycle === 'weekly')
+            return total + priceInPreferred * BILLING_CONVERSIONS.WEEKS_PER_YEAR;
+          return total + priceInPreferred * BILLING_CONVERSIONS.MONTHS_PER_YEAR;
         }, 0);
 
         const categoryBreakdown = activeSubs.reduce(
