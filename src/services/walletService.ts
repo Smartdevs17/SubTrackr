@@ -2,10 +2,10 @@ import { ethers } from 'ethers';
 import { Framework } from '@superfluid-finance/sdk-core';
 
 import { logger } from './logging';
-import { PaymentMethodService } from './paymentMethodService';
 import { ERC20__factory, getContractAddress } from '../contracts';
 import { getEvmRpcUrl, getEvmRpcUrls } from '../config/evm';
 import { getOrCreateResilientProvider } from './rpcProvider';
+import { confirmTransaction } from './transactionConfirmation';
 import { ContractError, ContractErrorCode, NetworkError, NetworkErrorCode } from '../errors';
 import {
   TIME_CONSTANTS,
@@ -829,7 +829,10 @@ export class WalletServiceManager {
         );
 
       const txResponse = await createOp.exec(signer);
-      const receipt = await txResponse.wait();
+      const receipt = await confirmTransaction(txResponse, {
+        chainId,
+        operation: 'Superfluid stream creation',
+      });
 
       if (!receipt?.transactionHash) {
         throw new Error('Transaction mined without a hash');
@@ -897,7 +900,10 @@ export class WalletServiceManager {
       );
       if (currentAllowance.lt(amountBn)) {
         const txApprove = await erc20.approve(SABLIER_V2_LOCKUP_LINEAR, amountBn);
-        await txApprove.wait();
+        await confirmTransaction(txApprove, {
+          chainId,
+          operation: 'Sablier token approval',
+        });
       }
 
       // 3. Create the Sablier Stream
@@ -926,7 +932,10 @@ export class WalletServiceManager {
       };
 
       const txCreate = await sablierContract.createWithDurations(params);
-      const receipt = await txCreate.wait();
+      const receipt = await confirmTransaction(txCreate, {
+        chainId,
+        operation: 'Sablier stream creation',
+      });
 
       if (!receipt?.transactionHash) {
         throw new Error('Transaction mined without a hash');
@@ -1020,7 +1029,7 @@ export class WalletServiceManager {
     const erc20 = new ethers.Contract(token, erc20Abi, signer);
     try {
       const tx = await erc20.approve(spender, amount);
-      const receipt = await tx.wait();
+      const receipt = await confirmTransaction(tx, { operation: 'Token approval' });
       if (!receipt?.transactionHash) {
         throw new Error('Approval transaction mined without a hash');
       }
