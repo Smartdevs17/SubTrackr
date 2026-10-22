@@ -36,8 +36,8 @@ importers:
   .:
     dependencies:
       '@graphql-tools/schema':
-        specifier: ^10.1.5
-        version: 10.1.5(graphql@17.0.2)
+        specifier: ^11.0.2
+        version: 11.0.2(graphql@17.0.2)
       '@react-native-async-storage/async-storage':
         specifier: 3.1.1
         version: 3.1.1(react-native@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native-community/cli@20.2.0(bufferutil@4.1.0)(supports-color@8.1.1)(typescript@5.8.3)(utf-8-validate@5.0.10))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.1)(supports-color@8.1.1)(utf-8-validate@5.0.10))(react@19.3.1)
@@ -1551,23 +1551,23 @@ packages:
   '@flatten-js/interval-tree@1.1.4':
     resolution: {integrity: sha512-o4emRDDvGdkwX18BSVSXH8q27qAL7Z2WDHSN75C8xyRSE4A8UOkig0mWSGoT5M5KaTHZxoLmalFwOTQmbRusUg==}
 
-  '@graphql-tools/merge@9.2.8':
-    resolution: {integrity: sha512-OsCEmJ9RIMT4LB/1jBbyKHe7pMIlfGhLAQ0FVNaZqteydDUC+rTI9wZ+yaKqxQpPOFFycD+UtMhovg19lPq92Q==}
-    engines: {node: '>=16.0.0'}
+  '@graphql-tools/merge@10.0.2':
+    resolution: {integrity: sha512-3B6Zwlk420Eppy4EJISAiznR0H0XEmWhhI8EYI8FoMbGdnRrmAy9j8NvHFWEqusil4/3IJNKXITTUsvuyzxkgw==}
+    engines: {node: '>=22.18.0'}
     peerDependencies:
-      graphql: ^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0
+      graphql: ^16.0.0 || ^17.0.0
 
-  '@graphql-tools/schema@10.1.5':
-    resolution: {integrity: sha512-F0Onw0ZBREakKGqcgsKhdSCjOXgmntzQWL0QA+/WrwKmnJ7nJRyGKUJavwuVZL2TrXblaIUvQxm4t1h3FuA3cA==}
-    engines: {node: '>=16.0.0'}
+  '@graphql-tools/schema@11.0.2':
+    resolution: {integrity: sha512-hURvCmeZxKmuVLd3hnNiRilmBX8F94/fImNP9pqUAfQyYqir6yaUtTiC/qSWFxXdldQtIBtI9RL92ph4r+ScmQ==}
+    engines: {node: '>=22.18.0'}
     peerDependencies:
-      graphql: ^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0
+      graphql: ^16.0.0 || ^17.0.0
 
-  '@graphql-tools/utils@12.1.0':
-    resolution: {integrity: sha512-+mOuIX7u83/BHG0L9JviMzKid1j35cxOWhLoox47TXHAJ6Tnn30RgrmEQPmk1FhmaQbhJEcwYBDVyieUvZopJw==}
-    engines: {node: '>=16.0.0'}
+  '@graphql-tools/utils@13.0.2':
+    resolution: {integrity: sha512-i7+WWRnUL3uFdL+/IBPD2FsZt8rH6ZdP/wI4pv9SWqloUsPjJFUl26Dl/rzKn0ogJ+sap/VMvVSsjX2lDly71Q==}
+    engines: {node: '>=22.18.0'}
     peerDependencies:
-      graphql: ^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0
+      graphql: ^16.0.0 || ^17.0.0
 
   '@graphql-typed-document-node/core@3.2.0':
     resolution: {integrity: sha512-mB9oAsNCm9aM3/SOv4YtBMqZbYj10R7dkq8byBqxGY/ncFwhf2oQzMV+LCRlWoDSEBJ3COiR1yeDvMtsoOsuFQ==}
@@ -4033,10 +4033,6 @@ packages:
 
   cross-fetch@3.2.0:
     resolution: {integrity: sha512-Q+xVJLoGOeIMXZmbUK4HYk+69cQH6LudR0Vu/pRm2YlU/hDV9CiS0gKUMaWY5f2NeUH9C1nV3bsTlCo0FsTV1Q==}
-
-  cross-inspect@1.0.1:
-    resolution: {integrity: sha512-Pcw1JTvZLSJH83iiGWt6fRcT+BjZlCDRVwYLbUcHzv/CRpB7r0MlSrGbIyQvVSNyGnbt7G4AXuyCiDR3POvZ1A==}
-    engines: {node: '>=16.0.0'}
 
   cross-spawn@7.0.6:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
@@ -10728,24 +10724,23 @@ snapshots:
 
   '@flatten-js/interval-tree@1.1.4': {}
 
-  '@graphql-tools/merge@9.2.8(graphql@17.0.2)':
+  '@graphql-tools/merge@10.0.2(graphql@17.0.2)':
     dependencies:
-      '@graphql-tools/utils': 12.1.0(graphql@17.0.2)
+      '@graphql-tools/utils': 13.0.2(graphql@17.0.2)
       graphql: 17.0.2
       tslib: 2.8.1
 
-  '@graphql-tools/schema@10.1.5(graphql@17.0.2)':
+  '@graphql-tools/schema@11.0.2(graphql@17.0.2)':
     dependencies:
-      '@graphql-tools/merge': 9.2.8(graphql@17.0.2)
-      '@graphql-tools/utils': 12.1.0(graphql@17.0.2)
+      '@graphql-tools/merge': 10.0.2(graphql@17.0.2)
+      '@graphql-tools/utils': 13.0.2(graphql@17.0.2)
       graphql: 17.0.2
       tslib: 2.8.1
 
-  '@graphql-tools/utils@12.1.0(graphql@17.0.2)':
+  '@graphql-tools/utils@13.0.2(graphql@17.0.2)':
     dependencies:
       '@graphql-typed-document-node/core': 3.2.0(graphql@17.0.2)
       '@whatwg-node/promise-helpers': 2.0.0
-      cross-inspect: 1.0.1
       graphql: 17.0.2
       tslib: 2.8.1
 
@@ -13965,10 +13960,6 @@ snapshots:
       node-fetch: 2.7.0
     transitivePeerDependencies:
       - encoding
-
-  cross-inspect@1.0.1:
-    dependencies:
-      tslib: 2.8.1
 
   cross-spawn@7.0.6:
     dependencies:
