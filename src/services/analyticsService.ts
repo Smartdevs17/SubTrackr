@@ -1,5 +1,4 @@
-import { Subscription } from '../types/subscription';
-import { monthlyEquivalent } from '../utils/billingCycleMath';
+import { BillingCycle, Subscription } from '../types/subscription';
 
 export interface RevenuePoint {
   label: string;
@@ -50,9 +49,18 @@ export interface SubscriptionAnalyticsReport {
   forecast: RevenueForecastPoint[];
 }
 
+const MONTHS_PER_YEAR = 12;
+const WEEKS_PER_MONTH = 4.345;
+
 export const toMonthlyRevenue = (
   subscription: Pick<Subscription, 'price' | 'billingCycle'>
-): number => monthlyEquivalent(subscription.price, subscription.billingCycle);
+): number => {
+  if (subscription.billingCycle === BillingCycle.YEARLY)
+    return subscription.price / MONTHS_PER_YEAR;
+  if (subscription.billingCycle === BillingCycle.WEEKLY)
+    return subscription.price * WEEKS_PER_MONTH;
+  return subscription.price;
+};
 
 const MONTHS_PER_YEAR = 12;
 

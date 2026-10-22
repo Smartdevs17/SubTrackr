@@ -1,8 +1,6 @@
 import { ethers } from 'ethers';
 
-import { getEvmRpcUrls } from '../config/evm';
-import { getOrCreateResilientProvider } from './rpcProvider';
-import { exceedsLimit } from '../utils/decimalAmount';
+import { getEvmRpcUrl } from '../config/evm';
 import { CHAIN_IDS } from '../utils/constants/values';
 import {
   PaymentMethod,
@@ -197,7 +195,7 @@ export class PaymentMethodService {
     }
 
     try {
-      const provider = getOrCreateResilientProvider(method.chainId, getEvmRpcUrls(method.chainId));
+      const provider = new ethers.providers.JsonRpcProvider(getEvmRpcUrl(method.chainId));
       const erc20Abi = [
         'function decimals() view returns (uint8)',
         'function symbol() view returns (string)',
@@ -309,35 +307,29 @@ export class PaymentMethodService {
     chainId: number
   ): Promise<{ sufficient: boolean; balance: string; symbol: string }> {
     try {
-      const provider = getOrCreateResilientProvider(chainId, getEvmRpcUrls(chainId));
+      const provider = new ethers.providers.JsonRpcProvider(getEvmRpcUrl(chainId));
       const conn = this.walletManager?.getConnection();
       if (!conn) {
         return { sufficient: false, balance: '0', symbol: method.tokenType };
       }
 
       let balance: ethers.BigNumber;
-      // Read the token's own decimals instead of assuming "USDC = 6,
-      // everything else = 18". Assuming wrong under- or over-reports the
-      // balance, which triggers spurious fallbacks or lets a charge through
-      // that cannot settle.
-      let decimals = 18;
 
       if (method.tokenType === TokenType.NATIVE) {
         balance = await provider.getBalance(conn.address);
       } else {
-        const erc20Abi = [
-          'function decimals() view returns (uint8)',
-          'function balanceOf(address) view returns (uint256)',
-        ];
+        const erc20Abi = ['function balanceOf(address) view returns (uint256)'];
         const contract = new ethers.Contract(method.tokenAddress, erc20Abi, provider);
-        decimals = await contract.decimals();
         balance = await contract.balanceOf(conn.address);
       }
 
-      const required = ethers.utils.parseUnits(requiredAmount, decimals);
+      const required = ethers.utils.parseUnits(
+        requiredAmount,
+        method.tokenType === TokenType.USDC ? 6 : 18
+      );
       return {
         sufficient: balance.gte(required),
-        balance: ethers.utils.formatUnits(balance, decimals),
+        balance: balance.toString(),
         symbol: method.tokenType.toString(),
       };
     } catch {
@@ -350,7 +342,7 @@ export class PaymentMethodService {
     maxGasPriceGwei: number
   ): Promise<{ acceptable: boolean; currentGasPrice: string }> {
     try {
-      const provider = getOrCreateResilientProvider(chainId, getEvmRpcUrls(chainId));
+      const provider = new ethers.providers.JsonRpcProvider(getEvmRpcUrl(chainId));
       const gasPrice = await provider.getGasPrice();
       const gasPriceGwei = parseFloat(ethers.utils.formatUnits(gasPrice, 'gwei'));
 
@@ -449,7 +441,10 @@ export class PaymentMethodService {
           continue;
         }
 
-        if (method.maxSpendPerInterval && exceedsLimit(amount, method.maxSpendPerInterval)) {
+        if (
+          method.maxSpendPerInterval &&
+          ethers.BigNumber.from(amount).gt(method.maxSpendPerInterval)
+        ) {
           attempt.status = 'failed';
           attempt.failureReason = `Amount ${amount} exceeds max spend per interval ${method.maxSpendPerInterval}`;
           attempt.resolvedAt = new Date();
@@ -490,7 +485,7 @@ export class PaymentMethodService {
     }
 
     try {
-      const provider = getOrCreateResilientProvider(method.chainId, getEvmRpcUrls(method.chainId));
+      const provider = new ethers.providers.JsonRpcProvider(getEvmRpcUrl(method.chainId));
       const code = await provider.getCode(method.tokenAddress);
       const newHash = ethers.utils.keccak256(code);
 
@@ -687,7 +682,10 @@ export class PaymentMethodService {
           continue;
         }
 
-        if (method.maxSpendPerInterval && exceedsLimit(amount, method.maxSpendPerInterval)) {
+        if (
+          method.maxSpendPerInterval &&
+          ethers.BigNumber.from(amount).gt(method.maxSpendPerInterval)
+        ) {
           fail(`Amount ${amount} exceeds max spend per interval ${method.maxSpendPerInterval}`);
           continue;
         }
