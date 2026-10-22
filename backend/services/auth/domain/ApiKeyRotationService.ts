@@ -1,4 +1,4 @@
-import { randomBytes, createHash } from 'crypto';
+import { randomBytes, createHmac } from 'crypto';
 import { AuthError } from '../errors';
 import { logger } from '../../shared/logging';
 import type { ApiKeyRecord, ApiKeyRotationPolicy, IApiKeyRotationService } from '../interfaces';
@@ -8,8 +8,59 @@ const KEY_BYTE_LENGTH = 32;
 const KEY_HASH_ALGORITHM = 'sha256';
 const MAX_HISTORY = 5;
 
+/**
+ * Server-side pepper for API key hashing.
+ *
+ * API keys are high-entropy random values, so a plain hash resists brute
+ * force — but an unsalted SHA-256 is still trivially attackable in bulk via
+ * precomputation, and it means a database disclosure immediately yields
+ * directly comparable key material. A keyed HMAC removes that: without the
+ * pepper, a leaked table cannot be attacked offline at all.
+ *
+ * Required in production; ephemeral per-process outside it (with a warning),
+ * because a checked-in fallback pepper would be no better than none.
+ */
+function resolveApiKeyPepper(): string {
+  const configured = process.env['API_KEY_HASH_PEPPER'];
+
+  if (configured && configured.trim().length >= 16) {
+    return configured;
+  }
+
+  if (process.env['NODE_ENV'] === 'production') {
+    throw new Error(
+      'API_KEY_HASH_PEPPER must be set to a random value of at least 16 characters in production.'
+    );
+  }
+
+  console.warn(
+    '[ApiKeyRotationService] API_KEY_HASH_PEPPER is not configured; using an ephemeral pepper. API keys will not resolve across restarts.'
+  );
+
+  return randomBytes(32).toString('hex');
+}
+
+let _pepper: string | null = null;
+
+/** Test seam: forces a specific pepper, or `null` to re-resolve. */
+export function __setApiKeyPepperForTesting(pepper: string | null): void {
+  _pepper = pepper;
+}
+
+function apiKeyPepper(): string {
+  if (_pepper === null) {
+    _pepper = resolveApiKeyPepper();
+  }
+  return _pepper;
+}
+
+/**
+ * Deterministic keyed digest of an API key.
+ *
+ * Stays deterministic so stored hashes remain searchable by lookup.
+ */
 export function hashApiKey(rawKey: string): string {
-  return createHash(KEY_HASH_ALGORITHM).update(rawKey).digest('hex');
+  return createHmac(KEY_HASH_ALGORITHM, apiKeyPepper()).update(rawKey).digest('hex');
 }
 
 /**

@@ -19,6 +19,8 @@ feat/stellar-wave-issues
  main
  */
 
+import { randomBytes } from 'node:crypto';
+
 import express, { type Express, type Request, type Response } from 'express';
 import { cacheHeadersMiddleware } from '../shared/middleware';
 import { createCspMiddleware, DEFAULT_CSP_POLICY } from '../services/shared/cspMiddleware';
@@ -122,7 +124,45 @@ const renewalScheduler = new RenewalReminderScheduler(calendarSyncService);
 const calendarController = createCalendarSyncController({ syncService: calendarSyncService });
 const reminderController = createRenewalReminderController({ scheduler: renewalScheduler });
 
-const webhookKeyStore = new KeyStore(process.env['WEBHOOK_SIGNING_KEY'] ?? 'default-dev-key-change-in-prod');
+/**
+ * Resolves the outbound webhook signing key.
+ *
+ * This previously fell back to the literal `'default-dev-key-change-in-prod'`.
+ * Because the same key signs every webhook the platform emits, a single
+ * deployed default meant anyone reading the repository could forge a valid
+ * signature for arbitrary merchant webhooks.
+ *
+ * In production an unset or default value is a hard startup failure. Outside
+ * production an ephemeral random key is generated so local development still
+ * works without silently weakening verification.
+ */
+function resolveWebhookSigningKey(): string {
+  const configured = process.env['WEBHOOK_SIGNING_KEY'];
+  const placeholder = 'default-dev-key-change-in-prod';
+
+  if (configured && configured !== placeholder && configured.length >= 16) {
+    return configured;
+  }
+
+  if (process.env['NODE_ENV'] === 'production') {
+    throw new Error(
+      'WEBHOOK_SIGNING_KEY must be set to a random value of at least 16 characters in production.'
+    );
+  }
+
+  if (configured === placeholder) {
+    console.warn(
+      '[createApiServer] WEBHOOK_SIGNING_KEY is still the public default; using an ephemeral key for this process.'
+    );
+  }
+
+  return randomBytes(32).toString('hex');
+}
+
+const webhookKeyStore = new KeyStore(resolveWebhookSigningKey());
+
+/** Ceiling for request bodies accepted by the public API (256 KiB). */
+const MAX_JSON_BODY = '256kb';
 
 export interface CreateApiServerOptions {
   /** Optional middleware applied before cache headers (e.g. auth). */
@@ -172,11 +212,13 @@ export function createApiServer(options: CreateApiServerOptions = {}): Express {
   // first legitimate delivery as a duplicate and the router would answer
   // `200 { duplicate: true }` without ever dispatching the event.
   // nosemgrep: subtrackr.csrf.state-changing-route-without-csrf -- reason: body-parser-only registration, no handler and no state change; the request is HMAC-verified inside the Stripe router, which fails closed with 503 when unconfigured and 401 on a bad signature -- expires: 2027-04-16
-  app.post('/api/v1/stripe/billing/webhook', express.raw({ type: '*/*' }));
+  app.post('/api/v1/stripe/billing/webhook', express.raw({ type: '*/*', limit: MAX_JSON_BODY }));
   // nosemgrep: subtrackr.csrf.state-changing-route-without-csrf -- reason: body-parser-only registration, no handler and no state change; the request is HMAC-verified inside the Paddle router, which fails closed with 503 when unconfigured and 401 on a bad signature -- expires: 2027-04-16
-  app.post('/api/v1/paddle/webhook', express.raw({ type: '*/*' }));
+  app.post('/api/v1/paddle/webhook', express.raw({ type: '*/*', limit: MAX_JSON_BODY }));
 
-  app.use(express.json());
+  // An explicit cap keeps a single oversized POST from buffering the whole
+  // body into memory before it is parsed.
+  app.use(express.json({ limit: MAX_JSON_BODY }));
 
   // ── CSRF protection — #1770 ───────────────────────────────────────────────
   // Double-submit cookie strategy: safe methods (GET/HEAD/OPTIONS) issue a
