@@ -93,7 +93,7 @@
     "bundle-size:why": "size-limit --why"
   },
   "dependencies": {
-    "@graphql-tools/schema": "^11.0.2",
+    "@graphql-tools/schema": "^11.0.4",
     "@react-native-async-storage/async-storage": "3.1.1",
     "@react-native-community/datetimepicker": "^9.2.1",
     "@react-native-community/netinfo": "11.4.1",
