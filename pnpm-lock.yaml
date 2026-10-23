@@ -36,8 +36,8 @@ importers:
   .:
     dependencies:
       '@graphql-tools/schema':
-        specifier: ^11.0.2
-        version: 11.0.2(graphql@17.0.2)
+        specifier: ^11.0.4
+        version: 11.0.4(graphql@17.0.2)
       '@react-native-async-storage/async-storage':
         specifier: 3.1.1
         version: 3.1.1(react-native@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native-community/cli@20.2.0(bufferutil@4.1.0)(supports-color@8.1.1)(typescript@5.8.3)(utf-8-validate@5.0.10))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.1)(supports-color@8.1.1)(utf-8-validate@5.0.10))(react@19.3.1)
@@ -1551,20 +1551,20 @@ packages:
   '@flatten-js/interval-tree@1.1.4':
     resolution: {integrity: sha512-o4emRDDvGdkwX18BSVSXH8q27qAL7Z2WDHSN75C8xyRSE4A8UOkig0mWSGoT5M5KaTHZxoLmalFwOTQmbRusUg==}
 
-  '@graphql-tools/merge@10.0.2':
-    resolution: {integrity: sha512-3B6Zwlk420Eppy4EJISAiznR0H0XEmWhhI8EYI8FoMbGdnRrmAy9j8NvHFWEqusil4/3IJNKXITTUsvuyzxkgw==}
+  '@graphql-tools/merge@10.0.4':
+    resolution: {integrity: sha512-3Z1RBsRK7F8OGR2hR6D1Julyo0AZqw1wZmm1xn9eR4t+GPGq/7bY0ctMxbHxqeqMgnSlb2IxrTCSOh2yeFla5w==}
     engines: {node: '>=22.18.0'}
     peerDependencies:
       graphql: ^16.0.0 || ^17.0.0
 
-  '@graphql-tools/schema@11.0.2':
-    resolution: {integrity: sha512-hURvCmeZxKmuVLd3hnNiRilmBX8F94/fImNP9pqUAfQyYqir6yaUtTiC/qSWFxXdldQtIBtI9RL92ph4r+ScmQ==}
+  '@graphql-tools/schema@11.0.4':
+    resolution: {integrity: sha512-jJQY+RkSctB7QkOzc47KCuaAcxZDPucbihgCI17zgU7jVaobPi0f6xE54JQPbJIMP9m7n6CoQoE9I/xVFFrYpw==}
     engines: {node: '>=22.18.0'}
     peerDependencies:
       graphql: ^16.0.0 || ^17.0.0
 
-  '@graphql-tools/utils@13.0.2':
-    resolution: {integrity: sha512-i7+WWRnUL3uFdL+/IBPD2FsZt8rH6ZdP/wI4pv9SWqloUsPjJFUl26Dl/rzKn0ogJ+sap/VMvVSsjX2lDly71Q==}
+  '@graphql-tools/utils@13.1.1':
+    resolution: {integrity: sha512-3o36m/WESYlKGrhwOzX3DAmQe9N2al0FJvZkBY4z4NYlUG5Bc2ZqUxQHbL6hBhUY+MhDMI/EXAJW0YbhggzhvQ==}
     engines: {node: '>=22.18.0'}
     peerDependencies:
       graphql: ^16.0.0 || ^17.0.0
@@ -10724,20 +10724,20 @@ snapshots:
 
   '@flatten-js/interval-tree@1.1.4': {}
 
-  '@graphql-tools/merge@10.0.2(graphql@17.0.2)':
+  '@graphql-tools/merge@10.0.4(graphql@17.0.2)':
     dependencies:
-      '@graphql-tools/utils': 13.0.2(graphql@17.0.2)
+      '@graphql-tools/utils': 13.1.1(graphql@17.0.2)
       graphql: 17.0.2
       tslib: 2.8.1
 
-  '@graphql-tools/schema@11.0.2(graphql@17.0.2)':
+  '@graphql-tools/schema@11.0.4(graphql@17.0.2)':
     dependencies:
-      '@graphql-tools/merge': 10.0.2(graphql@17.0.2)
-      '@graphql-tools/utils': 13.0.2(graphql@17.0.2)
+      '@graphql-tools/merge': 10.0.4(graphql@17.0.2)
+      '@graphql-tools/utils': 13.1.1(graphql@17.0.2)
       graphql: 17.0.2
       tslib: 2.8.1
 
-  '@graphql-tools/utils@13.0.2(graphql@17.0.2)':
+  '@graphql-tools/utils@13.1.1(graphql@17.0.2)':
     dependencies:
       '@graphql-typed-document-node/core': 3.2.0(graphql@17.0.2)
       '@whatwg-node/promise-helpers': 2.0.0
