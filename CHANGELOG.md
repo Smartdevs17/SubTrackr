@@ -50,6 +50,8 @@ with the [conventional commits](https://www.conventionalcommits.org/) specificat
 
 ### Commit Format Examples
 
+
+
 ### Release Workflow
 
 | Trigger         | Action                                            |

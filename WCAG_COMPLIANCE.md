@@ -169,6 +169,54 @@ w/\*\*
 ✓ Modal labeled with nativeID for live region
 ```
 
+### Tabbed Sections (WCAG 1.3.1, 1.4.1, 4.1.2)
+
+Applied to `src/screens/GamificationScreen.tsx`. The rule: a top-level tab
+switch must never be distinguishable by colour alone, and each tab must be a
+single named, stateful node.
+
+```tsx
+<View accessibilityRole={A11yRole.tablist}>
+  {TABS.map((tab) => {
+    const isActive = activeTab === tab.key;
+    return (
+      <TouchableOpacity
+        accessibilityRole={A11yRole.tab}
+        accessibilityLabel={tab.label}
+        accessibilityState={{ selected: isActive }}
+        testID={`gamification-tab-${tab.key}`}
+        onPress={() => setActiveTab(tab.key)}>
+```
+
+- The tab *label* is the accessible name, so the emoji glyph in the visible
+  label is decorative and is hidden from the tree with `accessible={false}`.
+- Moving between tabs is announced via `useAccessibilityAnnouncement()`, because
+  the selected tab is otherwise only conveyed visually.
+- Tests select tabs by `testID` rather than by label: a tab label and a body
+  heading can legitimately render the same string.
+
+### Toggle Groups (WCAG 4.1.2)
+
+`Switch` controls in the gamification settings dialog follow
+`docs/ACCESSIBILITY_GUIDE.md`: `accessibilityRole="switch"`, an
+`accessibilityLabel`, an `accessibilityHint` describing the effect, and
+`accessibilityState={{ checked }}`. The visual label and description are left in
+the tree so sighted and screen-reader users get the same pairing.
+
+### Icon-Only Controls (WCAG 4.1.2, 2.5.5)
+
+An icon-only button must carry an `accessibilityLabel` and a hint, its glyph must
+be `accessible={false}`, and the touch target must be at least
+`MIN_TOUCH_TARGET` (44pt). The settings button was 36x36 and has been corrected
+to 44x44; `GamificationScreen.accessibility.test.tsx` asserts the bound so it
+cannot regress.
+
+### Copy-Action Feedback (WCAG 4.1.3)
+
+Copying a coupon code used to confirm only with an `Alert`. The clipboard action
+now also calls `announce()` from `useAccessibilityAnnouncement()`, so the success
+and failure paths are both conveyed non-visually.
+
 ### Toast Component
 
 #### Notifications (WCAG 4.1.3)
@@ -324,6 +372,46 @@ If accessibility issues are discovered:
 - [ ] Regular manual accessibility audits
 - [ ] User testing with people with disabilities
 - [ ] Stay updated with WCAG updates
+
+## Implementation Conventions
+
+To keep the app compliant as new screens are added, follow these patterns.
+They are the concrete rules the automated screen tests assert.
+
+### Interactive elements
+
+- Every pressable (`Pressable`, `TouchableOpacity`, `FlatList` row) must set an
+  `accessibilityRole`. Use `"button"` for actions and `"link"` for navigation.
+- Icon-only controls must set an explicit `accessibilityLabel` that describes
+  the action ("Copy API key", "Close"), never the glyph.
+- Composite rows should build a single spoken label that includes the important
+  fields, e.g.
+  `Invoice INV-000001 from Netflix, total $15.99, Sent`, plus an
+  `accessibilityHint` describing what happens on activation.
+
+### State and selection
+
+- Toggle/segmented options must expose `accessibilityState={{ selected }}`.
+- Buttons that can be disabled must expose `accessibilityState={{ disabled }}`
+  so screen readers announce the state rather than leaving it implicit.
+- Section titles should use `accessibilityRole="header"` to build a navigable
+  heading outline.
+
+### Forms
+
+- Every `TextInput` must have an `accessibilityLabel`; include the unit or
+  currency when the value is ambiguous ("New price in USD").
+- Attach validation errors to the field and announce them with an
+  `accessibilityLiveRegion` so the message is not silent for screen-reader
+  users.
+
+### Lists and performance
+
+- Long, data-driven collections must render through `FlatList` (or the shared
+  `OptimizedFlatList`) rather than `Array.map` inside a `ScrollView`; this keeps
+  large invoice/subscription histories accessible without dropping frames.
+- Memoised row components should be pure and receive stable callbacks so that
+  assistive-technology traversal does not trigger full-list re-renders.
 
 ## Resources
 

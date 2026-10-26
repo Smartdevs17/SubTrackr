@@ -247,10 +247,29 @@ export interface TaxInvoiceGenerationInput {
   reverseCharge?: boolean;
 }
 
+export type InvoiceLineItemMetadata = Record<string, string>;
+
+/**
+ * Discriminates what a line item represents on the invoice.
+ *
+ * Discounts are itemised as their own line (`'discount'`) so a reduction is
+ * visible on the invoice instead of only appearing as a scalar total. This is
+ * intentionally distinct from coupons, which are a campaign/promotion concept
+ * applied at checkout and are not modelled here.
+ */
+export type InvoiceLineItemKind = 'item' | 'discount';
+
 export interface InvoiceLineItem {
   /** Optional line identifier assigned by the caller. */
   id?: string;
+  /**
+   * What the line represents. Defaults to `'item'` (a chargeable line) when
+   * omitted, so existing persisted invoices keep their meaning.
+   */
+  kind?: InvoiceLineItemKind;
   description: string;
+  /** Arbitrary string key/value references attached to this line item. */
+  metadata?: InvoiceLineItemMetadata;
   quantity: number;
   unitPrice: number;
   currency: string;
@@ -508,7 +527,10 @@ export const isOpenInvoice = (status: InvoiceStatus): boolean =>
 
 export const billingCycleToMonths = (cycle: BillingCycle): number => {
   switch (cycle) {
+    // `annual` is billed once a year; treating it as the default made annual
+    // subscriptions normalise to a single month.
     case BillingCycle.YEARLY:
+    case BillingCycle.ANNUAL:
       return 12;
     case BillingCycle.WEEKLY:
       return 1 / 4.345;

@@ -60,6 +60,40 @@ at render time in front of a payer. `updateTenantBranding` validates the
 `validateInvoiceBranding()` returns **every** problem rather than stopping at the
 first, so the branding editor can highlight all offending fields in one pass.
 
+## Numbering schemes
+
+Branding controls how an invoice looks; the numbering scheme controls what it
+is called. Each merchant has one authoritative scheme in the backend
+(`invoice_numbering`, migration `007`):
+
+| Field | Meaning | Default |
+|---|---|---|
+| `prefix` | Literal prefix — letters and digits, starting with a letter, ≤16 chars | `INV` |
+| `padding` | Zero-padding of the sequence (1–12 digits) | `6` |
+| `includeYear` | Embed the UTC year: `INV-2026-000001` | `true` |
+| `yearlyReset` | Restart the sequence at 1 when the year changes (requires `includeYear`) | `true` |
+
+```bash
+GET  /invoice-numbering?merchantId=tenant-acme   # current scheme (or defaults)
+PUT  /invoice-numbering                          # { "merchantId": "tenant-acme", "prefix": "ACME" }
+```
+
+A PUT is a **merge**: fields you omit keep their stored values, and disabling
+`includeYear` implies `yearlyReset: false` — a number without a year segment
+cannot reset yearly without reissuing.
+
+Sequences are allocated with one atomic upsert per merchant, so concurrent
+generators never receive the same number, and reconfiguring a scheme
+**preserves** the sequence — changing the prefix cannot reissue an old number.
+Numbers are unique *per merchant*: two merchants may both legitimately issue
+`INV-2026-000001`.
+
+Code: `backend/billing/domain/InvoiceNumberingService.ts` (scheme, stores,
+allocation) and `backend/billing/router/invoiceNumberingRouter.ts` (API),
+wired into `invoiceController.generateInvoice` when a `merchantId` is
+supplied. If the scheme store is unavailable, generation falls back to the
+legacy `INV-<year>-<random>` number rather than failing the invoice.
+
 ## Rendering
 
 ```ts
@@ -114,3 +148,5 @@ the v1 behaviour.
   resolution precedence, template fallback.
 - `backend/services/billing/__tests__/invoiceCustomizationService.test.ts` —
   sanitization, escaping, layout selection, determinism, delivery.
+- `backend/billing/__tests__/invoiceNumbering.test.ts` — scheme validation,
+  formatting, yearly reset, per-merchant sequences.

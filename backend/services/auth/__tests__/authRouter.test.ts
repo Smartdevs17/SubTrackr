@@ -70,9 +70,11 @@ describe('auth routers (HTTP)', () => {
 
   describe('passkeys', () => {
     it('registers a passkey for a signed-in user and logs in with it', async () => {
+      // fetch() sends `accept-language: *`, which is part of the device
+      // fingerprint sessions are bound to (#1766).
       const bootstrap = sessions.createSession({
         userId: 'user-1',
-        req: { headers: { 'user-agent': 'jest' }, socket: {} } as never,
+        req: { headers: { 'user-agent': 'jest', 'accept-language': '*' }, socket: {} } as never,
       });
       const auth = { 'x-session-token': bootstrap.token, 'user-agent': 'jest' };
       const authenticator = new SoftwareAuthenticator('ES256');

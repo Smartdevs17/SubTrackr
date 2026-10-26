@@ -53,7 +53,10 @@ export function createPublicApiRouter(): Router {
   router.get(
     '/plans',
     asyncHandler(async (req, res) => {
-      const result = await getPlans(undefined, extractRequestId(req));
+      const limit = req.query['limit'] ? Number(req.query['limit']) : undefined;
+      const cursor = typeof req.query['cursor'] === 'string' ? req.query['cursor'] : undefined;
+      const page = req.query['page'] ? Number(req.query['page']) : undefined;
+      const result = await getPlans(undefined, extractRequestId(req), { limit, cursor, page });
       sendCacheableResponse(res, result, req);
     }),
   );

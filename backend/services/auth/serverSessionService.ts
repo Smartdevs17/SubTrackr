@@ -13,6 +13,9 @@
  *   - Session revocation (single / all / other-devices)
  *   - Full audit trail per session lifecycle event
  *   - Prometheus metrics export
+ *   - Per-session scopes, access-token rotation and revocation listeners so the
+ *     refresh-token families in `domain/SessionTokenService.ts` stay in step
+ *     with the session they belong to (issues #1776, #1777, #1779)
  */
 
 import { randomBytes, createHash } from 'node:crypto';
@@ -25,10 +28,14 @@ import type { IncomingMessage } from 'node:http';
 export type SessionStatus = 'active' | 'expired' | 'revoked';
 export type SuspiciousReason =
   | 'new_device'
+  | 'device_mismatch'
   | 'concurrent_session_limit'
   | 'rapid_ip_change'
   | 'impossible_travel'
   | 'unusual_activity';
+
+/** Device binding enforcement mode (issue #1766). */
+export type DeviceBindingMode = 'off' | 'warn' | 'enforce';
 
 export interface DeviceInfo {
   /** SHA-256 fingerprint of (userAgent + platform + language) */
@@ -69,6 +76,12 @@ export interface SessionRecord {
   revocationReason?: string;
   isSuspicious: boolean;
   suspiciousReasons: SuspiciousReason[];
+  /**
+   * Scopes the session's access token is limited to. Interactive logins get
+   * `['*']`; sessions issued through the OAuth device flow carry only the
+   * scopes the user approved (issue #1779).
+   */
+  scopes: string[];
   metadata: Record<string, unknown>;
 }
 
@@ -76,7 +89,21 @@ export interface SessionCreateOptions {
   userId: string;
   req: IncomingMessage;
   ttlMs?: number;
+  /** Defaults to `['*']` (full access), matching sessions created before scopes existed. */
+  scopes?: string[];
   metadata?: Record<string, unknown>;
+}
+
+/** Called whenever a session moves to `revoked`, whatever the trigger. */
+export type SessionRevocationListener = (session: SessionRecord, reason: string) => void;
+
+export interface RotateTokenResult {
+  rotated: boolean;
+  reason?:
+    | 'session_not_found'
+    | 'session_revoked'
+    | 'device_binding_mismatch';
+  session?: SessionRecord;
 }
 
 export interface SessionValidateResult {
@@ -96,16 +123,41 @@ export interface SessionServiceConfig {
   slidingExpiry: boolean;
   /** Suspicious threshold: new device + N concurrent sessions */
   suspiciousConcurrentThreshold: number;
+  /**
+   * Bind sessions to the device fingerprint observed at creation time
+   * (issue #1766): `enforce` rejects requests whose fingerprint differs,
+   * `warn` only flags them, `off` disables the check. Default: `enforce`.
+   */
+  deviceBinding: DeviceBindingMode;
 }
 
 export interface SessionAuditEntry {
   sessionId: string;
   userId: string;
-  action: 'created' | 'validated' | 'touched' | 'revoked' | 'expired' | 'suspicious_flagged';
+  action:
+    | 'created'
+    | 'validated'
+    | 'touched'
+    | 'revoked'
+    | 'expired'
+    | 'suspicious_flagged'
+    | 'rebound'
+    | 'token_rotated';
   ip: string;
   userAgent: string;
   timestamp: number;
   detail?: string;
+}
+
+export interface RebindResult {
+  rebound: boolean;
+  reason?:
+    | 'session_not_found'
+    | 'session_revoked'
+    | 'session_expired'
+    | 'step_up_required'
+    | 'same_device';
+  session?: SessionRecord;
 }
 
 // ---------------------------------------------------------------------------
@@ -152,6 +204,13 @@ function buildDeviceInfo(req: IncomingMessage, isKnownDevice: boolean): DeviceIn
     isKnownDevice,
     ...parsed,
   };
+}
+
+/** Fingerprint of the device making `req`, computed the same way as at creation. */
+function currentDeviceFingerprint(req: IncomingMessage): string {
+  const userAgent = (req.headers['user-agent'] as string) ?? 'unknown';
+  const acceptLanguage = (req.headers['accept-language'] as string) ?? '';
+  return fingerprintDevice(userAgent, acceptLanguage);
 }
 
 // ---------------------------------------------------------------------------
@@ -214,6 +273,7 @@ export class ServerSessionService {
   private knownDevices = new Map<string, Set<string>>(); // userId → Set<fingerprint>
   private auditLog: SessionAuditEntry[] = [];
   private readonly maxAuditEntries = 100_000;
+  private revocationListeners = new Set<SessionRevocationListener>();
 
   private config: SessionServiceConfig;
 
@@ -224,6 +284,7 @@ export class ServerSessionService {
       maxConcurrentSessions: 5,
       slidingExpiry: true,
       suspiciousConcurrentThreshold: 3,
+      deviceBinding: 'enforce',
       ...config,
     };
   }
@@ -233,7 +294,13 @@ export class ServerSessionService {
   // -------------------------------------------------------------------------
 
   createSession(opts: SessionCreateOptions): SessionRecord {
-    const { userId, req, ttlMs = this.config.defaultTtlMs, metadata = {} } = opts;
+    const {
+      userId,
+      req,
+      ttlMs = this.config.defaultTtlMs,
+      scopes = ['*'],
+      metadata = {},
+    } = opts;
     const now = Date.now();
 
     // Device fingerprint
@@ -287,6 +354,7 @@ export class ServerSessionService {
       expiresAt: now + ttlMs,
       isSuspicious: suspiciousReasons.length > 0,
       suspiciousReasons,
+      scopes: [...scopes],
       metadata,
     };
 
@@ -350,6 +418,41 @@ export class ServerSessionService {
         timestamp: now,
       });
       return { valid: false, session, reason: 'session_expired' };
+    }
+
+    // Device binding (issue #1766): the session is pinned to the fingerprint
+    // observed at creation (or last rebind). A stolen token replayed from
+    // another device produces a different fingerprint and is rejected.
+    if (req && this.config.deviceBinding !== 'off') {
+      const fingerprint = currentDeviceFingerprint(req);
+      if (fingerprint !== session.device.fingerprint) {
+        if (this.config.deviceBinding === 'enforce') {
+          this.audit({
+            sessionId: session.id,
+            userId: session.userId,
+            action: 'suspicious_flagged',
+            ip: session.geo.ip,
+            userAgent: session.device.userAgent,
+            timestamp: now,
+            detail: `device_binding_mismatch bound=${session.device.fingerprint} presented=${fingerprint}`,
+          });
+          return { valid: false, session, reason: 'device_binding_mismatch' };
+        }
+
+        if (!session.suspiciousReasons.includes('device_mismatch')) {
+          session.suspiciousReasons.push('device_mismatch');
+          session.isSuspicious = true;
+          this.audit({
+            sessionId: session.id,
+            userId: session.userId,
+            action: 'suspicious_flagged',
+            ip: session.geo.ip,
+            userAgent: session.device.userAgent,
+            timestamp: now,
+            detail: `device_mismatch flagged (warn mode) bound=${session.device.fingerprint} presented=${fingerprint}`,
+          });
+        }
+      }
     }
 
     // Sliding expiry
@@ -420,12 +523,155 @@ export class ServerSessionService {
   }
 
   // -------------------------------------------------------------------------
+  // Device rebinding (issue #1766)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Rebind a session to the device making `req` after the user has completed
+   * step-up authentication (passkey / password re-verification).
+   *
+   * The route is responsible for verifying the step-up credential and only
+   * passes `reauthenticated: true` once it has; without it the rebind is
+   * refused so a stolen token alone can never move a session to a new device.
+   */
+  rebindSession(
+    token: string,
+    req: IncomingMessage,
+    opts: { reauthenticated?: boolean } = {}
+  ): RebindResult {
+    const session = this.sessions.get(token);
+    if (!session) return { rebound: false, reason: 'session_not_found' };
+
+    const now = Date.now();
+    if (session.status === 'revoked') return { rebound: false, reason: 'session_revoked' };
+    if (now > session.expiresAt) {
+      session.status = 'expired';
+      return { rebound: false, reason: 'session_expired' };
+    }
+
+    const presented = currentDeviceFingerprint(req);
+    if (presented === session.device.fingerprint) {
+      return { rebound: false, reason: 'same_device', session };
+    }
+
+    if (!opts.reauthenticated) {
+      this.audit({
+        sessionId: session.id,
+        userId: session.userId,
+        action: 'suspicious_flagged',
+        ip: session.geo.ip,
+        userAgent: session.device.userAgent,
+        timestamp: now,
+        detail: 'rebind attempted without step-up authentication',
+      });
+      return { rebound: false, reason: 'step_up_required' };
+    }
+
+    const previous = session.device.fingerprint;
+    const knownFingerprints = this.knownDevices.get(session.userId) ?? new Set<string>();
+    const device = buildDeviceInfo(req, knownFingerprints.size > 0);
+    knownFingerprints.add(device.fingerprint);
+    this.knownDevices.set(session.userId, knownFingerprints);
+
+    session.device = device;
+    session.geo = buildGeoInfo(req);
+    session.suspiciousReasons = session.suspiciousReasons.filter((r) => r !== 'device_mismatch');
+    session.isSuspicious = session.suspiciousReasons.length > 0;
+
+    this.audit({
+      sessionId: session.id,
+      userId: session.userId,
+      action: 'rebound',
+      ip: session.geo.ip,
+      userAgent: device.userAgent,
+      timestamp: now,
+      detail: `device ${previous} -> ${device.fingerprint} (step-up verified)`,
+    });
+
+    return { rebound: true, session };
+  }
+
+  // -------------------------------------------------------------------------
+  // Access-token rotation (issue #1776)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Replace a session's access token with a fresh one, keeping the stable
+   * session `id`. The previous token stops validating immediately.
+   *
+   * Used when a refresh token is redeemed: the session continues, but only
+   * the newest access token is accepted. A session whose access token merely
+   * expired is reactivated; a revoked session never is.
+   */
+  rotateSessionToken(token: string, req?: IncomingMessage): RotateTokenResult {
+    const session = this.sessions.get(token);
+    if (!session) return { rotated: false, reason: 'session_not_found' };
+    if (session.status === 'revoked') {
+      return { rotated: false, reason: 'session_revoked', session };
+    }
+
+    const now = Date.now();
+    if (req && this.config.deviceBinding === 'enforce') {
+      const fingerprint = currentDeviceFingerprint(req);
+      if (fingerprint !== session.device.fingerprint) {
+        this.audit({
+          sessionId: session.id,
+          userId: session.userId,
+          action: 'suspicious_flagged',
+          ip: session.geo.ip,
+          userAgent: session.device.userAgent,
+          timestamp: now,
+          detail: `token rotation refused: device_binding_mismatch bound=${session.device.fingerprint} presented=${fingerprint}`,
+        });
+        return { rotated: false, reason: 'device_binding_mismatch', session };
+      }
+    }
+
+    const nextToken = randomBytes(32).toString('hex');
+    this.sessions.delete(token);
+    session.token = nextToken;
+    session.status = 'active';
+    session.lastActiveAt = now;
+    session.expiresAt = now + this.config.defaultTtlMs;
+    this.sessions.set(nextToken, session);
+
+    const userTokens = this.userSessionIndex.get(session.userId) ?? new Set<string>();
+    userTokens.delete(token);
+    userTokens.add(nextToken);
+    this.userSessionIndex.set(session.userId, userTokens);
+
+    this.audit({
+      sessionId: session.id,
+      userId: session.userId,
+      action: 'token_rotated',
+      ip: req ? buildGeoInfo(req).ip : session.geo.ip,
+      userAgent: session.device.userAgent,
+      timestamp: now,
+    });
+
+    return { rotated: true, session };
+  }
+
+  // -------------------------------------------------------------------------
   // Revocation
   // -------------------------------------------------------------------------
 
+  /**
+   * Subscribe to revocations. Every revocation path (logout, revoke-all,
+   * revoke-others, concurrent-session eviction, remote revocation) notifies
+   * listeners, so state hanging off a session (refresh-token families) can be
+   * torn down in the same call. Returns an unsubscribe function.
+   */
+  onRevoke(listener: SessionRevocationListener): () => void {
+    this.revocationListeners.add(listener);
+    return () => {
+      this.revocationListeners.delete(listener);
+    };
+  }
+
   revokeSession(token: string, reason = 'user_logout'): boolean {
     const session = this.sessions.get(token);
-    if (!session || session.status !== 'active') return false;
+    if (!session || session.status === 'revoked') return false;
     session.status = 'revoked';
     session.revokedAt = Date.now();
     session.revocationReason = reason;
@@ -438,7 +684,16 @@ export class ServerSessionService {
       timestamp: session.revokedAt,
       detail: reason,
     });
+    for (const listener of this.revocationListeners) {
+      listener(session, reason);
+    }
     return true;
+  }
+
+  /** Revoke a session by its stable id (the token is never exposed in listings). */
+  revokeSessionById(id: string, reason = 'user_revoked'): boolean {
+    const session = this.getSessionById(id);
+    return session ? this.revokeSession(session.token, reason) : false;
   }
 
   revokeAllSessions(userId: string, reason = 'admin_revoke_all'): number {

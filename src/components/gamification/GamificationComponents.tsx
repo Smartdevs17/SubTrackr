@@ -20,6 +20,8 @@ import {
   UserProgress,
 } from '../../types/gamification';
 import { useTheme } from '../../theme/useTheme';
+import { useAccessibilityAnnouncement } from '../../hooks/useAccessibilityAnnouncement';
+import { A11yRole, buildA11yLabel } from '../../utils/accessibility';
 import { Card } from '../common/Card';
 import { gamificationService } from '../../services/gamificationService';
 
@@ -40,21 +42,39 @@ export const BadgeCard: React.FC<BadgeCardProps> = ({ badge, isUnlocked, userPro
   };
 
   return (
-    <Card style={[styles.badgeCard, !isUnlocked && { opacity: 0.5 }]}>
+    <Card
+      style={[styles.badgeCard, !isUnlocked && { opacity: 0.5 }]}
+      accessible
+      accessibilityRole={A11yRole.summary}
+      accessibilityLabel={buildA11yLabel(badge.name, isUnlocked ? 'unlocked' : 'locked')}>
       <View
         style={[
           styles.badgeIconContainer,
           { backgroundColor: isUnlocked ? badge.color : theme.colors.border.default },
         ]}>
-        <Text style={styles.badgeIcon}>{badge.icon}</Text>
+        <Text style={styles.badgeIcon} accessible={false}>
+          {badge.icon}
+        </Text>
       </View>
-      <Text style={[styles.badgeName, { color: theme.colors.text.primary }]} numberOfLines={1}>
+      <Text
+        style={[styles.badgeName, { color: theme.colors.text.primary }]}
+        numberOfLines={1}
+        accessible={false}>
         {badge.name}
       </Text>
       {!isUnlocked ? (
-        <Text style={[styles.lockedText, { color: theme.colors.text.secondary }]}>Locked</Text>
+        <Text
+          style={[styles.lockedText, { color: theme.colors.text.secondary }]}
+          accessible={false}>
+          Locked
+        </Text>
       ) : (
-        <TouchableOpacity style={styles.shareBtn} onPress={handleShare}>
+        <TouchableOpacity
+          style={styles.shareBtn}
+          onPress={handleShare}
+          accessibilityRole={A11yRole.button}
+          accessibilityLabel={`Share ${badge.name} badge`}
+          accessibilityHint="Opens the system share sheet">
           <Text style={[styles.shareBtnText, { color: theme.colors.brand.primary }]}>📤 Share</Text>
         </TouchableOpacity>
       )}
@@ -108,14 +128,19 @@ interface RewardCardProps {
 
 export const RewardCard: React.FC<RewardCardProps> = ({ item, onClaim, onRedeem }) => {
   const theme = useTheme();
+  const { announce } = useAccessibilityAnnouncement();
 
   const handleCopyCode = async () => {
     if (!item.code) return;
     try {
       await Clipboard.setStringAsync(item.code);
       Alert.alert('Code Copied!', `Coupon code ${item.code} copied to clipboard.`);
+      // The alert is a visual affordance; announce it too so a screen reader
+      // user learns the copy succeeded.
+      announce(`Coupon code ${item.code} copied to clipboard`);
     } catch {
       Alert.alert('Copy failed', 'Could not copy to clipboard.');
+      announce('Could not copy the coupon code to the clipboard');
     }
   };
 
@@ -159,9 +184,14 @@ export const RewardCard: React.FC<RewardCardProps> = ({ item, onClaim, onRedeem 
       {item.isClaimed && !item.isRedeemed && item.code && (
         <TouchableOpacity
           style={[styles.codeContainer, { backgroundColor: theme.colors.background.secondary }]}
-          onPress={handleCopyCode}>
+          onPress={handleCopyCode}
+          accessibilityRole={A11yRole.button}
+          accessibilityLabel={`Reward code ${item.code}. Tap to copy to the clipboard.`}
+          testID={`reward-code-${item.id}`}>
           <Text style={[styles.codeText, { color: theme.colors.brand.primary }]}>{item.code}</Text>
-          <Text style={styles.copyHint}>Tap to Copy</Text>
+          <Text style={styles.copyHint} accessible={false}>
+            Tap to Copy
+          </Text>
         </TouchableOpacity>
       )}
 
@@ -169,14 +199,19 @@ export const RewardCard: React.FC<RewardCardProps> = ({ item, onClaim, onRedeem 
         {!item.isClaimed && !item.isRedeemed && (
           <TouchableOpacity
             style={[styles.actionBtn, { backgroundColor: theme.colors.brand.primary }]}
-            onPress={() => onClaim(item.id)}>
+            onPress={() => onClaim(item.id)}
+            accessibilityRole={A11yRole.button}
+            accessibilityLabel={`Claim reward ${item.title}`}
+            accessibilityState={{ disabled: item.isClaimed || item.isRedeemed }}>
             <Text style={styles.actionBtnText}>Claim Reward</Text>
           </TouchableOpacity>
         )}
         {item.isClaimed && !item.isRedeemed && (
           <TouchableOpacity
             style={[styles.actionBtn, { backgroundColor: '#3b82f6' }]}
-            onPress={() => onRedeem(item.id)}>
+            onPress={() => onRedeem(item.id)}
+            accessibilityRole={A11yRole.button}
+            accessibilityLabel={`Mark reward ${item.title} as redeemed`}>
             <Text style={styles.actionBtnText}>Mark Redeemed</Text>
           </TouchableOpacity>
         )}
@@ -337,12 +372,17 @@ export const LeaderboardList: React.FC<LeaderboardListProps> = ({
   return (
     <View style={styles.leaderboardContainer}>
       <View style={styles.leaderboardHeader}>
-        <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>
+        <Text
+          style={[styles.sectionTitle, { color: theme.colors.text.primary }]}
+          accessibilityRole={A11yRole.header}
+          accessibilityLabel="Leaderboard">
           🏆 Leaderboard
         </Text>
       </View>
 
-      <View style={[styles.tabBar, { backgroundColor: theme.colors.background.secondary }]}>
+      <View
+        style={[styles.tabBar, { backgroundColor: theme.colors.background.secondary }]}
+        accessibilityRole={A11yRole.tablist}>
         {(['all_time', 'weekly', 'streaks'] as LeaderboardCategory[]).map((cat) => {
           const isActive = category === cat;
           const label = cat === 'all_time' ? 'All Time' : cat === 'weekly' ? 'Weekly' : 'Streaks';
@@ -350,7 +390,11 @@ export const LeaderboardList: React.FC<LeaderboardListProps> = ({
             <TouchableOpacity
               key={cat}
               style={[styles.tabItem, isActive && { backgroundColor: theme.colors.brand.primary }]}
-              onPress={() => onSelectCategory(cat)}>
+              onPress={() => onSelectCategory(cat)}
+              accessibilityRole={A11yRole.tab}
+              accessibilityLabel={`${label} leaderboard`}
+              accessibilityState={{ selected: isActive }}
+              testID={`leaderboard-category-${cat}`}>
               <Text
                 style={[
                   styles.tabText,
@@ -410,8 +454,14 @@ export const GamificationConfigModal: React.FC<GamificationConfigModalProps> = (
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
-        <View style={[styles.modalContent, { backgroundColor: theme.colors.background.primary }]}>
-          <Text style={[styles.modalTitle, { color: theme.colors.text.primary }]}>
+        <View
+          style={[styles.modalContent, { backgroundColor: theme.colors.background.primary }]}
+          accessibilityViewIsModal
+          accessibilityLabel="Gamification settings">
+          <Text
+            style={[styles.modalTitle, { color: theme.colors.text.primary }]}
+            accessibilityRole={A11yRole.header}
+            accessibilityLabel="Gamification settings">
             ⚙️ Gamification Settings
           </Text>
 
@@ -429,6 +479,11 @@ export const GamificationConfigModal: React.FC<GamificationConfigModalProps> = (
                 value={config.soundEffectsEnabled}
                 onValueChange={(val) => onUpdate({ soundEffectsEnabled: val })}
                 trackColor={{ false: '#767577', true: theme.colors.brand.primary }}
+                accessibilityRole={A11yRole.switch}
+                accessibilityLabel="Sound effects"
+                accessibilityHint="Plays audio cues on level ups and badges"
+                accessibilityState={{ checked: config.soundEffectsEnabled }}
+                testID="gamification-setting-soundEffectsEnabled"
               />
             </View>
 
@@ -445,6 +500,11 @@ export const GamificationConfigModal: React.FC<GamificationConfigModalProps> = (
                 value={config.notificationsEnabled}
                 onValueChange={(val) => onUpdate({ notificationsEnabled: val })}
                 trackColor={{ false: '#767577', true: theme.colors.brand.primary }}
+                accessibilityRole={A11yRole.switch}
+                accessibilityLabel="Achievement notifications"
+                accessibilityHint="Shows a local alert when you unlock a milestone"
+                accessibilityState={{ checked: config.notificationsEnabled }}
+                testID="gamification-setting-notificationsEnabled"
               />
             </View>
 
@@ -461,6 +521,11 @@ export const GamificationConfigModal: React.FC<GamificationConfigModalProps> = (
                 value={config.showOnLeaderboard}
                 onValueChange={(val) => onUpdate({ showOnLeaderboard: val })}
                 trackColor={{ false: '#767577', true: theme.colors.brand.primary }}
+                accessibilityRole={A11yRole.switch}
+                accessibilityLabel="Leaderboard visibility"
+                accessibilityHint="Displays your username and XP on public leaderboards"
+                accessibilityState={{ checked: config.showOnLeaderboard }}
+                testID="gamification-setting-showOnLeaderboard"
               />
             </View>
 
@@ -477,17 +542,30 @@ export const GamificationConfigModal: React.FC<GamificationConfigModalProps> = (
                 value={config.dailyReminderEnabled}
                 onValueChange={(val) => onUpdate({ dailyReminderEnabled: val })}
                 trackColor={{ false: '#767577', true: theme.colors.brand.primary }}
+                accessibilityRole={A11yRole.switch}
+                accessibilityLabel="Daily streak reminders"
+                accessibilityHint="Reminds you daily to check subscription status and keep your streak"
+                accessibilityState={{ checked: config.dailyReminderEnabled }}
+                testID="gamification-setting-dailyReminderEnabled"
               />
             </View>
 
-            <TouchableOpacity style={styles.resetBtn} onPress={confirmReset}>
+            <TouchableOpacity
+              style={styles.resetBtn}
+              onPress={confirmReset}
+              accessibilityRole={A11yRole.button}
+              accessibilityLabel="Reset all gamification progress"
+              accessibilityHint="Permanently clears your XP, level, badges and claimed rewards">
               <Text style={styles.resetBtnText}>⚠️ Reset All Progress</Text>
             </TouchableOpacity>
           </ScrollView>
 
           <TouchableOpacity
             style={[styles.closeBtn, { backgroundColor: theme.colors.brand.primary }]}
-            onPress={onClose}>
+            onPress={onClose}
+            accessibilityRole={A11yRole.button}
+            accessibilityLabel="Close gamification settings"
+            testID="gamification-settings-close">
             <Text style={styles.closeBtnText}>Done</Text>
           </TouchableOpacity>
         </View>

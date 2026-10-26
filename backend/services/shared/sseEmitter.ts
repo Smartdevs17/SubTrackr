@@ -4,6 +4,7 @@
  * Wraps an `http.ServerResponse` and provides a typed interface for sending
  * SSE events. Correctly handles:
  *  - Required headers (Content-Type, Cache-Control, Connection)
+ *  - Fail-closed CORS: no wildcard origin is ever emitted
  *  - Client-disconnect cleanup
  *  - Event ID and retry fields
  *  - Heartbeat keep-alive pings
@@ -64,18 +65,26 @@ export class SseEmitter {
   constructor(
     req: http.IncomingMessage,
     res: http.ServerResponse,
-    options: { heartbeatMs?: number; retryMs?: number } = {}
+    options: { heartbeatMs?: number; retryMs?: number; allowedOrigin?: string } = {}
   ) {
     this.res = res;
 
-    // Set SSE headers before any data is written
-    res.writeHead(200, {
+    // CORS: SSE responses must never advertise `*`. Callers that need
+    // cross-origin streaming pass the exact origin they allow; when no origin
+    // is supplied the header is omitted and the request is treated as
+    // same-origin, so the browser cannot expose the stream to other origins.
+    const headers: Record<string, string> = {
       'Content-Type': 'text/event-stream; charset=utf-8',
       'Cache-Control': 'no-cache, no-transform',
       Connection: 'keep-alive',
       'X-Accel-Buffering': 'no', // disable nginx proxy buffering
-      'Access-Control-Allow-Origin': '*',
-    });
+    };
+    if (options.allowedOrigin) {
+      headers['Access-Control-Allow-Origin'] = options.allowedOrigin;
+    }
+
+    // Set SSE headers before any data is written
+    res.writeHead(200, headers);
 
     // Send retry hint if configured
     if (options.retryMs) {

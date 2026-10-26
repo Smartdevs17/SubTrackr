@@ -12,6 +12,36 @@ export type TrialStatus = 'active' | 'converted' | 'expired' | 'cancelled';
 
 export type TrialDurationDays = 7 | 14 | 21 | 30;
 
+// ─── Per-plan trial configuration ────────────────────────────────────────────
+
+/**
+ * Trial length and conversion policy for a specific subscription plan.
+ * Registered via {@link TrialManagementService.registerPlanTrialConfig}.
+ * Falls back to the global DEFAULT_TRIAL_DURATION_DAYS when no config is found.
+ */
+export interface PlanTrialConfig {
+  /** The plan this config applies to. */
+  planId: string;
+  /**
+   * How many days the trial lasts.
+   * Must be a positive integer. Constrained to TrialDurationDays for
+   * well-known values; the type is widened to `number` for custom durations.
+   */
+  trialDurationDays: number;
+  /**
+   * When true, `processExpirations` automatically calls `convertTrial` instead
+   * of marking the trial expired.
+   */
+  autoConvertOnExpiry: boolean;
+  /**
+   * Optional human-readable description shown in admin dashboards.
+   */
+  description?: string;
+}
+
+/** Fallback trial length when no per-plan config is registered. */
+export const DEFAULT_TRIAL_DURATION_DAYS = 14;
+
 export type ConversionTrigger =
   | 'automatic_time_based'
   | 'feature_usage_threshold'
@@ -133,9 +163,46 @@ export class TrialManagementService {
   private events: FunnelEvent[] = [];
   private extensionRules: TrialExtensionRule[] = [...DEFAULT_EXTENSION_RULES];
   private conversionRevenue = 0;
+  /** Per-plan trial configuration registry. */
+  private planTrialConfigs = new Map<string, PlanTrialConfig>();
+
+  // ─── Per-plan trial config ──────────────────────────────────────────────────
+
+  /**
+   * Register (or replace) a per-plan trial configuration.
+   * Call this at application bootstrap, e.g. alongside plan creation.
+   */
+  registerPlanTrialConfig(config: PlanTrialConfig): void {
+    if (config.trialDurationDays <= 0 || !Number.isFinite(config.trialDurationDays)) {
+      throw new Error(
+        `PlanTrialConfig for plan "${config.planId}": trialDurationDays must be a positive finite number`,
+      );
+    }
+    this.planTrialConfigs.set(config.planId, { ...config });
+  }
+
+  /**
+   * Retrieve the trial configuration for a plan.
+   * Returns `undefined` when no config has been registered.
+   */
+  getPlanTrialConfig(planId: string): PlanTrialConfig | undefined {
+    return this.planTrialConfigs.get(planId);
+  }
+
+  /**
+   * List all registered plan trial configs.
+   */
+  listPlanTrialConfigs(): PlanTrialConfig[] {
+    return Array.from(this.planTrialConfigs.values());
+  }
 
   /**
    * Start a new trial for a subscription.
+   *
+   * Duration resolution order:
+   *   1. Explicit `durationDays` param (call-site override)
+   *   2. Registered {@link PlanTrialConfig} for the given planId
+   *   3. Global {@link DEFAULT_TRIAL_DURATION_DAYS} (14 days)
    */
   startTrial(params: {
     subscriptionId: string;
@@ -151,8 +218,14 @@ export class TrialManagementService {
       );
     }
 
+    // Resolve duration: explicit param > plan config > global default
+    const planConfig = this.planTrialConfigs.get(params.planId);
+    const durationDays =
+      params.durationDays ??
+      planConfig?.trialDurationDays ??
+      DEFAULT_TRIAL_DURATION_DAYS;
+
     const now = Date.now();
-    const durationDays = params.durationDays ?? 14;
     const endDate = now + durationDays * MS_PER_DAY;
 
     const trial: TrialRecord = {
@@ -161,7 +234,7 @@ export class TrialManagementService {
       userId: params.userId,
       planId: params.planId,
       status: 'active',
-      durationDays,
+      durationDays: durationDays as TrialDurationDays,
       startDate: now,
       endDate,
       originalEndDate: endDate,
@@ -331,13 +404,42 @@ export class TrialManagementService {
   }
 
   /**
-   * Process expired trials — mark them expired and record events.
+   * Process expired trials — mark them expired or auto-convert to paid.
+   *
+   * For each active trial whose `endDate <= now`:
+   *   - If the plan has `autoConvertOnExpiry: true`, the trial is converted
+   *     with trigger `'automatic_time_based'`.
+   *   - Otherwise the trial is marked `'expired'`.
+   *
+   * Returns separate arrays so callers can take action on each group.
    */
-  processExpirations(now: number = Date.now()): TrialRecord[] {
+  processExpirations(now: number = Date.now()): {
+    converted: TrialRecord[];
+    expired: TrialRecord[];
+  } {
+    const converted: TrialRecord[] = [];
     const expired: TrialRecord[] = [];
 
     for (const trial of this.trials.values()) {
-      if (trial.status === 'active' && trial.endDate <= now) {
+      if (trial.status !== 'active') continue;
+      if (trial.endDate > now) continue;
+
+      const planConfig = this.planTrialConfigs.get(trial.planId);
+      const shouldAutoConvert = planConfig?.autoConvertOnExpiry ?? false;
+
+      if (shouldAutoConvert) {
+        trial.status = 'converted';
+        trial.convertedAt = now;
+        trial.conversionTrigger = 'automatic_time_based';
+        trial.updatedAt = now;
+        this.recordEvent(trial.id, 'trial_converted', trial.userId, {
+          trigger: 'automatic_time_based',
+        });
+        this.recordEvent(trial.id, 'payment_completed', trial.userId, {
+          trigger: 'automatic_time_based',
+        });
+        converted.push(trial);
+      } else {
         trial.status = 'expired';
         trial.updatedAt = now;
         this.recordEvent(trial.id, 'trial_expired', trial.userId);
@@ -345,7 +447,7 @@ export class TrialManagementService {
       }
     }
 
-    return expired;
+    return { converted, expired };
   }
 
   /**

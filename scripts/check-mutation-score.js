@@ -8,34 +8,64 @@
  * - Prints a summary of weak tests (low mutation score areas)
  * - Optionally generates a dashboard-compatible JSON summary
  *
+ * Report paths and thresholds are read from the Stryker configs rather than
+ * hardcoded, so this script cannot drift away from the gate Stryker and CI
+ * actually enforce.
+ *
  * Usage:
  *   node scripts/check-mutation-score.js                  # check all reports
  *   node scripts/check-mutation-score.js --module=frontend # check frontend only
  *   node scripts/check-mutation-score.js --module=backend  # check backend only
- *   node scripts/check-mutation-score.js --summary         # print combined summary
+ *   node scripts/check-mutation-score.js --allow-missing  # do not fail on absent reports
  */
 
 const fs = require('fs');
 const path = require('path');
 
-const FRONTEND_REPORT_DIR = 'reports/mutation';
-const BACKEND_REPORT_DIR = 'reports/mutation-backend';
-const BREAK_THRESHOLD = 50;
-const LOW_SCORE_WARN = 60;
+const MODULES = [
+  { name: 'frontend', config: 'stryker.conf.json' },
+  { name: 'backend', config: 'stryker.backend.conf.json' },
+];
 
 const args = process.argv.slice(2);
 const moduleFlag = args.find((a) => a.startsWith('--module='));
 const moduleFilter = moduleFlag ? moduleFlag.split('=')[1] : null;
-const _showSummary = args.includes('--summary'); // used for future summary-only mode
+const allowMissing = args.includes('--allow-missing');
 
-function readReport(reportDir) {
-  const reportPath = path.join(process.cwd(), reportDir, 'report.json');
-  if (!fs.existsSync(reportPath)) {
+/**
+ * Resolves a module's report path and thresholds from its Stryker config, so
+ * the paths stay in step with what Stryker actually writes and the thresholds
+ * stay in step with what Stryker actually enforces.
+ */
+function loadModuleConfig(name, configFile) {
+  const fallback = { name, reportPath: null, breakThreshold: 80, lowThreshold: 80 };
+  let config;
+  try {
+    config = JSON.parse(fs.readFileSync(path.join(process.cwd(), configFile), 'utf-8'));
+  } catch (error) {
+    console.warn(`  ! Could not read ${configFile}: ${error.message}`);
+    return fallback;
+  }
+  const reportPath = config.jsonReporter && config.jsonReporter.fileName;
+  const thresholds = config.thresholds || {};
+  return {
+    name,
+    reportPath: typeof reportPath === 'string' ? reportPath : null,
+    breakThreshold: typeof thresholds.break === 'number' ? thresholds.break : 80,
+    lowThreshold: typeof thresholds.low === 'number' ? thresholds.low : 80,
+  };
+}
+
+function readReport(reportPath) {
+  if (!reportPath) return null;
+  const fullPath = path.join(process.cwd(), reportPath);
+  if (!fs.existsSync(fullPath)) {
     return null;
   }
   try {
-    return JSON.parse(fs.readFileSync(reportPath, 'utf-8'));
-  } catch {
+    return JSON.parse(fs.readFileSync(fullPath, 'utf-8'));
+  } catch (error) {
+    console.error(`  ! ${reportPath} is not valid JSON: ${error.message}`);
     return null;
   }
 }
@@ -58,34 +88,34 @@ function extractScore(report) {
   return null;
 }
 
-function findWeakTests(report, _moduleName) {
+function findWeakTests(report, moduleName, lowThreshold) {
   const weak = [];
   if (!report || !report.files) return weak;
 
   for (const [filePath, fileData] of Object.entries(report.files)) {
     const fileMetrics = fileData.metrics || fileData;
     const fileScore = fileMetrics.mutationScore;
-    if (fileScore !== undefined && fileScore < LOW_SCORE_WARN) {
+    if (fileScore !== undefined && fileScore < lowThreshold) {
       weak.push({
         file: filePath,
         score: fileScore,
         killed: fileMetrics.killed,
         survived: fileMetrics.survived,
-        module: _moduleName,
+        module: moduleName,
       });
     }
   }
   return weak.sort((a, b) => a.score - b.score);
 }
 
-function printScore(name, data) {
+function printScore(name, data, breakThreshold) {
   if (!data) {
     console.log('\n  [' + name + '] No report found');
     return false;
   }
   const score = data.score.toFixed(2);
-  const status = data.score >= BREAK_THRESHOLD ? 'PASS' : 'FAIL';
-  const icon = data.score >= BREAK_THRESHOLD ? '\u2713' : '\u2717';
+  const status = data.score >= breakThreshold ? 'PASS' : 'FAIL';
+  const icon = data.score >= breakThreshold ? '\u2713' : '\u2717';
 
   console.log('\n  ' + icon + ' [' + name + '] Mutation Score: ' + score + '% (' + status + ')');
   console.log(
@@ -105,16 +135,18 @@ function printScore(name, data) {
     console.log('      \u26A0 Runtime Errors: ' + data.runtimeError);
   }
 
-  return data.score >= BREAK_THRESHOLD;
+  return data.score >= breakThreshold;
 }
 
-function printWeakTests(weakTests) {
+function printWeakTests(weakTests, lowThreshold) {
   if (weakTests.length === 0) {
-    console.log('\n  \u2713 No weak tests detected (all files above 60% threshold)');
+    console.log(
+      '\n  \u2713 No weak tests detected (all files above ' + lowThreshold + '% threshold)'
+    );
     return;
   }
 
-  console.log('\n  \u26A0 Weak Tests Detected (score < ' + LOW_SCORE_WARN + '%):');
+  console.log('\n  \u26A0 Weak Tests Detected (score < ' + lowThreshold + '%):');
   console.log('  ' + '-'.repeat(70));
   weakTests.forEach((w) => {
     console.log('    ' + w.file);
@@ -132,10 +164,10 @@ function printWeakTests(weakTests) {
   console.log('\n  Total weak files: ' + weakTests.length);
 }
 
-function generateDashboardJson(frontendScore, backendScore, frontendWeak, backendWeak) {
+function generateDashboardJson(frontendScore, backendScore, frontendWeak, backendWeak, thresholds) {
   const dashboard = {
     generatedAt: new Date().toISOString(),
-    thresholds: { high: 80, low: 60, break: BREAK_THRESHOLD },
+    thresholds,
     modules: {},
     weakTests: [],
   };
@@ -146,7 +178,7 @@ function generateDashboardJson(frontendScore, backendScore, frontendWeak, backen
       killed: frontendScore.killed,
       survived: frontendScore.survived,
       total: frontendScore.total,
-      passed: frontendScore.score >= BREAK_THRESHOLD,
+      passed: frontendScore.score >= thresholds.break,
     };
   }
 
@@ -156,7 +188,7 @@ function generateDashboardJson(frontendScore, backendScore, frontendWeak, backen
       killed: backendScore.killed,
       survived: backendScore.survived,
       total: backendScore.total,
-      passed: backendScore.score >= BREAK_THRESHOLD,
+      passed: backendScore.score >= thresholds.break,
     };
   }
 
@@ -173,43 +205,65 @@ function generateDashboardJson(frontendScore, backendScore, frontendWeak, backen
 // --- Main ---
 console.log('\n=== Mutation Score Check ===\n');
 
-let frontendReport = null;
-let backendReport = null;
+const configs = MODULES.map((m) => loadModuleConfig(m.name, m.config));
+const frontendConfig = configs.find((c) => c.name === 'frontend');
+const backendConfig = configs.find((c) => c.name === 'backend');
 
-if (!moduleFilter || moduleFilter === 'frontend') {
-  const report = readReport(FRONTEND_REPORT_DIR);
-  frontendReport = extractScore(report);
-  printScore('Frontend', frontendReport);
+function checkModule(config) {
+  const report = readReport(config.reportPath);
+  const score = extractScore(report);
+  const label = config.name === 'frontend' ? 'Frontend' : 'Backend';
+  const passed = printScore(label, score, config.breakThreshold);
+  let weak = [];
   if (report) {
-    const weak = findWeakTests(report, 'frontend');
-    printWeakTests(weak);
+    weak = findWeakTests(report, config.name, config.lowThreshold);
+    printWeakTests(weak, config.lowThreshold);
   }
+  return { score, weak, passed };
 }
 
-if (!moduleFilter || moduleFilter === 'backend') {
-  const report = readReport(BACKEND_REPORT_DIR);
-  backendReport = extractScore(report);
-  printScore('Backend', backendReport);
-  if (report) {
-    const weak = findWeakTests(report, 'backend');
-    printWeakTests(weak);
-  }
-}
+const frontendResult =
+  !moduleFilter || moduleFilter === 'frontend' ? checkModule(frontendConfig) : null;
+const backendResult =
+  !moduleFilter || moduleFilter === 'backend' ? checkModule(backendConfig) : null;
 
 // Generate dashboard JSON
-const frontendReportRaw = moduleFilter === 'backend' ? null : readReport(FRONTEND_REPORT_DIR);
-const backendReportRaw = moduleFilter === 'frontend' ? null : readReport(BACKEND_REPORT_DIR);
-const frontendWeak = frontendReportRaw ? findWeakTests(frontendReportRaw, 'frontend') : [];
-const backendWeak = backendReportRaw ? findWeakTests(backendReportRaw, 'backend') : [];
-generateDashboardJson(frontendReport, backendReport, frontendWeak, backendWeak);
+generateDashboardJson(
+  frontendResult ? frontendResult.score : null,
+  backendResult ? backendResult.score : null,
+  frontendResult ? frontendResult.weak : [],
+  backendResult ? backendResult.weak : [],
+  {
+    high: Math.max(frontendConfig.breakThreshold, backendConfig.breakThreshold) + 10,
+    low: Math.min(frontendConfig.lowThreshold, backendConfig.lowThreshold),
+    break: Math.max(frontendConfig.breakThreshold, backendConfig.breakThreshold),
+  }
+);
 
-// Determine exit code
+// Determine exit code. A missing report is a failure: without this the script
+// reported success even when no mutation run had ever happened.
 const allPassed = [];
-if (!moduleFilter || moduleFilter === 'frontend') {
-  allPassed.push(frontendReport ? frontendReport.score >= BREAK_THRESHOLD : true);
-}
-if (!moduleFilter || moduleFilter === 'backend') {
-  allPassed.push(backendReport ? backendReport.score >= BREAK_THRESHOLD : true);
+for (const [label, result] of [
+  ['Frontend', frontendResult],
+  ['Backend', backendResult],
+]) {
+  if (!result) continue;
+  if (!result.score) {
+    if (!allowMissing) {
+      console.error(
+        `  \u2717 ${label}: no mutation report at ` +
+          `${(label === 'Frontend' ? frontendConfig : backendConfig).reportPath}. ` +
+          'Run `npm run mutation:test' +
+          (label === 'Backend' ? ':backend' : '') +
+          '` first, or pass --allow-missing.'
+      );
+      allPassed.push(false);
+    } else {
+      allPassed.push(true);
+    }
+    continue;
+  }
+  allPassed.push(result.passed);
 }
 
 const exitCode = allPassed.every(Boolean) ? 0 : 1;

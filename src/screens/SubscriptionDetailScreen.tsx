@@ -20,11 +20,13 @@ import { currencyService } from '../services/currencyService';
 import { formatCurrency } from '../utils/formatting';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { getCategoryIcon } from '../utils/subscriptionHelpers';
+import { buildLifecycleHistoryCSV, getLifecycleEventLabel } from '../utils/lifecycleHistory';
 import { RootStackParamList } from '../navigation/types';
 import { CreditPaymentMethod } from '../types/credit';
 import { useGroupStore } from '../store/groupStore';
 import { shareSubscriptionLink } from '../utils/shareLink';
 import { validateSubscriptionId } from '../utils/deepLinkValidator';
+import { BiometricGateError, sensitiveActionGuard } from '../services/auth/sensitiveActionGuard';
 
 // Components
 import { Button } from '../components/common/Button';
@@ -73,6 +75,7 @@ const SubscriptionDetailScreen: React.FC = () => {
     applyCreditToInvoice,
     expireCredits,
     setCreditPolicy,
+    getLifecycleHistory,
   } = useSubscriptionStore();
   const { subscriptions, toggleSubscriptionStatus, updateSubscription, recordBillingOutcome } =
     useSubscriptionStore();
@@ -165,6 +168,29 @@ const SubscriptionDetailScreen: React.FC = () => {
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
   }, [invoices, subscription?.id]);
 
+  const lifecycleEvents = useMemo(
+    () => (subscription ? getLifecycleHistory(subscription.id) : []),
+    [subscription, getLifecycleHistory]
+  );
+
+  const handleExportHistory = useCallback(async () => {
+    if (!subscription) return;
+    const events = getLifecycleHistory(subscription.id);
+    if (events.length === 0) {
+      Alert.alert(
+        'No history yet',
+        'Lifecycle events will appear here as this subscription changes.'
+      );
+      return;
+    }
+
+    const { Share } = await import('react-native');
+    await Share.share({
+      title: `${subscription.name} — lifecycle history`,
+      message: buildLifecycleHistoryCSV(events),
+    });
+  }, [getLifecycleHistory, subscription]);
+
   const handlePurchaseCredit = useCallback(async () => {
     if (!subscription) return;
     const amount = Number(creditAmount);
@@ -224,16 +250,26 @@ const SubscriptionDetailScreen: React.FC = () => {
       return;
     }
 
-    await transferCredit(
-      {
-        amount,
-        currency: subscription?.currency,
-        reference: `transfer:${subscription?.id ?? 'subscription'}`,
-        note: `Transfer from ${accountId} to ${transferRecipient.trim()}`,
-      },
-      transferRecipient.trim(),
-      accountId
-    );
+    try {
+      await sensitiveActionGuard.withBiometricGuard('transfer_funds', () =>
+        transferCredit(
+          {
+            amount,
+            currency: subscription?.currency,
+            reference: `transfer:${subscription?.id ?? 'subscription'}`,
+            note: `Transfer from ${accountId} to ${transferRecipient.trim()}`,
+          },
+          transferRecipient.trim(),
+          accountId
+        )
+      );
+    } catch (err) {
+      if (err instanceof BiometricGateError) {
+        Alert.alert('Authentication Required', err.message);
+        return;
+      }
+      throw err;
+    }
 
     Alert.alert('Credit transferred', 'The recipient balance was updated.');
   }, [
@@ -447,6 +483,42 @@ const SubscriptionDetailScreen: React.FC = () => {
                 <Text style={styles.simulateLinkTextDanger}>Simulate failed charge</Text>
               </TouchableOpacity>
             </View>
+          </Card>
+
+          {/* Lifecycle history */}
+          <Card style={styles.statusCard}>
+            <View style={styles.historyHeader}>
+              <Text style={styles.sectionTitle}>Lifecycle history</Text>
+              <TouchableOpacity
+                onPress={() => void handleExportHistory()}
+                accessibilityRole="button"
+                accessibilityLabel="Export lifecycle history"
+                testID="export-lifecycle-history-button">
+                <Text style={styles.simulateLinkText}>Export</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.notificationSubtext}>
+              Timestamped record of this subscription&apos;s state changes.
+            </Text>
+            {lifecycleEvents.length > 0 ? (
+              lifecycleEvents.map((event) => (
+                <View
+                  key={event.id}
+                  style={styles.lifecycleRow}
+                  testID={`lifecycle-event-${event.type}`}>
+                  <View style={styles.lifecycleDot} />
+                  <View style={styles.lifecycleContent}>
+                    <Text style={styles.lifecycleLabel}>{getLifecycleEventLabel(event.type)}</Text>
+                    <Text style={styles.ledgerMeta}>
+                      {new Date(event.occurredAt).toLocaleString()}
+                      {event.details ? ` · ${event.details}` : ''}
+                    </Text>
+                  </View>
+                </View>
+              ))
+            ) : (
+              <Text style={styles.emptyNote}>No lifecycle events recorded yet.</Text>
+            )}
           </Card>
 
           {/* Credit Balance */}
@@ -994,6 +1066,35 @@ const styles = StyleSheet.create({
     ...typography.small,
     color: colors.textSecondary,
     marginTop: 2,
+  },
+  historyHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  lifecycleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: spacing.sm,
+  },
+  lifecycleDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.primary,
+    marginTop: 5,
+    marginRight: spacing.sm,
+  },
+  lifecycleContent: {
+    flex: 1,
+  },
+  lifecycleLabel: {
+    ...typography.body2,
+    color: colors.text,
+    fontWeight: '700',
   },
   applicationRow: {
     borderTopWidth: 1,

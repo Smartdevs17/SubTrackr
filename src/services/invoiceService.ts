@@ -12,12 +12,26 @@ import type {
 } from '../types/invoice';
 import { InvoiceLayout, InvoiceStatus } from '../types/invoice';
 import { getNextSequence, generateLegalInvoiceNumber } from './sequenceService';
+import {
+  calculateInvoiceTotals,
+  resolveLineTotal,
+  isDiscountLineItem,
+} from '../utils/invoiceTotals';
+import { validateInvoiceLineItemMetadata, buildDiscountLineItem } from '../utils/invoice';
 
 const STORAGE_KEYS = {
   INVOICES: '@SubTrackr:invoices',
   BRANDING: '@SubTrackr:invoiceBranding',
   TEMPLATES: '@SubTrackr:invoiceTemplates',
 } as const;
+
+const escapeHtmlForInvoice = (value: unknown): string =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 
 // Branding Management
 export async function saveBranding(
@@ -142,21 +156,67 @@ export async function getDefaultTemplate(): Promise<InvoiceTemplate> {
   return templates.find((t) => t.isDefault) || templates[0];
 }
 
+/**
+ * Normalises a persisted/flat line item into the canonical shape: resolves the
+ * `amount` alias onto `lineTotal` and defaults the `kind` discriminator so
+ * older invoices without a `kind` are treated as chargeable lines.
+ */
+function normalizeLineItems(items: InvoiceLineItem[]): InvoiceLineItem[] {
+  return items.map((item) => ({
+    ...item,
+    kind: isDiscountLineItem(item) ? 'discount' : 'item',
+    lineTotal: resolveLineTotal(item),
+  }));
+}
+
+/**
+ * Materialises a scalar discount amount as an explicit discount line item so
+ * the reduction is visible on the invoice rather than only folded into the
+ * total. Any pre-existing discount line is replaced, making the scalar value
+ * the single source of truth when it is supplied.
+ *
+ * Discounts itemised here are deliberately distinct from coupons: coupons are
+ * a campaign concept applied at checkout and never appear on the invoice.
+ */
+function itemiseDiscount(
+  lineItems: InvoiceLineItem[],
+  discountAmount: number | undefined,
+  currency: string,
+  exchangeRate = 1
+): InvoiceLineItem[] {
+  const withoutDiscount = lineItems.filter((item) => !isDiscountLineItem(item));
+  if (!discountAmount || discountAmount <= 0) return withoutDiscount;
+  return [
+    ...withoutDiscount,
+    buildDiscountLineItem({ amount: discountAmount, currency, exchangeRate }),
+  ];
+}
+
 // Invoice Management
 export async function createInvoice(data: InvoiceFormData): Promise<Invoice> {
   const invoices = await getAllInvoices();
   const now = new Date();
 
   // Accepts either the itemised shape (lineTotal) or the flat one (amount).
-  const lineItems = (data.lineItems ?? []).map((item) => ({
-    ...item,
-    lineTotal: item.lineTotal ?? item.amount ?? 0,
-  }));
-  const lineTotal =
-    lineItems.length > 0
-      ? lineItems.reduce((sum, item) => sum + item.lineTotal, 0)
-      : (data.amount ?? 0);
-  const total = lineTotal + (data.taxAmount || 0) - (data.discountAmount || 0);
+  const metadataErrors = (data.lineItems ?? []).flatMap((item, index) =>
+    validateInvoiceLineItemMetadata(item.metadata, `line item ${index + 1} metadata`)
+  );
+  if (metadataErrors.length > 0) throw new Error(metadataErrors.join('; '));
+
+  const currency = data.currency ?? 'USD';
+  let lineItems = normalizeLineItems(data.lineItems ?? []);
+  // A scalar discount is itemised onto the invoice. Explicit discount line
+  // items supplied by the caller are preserved when no scalar is given.
+  if (data.discountAmount !== undefined) {
+    lineItems = itemiseDiscount(lineItems, data.discountAmount, currency);
+  }
+
+  const totals = calculateInvoiceTotals({
+    lineItems,
+    amount: data.amount,
+    tax: data.taxAmount,
+  });
+  const { subtotal, total } = totals;
 
   // Legal numbering: fetch next persistent sequence
   // We track sequence per year to reset it annually (common legal requirement)
@@ -173,13 +233,16 @@ export async function createInvoice(data: InvoiceFormData): Promise<Invoice> {
     merchantName: '',
     lineItems,
     tax: data.taxAmount ?? 0,
-    subtotal: lineTotal,
+    // Persist the clamped discount so a later edit can re-apply it instead of
+    // silently repricing the invoice at full value.
+    discountAmount: totals.discount,
+    subtotal,
     total,
     totalAmount: total,
     amount: total,
     dueDate: periodEnd,
     status: InvoiceStatus.DRAFT,
-    currency: data.currency ?? 'USD',
+    currency,
     region: data.region ?? 'GLOBAL',
     exchangeRate: 1,
     period: { start: now, end: periodEnd },
@@ -211,20 +274,45 @@ export async function updateInvoice(id: string, updates: Partial<Invoice>): Prom
     updatedAt: new Date(),
   };
 
-  // Recalculate totals if line items changed. Normalise the flat `amount`
-  // alias onto `lineTotal` and keep the total aliases in sync.
-  if (updates.lineItems) {
-    const lineItems = updates.lineItems.map((item) => ({
-      ...item,
-      lineTotal: item.lineTotal ?? item.amount ?? 0,
-    }));
-    const subtotal = lineItems.reduce((sum, item) => sum + (item.lineTotal ?? 0), 0);
-    const total = subtotal + (updatedInvoice.tax ?? 0);
+  // Recalculate totals if line items or the discount changed. Normalise the
+  // flat `amount` alias onto `lineTotal` and keep the total aliases in sync.
+  const lineItemsChanged = updates.lineItems !== undefined;
+  const discountChanged = updates.discountAmount !== undefined;
+
+  if (lineItemsChanged || discountChanged) {
+    if (updates.lineItems) {
+      const metadataErrors = updates.lineItems.flatMap((item, index) =>
+        validateInvoiceLineItemMetadata(item.metadata, `line item ${index + 1} metadata`)
+      );
+      if (metadataErrors.length > 0) throw new Error(metadataErrors.join('; '));
+    }
+
+    const currency = updatedInvoice.currency;
+    const exchangeRate = updatedInvoice.exchangeRate;
+    let lineItems = normalizeLineItems(updatedInvoice.lineItems);
+
+    if (discountChanged) {
+      // The caller supplied an explicit scalar discount; rebuild the discount
+      // line from it so it is itemised exactly once.
+      lineItems = itemiseDiscount(lineItems, updatedInvoice.discountAmount, currency, exchangeRate);
+    } else if (updates.lineItems?.some(isDiscountLineItem)) {
+      // The caller itemised the discount directly; the lines are authoritative.
+    } else if (updatedInvoice.discountAmount && updatedInvoice.discountAmount > 0) {
+      // Preserve a legacy scalar discount that was never itemised.
+      lineItems = itemiseDiscount(lineItems, updatedInvoice.discountAmount, currency, exchangeRate);
+    }
+
+    const totals = calculateInvoiceTotals({
+      lineItems,
+      tax: updatedInvoice.tax ?? 0,
+    });
+
     updatedInvoice.lineItems = lineItems;
-    updatedInvoice.subtotal = subtotal;
-    updatedInvoice.total = total;
-    updatedInvoice.totalAmount = total;
-    updatedInvoice.amount = total;
+    updatedInvoice.subtotal = totals.subtotal;
+    updatedInvoice.discountAmount = totals.discount;
+    updatedInvoice.total = totals.total;
+    updatedInvoice.totalAmount = totals.total;
+    updatedInvoice.amount = totals.total;
   }
 
   invoices[index] = updatedInvoice;
@@ -331,7 +419,10 @@ export async function getInvoiceAnalytics(): Promise<InvoiceAnalytics> {
     .filter((inv) => inv.status === InvoiceStatus.PAID)
     .reduce((sum, inv) => sum + inv.total, 0);
 
-  const averageInvoiceAmount = totalInvoices > 0 ? totalRevenue / paidInvoices || 0 : 0;
+  // `paidInvoices` can be 0 while invoices exist (every one still a draft). The
+  // old `totalRevenue / paidInvoices || 0` then evaluated to Infinity, because
+  // `Infinity` is truthy, and the analytics screen reported an infinite average.
+  const averageInvoiceAmount = paidInvoices > 0 ? totalRevenue / paidInvoices : 0;
 
   // Revenue by month
   const revenueByMonth: Record<string, number> = {};
@@ -446,16 +537,25 @@ async function generateInvoiceHTML(
   const fontFamily = branding?.fontFamily || 'Arial, sans-serif';
 
   const lineItemsHTML = invoice.lineItems
-    .map(
-      (item) => `
+    .map((item) => {
+      const isDiscount = isDiscountLineItem(item);
+      const unitPrice = `${invoice.currency} ${Math.abs(item.unitPrice).toFixed(2)}`;
+      const amount = `${invoice.currency} ${Math.abs(item.lineTotal ?? item.amount ?? 0).toFixed(2)}`;
+      return `
     <tr>
       <td style="padding: 8px; border-bottom: 1px solid #E5E7EB;">${item.description}</td>
       <td style="padding: 8px; border-bottom: 1px solid #E5E7EB; text-align: center;">${item.quantity}</td>
-      <td style="padding: 8px; border-bottom: 1px solid #E5E7EB; text-align: right;">${invoice.currency} ${item.unitPrice.toFixed(2)}</td>
-      <td style="padding: 8px; border-bottom: 1px solid #E5E7EB; text-align: right;">${invoice.currency} ${item.lineTotal.toFixed(2)}</td>
+      <td style="padding: 8px; border-bottom: 1px solid #E5E7EB; text-align: right;">${isDiscount ? '-' : ''}${unitPrice}</td>
+      <td style="padding: 8px; border-bottom: 1px solid #E5E7EB; text-align: right; color: ${isDiscount ? '#047857' : 'inherit'};">${isDiscount ? '-' : ''}${amount}</td>
+      ${Object.entries(item.metadata ?? {})
+        .map(
+          ([key, value]) =>
+            `<tr><td colspan="4" style="padding: 0 8px 6px; color: #6B7280; font-size: 11px;"><strong>${escapeHtmlForInvoice(key)}:</strong> ${escapeHtmlForInvoice(value)}</td></tr>`
+        )
+        .join('')}
     </tr>
-  `
-    )
+  `;
+    })
     .join('');
 
   return `

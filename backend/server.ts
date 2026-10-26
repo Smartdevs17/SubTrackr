@@ -16,6 +16,8 @@
  */
 
 import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
 import { timingSafeEqual } from 'node:crypto';
 import { URL } from 'node:url';
 import { makeExecutableSchema } from '@graphql-tools/schema';
@@ -53,7 +55,37 @@ import {
   createIpWhitelistGate,
 } from './services/shared/ipWhitelistService';
 import { serverSessionService } from './services/auth/serverSessionService';
+import { sessionTokenService } from './services/auth/domain/SessionTokenService';
+feat/stellar-wave-issues
+import { startPaymentExpirySweeper, type PaymentExpirySweeper } from './services/payment/jobs/paymentExpirySweeper';
+
 import { buildMetricsService } from './services/shared/buildMetricsService';
+import { createVersionMiddleware, versionRegistry } from './services/shared/apiVersioning';
+import { createLoggerFor } from './services/shared/logging';
+import { createTracerFromEnv, type Tracer } from './services/shared/tracing';
+import { createScheduledReportService } from './services/notification/scheduledReportService';
+import { createScheduledReportRouter } from './services/notification/scheduledReportRouter';
+import { createNotificationInboxRouter } from './services/notification/notificationInboxRouter';
+import { notificationCenterService } from './services/notification/notificationCenterService';
+import { createScheduledReportPoller } from './services/notification/jobs/scheduledReportJob';
+import { createEmailProviderFromEnv } from './services/notification/emailProvider';
+import type { ReportAnalyticsSnapshot } from './services/notification/scheduledReportService';
+import { createOverdueInvoiceReminderService } from './services/notification/overdueInvoiceReminderService';
+import { createOverdueInvoiceReminderRouter } from './services/notification/overdueInvoiceReminderRouter';
+import { createPostgresOverdueInvoiceSource } from './services/notification/overdueInvoiceSource';
+import { createOverdueReminderPoller } from './services/notification/jobs/overdueInvoiceReminderJob';
+import { createInvoiceNumberingService, PostgresInvoiceNumberingStore } from './billing/domain/InvoiceNumberingService';
+import { createInvoiceNumberingRouter } from './billing/router/invoiceNumberingRouter';
+import {
+  createTaxExemptionService,
+  PostgresCustomerTaxStatusStore,
+} from './services/billing/taxExemptionService';
+import { createTaxExemptionRouter } from './services/billing/taxExemptionRouter';
+import { HashChainService, AuditWriter, SensitiveOpsAuditController } from './audit';
+import { createRequestObservability } from './shared/middleware/requestObservability';
+import { createRevenueByCurrencyReportService } from './services/analytics/revenueByCurrencyReport';
+import { createRevenueByCurrencyRouter } from './services/analytics/revenueByCurrencyRouter';
+ main
 
 export interface StartServerOptions {
   port?: number;
@@ -63,6 +95,10 @@ export interface StartServerOptions {
   planBootstrap?: PlanCacheBootstrap;
   /** When true, binds to port (default). Set false in tests. */
   listen?: boolean;
+  /** Tracer for request spans. Defaults to one configured from OTEL_* env vars. */
+  tracer?: Tracer;
+  /** Maximum time in milliseconds to wait for in-flight requests to drain during shutdown. Defaults to 10,000ms. */
+  drainTimeoutMs?: number;
 }
 
 export interface RunningServer {
@@ -72,7 +108,11 @@ export interface RunningServer {
   monitoredPool: MonitoredPool;
   port: number;
   shutdown: () => Promise<void>;
+  getInFlightRequests?: () => number;
+  isDraining?: () => boolean;
+  removeSignalListeners?: () => void;
 }
+
 
 async function ensurePlanCache(pool: Pool): Promise<PlanCacheBootstrap> {
   const bootstrapped = await bootstrapPlanCache({ pool, warmOnStart: true });
@@ -117,13 +157,31 @@ function decodeJwtSubject(token: string): string | undefined {
   }
 }
 
-/** Resolve the caller tier from the x-subscription-tier header (default FREE). */
-function resolveTierFromRequest(
-  req: { headers: Record<string, string | string[] | undefined> },
-): SubscriptionTier {
-  const raw = req.headers['x-subscription-tier'];
-  const value = typeof raw === 'string' ? raw : Array.isArray(raw) ? raw[0] : undefined;
-  return parseSubscriptionTier(value ?? null) ?? SubscriptionTier.FREE;
+/**
+ * Resolve the caller's rate-limit tier for an API key.
+ *
+ * This previously read the client-supplied `x-subscription-tier` header
+ * verbatim, so any caller presenting a key could send
+ * `X-Subscription-Tier: enterprise` and receive the 10,000 req/hr allowance
+ * instead of the FREE tier's 100 req/hr — a 100× rate-limit bypass requiring
+ * no privilege at all.
+ *
+ * The tier now comes from the server-side record for that key. The header is
+ * honoured only when an explicit trusted-proxy opt-in is configured, which
+ * suits deployments where an authenticating gateway sits in front of this
+ * process and strips the header from inbound requests.
+ */
+function resolveTierForApiKey(apiKey: string, req: {
+  headers: Record<string, string | string[] | undefined>;
+}): SubscriptionTier {
+  if (process.env['TRUST_TIER_HEADER'] === 'true') {
+    const raw = req.headers['x-subscription-tier'];
+    const value = typeof raw === 'string' ? raw : Array.isArray(raw) ? raw[0] : undefined;
+    const parsed = parseSubscriptionTier(value ?? null);
+    if (parsed) return parsed;
+  }
+
+  return rateLimitingService.getTierForApiKey(apiKey);
 }
 
 /**
@@ -156,16 +214,19 @@ function buildRateLimitMiddleware() {
     allowMissingKey: true,
     skipPaths: [
       '/health',
+      '/health/live',
+      '/health/ready',
+      '/livez',
+      '/readyz',
       '/metrics/plan-cache',
       '/metrics/compression',
       '/metrics/pool',
       '/metrics/build',
     ],
-    // Per-key tier: read x-subscription-tier header; defaults to FREE.
-    getTier: (apiKey, req) => {
-      void apiKey;
-      return resolveTierFromRequest(req);
-    },
+
+    // Per-key tier: resolved from the server-side record, not from a
+    // client-supplied header. See resolveTierForApiKey.
+    getTier: (apiKey, req) => resolveTierForApiKey(apiKey, req),
     // Per-user aggregate limiting: x-user-id header or Bearer JWT sub claim.
     getUserId: (req) => resolveUserIdFromRequest(req),
   });
@@ -245,20 +306,31 @@ class HttpError extends Error {
 const MAX_BUILD_REPORT_BYTES = 1024 * 1024;
 
 /**
+ * Default ceiling for any other JSON request body (256 KiB).
+ *
+ * `maxBytes` was optional and 31 of 32 call sites omitted it, so every
+ * non-build-metrics route buffered an unbounded amount into memory before
+ * parsing. A single oversized POST was enough to exhaust the heap. A sane
+ * default is applied everywhere; individual routes may still raise it.
+ */
+const MAX_DEFAULT_BODY_BYTES = 256 * 1024;
+
+/**
  * Read and parse a JSON request body.
  *
- * @param maxBytes - Optional hard cap; exceeding it aborts with 413 so an
- *   untrusted upload cannot buffer unbounded memory. Omit for trusted routes
- *   to preserve the previous unlimited behaviour.
+ * @param maxBytes - Optional explicit cap; defaults to MAX_DEFAULT_BODY_BYTES.
+ *   Exceeding it aborts with 413 so an untrusted upload cannot buffer
+ *   unbounded memory. Set `Infinity` only for genuinely trusted routes.
  */
 async function readJsonBody(req: http.IncomingMessage, maxBytes?: number): Promise<unknown> {
+  const limit = maxBytes ?? MAX_DEFAULT_BODY_BYTES;
   const chunks: Buffer[] = [];
   let received = 0;
   for await (const chunk of req) {
     const buf = typeof chunk === 'string' ? Buffer.from(chunk) : chunk;
     received += buf.length;
-    if (maxBytes !== undefined && received > maxBytes) {
-      throw new HttpError(413, `request body exceeds ${maxBytes} bytes`);
+    if (Number.isFinite(limit) && received > limit) {
+      throw new HttpError(413, `request body exceeds ${limit} bytes`);
     }
     chunks.push(buf);
   }
@@ -384,11 +456,16 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
     },
     bypassPaths: [
       '/health',
+      '/health/live',
+      '/health/ready',
+      '/livez',
+      '/readyz',
       '/metrics/plan-cache',
       '/metrics/compression',
       '/metrics/pool',
       '/metrics/build',
     ],
+
   });
 
   // ---------------------------------------------------------------------------
@@ -396,8 +473,125 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
   // ---------------------------------------------------------------------------
   const sessionSweepTimer = setInterval(() => {
     serverSessionService.sweepExpiredSessions();
+    // Drop refresh-token families past their absolute lifetime (#1776).
+    sessionTokenService.sweep();
   }, 5 * 60 * 1000);
   sessionSweepTimer.unref();
+
+  // ---------------------------------------------------------------------------
+feat/stellar-wave-issues
+  // Payment expiry sweep — every PAYMENT_EXPIRY_SWEEP_INTERVAL_MS (issue #1716)
+  // Expires overdue payment intents and cancels their subscriptions.
+  // ---------------------------------------------------------------------------
+  const paymentExpirySweeper: PaymentExpirySweeper = startPaymentExpirySweeper();
+
+  // ── IP Whitelist gate ────────────────────────────────────────────────────
+  const checkIpAccess = createIpWhitelistGate({
+    service: ipWhitelistService,
+    getTenantId: (req) => {
+      const tid = req.headers['x-tenant-id'];
+      return (typeof tid === 'string' ? tid : undefined) ?? 'default';
+    },
+
+  // Scheduled email reports — issue #1758
+  // ---------------------------------------------------------------------------
+  const scheduledReportEmailProvider = createEmailProviderFromEnv();
+  const scheduledReportService = createScheduledReportService({
+    emailProvider: scheduledReportEmailProvider,
+    fromAddress: process.env['REPORT_FROM_ADDRESS'] ?? process.env['EMAIL_FROM_ADDRESS'] ?? 'reports@subtrackr.io',
+  });
+
+  // Snapshot factory: returns a minimal live analytics snapshot per merchant.
+  // In production wire this to SubscriptionAnalyticsService.compute(); the
+  // stub values here keep the server startable without analytics dependencies.
+  const reportSnapshotFactory = async (merchantId: string): Promise<ReportAnalyticsSnapshot> => {
+    const now = new Date();
+    const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    return {
+      merchantId,
+      mrr: 0,
+      arr: 0,
+      mrrGrowthRate: 0,
+      activeSubscribers: 0,
+      newSubscribersThisPeriod: 0,
+      churned: 0,
+      grossChurnRate: 0,
+      netChurnRate: 0,
+      arpu: 0,
+      ltv: 0,
+      currencySymbol: '$',
+      periodStart: monthStart.toISOString(),
+      periodEnd: now.toISOString(),
+    };
+  };
+
+  const scheduledReportRouter = createScheduledReportRouter(
+    scheduledReportService,
+    reportSnapshotFactory
+  );
+
+  // ---------------------------------------------------------------------------
+  // In-app notification inbox — issue #1750
+  // ---------------------------------------------------------------------------
+  const notificationInboxRouter = createNotificationInboxRouter(notificationCenterService);
+
+  const reportPoller = createScheduledReportPoller(
+    scheduledReportService,
+    reportSnapshotFactory
+  );
+
+  // ---------------------------------------------------------------------------
+  // Overdue invoice reminders — issue #1737
+  // ---------------------------------------------------------------------------
+  const overdueReminderEmailProvider = createEmailProviderFromEnv();
+  const overdueInvoiceSource = createPostgresOverdueInvoiceSource(pool, {
+    merchantId: process.env['DEFAULT_MERCHANT_ID'],
+    appBaseUrl: process.env['APP_BASE_URL'],
+  });
+  const overdueReminderService = createOverdueInvoiceReminderService({
+    emailProvider: overdueReminderEmailProvider,
+    fromAddress:
+      process.env['INVOICE_FROM_EMAIL'] ??
+      process.env['EMAIL_FROM_ADDRESS'] ??
+      'billing@subtrackr.com',
+    supportEmail: process.env['SUPPORT_EMAIL'],
+    merchantName: process.env['MERCHANT_NAME'] ?? process.env['INVOICE_FROM_NAME'],
+    appBaseUrl: process.env['APP_BASE_URL'],
+  });
+  const overdueReminderRouter = createOverdueInvoiceReminderRouter(
+    overdueReminderService,
+    overdueInvoiceSource
+  );
+  const overdueReminderPollMs = Number(process.env['OVERDUE_REMINDER_POLL_MS'] ?? Number.NaN);
+  const overdueReminderPoller = createOverdueReminderPoller(
+    overdueReminderService,
+    overdueInvoiceSource,
+    Number.isFinite(overdueReminderPollMs) && overdueReminderPollMs > 0
+      ? overdueReminderPollMs
+      : undefined
+  );
+
+  // ---------------------------------------------------------------------------
+  // Invoice numbering schemes — issue #1738
+  // ---------------------------------------------------------------------------
+  const invoiceNumberingService = createInvoiceNumberingService({
+    store: new PostgresInvoiceNumberingStore(pool),
+  main
+  });
+  const invoiceNumberingRouter = createInvoiceNumberingRouter(invoiceNumberingService);
+
+  // ---------------------------------------------------------------------------
+  // Customer tax exemptions — issue #1740
+  // ---------------------------------------------------------------------------
+  const auditChain = new HashChainService();
+  const auditWriter = new AuditWriter(auditChain);
+  const sensitiveOpsAuditController = new SensitiveOpsAuditController(auditWriter);
+  const taxExemptionService = createTaxExemptionService({
+    store: new PostgresCustomerTaxStatusStore(pool),
+    auditController: sensitiveOpsAuditController,
+    auditChain,
+  });
+  const taxExemptionRouter = createTaxExemptionRouter(taxExemptionService);
 
   // Seed a default permissive CORS policy for the server's own tenant.
   // In production, policies should be loaded from the database per-tenant.
@@ -406,7 +600,13 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
       { origin: process.env['CORS_ALLOWED_ORIGIN'] ?? '*', isWildcard: true },
     ],
     allowCredentials: false,
-    exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
+    exposedHeaders: [
+      'X-RateLimit-Limit',
+      'X-RateLimit-Remaining',
+      'X-RateLimit-Reset',
+      'X-Request-Id',
+      'api-version',
+    ],
     maxAge: 86400,
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowHeaders: [
@@ -419,12 +619,44 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
     active: true,
   });
 
-  const server = http.createServer(async (req, res) => {
+  const observeRequest = createRequestObservability({
+    tracer: options.tracer ?? createTracerFromEnv('subtrackr-backend'),
+    logger: createLoggerFor('http'),
+  });
+  const versionMiddleware = createVersionMiddleware(versionRegistry);
+
+  let isShuttingDown = false;
+  let inFlightRequests = 0;
+  const activeSockets = new Set<import('node:net').Socket>();
+  const drainTimeoutMs = options.drainTimeoutMs ?? Number(process.env.DRAIN_TIMEOUT_MS ?? 10_000);
+
+  const handleRequest = async (
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+  ): Promise<void> => {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
     const { pathname } = url;
     const method = req.method ?? 'GET';
 
+    if (isShuttingDown && pathname !== '/health/live' && pathname !== '/livez') {
+      res.setHeader('Connection', 'close');
+      sendJson(res, 503, { error: 'Server is shutting down' });
+      return;
+    }
+
+    inFlightRequests++;
+    let inFlightDecremented = false;
+    const onReqFinished = () => {
+      if (!inFlightDecremented) {
+        inFlightDecremented = true;
+        inFlightRequests = Math.max(0, inFlightRequests - 1);
+      }
+    };
+    res.once('finish', onReqFinished);
+    res.once('close', onReqFinished);
+
     applySecurityHeadersToResponse(res);
+
 
     const originalWriteHead = res.writeHead.bind(res);
     res.writeHead = ((statusCode: number, statusMessage?: string | Record<string, string>) => {
@@ -464,6 +696,20 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
       }
 
       // -----------------------------------------------------------------
+      // API version (issue #1789): sets `api-version`, adds deprecation
+      // headers, and answers 400/410 for unknown or sunset versions.
+      // -----------------------------------------------------------------
+      let versionAccepted = false;
+      await versionMiddleware(
+        { path: pathname, headers: req.headers, query: Object.fromEntries(url.searchParams) },
+        res,
+        () => {
+          versionAccepted = true;
+        },
+      );
+      if (!versionAccepted) return;
+
+      // -----------------------------------------------------------------
       // IP Whitelist gate (issue #1158) — applied before all auth/rate-limit
       // -----------------------------------------------------------------
       const ipAllowed = ipWhitelistGate(req, res, pathname);
@@ -481,8 +727,107 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
       if (!proceed) return; // 429 already sent
 
       // -----------------------------------------------------------------
-      // Health (bypass rate limiting)
+      // OpenAPI specification and Swagger UI (Issue #1784)
       // -----------------------------------------------------------------
+      if (pathname === '/api/docs/openapi.json' && method === 'GET') {
+        const specPath = path.join(__dirname, '../developer-portal/docs/openapi.json');
+        if (fs.existsSync(specPath)) {
+          const content = fs.readFileSync(specPath, 'utf8');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(content);
+          return;
+        }
+      }
+
+      if ((pathname === '/api/docs' || pathname === '/api/docs/') && method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>SubTrackr API Explorer - OpenAPI 3.1</title>
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
+</head>
+<body>
+  <div id="swagger-ui"></div>
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+  <script>
+    window.onload = function() {
+      SwaggerUIBundle({
+        url: "/api/docs/openapi.json",
+        dom_id: '#swagger-ui',
+        deepLinking: true,
+        presets: [
+          SwaggerUIBundle.presets.apis,
+          SwaggerUIBundle.SwaggerUIStandalonePreset
+        ]
+      });
+    };
+  </script>
+</body>
+</html>`);
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // Health Probes: Liveness & Readiness (bypass rate limiting)
+      // -----------------------------------------------------------------
+      if ((pathname === '/health/live' || pathname === '/livez') && method === 'GET') {
+        sendJson(res, 200, {
+          status: 'ok',
+          uptime: process.uptime(),
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+
+      if ((pathname === '/health/ready' || pathname === '/readyz') && method === 'GET') {
+        if (isShuttingDown) {
+          sendJson(res, 503, {
+            status: 'terminating',
+            ready: false,
+            message: 'Server is draining in-flight requests and shutting down',
+          });
+          return;
+        }
+
+        let dbStatus: 'ok' | 'failed' = 'ok';
+        let dbError: string | undefined;
+        try {
+          if (pool && typeof pool.query === 'function') {
+            await pool.query('SELECT 1');
+          }
+        } catch (err) {
+          dbStatus = 'failed';
+          dbError = (err as Error).message;
+        }
+
+        let cacheStatus: 'ok' | 'failed' = 'ok';
+        let cacheError: string | undefined;
+        try {
+          const cacheOk = await planBootstrap.planCache.isHealthy();
+          if (!cacheOk) {
+            cacheStatus = 'failed';
+          }
+        } catch (err) {
+          cacheStatus = 'failed';
+          cacheError = (err as Error).message;
+        }
+
+        const isReady = dbStatus === 'ok' && cacheStatus === 'ok';
+        sendJson(res, isReady ? 200 : 503, {
+          status: isReady ? 'ok' : 'degraded',
+          ready: isReady,
+          checks: {
+            database: dbStatus,
+            cache: cacheStatus,
+            ...(dbError ? { dbError } : {}),
+            ...(cacheError ? { cacheError } : {}),
+          },
+        });
+        return;
+      }
+
       if (pathname === '/health' && method === 'GET') {
         const cacheHealthy = await planBootstrap.planCache.isHealthy();
         sendJson(res, 200, {
@@ -491,6 +836,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
         });
         return;
       }
+
 
       // -----------------------------------------------------------------
       // Prometheus metrics (bypass rate limiting)
@@ -1016,6 +1362,69 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
           expiresAt: s.expiresAt,
           isSuspicious: s.isSuspicious,
           suspiciousReasons: s.suspiciousReasons,
+        });
+        return;
+      }
+
+      // POST /sessions/rebind — bind a session to the current device after
+      // step-up authentication (issue #1766). Requires X-Session-Token (the
+      // session to rebind) plus X-Reauth-Token: a passkey-authenticated
+      // session issued to the same user within the last 5 minutes, proving the
+      // caller still controls the account. A stolen token alone can therefore
+      // never move a session to a different device.
+      if (pathname === '/sessions/rebind' && method === 'POST') {
+        const token = req.headers['x-session-token'] as string;
+        if (!token) {
+          sendJson(res, 400, { error: 'X-Session-Token header is required' });
+          return;
+        }
+        const reauthToken = req.headers['x-reauth-token'] as string;
+        if (!reauthToken) {
+          sendJson(res, 403, {
+            error: 'step_up_required',
+            message:
+              'X-Reauth-Token (fresh passkey-authenticated session for the same user) is required to rebind a device',
+          });
+          return;
+        }
+
+        const target = serverSessionService.getSession(token);
+        if (!target) {
+          sendJson(res, 404, { error: 'Session not found' });
+          return;
+        }
+
+        const reauth = serverSessionService.getSession(reauthToken);
+        const stepUpValid =
+          !!reauth &&
+          reauth.status === 'active' &&
+          Date.now() <= reauth.expiresAt &&
+          reauth.userId === target.userId &&
+          reauth.metadata?.authMethod === 'passkey' &&
+          Date.now() - reauth.createdAt <= 5 * 60 * 1000;
+        if (!stepUpValid) {
+          sendJson(res, 403, {
+            error: 'step_up_invalid',
+            message:
+              'X-Reauth-Token must be a passkey-authenticated session for the same user, issued within the last 5 minutes',
+          });
+          return;
+        }
+
+        const result = serverSessionService.rebindSession(token, req, { reauthenticated: true });
+        if (!result.rebound) {
+          if (result.reason === 'same_device') {
+            sendJson(res, 200, { rebound: false, reason: result.reason });
+            return;
+          }
+          sendJson(res, 409, { error: result.reason });
+          return;
+        }
+        sendJson(res, 200, {
+          rebound: true,
+          id: result.session!.id,
+          device: result.session!.device,
+          expiresAt: result.session!.expiresAt,
         });
         return;
       }
@@ -1576,9 +1985,21 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
       // HubSpot — POST /hubspot/webhook  (ingest from HubSpot)
       // -----------------------------------------------------------------
       if (pathname === '/hubspot/webhook' && method === 'POST') {
+        // Bounded read: this accumulated every chunk with no cap before the
+        // signature was even checked, so an anonymous caller could exhaust
+        // memory with a single oversized POST.
         const rawBody = await new Promise<string>((resolve, reject) => {
           const chunks: Buffer[] = [];
-          req.on('data', (c: Buffer) => chunks.push(c));
+          let received = 0;
+          req.on('data', (c: Buffer) => {
+            received += c.length;
+            if (received > MAX_DEFAULT_BODY_BYTES) {
+              reject(new HttpError(413, `request body exceeds ${MAX_DEFAULT_BODY_BYTES} bytes`));
+              req.destroy();
+              return;
+            }
+            chunks.push(c);
+          });
           req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
           req.on('error', reject);
         });
@@ -1690,25 +2111,129 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
         return;
       }
 
+      // -----------------------------------------------------------------
+      // In-app notification inbox  /api/notifications  (issue #1750)
+      // -----------------------------------------------------------------
+      if (pathname.startsWith('/api/notifications')) {
+        const handled = await notificationInboxRouter(req, res, pathname);
+        if (handled) return;
+      }
+
+      // -----------------------------------------------------------------
+      // Scheduled email reports  /scheduled-reports  (issue #1758)
+      // -----------------------------------------------------------------
+      if (pathname.startsWith('/scheduled-reports')) {
+        const handled = await scheduledReportRouter(req, res, pathname);
+        if (handled) return;
+      }
+
+      // -----------------------------------------------------------------
+      // Overdue invoice reminders  /overdue-reminders  (issue #1737)
+      // -----------------------------------------------------------------
+      if (pathname.startsWith('/overdue-reminders')) {
+        const handled = await overdueReminderRouter(req, res, pathname);
+        if (handled) return;
+      }
+
+      // -----------------------------------------------------------------
+      // Invoice numbering schemes  /invoice-numbering  (issue #1738)
+      // -----------------------------------------------------------------
+      if (pathname.startsWith('/invoice-numbering')) {
+        const handled = await invoiceNumberingRouter(req, res, pathname);
+        if (handled) return;
+      }
+
+      // -----------------------------------------------------------------
+      // Customer tax exemptions  /tax-exemptions  (issue #1740)
+      // -----------------------------------------------------------------
+      if (pathname.startsWith('/tax-exemptions')) {
+        const handled = await taxExemptionRouter(req, res, pathname);
+        if (handled) return;
+      }
+
       sendJson(res, 404, { error: 'Not found' });
     } catch (err) {
       if (err instanceof HttpError) {
         sendJson(res, err.status, { error: err.message });
         return;
       }
+      if ((err as any)?.code === 'ECONNRESET' || (err as any)?.message === 'aborted') {
+        return;
+      }
       console.error('[Server] Request error:', err);
       sendJson(res, 500, { error: 'Internal server error' });
+
     }
+  };
+
+  const server = http.createServer((req, res) =>
+    observeRequest(req, res, () => handleRequest(req, res)),
+  );
+
+  server.on('connection', (socket) => {
+    activeSockets.add(socket);
+    socket.once('close', () => {
+      activeSockets.delete(socket);
+    });
   });
 
   const port = options.port ?? Number(process.env.PORT ?? 3001);
   const host = options.host ?? process.env.HOST ?? '0.0.0.0';
 
   const shutdown = async (): Promise<void> => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
     clearInterval(sessionSweepTimer);
+ feat/stellar-wave-issues
+    paymentExpirySweeper.stop();
     await new Promise<void>((resolve, reject) => {
+
+    reportPoller.stop();
+    overdueReminderPoller.stop();
+
+    // Stop accepting new connections
+    const closeServerPromise = new Promise<void>((resolve, reject) => {
+    main
       server.close((err) => (err ? reject(err) : resolve()));
     });
+
+    // Close idle keep-alive connections immediately
+    if (typeof (server as any).closeIdleConnections === 'function') {
+      (server as any).closeIdleConnections();
+    }
+
+    // Drain in-flight connections with bounded drain timeout
+    await new Promise<void>((resolve) => {
+      if (inFlightRequests === 0) {
+        resolve();
+        return;
+      }
+
+      const checkInterval = setInterval(() => {
+        if (inFlightRequests === 0) {
+          clearInterval(checkInterval);
+          clearTimeout(timeoutTimer);
+          resolve();
+        }
+      }, 50);
+
+      const timeoutTimer = setTimeout(() => {
+        clearInterval(checkInterval);
+        console.warn(
+          `[Server] Drain timeout of ${drainTimeoutMs}ms exceeded with ${inFlightRequests} in-flight requests remaining; forcing connection termination.`,
+        );
+        for (const socket of activeSockets) {
+          socket.destroy();
+        }
+        resolve();
+      }, drainTimeoutMs);
+
+      checkInterval.unref();
+      timeoutTimer.unref();
+    });
+
+    await closeServerPromise.catch(() => {});
+
     await shutdownPlanCache(planBootstrap);
     if (!options.pool) {
       await closePool();
@@ -1785,13 +2310,29 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
         console.info(`[Server] HubSpot  → POST /hubspot/webhook`);
         console.info(`[Server] HubSpot  → GET /hubspot/sync-status`);
         console.info(`[Server] HubSpot  → GET /hubspot/metrics`);
+        console.info(`[Server] Reports  → POST   /scheduled-reports`);
+        console.info(`[Server] Reports  → GET    /scheduled-reports?merchantId=…`);
+        console.info(`[Server] Reports  → GET    /scheduled-reports/:id`);
+        console.info(`[Server] Reports  → PATCH  /scheduled-reports/:id`);
+        console.info(`[Server] Reports  → DELETE /scheduled-reports/:id`);
+        console.info(`[Server] Reports  → POST   /scheduled-reports/:id/recipients`);
+        console.info(`[Server] Reports  → DELETE /scheduled-reports/:id/recipients`);
+        console.info(`[Server] Reports  → POST   /scheduled-reports/:id/send-now`);
+        console.info(`[Server] Overdue  → POST   /overdue-reminders`);
+        console.info(`[Server] Overdue  → GET    /overdue-reminders?merchantId=…`);
+        console.info(`[Server] Overdue  → GET    /overdue-reminders/:id`);
+        console.info(`[Server] Overdue  → PATCH  /overdue-reminders/:id`);
+        console.info(`[Server] Overdue  → DELETE /overdue-reminders/:id`);
+        console.info(`[Server] Overdue  → GET    /overdue-reminders/entries`);
+        console.info(`[Server] Overdue  → POST   /overdue-reminders/run-now`);
+        console.info(`[Server] Overdue  → POST   /overdue-reminders/invoices/:invoiceId/stop`);
         resolve();
       });
     });
   }
 
   const handleSignal = (signal: string) => {
-    console.info(`[Server] Received ${signal}, shutting down…`);
+    console.info(`[Server] Received ${signal}, draining connections and shutting down…`);
     shutdown()
       .then(() => process.exit(0))
       .catch((err) => {
@@ -1800,10 +2341,28 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
       });
   };
 
-  process.once('SIGTERM', () => handleSignal('SIGTERM'));
-  process.once('SIGINT', () => handleSignal('SIGINT'));
+  const sigtermListener = () => handleSignal('SIGTERM');
+  const sigintListener = () => handleSignal('SIGINT');
 
-  return { server, pool, planBootstrap, monitoredPool, port, shutdown };
+  process.once('SIGTERM', sigtermListener);
+  process.once('SIGINT', sigintListener);
+
+  const removeSignalListeners = () => {
+    process.removeListener('SIGTERM', sigtermListener);
+    process.removeListener('SIGINT', sigintListener);
+  };
+
+  return {
+    server,
+    pool,
+    planBootstrap,
+    monitoredPool,
+    port,
+    shutdown,
+    getInFlightRequests: () => inFlightRequests,
+    isDraining: () => isShuttingDown,
+    removeSignalListeners,
+  };
 }
 
 if (require.main === module) {
@@ -1812,3 +2371,4 @@ if (require.main === module) {
     process.exit(1);
   });
 }
+

@@ -7,6 +7,10 @@ export const PaymentErrorCode = {
   GATEWAY_FALLBACK_FAILED: 'PAYMENT_GATEWAY_FALLBACK_FAILED' as ErrorCode,
   GATEWAY_CONFIG_INVALID: 'PAYMENT_GATEWAY_CONFIG_INVALID' as ErrorCode,
   REFUND_PARTIAL_FAILED: 'PAYMENT_REFUND_PARTIAL_FAILED' as ErrorCode,
+  feat/stellar-wave-issues
+  ASSET_NOT_ALLOWED: 'ASSET_NOT_ALLOWED' as ErrorCode,
+  SPLIT_VALIDATION_ERROR: 'PAYMENT_SPLIT_VALIDATION_ERROR' as ErrorCode,
+  main
 } as const;
 
 export class PaymentError extends DomainError {
@@ -24,5 +28,13 @@ export class PaymentError extends DomainError {
 
   static fallbackFailed(primary: string, secondary: string): PaymentError {
     return new PaymentError(PaymentErrorCode.GATEWAY_FALLBACK_FAILED, `Fallback from ${primary} to ${secondary} failed`, { primary, secondary });
+  }
+
+  static assetNotAllowed(merchantId: string, asset: string, issuer?: string): PaymentError {
+    return new PaymentError(
+      PaymentErrorCode.ASSET_NOT_ALLOWED,
+      `Asset ${asset}${issuer ? `:${issuer}` : ''} not allowed for merchant ${merchantId}`,
+      { merchantId, asset, issuer: issuer ?? '' }
+    );
   }
 }
