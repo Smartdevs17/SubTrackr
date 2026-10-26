@@ -65,6 +65,8 @@ import { createLoggerFor } from './services/shared/logging';
 import { createTracerFromEnv, type Tracer } from './services/shared/tracing';
 import { createScheduledReportService } from './services/notification/scheduledReportService';
 import { createScheduledReportRouter } from './services/notification/scheduledReportRouter';
+import { createSmsConsentRouter } from './services/notification/smsConsentRouter';
+import { smsConsentService } from './services/container';
 import { createNotificationInboxRouter } from './services/notification/notificationInboxRouter';
 import { notificationCenterService } from './services/notification/notificationCenterService';
 import { createScheduledReportPoller } from './services/notification/jobs/scheduledReportJob';
@@ -530,6 +532,7 @@ feat/stellar-wave-issues
     reportSnapshotFactory
   );
 
+  const smsConsentRouter = createSmsConsentRouter(smsConsentService);
   // ---------------------------------------------------------------------------
   // In-app notification inbox — issue #1750
   // ---------------------------------------------------------------------------
@@ -2109,6 +2112,14 @@ feat/stellar-wave-issues
         const result = await planController.deactivatePlan(planId);
         sendJson(res, result.success ? 200 : (result.status ?? 400), result);
         return;
+      }
+
+      // -----------------------------------------------------------------
+      // SMS consent ledger  /api/sms-consent  (issue #1747)
+      // -----------------------------------------------------------------
+      if (pathname.startsWith('/api/sms-consent')) {
+        const handled = await smsConsentRouter(req, res, pathname);
+        if (handled) return;
       }
 
       // -----------------------------------------------------------------

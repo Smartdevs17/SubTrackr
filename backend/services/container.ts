@@ -387,7 +387,20 @@ container.register('ITransactionalEmailRenderer', { renderTransactionalEmail });
 
 // ── Two-Way SMS (#1256) ───────────────────────────────────────────────────────
 import { smsInboundHandler } from './notification/smsInboundHandler';
+import {
+  InMemorySmsConsentRepository,
+  SmsConsentService,
+} from './notification/smsConsentService';
 container.register('ISmsInboundHandler', smsInboundHandler);
+
+// ── SMS consent ledger (#1747) ────────────────────────────────────────────────
+// Mirrors consent changes into the shared provider opt-out registry so the
+// low-level send path refuses opted-out numbers even if a caller skips us.
+export const smsConsentService = new SmsConsentService({
+  repository: new InMemorySmsConsentRepository(),
+  optOutRegistry: optOutStore,
+});
+container.register('ISmsConsentService', smsConsentService);
 
 // ── Voice Call Reminders (#1255) ──────────────────────────────────────────────
 import { voiceReminderService } from './notification/voiceReminderService';
