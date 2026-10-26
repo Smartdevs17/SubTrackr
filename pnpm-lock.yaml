@@ -292,8 +292,8 @@ importers:
         specifier: ^2.0.1
         version: 2.2.0
       expo-server-sdk:
-        specifier: ^7.2.0
-        version: 7.2.0
+        specifier: ^8.0.0
+        version: 8.0.0
       pino:
         specifier: ^10.4.0
         version: 10.4.0
@@ -4782,8 +4782,8 @@ packages:
       react: '*'
       react-native: '*'
 
-  expo-server-sdk@7.2.0:
-    resolution: {integrity: sha512-np157Ylo2X+aX3VYazXoXNc/akSskzEzHmVkxlGlkzOTVkSRgzBk93BX/8fjl6+O7KfimyWx5JJmoa+D5KgXdQ==}
+  expo-server-sdk@8.0.0:
+    resolution: {integrity: sha512-AN0JuacmrO32hxv95EPqPfPIRqj0neCnh0ooxQFAd3lkJXu4ytWduvxzawzHEOSn4jV/1vx8xbtOXpuVV9Tg3Q==}
     engines: {node: '>=22.12.0'}
 
   expo-server@58.0.5:
@@ -15043,11 +15043,10 @@ snapshots:
       - supports-color
       - typescript
 
-  expo-server-sdk@7.2.0:
+  expo-server-sdk@8.0.0:
     dependencies:
       promise-limit: 2.7.0
       promise-retry: 2.0.1
-      undici: 7.29.1
 
   expo-server@58.0.5: {}
 
