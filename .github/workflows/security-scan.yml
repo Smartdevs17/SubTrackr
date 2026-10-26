@@ -71,7 +71,7 @@ jobs:
 
       - name: Upload SAST reports
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: security-sast-semgrep
           path: security-reports/
@@ -132,7 +132,7 @@ jobs:
 
       - name: Upload dependency reports
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: security-dependency-scan
           path: security-reports/
@@ -175,7 +175,7 @@ jobs:
 
       - name: Upload container reports
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: security-container-trivy
           path: security-reports/
@@ -203,7 +203,16 @@ jobs:
             ghcr.io/gitleaks/gitleaks:latest \
             detect \
             --source=/repo \
-            --log-opts=--all \
+feat/stellar-wave-issues
+            --log-opts=all \
+            --redact \
+            --report-format=json \
+            --report-path="$SECURITY_REPORT_DIR/gitleaks.json" \
+            --exit-code=0 || true
+
+      - name: Block critical secret findings
+
+      --log-opts=--all \
             --redact \
             --report-format=json \
             --report-path="$SECURITY_REPORT_DIR/gitleaks.json" \
@@ -211,11 +220,12 @@ jobs:
 
       - name: Block critical secret findings
         if: always()
+        main
         run: python scripts/security-dashboard.py "$SECURITY_REPORT_DIR" --tool gitleaks --fail-on-critical
 
       - name: Upload secret scan reports
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: security-secret-scan
           path: security-reports/
@@ -270,7 +280,7 @@ jobs:
 
       - name: Upload DAST reports
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: security-dast-zap
           path: security-reports/
@@ -299,7 +309,7 @@ jobs:
           cat security-dashboard.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload dashboard
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: security-dashboard
           path: security-dashboard.md

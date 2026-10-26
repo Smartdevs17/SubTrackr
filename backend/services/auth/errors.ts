@@ -15,6 +15,15 @@ export const AuthErrorCode = {
   PASSKEY_CREDENTIAL_NOT_FOUND: 'AUTH_PASSKEY_CREDENTIAL_NOT_FOUND' as ErrorCode,
   PASSKEY_CREDENTIAL_EXISTS: 'AUTH_PASSKEY_CREDENTIAL_EXISTS' as ErrorCode,
   PASSKEY_COUNTER_REGRESSION: 'AUTH_PASSKEY_COUNTER_REGRESSION' as ErrorCode,
+  INVALID_CREDENTIALS: 'AUTH_INVALID_CREDENTIALS' as ErrorCode,
+  ACCOUNT_LOCKED: 'AUTH_ACCOUNT_LOCKED' as ErrorCode,
+  PASSWORD_POLICY_VIOLATION: 'AUTH_PASSWORD_POLICY_VIOLATION' as ErrorCode,
+  REFRESH_TOKEN_INVALID: 'AUTH_REFRESH_TOKEN_INVALID' as ErrorCode,
+  REFRESH_TOKEN_REUSED: 'AUTH_REFRESH_TOKEN_REUSED' as ErrorCode,
+  SESSION_NOT_FOUND: 'AUTH_SESSION_NOT_FOUND' as ErrorCode,
+  INSUFFICIENT_SCOPE: 'AUTH_INSUFFICIENT_SCOPE' as ErrorCode,
+  USER_CODE_INVALID: 'AUTH_USER_CODE_INVALID' as ErrorCode,
+  USER_CODE_ATTEMPTS_EXCEEDED: 'AUTH_USER_CODE_ATTEMPTS_EXCEEDED' as ErrorCode,
 } as const;
 
 export class AuthError extends DomainError {
@@ -79,6 +88,64 @@ export class AuthError extends DomainError {
       AuthErrorCode.PASSKEY_COUNTER_REGRESSION,
       `Passkey signature counter did not increase (possible cloned authenticator): ${credentialId}`,
       { credentialId }
+    );
+  }
+
+  // ── Password login (#1778) ────────────────────────────────────────────────
+
+  /** Deliberately identical for unknown users and wrong passwords. */
+  static invalidCredentials(): AuthError {
+    return new AuthError(AuthErrorCode.INVALID_CREDENTIALS, 'Invalid credentials');
+  }
+
+  static accountLocked(retryAfterMs: number): AuthError {
+    return new AuthError(
+      AuthErrorCode.ACCOUNT_LOCKED,
+      'Too many failed sign-in attempts; try again later',
+      { retryAfterSeconds: String(Math.ceil(retryAfterMs / 1000)) }
+    );
+  }
+
+  static passwordPolicyViolation(reason: string): AuthError {
+    return new AuthError(AuthErrorCode.PASSWORD_POLICY_VIOLATION, `Password rejected: ${reason}`, { reason });
+  }
+
+  // ── Refresh tokens & sessions (#1776, #1777) ─────────────────────────────
+
+  static refreshTokenInvalid(reason: string): AuthError {
+    return new AuthError(AuthErrorCode.REFRESH_TOKEN_INVALID, `Refresh token rejected: ${reason}`, { reason });
+  }
+
+  static refreshTokenReused(): AuthError {
+    return new AuthError(
+      AuthErrorCode.REFRESH_TOKEN_REUSED,
+      'Refresh token was already used; the session has been revoked'
+    );
+  }
+
+  static sessionNotFound(sessionId: string): AuthError {
+    return new AuthError(AuthErrorCode.SESSION_NOT_FOUND, `Session not found: ${sessionId}`, { sessionId });
+  }
+
+  static insufficientScope(requiredScope: string): AuthError {
+    return new AuthError(
+      AuthErrorCode.INSUFFICIENT_SCOPE,
+      `Access token lacks required scope: ${requiredScope}`,
+      { requiredScope }
+    );
+  }
+
+  // ── Device authorization (#1779) ─────────────────────────────────────────
+
+  static userCodeInvalid(reason: string): AuthError {
+    return new AuthError(AuthErrorCode.USER_CODE_INVALID, `User code rejected: ${reason}`, { reason });
+  }
+
+  static userCodeAttemptsExceeded(retryAfterMs: number): AuthError {
+    return new AuthError(
+      AuthErrorCode.USER_CODE_ATTEMPTS_EXCEEDED,
+      'Too many invalid user codes; try again later',
+      { retryAfterSeconds: String(Math.ceil(retryAfterMs / 1000)) }
     );
   }
 }

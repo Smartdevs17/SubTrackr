@@ -34,7 +34,18 @@ import { billingLockIntegration } from './billing/lockIntegration';
 import { subscriptionLockIntegration } from './subscription/lockIntegration';
 import { kmsProvider, vaultProvider, ColumnEncryptionService } from './shared/encryption';
 import { apiKeyRotationService } from './auth';
-import { paymentRouter, StripeAdapter, CircleAdapter, StellarAdapter, ShopifyAdapter } from './payment';
+import {
+  paymentRouter,
+  StripeAdapter,
+  CircleAdapter,
+  StellarAdapter,
+  ShopifyAdapter,
+  paymentIntentService,
+  assetPolicyService,
+  paymentExpiryService,
+  finalityService,
+} from './payment';
+import { paymentWebhookPublisher } from './webhook/paymentWebhookPublisher';
 import { getPlanCacheService } from '../subscription/planCacheRegistry';
 import type { PlanCacheService } from '../subscription/domain/PlanCacheService';
 
@@ -250,6 +261,13 @@ if (shopifyAdapter) {
   paymentRouter.registerGateway(shopifyAdapter.name, shopifyAdapter);
 }
 container.register('IPaymentRouter', paymentRouter);
+
+// ── Payment intents / asset policy / finality (Issues #1716–#1719) ────────────
+container.register('IPaymentIntentService', paymentIntentService);
+container.register('IAssetPolicyService', assetPolicyService);
+container.register('IPaymentExpiryService', paymentExpiryService);
+container.register('IFinalityService', finalityService);
+container.register('IPaymentWebhookPublisher', paymentWebhookPublisher);
 
 // ── Plan cache (requires bootstrapPlanCache() at startup) ─────────────────────
 container.bind('IPlanCacheService', () => {

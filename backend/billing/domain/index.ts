@@ -1,4 +1,23 @@
 export { BillingEngine } from './BillingEngine';
+export {
+  createInvoiceNumberingService,
+  DEFAULT_INVOICE_NUMBERING_SCHEME,
+  formatInvoiceNumber,
+  invoiceNumberingPeriod,
+  InMemoryInvoiceNumberingStore,
+  PostgresInvoiceNumberingStore,
+  InvoiceNumberingValidationError,
+  parseInvoiceNumberingScheme,
+  validateInvoiceNumberingScheme,
+} from './InvoiceNumberingService';
+export type {
+  InvoiceNumberingScheme,
+  InvoiceNumberingService,
+  InvoiceNumberingServiceDeps,
+  InvoiceNumberingState,
+  InvoiceNumberingStore,
+  InvoiceNumberingView,
+} from './InvoiceNumberingService';
 export { StrategyRegistry } from './StrategyRegistry';
 export type { PricingStrategy } from './PricingStrategy';
 export {

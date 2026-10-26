@@ -219,8 +219,20 @@ export interface ApiKeyLeakDetectedPayload extends Record<string, unknown> {
   detectedAt: number;
 }
 
+/** A rotated refresh token was presented again; its whole family was revoked (#1776). */
+export interface RefreshTokenReuseDetectedPayload extends Record<string, unknown> {
+  familyId: string;
+  sessionId: string;
+  userId: string;
+  /** Generation of the token that was replayed vs. the family's current one. */
+  presentedGeneration: number;
+  currentGeneration: number;
+  detectedAt: number;
+}
+
 export type AuthEvent =
   | DomainEvent<'auth', 'api_key_rotated', ApiKeyRotatedPayload>
+  | DomainEvent<'auth', 'refresh_token_reuse_detected', RefreshTokenReuseDetectedPayload>
   | DomainEvent<'auth', 'api_key_revoked', ApiKeyRevokedPayload>
   | DomainEvent<'auth', 'api_key_leak_detected', ApiKeyLeakDetectedPayload>
   | DomainEvent<'auth', 'sso_session_created', SsoSessionCreatedPayload>;

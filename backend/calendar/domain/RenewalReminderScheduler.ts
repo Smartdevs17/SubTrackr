@@ -39,6 +39,11 @@ export interface SubscriptionForReminder {
   status: 'active' | 'paused' | 'trialing' | 'cancelled';
   /** ISO date string when the trial ends (if trialing) */
   trialEndDate?: string;
+  /**
+   * Per-subscription kill switch. When false, existing reminders are removed
+   * and no new ones are created.
+   */
+  notificationsEnabled?: boolean;
 }
 
 export interface ReminderLeadTime {
@@ -51,12 +56,18 @@ export interface ReminderLeadTime {
 }
 
 export interface ReminderSchedulerConfig {
-  /** Lead-time windows to create. Default: 7-day and 1-day warnings. */
+  /** Lead-time windows to create. Default: 30-day, 7-day and 1-day warnings. */
   leadTimes: ReminderLeadTime[];
   /** Event duration in minutes. Default: 60. */
   eventDurationMinutes: number;
   /** Whether to update existing events when billing dates change. Default: true. */
   updateExistingEvents: boolean;
+  /**
+   * Optional hook consulted before a reminder is created, so account-level
+   * notification preferences can suppress a reminder type. Return false to
+   * skip that type for the user.
+   */
+  isReminderEnabled?: (userId: string, eventType: CalendarEventType) => boolean;
 }
 
 export interface ScheduleRenewalsResult {
@@ -118,12 +129,62 @@ export class RenewalReminderScheduler {
   ) {
     this.calendarService = calendarService;
     this.config = {
-      leadTimes: config.leadTimes ?? DEFAULT_SCHEDULER_CONFIG.leadTimes,
+      leadTimes: (config.leadTimes ?? DEFAULT_SCHEDULER_CONFIG.leadTimes).map((leadTime) => ({
+        ...leadTime,
+      })),
       eventDurationMinutes:
         config.eventDurationMinutes ?? DEFAULT_SCHEDULER_CONFIG.eventDurationMinutes,
       updateExistingEvents:
         config.updateExistingEvents ?? DEFAULT_SCHEDULER_CONFIG.updateExistingEvents,
+      isReminderEnabled: config.isReminderEnabled,
     };
+  }
+
+  // ── Configuration ─────────────────────────────────────────────────────────
+
+  /** Current scheduler configuration (defensive copy). */
+  getConfig(): ReminderSchedulerConfig {
+    return {
+      ...this.config,
+      leadTimes: this.config.leadTimes.map((leadTime) => ({ ...leadTime })),
+    };
+  }
+
+  /**
+   * Update the lead-time windows and other scheduling options at runtime.
+   * Validates that every window is a positive, whole number of days.
+   */
+  configure(config: Partial<ReminderSchedulerConfig>): ReminderSchedulerConfig {
+    if (config.leadTimes) {
+      if (!Array.isArray(config.leadTimes) || config.leadTimes.length === 0) {
+        throw new Error('leadTimes must contain at least one reminder window');
+      }
+      for (const leadTime of config.leadTimes) {
+        if (
+          !Number.isInteger(leadTime.daysBeforeRenewal) ||
+          leadTime.daysBeforeRenewal < 1
+        ) {
+          throw new Error('daysBeforeRenewal must be a positive integer');
+        }
+        if (!leadTime.eventType || !leadTime.label) {
+          throw new Error('Each lead time requires an eventType and label');
+        }
+      }
+      this.config.leadTimes = config.leadTimes.map((leadTime) => ({ ...leadTime }));
+    }
+    if (config.eventDurationMinutes !== undefined) {
+      if (!Number.isFinite(config.eventDurationMinutes) || config.eventDurationMinutes <= 0) {
+        throw new Error('eventDurationMinutes must be a positive number');
+      }
+      this.config.eventDurationMinutes = config.eventDurationMinutes;
+    }
+    if (config.updateExistingEvents !== undefined) {
+      this.config.updateExistingEvents = config.updateExistingEvents;
+    }
+    if (config.isReminderEnabled !== undefined) {
+      this.config.isReminderEnabled = config.isReminderEnabled;
+    }
+    return this.getConfig();
   }
 
   // ── Public API ─────────────────────────────────────────────────────────────
@@ -267,8 +328,9 @@ export class RenewalReminderScheduler {
       errors: [],
     };
 
-    // Skip non-active subscriptions; clean up their events
-    if (subscription.status === 'cancelled') {
+    // Skip non-active subscriptions and subscriptions with reminders switched
+    // off; clean up their events in both cases.
+    if (subscription.status === 'cancelled' || subscription.notificationsEnabled === false) {
       result.deleted += this.cancelRenewalReminders(subscription.id);
       return result;
     }
@@ -291,6 +353,12 @@ export class RenewalReminderScheduler {
       // Skip if reminder date is already in the past
       if (reminderDate <= now) continue;
 
+      // Respect the account's notification preferences for this event type.
+      if (!this.isReminderAllowed(subscription, leadTime.eventType)) {
+        result.skipped++;
+        continue;
+      }
+
       for (const connection of activeConnections) {
         // Check if this event type is enabled for the connection
         if (!connection.enabledEventTypes.includes(leadTime.eventType)) continue;
@@ -301,6 +369,7 @@ export class RenewalReminderScheduler {
           leadTime.eventType,
           formatDate(renewalDate),
           connection.id,
+          leadTime.daysBeforeRenewal,
         );
 
         const title = this.buildEventTitle(subscription, leadTime);
@@ -361,7 +430,11 @@ export class RenewalReminderScheduler {
     }
 
     // ── Trial ending reminders ─────────────────────────────────────────────
-    if (subscription.status === 'trialing' && subscription.trialEndDate) {
+    if (
+      subscription.status === 'trialing' &&
+      subscription.trialEndDate &&
+      this.isReminderAllowed(subscription, 'trial_ending')
+    ) {
       const trialEnd = new Date(subscription.trialEndDate);
       const trialReminder = new Date(trialEnd);
       trialReminder.setDate(trialReminder.getDate() - 3); // 3-day warning
@@ -423,6 +496,18 @@ export class RenewalReminderScheduler {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
+  /** Account-level notification preference check for one reminder type. */
+  private isReminderAllowed(
+    subscription: SubscriptionForReminder,
+    eventType: CalendarEventType,
+  ): boolean {
+    if (subscription.notificationsEnabled === false) return false;
+    if (this.config.isReminderEnabled) {
+      return this.config.isReminderEnabled(subscription.userId, eventType) !== false;
+    }
+    return true;
+  }
+
   private buildEventTitle(
     subscription: SubscriptionForReminder,
     leadTime: ReminderLeadTime,
@@ -464,8 +549,10 @@ export class RenewalReminderScheduler {
     eventType: CalendarEventType,
     billingDate: string,
     connectionId: string,
+    leadTimeDays?: number,
   ): string {
-    return `${subscriptionId}::${eventType}::${billingDate}::${connectionId}`;
+    const lead = leadTimeDays === undefined ? '-' : `${leadTimeDays}d`;
+    return `${subscriptionId}::${eventType}::${lead}::${billingDate}::${connectionId}`;
   }
 
   private addMinutes(date: Date, minutes: number): Date {
