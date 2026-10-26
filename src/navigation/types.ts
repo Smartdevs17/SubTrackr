@@ -1,5 +1,6 @@
 import { NavigatorScreenParams } from '@react-navigation/native';
 import { useRoute, useNavigation, RouteProp, NavigationProp } from '@react-navigation/native';
+import type { NotificationChannel, NotificationType } from '../types/notification';
 
 export type RootStackParamList = {
   Home: undefined;
@@ -19,11 +20,14 @@ export type RootStackParamList = {
   GDPRSettings: undefined;
   PrivacyCenter: undefined;
   ConsentManagement: undefined;
+  SmsConsent: { userId?: string } | undefined;
   DataExport: undefined;
   DPALog: undefined;
   Settings: undefined;
   NotificationPreferences: undefined;
   DeliveryStatus: undefined;
+  TemplateVersionHistory: { type: NotificationType; channel: NotificationChannel };
+  NotificationInbox: undefined;
   CalendarIntegration: undefined;
   WebhookSettings: undefined;
   AccountingExport: undefined;

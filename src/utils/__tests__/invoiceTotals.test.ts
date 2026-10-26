@@ -5,7 +5,12 @@
  * @see https://github.com/Smartdevs17/SubTrackr/issues/1684
  */
 
-import { calculateInvoiceTotals, resolveLineTotal, roundMoney } from '../invoiceTotals';
+import {
+  calculateInvoiceTotals,
+  resolveLineTotal,
+  roundMoney,
+  isDiscountLineItem,
+} from '../invoiceTotals';
 
 describe('roundMoney', () => {
   it('rounds half away from zero at two decimal places', () => {
@@ -132,5 +137,76 @@ describe('calculateInvoiceTotals', () => {
 
     expect(updated).toEqual(created);
     expect(updated.total).toBe(78);
+  });
+});
+
+describe('discount line items', () => {
+  it('identifies discount lines and treats unknown kinds as charges', () => {
+    expect(isDiscountLineItem({ kind: 'discount' })).toBe(true);
+    expect(isDiscountLineItem({ kind: 'item' })).toBe(false);
+    expect(isDiscountLineItem({})).toBe(false);
+  });
+
+  it('keeps discount lines out of the subtotal and subtracts them from the total', () => {
+    const result = calculateInvoiceTotals({
+      lineItems: [{ lineTotal: 100 }, { kind: 'discount', lineTotal: 20 }],
+    });
+    expect(result.subtotal).toBe(100);
+    expect(result.discount).toBe(20);
+    expect(result.total).toBe(80);
+  });
+
+  it('accepts a negative discount magnitude and still subtracts it', () => {
+    const result = calculateInvoiceTotals({
+      lineItems: [{ lineTotal: 100 }, { kind: 'discount', lineTotal: -15 }],
+    });
+    expect(result.discount).toBe(15);
+    expect(result.total).toBe(85);
+  });
+
+  it('adds an itemised discount to a legacy scalar discount', () => {
+    const result = calculateInvoiceTotals({
+      lineItems: [{ lineTotal: 100 }, { kind: 'discount', lineTotal: 10 }],
+      discount: 5,
+    });
+    expect(result.discount).toBe(15);
+    expect(result.total).toBe(85);
+  });
+
+  it('keeps tax on the pre-discount subtotal', () => {
+    const result = calculateInvoiceTotals({
+      lineItems: [{ lineTotal: 100 }, { kind: 'discount', lineTotal: 10 }],
+      tax: 20,
+    });
+    expect(result.subtotal).toBe(100);
+    expect(result.discount).toBe(10);
+    expect(result.total).toBe(110);
+  });
+
+  it('clamps an itemised discount to the subtotal', () => {
+    const result = calculateInvoiceTotals({
+      lineItems: [{ lineTotal: 50 }, { kind: 'discount', lineTotal: 80 }],
+    });
+    expect(result.discount).toBe(50);
+    expect(result.total).toBe(0);
+  });
+
+  it('charges nothing for a discount-only invoice', () => {
+    const result = calculateInvoiceTotals({
+      lineItems: [{ kind: 'discount', lineTotal: 20 }],
+    });
+    expect(result.subtotal).toBe(0);
+    expect(result.discount).toBe(0);
+    expect(result.total).toBe(0);
+  });
+
+  it('falls back to the flat amount when only a discount line is present', () => {
+    const result = calculateInvoiceTotals({
+      lineItems: [{ kind: 'discount', lineTotal: 20 }],
+      amount: 100,
+    });
+    expect(result.subtotal).toBe(100);
+    expect(result.discount).toBe(20);
+    expect(result.total).toBe(80);
   });
 });

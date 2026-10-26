@@ -161,6 +161,39 @@ Rich-text HTML bodies are sanitized separately by
 `backend/services/notification/templateService.ts`, which strips executable
 markup on save.
 
+### Versioning and rollback
+
+A raw `upsertTemplate` overwrites the previous copy, so a bad edit is
+irreversible. `NotificationTemplateVersionService` adds the missing history:
+each save is an immutable version chained to the template, and a rollback
+republishes an earlier snapshot as the **next** version rather than rewinding
+the number.
+
+```ts
+service.saveDraft({ type, channel, subject, body, variables }); // → version N+1
+service.rollback(type, channel, 2);                             // → new version, restoredFrom: 2
+```
+
+Rollback is a forward move on purpose: rewriting the version number to an old
+value would let two different bodies claim the same version, so a message sent
+after a rollback could not be told apart from one sent before the bad edit.
+Every version number stays unique and monotonic, and `restoredFrom` records
+where the content came from. A save whose content is unchanged creates no
+version, so the history stays meaningful.
+
+The same model is mirrored on the device by `notificationTemplateStore`, and
+`TemplateVersionHistoryScreen` lists a template's versions with a rollback
+action. The backend exposes it over HTTP:
+
+```
+GET  /api/notification-templates                                  List keys
+GET  /api/notification-templates/:type/:channel                   Current version
+GET  /api/notification-templates/:type/:channel/versions          Full history
+POST /api/notification-templates/:type/:channel                   Save new version
+POST /api/notification-templates/:type/:channel/rollback?version= Roll back
+```
+
+
 ## History and read status
 
 Every delivery attempt is one history record per channel. The client retains the
@@ -210,6 +243,30 @@ the callback.
 
 `DeliveryStatusScreen` reads this through `deliveryReceiptsStore`.
 
+## In-app inbox
+
+The inbox is the feed behind the bell icon (`NotificationInboxScreen`, backed by
+`notificationCenterStore`). The store persists the feed on device, so history
+survives relaunches and the unread badge is accurate on first paint. Tapping an
+entry marks it read and records a click; dismissing hides it from the feed
+without deleting it, so analytics can still distinguish "ignored" from "never
+delivered".
+
+The server mirrors the same history over HTTP (`notificationInboxRouter`, issue
+#1750) so a fresh install can sync:
+
+```
+GET  /api/notifications/history?userId=…[&type=…&channel=…&status=…&unreadOnly=1&limit=…]
+GET  /api/notifications/unread-count?userId=…
+POST /api/notifications/history/read-all        body: { userId }
+POST /api/notifications/:id/read
+POST /api/notifications/:id/click
+```
+
+A click implies a read, so engagement is never reported as "clicked but never
+opened". Marking read twice keeps the first timestamp, so time-to-read stays
+accurate.
+
 ## Analytics
 
 `computeAnalytics(records)` returns, in total and partitioned by channel and by
@@ -233,12 +290,56 @@ delivery, which the settings screen surfaces as "you open Email most".
 Suppressed notifications are counted but excluded from the delivery rate: they
 never reached a transport, so they say nothing about deliverability.
 
+## SMS consent
+
+A phone number's SMS consent is a legal record, so it is kept separately from
+the per-channel preference flags. `SmsConsentService` stores one current
+`SmsConsent` record per number plus an append-only event log:
+
+| Field            | Meaning                                                  |
+| ---------------- | -------------------------------------------------------- |
+| `status`         | `opted_in` or `opted_out`                                |
+| `source`         | `web_form`, `inbound_sms`, `admin`, `import`, `api`, `system` |
+| `reason`         | Free-text explanation (e.g. `inbound STOP`)              |
+| `explicitOptIn`  | Latches true once a number is deliberately opted in      |
+| `createdAt` / `updatedAt` | First seen / last change                        |
+
+Recording a decision always appends an audit event, even when the status is
+unchanged, so a replayed inbound STOP is still attributable. The `source`
+field is the answer to "where did this consent come from" — the bare
+`optOutStore` in the provider package records only *that* a number is opted
+out, not *when*, *why* or *by whom*.
+
+Opt-out is honoured in two places:
+
+- The shared provider `optOutStore` is updated, so the low-level send path
+  refuses an opted-out number even if a caller skips the ledger.
+- `isOptedOut(phone)` lets higher layers check before attempting a send.
+
+Inbound `STOP` / `START` keywords are recorded by `SmsInboundHandler` with the
+message SID and the matched keyword as the reason, before the reply is sent.
+Web forms and admin actions use the router:
+
+| Route                                        | Purpose                        |
+| -------------------------------------------- | ------------------------------ |
+| `GET  /api/sms-consent/:phone`               | Current consent record         |
+| `GET  /api/sms-consent/:phone/events`        | Consent audit trail            |
+| `GET  /api/sms-consent/user/:userId`         | Records owned by a user        |
+| `POST /api/sms-consent/:phone/opt-out`       | Record an opt-out              |
+| `POST /api/sms-consent/:phone/opt-in`        | Record an opt-in               |
+
+The device mirrors the ledger in `src/store/smsConsentStore.ts` and surfaces it
+on the SMS Consent screen (Settings → Privacy).
+
 ## Testing
 
 ```bash
 # Notification domain
 npx jest -c jest.backend.config.js backend/services/notification/__tests__/notificationCenterService.test.ts
+npx jest -c jest.backend.config.js backend/services/notification/__tests__/smsConsentService.test.ts
+npx jest -c jest.backend.config.js backend/services/notification/__tests__/smsConsentRouter.test.ts
 
 # Client store and delivery path
+npx jest --config jest.backend.config.js --testMatch '**/src/store/__tests__/smsConsentStore.test.ts'
 npx jest src/store/__tests__/notificationPreferencesStore.test.ts
 ```

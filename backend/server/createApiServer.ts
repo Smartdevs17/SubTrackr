@@ -1,8 +1,12 @@
 /**
  * SubTrackr public API HTTP server factory.
  *
- * Mounts CDn-cacheable routes behind edge-cache header middleware.
+ * Mounts CDN-cacheable routes behind edge-cache header middleware.
  * Additional batch subscription routes are mounted with atomic execution support.
+feat/stellar-wave-issues
+ * Payment intent and asset-policy routes are mounted for the Stellar Wave
+ * payment lifecycle (Issues #1716, #1717).
+
  *
  * Integration routes (not CDN-cached):
  *   /api/v1/zapier/*            — Zapier REST-hook integration
@@ -12,6 +16,7 @@
  *   /api/v1/paddle/*            — Paddle checkout + billing notifications
  *   /api/v1/calendar/*          — Calendar sync + renewal reminders
  *   /api/v1/webhooks/verify     — Incoming webhook signature verification demo
+ main
  */
 
 import { randomBytes } from 'node:crypto';
@@ -26,12 +31,15 @@ import {
   createSubscriptionOpsRouter,
   createThemeRouter,
 } from '../subscription/router';
+import { createPaymentRouter } from '../services/payment/router/paymentIntentRouter';
+import { createAssetPolicyRouter } from '../services/payment/router/assetPolicyRouter';
 import { API_VERSION_HEADER, API_VERSION_VALUE } from '../services/shared/apiResponse';
 import { createVersionMiddleware, versionRegistry } from '../services/shared/apiVersioning';
 import { createLoggerFor } from '../services/shared/logging';
 import { createTracerFromEnv } from '../services/shared/tracing';
 import { createRequestObservability } from '../shared/middleware/requestObservability';
 import { createApiKeyRevocationRouter, createPasskeyRouter } from '../services/auth/router/authRouter';
+import { createSessionRouter } from '../services/auth/router/sessionRouter';
 import { serveOpenApiSpec, serveSwaggerUI } from '../services/shared/swaggerUI';
 
 // ── Zapier integration ────────────────────────────────────────────────────────
@@ -223,6 +231,11 @@ export function createApiServer(options: CreateApiServerOptions = {}): Express {
         '/api/v1/stripe/billing/webhook',
         '/api/v1/paddle/webhook',
         '/api/v1/webhooks',
+        // OAuth endpoints for non-browser clients (#1776, #1779). They carry no
+        // ambient credentials: the refresh token / device code is in the body,
+        // so a cross-site request cannot ride on a victim's cookies.
+        '/api/v1/auth/oauth/token',
+        '/api/v1/auth/oauth/device_authorization',
       ],
     }) as unknown as express.RequestHandler,
   );
@@ -273,9 +286,16 @@ export function createApiServer(options: CreateApiServerOptions = {}): Express {
   app.use(createSubscriptionOpsRouter());
   app.use('/api/v1/search', createSearchRouter());
   app.use('/api/v1/merchant', createThemeRouter());
+  feat/stellar-wave-issues
+  app.use('/api/payments', createPaymentRouter());
+  app.use(createAssetPolicyRouter());
   // Batch execution is served by `createSubscriptionOpsRouter()` above, which
   // already exposes POST /subscriptions/batch and GET /subscriptions/batch/:runId.
   app.use('/api/v1/auth', createPasskeyRouter());
+  // Password fallback, refresh-token rotation, session listing / revocation and
+  // the OAuth device flow (#1776-#1779). Shares the session + token singletons
+  // with the passkey router above.
+  app.use('/api/v1/auth', createSessionRouter());
   app.use('/api/v1/api-keys', createApiKeyRevocationRouter());
 
   // ── Zapier integration ─────────────────────────────────────────────────────
@@ -451,7 +471,17 @@ export function createApiServer(options: CreateApiServerOptions = {}): Express {
     res.status(result.success ? 200 : (result.status ?? 400)).json(result);
   });
 
+  calRouter.get('/reminders/config', (_req: Request, res: Response) => {
+    res.json(reminderController.getConfig());
+  });
+
+  calRouter.put('/reminders/config', (req: Request, res: Response) => {
+    const result = reminderController.updateConfig(req.body);
+    res.status(result.success ? 200 : (result.status ?? 400)).json(result);
+  });
+
   app.use('/api/v1/calendar', calRouter);
+  main
 
   // ── 404 fallback ───────────────────────────────────────────────────────────
   app.use((_req, res) => {

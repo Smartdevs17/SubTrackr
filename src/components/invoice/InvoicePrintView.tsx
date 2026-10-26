@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-nati
 import { Invoice } from '../../types/invoice';
 import { useThemeColors } from '../../hooks/useThemeColors';
 import { formatCurrency, formatDate } from '../../utils/formatting';
+import { isDiscountLineItem } from '../../utils/invoiceTotals';
 import { spacing, borderRadius } from '../../utils/constants';
 
 interface InvoicePrintViewProps {
@@ -67,27 +68,36 @@ export const InvoicePrintView: React.FC<InvoicePrintViewProps> = ({ invoice, onP
           </Text>
         </View>
 
-        {invoice.lineItems.map((item, idx) => (
-          <View key={idx} style={[styles.tableRow, { borderBottomColor: colors.border.default }]}>
-            <Text style={[styles.td, { flex: 2, color: colors.text.primary }]}>
-              {item.description}
-            </Text>
-            <Text
-              style={[styles.td, { flex: 1, textAlign: 'center', color: colors.textSecondary }]}>
-              {item.quantity}
-            </Text>
-            <Text style={[styles.td, { flex: 1, textAlign: 'right', color: colors.textSecondary }]}>
-              {formatCurrency(item.unitPrice, item.currency)}
-            </Text>
-            <Text
-              style={[
-                styles.td,
-                { flex: 1, textAlign: 'right', color: colors.text.primary, fontWeight: '600' },
-              ]}>
-              {formatCurrency(item.lineTotal, item.currency)}
-            </Text>
-          </View>
-        ))}
+        {invoice.lineItems.map((item, idx) => {
+          const isDiscount = isDiscountLineItem(item);
+          const lineTotal = Math.abs(item.lineTotal ?? item.amount ?? 0);
+          const prefix = isDiscount ? '-' : '';
+          return (
+            <View key={idx} style={[styles.tableRow, { borderBottomColor: colors.border.default }]}>
+              <Text style={[styles.td, { flex: 2, color: colors.text.primary }]}>
+                {item.description}
+              </Text>
+              <Text
+                style={[styles.td, { flex: 1, textAlign: 'center', color: colors.textSecondary }]}>
+                {item.quantity}
+              </Text>
+              <Text
+                style={[styles.td, { flex: 1, textAlign: 'right', color: colors.textSecondary }]}>
+                {prefix}
+                {formatCurrency(Math.abs(item.unitPrice), item.currency)}
+              </Text>
+              <Text
+                style={[
+                  styles.td,
+                  { flex: 1, textAlign: 'right', color: colors.text.primary, fontWeight: '600' },
+                  isDiscount && styles.discountAmount,
+                ]}>
+                {prefix}
+                {formatCurrency(lineTotal, item.currency)}
+              </Text>
+            </View>
+          );
+        })}
 
         <View style={styles.totalsSection}>
           <View style={styles.totalRow}>
@@ -96,6 +106,14 @@ export const InvoicePrintView: React.FC<InvoicePrintViewProps> = ({ invoice, onP
               {formatCurrency(invoice.subtotal, invoice.currency)}
             </Text>
           </View>
+          {invoice.discountAmount ? (
+            <View style={styles.totalRow}>
+              <Text style={[styles.totalLabel, { color: colors.textSecondary }]}>Discount:</Text>
+              <Text style={[styles.totalVal, styles.discountAmount]}>
+                -{formatCurrency(invoice.discountAmount, invoice.currency)}
+              </Text>
+            </View>
+          ) : null}
           <View style={styles.totalRow}>
             <Text style={[styles.totalLabel, { color: colors.textSecondary }]}>Tax:</Text>
             <Text style={[styles.totalVal, { color: colors.text.primary }]}>
@@ -166,6 +184,7 @@ const styles = StyleSheet.create({
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
   totalLabel: { fontSize: 13 },
   totalVal: { fontSize: 13, fontWeight: '600' },
+  discountAmount: { color: '#047857' },
   grandTotalRow: { borderTopWidth: 1, marginTop: spacing.xs, paddingTop: spacing.xs },
   grandLabel: { fontSize: 15, fontWeight: '700' },
   grandVal: { fontSize: 16, fontWeight: '800' },
