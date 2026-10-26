@@ -64,3 +64,7 @@ attempts. Configure these environment variables if the sandbox changes:
 4. For High issues, request security-team review through the protected `security-review` environment and create a tracked remediation issue.
 5. Add any approved false positive to `.snyk` or `.semgrep/semgrep-suppressions.yml` with a clear reason and expiry.
 6. Re-run the workflow and verify the dashboard is clear or the accepted risk is documented.
+
+## Client Device Integrity & Anti-Tampering
+
+For mobile clients (iOS and Android), SubTrackr enforces runtime tamper, root, and jailbreak detection with graceful degradation to protect sensitive financial operations, crypto wallet key material, and user data. See [DEVICE_INTEGRITY_POLICY.md](DEVICE_INTEGRITY_POLICY.md) for full detection indicators, risk tiers, and operation permission matrices.
