@@ -28,6 +28,21 @@ import { optOutStore, smsProvider, truncateSms } from './smsProvider';
 import type { SmsProvider } from './smsProvider';
 import { communicationPreferenceService } from './communicationPreferencesService';
 import type { CommunicationPreferenceService } from './communicationPreferencesService';
+import { smsConsentService } from './smsConsentService';
+
+/** Minimal consent ledger the handler writes to on STOP/START (#1747). */
+export interface SmsConsentRecorder {
+  optOut(
+    phone: string,
+    source: 'inbound_sms',
+    options: { userId: string | null; reason: string; messageSid: string }
+  ): Promise<unknown>;
+  optIn(
+    phone: string,
+    source: 'inbound_sms',
+    options: { userId: string | null; reason: string; messageSid: string }
+  ): Promise<unknown>;
+}
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -197,6 +212,8 @@ export interface SmsInboundHandlerDeps {
   seenMessageSids?: Set<string>;
   maxSeenMessageSids?: number;
   now?: () => Date;
+  /** Phone-level consent ledger (#1747); records the source of a STOP/START. */
+  consent?: SmsConsentRecorder;
 }
 
 export class SmsInboundHandler {
@@ -208,6 +225,7 @@ export class SmsInboundHandler {
   private readonly seen: Set<string>;
   private readonly maxSeen: number;
   private readonly now: () => Date;
+  private readonly consent: SmsConsentRecorder;
   private readonly audit: InboundSmsAudit[] = [];
 
   constructor(deps: SmsInboundHandlerDeps) {
@@ -219,6 +237,7 @@ export class SmsInboundHandler {
     this.seen = deps.seenMessageSids ?? new Set<string>();
     this.maxSeen = deps.maxSeenMessageSids ?? 5000;
     this.now = deps.now ?? (() => new Date());
+    this.consent = deps.consent ?? smsConsentService;
   }
 
   listAudit(): InboundSmsAudit[] {
@@ -287,6 +306,14 @@ export class SmsInboundHandler {
       // Consent changes are applied before any reply so an opted-out number is
       // never texted again, even if the reply itself fails.
       if (command.intent === 'opt_out') {
+        // The phone-level ledger records *why* and *where* (#1747) before the
+        // shared opt-out store is touched, so a crash mid-reply cannot lose the
+        // audit trail for a message we legally must honour.
+        await this.consent.optOut(inbound.from, 'inbound_sms', {
+          userId,
+          reason: `inbound ${command.keyword}`,
+          messageSid: inbound.messageSid,
+        });
         optOutStore.optOut(inbound.from);
         if (userId) {
           await this.preferences.optOutChannel(
@@ -298,6 +325,11 @@ export class SmsInboundHandler {
         }
         replyBody = 'You are unsubscribed from SubTrackr texts. Reply START to resubscribe.';
       } else if (command.intent === 'opt_in') {
+        await this.consent.optIn(inbound.from, 'inbound_sms', {
+          userId,
+          reason: `inbound ${command.keyword}`,
+          messageSid: inbound.messageSid,
+        });
         optOutStore.optIn(inbound.from);
         if (userId) {
           await this.preferences.optInChannel(userId, 'sms', 'inbound_sms');

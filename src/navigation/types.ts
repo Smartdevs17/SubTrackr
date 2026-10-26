@@ -20,6 +20,7 @@ export type RootStackParamList = {
   GDPRSettings: undefined;
   PrivacyCenter: undefined;
   ConsentManagement: undefined;
+  SmsConsent: { userId?: string } | undefined;
   DataExport: undefined;
   DPALog: undefined;
   Settings: undefined;

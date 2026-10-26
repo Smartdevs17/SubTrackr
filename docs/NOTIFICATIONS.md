@@ -258,12 +258,56 @@ delivery, which the settings screen surfaces as "you open Email most".
 Suppressed notifications are counted but excluded from the delivery rate: they
 never reached a transport, so they say nothing about deliverability.
 
+## SMS consent
+
+A phone number's SMS consent is a legal record, so it is kept separately from
+the per-channel preference flags. `SmsConsentService` stores one current
+`SmsConsent` record per number plus an append-only event log:
+
+| Field            | Meaning                                                  |
+| ---------------- | -------------------------------------------------------- |
+| `status`         | `opted_in` or `opted_out`                                |
+| `source`         | `web_form`, `inbound_sms`, `admin`, `import`, `api`, `system` |
+| `reason`         | Free-text explanation (e.g. `inbound STOP`)              |
+| `explicitOptIn`  | Latches true once a number is deliberately opted in      |
+| `createdAt` / `updatedAt` | First seen / last change                        |
+
+Recording a decision always appends an audit event, even when the status is
+unchanged, so a replayed inbound STOP is still attributable. The `source`
+field is the answer to "where did this consent come from" — the bare
+`optOutStore` in the provider package records only *that* a number is opted
+out, not *when*, *why* or *by whom*.
+
+Opt-out is honoured in two places:
+
+- The shared provider `optOutStore` is updated, so the low-level send path
+  refuses an opted-out number even if a caller skips the ledger.
+- `isOptedOut(phone)` lets higher layers check before attempting a send.
+
+Inbound `STOP` / `START` keywords are recorded by `SmsInboundHandler` with the
+message SID and the matched keyword as the reason, before the reply is sent.
+Web forms and admin actions use the router:
+
+| Route                                        | Purpose                        |
+| -------------------------------------------- | ------------------------------ |
+| `GET  /api/sms-consent/:phone`               | Current consent record         |
+| `GET  /api/sms-consent/:phone/events`        | Consent audit trail            |
+| `GET  /api/sms-consent/user/:userId`         | Records owned by a user        |
+| `POST /api/sms-consent/:phone/opt-out`       | Record an opt-out              |
+| `POST /api/sms-consent/:phone/opt-in`        | Record an opt-in               |
+
+The device mirrors the ledger in `src/store/smsConsentStore.ts` and surfaces it
+on the SMS Consent screen (Settings → Privacy).
+
 ## Testing
 
 ```bash
 # Notification domain
 npx jest -c jest.backend.config.js backend/services/notification/__tests__/notificationCenterService.test.ts
+npx jest -c jest.backend.config.js backend/services/notification/__tests__/smsConsentService.test.ts
+npx jest -c jest.backend.config.js backend/services/notification/__tests__/smsConsentRouter.test.ts
 
 # Client store and delivery path
+npx jest --config jest.backend.config.js --testMatch '**/src/store/__tests__/smsConsentStore.test.ts'
 npx jest src/store/__tests__/notificationPreferencesStore.test.ts
 ```
