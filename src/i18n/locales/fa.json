@@ -1,0 +1,26 @@
+{
+  "common": {
+    "dashboard": "داشبورد",
+    "subscriptions": "اشتراک‌ها",
+    "analytics": "تحلیل و آمار",
+    "settings": "تنظیمات",
+    "cancel": "انصراف",
+    "save": "ذخیره",
+    "delete": "حذف",
+    "edit": "ویرایش",
+    "add": "افزودن"
+  },
+  "subscription": {
+    "title": "مدیریت اشتراک‌ها",
+    "price": "قیمت",
+    "billingCycle": "دوره صورتحساب",
+    "nextBilling": "تاریخ پرداخت بعدی",
+    "active": "فعال",
+    "paused": "متوقف شده",
+    "cancelled": "لغو شده"
+  },
+  "rtl": {
+    "direction": "rtl",
+    "languageName": "فارسی"
+  }
+}

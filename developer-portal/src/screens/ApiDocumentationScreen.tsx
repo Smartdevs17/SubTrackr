@@ -11,23 +11,29 @@ import {
 } from 'react-native';
 import { useDeveloperPortalStore } from '../../../src/store/developerPortalStore';
 import { DocumentationSection } from '../../../src/types/developerPortal';
+import { useDebounce } from '../../../src/hooks/useDebounce';
 
 const ApiDocumentationScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { documentation, fetchDocumentation, searchDocumentation } = useDeveloperPortalStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const debouncedSearchQuery = useDebounce(searchQuery);
 
   useEffect(() => {
     fetchDocumentation();
   }, []);
 
-  const handleSearch = (query: string) => {
-    setSearchQuery(query);
-    if (query.trim()) {
-      searchDocumentation(query);
+  // Fire the store search action only after the debounced query settles.
+  useEffect(() => {
+    if (debouncedSearchQuery.trim()) {
+      searchDocumentation(debouncedSearchQuery);
     } else {
       fetchDocumentation();
     }
+  }, [debouncedSearchQuery]);
+
+  const handleSearch = (query: string) => {
+    setSearchQuery(query);
   };
 
   const categories = Array.from(new Set(documentation.map((doc) => doc.category)));

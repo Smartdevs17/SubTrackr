@@ -1,0 +1,72 @@
+rules:
+  - id: subtrackr.sql.unparameterized-query
+    message: Use parameterized SQL queries for subscription and billing data access.
+    severity: ERROR
+    languages: [typescript, javascript]
+    metadata:
+      category: security
+      cwe: "CWE-89"
+      owasp: "A03:2021 - Injection"
+    patterns:
+      - pattern-either:
+          - pattern: $DB.query(`...${$VALUE}...`)
+          - pattern: $POOL.query(`...${$VALUE}...`)
+          - pattern: $CLIENT.query(`...${$VALUE}...`)
+
+  - id: subtrackr.xss.dangerous-html
+    message: Avoid dangerouslySetInnerHTML unless content is sanitized and the suppression documents why.
+    severity: ERROR
+    languages: [typescript, javascript]
+    metadata:
+      category: security
+      cwe: "CWE-79"
+      owasp: "A03:2021 - Injection"
+    patterns:
+      - pattern: dangerouslySetInnerHTML={...}
+
+  - id: subtrackr.csrf.state-changing-route-without-csrf
+    message: State-changing Express routes must use CSRF, auth, or signed webhook verification middleware.
+    severity: WARNING
+    languages: [typescript, javascript]
+    metadata:
+      category: security
+      cwe: "CWE-352"
+      owasp: "A01:2021 - Broken Access Control"
+    patterns:
+      - pattern-either:
+          - pattern: $ROUTER.post($PATH, $HANDLER)
+          - pattern: $ROUTER.put($PATH, $HANDLER)
+          - pattern: $ROUTER.patch($PATH, $HANDLER)
+          - pattern: $ROUTER.delete($PATH, $HANDLER)
+      - pattern-not: $ROUTER.$METHOD($PATH, ..., csrfProtection, ...)
+      - pattern-not: $ROUTER.$METHOD($PATH, ..., requireAuth, ...)
+      - pattern-not: $ROUTER.$METHOD($PATH, ..., verifyWebhookSignature, ...)
+
+  - id: subtrackr.idor.direct-user-lookup
+    message: User-scoped resources must be checked against the authenticated principal before returning data.
+    severity: WARNING
+    languages: [typescript, javascript]
+    metadata:
+      category: security
+      cwe: "CWE-639"
+      owasp: "A01:2021 - Broken Access Control"
+    pattern-either:
+      - pattern: $MODEL.findById($REQ.params.$ID)
+      - pattern: |
+          $MODEL.findOne({ where: { id: $REQ.params.$ID } })
+      - pattern: |
+          $MODEL.findUnique({ where: { id: $REQ.params.$ID } })
+
+  - id: subtrackr.ssrf.user-controlled-fetch
+    message: Do not fetch user-controlled URLs without allowlisting the destination.
+    severity: ERROR
+    languages: [typescript, javascript]
+    metadata:
+      category: security
+      cwe: "CWE-918"
+      owasp: "A10:2021 - Server-Side Request Forgery"
+    pattern-either:
+      - pattern: fetch($REQ.body.$URL, ...)
+      - pattern: fetch($REQ.query.$URL, ...)
+      - pattern: axios.get($REQ.body.$URL, ...)
+      - pattern: axios.post($REQ.body.$URL, ...)

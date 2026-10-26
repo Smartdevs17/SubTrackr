@@ -5,12 +5,12 @@ import { useTheme } from '../theme/useTheme';
 import { Button } from '../components/common/Button';
 import { SegmentRuleBuilder } from '../components/segments/SegmentRuleBuilder';
 import { SegmentRule } from '../types/segment';
-import { useRoute, useNavigation } from '@react-navigation/native';
+import { useAppRoute, useAppNavigation } from '../navigation/types';
 
 export const SegmentDetailScreen: React.FC = () => {
   const theme = useTheme();
-  const route = useRoute<any>();
-  const navigation = useNavigation();
+  const route = useAppRoute<'SegmentDetail'>();
+  const navigation = useAppNavigation<'SegmentDetail'>();
   const { segmentId } = route.params;
   const { segments, addSegment, updateSegment } = useSegmentStore();
 
@@ -61,28 +61,34 @@ export const SegmentDetailScreen: React.FC = () => {
   };
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <ScrollView style={[styles.container, { backgroundColor: theme.colors.background.primary }]}>
       <View style={styles.content}>
-        <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Segment Name</Text>
+        <Text style={[styles.label, { color: theme.colors.text.secondary }]}>Segment Name</Text>
         <TextInput
-          style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.border }]}
+          style={[
+            styles.input,
+            { color: theme.colors.text.primary, borderColor: theme.colors.border.default },
+          ]}
           value={name}
           onChangeText={setName}
           placeholder="e.g. VIP Subscribers"
-          placeholderTextColor={theme.colors.textSecondary}
+          placeholderTextColor={theme.colors.text.secondary}
         />
 
-        <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Description</Text>
+        <Text style={[styles.label, { color: theme.colors.text.secondary }]}>Description</Text>
         <TextInput
           style={[
             styles.input,
             styles.textArea,
-            { color: theme.colors.text, borderColor: theme.colors.border },
+            {
+              color: theme.colors.text.primary,
+              borderColor: theme.colors.border.default,
+            },
           ]}
           value={description}
           onChangeText={setDescription}
           placeholder="What defines this segment?"
-          placeholderTextColor={theme.colors.textSecondary}
+          placeholderTextColor={theme.colors.text.secondary}
           multiline
           numberOfLines={3}
         />
@@ -95,17 +101,22 @@ export const SegmentDetailScreen: React.FC = () => {
         />
 
         <View style={styles.pricingSection}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Pricing Rules</Text>
-          <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>
+            Pricing Rules
+          </Text>
+          <Text style={[styles.label, { color: theme.colors.text.secondary }]}>
             Discount Percentage (%)
           </Text>
           <TextInput
-            style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.border }]}
+            style={[
+              styles.input,
+              { color: theme.colors.text.primary, borderColor: theme.colors.border.default },
+            ]}
             value={discountPercentage}
             onChangeText={setDiscountPercentage}
             keyboardType="numeric"
             placeholder="e.g. 15"
-            placeholderTextColor={theme.colors.textSecondary}
+            placeholderTextColor={theme.colors.text.secondary}
           />
         </View>
 
@@ -147,7 +158,6 @@ const styles = StyleSheet.create({
     marginTop: 20,
     paddingTop: 20,
     borderTopWidth: 1,
-    borderTopColor: '#eee',
   },
   sectionTitle: {
     fontSize: 18,

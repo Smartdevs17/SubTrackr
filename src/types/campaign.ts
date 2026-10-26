@@ -28,6 +28,8 @@ export enum AutomationTrigger {
   PAYMENT_SUCCESS = 'payment_success',
   INACTIVE_DAYS = 'inactive_days',
   BIRTHDAY = 'birthday',
+  CART_VALUE_THRESHOLD = 'cart_value_threshold',
+  REFERRAL_SIGNUP = 'referral_signup',
 }
 
 export interface CampaignContent {
@@ -81,6 +83,10 @@ export interface CampaignAnalytics {
   conversionRate?: number;
   revenueImpact?: number;
   newCustomerAcquisitions?: number;
+  /** redemptions / maxRedemptions (0 when no budget cap is set). */
+  redemptionRate?: number;
+  /** Share of redemptions estimated to have come from customers who would have paid full price anyway. */
+  cannibalizationRate?: number;
   dailyMetrics?: {
     date: Date;
     redemptions: number;
@@ -94,6 +100,7 @@ export enum DiscountType {
   PERCENTAGE = 'percentage',
   FIXED_AMOUNT = 'fixed_amount',
   FREE_MONTHS = 'free_months',
+  BOGO = 'bogo',
 }
 
 export enum TargetAudience {
@@ -127,13 +134,31 @@ export interface CouponCode {
 // Promotion rule interface
 export interface PromotionRule {
   discountType: DiscountType;
-  discountValue: number; // percentage (0-100) or fixed amount or months
+  discountValue: number; // percentage (0-100), fixed amount, months, or BOGO discount % on the "get" item
   appliesTo: 'plan' | 'subscription' | 'both';
   planIds?: string[];
   segmentIds?: string[];
   minPurchaseAmount?: number;
   maxDiscountAmount?: number;
   firstBillingOnly?: boolean; // Apply only to first billing cycle
+  minQuantity?: number;
+  maxQuantity?: number;
+  /** BOGO config: buy `bogoBuyQuantity`, get `bogoGetQuantity` at `discountValue`% off. */
+  bogoBuyQuantity?: number;
+  bogoGetQuantity?: number;
+}
+
+/** Context describing the redemption attempt being validated. */
+export interface RedemptionContext {
+  userId: string;
+  subscriptionId: string;
+  planId?: string;
+  purchaseAmount: number;
+  quantity?: number;
+  /** How many times this user has already redeemed this coupon. */
+  userRedemptionCount: number;
+  /** End of the billing period the discount would apply to — used to detect retroactive redemption. */
+  billingPeriodEnd?: Date;
 }
 
 // Targeting rules interface

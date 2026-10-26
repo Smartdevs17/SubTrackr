@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,9 +9,12 @@ import {
   TouchableOpacity,
   TextInput,
   Switch,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { colors, spacing, typography, borderRadius } from '../../utils/constants';
 import { SubscriptionCategory, BillingCycle } from '../../types/subscription';
+import { useFocusManagement } from '../../hooks/useFocusManagement';
 
 interface FilterModalProps {
   visible: boolean;
@@ -52,6 +55,16 @@ export const FilterModal: React.FC<FilterModalProps> = ({
   setSortOrder,
   clearAllFilters,
 }) => {
+  const { setInitialFocus } = useFocusManagement(visible);
+  const firstCategoryRef = useRef<any>(null);
+
+  // Set initial focus to first category when modal opens
+  useEffect(() => {
+    if (visible && firstCategoryRef.current) {
+      setInitialFocus(firstCategoryRef.current);
+    }
+  }, [visible, setInitialFocus]);
+
   return (
     <Modal
       visible={visible}
@@ -59,250 +72,261 @@ export const FilterModal: React.FC<FilterModalProps> = ({
       presentationStyle="pageSheet"
       onRequestClose={onClose}
       accessibilityViewIsModal={true}>
-      <SafeAreaView style={styles.modalContainer}>
-        <View style={styles.modalHeader}>
-          <Text style={styles.modalTitle} accessibilityRole="header">
-            Filter &amp; Sort
-          </Text>
-          <TouchableOpacity
-            onPress={onClose}
-            accessibilityRole="button"
-            accessibilityLabel="Close filter modal"
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Text style={styles.closeButton}>✕</Text>
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView style={styles.modalContent}>
-          {/* Categories */}
-          <View style={styles.filterSection}>
-            <Text style={styles.filterSectionTitle} accessibilityRole="header">
-              Categories
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardContainer}>
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle} accessibilityRole="header">
+              Filter &amp; Sort
             </Text>
-            <View style={styles.categoryGrid}>
-              {Object.values(SubscriptionCategory).map((category) => {
-                const isSelected = selectedCategories.includes(category);
-                const label = category.charAt(0).toUpperCase() + category.slice(1);
-                return (
-                  <TouchableOpacity
-                    key={category}
-                    style={[styles.categoryChip, isSelected && styles.categoryChipSelected]}
-                    onPress={() => toggleCategory(category)}
-                    accessibilityRole="checkbox"
-                    accessibilityLabel={label}
-                    accessibilityState={{ checked: isSelected }}>
-                    <Text
-                      style={[
-                        styles.categoryChipText,
-                        isSelected && styles.categoryChipTextSelected,
-                      ]}>
-                      {label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            <TouchableOpacity
+              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel="Close filter modal"
+              accessibilityHint="Closes the filter modal without applying changes"
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={styles.closeButton}>✕</Text>
+            </TouchableOpacity>
           </View>
 
-          {/* Billing Cycles */}
-          <View style={styles.filterSection}>
-            <Text style={styles.filterSectionTitle} accessibilityRole="header">
-              Billing Cycles
-            </Text>
-            <View style={styles.billingCycleGrid}>
-              {Object.values(BillingCycle).map((cycle) => {
-                const isSelected = selectedBillingCycles.includes(cycle);
-                const label = cycle.charAt(0).toUpperCase() + cycle.slice(1);
-                return (
-                  <TouchableOpacity
-                    key={cycle}
-                    style={[styles.billingCycleChip, isSelected && styles.billingCycleChipSelected]}
-                    onPress={() => toggleBillingCycle(cycle)}
-                    accessibilityRole="checkbox"
-                    accessibilityLabel={label}
-                    accessibilityState={{ checked: isSelected }}>
-                    <Text
-                      style={[
-                        styles.billingCycleChipText,
-                        isSelected && styles.billingCycleChipTextSelected,
-                      ]}>
-                      {label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-
-          {/* Price Range */}
-          <View style={styles.filterSection}>
-            <Text style={styles.filterSectionTitle} accessibilityRole="header">
-              Price Range
-            </Text>
-            <View style={styles.priceRangeContainer}>
-              <TextInput
-                style={styles.priceInput}
-                placeholder="Min"
-                placeholderTextColor={colors.textSecondary}
-                keyboardType="numeric"
-                value={priceRange.min.toString()}
-                onChangeText={(text) =>
-                  setPriceRange((prev) => ({ ...prev, min: parseFloat(text) || 0 }))
-                }
-                accessibilityLabel="Minimum price"
-                accessibilityHint="Enter the minimum price to filter subscriptions"
-              />
-              <Text style={styles.priceRangeSeparator} accessibilityElementsHidden={true}>
-                to
+          <ScrollView style={styles.modalContent}>
+            {/* Categories */}
+            <View style={styles.filterSection}>
+              <Text style={styles.filterSectionTitle} accessibilityRole="header">
+                Categories
               </Text>
-              <TextInput
-                style={styles.priceInput}
-                placeholder="Max"
-                placeholderTextColor={colors.textSecondary}
-                keyboardType="numeric"
-                value={priceRange.max.toString()}
-                onChangeText={(text) =>
-                  setPriceRange((prev) => ({ ...prev, max: parseFloat(text) || 1000 }))
-                }
-                accessibilityLabel="Maximum price"
-                accessibilityHint="Enter the maximum price to filter subscriptions"
-              />
-            </View>
-          </View>
-
-          {/* Toggle Options */}
-          <View style={styles.filterSection}>
-            <Text style={styles.filterSectionTitle} accessibilityRole="header">
-              Options
-            </Text>
-            <View style={styles.toggleContainer}>
-              <Text style={styles.toggleLabel} nativeID="activeOnlyLabel">
-                Active Only
-              </Text>
-              <Switch
-                value={showActiveOnly}
-                onValueChange={setShowActiveOnly}
-                trackColor={{ false: colors.border, true: colors.primary }}
-                thumbColor={colors.text}
-                accessibilityLabel="Show active subscriptions only"
-                accessibilityRole="switch"
-                accessibilityState={{ checked: showActiveOnly }}
-              />
-            </View>
-            <View style={styles.toggleContainer}>
-              <Text style={styles.toggleLabel} nativeID="cryptoOnlyLabel">
-                Crypto Only
-              </Text>
-              <Switch
-                value={showCryptoOnly}
-                onValueChange={setShowCryptoOnly}
-                trackColor={{ false: colors.border, true: colors.primary }}
-                thumbColor={colors.text}
-                accessibilityLabel="Show crypto subscriptions only"
-                accessibilityRole="switch"
-                accessibilityState={{ checked: showCryptoOnly }}
-              />
-            </View>
-          </View>
-
-          {/* Sort Options */}
-          <View style={styles.filterSection}>
-            <Text style={styles.filterSectionTitle} accessibilityRole="header">
-              Sort By
-            </Text>
-            <View style={styles.sortContainer}>
-              <View style={styles.sortRow}>
-                <Text style={styles.sortLabel} accessibilityElementsHidden={true}>
-                  Field:
-                </Text>
-                <View style={styles.sortButtons} accessibilityRole="tablist">
-                  {(['name', 'price', 'nextBilling', 'category'] as const).map((field) => {
-                    const isSelected = sortBy === field;
-                    const label =
-                      field === 'nextBilling'
-                        ? 'Next Billing'
-                        : field.charAt(0).toUpperCase() + field.slice(1);
-                    return (
-                      <TouchableOpacity
-                        key={field}
-                        style={[styles.sortButton, isSelected && styles.sortButtonSelected]}
-                        onPress={() => setSortBy(field)}
-                        accessibilityRole="tab"
-                        accessibilityLabel={`Sort by ${label}`}
-                        accessibilityState={{ selected: isSelected }}>
-                        <Text
-                          style={[
-                            styles.sortButtonText,
-                            isSelected && styles.sortButtonTextSelected,
-                          ]}>
-                          {label}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-              <View style={styles.sortRow}>
-                <Text style={styles.sortLabel} accessibilityElementsHidden={true}>
-                  Order:
-                </Text>
-                <View style={styles.sortButtons} accessibilityRole="tablist">
-                  <TouchableOpacity
-                    style={[styles.sortButton, sortOrder === 'asc' && styles.sortButtonSelected]}
-                    onPress={() => setSortOrder('asc')}
-                    accessibilityRole="tab"
-                    accessibilityLabel="Sort ascending"
-                    accessibilityState={{ selected: sortOrder === 'asc' }}>
-                    <Text
-                      style={[
-                        styles.sortButtonText,
-                        sortOrder === 'asc' && styles.sortButtonTextSelected,
-                      ]}>
-                      ↑ Ascending
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.sortButton, sortOrder === 'desc' && styles.sortButtonSelected]}
-                    onPress={() => setSortOrder('desc')}
-                    accessibilityRole="tab"
-                    accessibilityLabel="Sort descending"
-                    accessibilityState={{ selected: sortOrder === 'desc' }}>
-                    <Text
-                      style={[
-                        styles.sortButtonText,
-                        sortOrder === 'desc' && styles.sortButtonTextSelected,
-                      ]}>
-                      ↓ Descending
-                    </Text>
-                  </TouchableOpacity>
-                </View>
+              <View style={styles.categoryGrid}>
+                {Object.values(SubscriptionCategory).map((category, index) => {
+                  const isSelected = selectedCategories.includes(category);
+                  const label = category.charAt(0).toUpperCase() + category.slice(1);
+                  return (
+                    <TouchableOpacity
+                      key={category}
+                      ref={index === 0 ? firstCategoryRef : null}
+                      style={[styles.categoryChip, isSelected && styles.categoryChipSelected]}
+                      onPress={() => toggleCategory(category)}
+                      accessibilityRole="checkbox"
+                      accessibilityLabel={label}
+                      accessibilityState={{ checked: isSelected }}>
+                      <Text
+                        style={[
+                          styles.categoryChipText,
+                          isSelected && styles.categoryChipTextSelected,
+                        ]}
+                        maxFontSizeMultiplier={1.5}>
+                        {label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </View>
-          </View>
-        </ScrollView>
 
-        <View style={styles.modalFooter}>
-          <TouchableOpacity
-            style={styles.clearFiltersButton}
-            onPress={clearAllFilters}
-            accessibilityRole="button"
-            accessibilityLabel="Clear all filters">
-            <Text style={styles.clearFiltersButtonText}>Clear All Filters</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.applyFiltersButton}
-            onPress={onClose}
-            accessibilityRole="button"
-            accessibilityLabel="Apply filters and close">
-            <Text style={styles.applyFiltersButtonText}>Apply Filters</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
+            {/* Billing Cycles */}
+            <View style={styles.filterSection}>
+              <Text style={styles.filterSectionTitle} accessibilityRole="header">
+                Billing Cycles
+              </Text>
+              <View style={styles.billingCycleGrid}>
+                {Object.values(BillingCycle).map((cycle) => {
+                  const isSelected = selectedBillingCycles.includes(cycle);
+                  const label = cycle.charAt(0).toUpperCase() + cycle.slice(1);
+                  return (
+                    <TouchableOpacity
+                      key={cycle}
+                      style={[
+                        styles.billingCycleChip,
+                        isSelected && styles.billingCycleChipSelected,
+                      ]}
+                      onPress={() => toggleBillingCycle(cycle)}
+                      accessibilityRole="checkbox"
+                      accessibilityLabel={label}
+                      accessibilityState={{ checked: isSelected }}>
+                      <Text
+                        style={[
+                          styles.billingCycleChipText,
+                          isSelected && styles.billingCycleChipTextSelected,
+                        ]}>
+                        {label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* Price Range */}
+            <View style={styles.filterSection}>
+              <Text style={styles.filterSectionTitle} accessibilityRole="header">
+                Price Range
+              </Text>
+              <View style={styles.priceRangeContainer}>
+                <TextInput
+                  style={styles.priceInput}
+                  placeholder="Min"
+                  placeholderTextColor={colors.textSecondary}
+                  keyboardType="numeric"
+                  value={priceRange.min.toString()}
+                  onChangeText={(text) =>
+                    setPriceRange((prev) => ({ ...prev, min: parseFloat(text) || 0 }))
+                  }
+                  accessibilityLabel="Minimum price"
+                  accessibilityHint="Enter the minimum price to filter subscriptions"
+                />
+                <Text style={styles.priceRangeSeparator} accessibilityElementsHidden={true}>
+                  to
+                </Text>
+                <TextInput
+                  style={styles.priceInput}
+                  placeholder="Max"
+                  placeholderTextColor={colors.textSecondary}
+                  keyboardType="numeric"
+                  value={priceRange.max.toString()}
+                  onChangeText={(text) =>
+                    setPriceRange((prev) => ({ ...prev, max: parseFloat(text) || 1000 }))
+                  }
+                  accessibilityLabel="Maximum price"
+                  accessibilityHint="Enter the maximum price to filter subscriptions"
+                />
+              </View>
+            </View>
+
+            {/* Toggle Options */}
+            <View style={styles.filterSection}>
+              <Text style={styles.filterSectionTitle} accessibilityRole="header">
+                Options
+              </Text>
+              <View style={styles.toggleContainer}>
+                <Text style={styles.toggleLabel} nativeID="activeOnlyLabel">
+                  Active Only
+                </Text>
+                <Switch
+                  value={showActiveOnly}
+                  onValueChange={setShowActiveOnly}
+                  trackColor={{ false: colors.border, true: colors.primary }}
+                  thumbColor={colors.text}
+                  accessibilityLabel="Show active subscriptions only"
+                  accessibilityRole="switch"
+                  accessibilityState={{ checked: showActiveOnly }}
+                />
+              </View>
+              <View style={styles.toggleContainer}>
+                <Text style={styles.toggleLabel} nativeID="cryptoOnlyLabel">
+                  Crypto Only
+                </Text>
+                <Switch
+                  value={showCryptoOnly}
+                  onValueChange={setShowCryptoOnly}
+                  trackColor={{ false: colors.border, true: colors.primary }}
+                  thumbColor={colors.text}
+                  accessibilityLabel="Show crypto subscriptions only"
+                  accessibilityRole="switch"
+                  accessibilityState={{ checked: showCryptoOnly }}
+                />
+              </View>
+            </View>
+
+            {/* Sort Options */}
+            <View style={styles.filterSection}>
+              <Text style={styles.filterSectionTitle} accessibilityRole="header">
+                Sort By
+              </Text>
+              <View style={styles.sortContainer}>
+                <View style={styles.sortRow}>
+                  <Text style={styles.sortLabel} accessibilityElementsHidden={true}>
+                    Field:
+                  </Text>
+                  <View style={styles.sortButtons} accessibilityRole="tablist">
+                    {(['name', 'price', 'nextBilling', 'category'] as const).map((field) => {
+                      const isSelected = sortBy === field;
+                      const label =
+                        field === 'nextBilling'
+                          ? 'Next Billing'
+                          : field.charAt(0).toUpperCase() + field.slice(1);
+                      return (
+                        <TouchableOpacity
+                          key={field}
+                          style={[styles.sortButton, isSelected && styles.sortButtonSelected]}
+                          onPress={() => setSortBy(field)}
+                          accessibilityRole="tab"
+                          accessibilityLabel={`Sort by ${label}`}
+                          accessibilityState={{ selected: isSelected }}>
+                          <Text
+                            style={[
+                              styles.sortButtonText,
+                              isSelected && styles.sortButtonTextSelected,
+                            ]}>
+                            {label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+                <View style={styles.sortRow}>
+                  <Text style={styles.sortLabel} accessibilityElementsHidden={true}>
+                    Order:
+                  </Text>
+                  <View style={styles.sortButtons} accessibilityRole="tablist">
+                    <TouchableOpacity
+                      style={[styles.sortButton, sortOrder === 'asc' && styles.sortButtonSelected]}
+                      onPress={() => setSortOrder('asc')}
+                      accessibilityRole="tab"
+                      accessibilityLabel="Sort ascending"
+                      accessibilityState={{ selected: sortOrder === 'asc' }}>
+                      <Text
+                        style={[
+                          styles.sortButtonText,
+                          sortOrder === 'asc' && styles.sortButtonTextSelected,
+                        ]}>
+                        ↑ Ascending
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.sortButton, sortOrder === 'desc' && styles.sortButtonSelected]}
+                      onPress={() => setSortOrder('desc')}
+                      accessibilityRole="tab"
+                      accessibilityLabel="Sort descending"
+                      accessibilityState={{ selected: sortOrder === 'desc' }}>
+                      <Text
+                        style={[
+                          styles.sortButtonText,
+                          sortOrder === 'desc' && styles.sortButtonTextSelected,
+                        ]}>
+                        ↓ Descending
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </View>
+          </ScrollView>
+
+          <View style={styles.modalFooter}>
+            <TouchableOpacity
+              style={styles.clearFiltersButton}
+              onPress={clearAllFilters}
+              accessibilityRole="button"
+              accessibilityLabel="Clear all filters">
+              <Text style={styles.clearFiltersButtonText}>Clear All Filters</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.applyFiltersButton}
+              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel="Apply filters and close">
+              <Text style={styles.applyFiltersButtonText}>Apply Filters</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
+  keyboardContainer: { flex: 1 },
   modalContainer: { flex: 1, backgroundColor: colors.background },
   modalHeader: {
     flexDirection: 'row',

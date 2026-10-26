@@ -1,253 +1,197 @@
-# SubTrackr Transaction Batching API
+# SubTrackr Batch Contract API
+
+Reference for the `subtrackr-batch` contract. For the end-to-end feature — client service,
+store, UI, CSV import and export — see [`docs/BATCH_OPERATIONS.md`](../../docs/BATCH_OPERATIONS.md).
 
 ## Overview
 
-The batching system allows you to combine multiple subscription operations into a single transaction, reducing gas costs and improving efficiency.
+The batch contract applies one operation kind across many subscriptions in a single
+transaction, so a merchant pays one base fee instead of `n`. It provides an atomic
+execution guarantee, an explicit status machine, post-commit rollback, per-operation-type
+configuration, and success/timing analytics.
 
-## Key Benefits
+## Types
 
-✅ **70% Gas Savings** - Combine operations  
-✅ **Atomicity** - All or nothing execution  
-✅ **Dependencies** - Control operation order  
-✅ **Simulation** - Test before execution
+```rust
+pub enum OperationType { Create, Charge, Update, Cancel }
 
-## Batch Operations Supported
+pub struct BatchOperation {
+    pub operation_type: OperationType,
+    pub subscription_ids: Vec<u64>,
+    /// params[i] is the scalar argument for subscription_ids[i]:
+    /// initial price (Create), charge amount (Charge), new price (Update),
+    /// cancel reason code (Cancel).
+    pub params: Vec<i128>,
+}
 
-| Operation | Function              | Example                    |
-| --------- | --------------------- | -------------------------- |
-| Subscribe | `subscribe`           | Subscribe to a plan        |
-| Pause     | `pause_subscription`  | Pause a subscription       |
-| Resume    | `resume_subscription` | Resume paused subscription |
-| Cancel    | `cancel_subscription` | Cancel subscription        |
-| Charge    | `charge_subscription` | Process payment            |
-| Refund    | `request_refund`      | Request refund             |
-| Transfer  | `request_transfer`    | Transfer ownership         |
+pub enum BatchState { Pending, Processing, Completed, PartiallyCompleted, Failed, RolledBack }
 
-## Usage Examples
+pub enum CancelReason { TooExpensive, NoLongerNeeded, FoundAlternative, PoorService, Other }
+```
 
-### React Component Example
+`Create` ignores a missing `params`. `Charge` and `Update` require one entry per
+subscription. `Cancel` accepts either no entries (recording `Other` for every item) or one
+per subscription.
 
-```typescript
-import { useBatchTransactions } from '@/hooks/useBatchTransactions';
+## Functions
 
-export function SubscriptionBatcher() {
-  const {
-    addTransaction,
-    executeBatch,
-    pending,
-    isBatchReady
-  } = useBatchTransactions({ maxBatchSize: 10 });
+### Lifecycle
 
-  const handleAddSubscription = (planId: string) => {
-    addTransaction("subscribe", [planId], true);
-  };
+```rust
+initialize(admin: Address)
 
-  const handleBatchExecute = async () => {
-    const result = await executeBatch(true); // atomic
-    console.log(`✅ ${result.successfulOperations} operations completed`);
-  };
+create_batch_operation(owner, operation, atomic) -> Result<u64, BatchError>
+create_batch_operation_default(owner, operation) -> Result<u64, BatchError>
+execute_batch(batch_id) -> Result<BatchResult, BatchError>
+rollback_batch(caller, batch_id) -> Result<BatchStatus, BatchError>
+```
 
-  return (
-    <div>
-      <button onClick={() => handleAddSubscription("plan_1")}>
-        Add Plan 1 ({pending}/10)
-      </button>
-      <button
-        onClick={handleBatchExecute}
-        disabled={!isBatchReady()}
-      >
-        Execute Batch
-      </button>
-    </div>
-  );
+`create_batch_operation` validates the batch against the operation type's configured
+`max_items` and returns a monotonic batch id. `create_batch_operation_default` uses the
+operation type's `atomic_default` instead of an explicit flag.
+
+`execute_batch` runs exactly once per batch; a second call returns
+`BatchError::AlreadyExecuted`.
+
+### Reads
+
+```rust
+get_batch_status(batch_id) -> BatchStatus      // state, counts, started_at, completed_at, duration
+get_batch_result(batch_id) -> Option<BatchResult>
+get_batch_history() -> Vec<u64>
+get_batch_analytics() -> BatchAnalytics
+get_batch_analytics_for(operation_type) -> BatchAnalytics
+get_subscription(subscription_id) -> Option<SubscriptionRecord>
+```
+
+### Configuration
+
+```rust
+set_batch_config(caller, operation_type, config) -> Result<(), BatchError>  // admin only
+get_batch_config(operation_type) -> BatchConfig
+
+pub struct BatchConfig {
+    pub max_items: u32,        // <= MAX_BATCH_ITEMS (100)
+    pub atomic_default: bool,
+    pub allow_rollback: bool,
+    pub gas_per_item: u64,
 }
 ```
 
-### Gas Estimation
+Defaults (`default_config`):
 
-```typescript
-const { getGasEstimate, getGasSavings } = useBatchTransactions();
+| Operation | `max_items` | `atomic_default` | `allow_rollback` |
+| --------- | ----------- | ---------------- | ---------------- |
+| `Create`  | 100         | false            | true             |
+| `Charge`  | 50          | **true**         | true             |
+| `Update`  | 100         | false            | true             |
+| `Cancel`  | 50          | false            | **false**        |
 
-// Individual transactions: 5 × 150,000 = 750,000 gas
-// Batched: 50,000 + (5 × 100,000) = 550,000 gas
-// Savings: 200,000 gas (26.7%)
+## Status machine
 
-const estimate = getGasEstimate();
-const savings = getGasSavings();
+```
+Pending ──▶ Processing ──▶ Completed              (no item failed)
+                        ├▶ PartiallyCompleted     (some items failed, non-atomic)
+                        └▶ Failed                 (atomic batch discarded its writes)
 
-console.log(`Estimated gas: ${estimate}`);
-console.log(`Gas savings: ${savings.percentSavings}%`);
+Completed / PartiallyCompleted ──▶ RolledBack
 ```
 
-### Batch with Dependencies
+## Atomicity
 
-```typescript
-const { addTransactionWithDependency, executeBatch } = useBatchTransactions();
+An atomic batch stages writes in memory and flushes them only after the last item
+succeeds. The first failure aborts the loop, the staging area is dropped, and the result
+reports `rolled_back: true` with `successful_operations: 0`. A non-atomic batch commits
+each success as it happens and finishes `PartiallyCompleted`.
 
-// Op 0: Subscribe to plan
-addTransaction('subscribe', [planId], true);
+## Rollback
 
-// Op 1: Pause subscription (depends on op 0)
-// Only runs if op 0 succeeds
-addTransactionWithDependency(
-  'pause_subscription',
-  [subscriptionId, duration],
-  0, // depends on operation 0
-  true
-);
+`execute_batch` records a `SnapshotEntry { id, existed, prior }` for each subscription it
+touched, capturing the state from before the batch. `rollback_batch` replays that snapshot:
+entries with `existed: false` are removed, the rest are restored.
 
-// Op 2: Another operation (independent)
-addTransaction('request_refund', [amount], false);
+Rejections:
 
-const result = await executeBatch(false); // non-atomic (continue on error)
-```
+| Condition                                | Error                 |
+| ---------------------------------------- | --------------------- |
+| Caller is neither the owner nor the admin | `Unauthorized`        |
+| Batch has not executed                   | `NotExecuted`         |
+| Batch already rolled back                | `AlreadyRolledBack`   |
+| Operation type sets `allow_rollback: false` | `RollbackNotAllowed`  |
+| Atomic batch that committed nothing      | `RollbackNotAllowed`  |
+| Unknown batch id                         | `BatchNotFound`       |
 
-## API Reference
+Rollback also discounts the batch's successful items from analytics.
 
-### BatchTransactionService
+## Analytics
 
-```typescript
-// Create instance
-const service = new BatchTransactionService(maxBatchSize: 10);
-
-// Add operations
-service.addTransaction(functionName, params, required);
-service.addTransactionWithDependency(functionName, params, dependsOn, required);
-
-// Check status
-service.getPendingCount(): number;
-service.isBatchReady(): boolean;
-service.getGasEstimate(): number;
-service.getBatchSummary(): Summary;
-
-// Execute
-await service.simulateBatch(): Promise<BatchResult>;
-await service.executeBatch(atomic: boolean): Promise<BatchResult>;
-
-// Manage
-service.clearBatch(): void;
-service.calculateGasSavings(): Savings;
-```
-
-### Batch Result
-
-```typescript
-interface BatchExecutionResult {
-  batchId: string;
-  totalOperations: number;
-  successfulOperations: number;
-  failedOperations: number;
-  results: OperationResult[];
-  atomic: boolean;
-  gasEstimate: number;
+```rust
+pub struct BatchAnalytics {
+    pub total_batches: u32,
+    pub completed_batches: u32,
+    pub partial_batches: u32,
+    pub failed_batches: u32,
+    pub rolled_back_batches: u32,
+    pub total_items: u32,
+    pub successful_items: u32,
+    pub failed_items: u32,
+    pub success_rate_bps: u32,   // 10_000 == 100%
+    pub total_duration: u64,     // ledger seconds
+    pub avg_duration: u64,
 }
 ```
 
-## Cost Comparison
+Maintained incrementally on every execution, globally and partitioned by operation type.
 
-### Without Batching
+## Per-item results
 
-```
-5 subscription operations
-× 150,000 gas each
-= 750,000 total gas
-```
-
-### With Batching
-
-```
-Base cost: 50,000 gas
-+ 5 operations × 100,000 each
-= 550,000 total gas
-
-💰 Savings: 200,000 gas (26.7%)
+```rust
+pub struct OperationResult {
+    pub subscription_id: u64,
+    pub success: bool,
+    pub code: u32,   // 0 on success, otherwise a CoreError discriminant
+}
 ```
 
-## Best Practices
+Common codes: `302` subscription not found, `311` already exists, `305` invalid amount,
+`308` invalid price, `500` subscription not active, `501` already cancelled.
 
-✅ **DO:**
-
-- Batch similar operations together
-- Use dependencies when operations must run in order
-- Test with simulation first
-- Monitor gas usage
-- Use atomic mode for critical operations
-
-❌ **DON'T:**
-
-- Create batches with > 100 operations
-- Ignore error results
-- Skip simulation for large batches
-- Use without understanding dependencies
-- Assume all operations will succeed
-
-## Atomic vs Non-Atomic
-
-### Atomic Mode (All or Nothing)
+## Gas model
 
 ```
-Operation 1: Subscribe ✓
-Operation 2: Charge ✓
-Operation 3: Pause ✗ FAILED
+estimate = 50_000 + item_count * gas_per_item      // gas_per_item defaults to 100_000
 
-Result: ALL THREE OPERATIONS ROLLED BACK
-Batch Status: FAILED
+5 items batched : 50_000 + 5 × 100_000 = 550_000
+5 items separate: 5 × 150_000          = 750_000
+saving          : 200_000 (26.7%)
 ```
 
-### Non-Atomic Mode (Continue on Error)
+## Events
 
-```
-Operation 1: Subscribe ✓
-Operation 2: Charge ✓
-Operation 3: Pause ✗ FAILED
+| Topics                  | Data                                |
+| ----------------------- | ----------------------------------- |
+| `("batch", "created")`  | `batch_id`                          |
+| `("batch", "executed")` | `(batch_id, successful, failed)`    |
+| `("batch", "rolledbk")` | `batch_id`                          |
 
-Result: Operations 1&2 succeed, 3 fails
-Batch Status: COMPLETED (with partial success)
-```
+## Errors
 
-## Performance Metrics
-
-| Metric               | Value   |
-| -------------------- | ------- |
-| Max operations/batch | 100     |
-| Base gas cost        | 50,000  |
-| Gas per operation    | 100,000 |
-| Simulation cost      | 50,000  |
-| Average savings      | ~25-30% |
-
-## Troubleshooting
-
-### Batch Too Large
-
-```
-Error: "Too many operations (max 100)"
-Solution: Split into multiple batches
+```rust
+pub enum BatchError {
+    InvalidBatch = 1,
+    AlreadyExecuted = 2,
+    NotExecuted = 3,
+    RollbackNotAllowed = 4,
+    AlreadyRolledBack = 5,
+    Unauthorized = 6,
+    BatchNotFound = 7,
+}
 ```
 
-### Invalid Dependency
+Each maps onto a `subtrackr_types::CoreError` for cross-contract propagation.
 
+## Testing
+
+```bash
+cd contracts && cargo test -p subtrackr-batch
 ```
-Error: "Invalid dependency"
-Solution: Ensure dependency index < current index
-```
-
-### Atomic Failure
-
-```
-Error: "Batch failed (atomic)"
-Solution: Check individual operation results
-```
-
-## FAQ
-
-**Q: How much gas do I save?**  
-A: Typically 25-30% savings, depending on operation complexity.
-
-**Q: Can I batch different operations?**  
-A: Yes! You can mix subscribe, pause, resume, cancel, etc.
-
-**Q: What if one operation fails?**  
-A: In atomic mode, entire batch fails. In non-atomic, others continue.
-
-**Q: Can operations depend on each other?**  
-A: Yes, use `addTransactionWithDependency()` to create dependencies.

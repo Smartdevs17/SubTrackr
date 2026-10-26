@@ -1,0 +1,10 @@
+node_modules/
+coverage/
+dist/
+web-build/
+android/
+ios/
+contracts/target/
+src/contracts/types/
+*.snap
+*.log

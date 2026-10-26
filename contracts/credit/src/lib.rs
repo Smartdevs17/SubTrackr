@@ -1,9 +1,18 @@
 #![no_std]
+// TODO: migrate `env.events().publish(..)` to the `#[contractevent]` macro.
+// soroban-sdk 28 deprecated the imperative form; it is still functional and
+// still emits identical events, so the deprecation is allowed crate-wide
+// until the event payloads are reworked. CI lints with `-D warnings`.
+#![allow(deprecated)]
 //! SubTrackr account credit contract.
 //!
 //! Subscribers accrue credit from refunds, promotions or overpayments. Credit
 //! is held in lots (each optionally expiring) so it can be applied to future
 //! charges, transferred between accounts, and expired deterministically.
+//!
+//! Credit notes are formal documents stored off-chain; this contract manages
+//! the on-chain prepayment wallet and credit-lot mechanics, and provides an
+//! expiry checker suitable for cron-driven keeper jobs.
 //!
 //! Required behaviour (issue: credit system):
 //! * `AccountCredit { balance, transactions[], expiration_policy }`
@@ -11,6 +20,7 @@
 //! * automatic application on charging via [`SubTrackrCredit::apply_credit`]
 //! * transfer between accounts
 //! * expiration handling and a full transaction history
+//! * prepayment wallet with deposit/withdraw/drawdown
 //!
 //! Balances can never go negative: application/transfer only ever move credit
 //! that is actually available and unexpired.
@@ -18,7 +28,7 @@
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, symbol_short, Address, Env, String, Vec,
 };
-use subtrackr_types::SubscriptionId;
+use subtrackr_types::{CoreError, SubscriptionId};
 
 /// Maximum retained transaction-history and lot entries per account.
 const MAX_HISTORY: u32 = 128;
@@ -33,6 +43,36 @@ pub enum CreditError {
     InvalidAmount = 4,
     InsufficientCredit = 5,
     SelfTransfer = 6,
+    WalletNotFound = 7,
+}
+
+impl From<CreditError> for CoreError {
+    fn from(err: CreditError) -> Self {
+        match err {
+            CreditError::AlreadyInitialized => CoreError::AlreadyInitialized,
+            CreditError::NotInitialized => CoreError::NotInitialized,
+            CreditError::Unauthorized => CoreError::Unauthorized,
+            CreditError::InvalidAmount => CoreError::InvalidAmount,
+            CreditError::InsufficientCredit => CoreError::InsufficientCredit,
+            CreditError::SelfTransfer => CoreError::SelfTransfer,
+            CreditError::WalletNotFound => CoreError::NotFound,
+        }
+    }
+}
+
+impl From<CoreError> for CreditError {
+    fn from(err: CoreError) -> Self {
+        match err {
+            CoreError::AlreadyInitialized => CreditError::AlreadyInitialized,
+            CoreError::NotInitialized => CreditError::NotInitialized,
+            CoreError::Unauthorized => CreditError::Unauthorized,
+            CoreError::InvalidAmount => CreditError::InvalidAmount,
+            CoreError::InsufficientCredit => CreditError::InsufficientCredit,
+            CoreError::SelfTransfer => CreditError::SelfTransfer,
+            CoreError::NotFound => CreditError::WalletNotFound,
+            _ => CreditError::InvalidAmount,
+        }
+    }
 }
 
 #[contracttype]
@@ -43,6 +83,8 @@ pub enum CreditTxKind {
     TransferIn,
     TransferOut,
     Expire,
+    Deposit,
+    Withdraw,
 }
 
 /// Default expiration applied to newly issued credit when no explicit expiry
@@ -99,12 +141,74 @@ pub struct CreditApplied {
     pub balance_after: i128,
 }
 
+/// A prepayment wallet tied to a subscription for pre-funded draws.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PrepaymentWallet {
+    pub id: u64,
+    pub subscriber: Address,
+    pub subscription_id: SubscriptionId,
+    pub currency: String,
+    pub balance: i128,
+    pub total_deposited: i128,
+    pub total_withdrawn: i128,
+    pub total_drawn: i128,
+    pub transactions: Vec<PrepaymentTransaction>,
+    pub created_at: u64,
+    pub updated_at: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PrepaymentTxKind {
+    Deposit,
+    Withdraw,
+    Drawdown,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PrepaymentTransaction {
+    pub id: u64,
+    pub kind: PrepaymentTxKind,
+    pub amount: i128,
+    pub balance_after: i128,
+    pub timestamp: u64,
+}
+
+/// Prepayment summary returned after a deposit or withdrawal.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PrepaymentSnapshot {
+    pub wallet_id: u64,
+    pub balance: i128,
+    pub transaction_id: u64,
+}
+
+/// Consolidated balance summary for a subscriber combining on-book credit and
+/// prepayment-wallet funds. Returned by [`SubTrackrCredit::get_account_balance_summary`].
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct AccountBalanceSummary {
+    pub subscriber: Address,
+    pub credit_balance: i128,
+    pub wallet_balance: i128,
+    pub net_balance: i128,
+    pub expiration_policy: ExpirationPolicy,
+    pub next_expiration_at: Option<u64>,
+}
+
 #[contracttype]
 #[derive(Clone)]
 enum DataKey {
     Admin,
     NextId,
     Account(Address),
+    Wallet(u64),
+    WalletTx(u64),
+    Counter(u64),
+    AccountCount,
+    AccountIndex(Address),
 }
 
 #[contract]
@@ -167,7 +271,14 @@ impl SubTrackrCredit {
         };
         account.lots.push_back(lot);
         account.balance += amount;
-        Self::record(&env, &mut account, CreditTxKind::Issue, amount, reason, None);
+        Self::record(
+            &env,
+            &mut account,
+            CreditTxKind::Issue,
+            amount,
+            reason,
+            None,
+        );
         Self::save(&env, &account);
         env.events()
             .publish((symbol_short!("issue"), subscriber), amount);
@@ -193,7 +304,14 @@ impl SubTrackrCredit {
         if applied > 0 {
             account.balance -= applied;
             let reason = String::from_str(&env, "charge_application");
-            Self::record(&env, &mut account, CreditTxKind::Apply, -applied, reason, None);
+            Self::record(
+                &env,
+                &mut account,
+                CreditTxKind::Apply,
+                -applied,
+                reason,
+                None,
+            );
         }
         Self::save(&env, &account);
 
@@ -251,7 +369,14 @@ impl SubTrackrCredit {
             },
         });
         recipient.balance += moved;
-        Self::record(&env, &mut recipient, CreditTxKind::TransferIn, moved, reason, Some(from));
+        Self::record(
+            &env,
+            &mut recipient,
+            CreditTxKind::TransferIn,
+            moved,
+            reason,
+            Some(from),
+        );
         Self::save(&env, &recipient);
         Ok(())
     }
@@ -285,6 +410,249 @@ impl SubTrackrCredit {
         Self::account(&env, &subscriber).transactions
     }
 
+    /// Creates a new prepayment wallet for the given subscription.
+    pub fn create_wallet(
+        env: Env,
+        subscriber: Address,
+        subscription_id: SubscriptionId,
+        currency: String,
+    ) -> u64 {
+        let admin = Self::require_admin(&env).expect("admin required");
+        admin.require_auth();
+        let wallet_id = Self::next_wallet_id(&env);
+        let now = env.ledger().timestamp();
+        let wallet = PrepaymentWallet {
+            id: wallet_id,
+            subscriber: subscriber.clone(),
+            subscription_id,
+            currency,
+            balance: 0,
+            total_deposited: 0,
+            total_withdrawn: 0,
+            total_drawn: 0,
+            transactions: Vec::new(&env),
+            created_at: now,
+            updated_at: now,
+        };
+        env.storage()
+            .persistent()
+            .set(&DataKey::Wallet(wallet_id), &wallet);
+        env.events()
+            .publish((symbol_short!("wallet"), subscriber), wallet_id);
+        wallet_id
+    }
+
+    /// Deposits funds into a prepayment wallet by ID.
+    pub fn deposit(
+        env: Env,
+        caller: Address,
+        wallet_id: u64,
+        amount: i128,
+    ) -> Result<PrepaymentSnapshot, CreditError> {
+        caller.require_auth();
+        if amount <= 0 {
+            return Err(CreditError::InvalidAmount);
+        }
+        let mut wallet: PrepaymentWallet = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Wallet(wallet_id))
+            .ok_or(CreditError::WalletNotFound)?;
+        if wallet.subscriber != caller {
+            return Err(CreditError::Unauthorized);
+        }
+        let now = env.ledger().timestamp();
+        wallet.balance += amount;
+        wallet.total_deposited += amount;
+        wallet.updated_at = now;
+        let transaction_id =
+            Self::record_wallet_transaction(&env, &mut wallet, PrepaymentTxKind::Deposit, amount);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Wallet(wallet_id), &wallet);
+        Ok(PrepaymentSnapshot {
+            wallet_id,
+            balance: wallet.balance,
+            transaction_id,
+        })
+    }
+
+    /// Withdraws funds from a prepayment wallet by ID.
+    pub fn withdraw(
+        env: Env,
+        caller: Address,
+        wallet_id: u64,
+        amount: i128,
+    ) -> Result<PrepaymentSnapshot, CreditError> {
+        caller.require_auth();
+        if amount <= 0 {
+            return Err(CreditError::InvalidAmount);
+        }
+        let mut wallet: PrepaymentWallet = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Wallet(wallet_id))
+            .ok_or(CreditError::WalletNotFound)?;
+        if wallet.subscriber != caller {
+            return Err(CreditError::Unauthorized);
+        }
+        if wallet.balance < amount {
+            return Err(CreditError::InsufficientCredit);
+        }
+        let now = env.ledger().timestamp();
+        wallet.balance -= amount;
+        wallet.total_withdrawn += amount;
+        wallet.updated_at = now;
+        let transaction_id =
+            Self::record_wallet_transaction(&env, &mut wallet, PrepaymentTxKind::Withdraw, amount);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Wallet(wallet_id), &wallet);
+        Ok(PrepaymentSnapshot {
+            wallet_id,
+            balance: wallet.balance,
+            transaction_id,
+        })
+    }
+
+    /// Draws funds from a prepayment wallet to settle a subscription charge.
+    /// The subscriber authorizes the draw and the wallet can never go negative.
+    pub fn drawdown(
+        env: Env,
+        caller: Address,
+        wallet_id: u64,
+        amount: i128,
+    ) -> Result<PrepaymentSnapshot, CreditError> {
+        caller.require_auth();
+        if amount <= 0 {
+            return Err(CreditError::InvalidAmount);
+        }
+        let mut wallet: PrepaymentWallet = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Wallet(wallet_id))
+            .ok_or(CreditError::WalletNotFound)?;
+        if wallet.subscriber != caller {
+            return Err(CreditError::Unauthorized);
+        }
+        if wallet.balance < amount {
+            return Err(CreditError::InsufficientCredit);
+        }
+        wallet.balance -= amount;
+        wallet.total_drawn += amount;
+        wallet.updated_at = env.ledger().timestamp();
+        let transaction_id =
+            Self::record_wallet_transaction(&env, &mut wallet, PrepaymentTxKind::Drawdown, amount);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Wallet(wallet_id), &wallet);
+        Ok(PrepaymentSnapshot {
+            wallet_id,
+            balance: wallet.balance,
+            transaction_id,
+        })
+    }
+
+    /// Returns a wallet when it exists.
+    pub fn get_wallet(env: Env, wallet_id: u64) -> Option<PrepaymentWallet> {
+        env.storage().persistent().get(&DataKey::Wallet(wallet_id))
+    }
+
+    /// Returns the current balance of a prepayment wallet.
+    pub fn get_wallet_balance(env: Env, _caller: Address, wallet_id: u64) -> i128 {
+        env.storage()
+            .persistent()
+            .get::<_, PrepaymentWallet>(&DataKey::Wallet(wallet_id))
+            .map(|w| w.balance)
+            .unwrap_or(0)
+    }
+
+    /// Returns a consolidated account-balance summary for a subscriber,
+    /// combining on-book credit with prepayment-wallet funds. Read-only view.
+    pub fn get_account_balance_summary(env: Env, subscriber: Address) -> AccountBalanceSummary {
+        let now = env.ledger().timestamp();
+        let account = Self::account(&env, &subscriber);
+        let credit_balance = Self::available(now, &account);
+
+        // Sum prepayment wallets owned by the subscriber.
+        let mut wallet_balance: i128 = 0;
+        let mut i: u64 = 0;
+        while i < 1024 {
+            let key = DataKey::Wallet(i);
+            if !env.storage().persistent().has(&key) {
+                break;
+            }
+            if let Some(wallet) = env.storage().persistent().get::<_, PrepaymentWallet>(&key) {
+                if wallet.subscriber == subscriber {
+                    wallet_balance += wallet.balance;
+                }
+            }
+            i += 1;
+        }
+
+        // First non-expired lot expiry (earliest future expiry).
+        let mut next_expiration_at: Option<u64> = None;
+        let mut j: u32 = 0;
+        while j < account.lots.len() {
+            let lot = account.lots.get(j).unwrap();
+            if lot.remaining > 0 && !Self::is_expired(now, &lot) {
+                if let Some(exp) = lot.expires_at {
+                    next_expiration_at = Some(match next_expiration_at {
+                        Some(cur) if cur < exp => cur,
+                        _ => exp,
+                    });
+                }
+            }
+            j += 1;
+        }
+
+        AccountBalanceSummary {
+            subscriber: subscriber.clone(),
+            credit_balance,
+            wallet_balance,
+            net_balance: credit_balance + wallet_balance,
+            expiration_policy: account.expiration_policy,
+            next_expiration_at,
+        }
+    }
+
+    /// Batch expiry processor for cron keepers. Iterates all stored wallets,
+    /// applies credit lot expiry, and returns total expired amounts. Caller
+    /// must be admin.
+    pub fn expire_credits_with_cron(env: Env, admin: Address) -> Vec<(Address, i128)> {
+        let configured_admin = Self::require_admin(&env).expect("admin required");
+        if configured_admin != admin {
+            panic!("unauthorized");
+        }
+        admin.require_auth();
+        let now = env.ledger().timestamp();
+        let mut results: Vec<(Address, i128)> = Vec::new(&env);
+        let count: u32 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::AccountCount)
+            .unwrap_or(0);
+        let mut i: u32 = 0;
+        while i < count {
+            let key = DataKey::Counter(i as u64);
+            if !env.storage().persistent().has(&key) {
+                i += 1;
+                continue;
+            }
+            let subscriber: Address = env.storage().persistent().get(&key).unwrap();
+            let mut account = Self::account(&env, &subscriber);
+            let before = account.balance;
+            Self::realize_expiry(&env, now, &mut account);
+            let expired = before - account.balance;
+            if expired > 0 {
+                Self::save(&env, &account);
+                results.push_back((subscriber, expired));
+            }
+            i += 1;
+        }
+        results
+    }
+
     // ---- internals --------------------------------------------------------
 
     fn require_admin(env: &Env) -> Result<Address, CreditError> {
@@ -308,6 +676,21 @@ impl SubTrackrCredit {
     }
 
     fn save(env: &Env, account: &AccountCredit) {
+        let account_index = DataKey::AccountIndex(account.subscriber.clone());
+        if !env.storage().persistent().has(&account_index) {
+            let index: u32 = env
+                .storage()
+                .persistent()
+                .get(&DataKey::AccountCount)
+                .unwrap_or(0);
+            env.storage()
+                .persistent()
+                .set(&DataKey::Counter(index as u64), &account.subscriber);
+            env.storage().persistent().set(&account_index, &index);
+            env.storage()
+                .persistent()
+                .set(&DataKey::AccountCount, &(index + 1));
+        }
         env.storage()
             .persistent()
             .set(&DataKey::Account(account.subscriber.clone()), account);
@@ -316,6 +699,45 @@ impl SubTrackrCredit {
     fn next_id(env: &Env) -> u64 {
         let id: u64 = env.storage().instance().get(&DataKey::NextId).unwrap_or(0);
         env.storage().instance().set(&DataKey::NextId, &(id + 1));
+        id
+    }
+
+    fn next_wallet_id(env: &Env) -> u64 {
+        let base: u64 = env
+            .storage()
+            .instance()
+            .get(&symbol_short!("NWID"))
+            .unwrap_or(0);
+        env.storage()
+            .instance()
+            .set(&symbol_short!("NWID"), &(base + 1));
+        base
+    }
+
+    fn next_wallet_tx_id(env: &Env, wallet_id: u64) -> u64 {
+        let key = DataKey::WalletTx(wallet_id);
+        let id: u64 = env.storage().persistent().get(&key).unwrap_or(0);
+        env.storage().persistent().set(&key, &(id + 1));
+        id
+    }
+
+    fn record_wallet_transaction(
+        env: &Env,
+        wallet: &mut PrepaymentWallet,
+        kind: PrepaymentTxKind,
+        amount: i128,
+    ) -> u64 {
+        let id = Self::next_wallet_tx_id(env, wallet.id);
+        wallet.transactions.push_back(PrepaymentTransaction {
+            id,
+            kind,
+            amount,
+            balance_after: wallet.balance,
+            timestamp: env.ledger().timestamp(),
+        });
+        while wallet.transactions.len() > MAX_HISTORY {
+            wallet.transactions.remove(0);
+        }
         id
     }
 
@@ -356,7 +778,14 @@ impl SubTrackrCredit {
         if expired_total > 0 {
             account.balance -= expired_total;
             let reason = String::from_str(env, "expired");
-            Self::record(env, account, CreditTxKind::Expire, -expired_total, reason, None);
+            Self::record(
+                env,
+                account,
+                CreditTxKind::Expire,
+                -expired_total,
+                reason,
+                None,
+            );
         }
     }
 

@@ -2,6 +2,25 @@ import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 
 import type { Subscription } from '../types/subscription';
+import {
+  NOTIFICATION_CHANNELS,
+  NOTIFICATION_TYPE_META,
+  NOTIFICATION_TYPES,
+  type DeliveryResult,
+  type NotificationChannel,
+  type NotificationRecord,
+  type NotificationType,
+} from '../types/notification';
+import {
+  useNotificationPreferencesStore,
+  type NotificationPreferences,
+} from '../store/notificationPreferencesStore';
+import {
+  digestBuilder,
+  digestWindowFor,
+  isWithinQuietHoursDate,
+  nextQuietHoursEnd,
+} from './pushScheduleEngine';
 import { navigationRef } from '../navigation/navigationRef';
 
 export const NOTIFICATION_DATA_TYPE = {
@@ -295,9 +314,7 @@ export async function presentDunningWarningNotification(
   });
 }
 
-export async function presentDunningSuspendedNotification(
-  sub: Subscription
-): Promise<void> {
+export async function presentDunningSuspendedNotification(sub: Subscription): Promise<void> {
   if (!isNotificationsSupported()) return;
   const status = await getPermissionStatus();
   if (status !== Notifications.PermissionStatus.GRANTED) return;
@@ -317,9 +334,7 @@ export async function presentDunningSuspendedNotification(
   });
 }
 
-export async function presentDunningCancelledNotification(
-  sub: Subscription
-): Promise<void> {
+export async function presentDunningCancelledNotification(sub: Subscription): Promise<void> {
   if (!isNotificationsSupported()) return;
   const status = await getPermissionStatus();
   if (status !== Notifications.PermissionStatus.GRANTED) return;
@@ -339,9 +354,7 @@ export async function presentDunningCancelledNotification(
   });
 }
 
-export async function presentDunningRecoveryNotification(
-  sub: Subscription
-): Promise<void> {
+export async function presentDunningRecoveryNotification(sub: Subscription): Promise<void> {
   if (!isNotificationsSupported()) return;
   const status = await getPermissionStatus();
   if (status !== Notifications.PermissionStatus.GRANTED) return;
@@ -358,6 +371,314 @@ export async function presentDunningRecoveryNotification(
     },
     trigger: null,
   });
+}
+
+// ── Multi-channel delivery ─────────────────────────────────────────────
+//
+// Push is delivered on-device through Expo; email, SMS and in-app are handed
+// to transports the host app registers, so this module stays free of any
+// specific provider.
+
+/** Sends one rendered message on one channel. Resolves false on refusal. */
+export type ChannelTransport = (input: {
+  channel: NotificationChannel;
+  subject: string;
+  body: string;
+  data?: Record<string, string>;
+}) => Promise<boolean>;
+
+const transports = new Map<NotificationChannel, ChannelTransport>();
+
+export function registerChannelTransport(
+  channel: NotificationChannel,
+  transport: ChannelTransport
+): void {
+  transports.set(channel, transport);
+}
+
+export function clearChannelTransports(): void {
+  transports.clear();
+}
+
+const pushTransport: ChannelTransport = async ({ subject, body, data }) => {
+  if (!isNotificationsSupported()) return false;
+  const status = await getPermissionStatus();
+  if (status !== Notifications.PermissionStatus.GRANTED) return false;
+
+  await Notifications.scheduleNotificationAsync({
+    content: { title: subject, body, data: data ?? {}, sound: 'default' },
+    trigger: null,
+  });
+  return true;
+};
+
+function transportFor(channel: NotificationChannel): ChannelTransport | undefined {
+  if (channel === 'push') return transports.get('push') ?? pushTransport;
+  return transports.get(channel);
+}
+
+/** True when `date` falls inside the subscriber's quiet window (Issue #1744:
+ *  evaluated against the configured timezone, not hard-coded UTC). */
+function isInQuietHours(
+  date: Date,
+  quietHours: { enabled: boolean; startHour: number; endHour: number; timezone: string }
+): boolean {
+  return isWithinQuietHoursDate(date, { ...quietHours, timezone: quietHours.timezone || 'UTC' });
+}
+
+/** The next moment outside the quiet window, or `date` if already outside. */
+function nextDeliveryTime(
+  date: Date,
+  quietHours: { enabled: boolean; startHour: number; endHour: number; timezone: string }
+): Date {
+  if (!isInQuietHours(date, quietHours)) return date;
+  return nextQuietHoursEnd(date, { ...quietHours, timezone: quietHours.timezone || 'UTC' });
+}
+
+// ── Email digest batching (Issue #1746) ──────────────────────────────────────
+//
+// When a subscriber picks a daily or weekly digest, non-critical notifications
+// are buffered instead of going out one by one. The buffer is flushed as a
+// single grouped notification (Issue #1746: "content grouped") once its UTC
+// window has passed, or when the subscriber switches back to immediate.
+
+/** Unix ms of the first notification currently sitting in the digest buffer. */
+let digestBufferedSinceMs: number | null = null;
+
+function digestFrequencyOf(preferences: NotificationPreferences): 'daily' | 'weekly' {
+  return preferences.digestFrequency === 'weekly' ? 'weekly' : 'daily';
+}
+
+/** Deliver every buffered item as one grouped `digest` notification. */
+async function flushBufferedDigest(
+  userId: string,
+  frequency: 'daily' | 'weekly',
+  now: Date
+): Promise<DeliveryResult | null> {
+  const entry = digestBuilder.buildDigest(userId, frequency);
+  digestBufferedSinceMs = null;
+  if (!entry) return null;
+
+  const subject = `Your ${frequency} digest — ${entry.notifications.length} updates`;
+  const body = entry.notifications.map((n) => `• ${n.title}: ${n.body}`).join('\n');
+  return deliverNotification({ type: 'digest', userId, subject, body, at: now });
+}
+
+/**
+ * Flush the digest buffer if its scheduled UTC window has passed.
+ * Called at the top of every delivery, and exported so the app can call it on
+ * foreground/resume.
+ */
+export async function maybeFlushDueDigest(
+  preferences: NotificationPreferences = useNotificationPreferencesStore.getState().preferences,
+  now: Date = new Date(),
+  userId: string = 'me'
+): Promise<DeliveryResult | null> {
+  if (digestBufferedSinceMs === null) return null;
+  const frequency = digestFrequencyOf(preferences);
+  const due =
+    preferences.digestFrequency === 'immediate' ||
+    digestWindowFor(frequency, new Date(digestBufferedSinceMs)).getTime() <= now.getTime();
+  if (!due) return null;
+  return flushBufferedDigest(userId, frequency, now);
+}
+
+/** Build and send the buffered digest right now, regardless of the window. */
+export async function flushDigestNow(
+  userId: string = 'me',
+  now: Date = new Date()
+): Promise<DeliveryResult | null> {
+  const preferences = useNotificationPreferencesStore.getState().preferences;
+  if (digestBufferedSinceMs === null) return null;
+  return flushBufferedDigest(userId, digestFrequencyOf(preferences), now);
+}
+
+/** Number of notifications waiting in the digest buffer. */
+export function pendingDigestCount(userId: string): number {
+  return digestBuilder.getPendingCount(userId);
+}
+
+/** Drop everything buffered for the digest without delivering it. */
+export function resetDigestBuffer(): void {
+  digestBufferedSinceMs = null;
+  digestBuilder.clear();
+}
+
+export interface DeliverNotificationInput {
+  type: NotificationType;
+  userId?: string;
+  /** Values substituted into the type's template. */
+  variables?: Record<string, string>;
+  /** Used when no template is registered for a channel. */
+  subject?: string;
+  body?: string;
+  data?: Record<string, string>;
+  /** Stop after the first channel that accepts, rather than fanning out. */
+  firstSuccessOnly?: boolean;
+  /** Overrides "now" for scheduling decisions. */
+  at?: Date;
+}
+
+/**
+ * Deliver one notification across the channels the subscriber has enabled for
+ * its type, recording every attempt in history.
+ *
+ * A notification with no enabled channel is recorded as suppressed rather than
+ * dropped, so analytics can tell "not sent" from "sent and ignored".
+ * Non-critical notifications inside quiet hours are recorded as scheduled for
+ * the end of the window; critical ones go out immediately.
+ */
+export async function deliverNotification(
+  input: DeliverNotificationInput
+): Promise<DeliveryResult> {
+  const store = useNotificationPreferencesStore.getState();
+  const meta = NOTIFICATION_TYPE_META[input.type];
+  const userId = input.userId ?? 'me';
+  const now = input.at ?? new Date();
+
+  // Send any digest whose UTC window has already passed before this delivery.
+  if (input.type !== 'digest') {
+    await maybeFlushDueDigest(store.preferences, now, userId);
+  }
+
+  const channels = store.channelsFor(input.type);
+
+  const result: DeliveryResult = {
+    userId,
+    type: input.type,
+    delivered: [],
+    failed: [],
+    suppressed: [],
+    records: [],
+    scheduled: false,
+  };
+
+  const record = (patch: Omit<NotificationRecord, 'id' | 'userId' | 'type'>): NotificationRecord =>
+    store.recordNotification({ ...patch, userId, type: input.type });
+
+  if (channels.length === 0) {
+    const suppressed = record({
+      channel: meta.defaultChannels[0],
+      title: input.subject ?? meta.label,
+      body: input.body ?? '',
+      status: 'suppressed',
+      createdAt: now.toISOString(),
+      reason: store.preferences.types[input.type]?.muted
+        ? 'Muted by the subscriber'
+        : 'No channel enabled for this notification type',
+      data: input.data,
+    });
+    result.suppressed.push(suppressed.channel);
+    result.records.push(suppressed);
+    return result;
+  }
+
+  // Digest batching (Issue #1746): buffer non-critical notifications when the
+  // subscriber asked for a daily/weekly digest instead of discrete sends.
+  if (
+    input.type !== 'digest' &&
+    store.preferences.digestFrequency !== 'immediate' &&
+    meta.priority !== 'critical'
+  ) {
+    const frequency = digestFrequencyOf(store.preferences);
+    const bufferedChannel = channels[0];
+    const rendered = store.renderFor(input.type, bufferedChannel, input.variables, {
+      subject: input.subject,
+      body: input.body,
+    });
+    digestBuilder.enqueue(userId, rendered.subject, rendered.body, meta.category);
+    if (digestBufferedSinceMs === null) digestBufferedSinceMs = now.getTime();
+
+    const scheduledFor = digestWindowFor(frequency, now);
+    const buffered = record({
+      channel: bufferedChannel,
+      title: rendered.subject,
+      body: rendered.body,
+      status: 'scheduled',
+      createdAt: now.toISOString(),
+      scheduledFor: scheduledFor.toISOString(),
+      reason: `Batched into the ${frequency} email digest`,
+      data: input.data,
+    });
+    result.records.push(buffered);
+    result.scheduled = true;
+    result.scheduledFor = scheduledFor.toISOString();
+    return result;
+  }
+
+  const deferUntil =
+    meta.priority === 'critical' ? now : nextDeliveryTime(now, store.preferences.quietHours);
+  const deferred = deferUntil.getTime() !== now.getTime();
+
+  for (const channel of channels) {
+    const rendered = store.renderFor(input.type, channel, input.variables, {
+      subject: input.subject,
+      body: input.body,
+    });
+
+    if (deferred) {
+      result.records.push(
+        record({
+          channel,
+          title: rendered.subject,
+          body: rendered.body,
+          status: 'scheduled',
+          createdAt: now.toISOString(),
+          scheduledFor: deferUntil.toISOString(),
+          reason: 'Deferred past quiet hours',
+          data: input.data,
+        })
+      );
+      continue;
+    }
+
+    const transport = transportFor(channel);
+    let accepted = false;
+    let reason: string | undefined;
+
+    if (!transport) {
+      reason = `No transport registered for ${channel}`;
+    } else {
+      try {
+        accepted = await transport({
+          channel,
+          subject: rendered.subject,
+          body: rendered.body,
+          data: input.data,
+        });
+        if (!accepted) reason = `${channel} transport refused the notification`;
+      } catch (error) {
+        reason = error instanceof Error ? error.message : String(error);
+      }
+    }
+
+    result.records.push(
+      record({
+        channel,
+        title: rendered.subject,
+        body: rendered.body,
+        status: accepted ? 'delivered' : 'failed',
+        createdAt: now.toISOString(),
+        sentAt: now.toISOString(),
+        reason,
+        data: input.data,
+      })
+    );
+
+    if (accepted) {
+      result.delivered.push(channel);
+      if (input.firstSuccessOnly) break;
+    } else {
+      result.failed.push(channel);
+    }
+  }
+
+  if (deferred) {
+    result.scheduled = true;
+    result.scheduledFor = deferUntil.toISOString();
+  }
+
+  return result;
 }
 
 export function navigateToSubscriptionFromNotification(subscriptionId: string): void {
@@ -381,4 +702,127 @@ export function attachNotificationResponseListeners(): () => void {
   });
 
   return () => sub.remove();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Issue #920 — Frontend notification preference management helpers
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Notification preference summary for display in the settings UI.
+ */
+export interface NotificationPreferenceSummary {
+  totalEnabled: number;
+  totalDisabled: number;
+  channelSummary: Record<NotificationChannel, { enabled: number; disabled: number }>;
+  hasQuietHours: boolean;
+  frequency: NotificationPreferences['digestFrequency'];
+  /** Types the subscriber has muted entirely. */
+  mutedTypes: NotificationType[];
+}
+
+/** True when `now` falls inside the configured quiet-hours window, read in
+ *  the subscriber's configured timezone (Issue #1744). */
+export function isWithinQuietHours(
+  quietHours: NotificationPreferences['quietHours'],
+  now: Date = new Date()
+): boolean {
+  if (!quietHours.enabled || quietHours.startHour === quietHours.endHour) return false;
+  return isWithinQuietHoursDate(now, {
+    ...quietHours,
+    timezone: quietHours.timezone || 'UTC',
+  });
+}
+
+/**
+ * Build a UI-friendly summary of the current notification preferences.
+ *
+ * Reads directly from the Zustand preferences store so it can be called
+ * from any component without prop-drilling.
+ */
+export function getNotificationPreferenceSummary(): NotificationPreferenceSummary {
+  const { preferences } = useNotificationPreferencesStore.getState();
+
+  const channelSummary = NOTIFICATION_CHANNELS.reduce(
+    (acc, channel) => {
+      acc[channel] = { enabled: 0, disabled: 0 };
+      return acc;
+    },
+    {} as Record<NotificationChannel, { enabled: number; disabled: number }>
+  );
+
+  let totalEnabled = 0;
+  let totalDisabled = 0;
+  const mutedTypes: NotificationType[] = [];
+
+  for (const type of NOTIFICATION_TYPES) {
+    const preference = preferences.types[type];
+    if (!preference) continue;
+    if (preference.muted) mutedTypes.push(type);
+
+    for (const channel of NOTIFICATION_CHANNELS) {
+      if (preference.channels[channel]) {
+        channelSummary[channel].enabled += 1;
+        totalEnabled += 1;
+      } else {
+        channelSummary[channel].disabled += 1;
+        totalDisabled += 1;
+      }
+    }
+  }
+
+  return {
+    totalEnabled,
+    totalDisabled,
+    channelSummary,
+    hasQuietHours: preferences.quietHours.enabled,
+    frequency: preferences.digestFrequency,
+    mutedTypes,
+  };
+}
+
+/**
+ * Bulk-enable or bulk-disable all notification types for a specific channel.
+ * Useful for a "Pause all email notifications" toggle.
+ *
+ * A required type keeps its last remaining channel, so the store may refuse a
+ * disable for that one type — the call is deliberately fire-and-forget per type.
+ */
+export async function setAllChannelNotifications(
+  channel: NotificationChannel,
+  enabled: boolean,
+  notificationTypes: NotificationType[] = NOTIFICATION_TYPES
+): Promise<void> {
+  const store = useNotificationPreferencesStore.getState();
+  for (const type of notificationTypes) {
+    store.setChannelPreference(type, channel, enabled);
+  }
+}
+
+/**
+ * Returns true if the device should display a notification based on the
+ * local preferences store (without hitting the backend).
+ *
+ * Used as a client-side gate before scheduling a push notification.
+ */
+export function shouldShowNotification(
+  type: NotificationType,
+  channel: NotificationChannel
+): boolean {
+  const { preferences } = useNotificationPreferencesStore.getState();
+  const preference = preferences.types[type];
+
+  // Preferences have not hydrated yet — never drop a notification on a guess.
+  if (!preference) return true;
+
+  const meta = NOTIFICATION_TYPE_META[type];
+  if (preference.muted && !meta.required) return false;
+  if (!preference.channels[channel]) return false;
+
+  // Critical alerts, and anything landing in the in-app inbox, ignore quiet
+  // hours — the same rule PushScheduleEngine applies when it schedules.
+  if (meta.priority === 'critical' || channel === 'in_app') return true;
+  if (preferences.quietHours.enabled && isWithinQuietHours(preferences.quietHours)) return false;
+
+  return true;
 }

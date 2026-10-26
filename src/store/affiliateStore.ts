@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import { asyncStorageAdapter } from '../utils/storage';
 import {
   Affiliate,
   AffiliateProgram,
@@ -10,7 +10,7 @@ import {
   AffiliateStatus,
   CommissionType,
 } from '../types/affiliate';
-import { CACHE_CONSTANTS } from '../utils/constants/values';
+import { AffiliateService } from '../../backend/services/affiliate/AffiliateService';
 
 const STORAGE_KEY = 'subtrackr-affiliate';
 const STORE_VERSION = 1;
@@ -24,31 +24,36 @@ interface AffiliateState {
   error: string | null;
 
   registerAffiliate: (referrerAddress: string, programId: string) => Promise<void>;
-  trackReferral: (affiliateId: string, subscriptionId: string) => Promise<void>;
+  trackReferral: (
+    affiliateId: string,
+    subscriptionId: string,
+    subscriptionAmount: number,
+    ip: string,
+    userAgent: string,
+    cookieReferralCode?: string,
+    attributionModel?: 'first-touch' | 'last-touch' | 'linear'
+  ) => Promise<void>;
+  trackClick: (referralCode: string, ip: string, userAgent: string) => Promise<void>;
   calculateCommission: (affiliateId: string, subscriptionAmount: number) => Promise<number>;
   approveCommission: (commissionId: string) => Promise<void>;
   payoutCommission: (affiliateId: string) => Promise<void>;
   updateAffiliateStatus: (affiliateId: string, status: AffiliateStatus) => Promise<void>;
+  triggerClawback: (subscriptionId: string) => Promise<void>;
   getMetrics: () => AffiliateMetrics;
 }
-
-const generateUniqueId = (): string => {
-  const timestamp = Date.now().toString(36);
-  const randomComponent = Math.random().toString(36).substring(2, 8);
-  return `${timestamp}-${randomComponent}`;
-};
 
 const defaultPrograms: AffiliateProgram[] = [
   {
     id: 'default-basic',
     name: 'Basic Affiliate Program',
-    description: 'Earn 5% commission on all referrals',
+    description: 'Earn 10% commission on all referrals',
     commissionConfig: {
       type: CommissionType.PERCENTAGE,
-      rate: 5,
+      rate: 10,
     },
     attributionWindowDays: 30,
     isActive: true,
+    attributionModel: 'last-touch',
   },
   {
     id: 'default-tiered',
@@ -57,18 +62,16 @@ const defaultPrograms: AffiliateProgram[] = [
     commissionConfig: {
       type: CommissionType.TIERED,
       rate: 10,
-      tierThresholds: [1000, 5000, 10000],
+      tierThresholds: [100, 500, 1000],
       tierRates: [10, 12, 15],
     },
     attributionWindowDays: 60,
     isActive: true,
+    attributionModel: 'last-touch',
   },
 ];
 
-const calculateTieredCommission = (
-  amount: number,
-  config: CommissionConfig
-): number => {
+const calculateTieredCommission = (amount: number, config: CommissionConfig): number => {
   if (config.type !== CommissionType.TIERED || !config.tierThresholds || !config.tierRates) {
     return amount * (config.rate / 100);
   }
@@ -95,6 +98,7 @@ export const useAffiliateStore = create<AffiliateState>()(
         totalEarnings: 0,
         pendingPayout: 0,
         conversionRate: 0,
+        totalClicks: 0,
       },
       isLoading: false,
       error: null,
@@ -105,21 +109,14 @@ export const useAffiliateStore = create<AffiliateState>()(
           const program = get().programs.find((p) => p.id === programId);
           if (!program) throw new Error('Program not found');
 
-          const newAffiliate: Affiliate = {
-            id: generateUniqueId(),
+          // Call backend service
+          const backendAffiliate = await AffiliateService.registerAffiliate(
             referrerAddress,
-            programId,
-            commissionRate: program.commissionConfig.rate,
-            paymentThreshold: 100,
-            status: AffiliateStatus.ACTIVE,
-            totalReferrals: 0,
-            totalEarnings: 0,
-            pendingPayout: 0,
-            createdAt: new Date(),
-          };
+            programId
+          );
 
           set((state) => ({
-            affiliates: [...state.affiliates, newAffiliate],
+            affiliates: [...state.affiliates, backendAffiliate],
             isLoading: false,
           }));
         } catch (error) {
@@ -130,38 +127,78 @@ export const useAffiliateStore = create<AffiliateState>()(
         }
       },
 
-      trackReferral: async (affiliateId: string, subscriptionId: string) => {
+      trackClick: async (referralCode: string, ip: string, userAgent: string) => {
+        try {
+          // Call backend
+          await AffiliateService.trackClick(referralCode, ip, userAgent);
+
+          // Sync frontend state
+          set((state) => ({
+            affiliates: state.affiliates.map((a) =>
+              a.referralCode === referralCode ? { ...a, clicksCount: (a.clicksCount || 0) + 1 } : a
+            ),
+          }));
+        } catch (error) {
+          console.warn('Track click warning:', error);
+        }
+      },
+
+      trackReferral: async (
+        affiliateId: string,
+        subscriptionId: string,
+        subscriptionAmount: number,
+        ip: string,
+        userAgent: string,
+        cookieReferralCode?: string,
+        attributionModel: 'first-touch' | 'last-touch' | 'linear' = 'last-touch'
+      ) => {
         set({ isLoading: true, error: null });
         try {
           const { affiliates } = get();
           const affiliate = affiliates.find((a) => a.id === affiliateId);
           if (!affiliate) throw new Error('Affiliate not found');
 
-          set({
-            affiliates: affiliates.map((a) =>
+          // Trigger conversion on backend (IP self referral check, speed check)
+          const newCommissions = await AffiliateService.convertReferral(
+            subscriptionId,
+            subscriptionAmount,
+            ip,
+            userAgent,
+            cookieReferralCode || affiliate.referralCode,
+            attributionModel
+          );
+
+          // Get updated backend affiliate data for fraud status sync
+          const updatedBackend = AffiliateService.getAffiliate(affiliateId);
+
+          set((state) => ({
+            affiliates: state.affiliates.map((a) =>
               a.id === affiliateId
-                ? { ...a, totalReferrals: a.totalReferrals + 1 }
+                ? {
+                    ...a,
+                    totalReferrals: updatedBackend
+                      ? updatedBackend.totalReferrals
+                      : a.totalReferrals + 1,
+                    pendingPayout: updatedBackend
+                      ? updatedBackend.pendingPayout
+                      : a.pendingPayout + (newCommissions[0]?.amount || 0),
+                    fraudRiskScore: updatedBackend
+                      ? updatedBackend.fraudRiskScore
+                      : a.fraudRiskScore,
+                    fraudStatus: updatedBackend ? updatedBackend.fraudStatus : a.fraudStatus,
+                    status: updatedBackend ? updatedBackend.status : a.status,
+                  }
                 : a
             ),
-            commissions: [
-              ...get().commissions,
-              {
-                id: generateUniqueId(),
-                affiliateId,
-                subscriptionId,
-                amount: 0,
-                currency: 'USD',
-                status: 'pending',
-                createdAt: new Date(),
-              },
-            ],
+            commissions: [...state.commissions, ...newCommissions],
             isLoading: false,
-          });
+          }));
         } catch (error) {
           set({
             error: error instanceof Error ? error.message : 'Failed to track referral',
             isLoading: false,
           });
+          throw error;
         }
       },
 
@@ -197,47 +234,79 @@ export const useAffiliateStore = create<AffiliateState>()(
       },
 
       payoutCommission: async (affiliateId: string) => {
-        const { commissions, affiliates } = get();
-        const affiliate = affiliates.find((a) => a.id === affiliateId);
-        if (!affiliate) return;
+        set({ isLoading: true, error: null });
+        try {
+          // Request from backend service
+          const payoutRecord = await AffiliateService.requestPayout(affiliateId);
+          const updatedBackend = AffiliateService.getAffiliate(affiliateId);
 
-        const pendingComms = commissions.filter(
-          (c) => c.affiliateId === affiliateId && c.status === 'approved'
-        );
+          set((state) => ({
+            commissions: state.commissions.map((c) =>
+              c.affiliateId === affiliateId && c.status === 'pending'
+                ? { ...c, status: 'paid' as const, paidAt: new Date() }
+                : c
+            ),
+            affiliates: state.affiliates.map((a) =>
+              a.id === affiliateId
+                ? {
+                    ...a,
+                    totalEarnings: updatedBackend
+                      ? updatedBackend.totalEarnings
+                      : a.totalEarnings + payoutRecord.amount,
+                    pendingPayout: updatedBackend ? updatedBackend.pendingPayout : 0,
+                    payoutHistory: [...(a.payoutHistory || []), payoutRecord],
+                  }
+                : a
+            ),
+            isLoading: false,
+          }));
+        } catch (error) {
+          set({
+            error: error instanceof Error ? error.message : 'Payout failed',
+            isLoading: false,
+          });
+          throw error;
+        }
+      },
 
-        const totalPayout = pendingComms.reduce((sum, c) => sum + c.amount, 0);
-
-        set({
-          commissions: commissions.map((c) =>
-            c.affiliateId === affiliateId && c.status === 'approved'
-              ? { ...c, status: 'paid' as const, paidAt: new Date() }
-              : c
-          ),
-          affiliates: affiliates.map((a) =>
-            a.id === affiliateId
-              ? {
+      triggerClawback: async (subscriptionId: string) => {
+        try {
+          const clawbackAmount = await AffiliateService.processClawback(subscriptionId);
+          if (clawbackAmount > 0) {
+            // Update frontend store to reflect clawback
+            set((state) => ({
+              commissions: state.commissions.map((c) =>
+                c.subscriptionId === subscriptionId ? { ...c, isClawbacked: true } : c
+              ),
+              affiliates: state.affiliates.map((a) => {
+                const affectedComms = state.commissions.filter(
+                  (c) => c.subscriptionId === subscriptionId && c.affiliateId === a.id
+                );
+                const totalAffAmt = affectedComms.reduce((sum, c) => sum + c.amount, 0);
+                return {
                   ...a,
-                  totalEarnings: a.totalEarnings + totalPayout,
-                  pendingPayout: Math.max(0, a.pendingPayout - totalPayout),
-                }
-              : a
-          ),
-        });
+                  pendingPayout: Math.max(0, a.pendingPayout - totalAffAmt),
+                };
+              }),
+            }));
+          }
+        } catch (error) {
+          console.error('Clawback failed:', error);
+        }
       },
 
       updateAffiliateStatus: async (affiliateId: string, status: AffiliateStatus) => {
         set((state) => ({
-          affiliates: state.affiliates.map((a) =>
-            a.id === affiliateId ? { ...a, status } : a
-          ),
+          affiliates: state.affiliates.map((a) => (a.id === affiliateId ? { ...a, status } : a)),
         }));
       },
 
       getMetrics: () => {
-        const { affiliates, commissions } = get();
+        const { affiliates } = get();
         const totalEarnings = affiliates.reduce((sum, a) => sum + a.totalEarnings, 0);
         const pendingPayout = affiliates.reduce((sum, a) => sum + a.pendingPayout, 0);
         const totalReferrals = affiliates.reduce((sum, a) => sum + a.totalReferrals, 0);
+        const totalClicks = affiliates.reduce((sum, a) => sum + (a.clicksCount || 0), 0);
         const activeReferrals = affiliates.filter(
           (a) => a.status === AffiliateStatus.ACTIVE
         ).length;
@@ -247,14 +316,15 @@ export const useAffiliateStore = create<AffiliateState>()(
           activeReferrals,
           totalEarnings,
           pendingPayout,
-          conversionRate: totalReferrals > 0 ? (activeReferrals / totalReferrals) * 100 : 0,
+          conversionRate: totalClicks > 0 ? (totalReferrals / totalClicks) * 100 : 0,
+          totalClicks,
         };
       },
     }),
     {
       name: STORAGE_KEY,
       version: STORE_VERSION,
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => asyncStorageAdapter),
       partialize: (state) => ({
         affiliates: state.affiliates,
         programs: state.programs,

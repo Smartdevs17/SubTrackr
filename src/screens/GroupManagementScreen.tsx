@@ -39,7 +39,9 @@ const GroupManagementScreen: React.FC = () => {
         <Text style={styles.meta}>
           Seats: {analytics?.activeSeats ?? group.members.length}/{group.planSharingRules.seatLimit}
         </Text>
-        <Text style={styles.meta}>Outstanding: ${analytics?.outstandingBalance.toFixed(2) ?? '0.00'}</Text>
+        <Text style={styles.meta}>
+          Outstanding: ${analytics?.outstandingBalance.toFixed(2) ?? '0.00'}
+        </Text>
         <View style={styles.actions}>
           <Button
             title="Invite"

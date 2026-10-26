@@ -1,91 +1,115 @@
 {
-  "source": "docs/openapi.yaml",
+  "openapiVersion": "3.1.0",
+  "source": "developer-portal/docs/openapi.json",
   "generatedBy": "scripts/generate-sdks.js",
   "endpoints": [
     {
-      "path": "/initialize",
+      "path": "/auth/login",
       "method": "POST",
-      "operation": "initialize"
+      "operation": "loginUser",
+      "summary": "Authenticate user"
     },
     {
-      "path": "/create_plan",
-      "method": "POST",
-      "operation": "createPlan"
+      "path": "/subscriptions",
+      "method": "GET",
+      "operation": "listSubscriptions",
+      "summary": "List subscriptions"
     },
     {
-      "path": "/deactivate_plan",
+      "path": "/subscriptions",
       "method": "POST",
-      "operation": "deactivatePlan"
+      "operation": "createSubscription",
+      "summary": "Create subscription"
     },
     {
-      "path": "/subscribe",
-      "method": "POST",
-      "operation": "subscribe"
+      "path": "/subscriptions/{id}",
+      "method": "GET",
+      "operation": "getSubscription",
+      "summary": "Get subscription"
     },
     {
-      "path": "/cancel_subscription",
-      "method": "POST",
-      "operation": "cancelSubscription"
+      "path": "/subscriptions/{id}",
+      "method": "PUT",
+      "operation": "updateSubscription",
+      "summary": "Update subscription"
     },
     {
-      "path": "/pause_subscription",
-      "method": "POST",
-      "operation": "pauseSubscription"
+      "path": "/subscriptions/{id}",
+      "method": "DELETE",
+      "operation": "deleteSubscription",
+      "summary": "Delete subscription"
     },
     {
-      "path": "/resume_subscription",
+      "path": "/subscriptions/{id}/cancel",
       "method": "POST",
-      "operation": "resumeSubscription"
+      "operation": "cancelSubscription",
+      "summary": "Cancel subscription"
     },
     {
-      "path": "/charge_subscription",
-      "method": "POST",
-      "operation": "chargeSubscription"
+      "path": "/plans",
+      "method": "GET",
+      "operation": "listPlans",
+      "summary": "List plans"
     },
     {
-      "path": "/request_refund",
+      "path": "/plans",
       "method": "POST",
-      "operation": "requestRefund"
+      "operation": "createPlan",
+      "summary": "Create plan"
     },
     {
-      "path": "/approve_refund",
-      "method": "POST",
-      "operation": "approveRefund"
+      "path": "/plans/{id}",
+      "method": "GET",
+      "operation": "getPlanById",
+      "summary": "Get plan by ID"
     },
     {
-      "path": "/reject_refund",
-      "method": "POST",
-      "operation": "rejectRefund"
+      "path": "/plans/{id}",
+      "method": "PATCH",
+      "operation": "updatePlan",
+      "summary": "Update plan"
     },
     {
-      "path": "/get_plan",
-      "method": "POST",
-      "operation": "getPlan"
+      "path": "/payments",
+      "method": "GET",
+      "operation": "listPayments",
+      "summary": "List payments"
     },
     {
-      "path": "/get_subscription",
+      "path": "/payments",
       "method": "POST",
-      "operation": "getSubscription"
+      "operation": "recordPayment",
+      "summary": "Record or initiate payment"
     },
     {
-      "path": "/get_user_subscriptions",
-      "method": "POST",
-      "operation": "getUserSubscriptions"
+      "path": "/invoices",
+      "method": "GET",
+      "operation": "listInvoices",
+      "summary": "List invoices"
     },
     {
-      "path": "/get_merchant_plans",
-      "method": "POST",
-      "operation": "getMerchantPlans"
+      "path": "/webhooks",
+      "method": "GET",
+      "operation": "listWebhooks",
+      "summary": "List webhooks"
     },
     {
-      "path": "/get_plan_count",
+      "path": "/webhooks",
       "method": "POST",
-      "operation": "getPlanCount"
+      "operation": "createWebhook",
+      "summary": "Create webhook endpoint"
     },
     {
-      "path": "/get_subscription_count",
-      "method": "POST",
-      "operation": "getSubscriptionCount"
+      "path": "/analytics/usage",
+      "method": "GET",
+      "operation": "getUsageAnalytics",
+      "summary": "Get usage analytics"
+    },
+    {
+      "path": "/themes",
+      "method": "GET",
+      "operation": "getThemes",
+      "summary": "Get theme settings"
     }
   ]
 }

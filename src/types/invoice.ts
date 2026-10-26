@@ -1,11 +1,26 @@
-import { BillingCycle, Subscription } from './subscription';
+import { BillingCycle, Subscription, SubscriptionCategory } from './subscription';
 
+/**
+ * Invoice lifecycle.
+ *
+ * This spans two sets that are both in active use: the billing states
+ * (draft/sent/partial/paid/void) and the fulfilment states the reporting
+ * layer relies on (pending/overdue/cancelled/refunded). Both are valid
+ * members; which ones an invoice can occupy depends on how far it has been
+ * taken through the workflow.
+ */
 export enum InvoiceStatus {
+  // Billing states
   DRAFT = 'draft',
   SENT = 'sent',
   PARTIAL = 'partial',
   PAID = 'paid',
   VOID = 'void',
+  // Fulfilment / reporting states
+  PENDING = 'pending',
+  OVERDUE = 'overdue',
+  CANCELLED = 'cancelled',
+  REFUNDED = 'refunded',
 }
 
 export enum TaxType {
@@ -29,6 +44,9 @@ export enum DigitalGoodsCategory {
   MARKETPLACE = 'marketplace',
   OTHER = 'other',
 }
+
+// Backward-compatible alias used by stores/UI.
+export type DigitalGoodsClass = DigitalGoodsCategory;
 
 export enum CertificateStatus {
   PENDING = 'pending',
@@ -157,6 +175,7 @@ export interface TaxRemittanceLineItem {
   taxableAmount: number;
   rateBps: number;
   taxCollected: number;
+  transactionCount?: number;
   currency: string;
   digitalGoodsCategory?: DigitalGoodsCategory;
   invoiceDate: Date;
@@ -225,21 +244,112 @@ export interface TaxInvoiceGenerationInput {
   isExempt: boolean;
   digitalGoodsCategory: DigitalGoodsCategory;
   effectiveTaxRateBps: number;
+  reverseCharge?: boolean;
 }
 
+export type InvoiceLineItemMetadata = Record<string, string>;
+
+/**
+ * Discriminates what a line item represents on the invoice.
+ *
+ * Discounts are itemised as their own line (`'discount'`) so a reduction is
+ * visible on the invoice instead of only appearing as a scalar total. This is
+ * intentionally distinct from coupons, which are a campaign/promotion concept
+ * applied at checkout and are not modelled here.
+ */
+export type InvoiceLineItemKind = 'item' | 'discount';
+
 export interface InvoiceLineItem {
+  /** Optional line identifier assigned by the caller. */
+  id?: string;
+  /**
+   * What the line represents. Defaults to `'item'` (a chargeable line) when
+   * omitted, so existing persisted invoices keep their meaning.
+   */
+  kind?: InvoiceLineItemKind;
   description: string;
+  /** Arbitrary string key/value references attached to this line item. */
+  metadata?: InvoiceLineItemMetadata;
   quantity: number;
   unitPrice: number;
   currency: string;
   exchangeRate: number;
   taxRateBps: number;
-  lineTotal: number;
+  lineTotal?: number;
+  /** Alias of `lineTotal`, accepted from the flat invoice form shape. */
+  amount?: number;
 }
 
 export interface InvoicePeriod {
   start: Date;
   end: Date;
+}
+
+export interface InvoiceBranding {
+  /** Identifier used when persisting a branding profile. */
+  id?: string;
+  /** Merchant name shown in the invoice header. */
+  companyName?: string;
+  /** Logo asset. `logoUrl` is the canonical field; `companyLogo` is the alias
+   *  used by the invoice service and older screens. */
+  logoUrl?: string;
+  companyLogo?: string;
+  /** Where the logo is anchored in the rendered header. */
+  logoPosition?: 'left' | 'center' | 'right';
+  createdAt?: Date;
+  updatedAt?: Date;
+  primaryColor?: string;
+  fontFamily?: string;
+  /** Used for secondary surfaces (table headers, rules) in rendered invoices. */
+  secondaryColor?: string;
+  accentColor?: string;
+  /** Body text colour; falls back to a neutral when unset. */
+  textColor?: string;
+  /** Displayed under the totals block — payment terms, legal footer, etc. */
+  footerText?: string;
+  supportEmail?: string;
+  websiteUrl?: string;
+  /** Rendered logo width in points. Clamped when the invoice is rendered. */
+  logoWidth?: number;
+}
+
+export interface InvoiceTemplate {
+  id: string;
+  name: string;
+  /** Human-readable description shown in the template picker. */
+  description?: string;
+  /**
+   * Template layout. Accepts the `InvoiceLayout` enum as well as the raw
+   * layout names that are persisted in existing tenant configurations.
+   */
+  layout: InvoiceLayout | 'standard' | 'minimalist' | 'creative' | 'premium';
+  /** Template used when a tenant has not chosen one. */
+  isDefault?: boolean;
+  headerContent?: string;
+  footerContent?: string;
+  includeNotes?: boolean;
+  includePaymentTerms?: boolean;
+  /** Render the merchant signature block in the footer. */
+  includeSignature?: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+/**
+ * A tenant's invoice presentation. Tenants are merchants on the platform, so
+ * one deployment renders invoices under many brands; anything left unset here
+ * falls back to the platform defaults in `InvoiceConfig`.
+ */
+export interface TenantBrandingProfile {
+  tenantId: string;
+  /** Legal entity name printed as the issuer. Defaults to the merchant name. */
+  displayName?: string;
+  branding: InvoiceBranding;
+  /** Overrides `InvoiceConfig.defaultTemplateId` for this tenant. */
+  templateId?: string;
+  /** Overrides the platform invoice number prefix, e.g. `ACME`. */
+  numberingPrefix?: string;
+  updatedAt?: Date;
 }
 
 export interface Invoice {
@@ -262,10 +372,31 @@ export interface Invoice {
   updatedAt: Date;
   recipientEmail?: string;
   notes?: string;
+  /** Date the invoice was issued. Distinct from `createdAt`. */
+  issueDate?: Date;
+  /** Sum of line-item discounts, in `currency` units. */
+  discountAmount?: number;
+  /** Rendered payment-terms text, e.g. "Net 14". */
+  paymentTerms?: string;
+  /** How the invoice was (or is expected to be) settled. */
+  paymentMethod?: string;
+  /** Billed party, shown in the "Bill to" block. */
+  customerName?: string;
+  customerEmail?: string;
+  /** Location of the generated PDF, once rendered. */
+  pdfUrl?: string;
+  /** Alias of `total`, accepted from the flat invoice form shape. */
+  totalAmount?: number;
+  /** Alias of `total` used by the flat invoice form shape. */
+  amount?: number;
   taxJurisdiction?: TaxJurisdiction;
   digitalGoodsCategory?: DigitalGoodsCategory;
   isTaxExempt?: boolean;
   taxExemptionId?: string;
+  reverseCharge?: boolean;
+  branding?: InvoiceBranding;
+  templateId?: string;
+  tenantId?: string;
 }
 
 export interface InvoiceConfig {
@@ -277,6 +408,18 @@ export interface InvoiceConfig {
   exchangeRateScale: number;
   paymentTermsDays: number;
   defaultTaxType: TaxType;
+  defaultBranding?: InvoiceBranding;
+  defaultTemplateId?: string;
+}
+
+/** Branding actually applied to an invoice, with the source of each decision. */
+export interface ResolvedInvoiceBranding {
+  branding: InvoiceBranding;
+  templateId: string;
+  displayName?: string;
+  numberingPrefix: string;
+  /** Which layer supplied the branding — useful for the branding preview UI. */
+  source: 'tenant' | 'platform' | 'fallback';
 }
 
 export interface InvoiceTotals {
@@ -286,17 +429,84 @@ export interface InvoiceTotals {
 }
 
 export interface InvoiceFormData {
-  subscription: Subscription;
-  period: InvoicePeriod;
+  subscription?: Subscription;
+  period?: InvoicePeriod;
+  /** Flat identifier, used when the full subscription is not loaded. */
+  subscriptionId?: string;
+  /** Flat invoice amount, used when line items are not supplied. */
+  amount?: number;
+  /** Line items being invoiced; totals are derived from these. */
+  lineItems?: InvoiceLineItem[];
+  /** Tax to apply, in `currency` units. Derived from the tax jurisdiction when omitted. */
+  taxAmount?: number;
+  /** Discount to subtract, in `currency` units. */
+  discountAmount?: number;
+  /** Payment due date; becomes `Invoice.period.end`. */
+  dueDate?: Date;
   region?: string;
   currency?: string;
   recipientEmail?: string;
   notes?: string;
   taxJurisdiction?: TaxJurisdiction;
+  /** Merchant whose branding profile should be applied to this invoice. */
+  tenantId?: string;
 }
 
 export interface InvoiceStateSnapshot {
   invoices: Invoice[];
+}
+
+/** Visual template applied when rendering an invoice. */
+export enum InvoiceLayout {
+  MODERN = 'modern',
+  CLASSIC = 'classic',
+  MINIMAL = 'minimal',
+}
+
+/** Optional narrowing applied by `getAllInvoices`. */
+export interface InvoiceFilters {
+  status?: InvoiceStatus[];
+  subscriptionId?: string;
+  dateFrom?: Date;
+  dateTo?: Date;
+  minAmount?: number;
+  maxAmount?: number;
+}
+
+/** Input for `generateInvoicePDF`. */
+export interface PDFGenerationOptions {
+  invoiceId: string;
+}
+
+/** Rendered preview returned by `previewInvoice`. */
+export interface InvoicePreview {
+  invoiceId: string;
+  html: string;
+  brandingApplied: boolean;
+  templateApplied: boolean;
+}
+
+/** A subscription ranked by revenue in `getInvoiceAnalytics`. */
+export interface InvoiceSubscriptionRevenue {
+  subscriptionId: string;
+  subscriptionName: string;
+  revenue: number;
+  invoiceCount: number;
+}
+
+/** Aggregate invoice statistics returned by `getInvoiceAnalytics`. */
+export interface InvoiceAnalytics {
+  totalInvoices: number;
+  totalRevenue: number;
+  paidInvoices: number;
+  pendingInvoices: number;
+  overdueInvoices: number;
+  averageInvoiceAmount: number;
+  /** Revenue keyed by `YYYY-MM`. */
+  revenueByMonth: Record<string, number>;
+  statusBreakdown: Record<InvoiceStatus, number>;
+  paymentMethodBreakdown: Record<string, number>;
+  topSubscriptions: InvoiceSubscriptionRevenue[];
 }
 
 export const DEFAULT_INVOICE_CONFIG: InvoiceConfig = {
@@ -317,7 +527,10 @@ export const isOpenInvoice = (status: InvoiceStatus): boolean =>
 
 export const billingCycleToMonths = (cycle: BillingCycle): number => {
   switch (cycle) {
+    // `annual` is billed once a year; treating it as the default made annual
+    // subscriptions normalise to a single month.
     case BillingCycle.YEARLY:
+    case BillingCycle.ANNUAL:
       return 12;
     case BillingCycle.WEEKLY:
       return 1 / 4.345;
@@ -348,21 +561,21 @@ export const isTaxExempt = (status: CustomerTaxStatus | null): boolean => {
 };
 
 export const mapSubscriptionCategoryToDigitalGoods = (
-  category: import('./subscription').SubscriptionCategory
+  category: SubscriptionCategory
 ): DigitalGoodsCategory => {
   switch (category) {
-    case import('./subscription').SubscriptionCategory.STREAMING:
+    case SubscriptionCategory.STREAMING:
       return DigitalGoodsCategory.STREAMING;
-    case import('./subscription').SubscriptionCategory.SOFTWARE:
-    case import('./subscription').SubscriptionCategory.PRODUCTIVITY:
+    case SubscriptionCategory.SOFTWARE:
+    case SubscriptionCategory.PRODUCTIVITY:
       return DigitalGoodsCategory.SAAS;
-    case import('./subscription').SubscriptionCategory.GAMING:
+    case SubscriptionCategory.GAMING:
       return DigitalGoodsCategory.IN_APP_PURCHASE;
-    case import('./subscription').SubscriptionCategory.FINANCE:
+    case SubscriptionCategory.FINANCE:
       return DigitalGoodsCategory.ONLINE_SERVICE;
-    case import('./subscription').SubscriptionCategory.EDUCATION:
-    case import('./subscription').SubscriptionCategory.FITNESS:
-    case import('./subscription').SubscriptionCategory.OTHER:
+    case SubscriptionCategory.EDUCATION:
+    case SubscriptionCategory.FITNESS:
+    case SubscriptionCategory.OTHER:
     default:
       return DigitalGoodsCategory.OTHER;
   }

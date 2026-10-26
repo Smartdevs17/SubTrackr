@@ -1,126 +1,143 @@
+"""
+client.py
+
+Issue #1178 — Implement SDK versioning with deprecation policy
+
+SubTrackr Python SDK client with SDK/API versioning, X-SDK-Version header
+injection, and deprecation wrappers for renamed methods.
+"""
+
+from __future__ import annotations
+
+from typing import Any, Dict, List, Optional
+
 import requests
-from typing import List, Dict, Any, Optional
-from .auth import AuthManager
-from .errors import ApiError
-from .types import Plan, Subscription, Webhook
+
+from .version import (
+    SDK_VERSION,
+    CURRENT_API_VERSION,
+    MIN_SUPPORTED_API_VERSION,
+    assess_api_version_compatibility,
+    deprecated,
+    warn_deprecated,
+)
+
+
+class UnsupportedVersionError(Exception):
+    """Raised when the configured API version is not supported by this SDK."""
+
+    def __init__(self, requested: int, minimum: int) -> None:
+        super().__init__(
+            f"API version {requested} is not supported. "
+            f"Minimum supported version is {minimum}."
+        )
+        self.requested_version = requested
+        self.min_supported_version = minimum
+
 
 class SubTrackrClient:
-    def __init__(self, api_key: str, environment: str = "production", base_url: Optional[str] = None):
-        self.auth_manager = AuthManager(api_key)
-        self.base_url = base_url or (
-            "https://sandbox.api.subtrackr.app" if environment == "sandbox"
-            else "https://api.subtrackr.app"
-        )
-        self.session = requests.Session()
+    """
+    Official SubTrackr Python SDK client.
 
-    def _request(self, method: str, endpoint: str, json: Optional[Dict[str, Any]] = None) -> Any:
-        token = self.auth_manager.get_token()
-        url = f"{self.base_url}{endpoint}"
-        headers = {
-            "Authorization": f"Bearer {token}",
+    Parameters
+    ----------
+    base_url:
+        API base URL (defaults to production).
+    api_key:
+        API key for authentication.
+    token:
+        Bearer token (alternative to api_key).
+    api_version:
+        Target API version (default: CURRENT_API_VERSION).
+        Must be >= MIN_SUPPORTED_API_VERSION.
+    warn_on_deprecation:
+        Whether to emit DeprecationWarning for deprecated methods.
+        Default: True.
+    """
+
+    def __init__(
+        self,
+        base_url: str = "https://api.subtrackr.io/v1",
+        api_key: Optional[str] = None,
+        token: Optional[str] = None,
+        api_version: int = CURRENT_API_VERSION,
+        warn_on_deprecation: bool = True,
+    ) -> None:
+        # Validate requested API version
+        if api_version < MIN_SUPPORTED_API_VERSION:
+            raise UnsupportedVersionError(api_version, MIN_SUPPORTED_API_VERSION)
+
+        compat = assess_api_version_compatibility(api_version)
+        if compat["removed"]:
+            raise UnsupportedVersionError(api_version, MIN_SUPPORTED_API_VERSION)
+
+        if warn_on_deprecation and compat["deprecated"] and compat["message"]:
+            import warnings
+            warnings.warn(
+                f"[SubTrackr SDK v{SDK_VERSION}] {compat['message']}",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
+        self.base_url = base_url.rstrip("/")
+        self.api_key = api_key
+        self.token = token
+        self.api_version = api_version
+        self.warn_on_deprecation = warn_on_deprecation
+
+    # ── Headers ──────────────────────────────────────────────────────────────
+
+    def _headers(self) -> Dict[str, str]:
+        headers: Dict[str, str] = {
             "Content-Type": "application/json",
-            "Accept": "application/json",
+            "X-SDK-Version": SDK_VERSION,
+            "X-API-Version": str(self.api_version),
         }
+        if self.token:
+            headers["Authorization"] = f"Bearer {self.token}"
+        if self.api_key:
+            headers["X-API-Key"] = self.api_key
+        return headers
 
-        response = self.session.request(method, url, headers=headers, json=json)
+    # ── Version introspection ─────────────────────────────────────────────────
 
-        if not response.ok:
-            try:
-                error_data = response.json()
-                message = error_data.get("message", "API request failed")
-                code = error_data.get("code")
-            except Exception:
-                message = response.reason
-                code = None
-            raise ApiError(message, response.status_code, code)
+    def get_sdk_version(self) -> str:
+        """Returns the SDK version string, e.g. '2.0.0'."""
+        return SDK_VERSION
 
-        return response.json()
+    def get_api_version(self) -> int:
+        """Returns the API version this client is configured to use."""
+        return self.api_version
 
-    def initialize(self, admin: str) -> None:
-        return self._request("POST", "/initialize", json={"admin": admin})
+    # ── Current REST methods ──────────────────────────────────────────────────
 
-    def create_plan(self, merchant: str, name: str, price: int, token: str, interval: str) -> int:
-        return self._request(
-            "POST",
-            "/create_plan",
-            json={
-                "merchant": merchant,
-                "name": name,
-                "price": price,
-                "token": token,
-                "interval": interval,
-            },
+    def list_subscriptions(self) -> List[Dict[str, Any]]:
+        """List all subscriptions (current, preferred method)."""
+        response = requests.get(
+            f"{self.base_url}/subscriptions", headers=self._headers()
         )
+        response.raise_for_status()
+        return response.json()  # type: ignore[no-any-return]
 
-    def deactivate_plan(self, merchant: str, plan_id: int) -> None:
-        return self._request("POST", "/deactivate_plan", json={"merchant": merchant, "plan_id": plan_id})
-
-    def subscribe(self, subscriber: str, plan_id: int) -> int:
-        return self._request("POST", "/subscribe", json={"subscriber": subscriber, "plan_id": plan_id})
-
-    def cancel_subscription(self, subscriber: str, subscription_id: int) -> None:
-        return self._request(
-            "POST",
-            "/cancel_subscription",
-            json={"subscriber": subscriber, "subscription_id": subscription_id},
+    def create_subscription(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a new subscription."""
+        response = requests.post(
+            f"{self.base_url}/subscriptions", json=payload, headers=self._headers()
         )
+        response.raise_for_status()
+        return response.json()  # type: ignore[no-any-return]
 
-    def pause_subscription(self, subscriber: str, subscription_id: int) -> None:
-        return self._request(
-            "POST",
-            "/pause_subscription",
-            json={"subscriber": subscriber, "subscription_id": subscription_id},
-        )
+    # ── Deprecated aliases ────────────────────────────────────────────────────
 
-    def resume_subscription(self, subscriber: str, subscription_id: int) -> None:
-        return self._request(
-            "POST",
-            "/resume_subscription",
-            json={"subscriber": subscriber, "subscription_id": subscription_id},
-        )
-
-    def charge_subscription(self, subscription_id: int) -> None:
-        return self._request("POST", "/charge_subscription", json={"subscription_id": subscription_id})
-
-    def request_refund(self, subscription_id: int, amount: int) -> None:
-        return self._request(
-            "POST",
-            "/request_refund",
-            json={"subscription_id": subscription_id, "amount": amount},
-        )
-
-    def approve_refund(self, subscription_id: int) -> None:
-        return self._request("POST", "/approve_refund", json={"subscription_id": subscription_id})
-
-    def reject_refund(self, subscription_id: int) -> None:
-        return self._request("POST", "/reject_refund", json={"subscription_id": subscription_id})
-
-    def get_plan(self, plan_id: int) -> Plan:
-        return self._request("POST", "/get_plan", json={"plan_id": plan_id})
-
-    def get_subscription(self, subscription_id: int) -> Subscription:
-        return self._request("POST", "/get_subscription", json={"subscription_id": subscription_id})
-
-    def get_user_subscriptions(self, subscriber: str) -> List[int]:
-        return self._request("POST", "/get_user_subscriptions", json={"subscriber": subscriber})
-
-    def get_merchant_plans(self, merchant: str) -> List[int]:
-        return self._request("POST", "/get_merchant_plans", json={"merchant": merchant})
-
-    def get_plan_count(self) -> int:
-        return self._request("POST", "/get_plan_count")
-
-    def get_subscription_count(self) -> int:
-        return self._request("POST", "/get_subscription_count")
-
-    def get_subscriptions(self) -> List[Subscription]:
-        return self._request("GET", "/v1/subscriptions")
-
-    def create_subscription(self, data: Dict[str, Any]) -> Subscription:
-        return self._request("POST", "/v1/subscriptions", json=data)
-
-    def get_webhooks(self) -> List[Webhook]:
-        return self._request("GET", "/v1/webhooks")
-
-    def create_webhook(self, data: Dict[str, Any]) -> Webhook:
-        return self._request("POST", "/v1/webhooks", json=data)
+    @deprecated(
+        deprecated_in="2.0.0",
+        removed_in="3.0.0",
+        replacement="list_subscriptions()",
+        note="list_subscriptions() returns the same data with the updated response envelope.",
+    )
+    def get_subscriptions(self) -> List[Dict[str, Any]]:
+        """
+        .. deprecated:: 2.0.0
+           Use :meth:`list_subscriptions` instead.
+        """
+        return self.list_subscriptions()

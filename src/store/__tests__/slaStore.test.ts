@@ -19,27 +19,28 @@ import { useSlaStore } from '../slaStore';
 // Mocks
 // ---------------------------------------------------------------------------
 
-const mockMemoryStore = new Map<string, string>();
-
 interface NotificationServiceMock {
   presentSlaBreachNotification: jest.Mock;
 }
 
-jest.mock('@react-native-async-storage/async-storage', () => ({
-  setItem: jest.fn((key: string, value: string) => {
-    mockMemoryStore.set(key, value);
-    return Promise.resolve();
-  }),
-  getItem: jest.fn((key: string) => Promise.resolve(mockMemoryStore.get(key) ?? null)),
-  removeItem: jest.fn((key: string) => {
-    mockMemoryStore.delete(key);
-    return Promise.resolve();
-  }),
-  clear: jest.fn(() => {
-    mockMemoryStore.clear();
-    return Promise.resolve();
-  }),
-}));
+jest.mock('@react-native-async-storage/async-storage', () => {
+  const store = new Map<string, string>();
+  return {
+    setItem: jest.fn((key: string, value: string) => {
+      store.set(key, value);
+      return Promise.resolve();
+    }),
+    getItem: jest.fn((key: string) => Promise.resolve(store.get(key) ?? null)),
+    removeItem: jest.fn((key: string) => {
+      store.delete(key);
+      return Promise.resolve();
+    }),
+    clear: jest.fn(() => {
+      store.clear();
+      return Promise.resolve();
+    }),
+  };
+});
 
 jest.mock('../../services/notificationService', () => ({
   syncRenewalReminders: jest.fn(() => Promise.resolve()),
@@ -88,13 +89,11 @@ const s = () => useSlaStore.getState();
 // ---------------------------------------------------------------------------
 
 beforeEach(() => {
-  mockMemoryStore.clear();
   (AsyncStorage.setItem as jest.Mock).mockClear();
   (AsyncStorage.getItem as jest.Mock).mockClear();
   (AsyncStorage.removeItem as jest.Mock).mockClear();
-  const notify = (
-    jest.requireMock('../../services/notificationService') as NotificationServiceMock
-  ).presentSlaBreachNotification;
+  const notify = (jest.requireMock('../../services/notificationService') as NotificationServiceMock)
+    .presentSlaBreachNotification;
   notify.mockClear();
   resetStore();
 });
@@ -344,10 +343,6 @@ describe('detectSlaBreach', () => {
   });
 
   it('creates a breach when uptime is below target', async () => {
-    const notify = (
-      jest.requireMock('../../services/notificationService') as NotificationServiceMock
-    ).presentSlaBreachNotification;
-
     await act(async () => {
       await s().configureSla('detect-breach-merchant', {
         uptimeTarget: 99.9,

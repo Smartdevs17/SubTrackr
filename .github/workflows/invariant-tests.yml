@@ -11,7 +11,7 @@ on:
       - 'contracts/**'
 
 env:
-  RUST_VERSION: '1.85'
+  RUST_VERSION: '1.91'
   # Number of proptest cases per property. Increase for deeper fuzzing.
   PROPTEST_CASES: 200
 
@@ -25,12 +25,13 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUST_VERSION }}
+          targets: wasm32v1-none
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -58,7 +59,7 @@ jobs:
       # ── Upload test results as artifact ───────────────────────────────
       - name: Upload invariant test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: invariant-test-results
           path: contracts/invariant-test-results.txt
@@ -74,12 +75,13 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUST_VERSION }}
+          targets: wasm32v1-none
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -95,7 +97,7 @@ jobs:
 
       - name: Upload extended fuzz results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: extended-fuzz-results
           path: contracts/extended-fuzz-results.txt

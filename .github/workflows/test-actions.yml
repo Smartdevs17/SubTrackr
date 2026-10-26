@@ -1,0 +1,20 @@
+name: Integration Test Actions
+on:
+  pull_request:
+    paths:
+      - '.github/actions/**'
+      - '.github/workflows/test-actions.yml'
+jobs:
+  test-composite-actions:
+    runs-on: ubuntu-latest
+    steps:
+      # Edge case: to pin to a semantic version tag use: Smartdevs17/SubTrackr/.github/actions/setup-node@v1.2.3
+      - uses: actions/checkout@v7
+      - name: Test setup-node
+        uses: ./.github/actions/setup-node
+      - name: Test build-contracts
+        uses: ./.github/actions/build-contracts
+      - name: Test run-tests
+        uses: ./.github/actions/run-tests
+      - name: Test deploy-service
+        uses: ./.github/actions/deploy-service

@@ -1,124 +1,205 @@
-# Integration Test Documentation
+# Testing Infrastructure — Test Containers & Fixtures
+
+This document describes the backend testing infrastructure introduced in `backend/tests/setup/testContainer.ts`.
+
+---
 
 ## Overview
 
-This document describes the integration test suite for SubTrackr, covering component interactions across the store, notification service, wallet connection, and backend API layers.
+The test container system provides a fast, hermetic test environment for backend integration tests.  
+It uses an **in-memory store by default**, meaning no real PostgreSQL or Redis instance is needed during unit and integration test runs. The same API surface works with real containers in CI by setting `inMemory: false`.
 
-## Test Structure
+---
 
+## Quick Start
+
+```ts
+import {
+  createTestContext,
+  FixtureLoader,
+} from '../tests/setup/testContainer';
+
+const ctx = createTestContext({ inMemory: true });
+
+beforeAll(() => ctx.container.startContainer());
+afterAll(() => ctx.container.stopContainer());
+beforeEach(() => ctx.container.createSavepoint());
+afterEach(() => ctx.container.rollbackToSavepoint());
+
+it('charges an active subscription', async () => {
+  const { subscription } = FixtureLoader.fullSubscriptionScenario();
+  await ctx.seeder.withSubscriptions([subscription]).seedInto(ctx.container);
+
+  // ... exercise your service ...
+
+  ctx.events.assertPublished('payment.success');
+});
 ```
-app/tests/integration/
-├── factories.ts                          # Shared test data factories
-├── contract-store.integration.test.ts   # Contract ↔ store interaction
-├── wallet-connection.integration.test.ts # Wallet connect/disconnect lifecycle
-└── notification-delivery.integration.test.ts # Notification scheduling & delivery
 
-backend/tests/integration/
-└── api-endpoints.integration.test.ts    # MonitoringService & AlertingService pipeline
+---
+
+## Components
+
+### `TestContainerManager`
+
+Manages environment lifecycle and provides a query API over the seeded data.
+
+| Method | Description |
+|---|---|
+| `startContainer()` | Initialise store, load `initialSeed` if provided |
+| `stopContainer()` | Tear down, clear all data |
+| `seedDatabase(data)` | Insert rows into the in-memory store |
+| `cleanDatabase(entities?)` | Delete all rows, or only named entities |
+| `createSavepoint()` | Push a copy of the current state onto a stack |
+| `rollbackToSavepoint()` | Pop and restore the last savepoint |
+| `takeSnapshot(id)` | Named snapshot of current state |
+| `restoreSnapshot(id)` | Restore a named snapshot |
+| `findById(entity, id)` | Look up one row by primary key |
+| `findAll(entity)` | All rows for an entity |
+| `findWhere(entity, fn)` | Filtered rows |
+| `upsert(entity, row)` | Insert or replace |
+| `delete(entity, id)` | Remove a row |
+| `count(entity)` | Row count for an entity |
+
+**Per-test isolation pattern (recommended):**
+```ts
+beforeEach(() => container.createSavepoint());
+afterEach(() => container.rollbackToSavepoint());
 ```
 
-## Running Integration Tests
+---
+
+### `FixtureLoader`
+
+Typed factory methods with sensible defaults.
+
+```ts
+const plan   = FixtureLoader.plan({ price: 29.99, interval: 'yearly' });
+const user   = FixtureLoader.user({ email: 'alice@example.com' });
+const sub    = FixtureLoader.subscription({ userId: user.id, planId: plan.id });
+const inv    = FixtureLoader.invoice({ subscriptionId: sub.id, status: 'failed' });
+
+// Or build a full linked scenario in one call:
+const { merchant, plan, user, subscription, invoice } =
+  FixtureLoader.fullSubscriptionScenario({
+    plan: { price: 99, interval: 'yearly' },
+    subscription: { status: 'past_due' },
+  });
+```
+
+All factories auto-increment IDs. Call `FixtureLoader.resetCounter()` in `beforeEach` for deterministic IDs.
+
+---
+
+### `DatabaseSeeder`
+
+Fluent builder that inserts data in dependency order (merchants → plans → users → subscriptions → invoices).
+
+```ts
+await new DatabaseSeeder()
+  .withMerchants([merchant])
+  .withPlans([plan])
+  .withUsers([user])
+  .withSubscriptions([sub])
+  .withInvoices([inv])
+  .seedInto(container);
+```
+
+---
+
+### `TestClock`
+
+Deterministic time for services that accept a `now` callback.
+
+```ts
+const clock = new TestClock(Date.now());
+clock.advanceDays(30);   // simulate billing cycle
+clock.advanceHours(2);   // move forward 2 hours
+clock.set('2026-01-01'); // jump to absolute date
+```
+
+---
+
+### `TestEventBus`
+
+Captures published events without a real message broker.
+
+```ts
+const bus = new TestEventBus();
+bus.publish('subscription.cancelled', { id: 's1', reason: 'non_payment' });
+
+bus.assertPublished('subscription.cancelled');
+bus.assertNotPublished('subscription.renewed');
+expect(bus.count('subscription.cancelled')).toBe(1);
+const last = bus.last<{ id: string }>('subscription.cancelled');
+```
+
+---
+
+### `detectFlakyTest`
+
+Run a test function multiple times and detect non-determinism.
+
+```ts
+const result = await detectFlakyTest(async () => {
+  // your test body
+}, 5 /* iterations */);
+
+console.log(result.isFlaky);   // true if passed AND failed across runs
+console.log(result.passed);    // number of passing runs
+console.log(result.failed);    // number of failing runs
+console.log(result.errors);    // error messages from failing runs
+```
+
+---
+
+### `RedisFixture`
+
+Tracks Redis keys created during a test for automatic cleanup.
+
+```ts
+const fixture = new RedisFixture(redisClient);
+await fixture.set('cache:sub:s1', JSON.stringify(data), 60);
+// ... test ...
+await fixture.cleanup(); // deletes all tracked keys
+```
+
+---
+
+### Performance helpers
+
+```ts
+const { result, durationMs } = await withTiming(() => myService.process());
+assertWithinMs(durationMs, 200, 'process()');  // throws if > 200ms
+```
+
+---
+
+## Running tests
 
 ```bash
-# Run all tests (includes integration)
-npm test
+# All backend tests (unit + integration)
+npx jest --config jest.backend.config.js
 
-# Run only integration tests
-npx jest --testPathPattern="integration"
+# Only the test-container infrastructure tests
+npx jest --config jest.backend.config.js backend/tests/integration/testContainer.test.ts
 
-# Run with coverage
-npx jest --coverage --testPathPattern="integration"
+# With coverage
+npx jest --config jest.backend.config.js --coverage
 ```
 
-## Test Suites
+---
 
-### 1. Contract–Store Interaction (`contract-store.integration.test.ts`)
+## Performance benchmarks
 
-Verifies that `subscriptionStore` correctly integrates with `notificationService` on every mutation.
+The in-memory store is intentionally lightweight:
 
-| Test                                           | What it verifies                         |
-| ---------------------------------------------- | ---------------------------------------- |
-| addSubscription calls syncRenewalReminders     | Notification sync fires after add        |
-| updateSubscription propagates updated list     | Sync receives updated subscription data  |
-| deleteSubscription syncs after removal         | Deleted sub is absent from sync payload  |
-| recordBillingOutcome success                   | Charge-success notification is presented |
-| recordBillingOutcome failure                   | Charge-failed notification is presented  |
-| notificationsEnabled=false skips notifications | No notification when opted out           |
-| Stats after add → toggle → delete              | Stats stay consistent across lifecycle   |
-| categoryBreakdown accuracy                     | Breakdown reflects multiple categories   |
+| Operation | Target |
+|---|---|
+| `startContainer()` | < 5ms |
+| `seedDatabase()` (100 rows) | < 2ms |
+| `findWhere()` (1000 rows) | < 1ms |
+| `createSavepoint()` / `rollbackToSavepoint()` | < 5ms |
+| Full test context setup | < 10ms |
 
-### 2. Wallet Connection (`wallet-connection.integration.test.ts`)
-
-Verifies the `walletStore` connect/disconnect lifecycle and crypto-stream management.
-
-| Test                                     | What it verifies                          |
-| ---------------------------------------- | ----------------------------------------- |
-| connectWallet persists to AsyncStorage   | Wallet data written on first connect      |
-| connectWallet restores from AsyncStorage | Saved wallet loaded without re-writing    |
-| disconnect clears state and storage      | State nulled, AsyncStorage key removed    |
-| connect → disconnect → reconnect         | Full round-trip restores wallet           |
-| disconnect error handling                | Error state set when storage throws       |
-| isLoading resets after operations        | Loading flag always clears                |
-| createCryptoStream then cancel           | Stream created active, cancelled inactive |
-
-### 3. Notification Delivery (`notification-delivery.integration.test.ts`)
-
-Verifies `notificationService` schedules, cancels, and presents notifications correctly.
-
-| Test                                       | What it verifies                                   |
-| ------------------------------------------ | -------------------------------------------------- |
-| requestNotificationPermissions             | Returns GRANTED when already granted               |
-| presentChargeSuccessNotification           | Schedules immediate notification with correct type |
-| presentChargeFailedNotification            | Schedules immediate notification with correct type |
-| Custom detail message                      | Body uses provided detail string                   |
-| presentTransactionQueueNotification        | Correct title, body, and data type                 |
-| syncRenewalReminders cancels old reminders | Existing renewal reminders cancelled first         |
-| Inactive subscription skipped              | No schedule for inactive subs                      |
-| notificationsEnabled=false skipped         | No schedule when opted out                         |
-| Active sub with future date scheduled      | Reminder scheduled for eligible subs               |
-| Unsupported platform skipped               | No-op on web/unsupported platforms                 |
-
-### 4. API Endpoints (`backend/tests/integration/api-endpoints.integration.test.ts`)
-
-Verifies `MonitoringService` and `AlertingService` end-to-end pipeline.
-
-| Test                                | What it verifies                          |
-| ----------------------------------- | ----------------------------------------- |
-| recordTransaction → dashboard       | Transaction reflected in snapshot         |
-| Mixed outcomes success rate         | Correct ratio calculated                  |
-| Gas averaging                       | avgGasUsed computed correctly             |
-| Empty dashboard defaults            | Safe zero values when no data             |
-| addRule fires alert on breach       | Alert created when threshold exceeded     |
-| resolveAlert removes from active    | Resolved alerts excluded                  |
-| removeRule stops future alerts      | Removed rule no longer triggers           |
-| recentMetrics includes failure_rate | Metrics emitted after each transaction    |
-| dispatch idempotency                | Same alert dispatched only once           |
-| dispatchAll skips resolved          | Resolved alerts not re-dispatched         |
-| createDispatcher validation         | Throws when webhookUrl missing            |
-| Full pipeline                       | Transactions → metrics → alert → dispatch |
-
-## Test Data Factories (`factories.ts`)
-
-Factories provide minimal, deterministic fixtures. Use `resetIdCounter()` in `beforeEach` to ensure stable IDs across tests.
-
-```typescript
-import {
-  makeSubscriptionFormData,
-  makeSubscription,
-  makeWallet,
-  makeCryptoStream,
-  resetIdCounter,
-} from './factories';
-
-// Override any field
-const sub = makeSubscription({ price: 19.99, billingCycle: BillingCycle.YEARLY });
-const wallet = makeWallet({ address: '0xCustomAddress' });
-```
-
-## Design Principles
-
-- **No disk I/O**: AsyncStorage is replaced with an in-memory map.
-- **No real timers**: `jest.useFakeTimers()` controls async delays.
-- **No network calls**: All external services are mocked at the module boundary.
-- **Minimal fixtures**: Factories produce only the fields needed; tests override what they care about.
-- **Isolated state**: Each test resets store state in `beforeEach` to prevent cross-test pollution.
+These are verified by the `withTiming` + `assertWithinMs` helpers in the test suite.

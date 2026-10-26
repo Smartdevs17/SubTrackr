@@ -1,0 +1,47 @@
+codecov:
+  require_ci_to_pass: yes
+
+coverage:
+  status:
+    project:
+      default:
+        target: 80%
+        threshold: 2%
+        informational: false
+    patch:
+      default:
+        target: 80%
+        threshold: 5%
+        informational: false
+    changes:
+      default:
+        target: 80%
+        threshold: 5%
+        informational: false
+
+parsers:
+  gcov:
+    branch_detection:
+      conditional: yes
+      loop: yes
+      method: no
+      macro: no
+
+comment:
+  layout: "reach,diff,flags,tree"
+  behavior: default
+  require_changes: yes
+  require_base: yes
+  require_head: yes
+
+ignore:
+  - "src/**/*.d.ts"
+  - "src/**/index.ts"
+  - "src/**/*.stories.tsx"
+  - "src/**/*.test.tsx"
+  - "src/**/*.test.ts"
+  - "e2e/**"
+  - "backend/**"
+  - "contracts/**"
+  - "app/**"
+  - "src/animations/**"

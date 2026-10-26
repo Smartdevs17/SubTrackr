@@ -1,4 +1,7 @@
 #![no_std]
+// `env.register_contract(..)` is deprecated in favour of `env.register(..)`;
+// the test fixtures still use the older form.
+#![allow(deprecated)]
 
 use soroban_sdk::{Address, Env, Val};
 use subtrackr_types::StorageKey;
@@ -85,33 +88,34 @@ impl SubTrackrStorage {
 
     // ── Generic storage bridge ──
     //
-    // Reads are public for easier introspection and validations.
-    // Writes are restricted to the authorized implementation contract.
+    // These methods accept `Val` so callers can pass any `#[contracttype]`
+    // key (e.g. `StorageKey` or `StorageKeyExt`).  The key is stored
+    // using its XDR-encoded `Val` representation directly.
 
-    pub fn instance_get(env: Env, key: StorageKey) -> Option<Val> {
+    pub fn instance_get(env: Env, key: Val) -> Option<Val> {
         env.storage().instance().get(&key)
     }
 
-    pub fn instance_set(env: Env, key: StorageKey, value: Val) {
+    pub fn instance_set(env: Env, key: Val, value: Val) {
         require_implementation_auth(&env);
         env.storage().instance().set(&key, &value);
     }
 
-    pub fn instance_remove(env: Env, key: StorageKey) {
+    pub fn instance_remove(env: Env, key: Val) {
         require_implementation_auth(&env);
         env.storage().instance().remove(&key);
     }
 
-    pub fn persistent_get(env: Env, key: StorageKey) -> Option<Val> {
+    pub fn persistent_get(env: Env, key: Val) -> Option<Val> {
         env.storage().persistent().get(&key)
     }
 
-    pub fn persistent_set(env: Env, key: StorageKey, value: Val) {
+    pub fn persistent_set(env: Env, key: Val, value: Val) {
         require_implementation_auth(&env);
         env.storage().persistent().set(&key, &value);
     }
 
-    pub fn persistent_remove(env: Env, key: StorageKey) {
+    pub fn persistent_remove(env: Env, key: Val) {
         require_implementation_auth(&env);
         env.storage().persistent().remove(&key);
     }
@@ -127,7 +131,7 @@ impl SubTrackrStorage {
 
     /// Read a value from temporary storage.  Returns None if the key has
     /// expired or was never written.
-    pub fn temporary_get(env: Env, key: StorageKey) -> Option<Val> {
+    pub fn temporary_get(env: Env, key: Val) -> Option<Val> {
         env.storage().temporary().get(&key)
     }
 
@@ -135,7 +139,7 @@ impl SubTrackrStorage {
     ///
     /// `ttl_ledgers` is the number of ledger closes after which the entry
     /// expires automatically.  Pass 0 to use the minimum TTL (1 ledger).
-    pub fn temporary_set(env: Env, key: StorageKey, value: Val, ttl_ledgers: u32) {
+    pub fn temporary_set(env: Env, key: Val, value: Val, ttl_ledgers: u32) {
         require_implementation_auth(&env);
         let effective_ttl = if ttl_ledgers == 0 { 1 } else { ttl_ledgers };
         env.storage().temporary().set(&key, &value);
@@ -145,14 +149,14 @@ impl SubTrackrStorage {
     }
 
     /// Remove a value from temporary storage before it expires naturally.
-    pub fn temporary_remove(env: Env, key: StorageKey) {
+    pub fn temporary_remove(env: Env, key: Val) {
         require_implementation_auth(&env);
         env.storage().temporary().remove(&key);
     }
 
     /// Extend the TTL of an existing temporary entry without changing its value.
     /// Useful when a rate-limit window is refreshed mid-interval.
-    pub fn temporary_extend_ttl(env: Env, key: StorageKey, threshold: u32, extend_to: u32) {
+    pub fn temporary_extend_ttl(env: Env, key: Val, threshold: u32, extend_to: u32) {
         require_implementation_auth(&env);
         env.storage()
             .temporary()

@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
+import { useDebounce } from './useDebounce';
 import { Subscription, SubscriptionCategory, BillingCycle } from '../types/subscription';
 
 export const useFilteredSubscriptions = (subscriptions: Subscription[]) => {
@@ -11,7 +12,11 @@ export const useFilteredSubscriptions = (subscriptions: Subscription[]) => {
   const [sortBy, setSortBy] = useState<'name' | 'price' | 'nextBilling' | 'category'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
-  const normalizedSearch = useMemo(() => searchQuery.trim().toLowerCase(), [searchQuery]);
+  const debouncedSearchQuery = useDebounce(searchQuery);
+  const normalizedSearch = useMemo(
+    () => debouncedSearchQuery.trim().toLowerCase(),
+    [debouncedSearchQuery]
+  );
 
   const matchesSearch = useCallback(
     (sub: Subscription): boolean => {

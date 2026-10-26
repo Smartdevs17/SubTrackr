@@ -206,7 +206,31 @@ The API returns standard HTTP status codes:
 | 429 | Rate Limit Exceeded |
 | 500 | Internal Server Error |
 
-**Error Response Format:**
+### CoreError Enum
+
+All contract errors use a standardized `CoreError` enum (defined in `subtrackr-types`), ensuring consistent error handling across contracts:
+
+```rust
+#[contracterror]
+#[contracttype]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum CoreError {
+    Unauthorized = 100,
+    AlreadyInitialized = 200,
+    NotInitialized = 201,
+    InvalidAmount = 300,
+    InvalidInterval = 301,
+    InsufficientCredit = 400,
+    PaymentFailed = 401,
+    NotFound = 500,
+    DuplicateEntry = 501,
+    StorageError = 600,
+    ExternalError = 700,
+}
+```
+
+**Error Response Format:
 ```json
 {
   "success": false,
@@ -216,6 +240,11 @@ The API returns standard HTTP status codes:
     "details": {
       "field": "price",
       "issue": "must be a positive number"
+    },
+    "coreError": {
+      "code": 300,
+      "variant": "InvalidAmount",
+      "userMessage": "The amount is invalid"
     }
   }
 }
@@ -338,6 +367,40 @@ Reset your sandbox data via the API:
 ```http
 POST /v1/sandbox/reset
 ```
+
+## Streaming (Issue #768)
+
+For large datasets, SubTrackr provides memory-efficient streaming endpoints. See the full reference in [streaming-api.md](./streaming-api.md).
+
+### Quick Reference
+
+| Endpoint | Protocol | Description |
+|---|---|---|
+| `GET /subscriptions/stream` | NDJSON (chunked) | Stream transaction records line by line |
+| `GET /exports/stream/:exportId` | Server-Sent Events | Real-time export progress + chunks |
+| `GET /exports/download/:token` | Chunked download | Download exported file without buffering |
+| `GET /metrics/memory` | JSON | Current server memory usage |
+
+### Basic Usage
+
+**Stream records incrementally (JavaScript)**
+
+```js
+const res = await fetch('/subscriptions/stream?limit=100');
+const reader = res.body.getReader();
+// read line-by-line — see streaming-api.md for full example
+```
+
+**Track export progress (React Native)**
+
+```tsx
+import { useExportStream } from '../services/hooks/useExportStream';
+
+const { progress, downloadUrl, startExport } = useExportStream();
+// startExport('exp_123', { format: 'csv' });
+```
+
+---
 
 ## Support
 

@@ -21,11 +21,15 @@ describe('fraudStore', () => {
         flagged: 0,
         blocked: 0,
         manualReviews: 0,
+        manualReviewsClosed: 0,
         avgRisk: 0,
         velocityAlerts: 0,
         anomalyAlerts: 0,
+        geoAnomalyAlerts: 0,
         chargebackPredictions: 0,
         falsePositiveEstimate: 0,
+        falsePositiveRate: 0,
+        modelConfidence: 0,
       },
       loading: false,
       error: null,
@@ -74,7 +78,7 @@ describe('fraudStore', () => {
     });
 
     const report = useFraudStore.getState().getFraudReport('m1');
-    expect(report.averageRisk).toBe(81);
+    expect(report.averageRisk).toBe(62);
     expect(report.flaggedSubscriptions).toBe(1);
   });
 
@@ -137,5 +141,198 @@ describe('fraudStore', () => {
 
     expect(useFraudStore.getState().subscriptions[0].action).toBe('approve');
     expect(useFraudStore.getState().reviewQueue[0].status).toBe('reviewed');
+  });
+
+  it('records false positive feedback and lowers future risk', () => {
+    useFraudStore.setState({
+      subscriptions: [
+        {
+          id: 's3',
+          merchantId: 'm3',
+          merchantName: 'SignalCo',
+          subscriberId: 'sub-3',
+          subscriptionName: 'Plan C',
+          currency: 'USD',
+          amount: 55,
+          createdAt: '2026-04-24T09:00:00.000Z',
+          expectedUsage: 3,
+          observedUsage: 15,
+          chargebacks: 1,
+          homeCountry: 'US',
+          currentCountry: 'CA',
+          deviceFingerprint: 'device-old',
+          trustedDeviceFingerprint: 'device-new',
+          riskScore: 88,
+          action: 'block',
+          reason: 'high risk',
+          usagePattern: 'burst',
+          signals: [],
+          isBlocked: true,
+          isFlagged: true,
+          falsePositiveCount: 0,
+        },
+      ],
+      reviewQueue: [
+        {
+          caseId: 's3',
+          subscriptionId: 's3',
+          subscriberId: 'sub-3',
+          merchantId: 'm3',
+          merchantName: 'SignalCo',
+          subscriptionName: 'Plan C',
+          riskScore: 88,
+          action: 'block',
+          status: 'pending',
+          reason: 'high risk',
+          createdAt: '2026-04-24T09:00:00.000Z',
+          updatedAt: '2026-04-24T09:00:00.000Z',
+          evidence: [],
+        },
+      ],
+    });
+
+    act(() => {
+      useFraudStore.getState().submitFalsePositiveFeedback('s3', 'Legit travel');
+      useFraudStore.getState().refreshFraudSignals();
+    });
+
+    const store = useFraudStore.getState();
+    expect(store.subscriptions[0].falsePositiveCount).toBe(1);
+    expect(store.subscriptions[0].riskScore).toBeLessThan(100);
+    expect(store.reviewQueue[0].status).toBe('dismissed');
+    expect(store.analytics.falsePositiveRate).toBeGreaterThanOrEqual(0);
+  });
+
+  describe('velocity scoring is scoped to the subscriber', () => {
+    const baseSubscription = {
+      merchantId: 'm9',
+      merchantName: 'VelocityCo',
+      subscriptionName: 'Plan V',
+      currency: 'USD',
+      amount: 10,
+      expectedUsage: 1,
+      observedUsage: 1,
+      chargebacks: 0,
+      usagePattern: 'steady',
+      signals: [],
+      isBlocked: false,
+      isFlagged: false,
+    };
+
+    /** Scores a record with only velocity contributing to the total. */
+    function velocityScoreFor(subscriptionId: string, siblings: Record<string, unknown>[]) {
+      useFraudStore.setState({
+        merchants: [],
+        subscriptions: [...siblings],
+        reviewQueue: [],
+      });
+
+      act(() => {
+        useFraudStore.getState().refreshFraudSignals();
+      });
+
+      return useFraudStore
+        .getState()
+        .assessments.find((assessment) => assessment.subscriptionId === subscriptionId);
+    }
+
+    it('adds no velocity signal for a lone subscription', () => {
+      const assessment = velocityScoreFor('lone', [
+        {
+          ...baseSubscription,
+          id: 'lone',
+          subscriberId: 'solo',
+          createdAt: '2026-04-24T07:00:00.000Z',
+          riskScore: 0,
+          action: 'approve',
+          reason: '',
+        },
+      ]);
+
+      expect(assessment?.signals.some((signal) => signal.kind === 'velocity')).toBe(false);
+      expect(assessment?.totalScore).toBe(0);
+    });
+
+    it('raises velocity when the same subscriber creates several in a day', () => {
+      const sameDay = ['07:00:00.000Z', '08:00:00.000Z', '09:00:00.000Z'];
+      const assessment = velocityScoreFor('v3', [
+        ...sameDay.map((time, index) => ({
+          ...baseSubscription,
+          id: `v${index + 1}`,
+          subscriberId: 'bursty',
+          createdAt: `2026-04-24T${time}`,
+          riskScore: 0,
+          action: 'approve',
+          reason: '',
+        })),
+      ]);
+
+      // Three records in the 24h window scores the maximum velocity signal (24).
+      const velocity = assessment?.signals.find((signal) => signal.kind === 'velocity');
+      expect(velocity?.score).toBe(24);
+    });
+
+    it('does not let one subscriber burst inflate another subscriber risk', () => {
+      const bursty = ['07:00:00.000Z', '08:00:00.000Z', '09:00:00.000Z'].map((time, index) => ({
+        ...baseSubscription,
+        id: `b${index + 1}`,
+        subscriberId: 'bursty',
+        createdAt: `2026-04-24T${time}`,
+        riskScore: 0,
+        action: 'approve',
+        reason: '',
+      }));
+
+      const assessment = velocityScoreFor('calm', [
+        ...bursty,
+        {
+          ...baseSubscription,
+          id: 'calm',
+          subscriberId: 'calm-one',
+          createdAt: '2026-04-24T07:00:00.000Z',
+          riskScore: 0,
+          action: 'approve',
+          reason: '',
+        },
+      ]);
+
+      // The calm subscriber has no same-subscriber siblings, so no velocity.
+      expect(assessment?.signals.some((signal) => signal.kind === 'velocity')).toBe(false);
+      expect(assessment?.totalScore).toBe(0);
+    });
+
+    it('ignores same-subscriber activity outside the 24 hour window', () => {
+      const assessment = velocityScoreFor('old', [
+        {
+          ...baseSubscription,
+          id: 'a',
+          subscriberId: 'slow',
+          createdAt: '2026-04-01T07:00:00.000Z',
+          riskScore: 0,
+          action: 'approve',
+          reason: '',
+        },
+        {
+          ...baseSubscription,
+          id: 'b',
+          subscriberId: 'slow',
+          createdAt: '2026-04-02T07:00:00.000Z',
+          riskScore: 0,
+          action: 'approve',
+          reason: '',
+        },
+        {
+          ...baseSubscription,
+          id: 'old',
+          subscriberId: 'slow',
+          createdAt: '2026-04-24T07:00:00.000Z',
+          riskScore: 0,
+          action: 'approve',
+          reason: '',
+        },
+      ]);
+
+      expect(assessment?.signals.some((signal) => signal.kind === 'velocity')).toBe(false);
+    });
   });
 });

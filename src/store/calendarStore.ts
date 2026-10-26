@@ -235,7 +235,13 @@ export const useCalendarStore = create<CalendarState>()(
       },
 
       addOneTimePayment: (subscriptionId, amount, currency, scheduledDate, description) => {
-        const payment = scheduleOneTimePayment(subscriptionId, amount, currency, scheduledDate, description);
+        const payment = scheduleOneTimePayment(
+          subscriptionId,
+          amount,
+          currency,
+          scheduledDate,
+          description
+        );
         set((state) => ({
           oneTimePayments: [...state.oneTimePayments, payment],
         }));

@@ -1,12 +1,5 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  SafeAreaView,
-  TouchableOpacity,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity } from 'react-native';
 import { Card } from '../components/common/Card';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { useSandboxStore } from '../store/sandboxStore';
@@ -73,17 +66,15 @@ const IntegrationGuidesScreen: React.FC = () => {
           <TouchableOpacity
             style={[styles.categoryChip, !selectedCategory && styles.categoryChipActive]}
             onPress={() => setSelectedCategory(null)}>
-            <Text style={[styles.categoryChipText, !selectedCategory && styles.categoryChipTextActive]}>
+            <Text
+              style={[styles.categoryChipText, !selectedCategory && styles.categoryChipTextActive]}>
               All
             </Text>
           </TouchableOpacity>
           {Object.entries(CATEGORY_LABELS).map(([key, { label, icon }]) => (
             <TouchableOpacity
               key={key}
-              style={[
-                styles.categoryChip,
-                selectedCategory === key && styles.categoryChipActive,
-              ]}
+              style={[styles.categoryChip, selectedCategory === key && styles.categoryChipActive]}
               onPress={() =>
                 setSelectedCategory(
                   selectedCategory === key ? null : (key as IntegrationGuideCategory)
@@ -118,7 +109,9 @@ const IntegrationGuidesScreen: React.FC = () => {
                 <View
                   style={[
                     styles.difficultyBadge,
-                    { backgroundColor: DIFFICULTY_COLORS[guide.difficulty] || colors.textSecondary },
+                    {
+                      backgroundColor: DIFFICULTY_COLORS[guide.difficulty] || colors.textSecondary,
+                    },
                   ]}>
                   <Text style={styles.difficultyText}>{guide.difficulty}</Text>
                 </View>
@@ -142,16 +135,12 @@ const IntegrationGuidesScreen: React.FC = () => {
                   <View key={index} style={styles.stepCard}>
                     <TouchableOpacity
                       style={styles.stepHeader}
-                      onPress={() =>
-                        setExpandedStep(expandedStep === index ? null : index)
-                      }>
+                      onPress={() => setExpandedStep(expandedStep === index ? null : index)}>
                       <View style={styles.stepNumber}>
                         <Text style={styles.stepNumberText}>{index + 1}</Text>
                       </View>
                       <Text style={styles.stepTitle}>{step.title}</Text>
-                      <Text style={styles.expandIcon}>
-                        {expandedStep === index ? '▼' : '▶'}
-                      </Text>
+                      <Text style={styles.expandIcon}>{expandedStep === index ? '▼' : '▶'}</Text>
                     </TouchableOpacity>
                     {expandedStep === index && (
                       <View style={styles.stepContent}>

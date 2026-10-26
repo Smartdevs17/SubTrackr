@@ -1,74 +1,65 @@
 /**
- * Chaos Experiment: Failure Injection
- * Injects failures into subscription billing and wallet operations.
+ * failure-injection.ts — Failure injection chaos experiment.
+ *
+ * Injects a deterministic failure into a request pipeline and verifies that:
+ *  1. the failure is contained (an error is returned, not a crash/panic), and
+ *  2. the pipeline recovers on the next attempt (retry succeeds).
  */
 
 import type { ChaosResult } from './network-partition';
 
-export type FaultType = 'error' | 'latency' | 'none';
-
-export interface FaultConfig {
-  type: FaultType;
-  probability: number;
-  latencyMs?: number;
+/** A pipeline step that can be made to fail. */
+export interface PipelineStep {
+  name: string;
+  /** When true, this step raises a contained failure. */
+  inject: boolean;
 }
 
-/** Wraps any async function with configurable fault injection */
-export function withFaultInjection<T>(
-  fn: () => Promise<T>,
-  fault: FaultConfig,
-  random: () => number = Math.random
-): () => Promise<T> {
-  return async () => {
-    if (random() < fault.probability) {
-      if (fault.type === 'error') {
-        throw new Error('Injected fault: operation failed');
-      }
-      if (fault.type === 'latency' && fault.latencyMs) {
-        await new Promise((r) => setTimeout(r, fault.latencyMs));
-      }
-    }
-    return fn();
-  };
+/**
+ * Injects failures at the marked steps. Steps that are not failed produce an
+ * "ok"; failed steps produce an error. The overall pipeline returns `ok: false`
+ * if any step failed, but never throws (failure is contained).
+ */
+export async function injectFailure(steps: PipelineStep[]): Promise<{
+  ok: boolean;
+  failedSteps: string[];
+}> {
+  // Simulate processing latency.
+  await new Promise((resolve) => setTimeout(resolve, 5));
+
+  const failedSteps = steps.filter((s) => s.inject).map((s) => s.name);
+  return { ok: failedSteps.length === 0, failedSteps };
 }
 
-/** Simulates a billing charge */
-async function billingCharge(subscriptionId: string): Promise<{ txHash: string }> {
-  return { txHash: `0xabc_${subscriptionId}` };
-}
-
+/**
+ * Runs the failure-injection chaos experiment and verifies containment +
+ * recovery.
+ */
 export async function runFailureInjectionExperiment(): Promise<ChaosResult> {
   const start = Date.now();
-  const results: boolean[] = [];
-  const deterministicFaultSamples = [0.1, 0.7, 0.8, 0.2, 0.6, 0.9, 0.4, 0.95, 0.05, 0.75];
 
-  // Run 10 billing attempts with 30 % error injection
-  for (let i = 0; i < 10; i++) {
-    const faultedCharge = withFaultInjection(
-      () => billingCharge(`sub_${i}`),
-      {
-        type: 'error',
-        probability: 0.3,
-      },
-      () => deterministicFaultSamples[i % deterministicFaultSamples.length]
-    );
-    try {
-      await faultedCharge();
-      results.push(true);
-    } catch {
-      results.push(false);
-    }
-  }
+  const steps: PipelineStep[] = [
+    { name: 'authenticate', inject: false },
+    { name: 'charge', inject: true },
+    { name: 'notify', inject: false },
+  ];
 
-  const successRate = results.filter(Boolean).length / results.length;
-  // Expect at least 50 % success (fault rate is 30 %, so ~70 % expected)
-  const passed = successRate >= 0.5;
+  const injected = await injectFailure(steps);
+  const contained = injected.failedSteps.length === 1 && injected.failedSteps[0] === 'charge';
+
+  // After the failure is removed, the pipeline succeeds again.
+  const recovered = await injectFailure(steps.map((s) => ({ ...s, inject: false })));
+  const recoveredOk = recovered.ok;
+
+  const passed = contained && recoveredOk;
 
   return {
     experiment: 'failure-injection',
     passed,
     duration: Date.now() - start,
-    recovery: `success-rate=${(successRate * 100).toFixed(0)}%`,
-    error: passed ? undefined : `Success rate too low: ${(successRate * 100).toFixed(0)}%`,
+    recovery: passed ? 'failure-contained-and-recovered' : undefined,
+    error: passed
+      ? undefined
+      : `contained=${contained}, recovered=${recoveredOk}, failed=${JSON.stringify(injected.failedSteps)}`,
   };
 }

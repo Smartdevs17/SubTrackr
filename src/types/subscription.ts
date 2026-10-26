@@ -8,6 +8,12 @@ export interface Subscription {
   billingCycle: BillingCycle;
   nextBillingDate: Date;
   isActive: boolean;
+  isPaused?: boolean;
+  pausedAt?: Date;
+  pauseDurationDays?: number;
+  pausedUntil?: Date;
+  billingAdjustmentAmount?: number;
+  /** When false, skip renewal reminders and charge alerts for this subscription */
   notificationsEnabled?: boolean;
   isCryptoEnabled: boolean;
   cryptoStreamId?: string;
@@ -23,6 +29,8 @@ export interface Subscription {
   oraclePriceDeviationBps?: number;
   groupId?: string;
   groupMemberAddress?: string;
+  /** Preferred day of month for billing (1-31), used for cycle alignment */
+  billingDayOfMonth?: number;
   timezone?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -42,8 +50,25 @@ export enum SubscriptionCategory {
 export enum BillingCycle {
   MONTHLY = 'monthly',
   YEARLY = 'yearly',
+  ANNUAL = 'annual',
   WEEKLY = 'weekly',
   CUSTOM = 'custom',
+}
+
+export interface AnnualBillingDiscount {
+  monthlyPrice: number;
+  annualPrice: number;
+  savingsAmount: number;
+  savingsPercentage: number;
+}
+
+export interface AnnualBillingPlan {
+  id: string;
+  name: string;
+  monthlyRate: number;
+  annualRate: number;
+  discountPercentage: number;
+  isAnnualOptionAvailable: boolean;
 }
 
 export enum SubscriptionTier {
@@ -78,6 +103,8 @@ export interface SubscriptionFormData {
   isCryptoEnabled: boolean;
   cryptoToken?: string;
   cryptoAmount?: number;
+  /** Preferred day of month for billing (1-31), used for cycle alignment */
+  billingDayOfMonth?: number;
 }
 
 export interface SubscriptionStats {
@@ -86,8 +113,28 @@ export interface SubscriptionStats {
   totalYearlySpend: number;
   categoryBreakdown: Record;
   totalGasSpent?: number;
-  totalFiatMonthlySpend?: number;
-  fiatCurrency?: string;
+}
+
+// ── Lifecycle history ─────────────────────────────────────────────────────────
+
+export type SubscriptionLifecycleEventType =
+  | 'created'
+  | 'updated'
+  | 'price_changed'
+  | 'plan_changed'
+  | 'activated'
+  | 'paused'
+  | 'resumed'
+  | 'cancelled';
+
+/** A single timestamped state transition in a subscription's lifecycle. */
+export interface SubscriptionLifecycleEvent {
+  id: string;
+  subscriptionId: string;
+  type: SubscriptionLifecycleEventType;
+  occurredAt: Date;
+  /** Optional human-readable context, e.g. "9.99 USD → 12.99 USD". */
+  details?: string;
 }
 
 export interface CustomCategory {

@@ -1,0 +1,8 @@
+fastapi==0.156.2
+uvicorn[standard]==0.54.0
+pydantic==2.14.1
+redis==8.1.0
+
+# ML dependencies (optional – service degrades gracefully without them)
+numpy==2.5.4
+scikit-learn==1.9.1

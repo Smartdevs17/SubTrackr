@@ -1,0 +1,68 @@
+# OpenTelemetry Collector configuration for SubTrackr distributed tracing.
+#
+# Receives OTLP spans from every service (mobile app, backend API, ML service,
+# webhook producer), batches them, and exports to a trace backend (Tempo) that
+# Grafana renders as flame graphs. Sampling is done at the source (head sampling
+# in each service); the collector adds tail-based sampling so we always keep
+# error and slow traces regardless of the head decision.
+
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  batch:
+    timeout: 5s
+    send_batch_size: 512
+
+  # Drop/redact attributes that may carry PII before storage.
+  attributes/redact:
+    actions:
+      - key: http.request.header.authorization
+        action: delete
+      - key: user.email
+        action: delete
+      - key: wallet.address
+        action: delete
+
+  # Tail sampling: keep all errored or slow (>1s) traces, plus 10% of the rest.
+  tail_sampling:
+    decision_wait: 10s
+    policies:
+      - name: errors
+        type: status_code
+        status_code:
+          status_codes: [ERROR]
+      - name: slow
+        type: latency
+        latency:
+          threshold_ms: 1000
+      - name: baseline
+        type: probabilistic
+        probabilistic:
+          sampling_percentage: 10
+
+exporters:
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+  # Useful for local debugging — prints spans to the collector log.
+  debug:
+    verbosity: normal
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [attributes/redact, tail_sampling, batch]
+      exporters: [otlp/tempo, debug]

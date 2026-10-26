@@ -1,19 +1,57 @@
 import { BillingCycle } from './subscription';
 
 export type WebhookEventType =
+  // Subscription lifecycle
   | 'subscription.created'
   | 'subscription.updated'
-  | 'subscription.renewed'
   | 'subscription.cancelled'
-  | 'subscription.payment_failed'
-  | 'subscription.upgraded'
   | 'subscription.paused'
   | 'subscription.resumed'
+  | 'subscription.expired'
+  | 'subscription.renewed'
+  | 'subscription.upgraded'
+  | 'subscription.downgraded'
+  | 'subscription.transfer_requested'
+  | 'subscription.transfer_completed'
+  | 'subscription.grace_period_started'
+  | 'subscription.grace_period_ended'
+  // Payment
+  | 'payment.succeeded'
+  | 'payment.failed'
+  | 'payment.refunded'
+  | 'payment.disputed'
+  | 'payment.chargeback'
+  | 'payment.method_updated'
+  | 'payment.retry_scheduled'
+  | 'payment.finalized'
+  | 'payment.expired'
+  | 'payment.cancelled'
+  // Invoice
+  | 'invoice.created'
+  | 'invoice.finalized'
+  | 'invoice.paid'
+  | 'invoice.voided'
+  | 'invoice.overdue'
+  // Trial
+  | 'trial.started'
+  | 'trial.ending_soon'
+  | 'trial.ended'
+  | 'trial.converted'
+  // Usage
+  | 'usage.threshold_reached'
+  | 'usage.limit_exceeded'
+  | 'usage.recorded'
+  // Plan
+  | 'plan.created'
+  | 'plan.updated'
+  | 'plan.archived'
+  | 'plan.price_changed'
+  // Deprecated (kept for backward compatibility)
+  | 'subscription.payment_failed'
   | 'subscription.charged'
   | 'subscription.refund_requested'
   | 'subscription.refund_approved'
   | 'subscription.refund_rejected'
-  | 'subscription.transfer_requested'
   | 'subscription.transfer_accepted';
 
 export interface WebhookRetryPolicy {
@@ -21,6 +59,30 @@ export interface WebhookRetryPolicy {
   initialDelayMs: number;
   maxDelayMs: number;
   backoffFactor?: number;
+  /**
+   * Fixed retry schedule in ms, indexed by attempt number (1-based).
+   * When present, takes precedence over the initialDelayMs/backoffFactor formula.
+   * The last entry is reused for any attempt beyond the array length.
+   */
+  retryDelaysMs?: number[];
+}
+
+/** A signing secret valid for a bounded window, used for zero-downtime rotation. */
+export interface WebhookSecret {
+  key: string;
+  createdAt: number;
+  validFrom: number;
+  /** Undefined means "still valid" (current secret). */
+  validUntil?: number;
+}
+
+export interface WebhookRateLimitConfig {
+  /** Max deliveries allowed in a short burst window. */
+  burstLimit: number;
+  /** Burst window size in ms (defaults to 1s if omitted). */
+  burstWindowMs?: number;
+  /** Steady-state cap per rolling 60s window. */
+  steadyPerMinute: number;
 }
 
 export interface WebhookConfig {
@@ -28,10 +90,24 @@ export interface WebhookConfig {
   merchantId: string;
   url: string;
   events: WebhookEventType[];
-  secretKey: string;
+  /**
+   * Signing secret. When `signingEnabled` is true (default) this must be set and
+   * is used to compute the `X-SubTrackr-Signature` header on outbound deliveries.
+   * Partners that do not want signing can register a webhook with
+   * `signingEnabled: false` and leave `secretKey` undefined.
+   */
+  secretKey?: string;
+  /** Signing secret history; the most recently added entry is the active signing secret. */
+  secrets: WebhookSecret[];
+  /** When false, outbound deliveries are sent unsigned (partner opt-out). Default: true. */
+  signingEnabled: boolean;
   retryPolicy: WebhookRetryPolicy;
+  /** @deprecated use rateLimit.steadyPerMinute instead. Kept for backward compatibility. */
   rateLimitPerMinute?: number;
+  rateLimit?: WebhookRateLimitConfig;
   isPaused: boolean;
+  /** Set when the webhook was auto-disabled (e.g. endpoint returned 410 Gone). */
+  disabledReason?: string;
   createdAt: number;
   updatedAt: number;
   lastHealthCheckAt?: number;
@@ -77,6 +153,8 @@ export interface WebhookEventInput {
   previousStatus: string;
   currentStatus: string;
   occurredAt?: number;
+  /** Client-supplied Idempotency-Key header value; defaults to `${eventId}:${webhookId}` when omitted. */
+  idempotencyKey?: string;
 }
 
 export interface WebhookEventPayload {
@@ -93,12 +171,7 @@ export interface WebhookEventPayload {
 }
 
 export type WebhookDeliveryStatus =
-  | 'pending'
-  | 'retrying'
-  | 'delivered'
-  | 'failed'
-  | 'paused'
-  | 'skipped';
+  'pending' | 'retrying' | 'delivered' | 'failed' | 'paused' | 'skipped';
 
 export interface WebhookDelivery {
   id: string;
@@ -117,9 +190,19 @@ export interface WebhookDelivery {
   nextRetryAt?: number;
   responseCode?: number;
   errorMessage?: string;
-  signature: string;
+  /** HMAC signature header value. Absent on unsigned deliveries (signingEnabled=false). */
+  signature?: string;
   idempotencyKey: string;
   latencyMs?: number;
+  /** Truncated preview of the request body sent, for delivery logs/receipts. */
+  bodyPreview?: string;
+  /** True when the payload exceeded the 1MB limit and was truncated before sending. */
+  payloadTruncated?: boolean;
+  /** SHA-256 hash of the full (untruncated) payload, present when payloadTruncated is true. */
+  payloadHash?: string;
+  /** True once this delivery has exhausted retries and landed in the dead-letter queue. */
+  isDeadLettered?: boolean;
+  deadLetteredAt?: number;
 }
 
 export interface WebhookAnalytics {

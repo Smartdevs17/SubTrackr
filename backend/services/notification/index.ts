@@ -1,0 +1,382 @@
+export { NotificationPreferenceService } from './preferenceService';
+export type { NotificationPreferences } from './preferenceService';
+export { AlertingService } from './alerting';
+export type { AlertDispatcher } from './alerting';
+export {
+  WebhookDeliveryService,
+  webhookDeliveryService,
+  WEBHOOK_IDEMPOTENCY_HEADER,
+  verifyWebhookSignatureAny,
+} from './webhook';
+export type { RegisterWebhookInput, WebhookDeliveryResult } from './webhook';
+export { WebhookManagementApi, webhookManagementApi } from './webhookManagementApi';
+export type { ApiResponse } from './webhookManagementApi';
+export { DeliveryWorker, deliveryWorker } from './jobs/deliveryWorker';
+export { DlqCleanupJob, dlqCleanupJob } from './jobs/dlqCleanupJob';
+export { WebSocketServer, webSocketServer } from './websocket';
+export type { SubscriptionEventType, SubscriptionEvent, EventFilter, ClientInfo } from './websocket';
+export type { INotificationPreferenceService, IAlertingService, IWebhookDeliveryService, IWebsocketService } from './interfaces';
+export {
+  NotificationCenterService,
+  notificationCenterService,
+  defaultPreferences,
+  defaultTypePreference,
+  resolveChannels,
+  isInQuietHours,
+  nextDeliveryTime,
+  renderTemplate,
+  computeAnalytics,
+  matchesHistoryFilter,
+  MAX_HISTORY_PER_USER,
+} from './notificationCenterService';
+export type {
+  ChannelTransport,
+  DeliverInput,
+  QuietHours,
+  SubscriberNotificationPreferences,
+} from './notificationCenterService';
+export type {
+  NotificationChannel,
+  NotificationType,
+  NotificationTypeMeta,
+  NotificationStatus,
+  NotificationRecord,
+  NotificationStats,
+  NotificationAnalytics,
+  NotificationTemplate,
+  NotificationHistoryFilter,
+  DeliveryResult,
+  RenderedTemplate,
+  TypePreference,
+} from '../../../src/types/notification';
+export {
+  NOTIFICATION_CHANNELS,
+  NOTIFICATION_TYPES,
+  NOTIFICATION_TYPE_META,
+} from '../../../src/types/notification';
+export { NotificationError, NotificationErrorCode } from './errors';
+export { DunningEmailSequenceService, dunningEmailSequenceService } from './dunningEmailSequences';
+export {
+  EmailTemplateEngine,
+  emailTemplateEngine,
+  ComponentRenderer,
+  substituteVariables,
+  BUILTIN_TEMPLATES,
+  PRESET_COMPONENTS,
+  createDefaultTemplate,
+} from './emailTemplateEngine';
+export type {
+  ComponentType,
+  ComponentProps,
+  EmailComponent,
+  LayoutName,
+  LayoutConfig,
+  ComponentTemplate,
+  RenderResult,
+  EngineRenderOptions,
+} from './emailTemplateEngine';
+export type {
+  DunningEmailVariant,
+  DunningABTest,
+  DunningABTestAssignment,
+  DunningABTestResult,
+  DunningEmailSequence,
+  DunningSequenceStage,
+  DunningEmailDeliveryLog,
+  DunningDeliverabilityMetrics,
+} from '../../../src/types/dunningABTest';
+
+// ── Email Provider ────────────────────────────────────────────────────────────
+export {
+  SendGridEmailProvider,
+  SesEmailProvider,
+  buildEmailTransport,
+  buildLegacyEmailSender,
+  createEmailProviderFromEnv,
+  createStubEmailProvider,
+  getEmailFromAddress,
+  emailProvider,
+} from './emailProvider';
+export type {
+  EmailAddress,
+  EmailAttachment,
+  EmailMessage,
+  EmailResult,
+  EmailProvider,
+  EmailTransportConfig,
+  SendGridConfig,
+  SesConfig,
+} from './emailProvider';
+
+// ── SMS Provider ──────────────────────────────────────────────────────────────
+export {
+  TwilioSmsProvider,
+  buildSmsTransport,
+  buildLegacySmsSender,
+  createSmsProviderFromEnv,
+  createStubSmsProvider,
+  smsProvider,
+  optOutStore,
+  isGsm7,
+  smsSegmentCount,
+  truncateSms,
+} from './smsProvider';
+export type {
+  SmsMessage,
+  SmsResult,
+  SmsProvider,
+  TwilioConfig,
+} from './smsProvider';
+
+// ── Voice Provider (#1255) ─────────────────────────────────────────────────────
+export {
+  TwilioVoiceProvider,
+  buildVoiceTransport,
+  buildTwiML,
+  say,
+  escapeTwiml,
+  createVoiceProviderFromEnv,
+  createStubVoiceProvider,
+  voiceProvider,
+} from './voiceProvider';
+export type {
+  VoiceCallRequest,
+  VoiceCallResult,
+  VoiceProvider,
+  TwilioVoiceConfig,
+} from './voiceProvider';
+
+// ── Communication Preferences (#1253) ─────────────────────────────────────────
+export {
+  CommunicationPreferenceService,
+  InMemoryCommunicationPreferenceRepository,
+  PreferenceViolationError,
+  buildDefaultCommunicationPreferences,
+  isWithinQuietHours,
+  nextQuietHoursEnd,
+  localMinutesOfDay,
+  communicationPreferenceService,
+  communicationPreferenceRepository,
+  DEFAULT_QUIET_HOURS,
+} from './communicationPreferencesService';
+export type {
+  CommunicationPreferenceRepository,
+  CommunicationPreferences,
+  ChannelDecision,
+  QuietHours,
+  RouteResult,
+  PreferenceChangeEvent,
+  SuppressionReason,
+  ContactPointOptOutLookup,
+  CommunicationPreferenceServiceDeps,
+} from './communicationPreferencesService';
+export { COMM_CHANNELS, COMM_CATEGORIES } from './commPreferencesTypes';
+
+// ── Transactional Email Templates (#1254) ─────────────────────────────────────
+export {
+  TRANSACTIONAL_TEMPLATES,
+  TRANSACTIONAL_TEMPLATE_IDS,
+  TransactionalTemplateError,
+  registerTransactionalTemplates,
+  renderTransactionalEmail,
+  renderTransactionalText,
+} from './transactionalEmailTemplates';
+export type {
+  TransactionalTemplateId,
+  TransactionalTemplateDefinition,
+  TransactionalRenderResult,
+} from './transactionalEmailTemplates';
+
+// ── Voice Call Reminders (#1255) ──────────────────────────────────────────────
+export {
+  VoiceReminderService,
+  voiceReminderService,
+  isWithinCallingHours,
+  msUntilCallingHoursOpen,
+  milestoneForRenewal,
+  buildRenewalReminderScript,
+  DEFAULT_CALLING_HOURS,
+  MILESTONE_DAYS,
+} from './voiceReminderService';
+export type {
+  CallingHours,
+  RenewalToRemind,
+  VoiceReminderContext,
+  VoiceReminderDecision,
+  VoiceReminderMilestone,
+  VoiceReminderRecord,
+  VoiceReminderResult,
+  VoiceReminderServiceDeps,
+  VoiceReminderSkipReason,
+} from './voiceReminderService';
+
+// ── Two-Way SMS (#1256) ───────────────────────────────────────────────────────
+export {
+  SmsInboundHandler,
+  smsInboundHandler,
+  parseInboundSms,
+  matchCommand,
+  DEFAULT_KEYWORD_MAP,
+  HELP_MESSAGE,
+  SNOOZE_DEFAULT_DAYS,
+} from './smsInboundHandler';
+export type {
+  InboundSms,
+  InboundSmsAudit,
+  SmsCommand,
+  SmsCommandActions,
+  SmsInboundHandlerDeps,
+  SmsInboundResult,
+  SmsIntent,
+  TwilioSmsPayload,
+  UserIdLookup,
+} from './smsInboundHandler';
+
+// ── Slack ─────────────────────────────────────────────────────────────────────
+export {
+  SlackNotifier,
+  SlackAlertDispatcher,
+  buildSubscriptionAlertMessage,
+  buildSystemAlertMessage,
+  createSlackNotifierFromEnv,
+  createSlackAlertDispatcherFromEnv,
+  slackNotifier,
+} from './slack';
+export type {
+  SlackMessage,
+  SlackNotifierConfig,
+  SlackDeliveryResult,
+  SubscriptionAlertContext,
+} from './slack';
+export {
+  SlackThreadStore,
+  SlackThreadedNotifier,
+  threadKeyFor,
+  updateKeyFor,
+  renderThreadSummary,
+  summarizeThreadByEvent,
+  createThreadTransport,
+} from './slackThreads';
+export type {
+  ThreadEntry,
+  ThreadMessage,
+  ThreadStats,
+  ThreadKeyStrategy,
+  ThreadTransport,
+  ThreadedMessageOptions,
+  ThreadedNotifierDeps,
+  ThreadedSendResult,
+  SlackTs,
+} from './slackThreads';
+
+// ── Digest ──────────────────────────────────────────────────────────────────────
+export {
+  DigestEmailService,
+  createDigestEmailService,
+  buildDigestWindow,
+  windowForSubscriber,
+  isWithinWindow,
+  selectDigestRecords,
+  groupIntoSections,
+  renderDigest,
+  summariseDigestRun,
+  assertValidFrequency,
+  DIGEST_FREQUENCIES,
+  DIGEST_INLINE_LIMIT,
+} from './digestService';
+export type {
+  DigestContent,
+  DigestFrequency,
+  DigestItem,
+  DigestResult,
+  DigestRunSummary,
+  DigestSection,
+  DigestServiceDeps,
+  DigestSubscriberSource,
+  DigestSubscription,
+  DigestWindow,
+  DigestPreferencesSource,
+} from './digestService';
+
+// ── Webhook Queue (BullMQ) ────────────────────────────────────────────────────
+export {
+  WebhookQueue,
+  WebhookQueueWorker,
+  WebhookRetryScheduler,
+  DlqReplayWorker,
+  eventPriority,
+} from './jobs/webhookQueue';
+export type {
+  WebhookQueueConfig,
+  WebhookQueueWorkerConfig,
+  WebhookWorkerMetrics,
+  WebhookJobData,
+} from './jobs/webhookQueue';
+
+// ── Subscription Notifier ─────────────────────────────────────────────────────
+export { SubscriptionNotifier, subscriptionNotifier } from './subscriptionNotifier';
+export type {
+  NotificationRecipient,
+  SubscriptionContext,
+  SubscriptionNotifierDeps,
+} from './subscriptionNotifier';
+
+// ── Overdue Invoice Reminders (#1737) ─────────────────────────────────────────
+export {
+  OverdueInvoiceReminderService,
+  createOverdueInvoiceReminderService,
+  InMemoryScheduleStore,
+  InMemoryEntryStore,
+  DEFAULT_OVERDUE_REMINDER_STAGES,
+  MAX_REMINDER_STAGES,
+  FAILURE_RETRY_MS,
+  MAX_STAGE_ATTEMPTS,
+  MIN_REMINDER_GAP_MS,
+  stopReasonForStatus,
+  stageDueAt,
+  daysOverdueAt,
+  overduePhrase,
+  validateStages,
+  resolveRecipients,
+  initialStageIndex,
+} from './overdueInvoiceReminderService';
+export type {
+  OverdueInvoice,
+  OverdueInvoiceSource,
+  OverdueReminderStage,
+  OverdueReminderEntry,
+  OverdueReminderEntryStatus,
+  OverdueReminderSchedule,
+  OverdueReminderStopReason,
+  OverdueReminderRunSummary,
+  CreateOverdueReminderScheduleInput,
+  UpdateOverdueReminderScheduleInput,
+  OverdueReminderScheduleStore,
+  OverdueReminderEntryStore,
+  OverdueInvoiceReminderServiceDeps,
+} from './overdueInvoiceReminderService';
+export { createOverdueInvoiceReminderRouter } from './overdueInvoiceReminderRouter';
+export {
+  createPostgresOverdueInvoiceSource,
+  createInvoiceListSource,
+  SETTLED_INVOICE_STATUSES,
+  DEFAULT_MERCHANT_ID,
+  DEFAULT_INVOICE_SOURCE_LIMIT,
+  DEFAULT_SETTLED_LOOKBACK_DAYS,
+} from './overdueInvoiceSource';
+export type {
+  PostgresOverdueInvoiceSourceOptions,
+  InvoiceListSourceOptions,
+} from './overdueInvoiceSource';
+export {
+  OVERDUE_REMINDER_JOB_NAME,
+  DEFAULT_OVERDUE_REMINDER_JOB_CRON,
+  DEFAULT_OVERDUE_REMINDER_POLL_MS,
+  registerOverdueReminderJob,
+  createOverdueReminderPoller,
+  createOverdueReminderHandler,
+} from './jobs/overdueInvoiceReminderJob';
+export type {
+  OverdueReminderJobOptions,
+  OverdueReminderJobHandle,
+} from './jobs/overdueInvoiceReminderJob';

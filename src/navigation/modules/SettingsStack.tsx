@@ -1,0 +1,117 @@
+import React from 'react';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { lazyScreen } from '../../utils/lazyLoading';
+import { RootStackParamList } from '../types';
+
+const Stack = createNativeStackNavigator<RootStackParamList>();
+
+// SettingsScreen has no default export, so the named one is mapped onto the
+// shape `lazyScreen` expects.
+const SettingsScreen = lazyScreen(() =>
+  import('../../screens/SettingsScreen').then((m) => ({ default: m.SettingsScreen }))
+);
+const LanguageSettingsScreen = lazyScreen(() => import('../../screens/LanguageSettingsScreen'));
+const NotificationPreferencesScreen = lazyScreen(
+  () => import('../../screens/NotificationPreferencesScreen')
+);
+const DeliveryStatusScreen = lazyScreen(() => import('../../screens/DeliveryStatusScreen'));
+const NotificationInboxScreen = lazyScreen(() => import('../../screens/NotificationInboxScreen'));
+const EmailTemplateEditorScreen = lazyScreen(
+  () => import('../../screens/EmailTemplateEditorScreen')
+);
+const TemplateVersionHistoryScreen = lazyScreen(
+  () => import('../../screens/TemplateVersionHistoryScreen')
+);
+const GDPRSettingsScreen = lazyScreen(() => import('../../screens/GDPRSettingsScreen'));
+const PrivacyCenterScreen = lazyScreen(() => import('../../screens/PrivacyCenterScreen'));
+const ConsentManagementScreen = lazyScreen(() => import('../../screens/ConsentManagementScreen'));
+const SmsConsentScreen = lazyScreen(() => import('../../screens/SmsConsentScreen'));
+const DataExportScreen = lazyScreen(() => import('../../screens/DataExportScreen'));
+const TaxSettingsScreen = lazyScreen(() => import('../../screens/TaxSettingsScreen'));
+const TaxComplianceScreen = lazyScreen(() => import('../../screens/TaxComplianceScreen'));
+// AdvancedSearchScreen lives in app/screens and exports both a named and a
+// default export; the named one is mapped onto the shape `lazyScreen` expects.
+const AdvancedSearchScreen = lazyScreen(() =>
+  import('../../../app/screens/AdvancedSearchScreen').then((m) => ({
+    default: m.AdvancedSearchScreen,
+  }))
+);
+
+export const SettingsStack = () => (
+  <Stack.Navigator>
+    <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />
+    <Stack.Screen
+      name="LanguageSettings"
+      component={LanguageSettingsScreen}
+      options={{ title: 'Language', headerShown: true }}
+    />
+    <Stack.Screen
+      name="NotificationPreferences"
+      component={NotificationPreferencesScreen}
+      options={{ title: 'Notification Preferences', headerShown: true }}
+    />
+    <Stack.Screen
+      name="DeliveryStatus"
+      component={DeliveryStatusScreen}
+      options={{ title: 'Delivery Status', headerShown: true }}
+      name="NotificationInbox"
+      component={NotificationInboxScreen}
+      options={{ title: 'Notification Inbox', headerShown: true }}
+    />
+    <Stack.Screen
+      name="EmailTemplateEditor"
+      component={EmailTemplateEditorScreen}
+      options={{ title: 'Email Template Editor', headerShown: true }}
+    />
+    <Stack.Screen
+      name="TemplateVersionHistory"
+      component={TemplateVersionHistoryScreen}
+      options={{ title: 'Template Versions', headerShown: true }}
+    />
+    <Stack.Screen
+      name="GDPRSettings"
+      component={GDPRSettingsScreen}
+      options={{ title: 'Privacy Settings', headerShown: true }}
+    />
+    <Stack.Screen
+      name="PrivacyCenter"
+      component={PrivacyCenterScreen}
+      options={{ title: 'Privacy Center', headerShown: true }}
+    />
+    <Stack.Screen
+      name="ConsentManagement"
+      component={ConsentManagementScreen}
+      options={{ title: 'Consent Preferences', headerShown: true }}
+    />
+    <Stack.Screen
+      name="SmsConsent"
+      component={SmsConsentScreen}
+      options={{ title: 'SMS Consent', headerShown: true }}
+    />
+    <Stack.Screen
+      name="DataExport"
+      component={DataExportScreen}
+      options={{ title: 'Export My Data', headerShown: true }}
+    />
+    <Stack.Screen
+      name="DPALog"
+      component={DataExportScreen}
+      options={{ title: 'Data Processing Log', headerShown: true }}
+    />
+    <Stack.Screen
+      name="TaxSettings"
+      component={TaxSettingsScreen}
+      options={{ title: 'Tax Settings', headerShown: true }}
+    />
+    <Stack.Screen
+      name="TaxCompliance"
+      component={TaxComplianceScreen}
+      options={{ title: 'Tax Compliance', headerShown: true }}
+    />
+    <Stack.Screen
+      name="AdvancedSearch"
+      component={AdvancedSearchScreen}
+      options={{ title: 'Advanced Search', headerShown: true }}
+    />
+  </Stack.Navigator>
+);

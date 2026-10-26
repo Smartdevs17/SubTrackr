@@ -26,7 +26,12 @@ export interface EnvironmentSummary {
 
 export interface ActivityEntry {
   id: string;
-  type: 'api_key_created' | 'environment_created' | 'request_made' | 'error_occurred' | 'webhook_triggered';
+  type:
+    | 'api_key_created'
+    | 'environment_created'
+    | 'request_made'
+    | 'error_occurred'
+    | 'webhook_triggered';
   description: string;
   timestamp: Date;
   metadata?: Record<string, unknown>;
@@ -66,4 +71,22 @@ export interface IntegrationStep {
   code?: string;
   language?: string;
   notes?: string[];
+}
+
+export interface DocumentationArticle {
+  id: string;
+  title: string;
+  slug: string;
+  content: string;
+  category: string;
+  tags: string[];
+  readTime: number;
+  lastUpdated: Date;
+}
+
+export interface DocumentationSection {
+  id: string;
+  title: string;
+  description: string;
+  articles: DocumentationArticle[];
 }

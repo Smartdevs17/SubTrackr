@@ -20,6 +20,9 @@
     },
     "preview": {
       "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
       "env": {
         "APP_ENV": "preview",
         "EXPO_PUBLIC_API_URL": "https://sandbox.api.subtrackr.app"
@@ -27,6 +30,9 @@
     },
     "production": {
       "autoIncrement": true,
+      "android": {
+        "buildType": "apk"
+      },
       "env": {
         "APP_ENV": "production",
         "EXPO_PUBLIC_API_URL": "https://api.subtrackr.app"

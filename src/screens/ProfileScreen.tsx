@@ -25,7 +25,7 @@ const privacyOptions: CommunityPrivacy[] = ['public', 'subscribers', 'private'];
 const ProfileScreen: React.FC = () => {
   const route = useRoute<ProfileRouteProp>();
   const navigation = useNavigation<ProfileNavigationProp>();
-  const walletAddress = useWalletStore((state) => state.address);
+  const walletAddress = useWalletStore((state) => state.connection?.address);
   const { currentSubscriber, setCurrentSubscriber, updateProfile, getVisibleProfile } =
     useCommunityStore();
 

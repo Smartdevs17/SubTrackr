@@ -1,44 +1,187 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, Switch, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
+import { useTheme } from '../context/ThemeContext';
+import { useNotificationCenterStore } from '../store/notificationCenterStore';
 
 type SettingsNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export const SettingsScreen = () => {
   const navigation = useNavigation<SettingsNavigationProp>();
+  const { colors, mode, setMode } = useTheme();
   const [pushEnabled, setPushEnabled] = useState(true);
   const [emailEnabled, setEmailEnabled] = useState(false);
   const [smsEnabled, setSmsEnabled] = useState(false);
   const [quietHoursEnabled, setQuietHoursEnabled] = useState(false);
+  const inboxUnread = useNotificationCenterStore((s) => s.getUnreadCount());
+
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
     <ScrollView style={styles.container} testID="settings-screen">
       <Text style={styles.header}>Notification Preferences</Text>
 
       <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Appearance</Text>
+        {(['system', 'light', 'dark'] as const).map((option) => (
+          <TouchableOpacity
+            key={option}
+            style={styles.modeRow}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: mode === option }}
+            accessibilityLabel={`${option} mode`}
+            onPress={() => setMode(option)}>
+            <View style={styles.modeTextWrap}>
+              <Text style={styles.modeLabel}>
+                {option === 'system' ? 'Follow System' : option === 'light' ? 'Light' : 'Dark'}
+              </Text>
+              <Text style={styles.modeSubLabel}>
+                {option === 'system'
+                  ? 'Use the device appearance setting'
+                  : option === 'light'
+                    ? 'Always use light colors'
+                    : 'Always use dark colors'}
+              </Text>
+            </View>
+            <View style={[styles.radio, mode === option && styles.radioActive]}>
+              {mode === option && <View style={styles.radioDot} />}
+            </View>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Notifications</Text>
+        <TouchableOpacity
+          style={styles.linkRow}
+          testID="notification-inbox-link"
+          accessibilityRole="button"
+          accessibilityLabel={
+            inboxUnread > 0
+              ? `Open notification inbox, ${inboxUnread} unread`
+              : 'Open notification inbox'
+          }
+          onPress={() => navigation.navigate('NotificationInbox')}>
+          <View style={styles.modeTextWrap}>
+            <Text style={styles.rowLabel}>
+              Notification Inbox{inboxUnread > 0 ? ` (${inboxUnread} unread)` : ''}
+            </Text>
+            <Text style={styles.modeSubLabel}>
+              Read, re-open and dismiss notifications delivered on any channel
+            </Text>
+          </View>
+          <Text style={styles.chevron}>›</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.linkRow}
+          testID="notification-preferences-link"
+          accessibilityRole="button"
+          accessibilityLabel="Open notification preferences"
+          onPress={() => navigation.navigate('NotificationPreferences')}>
+          <View style={styles.modeTextWrap}>
+            <Text style={styles.rowLabel}>Notification Preferences</Text>
+            <Text style={styles.modeSubLabel}>
+              Categories, channels, digest schedule, and quiet hours
+            </Text>
+          </View>
+          <Text style={styles.chevron}>›</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Delivery Status</Text>
+        <TouchableOpacity
+          style={styles.linkRow}
+          testID="delivery-status-link"
+          accessibilityRole="button"
+          accessibilityLabel="Open delivery status"
+          onPress={() => navigation.navigate('DeliveryStatus')}>
+          <View style={styles.modeTextWrap}>
+            <Text style={styles.rowLabel}>Delivery Status</Text>
+            <Text style={styles.modeSubLabel}>
+              Whether each notification was delivered, and any errors
+            </Text>
+          </View>
+          <Text style={styles.chevron}>›</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.section}>
         <Text style={styles.sectionTitle}>Delivery Channels</Text>
         <View style={styles.row}>
-          <Text>Push Notifications</Text>
-          <Switch value={pushEnabled} onValueChange={setPushEnabled} />
+          <Text style={styles.rowLabel}>Push Notifications</Text>
+          <Switch
+            value={pushEnabled}
+            onValueChange={setPushEnabled}
+            trackColor={{ false: colors.border.default, true: colors.brand.primary }}
+            thumbColor={colors.background.card}
+          />
         </View>
         <View style={styles.row}>
-          <Text>Email Notifications</Text>
-          <Switch value={emailEnabled} onValueChange={setEmailEnabled} />
+          <Text style={styles.rowLabel}>Email Notifications</Text>
+          <Switch
+            value={emailEnabled}
+            onValueChange={setEmailEnabled}
+            trackColor={{ false: colors.border.default, true: colors.brand.primary }}
+            thumbColor={colors.background.card}
+          />
         </View>
         <View style={styles.row}>
-          <Text>SMS Notifications</Text>
-          <Switch value={smsEnabled} onValueChange={setSmsEnabled} />
+          <Text style={styles.rowLabel}>SMS Notifications</Text>
+          <Switch
+            value={smsEnabled}
+            onValueChange={setSmsEnabled}
+            trackColor={{ false: colors.border.default, true: colors.brand.primary }}
+            thumbColor={colors.background.card}
+          />
         </View>
       </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Quiet Hours</Text>
         <View style={styles.row}>
-          <Text>Enable Quiet Hours (No alerts 10 PM - 7 AM)</Text>
-          <Switch value={quietHoursEnabled} onValueChange={setQuietHoursEnabled} />
+          <Text style={styles.rowLabel}>Enable Quiet Hours (No alerts 10 PM - 7 AM)</Text>
+          <Switch
+            value={quietHoursEnabled}
+            onValueChange={setQuietHoursEnabled}
+            trackColor={{ false: colors.border.default, true: colors.brand.primary }}
+            thumbColor={colors.background.card}
+          />
         </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Search</Text>
+        <TouchableOpacity
+          style={styles.linkButton}
+          testID="advanced-search-link"
+          onPress={() => navigation.navigate('AdvancedSearch')}>
+          <Text style={styles.linkButtonText}>Advanced Subscription Search</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Privacy</Text>
+        <TouchableOpacity
+          style={styles.linkButton}
+          testID="consent-management-link"
+          onPress={() => navigation.navigate('ConsentManagement')}>
+          <Text style={styles.linkButtonText}>Consent Preferences</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.linkButton}
+          testID="sms-consent-link"
+          onPress={() => navigation.navigate('SmsConsent')}>
+          <Text style={styles.linkButtonText}>SMS Consent</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.linkButton}
+          testID="privacy-center-link"
+          onPress={() => navigation.navigate('PrivacyCenter')}>
+          <Text style={styles.linkButtonText}>Privacy Center</Text>
+        </TouchableOpacity>
       </View>
 
       {__DEV__ && (
@@ -56,22 +199,112 @@ export const SettingsScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: '#fff' },
-  header: { fontSize: 24, fontWeight: 'bold', marginBottom: 20 },
-  section: { marginBottom: 24 },
-  sectionTitle: { fontSize: 18, fontWeight: '600', marginBottom: 12 },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  debugButton: {
-    backgroundColor: '#111827',
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  debugButtonText: { color: '#fff', fontWeight: '700' },
-});
+function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      padding: 16,
+      backgroundColor: colors.background.primary,
+    },
+    header: {
+      fontSize: 24,
+      fontWeight: 'bold',
+      marginBottom: 20,
+      color: colors.text.primary,
+    },
+    section: { marginBottom: 24 },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: '600',
+      marginBottom: 12,
+      color: colors.text.primary,
+    },
+    row: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    linkRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 14,
+      paddingHorizontal: 12,
+      borderRadius: 12,
+      backgroundColor: colors.background.secondary,
+      borderWidth: 1,
+      borderColor: colors.border.default,
+    },
+    chevron: {
+      fontSize: 22,
+      fontWeight: '600',
+      color: colors.text.secondary,
+      paddingLeft: 8,
+    },
+    rowLabel: {
+      flex: 1,
+      paddingRight: 12,
+      color: colors.text.primary,
+    },
+    modeRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 14,
+      paddingHorizontal: 12,
+      marginBottom: 10,
+      borderRadius: 12,
+      backgroundColor: colors.background.secondary,
+      borderWidth: 1,
+      borderColor: colors.border.default,
+    },
+    modeTextWrap: {
+      flex: 1,
+      paddingRight: 12,
+    },
+    modeLabel: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: colors.text.primary,
+    },
+    modeSubLabel: {
+      marginTop: 4,
+      fontSize: 13,
+      color: colors.text.secondary,
+    },
+    radio: {
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      borderWidth: 2,
+      borderColor: colors.border.default,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    radioActive: {
+      borderColor: colors.brand.primary,
+    },
+    radioDot: {
+      width: 10,
+      height: 10,
+      borderRadius: 5,
+      backgroundColor: colors.brand.primary,
+    },
+    debugButton: {
+      backgroundColor: colors.brand.primary,
+      borderRadius: 8,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+    },
+    debugButtonText: { color: colors.onPrimary, fontWeight: '700' },
+    linkButton: {
+      backgroundColor: colors.background.card,
+      borderRadius: 8,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      borderWidth: 1,
+      borderColor: colors.border.default,
+    },
+    linkButtonText: { color: colors.text.primary, fontWeight: '600' },
+  });
+}

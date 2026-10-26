@@ -15,7 +15,7 @@ The **proxy contract ID never changes** during upgrades, so subscribers and inte
 ## Prerequisites
 
 - [Soroban CLI](https://developers.stellar.org/docs/smart-contracts/getting-started/setup#install-the-soroban-cli) installed.
-- [Rust](https://rustup.rs/) and `wasm32-unknown-unknown` target installed.
+- [Rust](https://rustup.rs/) and `wasm32v1-none` target installed.
 - A Stellar account with enough XLM for the target network.
 
 ## Deployment Scripts
@@ -62,6 +62,25 @@ export ADMIN_ADDRESS="GD..."
 | `ADMIN_ADDRESS`       | The Stellar address that will be set as the contract admin during initialization.  | Testnet, Mainnet |
 | `UPGRADE_DELAY_SECS`  | Minimum delay (seconds) between scheduling and executing an upgrade.               | Testnet, Mainnet |
 | `ROLLBACK_DELAY_SECS` | Delay (seconds) used when scheduling a rollback via `rollback()`.                  | Testnet, Mainnet |
+
+## App Environment Integration
+
+After deployment, publish contract IDs through the validated environment
+profiles instead of reading deployment files directly from application code:
+
+| Variable | Used By |
+| --- | --- |
+| `STELLAR_TESTNET_PROXY_ID` | `src/config/env.ts` and `src/config/networks.ts` |
+| `STELLAR_TESTNET_STORAGE_ID` | `src/config/env.ts` and `src/config/networks.ts` |
+| `STELLAR_TESTNET_SUBSCRIPTION_ID` | `src/config/env.ts` and `src/config/networks.ts` |
+| `STELLAR_MAINNET_PROXY_ID` | `src/config/env.ts` and `src/config/networks.ts` |
+| `STELLAR_MAINNET_STORAGE_ID` | `src/config/env.ts` and `src/config/networks.ts` |
+| `STELLAR_MAINNET_SUBSCRIPTION_ID` | `src/config/env.ts` and `src/config/networks.ts` |
+
+The wallet payment path selects EVM or Stellar behavior through
+`WalletChainStrategyRegistry`. A new contract deployment should update the
+matching environment variables and, only when the chain behavior changes,
+register a new wallet strategy.
 
 ## Verification
 
@@ -116,7 +135,7 @@ Some explorers (e.g., Stellar Expert / Soroban explorers) support attaching sour
 1. Build the WASM (optional, for checksum reference):
 
 ```bash
-cargo build --release --target wasm32-unknown-unknown --manifest-path contracts/Cargo.toml
+cargo build --release --target wasm32v1-none --manifest-path contracts/Cargo.toml
 ```
 
 2. Package the contract source:

@@ -1,4 +1,5 @@
 use soroban_sdk::{Address, Env, String, Vec};
+use crate::{SubTrackrSubscription, SubTrackrSubscriptionClient};
 use subtrackr_types::{
     StorageKey, Subscription, SubscriptionStatus, WebhookConfig, WebhookDelivery,
     WebhookDeliveryStatus, WebhookEventType, WebhookRetryPolicy,
@@ -86,11 +87,12 @@ pub(crate) fn emit_subscription_event(
     let mut i = 0u32;
     while i < webhook_ids.len() {
         let webhook_id = webhook_ids.get_unchecked(i);
-        if let Some(config) = storage_persistent_get::<WebhookConfig>(
+        let config_opt: Option<WebhookConfig> = storage_persistent_get(
             env,
             storage,
             StorageKey::Webhook(webhook_id),
-        ) {
+        );
+        if let Some(config) = config_opt {
             if !webhook_supports_event(&config, &event_type) {
                 i += 1;
                 continue;
@@ -110,7 +112,7 @@ pub(crate) fn emit_subscription_event(
                 id: delivery_id,
                 webhook_id,
                 event_id: payload.id,
-                event_type,
+                event_type: event_type.clone(),
                 payload,
                 status: if config.is_paused {
                     WebhookDeliveryStatus::Paused
@@ -241,9 +243,9 @@ impl super::SubTrackrSubscription {
         let ids = webhook_ids_for_merchant(&env, &storage, &merchant);
         let mut items = Vec::new(&env);
         for webhook_id in ids.iter() {
-            if let Some(config) =
-                storage_persistent_get::<WebhookConfig>(&env, &storage, StorageKey::Webhook(webhook_id))
-            {
+            let config_opt: Option<WebhookConfig> =
+                storage_persistent_get(&env, &storage, StorageKey::Webhook(webhook_id));
+            if let Some(config) = config_opt {
                 items.push_back(config);
             }
         }
@@ -263,11 +265,12 @@ impl super::SubTrackrSubscription {
         let mut i = 0u32;
         while i < ids.len() && i < limit {
             let delivery_id = ids.get_unchecked(i);
-            if let Some(delivery) = storage_persistent_get::<WebhookDelivery>(
+            let delivery_opt: Option<WebhookDelivery> = storage_persistent_get(
                 &env,
                 &storage,
                 StorageKey::WebhookDelivery(delivery_id),
-            ) {
+            );
+            if let Some(delivery) = delivery_opt {
                 items.push_back(delivery);
             }
             i += 1;
@@ -318,11 +321,12 @@ impl super::SubTrackrSubscription {
         let mut failures = 0u64;
         let mut successes = 0u64;
         for delivery_id in deliveries.iter() {
-            if let Some(delivery) = storage_persistent_get::<WebhookDelivery>(
+            let delivery_opt: Option<WebhookDelivery> = storage_persistent_get(
                 &env,
                 &storage,
                 StorageKey::WebhookDelivery(delivery_id),
-            ) {
+            );
+            if let Some(delivery) = delivery_opt {
                 match delivery.status {
                     WebhookDeliveryStatus::Delivered => successes += 1,
                     WebhookDeliveryStatus::Failed => failures += 1,

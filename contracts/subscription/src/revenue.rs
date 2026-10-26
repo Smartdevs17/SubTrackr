@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 /// Revenue recognition module for SubTrackr subscriptions.
 ///
 /// Implements ASC 606 / IFRS 15 compliant revenue recognition:

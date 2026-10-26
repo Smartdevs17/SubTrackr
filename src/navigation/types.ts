@@ -1,7 +1,10 @@
 import { NavigatorScreenParams } from '@react-navigation/native';
+import { useRoute, useNavigation, RouteProp, NavigationProp } from '@react-navigation/native';
+import type { NotificationChannel, NotificationType } from '../types/notification';
 
 export type RootStackParamList = {
   Home: undefined;
+  SubscriptionDashboard: undefined;
   AddSubscription: undefined;
   SubscriptionDetail: { id: string };
   EditSubscription: { id: string };
@@ -15,7 +18,16 @@ export type RootStackParamList = {
   InvoiceList: undefined;
   InvoiceDetail: { id: string };
   GDPRSettings: undefined;
+  PrivacyCenter: undefined;
+  ConsentManagement: undefined;
+  SmsConsent: { userId?: string } | undefined;
+  DataExport: undefined;
+  DPALog: undefined;
   Settings: undefined;
+  NotificationPreferences: undefined;
+  DeliveryStatus: undefined;
+  TemplateVersionHistory: { type: NotificationType; channel: NotificationChannel };
+  NotificationInbox: undefined;
   CalendarIntegration: undefined;
   WebhookSettings: undefined;
   AccountingExport: undefined;
@@ -34,9 +46,12 @@ export type RootStackParamList = {
   TaxSettings: undefined;
   SupportDashboard: undefined;
   UsageDashboard: undefined;
+  UsageAlerts: undefined;
   DeveloperPortal: undefined;
+  ApiPlayground: undefined;
   SandboxDashboard: undefined;
   ApiKeyManagement: undefined;
+  ApiKeys: undefined;
   DocumentationPortal: undefined;
   IntegrationGuides: undefined;
   MerchantOnboarding: undefined;
@@ -45,6 +60,12 @@ export type RootStackParamList = {
   CampaignManagement: undefined;
   PerformanceDashboard: undefined;
   BillingSettings: undefined;
+  ChangePlan: { subscriptionId: string };
+  PaymentMethods: undefined;
+  AnalyticsDashboard: undefined;
+  AdvancedSearch: undefined;
+  ForecastingDashboard: undefined;
+  NotFound: { reason?: string };
 };
 
 export type TabParamList = {
@@ -53,5 +74,25 @@ export type TabParamList = {
   WalletTab: undefined;
   AnalyticsTab: undefined;
   RevenueTab: undefined;
-  SettingsTab: undefined;
+  SettingsTab: NavigatorScreenParams<RootStackParamList> | undefined;
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Typed navigation helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Typed wrapper around `useRoute` for screens in RootStackParamList.
+ * Usage:  const route = useAppRoute<'SegmentDetail'>();
+ */
+export function useAppRoute<RouteName extends keyof RootStackParamList>() {
+  return useRoute<RouteProp<RootStackParamList, RouteName>>();
+}
+
+/**
+ * Typed wrapper around `useNavigation` for screens in RootStackParamList.
+ * Usage:  const navigation = useAppNavigation<'SegmentDetail'>();
+ */
+export function useAppNavigation<_RouteName extends keyof RootStackParamList>() {
+  return useNavigation<NavigationProp<RootStackParamList>>();
+}

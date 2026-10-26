@@ -21,7 +21,6 @@ const ApiKeyManagementScreen: React.FC = () => {
   const {
     developer,
     apiKeys,
-    isLoading,
     fetchApiKeys,
     createApiKey,
     revokeApiKey,
@@ -152,13 +151,9 @@ const ApiKeyManagementScreen: React.FC = () => {
         <View style={styles.header}>
           <View>
             <Text style={styles.title}>API Key Management</Text>
-            <Text style={styles.subtitle}>
-              Manage your API keys and configure permissions
-            </Text>
+            <Text style={styles.subtitle}>Manage your API keys and configure permissions</Text>
           </View>
-          <TouchableOpacity
-            style={styles.createButton}
-            onPress={() => setShowCreateModal(true)}>
+          <TouchableOpacity style={styles.createButton} onPress={() => setShowCreateModal(true)}>
             <Text style={styles.createButtonText}>+ New Key</Text>
           </TouchableOpacity>
         </View>
@@ -245,12 +240,9 @@ const ApiKeyManagementScreen: React.FC = () => {
             <Text style={styles.emptyIcon}>🔑</Text>
             <Text style={styles.emptyTitle}>No API Keys Yet</Text>
             <Text style={styles.emptyText}>
-              Create your first API key to start making authenticated requests to the SubTrackr
-              API
+              Create your first API key to start making authenticated requests to the SubTrackr API
             </Text>
-            <TouchableOpacity
-              style={styles.emptyButton}
-              onPress={() => setShowCreateModal(true)}>
+            <TouchableOpacity style={styles.emptyButton} onPress={() => setShowCreateModal(true)}>
               <Text style={styles.emptyButtonText}>Create API Key</Text>
             </TouchableOpacity>
           </View>
@@ -311,11 +303,7 @@ const ApiKeyManagementScreen: React.FC = () => {
             </TouchableOpacity>
             <Text style={styles.modalTitle}>Create API Key</Text>
             <TouchableOpacity onPress={handleCreateKey} disabled={!newKeyName.trim()}>
-              <Text
-                style={[
-                  styles.modalCreate,
-                  !newKeyName.trim() && styles.modalCreateDisabled,
-                ]}>
+              <Text style={[styles.modalCreate, !newKeyName.trim() && styles.modalCreateDisabled]}>
                 Create
               </Text>
             </TouchableOpacity>
@@ -405,9 +393,7 @@ const ApiKeyManagementScreen: React.FC = () => {
               }}>
               <Text style={styles.keyRevealButtonText}>Copy to Clipboard</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.keyRevealClose}
-              onPress={() => setCreatedKey(null)}>
+            <TouchableOpacity style={styles.keyRevealClose} onPress={() => setCreatedKey(null)}>
               <Text style={styles.keyRevealCloseText}>I've Saved My Key</Text>
             </TouchableOpacity>
           </View>

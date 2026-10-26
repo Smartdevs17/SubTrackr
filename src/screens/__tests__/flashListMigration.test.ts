@@ -6,7 +6,6 @@ const SCREENS_DIR = path.join(__dirname, '..', '..', 'screens');
 const MIGRATED_SCREENS = [
   'ImportScreen.tsx',
   'ErrorDashboardScreen.tsx',
-  'LoyaltyDashboardScreen.tsx',
   'SegmentManagementScreen.tsx',
 ];
 

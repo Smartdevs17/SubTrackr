@@ -1,118 +1,102 @@
 import { create } from 'zustand';
-import {
-  chargeGroup,
-  createSubscriptionGroup,
-  getGroupAnalytics,
-  inviteGroupMember,
-  joinGroupWithInvite,
-  removeGroupMember,
-  updateGroupMemberRole,
-} from '../services/groupService';
-import {
-  GroupAnalytics,
-  GroupConfig,
-  GroupId,
-  GroupMemberRole,
-  SubscriptionGroup,
-} from '../types/group';
+import type { SubscriptionGroup, GroupConfig, GroupAnalytics } from '../types/group';
 
 interface GroupState {
+  groupId: string | null;
+  members: any[];
+  maxSeats: number;
   groups: SubscriptionGroup[];
-  selectedGroupId?: GroupId;
-  isLoading: boolean;
   error: string | null;
-  createGroup: (owner: string, config: GroupConfig) => SubscriptionGroup;
-  inviteMember: (groupId: GroupId, inviteeAddress: string, invitedBy: string) => void;
-  joinGroup: (groupId: GroupId, inviteId: string, displayName?: string) => void;
-  removeMember: (groupId: GroupId, memberAddress: string) => void;
-  updateMemberRole: (groupId: GroupId, memberAddress: string, role: GroupMemberRole) => void;
-  chargeGroup: (groupId: GroupId, amount: number) => void;
-  getAnalytics: (groupId: GroupId) => GroupAnalytics | undefined;
-  selectGroup: (groupId?: GroupId) => void;
+  setGroup: (groupId: string, members: any[], maxSeats: number) => void;
+  clearGroup: () => void;
+  createGroup: (owner: string, config: GroupConfig) => void;
+  inviteMember: (groupId: string, inviteeAddress: string, invitedBy: string) => void;
+  chargeGroup: (groupId: string, amount: number) => void;
+  getAnalytics: (groupId: string) => GroupAnalytics | undefined;
 }
 
-const updateGroup = (
-  groups: SubscriptionGroup[],
-  groupId: GroupId,
-  updater: (group: SubscriptionGroup) => SubscriptionGroup
-): SubscriptionGroup[] => groups.map((group) => (group.groupId === groupId ? updater(group) : group));
-
 export const useGroupStore = create<GroupState>((set, get) => ({
+  groupId: null,
+  members: [],
+  maxSeats: 0,
   groups: [],
-  selectedGroupId: undefined,
-  isLoading: false,
   error: null,
+  setGroup: (groupId, members, maxSeats) => set({ groupId, members, maxSeats }),
+  clearGroup: () => set({ groupId: null, members: [], maxSeats: 0 }),
 
   createGroup: (owner, config) => {
-    const group = createSubscriptionGroup(owner, config);
-    set((state) => ({ groups: [...state.groups, group], selectedGroupId: group.groupId }));
-    return group;
+    const newGroup: SubscriptionGroup = {
+      groupId: `group_${Date.now()}`,
+      name: config.name,
+      owner,
+      members: [],
+      invites: [],
+      planSharingRules: config.planSharingRules,
+      charges: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    set((s) => ({ groups: [...s.groups, newGroup] }));
   },
 
   inviteMember: (groupId, inviteeAddress, invitedBy) => {
-    try {
-      set((state) => ({
-        groups: updateGroup(state.groups, groupId, (group) =>
-          inviteGroupMember(group, inviteeAddress, invitedBy)
-        ),
-        error: null,
-      }));
-    } catch (error) {
-      set({ error: (error as Error).message });
-    }
-  },
-
-  joinGroup: (groupId, inviteId, displayName) => {
-    try {
-      set((state) => ({
-        groups: updateGroup(state.groups, groupId, (group) =>
-          joinGroupWithInvite(group, inviteId, displayName)
-        ),
-        error: null,
-      }));
-    } catch (error) {
-      set({ error: (error as Error).message });
-    }
-  },
-
-  removeMember: (groupId, memberAddress) => {
-    try {
-      set((state) => ({
-        groups: updateGroup(state.groups, groupId, (group) => removeGroupMember(group, memberAddress)),
-        error: null,
-      }));
-    } catch (error) {
-      set({ error: (error as Error).message });
-    }
-  },
-
-  updateMemberRole: (groupId, memberAddress, role) => {
-    set((state) => ({
-      groups: updateGroup(state.groups, groupId, (group) =>
-        updateGroupMemberRole(group, memberAddress, role)
+    set((s) => ({
+      groups: s.groups.map((g) =>
+        g.groupId === groupId
+          ? {
+              ...g,
+              invites: [
+                ...g.invites,
+                {
+                  id: `inv_${Date.now()}`,
+                  groupId,
+                  inviteeAddress,
+                  invitedBy,
+                  status: 'pending' as const,
+                  expiresAt: new Date(Date.now() + 7 * 86400000),
+                  createdAt: new Date(),
+                },
+              ],
+            }
+          : g
       ),
     }));
   },
 
   chargeGroup: (groupId, amount) => {
-    try {
-      set((state) => ({
-        groups: updateGroup(state.groups, groupId, (group) => ({
-          ...group,
-          charges: [...group.charges, chargeGroup(group, amount)],
-          updatedAt: new Date(),
-        })),
-        error: null,
-      }));
-    } catch (error) {
-      set({ error: (error as Error).message });
-    }
+    set((s) => ({
+      groups: s.groups.map((g) =>
+        g.groupId === groupId
+          ? {
+              ...g,
+              charges: [
+                ...g.charges,
+                {
+                  groupId,
+                  payer: g.owner,
+                  amount,
+                  breakdown: [],
+                  chargedAt: new Date(),
+                },
+              ],
+            }
+          : g
+      ),
+    }));
   },
 
   getAnalytics: (groupId) => {
-    const group = get().groups.find((entry) => entry.groupId === groupId);
-    return group ? getGroupAnalytics(group) : undefined;
+    const group = get().groups.find((g) => g.groupId === groupId);
+    if (!group) return undefined;
+    return {
+      groupId,
+      activeSeats: group.members.length,
+      seatLimit: group.planSharingRules.seatLimit,
+      totalUsage: group.members.reduce((sum, m) => sum + (m.usageUnits ?? 0), 0),
+      usagePoolLimit: group.planSharingRules.usagePoolLimit,
+      outstandingBalance: group.members.reduce((sum, m) => sum + m.outstandingBalance, 0),
+      totalSpend: group.charges.reduce((sum, c) => sum + c.amount, 0),
+      memberActivity: {},
+    };
   },
-
-  selectGroup: (groupId) => set({ selectedGroupId: groupId }),
 }));

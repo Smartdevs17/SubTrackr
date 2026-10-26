@@ -10,14 +10,12 @@ interface StatsCardProps {
   currency?: string;
 }
 
-
 export const StatsCard: React.FC<StatsCardProps> = ({
   totalMonthlySpend,
   totalActive,
   onWalletPress,
   currency = 'USD',
 }) => {
-
   return (
     <View style={styles.container} accessibilityRole="summary">
       {/* Monthly Spend Card - Primary Focus */}
@@ -29,7 +27,7 @@ export const StatsCard: React.FC<StatsCardProps> = ({
           currency
         )}`}>
         <Text
-          style={styles.statLabel}
+          style={styles.label}
           accessibilityElementsHidden={true}
           importantForAccessibility="no">
           Monthly Spend
@@ -42,7 +40,6 @@ export const StatsCard: React.FC<StatsCardProps> = ({
           importantForAccessibility="no">
           {formatCurrencyCompact(totalMonthlySpend, currency)}
         </Text>
-
       </View>
 
       {/* Active Count Card */}

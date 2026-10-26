@@ -33,7 +33,7 @@ export const ThemePreview: React.FC<Props> = ({ theme }) => {
       <Text style={[styles.mode, { color: c.textSecondary }]}>{theme.mode}</Text>
       {isActive && (
         <View style={[styles.badge, { backgroundColor: c.primary }]}>
-          <Text style={styles.badgeText}>Active</Text>
+          <Text style={[styles.badgeText, { color: c.text }]}>Active</Text>
         </View>
       )}
     </TouchableOpacity>
@@ -59,5 +59,5 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     alignSelf: 'flex-start',
   },
-  badgeText: { color: '#fff', fontSize: 11, fontWeight: '600' },
+  badgeText: { fontSize: 11, fontWeight: '600' },
 });

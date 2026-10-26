@@ -1,5 +1,9 @@
 #![no_std]
-
+// TODO: migrate `env.events().publish(..)` to the `#[contractevent]` macro.
+// soroban-sdk 28 deprecated the imperative form; it is still functional and
+// still emits identical events, so the deprecation is allowed crate-wide
+// until the event payloads are reworked. CI lints with `-D warnings`.
+#![allow(deprecated)]
 use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, String, Vec};
 use subtrackr_types::{
     FraudAction, FraudCase, FraudReport, FraudReviewStatus, MerchantId, RiskScore, RiskSignal,
@@ -73,15 +77,17 @@ fn get_merchant_subscriptions(env: &Env, merchant: &Address) -> Vec<Subscription
 }
 
 fn save_subscriptions(env: &Env, subscriber: &Address, ids: &Vec<SubscriptionId>) {
-    env.storage()
-        .persistent()
-        .set(&StorageKey::SubscriberSubscriptions(subscriber.clone()), &ids.clone());
+    env.storage().persistent().set(
+        &StorageKey::SubscriberSubscriptions(subscriber.clone()),
+        &ids.clone(),
+    );
 }
 
 fn save_merchant_subscriptions(env: &Env, merchant: &Address, ids: &Vec<SubscriptionId>) {
-    env.storage()
-        .persistent()
-        .set(&StorageKey::MerchantSubscriptions(merchant.clone()), &ids.clone());
+    env.storage().persistent().set(
+        &StorageKey::MerchantSubscriptions(merchant.clone()),
+        &ids.clone(),
+    );
 }
 
 fn load_profile(env: &Env, subscription_id: SubscriptionId) -> Option<SubscriptionProfile> {
@@ -91,12 +97,17 @@ fn load_profile(env: &Env, subscription_id: SubscriptionId) -> Option<Subscripti
 }
 
 fn save_profile(env: &Env, profile: &SubscriptionProfile) {
-    env.storage()
-        .persistent()
-        .set(&StorageKey::Subscription(profile.subscription_id), &profile.clone());
+    env.storage().persistent().set(
+        &StorageKey::Subscription(profile.subscription_id),
+        &profile.clone(),
+    );
 }
 
-fn determine_velocity_score(env: &Env, profile: &SubscriptionProfile, ids: &Vec<SubscriptionId>) -> u32 {
+fn determine_velocity_score(
+    env: &Env,
+    profile: &SubscriptionProfile,
+    ids: &Vec<SubscriptionId>,
+) -> u32 {
     let now = env.ledger().timestamp();
     let mut recent_creations = 0u32;
     let mut i = 0u32;
@@ -159,11 +170,7 @@ fn determine_action(score: u32) -> FraudAction {
     }
 }
 
-fn score_profile(
-    env: &Env,
-    profile: &SubscriptionProfile,
-    ids: &Vec<SubscriptionId>,
-) -> RiskScore {
+fn score_profile(env: &Env, profile: &SubscriptionProfile, ids: &Vec<SubscriptionId>) -> RiskScore {
     let now = env.ledger().timestamp();
     let velocity_score = determine_velocity_score(env, profile, ids);
     let anomaly_score = determine_anomaly_score(profile);
@@ -233,9 +240,10 @@ fn persist_case(env: &Env, score: &RiskScore, status: FraudReviewStatus) -> Frau
         updated_at: score.assessed_at,
     };
 
-    env.storage()
-        .persistent()
-        .set(&StorageKey::ReviewCase(score.subscription_id), &case.clone());
+    env.storage().persistent().set(
+        &StorageKey::ReviewCase(score.subscription_id),
+        &case.clone(),
+    );
     case
 }
 
@@ -309,11 +317,7 @@ impl SubTrackrFraud {
         }
     }
 
-    pub fn record_chargeback(
-        env: Env,
-        subscriber: Address,
-        subscription_id: SubscriptionId,
-    ) {
+    pub fn record_chargeback(env: Env, subscriber: Address, subscription_id: SubscriptionId) {
         subscriber.require_auth();
 
         if let Some(mut profile) = load_profile(&env, subscription_id) {
@@ -325,7 +329,7 @@ impl SubTrackrFraud {
 
     pub fn assess_risk(env: Env, subscriber: Address) -> RiskScore {
         let ids = get_subscriptions(&env, &subscriber);
-        if ids.len() == 0 {
+        if ids.is_empty() {
             return RiskScore {
                 subscriber: subscriber.clone(),
                 subscription_id: 0,
@@ -373,7 +377,10 @@ impl SubTrackrFraud {
             let case = persist_case(&env, &score, status);
             update_profile_action(&env, subscription_id, &score);
             env.events().publish(
-                (String::from_str(&env, "fraud_case_opened"), score.subscription_id),
+                (
+                    String::from_str(&env, "fraud_case_opened"),
+                    score.subscription_id,
+                ),
                 (case.risk_score, case.action.clone()),
             );
         } else {
@@ -452,7 +459,7 @@ impl SubTrackrFraud {
             i += 1;
         }
 
-        let average_risk = if ids.len() == 0 {
+        let average_risk = if ids.is_empty() {
             0
         } else {
             total_risk / ids.len()

@@ -4,15 +4,20 @@
 //
 // Supports: batch create from CSV/JSON, batch update with filtering,
 // batch cancel with reason collection, batch charge for manual billing,
-// per-item status tracking, idempotent retry of failed items,
-// result export (CSV/JSON), and large batch memory management via chunking.
+// per-item status tracking, atomic execution, post-commit rollback,
+// idempotent retry of failed items, per-operation-type configuration,
+// success/timing analytics, result export (CSV/JSON), and large batch
+// memory management via chunking.
+//
+// The state machine mirrors the `subtrackr-batch` contract:
+//   pending -> processing -> completed | partial | failed
+// with `rolled_back` reachable from any committed state via `rollbackBatch`.
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Subscription } from '../../src/types/subscription';
 
 const HISTORY_KEY = 'subtrackr-batch-history';
 const MAX_HISTORY_ENTRIES = 50;
-const DEFAULT_CHUNK_SIZE = 50;
 const MAX_CHUNK_SIZE = 200;
 
 // ════════════════════════════════════════════════════════════════
@@ -21,9 +26,15 @@ const MAX_CHUNK_SIZE = 200;
 
 export type BatchOperationType = 'create' | 'update' | 'charge' | 'cancel';
 
-export type BatchState = 'pending' | 'running' | 'completed' | 'partial' | 'failed';
+export type BatchState =
+  | 'pending'
+  | 'processing'
+  | 'completed'
+  | 'partial'
+  | 'failed'
+  | 'rolled_back';
 
-export type PerItemStatus = 'pending' | 'running' | 'success' | 'failed' | 'skipped';
+export type PerItemStatus = 'pending' | 'processing' | 'success' | 'failed' | 'skipped';
 
 export interface CancelReason {
   subscriptionId: string;
@@ -72,6 +83,8 @@ export interface PerItemResult {
   retryCount: number;
   completedAt?: string;
   message?: string;
+  /** Wall-clock milliseconds spent applying this item. */
+  durationMs?: number;
 }
 
 export interface BatchExecutionResult {
@@ -88,8 +101,12 @@ export interface BatchExecutionResult {
   gasEstimate: number;
   startedAt: string;
   completedAt?: string;
+  /** Wall-clock milliseconds from first item to last. */
+  durationMs?: number;
   cancelReasons?: CancelReason[];
   filter?: UpdateFilter;
+  /** Populated when the batch was rejected before any item ran. */
+  rejectionReason?: string;
 }
 
 export interface BatchHistoryEntry {
@@ -101,6 +118,9 @@ export interface BatchHistoryEntry {
   failedItems: number;
   timestamp: string;
   summary: string;
+  skippedItems?: number;
+  durationMs?: number;
+  rolledBack?: boolean;
 }
 
 export interface BatchExportData {
@@ -124,6 +144,265 @@ export interface RetryConfig {
   retryDelayMs: number;
   backoffMultiplier: number;
   onlyRetryFailed: boolean;
+}
+
+// ════════════════════════════════════════════════════════════════
+// Per-operation configuration
+// ════════════════════════════════════════════════════════════════
+
+export interface BatchOperationConfig {
+  /** Ceiling on items in one batch, mirroring the contract's per-type limit. */
+  maxItems: number;
+  /** Items applied per chunk, bounding peak memory for large batches. */
+  chunkSize: number;
+  /** Atomicity used when the caller does not state a preference. */
+  atomicDefault: boolean;
+  /** Whether a committed batch of this type may be rolled back afterwards. */
+  allowRollback: boolean;
+  /** Retry budget applied by `retryFailedItems`. */
+  maxRetries: number;
+  retryDelayMs: number;
+  backoffMultiplier: number;
+  /**
+   * Skip items whose (operation, subscription) pair already succeeded on this
+   * service instance, so a re-submitted batch cannot double-apply.
+   */
+  idempotent: boolean;
+}
+
+/**
+ * Defaults chosen per operation type. Money movement is atomic and conservative
+ * with retries; cancellation is deliberately not reversible, matching the
+ * contract's `allow_rollback` configuration.
+ */
+export const DEFAULT_BATCH_CONFIGS: Record<BatchOperationType, BatchOperationConfig> = {
+  create: {
+    maxItems: 100,
+    chunkSize: 50,
+    atomicDefault: false,
+    allowRollback: true,
+    maxRetries: 3,
+    retryDelayMs: 300,
+    backoffMultiplier: 2,
+    // Two subscriptions may legitimately share a name, so creates are never
+    // deduplicated.
+    idempotent: false,
+  },
+  update: {
+    maxItems: 100,
+    chunkSize: 50,
+    atomicDefault: false,
+    allowRollback: true,
+    maxRetries: 3,
+    retryDelayMs: 300,
+    backoffMultiplier: 2,
+    idempotent: true,
+  },
+  charge: {
+    maxItems: 50,
+    chunkSize: 25,
+    atomicDefault: true,
+    allowRollback: true,
+    maxRetries: 2,
+    retryDelayMs: 500,
+    backoffMultiplier: 2,
+    idempotent: true,
+  },
+  cancel: {
+    maxItems: 50,
+    chunkSize: 25,
+    atomicDefault: false,
+    allowRollback: false,
+    maxRetries: 1,
+    retryDelayMs: 300,
+    backoffMultiplier: 2,
+    idempotent: true,
+  },
+};
+
+export function getDefaultBatchConfig(operationType: BatchOperationType): BatchOperationConfig {
+  return { ...DEFAULT_BATCH_CONFIGS[operationType] };
+}
+
+export interface BatchSizeValidation {
+  valid: boolean;
+  reason?: string;
+}
+
+/** Validate an item count against an operation type's configured ceiling. */
+export function validateBatchSizeFor(
+  operationType: BatchOperationType,
+  count: number,
+  config: BatchOperationConfig = DEFAULT_BATCH_CONFIGS[operationType],
+): BatchSizeValidation {
+  if (count <= 0) {
+    return { valid: false, reason: 'A batch must contain at least one item.' };
+  }
+  if (count > config.maxItems) {
+    return {
+      valid: false,
+      reason: `A ${operationType} batch is limited to ${config.maxItems} items (got ${count}).`,
+    };
+  }
+  return { valid: true };
+}
+
+// ════════════════════════════════════════════════════════════════
+// Analytics
+// ════════════════════════════════════════════════════════════════
+
+export interface BatchAnalyticsSummary {
+  batches: number;
+  completed: number;
+  partial: number;
+  failed: number;
+  rolledBack: number;
+  totalItems: number;
+  successfulItems: number;
+  failedItems: number;
+  skippedItems: number;
+  /** Fraction of batches that completed with no failures, 0-1. */
+  batchSuccessRate: number;
+  /** Fraction of individual items that succeeded, 0-1. */
+  itemSuccessRate: number;
+  totalDurationMs: number;
+  avgDurationMs: number;
+  p95DurationMs: number;
+  /** Mean milliseconds per item across all timed batches. */
+  avgItemDurationMs: number;
+  /** Items applied per second across all timed batches. */
+  throughputPerSecond: number;
+}
+
+export interface BatchAnalytics {
+  overall: BatchAnalyticsSummary;
+  byOperationType: Record<BatchOperationType, BatchAnalyticsSummary>;
+}
+
+const emptyAnalyticsSummary = (): BatchAnalyticsSummary => ({
+  batches: 0,
+  completed: 0,
+  partial: 0,
+  failed: 0,
+  rolledBack: 0,
+  totalItems: 0,
+  successfulItems: 0,
+  failedItems: 0,
+  skippedItems: 0,
+  batchSuccessRate: 0,
+  itemSuccessRate: 0,
+  totalDurationMs: 0,
+  avgDurationMs: 0,
+  p95DurationMs: 0,
+  avgItemDurationMs: 0,
+  throughputPerSecond: 0,
+});
+
+const percentile = (sorted: number[], fraction: number): number => {
+  if (sorted.length === 0) return 0;
+  const index = Math.min(sorted.length - 1, Math.ceil(sorted.length * fraction) - 1);
+  return sorted[Math.max(0, index)];
+};
+
+function summarize(entries: BatchHistoryEntry[]): BatchAnalyticsSummary {
+  const summary = emptyAnalyticsSummary();
+  if (entries.length === 0) return summary;
+
+  // Only batches that recorded a duration contribute to timing statistics, so
+  // history persisted before timing was tracked cannot skew the averages.
+  const durations: number[] = [];
+  let timedItems = 0;
+
+  for (const entry of entries) {
+    summary.batches++;
+    summary.totalItems += entry.totalItems;
+    summary.successfulItems += entry.successfulItems;
+    summary.failedItems += entry.failedItems;
+    summary.skippedItems += entry.skippedItems ?? 0;
+
+    if (entry.rolledBack || entry.state === 'rolled_back') summary.rolledBack++;
+    if (entry.state === 'completed') summary.completed++;
+    else if (entry.state === 'partial') summary.partial++;
+    else if (entry.state === 'failed') summary.failed++;
+
+    if (typeof entry.durationMs === 'number' && entry.durationMs >= 0) {
+      durations.push(entry.durationMs);
+      summary.totalDurationMs += entry.durationMs;
+      timedItems += entry.totalItems;
+    }
+  }
+
+  summary.batchSuccessRate = summary.completed / summary.batches;
+  summary.itemSuccessRate =
+    summary.totalItems === 0 ? 0 : summary.successfulItems / summary.totalItems;
+
+  if (durations.length > 0) {
+    summary.avgDurationMs = Math.round(summary.totalDurationMs / durations.length);
+    summary.p95DurationMs = percentile([...durations].sort((a, b) => a - b), 0.95);
+    summary.avgItemDurationMs =
+      timedItems === 0 ? 0 : Math.round(summary.totalDurationMs / timedItems);
+    summary.throughputPerSecond =
+      summary.totalDurationMs === 0
+        ? 0
+        : Math.round((timedItems / summary.totalDurationMs) * 1000 * 100) / 100;
+  }
+
+  return summary;
+}
+
+/** Aggregate success rates and timing over a batch history, overall and per type. */
+export function computeBatchAnalytics(history: BatchHistoryEntry[]): BatchAnalytics {
+  const operationTypes: BatchOperationType[] = ['create', 'update', 'charge', 'cancel'];
+  return {
+    overall: summarize(history),
+    byOperationType: operationTypes.reduce(
+      (acc, type) => {
+        acc[type] = summarize(history.filter((entry) => entry.operationType === type));
+        return acc;
+      },
+      {} as Record<BatchOperationType, BatchAnalyticsSummary>,
+    ),
+  };
+}
+
+export function toHistoryEntry(result: BatchExecutionResult): BatchHistoryEntry {
+  return {
+    batchId: result.batchId,
+    operationType: result.operationType,
+    state: result.state,
+    totalItems: result.totalItems,
+    successfulItems: result.successfulItems,
+    failedItems: result.failedItems,
+    skippedItems: result.skippedItems,
+    durationMs: result.durationMs,
+    rolledBack: result.rolledBack,
+    timestamp: result.completedAt ?? new Date().toISOString(),
+    summary: `${result.operationType}: ${result.successfulItems}/${result.totalItems} succeeded`,
+  };
+}
+
+// ════════════════════════════════════════════════════════════════
+// Rollback
+// ════════════════════════════════════════════════════════════════
+
+/**
+ * Reverses a single committed item. Implementations issue the compensating
+ * action for the operation type — deleting a created subscription, refunding a
+ * charge, restoring the previous plan.
+ */
+export type RollbackHandler = (
+  item: PerItemResult,
+  operationType: BatchOperationType,
+) => Promise<{ success: boolean; error?: string }>;
+
+export interface BatchRollbackResult {
+  batchId: string;
+  operationType: BatchOperationType;
+  attempted: number;
+  reverted: number;
+  failed: number;
+  items: PerItemResult[];
+  completedAt: string;
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -187,14 +466,19 @@ export function selectOverdueSubscriptions(subscriptions: Subscription[]): Subsc
   });
 }
 
-export function buildBatchChargeItems(subscriptions: Subscription[]): Array<{ subscriptionId: string; amount: number }> {
+export function buildBatchChargeItems(
+  subscriptions: Subscription[],
+): Array<{ subscriptionId: string; amount: number }> {
   return subscriptions.map((subscription) => ({
     subscriptionId: subscription.id,
     amount: subscription.price,
   }));
 }
 
-export function calculateBatchGasSavings(itemCount: number, singleTransactionGas = 150_000): {
+export function calculateBatchGasSavings(
+  itemCount: number,
+  singleTransactionGas = 150_000,
+): {
   singleTxGas: number;
   batchGas: number;
   saved: number;
@@ -244,7 +528,9 @@ export function parseBatchCreateCsv(csvContent: string): BatchCreateInput[] {
   return results;
 }
 
-export function parseBatchCancelCsv(csvContent: string): Array<{ subscriptionId: string; reason: string; notes?: string }> {
+export function parseBatchCancelCsv(
+  csvContent: string,
+): Array<{ subscriptionId: string; reason: string; notes?: string }> {
   const lines = csvContent.split(/\r?\n/).filter((l) => l.trim());
   if (lines.length < 2) return [];
 
@@ -272,7 +558,9 @@ export function parseBatchCancelCsv(csvContent: string): Array<{ subscriptionId:
   return results;
 }
 
-export function parseBatchChargeCsv(csvContent: string): Array<{ subscriptionId: string; amount: number }> {
+export function parseBatchChargeCsv(
+  csvContent: string,
+): Array<{ subscriptionId: string; amount: number }> {
   const lines = csvContent.split(/\r?\n/).filter((l) => l.trim());
   if (lines.length < 2) return [];
 
@@ -311,7 +599,8 @@ export function exportBatchResultToJson(result: BatchExecutionResult): string {
 }
 
 export function exportBatchResultToCsv(result: BatchExecutionResult): string {
-  const headers = 'index,subscriptionId,subscriptionName,status,error,errorCode,retryCount,completedAt,message';
+  const headers =
+    'index,subscriptionId,subscriptionName,status,error,errorCode,retryCount,completedAt,durationMs,message';
   const rows = result.results.map((r) => {
     const escape = (v: string | undefined) => {
       if (!v) return '';
@@ -326,6 +615,7 @@ export function exportBatchResultToCsv(result: BatchExecutionResult): string {
       r.errorCode ?? '',
       r.retryCount,
       r.completedAt ?? '',
+      r.durationMs ?? '',
       escape(r.message),
     ].join(',');
   });
@@ -369,36 +659,82 @@ export async function clearBatchHistory(): Promise<void> {
 // Batch Transaction Service
 // ════════════════════════════════════════════════════════════════
 
+/** One unit of work queued for a batch run. */
+interface BatchItemPlan {
+  subscriptionId: string;
+  subscriptionName?: string;
+  cancelReason?: CancelReason;
+  /** Formats the `message` recorded on success. */
+  successMessage?: string;
+}
+
+interface RunOptions {
+  atomic?: boolean;
+  filter?: UpdateFilter;
+  cancelReasons?: CancelReason[];
+}
+
+type ApplyResult = { success: boolean; id?: string; error?: string; errorCode?: number };
+
 export class BatchTransactionService {
-  private chunkSize: number = DEFAULT_CHUNK_SIZE;
+  /** Explicit override; when null the per-operation config decides. */
+  private chunkSizeOverride: number | null = null;
   private baseGasCost: number = 50_000;
   private gasPerOperation: number = 100_000;
-  private idempotencyKeys: Map<string, string> = new Map();
+  /** `${operationType}:${subscriptionId}` pairs already applied successfully. */
+  private appliedItems: Set<string> = new Set();
+  private configOverrides: Partial<Record<BatchOperationType, Partial<BatchOperationConfig>>> = {};
 
   private currentResult: BatchExecutionResult | null = null;
-  private retryConfig: RetryConfig = {
-    maxRetries: 3,
-    retryDelayMs: 300,
-    backoffMultiplier: 2,
-    onlyRetryFailed: true,
-  };
+  private retryConfigOverride: Partial<RetryConfig> = {};
 
-  constructor(chunkSize: number = DEFAULT_CHUNK_SIZE) {
-    this.setChunkSize(chunkSize);
-  }
-
-  setChunkSize(size: number): void {
-    if (size > MAX_CHUNK_SIZE) {
-      this.chunkSize = MAX_CHUNK_SIZE;
-    } else if (size < 1) {
-      this.chunkSize = 1;
-    } else {
-      this.chunkSize = size;
+  constructor(chunkSize?: number) {
+    if (chunkSize !== undefined) {
+      this.setChunkSize(chunkSize);
     }
   }
 
+  setChunkSize(size: number): void {
+    this.chunkSizeOverride = Math.min(MAX_CHUNK_SIZE, Math.max(1, size));
+  }
+
   setRetryConfig(config: Partial<RetryConfig>): void {
-    this.retryConfig = { ...this.retryConfig, ...config };
+    this.retryConfigOverride = { ...this.retryConfigOverride, ...config };
+  }
+
+  /** Override part of an operation type's configuration for this instance. */
+  setOperationConfig(
+    operationType: BatchOperationType,
+    patch: Partial<BatchOperationConfig>,
+  ): void {
+    this.configOverrides[operationType] = {
+      ...this.configOverrides[operationType],
+      ...patch,
+    };
+  }
+
+  /** Effective configuration: defaults, then overrides, then chunk size override. */
+  getOperationConfig(operationType: BatchOperationType): BatchOperationConfig {
+    const merged: BatchOperationConfig = {
+      ...DEFAULT_BATCH_CONFIGS[operationType],
+      ...this.configOverrides[operationType],
+    };
+    if (this.chunkSizeOverride !== null) {
+      merged.chunkSize = this.chunkSizeOverride;
+    }
+    merged.chunkSize = Math.min(MAX_CHUNK_SIZE, Math.max(1, merged.chunkSize));
+    return merged;
+  }
+
+  getRetryConfig(operationType: BatchOperationType): RetryConfig {
+    const config = this.getOperationConfig(operationType);
+    return {
+      maxRetries: config.maxRetries,
+      retryDelayMs: config.retryDelayMs,
+      backoffMultiplier: config.backoffMultiplier,
+      onlyRetryFailed: true,
+      ...this.retryConfigOverride,
+    };
   }
 
   getGasEstimate(itemCount: number): number {
@@ -407,16 +743,12 @@ export class BatchTransactionService {
 
   private generateBatchId(): string {
     const timestamp = Date.now().toString(36);
-    const random = Math.random().toString(36).substr(2, 9);
+    const random = Math.random().toString(36).substring(2, 11);
     return `batch_${timestamp}_${random}`;
   }
 
-  private idempotencyKey(subscriptionId: string, operationType: BatchOperationType): string {
-    const key = `${operationType}_${subscriptionId}`;
-    if (!this.idempotencyKeys.has(key)) {
-      this.idempotencyKeys.set(key, this.generateBatchId());
-    }
-    return this.idempotencyKeys.get(key)!;
+  private idempotencyKey(operationType: BatchOperationType, subscriptionId: string): string {
+    return `${operationType}:${subscriptionId}`;
   }
 
   getProgress(): BatchProgress | null {
@@ -438,6 +770,161 @@ export class BatchTransactionService {
     return this.currentResult;
   }
 
+  /** True when the last result may still be reversed by `rollbackBatch`. */
+  canRollback(): boolean {
+    const result = this.currentResult;
+    if (!result) return false;
+    if (result.rolledBack || result.state === 'rolled_back') return false;
+    if (result.successfulItems === 0) return false;
+    return this.getOperationConfig(result.operationType).allowRollback;
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // Shared runner
+  // ══════════════════════════════════════════════════════════════
+
+  /**
+   * Apply `plans` one at a time, chunked to bound memory, tracking per-item
+   * status. An atomic run stops at the first failure and reports every
+   * previously successful item as rolled back, so callers never observe a
+   * half-applied batch.
+   */
+  private async run(
+    operationType: BatchOperationType,
+    plans: BatchItemPlan[],
+    apply: (plan: BatchItemPlan, index: number) => Promise<ApplyResult>,
+    options: RunOptions = {},
+  ): Promise<BatchExecutionResult> {
+    const config = this.getOperationConfig(operationType);
+    const atomic = options.atomic ?? config.atomicDefault;
+    const startedAtMs = Date.now();
+
+    const result: BatchExecutionResult = {
+      batchId: this.generateBatchId(),
+      operationType,
+      state: 'processing',
+      totalItems: plans.length,
+      successfulItems: 0,
+      failedItems: 0,
+      skippedItems: 0,
+      results: [],
+      atomic,
+      rolledBack: false,
+      gasEstimate: this.getGasEstimate(plans.length),
+      startedAt: new Date(startedAtMs).toISOString(),
+      cancelReasons: options.cancelReasons,
+      filter: options.filter,
+    };
+
+    const sizeCheck = validateBatchSizeFor(operationType, plans.length, config);
+    if (!sizeCheck.valid) {
+      result.state = 'failed';
+      result.rejectionReason = sizeCheck.reason;
+      result.completedAt = new Date().toISOString();
+      result.durationMs = Date.now() - startedAtMs;
+      this.currentResult = result;
+      await this.recordBatchHistory(result);
+      return result;
+    }
+
+    this.currentResult = result;
+    let aborted = false;
+
+    for (let offset = 0; offset < plans.length; offset += config.chunkSize) {
+      const chunk = plans.slice(offset, offset + config.chunkSize);
+
+      for (let j = 0; j < chunk.length; j++) {
+        const plan = chunk[j];
+        const index = offset + j;
+
+        if (aborted) {
+          result.results.push({
+            index,
+            subscriptionId: plan.subscriptionId,
+            subscriptionName: plan.subscriptionName,
+            status: 'skipped',
+            retryCount: 0,
+            cancelReason: plan.cancelReason,
+            message: 'Skipped due to atomic failure',
+          });
+          result.skippedItems++;
+          continue;
+        }
+
+        const key = this.idempotencyKey(operationType, plan.subscriptionId);
+        if (config.idempotent && this.appliedItems.has(key)) {
+          result.results.push({
+            index,
+            subscriptionId: plan.subscriptionId,
+            subscriptionName: plan.subscriptionName,
+            status: 'skipped',
+            retryCount: 0,
+            cancelReason: plan.cancelReason,
+            message: 'Already applied — skipped for idempotency',
+          });
+          result.skippedItems++;
+          continue;
+        }
+
+        const itemStartMs = Date.now();
+        let outcome: ApplyResult;
+        try {
+          outcome = await apply(plan, index);
+        } catch (err) {
+          outcome = { success: false, error: String(err) };
+        }
+
+        const item: PerItemResult = {
+          index,
+          subscriptionId: outcome.id || plan.subscriptionId,
+          subscriptionName: plan.subscriptionName,
+          status: outcome.success ? 'success' : 'failed',
+          retryCount: 0,
+          cancelReason: plan.cancelReason,
+          completedAt: new Date().toISOString(),
+          durationMs: Date.now() - itemStartMs,
+        };
+
+        if (outcome.success) {
+          if (plan.successMessage) item.message = plan.successMessage;
+          if (config.idempotent) this.appliedItems.add(key);
+          result.successfulItems++;
+        } else {
+          item.error = outcome.error || 'Unknown error';
+          item.errorCode = outcome.errorCode;
+          result.failedItems++;
+          if (atomic) aborted = true;
+        }
+
+        result.results.push(item);
+        this.currentResult = { ...result };
+      }
+    }
+
+    const rolledBack = atomic && result.failedItems > 0;
+    result.rolledBack = rolledBack;
+    result.completedAt = new Date().toISOString();
+    result.durationMs = Date.now() - startedAtMs;
+    result.state = rolledBack ? 'failed' : result.failedItems === 0 ? 'completed' : 'partial';
+
+    if (rolledBack) {
+      // The atomic call committed nothing, so successes are reported as skipped
+      // and the idempotency ledger must forget them.
+      for (const item of result.results) {
+        if (item.status !== 'success') continue;
+        this.appliedItems.delete(this.idempotencyKey(operationType, item.subscriptionId));
+        item.status = 'skipped';
+        item.message = 'Rolled back (atomic failure)';
+        result.skippedItems++;
+      }
+      result.successfulItems = 0;
+    }
+
+    this.currentResult = result;
+    await this.recordBatchHistory(result);
+    return result;
+  }
+
   // ══════════════════════════════════════════════════════════════
   // Batch Create (from CSV/JSON input)
   // ══════════════════════════════════════════════════════════════
@@ -447,110 +934,13 @@ export class BatchTransactionService {
     addFn: (input: BatchCreateInput) => Promise<{ success: boolean; id?: string; error?: string }>,
     options?: { atomic?: boolean },
   ): Promise<BatchExecutionResult> {
-    const atomic = options?.atomic ?? false;
-    const batchId = this.generateBatchId();
-
-    const result: BatchExecutionResult = {
-      batchId,
-      operationType: 'create',
-      state: 'running',
-      totalItems: inputs.length,
-      successfulItems: 0,
-      failedItems: 0,
-      skippedItems: 0,
-      results: [],
-      atomic,
-      rolledBack: false,
-      gasEstimate: this.getGasEstimate(inputs.length),
-      startedAt: new Date().toISOString(),
-    };
-
-    this.currentResult = result;
-    let shouldStop = false;
-
-    for (let i = 0; i < inputs.length; i += this.chunkSize) {
-      if (shouldStop) break;
-      const chunk = inputs.slice(i, i + this.chunkSize);
-
-      for (let j = 0; j < chunk.length; j++) {
-        const input = chunk[j];
-        const index = i + j;
-        if (shouldStop && atomic) {
-          result.results.push({
-            index,
-            subscriptionId: input.name,
-            subscriptionName: input.name,
-            status: 'skipped',
-            retryCount: 0,
-            message: 'Skipped due to atomic failure',
-          });
-          result.skippedItems++;
-          continue;
-        }
-
-        try {
-          const addResult = await addFn(input);
-          if (addResult.success) {
-            result.results.push({
-              index,
-              subscriptionId: addResult.id || input.name,
-              subscriptionName: input.name,
-              status: 'success',
-              retryCount: 0,
-              completedAt: new Date().toISOString(),
-            });
-            result.successfulItems++;
-          } else {
-            result.results.push({
-              index,
-              subscriptionId: input.name,
-              subscriptionName: input.name,
-              status: 'failed',
-              error: addResult.error || 'Unknown error',
-              retryCount: 0,
-              completedAt: new Date().toISOString(),
-            });
-            result.failedItems++;
-            if (atomic) shouldStop = true;
-          }
-        } catch (err) {
-          result.results.push({
-            index,
-            subscriptionId: input.name,
-            subscriptionName: input.name,
-            status: 'failed',
-            error: String(err),
-            retryCount: 0,
-            completedAt: new Date().toISOString(),
-          });
-          result.failedItems++;
-          if (atomic) shouldStop = true;
-        }
-
-        this.currentResult = { ...result };
-      }
-    }
-
-    const rolledBack = atomic && result.failedItems > 0;
-    result.rolledBack = rolledBack;
-    result.completedAt = new Date().toISOString();
-    result.state = rolledBack
-      ? 'failed'
-      : result.failedItems === 0
-        ? 'completed'
-        : 'partial';
-
-    if (rolledBack) {
-      result.successfulItems = 0;
-      result.results = result.results.map((r) =>
-        r.status === 'success' ? { ...r, status: 'skipped', message: 'Rolled back (atomic failure)' } : r,
-      );
-      result.skippedItems += inputs.length - result.failedItems;
-    }
-
-    this.currentResult = result;
-    await this.recordBatchHistory(result);
-    return result;
+    const plans: BatchItemPlan[] = inputs.map((input) => ({
+      subscriptionId: input.name,
+      subscriptionName: input.name,
+    }));
+    return this.run('create', plans, (_plan, index) => addFn(inputs[index]), {
+      atomic: options?.atomic,
+    });
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -560,111 +950,17 @@ export class BatchTransactionService {
   async executeBatchUpdate(
     subscriptionIds: string[],
     updates: BatchUpdateParams,
-    updateFn: (id: string, updates: BatchUpdateParams) => Promise<{ success: boolean; error?: string }>,
+    updateFn: (
+      id: string,
+      updates: BatchUpdateParams,
+    ) => Promise<{ success: boolean; error?: string }>,
     options?: { atomic?: boolean; filter?: UpdateFilter },
   ): Promise<BatchExecutionResult> {
-    const atomic = options?.atomic ?? false;
-    const filter = options?.filter;
-    const batchId = this.generateBatchId();
-
-    const result: BatchExecutionResult = {
-      batchId,
-      operationType: 'update',
-      state: 'running',
-      totalItems: subscriptionIds.length,
-      successfulItems: 0,
-      failedItems: 0,
-      skippedItems: 0,
-      results: [],
-      atomic,
-      rolledBack: false,
-      gasEstimate: this.getGasEstimate(subscriptionIds.length),
-      startedAt: new Date().toISOString(),
-      filter,
-    };
-
-    this.currentResult = result;
-    let shouldStop = false;
-
-    for (let i = 0; i < subscriptionIds.length; i += this.chunkSize) {
-      if (shouldStop) break;
-      const chunk = subscriptionIds.slice(i, i + this.chunkSize);
-
-      for (let j = 0; j < chunk.length; j++) {
-        const subId = chunk[j];
-        const index = i + j;
-        if (shouldStop && atomic) {
-          result.results.push({
-            index,
-            subscriptionId: subId,
-            status: 'skipped',
-            retryCount: 0,
-            message: 'Skipped due to atomic failure',
-          });
-          result.skippedItems++;
-          continue;
-        }
-
-        try {
-          const updateResult = await updateFn(subId, updates);
-          if (updateResult.success) {
-            result.results.push({
-              index,
-              subscriptionId: subId,
-              status: 'success',
-              retryCount: 0,
-              completedAt: new Date().toISOString(),
-            });
-            result.successfulItems++;
-          } else {
-            result.results.push({
-              index,
-              subscriptionId: subId,
-              status: 'failed',
-              error: updateResult.error || 'Update failed',
-              retryCount: 0,
-              completedAt: new Date().toISOString(),
-            });
-            result.failedItems++;
-            if (atomic) shouldStop = true;
-          }
-        } catch (err) {
-          result.results.push({
-            index,
-            subscriptionId: subId,
-            status: 'failed',
-            error: String(err),
-            retryCount: 0,
-            completedAt: new Date().toISOString(),
-          });
-          result.failedItems++;
-          if (atomic) shouldStop = true;
-        }
-
-        this.currentResult = { ...result };
-      }
-    }
-
-    const rolledBack = atomic && result.failedItems > 0;
-    result.rolledBack = rolledBack;
-    result.completedAt = new Date().toISOString();
-    result.state = rolledBack
-      ? 'failed'
-      : result.failedItems === 0
-        ? 'completed'
-        : 'partial';
-
-    if (rolledBack) {
-      result.successfulItems = 0;
-      result.results = result.results.map((r) =>
-        r.status === 'success' ? { ...r, status: 'skipped', message: 'Rolled back (atomic failure)' } : r,
-      );
-      result.skippedItems += subscriptionIds.length - result.failedItems;
-    }
-
-    this.currentResult = result;
-    await this.recordBatchHistory(result);
-    return result;
+    const plans: BatchItemPlan[] = subscriptionIds.map((id) => ({ subscriptionId: id }));
+    return this.run('update', plans, (plan) => updateFn(plan.subscriptionId, updates), {
+      atomic: options?.atomic,
+      filter: options?.filter,
+    });
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -677,115 +973,19 @@ export class BatchTransactionService {
     cancelFn: (id: string, reason: CancelReason) => Promise<{ success: boolean; error?: string }>,
     options?: { atomic?: boolean },
   ): Promise<BatchExecutionResult> {
-    const atomic = options?.atomic ?? false;
-    const batchId = this.generateBatchId();
-
-    const result: BatchExecutionResult = {
-      batchId,
-      operationType: 'cancel',
-      state: 'running',
-      totalItems: subscriptionIds.length,
-      successfulItems: 0,
-      failedItems: 0,
-      skippedItems: 0,
-      results: [],
-      atomic,
-      rolledBack: false,
-      gasEstimate: this.getGasEstimate(subscriptionIds.length),
-      startedAt: new Date().toISOString(),
-      cancelReasons,
-    };
-
-    this.currentResult = result;
-    let shouldStop = false;
-
-    for (let i = 0; i < subscriptionIds.length; i += this.chunkSize) {
-      if (shouldStop) break;
-      const chunk = subscriptionIds.slice(i, i + this.chunkSize);
-
-      for (let j = 0; j < chunk.length; j++) {
-        const subId = chunk[j];
-        const index = i + j;
-        if (shouldStop && atomic) {
-          result.results.push({
-            index,
-            subscriptionId: subId,
-            status: 'skipped',
-            retryCount: 0,
-            message: 'Skipped due to atomic failure',
-          });
-          result.skippedItems++;
-          continue;
-        }
-
-        const reason = cancelReasons.find((r) => r.subscriptionId === subId) || {
-          subscriptionId: subId,
-          reason: 'other' as const,
-        };
-
-        try {
-          const cancelResult = await cancelFn(subId, reason);
-          if (cancelResult.success) {
-            result.results.push({
-              index,
-              subscriptionId: subId,
-              status: 'success',
-              retryCount: 0,
-              cancelReason: reason,
-              completedAt: new Date().toISOString(),
-            });
-            result.successfulItems++;
-          } else {
-            result.results.push({
-              index,
-              subscriptionId: subId,
-              status: 'failed',
-              error: cancelResult.error || 'Cancel failed',
-              retryCount: 0,
-              cancelReason: reason,
-              completedAt: new Date().toISOString(),
-            });
-            result.failedItems++;
-            if (atomic) shouldStop = true;
-          }
-        } catch (err) {
-          result.results.push({
-            index,
-            subscriptionId: subId,
-            status: 'failed',
-            error: String(err),
-            retryCount: 0,
-            cancelReason: reason,
-            completedAt: new Date().toISOString(),
-          });
-          result.failedItems++;
-          if (atomic) shouldStop = true;
-        }
-
-        this.currentResult = { ...result };
-      }
-    }
-
-    const rolledBack = atomic && result.failedItems > 0;
-    result.rolledBack = rolledBack;
-    result.completedAt = new Date().toISOString();
-    result.state = rolledBack
-      ? 'failed'
-      : result.failedItems === 0
-        ? 'completed'
-        : 'partial';
-
-    if (rolledBack) {
-      result.successfulItems = 0;
-      result.results = result.results.map((r) =>
-        r.status === 'success' ? { ...r, status: 'skipped', message: 'Rolled back (atomic failure)' } : r,
-      );
-      result.skippedItems += subscriptionIds.length - result.failedItems;
-    }
-
-    this.currentResult = result;
-    await this.recordBatchHistory(result);
-    return result;
+    const plans: BatchItemPlan[] = subscriptionIds.map((id) => ({
+      subscriptionId: id,
+      cancelReason: cancelReasons.find((r) => r.subscriptionId === id) ?? {
+        subscriptionId: id,
+        reason: 'other',
+      },
+    }));
+    return this.run(
+      'cancel',
+      plans,
+      (plan) => cancelFn(plan.subscriptionId, plan.cancelReason!),
+      { atomic: options?.atomic, cancelReasons },
+    );
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -797,107 +997,16 @@ export class BatchTransactionService {
     chargeFn: (id: string, amount: number) => Promise<{ success: boolean; error?: string }>,
     options?: { atomic?: boolean },
   ): Promise<BatchExecutionResult> {
-    const atomic = options?.atomic ?? false;
-    const batchId = this.generateBatchId();
-
-    const result: BatchExecutionResult = {
-      batchId,
-      operationType: 'charge',
-      state: 'running',
-      totalItems: chargeItems.length,
-      successfulItems: 0,
-      failedItems: 0,
-      skippedItems: 0,
-      results: [],
-      atomic,
-      rolledBack: false,
-      gasEstimate: this.getGasEstimate(chargeItems.length),
-      startedAt: new Date().toISOString(),
-    };
-
-    this.currentResult = result;
-    let shouldStop = false;
-
-    for (let i = 0; i < chargeItems.length; i += this.chunkSize) {
-      if (shouldStop) break;
-      const chunk = chargeItems.slice(i, i + this.chunkSize);
-
-      for (let j = 0; j < chunk.length; j++) {
-        const item = chunk[j];
-        const index = i + j;
-        if (shouldStop && atomic) {
-          result.results.push({
-            index,
-            subscriptionId: item.subscriptionId,
-            status: 'skipped',
-            retryCount: 0,
-            message: 'Skipped due to atomic failure',
-          });
-          result.skippedItems++;
-          continue;
-        }
-
-        try {
-          const chargeResult = await chargeFn(item.subscriptionId, item.amount);
-          if (chargeResult.success) {
-            result.results.push({
-              index,
-              subscriptionId: item.subscriptionId,
-              status: 'success',
-              retryCount: 0,
-              completedAt: new Date().toISOString(),
-              message: `Charged ${item.amount}`,
-            });
-            result.successfulItems++;
-          } else {
-            result.results.push({
-              index,
-              subscriptionId: item.subscriptionId,
-              status: 'failed',
-              error: chargeResult.error || 'Charge failed',
-              retryCount: 0,
-              completedAt: new Date().toISOString(),
-            });
-            result.failedItems++;
-            if (atomic) shouldStop = true;
-          }
-        } catch (err) {
-          result.results.push({
-            index,
-            subscriptionId: item.subscriptionId,
-            status: 'failed',
-            error: String(err),
-            retryCount: 0,
-            completedAt: new Date().toISOString(),
-          });
-          result.failedItems++;
-          if (atomic) shouldStop = true;
-        }
-
-        this.currentResult = { ...result };
-      }
-    }
-
-    const rolledBack = atomic && result.failedItems > 0;
-    result.rolledBack = rolledBack;
-    result.completedAt = new Date().toISOString();
-    result.state = rolledBack
-      ? 'failed'
-      : result.failedItems === 0
-        ? 'completed'
-        : 'partial';
-
-    if (rolledBack) {
-      result.successfulItems = 0;
-      result.results = result.results.map((r) =>
-        r.status === 'success' ? { ...r, status: 'skipped', message: 'Rolled back (atomic failure)' } : r,
-      );
-      result.skippedItems += chargeItems.length - result.failedItems;
-    }
-
-    this.currentResult = result;
-    await this.recordBatchHistory(result);
-    return result;
+    const plans: BatchItemPlan[] = chargeItems.map((item) => ({
+      subscriptionId: item.subscriptionId,
+      successMessage: `Charged ${item.amount}`,
+    }));
+    return this.run(
+      'charge',
+      plans,
+      (plan, index) => chargeFn(plan.subscriptionId, chargeItems[index].amount),
+      { atomic: options?.atomic },
+    );
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -914,17 +1023,18 @@ export class BatchTransactionService {
 
     if (failedItems.length === 0) return result;
 
-    result.state = 'running';
+    const retryConfig = this.getRetryConfig(result.operationType);
+    const config = this.getOperationConfig(result.operationType);
+    result.state = 'processing';
     this.currentResult = result;
 
     for (const item of failedItems) {
-      if (item.retryCount >= this.retryConfig.maxRetries) {
+      if (item.retryCount >= retryConfig.maxRetries) {
         continue;
       }
 
       const delay =
-        this.retryConfig.retryDelayMs *
-        Math.pow(this.retryConfig.backoffMultiplier, item.retryCount);
+        retryConfig.retryDelayMs * Math.pow(retryConfig.backoffMultiplier, item.retryCount);
       await new Promise((resolve) => setTimeout(resolve, delay));
 
       try {
@@ -934,6 +1044,11 @@ export class BatchTransactionService {
           item.retryCount++;
           item.error = undefined;
           item.completedAt = new Date().toISOString();
+          if (config.idempotent) {
+            this.appliedItems.add(
+              this.idempotencyKey(result.operationType, item.subscriptionId),
+            );
+          }
           result.successfulItems++;
           result.failedItems--;
         } else {
@@ -949,29 +1064,104 @@ export class BatchTransactionService {
     }
 
     result.completedAt = new Date().toISOString();
-    result.state =
-      result.failedItems === 0 ? 'completed' : 'partial';
+    result.state = result.failedItems === 0 ? 'completed' : 'partial';
     this.currentResult = result;
 
     return result;
   }
 
   // ══════════════════════════════════════════════════════════════
-  // History
+  // Rollback of a committed batch
   // ══════════════════════════════════════════════════════════════
 
-  private async recordBatchHistory(result: BatchExecutionResult): Promise<void> {
-    const entry: BatchHistoryEntry = {
+  /**
+   * Reverse every committed item of the last batch by issuing the compensating
+   * action through `rollbackFn`. Only available for operation types whose
+   * configuration sets `allowRollback`; an atomic batch that already discarded
+   * its writes has nothing to reverse.
+   */
+  async rollbackBatch(rollbackFn: RollbackHandler): Promise<BatchRollbackResult | null> {
+    const result = this.currentResult;
+    if (!result) return null;
+    if (!this.canRollback()) return null;
+
+    const committed = result.results.filter((r) => r.status === 'success');
+    const items: PerItemResult[] = [];
+    let reverted = 0;
+    let failed = 0;
+
+    for (const item of committed) {
+      let outcome: { success: boolean; error?: string };
+      try {
+        outcome = await rollbackFn(item, result.operationType);
+      } catch (err) {
+        outcome = { success: false, error: String(err) };
+      }
+
+      if (outcome.success) {
+        reverted++;
+        this.appliedItems.delete(
+          this.idempotencyKey(result.operationType, item.subscriptionId),
+        );
+        items.push({
+          ...item,
+          status: 'skipped',
+          message: 'Reverted by rollback',
+          completedAt: new Date().toISOString(),
+        });
+      } else {
+        failed++;
+        items.push({
+          ...item,
+          status: 'failed',
+          error: outcome.error || 'Rollback failed',
+          completedAt: new Date().toISOString(),
+        });
+      }
+    }
+
+    const byIndex = new Map(items.map((item) => [item.index, item]));
+    const merged = result.results.map((r) => byIndex.get(r.index) ?? r);
+
+    // A rollback that could not revert every item leaves the batch partially
+    // applied, so it stays `partial` rather than claiming a clean reversal.
+    const fullyReverted = failed === 0;
+    const rolledBackResult: BatchExecutionResult = {
+      ...result,
+      results: merged,
+      state: fullyReverted ? 'rolled_back' : 'partial',
+      rolledBack: fullyReverted,
+      successfulItems: result.successfulItems - reverted,
+      failedItems: result.failedItems + failed,
+      skippedItems: result.skippedItems + reverted,
+      completedAt: new Date().toISOString(),
+    };
+
+    this.currentResult = rolledBackResult;
+    await this.recordBatchHistory(rolledBackResult);
+
+    return {
       batchId: result.batchId,
       operationType: result.operationType,
-      state: result.state,
-      totalItems: result.totalItems,
-      successfulItems: result.successfulItems,
-      failedItems: result.failedItems,
-      timestamp: new Date().toISOString(),
-      summary: `${result.operationType}: ${result.successfulItems}/${result.totalItems} succeeded`,
+      attempted: committed.length,
+      reverted,
+      failed,
+      items,
+      completedAt: rolledBackResult.completedAt!,
     };
-    await saveBatchHistory(entry);
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // Analytics & History
+  // ══════════════════════════════════════════════════════════════
+
+  /** Success-rate and timing analytics over the persisted batch history. */
+  async getAnalytics(): Promise<BatchAnalytics> {
+    return computeBatchAnalytics(await getBatchHistory());
+  }
+
+  private async recordBatchHistory(result: BatchExecutionResult): Promise<void> {
+    await saveBatchHistory(toHistoryEntry(result));
   }
 
   clearResult(): void {
@@ -979,7 +1169,69 @@ export class BatchTransactionService {
   }
 
   clearIdempotencyKeys(): void {
-    this.idempotencyKeys.clear();
+    this.appliedItems.clear();
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // Issue #768 – Streaming batch operations
+  // ══════════════════════════════════════════════════════════════
+
+  /**
+   * Execute a batch create by POSTing inputs in chunks and reading
+   * streamed NDJSON per-item results.
+   *
+   * Unlike `executeBatchCreate` (which loads all results into memory),
+   * this variant calls `onResult` as each item result arrives.
+   *
+   * @param inputs  Items to create
+   * @param onResult  Called with each per-item result as it streams in
+   * @param options  Chunk size and abort signal
+   */
+  async executeBatchCreateStream(
+    inputs: BatchCreateInput[],
+    onResult: (result: PerItemResult) => void | Promise<void>,
+    options: { chunkSize?: number; signal?: AbortSignal } = {}
+  ): Promise<{ totalSent: number; streamingComplete: boolean }> {
+    const { chunkSize = this.chunkSize, signal } = options;
+    let totalSent = 0;
+
+    for (let i = 0; i < inputs.length; i += chunkSize) {
+      if (signal?.aborted) break;
+
+      const chunk = inputs.slice(i, i + chunkSize);
+      totalSent += chunk.length;
+
+      // In a real implementation this POSTs to a streaming endpoint and
+      // pipes the NDJSON response through streamNdjson(). Here we simulate
+      // the streaming behaviour locally so the interface is correct.
+      for (let j = 0; j < chunk.length; j++) {
+        const input = chunk[j];
+        const result: PerItemResult = {
+          index: i + j,
+          subscriptionId: `pending_${i + j}`,
+          subscriptionName: input.name,
+          status: 'pending',
+          retryCount: 0,
+        };
+        await onResult(result);
+        // Yield to the event loop between items
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      }
+    }
+
+    return { totalSent, streamingComplete: !signal?.aborted };
+  }
+
+  /**
+   * Estimate the memory pressure (bytes) of the current batch result.
+   *
+   * Uses a conservative estimate: 512 bytes per item result.
+   * Useful for callers that want to decide whether to switch to streaming mode.
+   */
+  memoryPressure(): number {
+    if (!this.currentResult) return 0;
+    const BYTES_PER_ITEM = 512;
+    return this.currentResult.totalItems * BYTES_PER_ITEM;
   }
 }
 

@@ -1,0 +1,224 @@
+import { PaymentError } from '../errors';
+import { logger } from '../../shared/logging';
+import {
+  AssetPolicyService,
+  assetPolicyService as defaultAssetPolicyService,
+} from './AssetPolicyService';
+import type {
+  GatewayConfig,
+  IPaymentGateway,
+  IPaymentRouter,
+  PaymentRequest,
+  PaymentResult,
+  RefundRequest,
+  RefundResult,
+} from '../interfaces';
+
+export interface PaymentRoutingContext {
+  request: PaymentRequest;
+  merchantConfig?: GatewayConfig;
+  registeredGateways: string[];
+}
+
+export interface PaymentRoutingStrategy {
+  readonly name: string;
+  resolveChargeGateways(context: PaymentRoutingContext): string[];
+}
+
+export class MultiChainPaymentRoutingStrategy implements PaymentRoutingStrategy {
+  readonly name = 'multi-chain';
+
+  resolveChargeGateways({
+    request,
+    merchantConfig,
+    registeredGateways,
+  }: PaymentRoutingContext): string[] {
+    const configuredGateways = merchantConfig
+      ? [
+          ...(merchantConfig.chainOverrides?.[this.resolveChainType(request)] ?? []),
+          merchantConfig.primary,
+          merchantConfig.secondary,
+          ...(merchantConfig.tertiary ? [merchantConfig.tertiary] : []),
+        ]
+      : [];
+
+    return uniqueGatewayNames([
+      ...configuredGateways,
+      ...this.defaultGatewaysForRequest(request),
+      ...registeredGateways,
+    ]);
+  }
+
+  private defaultGatewaysForRequest(request: PaymentRequest): string[] {
+    const chainType = this.resolveChainType(request);
+    if (chainType === 'stellar') {
+      return ['stellar', 'circle', 'stripe'];
+    }
+
+    if (chainType === 'evm') {
+      return normalizedCurrency(request.currency) === 'USDC'
+        ? ['circle', 'stellar', 'stripe']
+        : ['stripe', 'circle', 'stellar'];
+    }
+
+    return ['stripe', 'circle', 'stellar'];
+  }
+}
+
+export class PaymentRouter implements IPaymentRouter {
+  private gateways = new Map<string, IPaymentGateway>();
+  private merchantConfigs = new Map<string, GatewayConfig>();
+  private routingStrategy: PaymentRoutingStrategy;
+  private assetPolicyService: AssetPolicyService;
+
+  constructor(
+    routingStrategy: PaymentRoutingStrategy = new MultiChainPaymentRoutingStrategy(),
+    assetPolicyService: AssetPolicyService = defaultAssetPolicyService,
+  ) {
+    this.routingStrategy = routingStrategy;
+    this.assetPolicyService = assetPolicyService;
+  }
+
+  setAssetPolicyService(service: AssetPolicyService): void {
+    this.assetPolicyService = service;
+  }
+
+  /**
+   * Issue #1717 – reject charges for assets outside the merchant's
+   * allowlist / inside the merchant's denylist before any gateway is hit.
+   */
+  private async enforceAssetPolicy(request: PaymentRequest): Promise<void> {
+    const merchantId = request.merchantId ?? request.metadata?.merchantId;
+    if (!merchantId) {
+      return;
+    }
+
+    const allowed = await this.assetPolicyService.isAllowed({
+      merchantId,
+      chain: this.resolveChainType(request),
+      asset: request.asset ?? request.currency,
+      issuer: request.issuer,
+    });
+
+    if (!allowed) {
+      const asset = request.asset ?? request.currency;
+      throw PaymentError.assetNotAllowed(merchantId, asset, request.issuer);
+    }
+  }
+
+  private resolveChainType(request: PaymentRequest): 'evm' | 'stellar' | 'fiat' {
+    if (request.chainType) {
+      return request.chainType;
+    }
+    const metadataChainType = request.metadata?.chainType;
+    if (
+      metadataChainType === 'evm' ||
+      metadataChainType === 'stellar' ||
+      metadataChainType === 'fiat'
+    ) {
+      return metadataChainType;
+    }
+    if (normalizedCurrency(request.currency) === 'XLM') {
+      return 'stellar';
+    }
+    return 'fiat';
+  }
+
+  registerGateway(name: string, gateway: IPaymentGateway): void {
+    this.gateways.set(name, gateway);
+    logger.info('Payment gateway registered', { name });
+  }
+
+  getGateway(name: string): IPaymentGateway {
+    const gateway = this.gateways.get(name);
+    if (!gateway) throw PaymentError.gatewayNotFound(name);
+    return gateway;
+  }
+
+  /**
+   * Names of the gateways actually registered on this process. Registration is
+   * conditional (a gateway without credentials is not registered), so this is
+   * the only accurate list to expose to a caller choosing a fallback chain.
+   */
+  getRegisteredGatewayNames(): string[] {
+    return [...this.gateways.keys()];
+  }
+
+  setMerchantConfig(merchantId: string, config: GatewayConfig): void {
+    this.merchantConfigs.set(merchantId, config);
+  }
+
+  getMerchantConfig(merchantId: string): GatewayConfig | undefined {
+    return this.merchantConfigs.get(merchantId);
+  }
+
+  setRoutingStrategy(strategy: PaymentRoutingStrategy): void {
+    this.routingStrategy = strategy;
+  }
+
+  async charge(request: PaymentRequest): Promise<PaymentResult> {
+    await this.enforceAssetPolicy(request);
+
+    const config = this.merchantConfigs.get(request.customerId);
+    const gateways = this.routingStrategy.resolveChargeGateways({
+      request,
+      merchantConfig: config,
+      registeredGateways: [...this.gateways.keys()],
+    });
+
+    const errors: string[] = [];
+
+    for (const gatewayName of gateways) {
+      const gateway = this.gateways.get(gatewayName);
+      if (!gateway) continue;
+
+      try {
+        const result = await gateway.charge(request);
+        if (result.status === 'succeeded') {
+          logger.info('Payment processed', {
+            gateway: gatewayName,
+            amount: request.amount,
+            routingStrategy: this.routingStrategy.name,
+            chainId: request.chainId,
+            chainType: request.chainType ?? request.metadata?.chainType,
+          });
+          return result;
+        }
+        errors.push(`${gatewayName}: ${result.errorMessage ?? 'declined'}`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        errors.push(`${gatewayName}: ${message}`);
+        logger.warn('Gateway charge failed, attempting fallback', { gateway: gatewayName, error: message });
+      }
+    }
+
+    throw PaymentError.gatewayError('all', `All gateways failed: ${errors.join('; ')}`);
+  }
+
+  async refund(request: RefundRequest): Promise<RefundResult> {
+    const errors: string[] = [];
+
+    for (const [, gateway] of this.gateways) {
+      try {
+        const result = await gateway.refund(request);
+        if (result.status === 'succeeded') return result;
+        errors.push(`${gateway.name}: ${result.errorMessage ?? 'declined'}`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        errors.push(`${gateway.name}: ${message}`);
+      }
+    }
+
+    throw PaymentError.gatewayError('all', `All gateways refund failed: ${errors.join('; ')}`);
+  }
+}
+
+export const paymentRouter = new PaymentRouter();
+
+function normalizedCurrency(currency: string): string {
+  return currency.trim().toUpperCase();
+}
+
+function uniqueGatewayNames(gateways: string[]): string[] {
+  return gateways.filter((gateway, index, list) => gateway && list.indexOf(gateway) === index);
+}

@@ -30,10 +30,27 @@ import {
 
 const roleOptions: DashboardRole[] = ['admin', 'analyst', 'support'];
 
+interface SystemHealth {
+  apiResponseTime: number;
+  databaseStatus: 'healthy' | 'degraded' | 'down';
+  memoryUsagePercent: number;
+  uptime: string;
+  lastHealthCheck: Date;
+}
+
+const generateSystemHealth = (): SystemHealth => ({
+  apiResponseTime: Math.round(45 + Math.random() * 80),
+  databaseStatus: 'healthy',
+  memoryUsagePercent: Math.round(35 + Math.random() * 25),
+  uptime: '14d 7h 32m',
+  lastHealthCheck: new Date(),
+});
+
 const AdminDashboardScreen: React.FC = () => {
   const { width } = useWindowDimensions();
   const isWide = width >= 1024;
   const [selectedRole, setSelectedRole] = useState<DashboardRole>('admin');
+  const [systemHealth, setSystemHealth] = useState<SystemHealth>(generateSystemHealth);
   const initialData = useMemo(() => getAdminDashboardData(selectedRole), [selectedRole]);
   const [merchants, setMerchants] = useState<MerchantRecord[]>(initialData.merchants);
   const [subscriptions, setSubscriptions] = useState<SubscriptionAdminRecord[]>(
@@ -41,9 +58,22 @@ const AdminDashboardScreen: React.FC = () => {
   );
   const [users, setUsers] = useState<AdminUserRecord[]>(initialData.users);
   const [selectedSubscriptions, setSelectedSubscriptions] = useState<string[]>([]);
+  const [auditFilter, setAuditFilter] = useState<string>('all');
 
   const analytics = initialData.analytics;
   const auditLog = initialData.auditLog;
+
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      setSystemHealth(generateSystemHealth());
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const filteredAuditLog = useMemo(() => {
+    if (auditFilter === 'all') return auditLog;
+    return auditLog.filter((event) => event.resourceType === auditFilter);
+  }, [auditLog, auditFilter]);
 
   React.useEffect(() => {
     const nextData = getAdminDashboardData(selectedRole);
@@ -131,6 +161,47 @@ const AdminDashboardScreen: React.FC = () => {
             <Text style={styles.metricLabel}>Open alerts</Text>
           </Card>
         </View>
+
+        <Card style={[styles.sectionCard, styles.fullWidthCard]}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>System Health</Text>
+            <Text style={styles.sectionMeta}>
+              Last check: {systemHealth.lastHealthCheck.toLocaleTimeString()}
+            </Text>
+          </View>
+          <View style={[styles.metricsGrid, isWide && styles.metricsGridWide]}>
+            <Card style={styles.metricCard}>
+              <Text style={styles.metricValue}>{systemHealth.apiResponseTime}ms</Text>
+              <Text style={styles.metricLabel}>API Response Time</Text>
+            </Card>
+            <Card style={styles.metricCard}>
+              <Text
+                style={[
+                  styles.metricValue,
+                  {
+                    color:
+                      systemHealth.databaseStatus === 'healthy'
+                        ? colors.success
+                        : systemHealth.databaseStatus === 'degraded'
+                          ? colors.warning
+                          : colors.error,
+                  },
+                ]}>
+                {systemHealth.databaseStatus.charAt(0).toUpperCase() +
+                  systemHealth.databaseStatus.slice(1)}
+              </Text>
+              <Text style={styles.metricLabel}>Database Status</Text>
+            </Card>
+            <Card style={styles.metricCard}>
+              <Text style={styles.metricValue}>{systemHealth.memoryUsagePercent}%</Text>
+              <Text style={styles.metricLabel}>Memory Usage</Text>
+            </Card>
+            <Card style={styles.metricCard}>
+              <Text style={styles.metricValue}>{systemHealth.uptime}</Text>
+              <Text style={styles.metricLabel}>Uptime</Text>
+            </Card>
+          </View>
+        </Card>
 
         <View style={[styles.dashboardGrid, isWide && styles.dashboardGridWide]}>
           <Card style={[styles.sectionCard, isWide && styles.sectionCardWide]}>
@@ -273,7 +344,26 @@ const AdminDashboardScreen: React.FC = () => {
               <Text style={styles.sectionTitle}>Audit logging</Text>
               <Text style={styles.sectionMeta}>Latest administrative trail</Text>
             </View>
-            {auditLog.map((event) => (
+            <View style={styles.auditFilterBar}>
+              {['all', 'merchant', 'subscription', 'user'].map((filter) => (
+                <TouchableOpacity
+                  key={filter}
+                  style={[
+                    styles.auditFilterChip,
+                    auditFilter === filter && styles.auditFilterChipActive,
+                  ]}
+                  onPress={() => setAuditFilter(filter)}>
+                  <Text
+                    style={[
+                      styles.auditFilterText,
+                      auditFilter === filter && styles.auditFilterTextActive,
+                    ]}>
+                    {filter.charAt(0).toUpperCase() + filter.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {filteredAuditLog.map((event) => (
               <View key={event.id} style={styles.auditRow}>
                 <Text style={styles.auditTitle}>{event.action}</Text>
                 <Text style={styles.auditDescription}>
@@ -282,6 +372,9 @@ const AdminDashboardScreen: React.FC = () => {
                 <Text style={styles.auditDescription}>{JSON.stringify(event.metadata)}</Text>
               </View>
             ))}
+            {filteredAuditLog.length === 0 ? (
+              <Text style={styles.emptyStateText}>No audit events match the current filter.</Text>
+            ) : null}
           </Card>
         </View>
       </ScrollView>
@@ -514,6 +607,33 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.textSecondary,
     marginTop: spacing.xs,
+  },
+  auditFilterBar: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  auditFilterChip: {
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  auditFilterChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  auditFilterText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  auditFilterTextActive: {
+    color: colors.text,
+    fontWeight: '600',
   },
 });
 

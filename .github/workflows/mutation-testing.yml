@@ -1,0 +1,49 @@
+name: Mutation Testing
+
+# Runs on demand only: a full Stryker run is too expensive for every PR.
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Which configuration to run
+        required: false
+        default: all
+        type: choice
+        options:
+          - all
+          - frontend
+          - backend
+
+env:
+  NODE_VERSION: '24'
+
+jobs:
+  mutation:
+    name: Stryker mutation score
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+
+      - name: Frontend mutation tests
+        if: inputs.target == 'all' || inputs.target == 'frontend'
+        run: npm run mutation:test
+
+      - name: Backend mutation tests
+        if: inputs.target == 'all' || inputs.target == 'backend'
+        run: npm run mutation:test:backend
+
+      - name: Upload mutation report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: mutation-report
+          path: reports/
+          retention-days: 14
+          if-no-files-found: ignore

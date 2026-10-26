@@ -3,6 +3,7 @@ import { expect, describe, it, beforeEach, jest } from '@jest/globals';
 import { useSubscriptionStore } from '../subscriptionStore';
 import { useInvoiceStore } from '../invoiceStore';
 import { SubscriptionCategory, BillingCycle } from '../../types/subscription';
+import { TaxType, isOpenInvoice } from '../../types/invoice';
 
 // 🔥 Mock AsyncStorage
 jest.mock('@react-native-async-storage/async-storage', () => ({
@@ -56,6 +57,7 @@ describe('subscriptionStore', () => {
         defaultTaxRateBps: 0,
         exchangeRateScale: 1_000_000,
         paymentTermsDays: 14,
+        defaultTaxType: TaxType.NONE,
       },
       nextSequence: 1,
       isLoading: false,
@@ -114,7 +116,9 @@ describe('subscriptionStore', () => {
     const invoices = useInvoiceStore.getState().invoices;
     expect(invoices).toHaveLength(1);
     expect(invoices[0].subscriptionId).toBe('billing-1');
-    expect(invoices[0].status).toBe('draft');
+    // The invoice is generated as DRAFT; the newer billing flow auto-applies
+    // credits and may transition it to PARTIAL when credits cover part of it.
+    expect(isOpenInvoice(invoices[0].status)).toBe(true);
   });
 
   // =========================

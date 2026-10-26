@@ -1,6 +1,6 @@
 use soroban_sdk::{contracttype, Address, Env, String, Vec};
 use subtrackr_types::{
-    Plan, Subscription, SubscriptionStatus, WebhookEventPayload, WebhookEventType,
+    Plan, Subscription, SubscriptionStatus, TimeRange, WebhookEventPayload, WebhookEventType,
     WebhookPlanSnapshot, WebhookSubscriptionSnapshot,
 };
 
@@ -13,13 +13,76 @@ pub enum SubscriptionEventType {
     Cancelled,
     PaymentFailed,
     Upgraded,
+    Downgraded,
     Paused,
     Resumed,
+    Charged,
     RefundRequested,
     RefundApproved,
     RefundRejected,
     TransferRequested,
     TransferAccepted,
+    PaymentTimedOut,
+    PaymentRecoveryAttempted,
+    PaymentRecoveryResolved,
+    PaymentRecoveryAbandoned,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct EventMetadata {
+    pub timestamp: u64,
+    pub ledger_seq: u32,
+    pub actor: Address,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct StoredEvent {
+    pub id: u64,
+    pub subscription_id: u64,
+    pub event_type: SubscriptionEventType,
+    pub metadata: EventMetadata,
+    pub prior_status: SubscriptionStatus,
+    pub new_status: SubscriptionStatus,
+    pub plan_id: u64,
+    pub amount: i128,
+    pub schema_version: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct EventFilter {
+    pub subscription_id: Option<u64>,
+    pub event_types: Option<Vec<SubscriptionEventType>>,
+    pub date_range: Option<TimeRange>,
+    pub actor: Option<Address>,
+    pub limit: u32,
+    pub offset: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct EventRetentionPolicy {
+    pub max_events_per_subscription: u32,
+    pub max_events_per_merchant: u32,
+    pub retention_days: u64,
+    pub auto_prune_enabled: bool,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct EventExportConfig {
+    pub format: EventExportFormat,
+    pub include_metadata: bool,
+    pub date_range: TimeRange,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum EventExportFormat {
+    Json,
+    Csv,
 }
 
 #[contracttype]

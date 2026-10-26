@@ -1,5 +1,3 @@
-#![cfg(test)]
-
 use super::*;
 use soroban_sdk::{testutils::Address as _, testutils::Ledger as _, Address, Env, Symbol};
 
@@ -87,7 +85,15 @@ fn falls_back_when_primary_is_stale() {
     let primary = Address::generate(&env);
     let fallback = Address::generate(&env);
     set_time(&env, 1_000);
-    client.register_feed(&token, &usd, &primary, &Some(fallback.clone()), &300, &10_000, &7);
+    client.register_feed(
+        &token,
+        &usd,
+        &primary,
+        &Some(fallback.clone()),
+        &300,
+        &10_000,
+        &7,
+    );
     client.submit_price(&primary, &token, &usd, &1_000_000, &1_000);
 
     // Fresh fallback observation while the primary ages out.
@@ -166,8 +172,14 @@ fn historical_lookup_returns_at_or_before() {
     client.submit_price(&primary, &token, &usd, &1_100_000, &2_000);
     client.submit_price(&primary, &token, &usd, &1_200_000, &3_000);
 
-    assert_eq!(client.get_historical_price(&token, &usd, &2_500).value, 1_100_000);
-    assert_eq!(client.get_historical_price(&token, &usd, &3_000).value, 1_200_000);
+    assert_eq!(
+        client.get_historical_price(&token, &usd, &2_500).value,
+        1_100_000
+    );
+    assert_eq!(
+        client.get_historical_price(&token, &usd, &3_000).value,
+        1_200_000
+    );
     let res = client.try_get_historical_price(&token, &usd, &500);
     assert_eq!(res, Err(Ok(OracleError::NoHistory)));
 }

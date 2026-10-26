@@ -92,6 +92,60 @@ Use error only for actual failures
 Avoid logging sensitive data (private keys, auth tokens)
 Use debug for internal state inspection only
 Keep logs structured (never plain strings only)
+
+### HTTP Request Logs
+
+Both backend servers write one structured line per request through
+`backend/shared/middleware/requestObservability.ts`:
+
+```json
+{
+  "timestamp": "2026-10-17T12:00:00.000Z",
+  "service": "subtrackr-backend",
+  "module": "http",
+  "level": "info",
+  "message": "http.request",
+  "correlationId": "5f0c…",
+  "meta": {
+    "requestId": "5f0c…",
+    "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+    "spanId": "00f067aa0ba902b7",
+    "method": "GET",
+    "path": "/plans/plan-1",
+    "status": 200,
+    "durationMs": 12
+  }
+}
+```
+
+- **Request id:** a caller's `X-Request-Id` is kept when it is 1 to 128
+  characters of `A-Z a-z 0-9 . _ : -`; anything else is replaced with a UUID.
+  The id is echoed on the response and is the `correlationId` of every log
+  written while the request is served.
+- **Level:** `info` for 2xx/3xx, `warn` for 4xx and aborted requests, `error`
+  for 5xx.
+- **No PII:** query strings, headers, request and response bodies and client
+  IPs are never logged. Path segments that look like an email address or a long
+  number (7+ digits, e.g. a card or phone number) are replaced with `:redacted`.
+- **Trace link:** `traceId` and `spanId` point at the request's server span
+  (see [distributed-tracing.md](distributed-tracing.md)).
+
+### Log Aggregation
+The backend supports forwarding structured events to a centralized endpoint using `LOG_REMOTE_ENDPOINT`.
+Set `BACKEND_LOG_LEVEL` and `BACKEND_LOG_LEVELS` to tune verbosity globally or per module.
+
+### Queryable Log Buffer
+A local query API is available in backend services for dashboard-style filtering:
+```ts
+import { queryLogs } from '../backend/services/logging';
+const logs = queryLogs({
+  level: 'error',
+  module: 'backend:gdpr',
+  correlationId: 'corr-id-123',
+  text: 'export',
+});
+```
+
 Backend Logging Coverage
 
 Logging should be used in:
