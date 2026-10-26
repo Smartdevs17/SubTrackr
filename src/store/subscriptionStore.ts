@@ -433,6 +433,7 @@ export interface SubscriptionState {
   error: AppError | null;
   prorationPreview: ProrationPreview | null;
   creditMemos: Record<string, CreditMemo>;
+  
 
   // Actions
   pauseSubscription: (
@@ -463,8 +464,7 @@ export interface SubscriptionState {
   updateSubscription: (id: string, data: Partial<Subscription>) => Promise<void>;
   deleteSubscription: (id: string) => Promise<void>;
   toggleSubscriptionStatus: (id: string) => Promise<void>;
-  pauseSubscription: (id: string, durationDays?: number) => Promise<void>;
-  resumeSubscription: (id: string) => Promise<void>;
+  reassignCategory: (fromCategoryId: string, toCategoryId: string) => Promise<void>;
   previewPauseAdjustment: (
     id: string,
     resumeDate?: Date
@@ -521,6 +521,30 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       error: null,
       prorationPreview: null,
       creditMemos: {},
+
+      reassignCategory: async (fromCategoryId: string, toCategoryId: string) => {
+  set({ isLoading: true, error: null });
+  try {
+    set((state) => ({
+      subscriptions: state.subscriptions.map((sub) =>
+        sub.category === fromCategoryId
+          ? { ...sub, category: toCategoryId, updatedAt: new Date() }
+          : sub
+      ),
+      isLoading: false,
+    }));
+
+    get().calculateStats();
+    await syncRenewalReminders(get().subscriptions);
+  } catch (error) {
+    const appError = errorHandler.handleError(error as Error, {
+      action: 'reassignCategory',
+      metadata: { fromCategoryId, toCategoryId },
+    });
+    set({ error: appError, isLoading: false });
+  }
+},
+      
       syncStatus: 'idle' as SubscriptionSyncStatus,
       crdtMetadata: {},
 
@@ -961,98 +985,6 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             error: appError,
             isLoading: false,
           });
-        }
-      },
-
-      pauseSubscription: async (id: string, durationDays: number = 30) => {
-        set({ isLoading: true, error: null });
-        try {
-          const now = new Date();
-          const pausedUntil = new Date(now.getTime() + durationDays * 86400 * 1000);
-          set((state) => ({
-            subscriptions: state.subscriptions.map((sub) =>
-              sub.id === id
-                ? {
-                    ...sub,
-                    isActive: false,
-                    isPaused: true,
-                    pausedAt: now,
-                    pauseDurationDays: durationDays,
-                    pausedUntil,
-                    updatedAt: now,
-                  }
-                : sub
-            ),
-            isLoading: false,
-          }));
-
-          get().calculateStats();
-          await syncRenewalReminders(get().subscriptions);
-          const updatedSubscription = get().subscriptions.find((s) => s.id === id);
-          if (updatedSubscription) {
-            get().recordLifecycleEvent(id, 'paused', `Paused for ${durationDays} day(s)`);
-            await notifySubscriptionEvent(SUBSCRIPTION_EVENT.PAUSED, updatedSubscription);
-            await useCalendarStore.getState().syncSubscriptionToCalendars(updatedSubscription);
-          }
-        } catch (error) {
-          const appError = errorHandler.handleError(error as Error, {
-            action: 'pauseSubscription',
-            subscriptionId: id,
-          });
-          set({ error: appError, isLoading: false });
-        }
-      },
-
-      resumeSubscription: async (id: string) => {
-        set({ isLoading: true, error: null });
-        try {
-          const sub = get().subscriptions.find((s) => s.id === id);
-          if (!sub) throw new Error('Subscription not found');
-
-          const now = new Date();
-          let pauseMs = 0;
-          if (sub.pausedAt) {
-            const pausedAtTime = new Date(sub.pausedAt).getTime();
-            const elapsed = now.getTime() - pausedAtTime;
-            const maxPauseMs = (sub.pauseDurationDays || 30) * 86400 * 1000;
-            pauseMs = Math.max(0, Math.min(elapsed, maxPauseMs));
-          }
-
-          const oldNextBilling = new Date(sub.nextBillingDate).getTime();
-          const adjustedNextBillingDate = new Date(oldNextBilling + pauseMs);
-
-          set((state) => ({
-            subscriptions: state.subscriptions.map((s) =>
-              s.id === id
-                ? {
-                    ...s,
-                    isActive: true,
-                    isPaused: false,
-                    pausedAt: undefined,
-                    pauseDurationDays: undefined,
-                    pausedUntil: undefined,
-                    nextBillingDate: adjustedNextBillingDate,
-                    updatedAt: now,
-                  }
-                : s
-            ),
-            isLoading: false,
-          }));
-
-          get().calculateStats();
-          await syncRenewalReminders(get().subscriptions);
-          const updatedSubscription = get().subscriptions.find((s) => s.id === id);
-          if (updatedSubscription) {
-            get().recordLifecycleEvent(id, 'resumed');
-            await notifySubscriptionEvent(SUBSCRIPTION_EVENT.RESUMED, updatedSubscription);
-            await useCalendarStore.getState().syncSubscriptionToCalendars(updatedSubscription);
-          }
-        } catch (error) {
-          const appError = errorHandler.handleError(error as Error, {
-            action: 'resumeSubscription',
-            subscriptionId: id,
-          });
-          set({ error: appError, isLoading: false });
         }
       },
 
