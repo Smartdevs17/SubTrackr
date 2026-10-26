@@ -394,9 +394,15 @@ fn validate_invoice_period(period: &TimeRange) {
 }
 
 fn validate_line_item_metadata(item: &InvoiceLineItem) {
-    assert!(item.metadata.len() <= 50, "Line item metadata has too many entries");
+    assert!(
+        item.metadata.len() <= 50,
+        "Line item metadata has too many entries"
+    );
     for (key, value) in item.metadata.iter() {
-        assert!(key.len() > 0 && key.len() <= 100, "Invalid line item metadata key");
+        assert!(
+            !key.is_empty() && key.len() <= 100,
+            "Invalid line item metadata key"
+        );
         assert!(value.len() <= 500, "Line item metadata value is too long");
     }
 }

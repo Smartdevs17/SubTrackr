@@ -72,7 +72,12 @@ impl Harness {
             token_admin_client.mint(user, &10_000_000_000);
         }
 
-        Self { env, proxy_id, token_id, users }
+        Self {
+            env,
+            proxy_id,
+            token_id,
+            users,
+        }
     }
 
     fn proxy(&self) -> UpgradeableProxyClient<'_> {
@@ -163,7 +168,7 @@ fn replay_lifecycle(data: &[u8]) {
     let mut sub_len = 0usize;
 
     for chunk in data.chunks(8).take(64) {
-        let op = chunk.get(0).copied().unwrap_or(0) % 8;
+        let op = chunk.first().copied().unwrap_or(0) % 8;
         match op {
             0 => {
                 let raw_price = u32::from_le_bytes([
@@ -217,7 +222,10 @@ fn replay_lifecycle(data: &[u8]) {
                 if sub_len > 0 {
                     let idx = usize::from(chunk.get(1).copied().unwrap_or(0)) % sub_len;
                     let _ = ignore_expected_panic(|| {
-                        proxy.resume_subscription(&h.user(chunk.get(2).copied().unwrap_or(0)), &sub_ids[idx])
+                        proxy.resume_subscription(
+                            &h.user(chunk.get(2).copied().unwrap_or(0)),
+                            &sub_ids[idx],
+                        )
                     });
                 }
             }
@@ -225,7 +233,10 @@ fn replay_lifecycle(data: &[u8]) {
                 if sub_len > 0 {
                     let idx = usize::from(chunk.get(1).copied().unwrap_or(0)) % sub_len;
                     let _ = ignore_expected_panic(|| {
-                        proxy.cancel_subscription(&h.user(chunk.get(2).copied().unwrap_or(0)), &sub_ids[idx])
+                        proxy.cancel_subscription(
+                            &h.user(chunk.get(2).copied().unwrap_or(0)),
+                            &sub_ids[idx],
+                        )
                     });
                 }
             }
@@ -315,18 +326,16 @@ fn replay_known_corpus_seeds() {
         &[0, 50, 0, 0, 0, 1, 0, 2, 1, 0, 2, 0, 0, 0, 0, 0],
         // create → subscribe → charge (op 5)
         &[
-            0, 100, 0, 0, 0, 2, 1, 2, 1, 0, 0, 0, 0, 0, 0, 0, 5, 30, 0, 0, 0,
-            0, 0, 0,
+            0, 100, 0, 0, 0, 2, 1, 2, 1, 0, 0, 0, 0, 0, 0, 0, 5, 30, 0, 0, 0, 0, 0, 0,
         ],
         // create → subscribe → pause (op 2) → resume (op 3)
         &[
-            0, 5, 0, 0, 0, 3, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 7, 0, 0, 0,
-            0, 0, 3, 0, 0, 0, 0, 0, 0, 0,
+            0, 5, 0, 0, 0, 3, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 7, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0,
+            0, 0, 0,
         ],
         // create → subscribe → cancel (op 4)
         &[
-            0, 7, 0, 0, 0, 4, 3, 0, 1, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0,
-            0, 0,
+            0, 7, 0, 0, 0, 4, 3, 0, 1, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0,
         ],
     ];
 
@@ -389,5 +398,8 @@ fn replay_crash_artifacts_from_regressions_dir() {
         replayed += 1;
     }
 
-    eprintln!("replayed {replayed} crash artifact(s) from {}", dir.display());
+    eprintln!(
+        "replayed {replayed} crash artifact(s) from {}",
+        dir.display()
+    );
 }

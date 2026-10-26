@@ -64,7 +64,14 @@ fn setup() -> Setup {
     let token_id = token.address();
     token::StellarAssetClient::new(&env, &token_id).mint(&merchant, &1_000_000_000);
 
-    Setup { env, proxy_id, storage_id, impl_id, merchant, token_id }
+    Setup {
+        env,
+        proxy_id,
+        storage_id,
+        impl_id,
+        merchant,
+        token_id,
+    }
 }
 
 /// Read the UserPlanIndex(subscriber, plan_id) entry from storage, if any.
@@ -88,15 +95,20 @@ fn get_version_reports_current_storage_version() {
     let s = setup();
     // STORAGE_VERSION is currently 2 (see contracts/subscription/src/lib.rs).
     let version = s.impl_client().get_version(&s.proxy_id, &s.storage_id);
-    assert_eq!(version, 2, "get_version must return the current STORAGE_VERSION");
+    assert_eq!(
+        version, 2,
+        "get_version must return the current STORAGE_VERSION"
+    );
 }
 
 #[test]
 fn validate_upgrade_accepts_current_and_prior_versions() {
     let s = setup();
     // Upgrading from v1 or from the current v2 must be accepted.
-    s.impl_client().validate_upgrade(&s.proxy_id, &s.storage_id, &1u32);
-    s.impl_client().validate_upgrade(&s.proxy_id, &s.storage_id, &2u32);
+    s.impl_client()
+        .validate_upgrade(&s.proxy_id, &s.storage_id, &1u32);
+    s.impl_client()
+        .validate_upgrade(&s.proxy_id, &s.storage_id, &2u32);
 }
 
 #[test]
@@ -113,7 +125,10 @@ fn validate_upgrade_rejects_zero_and_future_versions() {
     let future = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         client.validate_upgrade(&s.proxy_id, &s.storage_id, &3u32);
     }));
-    assert!(future.is_err(), "validate_upgrade must reject future versions");
+    assert!(
+        future.is_err(),
+        "validate_upgrade must reject future versions"
+    );
 }
 
 #[test]
@@ -132,7 +147,10 @@ fn migrate_rejects_unsupported_future_path() {
     let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         client.migrate(&s.proxy_id, &s.storage_id, &3u32);
     }));
-    assert!(res.is_err(), "migrate must reject from_version > STORAGE_VERSION");
+    assert!(
+        res.is_err(),
+        "migrate must reject from_version > STORAGE_VERSION"
+    );
 }
 
 #[test]

@@ -458,14 +458,10 @@ fn charge_subscription_guarded(
 
     // Consume the applied coupon: bump redemption count and clear it.
     if let Some(a) = &applied {
-        let mut coupon: Coupon = feature_get(env, FeatureStoreKey::Coupon(a.code.clone()))
-            .expect("Coupon not found");
+        let mut coupon: Coupon =
+            feature_get(env, FeatureStoreKey::Coupon(a.code.clone())).expect("Coupon not found");
         coupon.current_redemptions += 1;
-        feature_set(
-            env,
-            FeatureStoreKey::Coupon(a.code.clone()),
-            coupon,
-        );
+        feature_set(env, FeatureStoreKey::Coupon(a.code.clone()), coupon);
         feature_remove(env, FeatureStoreKey::AppliedCoupon(subscription_id));
     }
 
@@ -1616,7 +1612,10 @@ impl SubTrackrSubscription {
         let sub: Subscription =
             storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
                 .expect("Subscription not found");
-        assert!(sub.subscriber == subscriber, "Only subscriber can change quantity");
+        assert!(
+            sub.subscriber == subscriber,
+            "Only subscriber can change quantity"
+        );
         assert!(
             sub.status == SubscriptionStatus::Active,
             "Subscription not active"
@@ -1672,8 +1671,7 @@ impl SubTrackrSubscription {
         );
         assert!(max_redemptions > 0, "Max redemptions must be positive");
 
-        let existing: Option<Coupon> =
-            feature_get(&env, FeatureStoreKey::Coupon(code.clone()));
+        let existing: Option<Coupon> = feature_get(&env, FeatureStoreKey::Coupon(code.clone()));
         assert!(existing.is_none(), "Coupon code already exists");
 
         let coupon = Coupon {
@@ -1712,8 +1710,8 @@ impl SubTrackrSubscription {
         proxy.require_auth();
         merchant.require_auth();
 
-        let mut coupon: Coupon = feature_get(&env, FeatureStoreKey::Coupon(code.clone()))
-            .expect("Coupon not found");
+        let mut coupon: Coupon =
+            feature_get(&env, FeatureStoreKey::Coupon(code.clone())).expect("Coupon not found");
         assert!(
             coupon.merchant == merchant,
             "Only coupon creator can deactivate"
@@ -1747,14 +1745,17 @@ impl SubTrackrSubscription {
         let sub: Subscription =
             storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
                 .expect("Subscription not found");
-        assert!(sub.subscriber == subscriber, "Only subscriber can apply coupon");
+        assert!(
+            sub.subscriber == subscriber,
+            "Only subscriber can apply coupon"
+        );
         assert!(
             sub.status == SubscriptionStatus::Active,
             "Subscription not active"
         );
 
-        let coupon: Coupon = feature_get(&env, FeatureStoreKey::Coupon(code.clone()))
-            .expect("Coupon not found");
+        let coupon: Coupon =
+            feature_get(&env, FeatureStoreKey::Coupon(code.clone())).expect("Coupon not found");
         assert!(coupon.active, "Coupon is not active");
         assert!(
             coupon.expires_at == 0 || env.ledger().timestamp() < coupon.expires_at,
@@ -1767,7 +1768,10 @@ impl SubTrackrSubscription {
 
         let existing: Option<AppliedCoupon> =
             feature_get(&env, FeatureStoreKey::AppliedCoupon(subscription_id));
-        assert!(existing.is_none(), "A coupon is already applied to this subscription");
+        assert!(
+            existing.is_none(),
+            "A coupon is already applied to this subscription"
+        );
 
         let applied = AppliedCoupon {
             code: code.clone(),
@@ -1775,7 +1779,11 @@ impl SubTrackrSubscription {
             applied_at: env.ledger().timestamp(),
         };
 
-        feature_set(&env, FeatureStoreKey::AppliedCoupon(subscription_id), applied);
+        feature_set(
+            &env,
+            FeatureStoreKey::AppliedCoupon(subscription_id),
+            applied,
+        );
 
         env.events().publish(
             (String::from_str(&env, "coupon_applied"), subscription_id),
@@ -1814,9 +1822,8 @@ impl SubTrackrSubscription {
         );
         assert!(sub.plan_id != new_plan_id, "Already on this plan");
 
-        let new_plan: Plan =
-            storage_persistent_get(&env, &storage, StorageKey::Plan(new_plan_id))
-                .expect("New plan not found");
+        let new_plan: Plan = storage_persistent_get(&env, &storage, StorageKey::Plan(new_plan_id))
+            .expect("New plan not found");
         assert!(new_plan.active, "New plan is not active");
 
         let existing: Option<PendingPlanChange> =
@@ -1830,10 +1837,17 @@ impl SubTrackrSubscription {
             requested_at: env.ledger().timestamp(),
         };
 
-        feature_set(&env, FeatureStoreKey::PendingPlanChange(subscription_id), pending);
+        feature_set(
+            &env,
+            FeatureStoreKey::PendingPlanChange(subscription_id),
+            pending,
+        );
 
         env.events().publish(
-            (String::from_str(&env, "plan_change_scheduled"), subscription_id),
+            (
+                String::from_str(&env, "plan_change_scheduled"),
+                subscription_id,
+            ),
             (sub.plan_id, new_plan_id, env.ledger().timestamp()),
         );
     }
@@ -1856,7 +1870,10 @@ impl SubTrackrSubscription {
         feature_remove(&env, FeatureStoreKey::PendingPlanChange(subscription_id));
 
         env.events().publish(
-            (String::from_str(&env, "plan_change_cancelled"), subscription_id),
+            (
+                String::from_str(&env, "plan_change_cancelled"),
+                subscription_id,
+            ),
             subscriber,
         );
     }
@@ -1888,7 +1905,10 @@ impl SubTrackrSubscription {
         admin.require_auth();
 
         assert!(window_secs > 0, "Window must be positive");
-        assert!(window_secs <= 31_536_000, "Window exceeds maximum of 1 year");
+        assert!(
+            window_secs <= 31_536_000,
+            "Window exceeds maximum of 1 year"
+        );
 
         let config = ReactivationConfig { window_secs };
         feature_set(&env, FeatureStoreKey::ReactivationConfig, config);
@@ -1925,7 +1945,10 @@ impl SubTrackrSubscription {
         let mut sub: Subscription =
             storage_persistent_get(&env, &storage, StorageKey::Subscription(subscription_id))
                 .expect("Subscription not found");
-        assert!(sub.subscriber == subscriber, "Only subscriber can reactivate");
+        assert!(
+            sub.subscriber == subscriber,
+            "Only subscriber can reactivate"
+        );
         assert!(
             sub.status == SubscriptionStatus::Cancelled,
             "Subscription not cancelled"
@@ -1933,9 +1956,8 @@ impl SubTrackrSubscription {
 
         let cancelled_at: u64 = feature_get(&env, FeatureStoreKey::CancelledAt(subscription_id))
             .expect("No cancellation timestamp found");
-        let config: ReactivationConfig =
-            feature_get(&env, FeatureStoreKey::ReactivationConfig)
-                .expect("Reactivation window not configured");
+        let config: ReactivationConfig = feature_get(&env, FeatureStoreKey::ReactivationConfig)
+            .expect("Reactivation window not configured");
 
         let now = env.ledger().timestamp();
         assert!(
@@ -1969,7 +1991,10 @@ impl SubTrackrSubscription {
         feature_remove(&env, FeatureStoreKey::CancelledAt(subscription_id));
 
         env.events().publish(
-            (String::from_str(&env, "subscription_reactivated"), subscriber),
+            (
+                String::from_str(&env, "subscription_reactivated"),
+                subscriber,
+            ),
             (subscription_id, sub.plan_id, now),
         );
     }
