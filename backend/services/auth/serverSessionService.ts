@@ -13,6 +13,9 @@
  *   - Session revocation (single / all / other-devices)
  *   - Full audit trail per session lifecycle event
  *   - Prometheus metrics export
+ *   - Per-session scopes, access-token rotation and revocation listeners so the
+ *     refresh-token families in `domain/SessionTokenService.ts` stay in step
+ *     with the session they belong to (issues #1776, #1777, #1779)
  */
 
 import { randomBytes, createHash } from 'node:crypto';
@@ -73,6 +76,12 @@ export interface SessionRecord {
   revocationReason?: string;
   isSuspicious: boolean;
   suspiciousReasons: SuspiciousReason[];
+  /**
+   * Scopes the session's access token is limited to. Interactive logins get
+   * `['*']`; sessions issued through the OAuth device flow carry only the
+   * scopes the user approved (issue #1779).
+   */
+  scopes: string[];
   metadata: Record<string, unknown>;
 }
 
@@ -80,7 +89,21 @@ export interface SessionCreateOptions {
   userId: string;
   req: IncomingMessage;
   ttlMs?: number;
+  /** Defaults to `['*']` (full access), matching sessions created before scopes existed. */
+  scopes?: string[];
   metadata?: Record<string, unknown>;
+}
+
+/** Called whenever a session moves to `revoked`, whatever the trigger. */
+export type SessionRevocationListener = (session: SessionRecord, reason: string) => void;
+
+export interface RotateTokenResult {
+  rotated: boolean;
+  reason?:
+    | 'session_not_found'
+    | 'session_revoked'
+    | 'device_binding_mismatch';
+  session?: SessionRecord;
 }
 
 export interface SessionValidateResult {
@@ -118,7 +141,8 @@ export interface SessionAuditEntry {
     | 'revoked'
     | 'expired'
     | 'suspicious_flagged'
-    | 'rebound';
+    | 'rebound'
+    | 'token_rotated';
   ip: string;
   userAgent: string;
   timestamp: number;
@@ -249,6 +273,7 @@ export class ServerSessionService {
   private knownDevices = new Map<string, Set<string>>(); // userId → Set<fingerprint>
   private auditLog: SessionAuditEntry[] = [];
   private readonly maxAuditEntries = 100_000;
+  private revocationListeners = new Set<SessionRevocationListener>();
 
   private config: SessionServiceConfig;
 
@@ -269,7 +294,13 @@ export class ServerSessionService {
   // -------------------------------------------------------------------------
 
   createSession(opts: SessionCreateOptions): SessionRecord {
-    const { userId, req, ttlMs = this.config.defaultTtlMs, metadata = {} } = opts;
+    const {
+      userId,
+      req,
+      ttlMs = this.config.defaultTtlMs,
+      scopes = ['*'],
+      metadata = {},
+    } = opts;
     const now = Date.now();
 
     // Device fingerprint
@@ -323,6 +354,7 @@ export class ServerSessionService {
       expiresAt: now + ttlMs,
       isSuspicious: suspiciousReasons.length > 0,
       suspiciousReasons,
+      scopes: [...scopes],
       metadata,
     };
 
@@ -560,12 +592,86 @@ export class ServerSessionService {
   }
 
   // -------------------------------------------------------------------------
+  // Access-token rotation (issue #1776)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Replace a session's access token with a fresh one, keeping the stable
+   * session `id`. The previous token stops validating immediately.
+   *
+   * Used when a refresh token is redeemed: the session continues, but only
+   * the newest access token is accepted. A session whose access token merely
+   * expired is reactivated; a revoked session never is.
+   */
+  rotateSessionToken(token: string, req?: IncomingMessage): RotateTokenResult {
+    const session = this.sessions.get(token);
+    if (!session) return { rotated: false, reason: 'session_not_found' };
+    if (session.status === 'revoked') {
+      return { rotated: false, reason: 'session_revoked', session };
+    }
+
+    const now = Date.now();
+    if (req && this.config.deviceBinding === 'enforce') {
+      const fingerprint = currentDeviceFingerprint(req);
+      if (fingerprint !== session.device.fingerprint) {
+        this.audit({
+          sessionId: session.id,
+          userId: session.userId,
+          action: 'suspicious_flagged',
+          ip: session.geo.ip,
+          userAgent: session.device.userAgent,
+          timestamp: now,
+          detail: `token rotation refused: device_binding_mismatch bound=${session.device.fingerprint} presented=${fingerprint}`,
+        });
+        return { rotated: false, reason: 'device_binding_mismatch', session };
+      }
+    }
+
+    const nextToken = randomBytes(32).toString('hex');
+    this.sessions.delete(token);
+    session.token = nextToken;
+    session.status = 'active';
+    session.lastActiveAt = now;
+    session.expiresAt = now + this.config.defaultTtlMs;
+    this.sessions.set(nextToken, session);
+
+    const userTokens = this.userSessionIndex.get(session.userId) ?? new Set<string>();
+    userTokens.delete(token);
+    userTokens.add(nextToken);
+    this.userSessionIndex.set(session.userId, userTokens);
+
+    this.audit({
+      sessionId: session.id,
+      userId: session.userId,
+      action: 'token_rotated',
+      ip: req ? buildGeoInfo(req).ip : session.geo.ip,
+      userAgent: session.device.userAgent,
+      timestamp: now,
+    });
+
+    return { rotated: true, session };
+  }
+
+  // -------------------------------------------------------------------------
   // Revocation
   // -------------------------------------------------------------------------
 
+  /**
+   * Subscribe to revocations. Every revocation path (logout, revoke-all,
+   * revoke-others, concurrent-session eviction, remote revocation) notifies
+   * listeners, so state hanging off a session (refresh-token families) can be
+   * torn down in the same call. Returns an unsubscribe function.
+   */
+  onRevoke(listener: SessionRevocationListener): () => void {
+    this.revocationListeners.add(listener);
+    return () => {
+      this.revocationListeners.delete(listener);
+    };
+  }
+
   revokeSession(token: string, reason = 'user_logout'): boolean {
     const session = this.sessions.get(token);
-    if (!session || session.status !== 'active') return false;
+    if (!session || session.status === 'revoked') return false;
     session.status = 'revoked';
     session.revokedAt = Date.now();
     session.revocationReason = reason;
@@ -578,7 +684,16 @@ export class ServerSessionService {
       timestamp: session.revokedAt,
       detail: reason,
     });
+    for (const listener of this.revocationListeners) {
+      listener(session, reason);
+    }
     return true;
+  }
+
+  /** Revoke a session by its stable id (the token is never exposed in listings). */
+  revokeSessionById(id: string, reason = 'user_revoked'): boolean {
+    const session = this.getSessionById(id);
+    return session ? this.revokeSession(session.token, reason) : false;
   }
 
   revokeAllSessions(userId: string, reason = 'admin_revoke_all'): number {

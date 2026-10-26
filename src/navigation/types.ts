@@ -25,6 +25,7 @@ export type RootStackParamList = {
   Settings: undefined;
   NotificationPreferences: undefined;
   TemplateVersionHistory: { type: NotificationType; channel: NotificationChannel };
+  NotificationInbox: undefined;
   CalendarIntegration: undefined;
   WebhookSettings: undefined;
   AccountingExport: undefined;

@@ -211,6 +211,30 @@ A click implies a read, so engagement is never reported as "clicked but never
 opened". Marking read twice keeps the first timestamp, so time-to-read stays
 accurate.
 
+## In-app inbox
+
+The inbox is the feed behind the bell icon (`NotificationInboxScreen`, backed by
+`notificationCenterStore`). The store persists the feed on device, so history
+survives relaunches and the unread badge is accurate on first paint. Tapping an
+entry marks it read and records a click; dismissing hides it from the feed
+without deleting it, so analytics can still distinguish "ignored" from "never
+delivered".
+
+The server mirrors the same history over HTTP (`notificationInboxRouter`, issue
+#1750) so a fresh install can sync:
+
+```
+GET  /api/notifications/history?userId=…[&type=…&channel=…&status=…&unreadOnly=1&limit=…]
+GET  /api/notifications/unread-count?userId=…
+POST /api/notifications/history/read-all        body: { userId }
+POST /api/notifications/:id/read
+POST /api/notifications/:id/click
+```
+
+A click implies a read, so engagement is never reported as "clicked but never
+opened". Marking read twice keeps the first timestamp, so time-to-read stays
+accurate.
+
 ## Analytics
 
 `computeAnalytics(records)` returns, in total and partitioned by channel and by

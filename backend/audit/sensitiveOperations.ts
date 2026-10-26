@@ -227,6 +227,15 @@ export const SENSITIVE_OPERATIONS: Record<string, SensitiveOperationDefinition> 
     captureState: false,
     requiresReason: true,
   },
+  'compliance.tax_exempt_change': {
+    key: 'compliance.tax_exempt_change',
+    label: 'Customer tax exemption changed',
+    category: 'compliance',
+    severity: 'high',
+    resourceType: 'customer_tax_status',
+    captureState: true,
+    requiresReason: true,
+  },
 };
 
 export function getSensitiveOperation(key: string): SensitiveOperationDefinition | undefined {

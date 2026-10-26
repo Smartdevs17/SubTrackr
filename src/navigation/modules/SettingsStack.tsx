@@ -14,6 +14,7 @@ const LanguageSettingsScreen = lazyScreen(() => import('../../screens/LanguageSe
 const NotificationPreferencesScreen = lazyScreen(
   () => import('../../screens/NotificationPreferencesScreen')
 );
+const NotificationInboxScreen = lazyScreen(() => import('../../screens/NotificationInboxScreen'));
 const EmailTemplateEditorScreen = lazyScreen(
   () => import('../../screens/EmailTemplateEditorScreen')
 );
@@ -46,6 +47,11 @@ export const SettingsStack = () => (
       name="NotificationPreferences"
       component={NotificationPreferencesScreen}
       options={{ title: 'Notification Preferences', headerShown: true }}
+    />
+    <Stack.Screen
+      name="NotificationInbox"
+      component={NotificationInboxScreen}
+      options={{ title: 'Notification Inbox', headerShown: true }}
     />
     <Stack.Screen
       name="EmailTemplateEditor"

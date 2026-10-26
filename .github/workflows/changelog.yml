@@ -39,7 +39,7 @@ jobs:
 
       - name: Upload changelog preview
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: changelog-preview
           path: CHANGELOG.md
@@ -56,10 +56,15 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Node.js
+ feat/stellar-wave-issues
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
         uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '24' main
 
       - name: Generate API changelog
         run: |
@@ -69,7 +74,7 @@ jobs:
 
       - name: Upload API changelog
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: api-changelog
           path: api-changelog.md

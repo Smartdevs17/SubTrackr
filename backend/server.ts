@@ -55,6 +55,10 @@ import {
   createIpWhitelistGate,
 } from './services/shared/ipWhitelistService';
 import { serverSessionService } from './services/auth/serverSessionService';
+import { sessionTokenService } from './services/auth/domain/SessionTokenService';
+feat/stellar-wave-issues
+import { startPaymentExpirySweeper, type PaymentExpirySweeper } from './services/payment/jobs/paymentExpirySweeper';
+
 import { buildMetricsService } from './services/shared/buildMetricsService';
 import { createVersionMiddleware, versionRegistry } from './services/shared/apiVersioning';
 import { createLoggerFor } from './services/shared/logging';
@@ -63,10 +67,27 @@ import { createScheduledReportService } from './services/notification/scheduledR
 import { createScheduledReportRouter } from './services/notification/scheduledReportRouter';
 import { createNotificationTemplateRouter } from './services/notification/notificationTemplateRouter';
 import { notificationTemplateVersionService } from './services/notification/notificationTemplateVersionService';
+import { createNotificationInboxRouter } from './services/notification/notificationInboxRouter';
+import { notificationCenterService } from './services/notification/notificationCenterService';
 import { createScheduledReportPoller } from './services/notification/jobs/scheduledReportJob';
 import { createEmailProviderFromEnv } from './services/notification/emailProvider';
 import type { ReportAnalyticsSnapshot } from './services/notification/scheduledReportService';
+import { createOverdueInvoiceReminderService } from './services/notification/overdueInvoiceReminderService';
+import { createOverdueInvoiceReminderRouter } from './services/notification/overdueInvoiceReminderRouter';
+import { createPostgresOverdueInvoiceSource } from './services/notification/overdueInvoiceSource';
+import { createOverdueReminderPoller } from './services/notification/jobs/overdueInvoiceReminderJob';
+import { createInvoiceNumberingService, PostgresInvoiceNumberingStore } from './billing/domain/InvoiceNumberingService';
+import { createInvoiceNumberingRouter } from './billing/router/invoiceNumberingRouter';
+import {
+  createTaxExemptionService,
+  PostgresCustomerTaxStatusStore,
+} from './services/billing/taxExemptionService';
+import { createTaxExemptionRouter } from './services/billing/taxExemptionRouter';
+import { HashChainService, AuditWriter, SensitiveOpsAuditController } from './audit';
 import { createRequestObservability } from './shared/middleware/requestObservability';
+import { createRevenueByCurrencyReportService } from './services/analytics/revenueByCurrencyReport';
+import { createRevenueByCurrencyRouter } from './services/analytics/revenueByCurrencyRouter';
+ main
 
 export interface StartServerOptions {
   port?: number;
@@ -454,10 +475,26 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
   // ---------------------------------------------------------------------------
   const sessionSweepTimer = setInterval(() => {
     serverSessionService.sweepExpiredSessions();
+    // Drop refresh-token families past their absolute lifetime (#1776).
+    sessionTokenService.sweep();
   }, 5 * 60 * 1000);
   sessionSweepTimer.unref();
 
   // ---------------------------------------------------------------------------
+feat/stellar-wave-issues
+  // Payment expiry sweep — every PAYMENT_EXPIRY_SWEEP_INTERVAL_MS (issue #1716)
+  // Expires overdue payment intents and cancels their subscriptions.
+  // ---------------------------------------------------------------------------
+  const paymentExpirySweeper: PaymentExpirySweeper = startPaymentExpirySweeper();
+
+  // ── IP Whitelist gate ────────────────────────────────────────────────────
+  const checkIpAccess = createIpWhitelistGate({
+    service: ipWhitelistService,
+    getTenantId: (req) => {
+      const tid = req.headers['x-tenant-id'];
+      return (typeof tid === 'string' ? tid : undefined) ?? 'default';
+    },
+
   // Scheduled email reports — issue #1758
   // ---------------------------------------------------------------------------
   const scheduledReportEmailProvider = createEmailProviderFromEnv();
@@ -498,11 +535,68 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
   const notificationTemplateRouter = createNotificationTemplateRouter(
     notificationTemplateVersionService
   );
+  // ---------------------------------------------------------------------------
+  // In-app notification inbox — issue #1750
+  // ---------------------------------------------------------------------------
+  const notificationInboxRouter = createNotificationInboxRouter(notificationCenterService);
 
   const reportPoller = createScheduledReportPoller(
     scheduledReportService,
     reportSnapshotFactory
   );
+
+  // ---------------------------------------------------------------------------
+  // Overdue invoice reminders — issue #1737
+  // ---------------------------------------------------------------------------
+  const overdueReminderEmailProvider = createEmailProviderFromEnv();
+  const overdueInvoiceSource = createPostgresOverdueInvoiceSource(pool, {
+    merchantId: process.env['DEFAULT_MERCHANT_ID'],
+    appBaseUrl: process.env['APP_BASE_URL'],
+  });
+  const overdueReminderService = createOverdueInvoiceReminderService({
+    emailProvider: overdueReminderEmailProvider,
+    fromAddress:
+      process.env['INVOICE_FROM_EMAIL'] ??
+      process.env['EMAIL_FROM_ADDRESS'] ??
+      'billing@subtrackr.com',
+    supportEmail: process.env['SUPPORT_EMAIL'],
+    merchantName: process.env['MERCHANT_NAME'] ?? process.env['INVOICE_FROM_NAME'],
+    appBaseUrl: process.env['APP_BASE_URL'],
+  });
+  const overdueReminderRouter = createOverdueInvoiceReminderRouter(
+    overdueReminderService,
+    overdueInvoiceSource
+  );
+  const overdueReminderPollMs = Number(process.env['OVERDUE_REMINDER_POLL_MS'] ?? Number.NaN);
+  const overdueReminderPoller = createOverdueReminderPoller(
+    overdueReminderService,
+    overdueInvoiceSource,
+    Number.isFinite(overdueReminderPollMs) && overdueReminderPollMs > 0
+      ? overdueReminderPollMs
+      : undefined
+  );
+
+  // ---------------------------------------------------------------------------
+  // Invoice numbering schemes — issue #1738
+  // ---------------------------------------------------------------------------
+  const invoiceNumberingService = createInvoiceNumberingService({
+    store: new PostgresInvoiceNumberingStore(pool),
+  main
+  });
+  const invoiceNumberingRouter = createInvoiceNumberingRouter(invoiceNumberingService);
+
+  // ---------------------------------------------------------------------------
+  // Customer tax exemptions — issue #1740
+  // ---------------------------------------------------------------------------
+  const auditChain = new HashChainService();
+  const auditWriter = new AuditWriter(auditChain);
+  const sensitiveOpsAuditController = new SensitiveOpsAuditController(auditWriter);
+  const taxExemptionService = createTaxExemptionService({
+    store: new PostgresCustomerTaxStatusStore(pool),
+    auditController: sensitiveOpsAuditController,
+    auditChain,
+  });
+  const taxExemptionRouter = createTaxExemptionRouter(taxExemptionService);
 
   // Seed a default permissive CORS policy for the server's own tenant.
   // In production, policies should be loaded from the database per-tenant.
@@ -2031,10 +2125,42 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
       }
 
       // -----------------------------------------------------------------
+      // In-app notification inbox  /api/notifications  (issue #1750)
+      // -----------------------------------------------------------------
+      if (pathname.startsWith('/api/notifications')) {
+        const handled = await notificationInboxRouter(req, res, pathname);
+        if (handled) return;
+      }
+
+      // -----------------------------------------------------------------
       // Scheduled email reports  /scheduled-reports  (issue #1758)
       // -----------------------------------------------------------------
       if (pathname.startsWith('/scheduled-reports')) {
         const handled = await scheduledReportRouter(req, res, pathname);
+        if (handled) return;
+      }
+
+      // -----------------------------------------------------------------
+      // Overdue invoice reminders  /overdue-reminders  (issue #1737)
+      // -----------------------------------------------------------------
+      if (pathname.startsWith('/overdue-reminders')) {
+        const handled = await overdueReminderRouter(req, res, pathname);
+        if (handled) return;
+      }
+
+      // -----------------------------------------------------------------
+      // Invoice numbering schemes  /invoice-numbering  (issue #1738)
+      // -----------------------------------------------------------------
+      if (pathname.startsWith('/invoice-numbering')) {
+        const handled = await invoiceNumberingRouter(req, res, pathname);
+        if (handled) return;
+      }
+
+      // -----------------------------------------------------------------
+      // Customer tax exemptions  /tax-exemptions  (issue #1740)
+      // -----------------------------------------------------------------
+      if (pathname.startsWith('/tax-exemptions')) {
+        const handled = await taxExemptionRouter(req, res, pathname);
         if (handled) return;
       }
 
@@ -2071,10 +2197,16 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
     if (isShuttingDown) return;
     isShuttingDown = true;
     clearInterval(sessionSweepTimer);
+ feat/stellar-wave-issues
+    paymentExpirySweeper.stop();
+    await new Promise<void>((resolve, reject) => {
+
     reportPoller.stop();
+    overdueReminderPoller.stop();
 
     // Stop accepting new connections
     const closeServerPromise = new Promise<void>((resolve, reject) => {
+    main
       server.close((err) => (err ? reject(err) : resolve()));
     });
 
@@ -2199,6 +2331,14 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
         console.info(`[Server] Reports  → POST   /scheduled-reports/:id/recipients`);
         console.info(`[Server] Reports  → DELETE /scheduled-reports/:id/recipients`);
         console.info(`[Server] Reports  → POST   /scheduled-reports/:id/send-now`);
+        console.info(`[Server] Overdue  → POST   /overdue-reminders`);
+        console.info(`[Server] Overdue  → GET    /overdue-reminders?merchantId=…`);
+        console.info(`[Server] Overdue  → GET    /overdue-reminders/:id`);
+        console.info(`[Server] Overdue  → PATCH  /overdue-reminders/:id`);
+        console.info(`[Server] Overdue  → DELETE /overdue-reminders/:id`);
+        console.info(`[Server] Overdue  → GET    /overdue-reminders/entries`);
+        console.info(`[Server] Overdue  → POST   /overdue-reminders/run-now`);
+        console.info(`[Server] Overdue  → POST   /overdue-reminders/invoices/:invoiceId/stop`);
         resolve();
       });
     });
