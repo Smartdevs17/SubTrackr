@@ -470,20 +470,28 @@ container.bind('IDlqReplayWorker', (c) =>
 // ── Notification Transport Wiring ─────────────────────────────────────────────
 // Wire email and SMS transports into the NotificationCenterService singleton.
 import { notificationCenterService } from './notification/notificationCenterService';
+import { deliveryReceiptService } from './notification/deliveryReceiptService';
+import { withDeliveryReceipts } from './notification/deliveryReceiptTransport';
 import { notificationTemplateVersionService } from './notification/notificationTemplateVersionService';
 container.register('INotificationCenterService', notificationCenterService);
+container.register('IDeliveryReceiptService', deliveryReceiptService);
 container.register('INotificationTemplateVersionService', notificationTemplateVersionService);
 
 // Register email transport — transport builder is lazy so it runs after env is loaded.
+// Each transport is wrapped so the attempt is recorded as a delivery receipt (#1749).
 notificationCenterService.registerTransport(
   'email',
-  buildEmailTransport(emailProvider, { from: getEmailFromAddress() })
+  withDeliveryReceipts(
+    'email',
+    buildEmailTransport(emailProvider, { from: getEmailFromAddress() }),
+    deliveryReceiptService
+  )
 );
 
 // Register SMS transport.
 notificationCenterService.registerTransport(
   'sms',
-  buildSmsTransport(smsProvider)
+  withDeliveryReceipts('sms', buildSmsTransport(smsProvider), deliveryReceiptService)
 );
 
 // ── Subscription Notifier ─────────────────────────────────────────────────────

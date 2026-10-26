@@ -211,6 +211,38 @@ A click implies a read, so engagement is never reported as "clicked but never
 opened". Marking read twice keeps the first timestamp, so time-to-read stays
 accurate.
 
+## Delivery receipts
+
+A history record says a transport *accepted* a message; a **delivery receipt**
+tracks what happened afterwards — the carrier's confirmation the SMS landed, the
+email bounce, the push ticket that never resolved. Each receipt carries a
+forward-only status timeline (`accepted → sent → delivered`, or `failed` /
+`undelivered` / `expired`) so support can answer "did the customer actually get
+it?" without a provider dashboard.
+
+Receipts are created by wrapping each channel transport
+(`withDeliveryReceipts`, wired in `services/container.ts`), so an attempt that
+never reaches a transport leaves no receipt. `in_app` is marked `delivered` on
+acceptance; other channels wait for a provider status callback.
+
+Providers post status to the router (`deliveryStatusRouter`):
+
+```
+GET  /api/delivery-receipts?userId=…[&channel=…&limit=…]   Recent receipts
+GET  /api/delivery-receipts/summary?userId=…               Latest per channel
+GET  /api/delivery-receipts/:id                            One receipt timeline
+POST /api/delivery-receipts/status                         Provider callback
+```
+
+The callback accepts Twilio's `application/x-www-form-urlencoded`
+(`MessageSid`, `MessageStatus`, `ErrorCode`) or JSON. Transitions are
+forward-only and idempotent, so an out-of-order webhook cannot regress a
+receipt; an unknown message id is acknowledged with `202` so providers stop
+retrying. Set `TWILIO_ACCOUNT_SID` to require Twilio's HTTP Basic credential on
+the callback.
+
+`DeliveryStatusScreen` reads this through `deliveryReceiptsStore`.
+
 ## In-app inbox
 
 The inbox is the feed behind the bell icon (`NotificationInboxScreen`, backed by

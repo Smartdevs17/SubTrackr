@@ -25,6 +25,7 @@ export type RootStackParamList = {
   DPALog: undefined;
   Settings: undefined;
   NotificationPreferences: undefined;
+  DeliveryStatus: undefined;
   TemplateVersionHistory: { type: NotificationType; channel: NotificationChannel };
   NotificationInbox: undefined;
   CalendarIntegration: undefined;

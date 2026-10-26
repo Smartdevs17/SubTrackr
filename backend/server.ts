@@ -65,6 +65,8 @@ import { createLoggerFor } from './services/shared/logging';
 import { createTracerFromEnv, type Tracer } from './services/shared/tracing';
 import { createScheduledReportService } from './services/notification/scheduledReportService';
 import { createScheduledReportRouter } from './services/notification/scheduledReportRouter';
+import { createDeliveryStatusRouter } from './services/notification/deliveryStatusRouter';
+import { deliveryReceiptService } from './services/notification/deliveryReceiptService';
 import { createNotificationTemplateRouter } from './services/notification/notificationTemplateRouter';
 import { notificationTemplateVersionService } from './services/notification/notificationTemplateVersionService';
 import { createSmsConsentRouter } from './services/notification/smsConsentRouter';
@@ -534,6 +536,9 @@ feat/stellar-wave-issues
     reportSnapshotFactory
   );
 
+  const deliveryStatusRouter = createDeliveryStatusRouter(deliveryReceiptService, {
+    accountSid: process.env.TWILIO_ACCOUNT_SID || undefined,
+  });
   const notificationTemplateRouter = createNotificationTemplateRouter(
     notificationTemplateVersionService
   );
@@ -2120,6 +2125,13 @@ feat/stellar-wave-issues
       }
 
       // -----------------------------------------------------------------
+      // Notification delivery receipts  /api/delivery-receipts  (issue #1749)
+      // -----------------------------------------------------------------
+      if (pathname.startsWith('/api/delivery-receipts')) {
+        const handled = await deliveryStatusRouter(req, res, pathname);
+        if (handled) return;
+      }
+
       // Notification template versions  /api/notification-templates  (issue #1748)
       // -----------------------------------------------------------------
       if (pathname.startsWith('/api/notification-templates')) {
