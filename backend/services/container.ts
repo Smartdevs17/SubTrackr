@@ -470,7 +470,9 @@ container.bind('IDlqReplayWorker', (c) =>
 // ── Notification Transport Wiring ─────────────────────────────────────────────
 // Wire email and SMS transports into the NotificationCenterService singleton.
 import { notificationCenterService } from './notification/notificationCenterService';
+import { notificationTemplateVersionService } from './notification/notificationTemplateVersionService';
 container.register('INotificationCenterService', notificationCenterService);
+container.register('INotificationTemplateVersionService', notificationTemplateVersionService);
 
 // Register email transport — transport builder is lazy so it runs after env is loaded.
 notificationCenterService.registerTransport(

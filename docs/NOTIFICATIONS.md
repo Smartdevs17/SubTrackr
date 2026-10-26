@@ -161,6 +161,39 @@ Rich-text HTML bodies are sanitized separately by
 `backend/services/notification/templateService.ts`, which strips executable
 markup on save.
 
+### Versioning and rollback
+
+A raw `upsertTemplate` overwrites the previous copy, so a bad edit is
+irreversible. `NotificationTemplateVersionService` adds the missing history:
+each save is an immutable version chained to the template, and a rollback
+republishes an earlier snapshot as the **next** version rather than rewinding
+the number.
+
+```ts
+service.saveDraft({ type, channel, subject, body, variables }); // → version N+1
+service.rollback(type, channel, 2);                             // → new version, restoredFrom: 2
+```
+
+Rollback is a forward move on purpose: rewriting the version number to an old
+value would let two different bodies claim the same version, so a message sent
+after a rollback could not be told apart from one sent before the bad edit.
+Every version number stays unique and monotonic, and `restoredFrom` records
+where the content came from. A save whose content is unchanged creates no
+version, so the history stays meaningful.
+
+The same model is mirrored on the device by `notificationTemplateStore`, and
+`TemplateVersionHistoryScreen` lists a template's versions with a rollback
+action. The backend exposes it over HTTP:
+
+```
+GET  /api/notification-templates                                  List keys
+GET  /api/notification-templates/:type/:channel                   Current version
+GET  /api/notification-templates/:type/:channel/versions          Full history
+POST /api/notification-templates/:type/:channel                   Save new version
+POST /api/notification-templates/:type/:channel/rollback?version= Roll back
+```
+
+
 ## History and read status
 
 Every delivery attempt is one history record per channel. The client retains the

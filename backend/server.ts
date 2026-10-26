@@ -65,6 +65,8 @@ import { createLoggerFor } from './services/shared/logging';
 import { createTracerFromEnv, type Tracer } from './services/shared/tracing';
 import { createScheduledReportService } from './services/notification/scheduledReportService';
 import { createScheduledReportRouter } from './services/notification/scheduledReportRouter';
+import { createNotificationTemplateRouter } from './services/notification/notificationTemplateRouter';
+import { notificationTemplateVersionService } from './services/notification/notificationTemplateVersionService';
 import { createSmsConsentRouter } from './services/notification/smsConsentRouter';
 import { smsConsentService } from './services/container';
 import { createNotificationInboxRouter } from './services/notification/notificationInboxRouter';
@@ -532,6 +534,9 @@ feat/stellar-wave-issues
     reportSnapshotFactory
   );
 
+  const notificationTemplateRouter = createNotificationTemplateRouter(
+    notificationTemplateVersionService
+  );
   const smsConsentRouter = createSmsConsentRouter(smsConsentService);
   // ---------------------------------------------------------------------------
   // In-app notification inbox — issue #1750
@@ -2112,6 +2117,14 @@ feat/stellar-wave-issues
         const result = await planController.deactivatePlan(planId);
         sendJson(res, result.success ? 200 : (result.status ?? 400), result);
         return;
+      }
+
+      // -----------------------------------------------------------------
+      // Notification template versions  /api/notification-templates  (issue #1748)
+      // -----------------------------------------------------------------
+      if (pathname.startsWith('/api/notification-templates')) {
+        const handled = await notificationTemplateRouter(req, res, pathname);
+        if (handled) return;
       }
 
       // -----------------------------------------------------------------
