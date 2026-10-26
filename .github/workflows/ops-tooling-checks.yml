@@ -29,7 +29,7 @@ jobs:
 
       # No `cache: pnpm` on purpose: this workflow must not depend on a lockfile install
       # (all steps run on bare Node; nothing is installed here).
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
