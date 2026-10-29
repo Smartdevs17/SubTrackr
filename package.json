@@ -93,7 +93,7 @@
     "bundle-size:why": "size-limit --why"
   },
   "dependencies": {
-    "@graphql-tools/schema": "^11.0.6",
+    "@graphql-tools/schema": "^11.0.7",
     "@react-native-async-storage/async-storage": "3.1.1",
     "@react-native-community/datetimepicker": "^9.2.2",
     "@react-native-community/netinfo": "11.4.1",
@@ -126,7 +126,7 @@
     "react-native-get-random-values": "~1.11.0",
     "react-native-modal": "14.0.0-rc.1",
     "react-native-performance": "^7.0.0",
-    "react-native-qrcode-svg": "^6.3.27",
+    "react-native-qrcode-svg": "^6.3.32",
     "react-native-safe-area-context": "5.10.1",
     "react-native-screens": "~4.30.0",
     "react-native-svg": "15.16.0",
@@ -154,8 +154,8 @@
     "@types/jest": "^30.0.0",
     "@types/react": "~19.3.0",
     "@types/react-dom": "^19.3.0",
-    "@typescript-eslint/eslint-plugin": "^8.72.0",
-    "@typescript-eslint/parser": "^8.72.0",
+    "@typescript-eslint/eslint-plugin": "^8.72.1",
+    "@typescript-eslint/parser": "^8.72.1",
     "cross-env": "^10.1.0",
     "detox": "^20.51.4",
     "eslint": "^8.57.0",
