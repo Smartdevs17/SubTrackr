@@ -120,7 +120,7 @@
     "graphql-http": "^1.23.0",
     "i18next": "^27.0.1",
     "react": "19.3.1",
-    "react-i18next": "^17.1.13",
+    "react-i18next": "^18.0.1",
     "react-native": "0.88.1",
     "react-native-gesture-handler": "~3.5.0",
     "react-native-get-random-values": "~2.1.0",
