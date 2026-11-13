@@ -36,8 +36,8 @@ importers:
   .:
     dependencies:
       '@graphql-tools/schema':
-        specifier: ^11.0.8
-        version: 11.0.8(graphql@17.1.0)
+        specifier: ^11.0.9
+        version: 11.0.9(graphql@17.1.0)
       '@react-native-async-storage/async-storage':
         specifier: 3.1.1
         version: 3.1.1(react-native@0.88.1(@babel/core@7.29.13(supports-color@8.1.1))(@react-native-community/cli@20.2.0(bufferutil@4.1.0)(supports-color@8.1.1)(typescript@5.8.3)(utf-8-validate@5.0.10))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.1)(supports-color@8.1.1)(utf-8-validate@5.0.10))(react@19.3.1)
@@ -111,14 +111,14 @@ importers:
         specifier: ^1.23.0
         version: 1.23.1(graphql@17.1.0)
       i18next:
-        specifier: ^27.1.0
-        version: 27.1.0(typescript@5.8.3)
+        specifier: ^27.1.1
+        version: 27.1.1(typescript@5.8.3)
       react:
         specifier: 19.3.1
         version: 19.3.1
       react-i18next:
         specifier: ^18.0.1
-        version: 18.0.1(@types/react@19.3.0)(i18next@27.1.0(typescript@5.8.3))(react@19.3.1)(typescript@5.8.3)
+        version: 18.0.1(@types/react@19.3.0)(i18next@27.1.1(typescript@5.8.3))(react@19.3.1)(typescript@5.8.3)
       react-native:
         specifier: 0.88.1
         version: 0.88.1(@babel/core@7.29.13(supports-color@8.1.1))(@react-native-community/cli@20.2.0(bufferutil@4.1.0)(supports-color@8.1.1)(typescript@5.8.3)(utf-8-validate@5.0.10))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.1)(supports-color@8.1.1)(utf-8-validate@5.0.10)
@@ -1541,20 +1541,20 @@ packages:
   '@flatten-js/interval-tree@1.1.4':
     resolution: {integrity: sha512-o4emRDDvGdkwX18BSVSXH8q27qAL7Z2WDHSN75C8xyRSE4A8UOkig0mWSGoT5M5KaTHZxoLmalFwOTQmbRusUg==}
 
-  '@graphql-tools/merge@10.0.8':
-    resolution: {integrity: sha512-iQlmBLu6QAhQb23LUYUHlQeZzH7Axi2xtPpVj8AWd5ALrt+a5w0Lf6p/xHgWg2EzSI2LcxdGXArGWs4RZFfF8g==}
+  '@graphql-tools/merge@10.0.9':
+    resolution: {integrity: sha512-YPOZew7ksza0JneKhaHc4RxrLpIi9jFI2qPpWCSBvUZiFPjSycGs6Vpv4sbqzC7axcom/0q85wrg2v0OG5dlFQ==}
     engines: {node: '>=22.18.0'}
     peerDependencies:
       graphql: ^16.0.0 || ^17.0.0
 
-  '@graphql-tools/schema@11.0.8':
-    resolution: {integrity: sha512-+LZYd+TpWUg/2CqvpJtSKA4O1CX5rMNv0ZUsUd4uGNPD07Q1Eq+/QDaZdXfP7vIm6K/mkiXt25mWc7zao3Mb7g==}
+  '@graphql-tools/schema@11.0.9':
+    resolution: {integrity: sha512-Wxf6nqR038sL/a/AYTCeqPYypbxHG6DgvRpcD5xoLCUwXwaMhv+I5EyWs7SJ/wxdvNNMJFmiCPraidowAZXw0g==}
     engines: {node: '>=22.18.0'}
     peerDependencies:
       graphql: ^16.0.0 || ^17.0.0
 
-  '@graphql-tools/utils@13.2.1':
-    resolution: {integrity: sha512-GuSAfjq8RmF9dvNn1wG5d7OUuoRCbwT37/cFr/uIqgJpyVqyIq2tzeV6zOt8nrbuZXkRF8w3kJ4RGlCXfD1LxA==}
+  '@graphql-tools/utils@13.2.2':
+    resolution: {integrity: sha512-2KAzOQvG5bggH9A02xPGG9/40k+hpIfikR0TLa9r7okjUPqYv+B9FYpEXJBqxlRtrMStMbel0KczLPyNiu7vtg==}
     engines: {node: '>=22.18.0'}
     peerDependencies:
       graphql: ^16.0.0 || ^17.0.0
@@ -5204,8 +5204,8 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  i18next@27.1.0:
-    resolution: {integrity: sha512-xdjb2OXFRm33rClqknpJmmYBvrPcaoEQ7/4kur5uTrbqckqzkbRO0ns6gFFki5TDmHzbIrFYpNBXhaRafmhJ/Q==}
+  i18next@27.1.1:
+    resolution: {integrity: sha512-Qq3aJizS3RXQ30crhx9BKQLrHoa6GKpgrOJjVZ9vgj3EBxAddrmVfDNUrAMxSUimw5Jc+ld4SSZUAzf1q4nGyQ==}
     engines: {node: '>=22'}
     peerDependencies:
       typescript: ^5 || ^6 || ^7
@@ -10635,20 +10635,20 @@ snapshots:
 
   '@flatten-js/interval-tree@1.1.4': {}
 
-  '@graphql-tools/merge@10.0.8(graphql@17.1.0)':
+  '@graphql-tools/merge@10.0.9(graphql@17.1.0)':
     dependencies:
-      '@graphql-tools/utils': 13.2.1(graphql@17.1.0)
+      '@graphql-tools/utils': 13.2.2(graphql@17.1.0)
       graphql: 17.1.0
       tslib: 2.9.1
 
-  '@graphql-tools/schema@11.0.8(graphql@17.1.0)':
+  '@graphql-tools/schema@11.0.9(graphql@17.1.0)':
     dependencies:
-      '@graphql-tools/merge': 10.0.8(graphql@17.1.0)
-      '@graphql-tools/utils': 13.2.1(graphql@17.1.0)
+      '@graphql-tools/merge': 10.0.9(graphql@17.1.0)
+      '@graphql-tools/utils': 13.2.2(graphql@17.1.0)
       graphql: 17.1.0
       tslib: 2.9.1
 
-  '@graphql-tools/utils@13.2.1(graphql@17.1.0)':
+  '@graphql-tools/utils@13.2.2(graphql@17.1.0)':
     dependencies:
       '@graphql-typed-document-node/core': 3.2.0(graphql@17.1.0)
       '@whatwg-node/promise-helpers': 2.0.1
@@ -15360,7 +15360,7 @@ snapshots:
 
   husky@9.1.7: {}
 
-  i18next@27.1.0(typescript@5.8.3):
+  i18next@27.1.1(typescript@5.8.3):
     optionalDependencies:
       typescript: 5.8.3
 
@@ -17675,10 +17675,10 @@ snapshots:
     dependencies:
       react: 19.3.1
 
-  react-i18next@18.0.1(@types/react@19.3.0)(i18next@27.1.0(typescript@5.8.3))(react@19.3.1)(typescript@5.8.3):
+  react-i18next@18.0.1(@types/react@19.3.0)(i18next@27.1.1(typescript@5.8.3))(react@19.3.1)(typescript@5.8.3):
     dependencies:
       html-parse-stringify: 4.0.1
-      i18next: 27.1.0(typescript@5.8.3)
+      i18next: 27.1.1(typescript@5.8.3)
       react: 19.3.1
     optionalDependencies:
       '@types/react': 19.3.0
