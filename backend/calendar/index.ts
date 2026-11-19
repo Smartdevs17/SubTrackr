@@ -1,4 +1,16 @@
 export { CalendarSyncService, calendarSyncService } from './domain/CalendarSyncService';
+export {
+  IcsStreamWriter,
+  foldLine,
+  escapeIcsValue,
+  toIcsDate,
+  toIcsDateTime,
+} from './domain/IcsStreamWriter';
+export type {
+  IcsCalendarOptions,
+  IcsEventOptions,
+  IcsWriterMetrics,
+} from './domain/IcsStreamWriter';
 export type { RemoteChange } from './domain/CalendarSyncService';
 export { SyncWorker } from './domain/SyncWorker';
 export { createCalendarSyncController } from './controller/calendarSyncController';
