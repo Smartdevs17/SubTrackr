@@ -1,0 +1,76 @@
+# Weekly ml-service API token rotation (#2099).
+#
+# The job runs scripts/rotate-ml-token.sh. It needs a container image that has
+# kubectl, openssl and bash, and the repo's scripts/ folder mounted or baked in.
+# The RBAC below gives it only what the script uses, in this namespace.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ml-token-rotator
+  namespace: ml-service
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ml-token-rotator
+  namespace: ml-service
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["ml-service-api-tokens"]
+    verbs: ["get", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["ml-service"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ml-token-rotator
+  namespace: ml-service
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ml-token-rotator
+subjects:
+  - kind: ServiceAccount
+    name: ml-token-rotator
+    namespace: ml-service
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ml-token-rotation
+  namespace: ml-service
+spec:
+  schedule: "0 3 * * 0"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        spec:
+          serviceAccountName: ml-token-rotator
+          restartPolicy: Never
+          containers:
+            - name: rotate
+              # Replace with an image that bundles kubectl, openssl and bash.
+              image: bitnami/kubectl:latest
+              command: ["/bin/bash", "/scripts/rotate-ml-token.sh"]
+              env:
+                - name: ML_NAMESPACE
+                  value: ml-service
+                - name: ML_DEPLOYMENT
+                  value: ml-service
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                  readOnly: true
+          volumes:
+            - name: scripts
+              configMap:
+                name: ml-token-rotation-script
+                defaultMode: 0555

@@ -18,9 +18,11 @@ from contextvars import ContextVar
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from models import ChurnPredictionModel, RevenueForecastModel
+from auth import EXEMPT_PATHS, TOKEN_HEADER, is_authorized, load_tokens
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Structured logging with correlation IDs  (issue #910)
@@ -89,6 +91,24 @@ logger = StructuredLogger()
 # ──────────────────────────────────────────────────────────────────────────────
 
 app = FastAPI(title="SubTrackr ML Service", version="1.0.0")
+
+
+# ── API token middleware (#2099) ───────────────────────────────────────────────
+
+_api_tokens = load_tokens()
+if not _api_tokens:
+    logger.warning("api_token_check_disabled", reason="ML_SERVICE_API_TOKENS not set")
+
+
+@app.middleware("http")
+async def api_token_middleware(request: Request, call_next: Any) -> Response:
+    """Reject requests whose X-API-Key matches neither the current nor the grace-period token."""
+    if not _api_tokens or request.url.path in EXEMPT_PATHS:
+        return await call_next(request)
+    if not is_authorized(request.headers.get(TOKEN_HEADER), _api_tokens):
+        logger.warning("api_token_rejected", method=request.method, path=request.url.path)
+        return JSONResponse(status_code=401, content={"detail": "invalid or missing API token"})
+    return await call_next(request)
 
 
 # ── Correlation-ID middleware ──────────────────────────────────────────────────
