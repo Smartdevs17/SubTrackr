@@ -1,6 +1,10 @@
 # Minimal Grafana Tempo config for local trace storage.
 server:
   http_listen_port: 3200
+  # TLS-only (#2104): the query API is served over HTTPS.
+  http_tls_config:
+    cert_file: /etc/tempo/tls/server.crt
+    key_file: /etc/tempo/tls/server.key
 
 distributor:
   receivers:
@@ -8,6 +12,10 @@ distributor:
       protocols:
         grpc:
           endpoint: 0.0.0.0:4317
+          # TLS-only (#2104): plaintext OTLP/gRPC is refused.
+          tls:
+            cert_file: /etc/tempo/tls/server.crt
+            key_file: /etc/tempo/tls/server.key
 
 storage:
   trace:

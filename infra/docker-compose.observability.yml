@@ -3,7 +3,13 @@
 #   docker compose -f infra/docker-compose.observability.yml up
 #
 # Then point every service at the collector:
-#   OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+#   OTEL_EXPORTER_OTLP_ENDPOINT=https://localhost:4318
+#
+# Transport is TLS-only (#2104). Create the certificates once, in infra/tls/:
+#   openssl req -x509 -newkey rsa:2048 -nodes -days 365 -subj "/CN=localhost" \
+#     -addext "subjectAltName=DNS:localhost,DNS:otel-collector,DNS:tempo" \
+#     -keyout server.key -out server.crt
+#   cp server.crt ca.crt
 # and open Grafana at http://localhost:3000 (Explore → Tempo) for flame graphs.
 
 services:
@@ -12,6 +18,7 @@ services:
     command: ['--config=/etc/otel-collector-config.yaml']
     volumes:
       - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+      - ./tls:/etc/otel/tls:ro
     ports:
       - '4318:4318' # OTLP HTTP
       - '4317:4317' # OTLP gRPC
@@ -24,6 +31,7 @@ services:
     command: ['-config.file=/etc/tempo.yaml']
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml:ro
+      - ./tls:/etc/tempo/tls:ro
     ports:
       - '3200:3200' # Tempo query
 
