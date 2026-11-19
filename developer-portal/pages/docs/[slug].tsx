@@ -1,4 +1,15 @@
+import React, { useEffect, useState } from 'react';
 import type { GetStaticPaths, GetStaticProps, NextPage } from 'next';
+import { ThemeToggle } from '../../components/ThemeToggle';
+import { getThemeColors } from '../../styles/theme';
+import {
+  type ThemeMode,
+  getBrowserStorage,
+  prefersDarkScheme,
+  readStoredTheme,
+  resolveThemeMode,
+  writeStoredTheme,
+} from '../../utils/themePreference';
 
 // Doc page tags by category and version — used for tag-based purging
 export const DOC_TAGS: Record<string, string[]> = {
@@ -108,22 +119,65 @@ export const getStaticProps: GetStaticProps<DocPageProps> = async ({ params }) =
 
 // Minimal page component — replace with your real doc renderer
 const DocPage: NextPage<DocPageProps> = ({ title, content, tags, lastUpdated }) => {
+  // Start in light mode so server and first client render match; the stored or
+  // system preference is applied after mount.
+  const [mode, setMode] = useState<ThemeMode>('light');
+
+  useEffect(() => {
+    const storage = getBrowserStorage();
+    setMode(resolveThemeMode(readStoredTheme(storage), prefersDarkScheme()));
+  }, []);
+
+  const handleToggle = (next: ThemeMode) => {
+    setMode(next);
+    // Storage may be unavailable; the toggle still works for this page view.
+    writeStoredTheme(getBrowserStorage(), next);
+  };
+
+  const colors = getThemeColors(mode);
+
   return (
-    <article>
-      <h1>{title}</h1>
-      <p>
-        <small>Last updated: {new Date(lastUpdated).toLocaleDateString()}</small>
-      </p>
-      <div className="doc-tags">
-        {tags.map((tag) => (
-          <span key={tag} className={`tag tag-${tag}`}>
-            {tag}
-          </span>
-        ))}
+    <div
+      data-theme={mode}
+      style={{
+        minHeight: '100vh',
+        background: colors.background,
+        color: colors.text,
+        padding: 16,
+      }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+        <ThemeToggle mode={mode} onToggle={handleToggle} colors={colors} />
       </div>
-      {/* Replace with proper markdown renderer (e.g. next-mdx-remote) */}
-      <pre style={{ whiteSpace: 'pre-wrap' }}>{content}</pre>
-    </article>
+      <article>
+        <h1>{title}</h1>
+        <p>
+          <small style={{ color: colors.textSecondary }}>
+            Last updated: {new Date(lastUpdated).toLocaleDateString()}
+          </small>
+        </p>
+        <div className="doc-tags">
+          {tags.map((tag) => (
+            <span
+              key={tag}
+              className={`tag tag-${tag}`}
+              style={{
+                display: 'inline-block',
+                marginRight: 8,
+                padding: '2px 8px',
+                borderRadius: 6,
+                border: `1px solid ${colors.border}`,
+                background: colors.surface,
+                color: colors.textSecondary,
+                fontSize: 12,
+              }}>
+              {tag}
+            </span>
+          ))}
+        </div>
+        {/* Replace with proper markdown renderer (e.g. next-mdx-remote) */}
+        <pre style={{ whiteSpace: 'pre-wrap', color: colors.text }}>{content}</pre>
+      </article>
+    </div>
   );
 };
 
