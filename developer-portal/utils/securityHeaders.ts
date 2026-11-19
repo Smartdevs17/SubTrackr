@@ -40,6 +40,25 @@ export function adminDashboardNextHeaders(
   return nextSecurityHeaders(portalCspOptions(apiOrigin));
 }
 
+/**
+ * Next.js `headers()` rule set for the developer portal (#2098).
+ *
+ * The portal serves API documentation and a request playground. It applies the
+ * same CSP-equivalent policy as the admin dashboard to every route, so inline
+ * scripts and hostile objects are blocked even if untrusted markup reaches a page.
+ * `connect-src` is limited to the API origin the playground calls.
+ */
+export function developerPortalHeaderRules(
+  apiOrigin?: string
+): Array<{ source: string; headers: Array<{ key: string; value: string }> }> {
+  return [
+    {
+      source: '/:path*',
+      headers: nextSecurityHeaders(portalCspOptions(apiOrigin)),
+    },
+  ];
+}
+
 /** The raw CSP header (name + value) for the admin dashboard. */
 export function adminDashboardCsp(apiOrigin?: string): { name: string; value: string } {
   return buildCspHeader(portalCspOptions(apiOrigin));
