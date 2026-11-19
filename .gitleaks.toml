@@ -1,35 +1,56 @@
-title = "SubTrackr secret scanning configuration"
+# Centralised Gitleaks configuration for SubTrackr
+# Reference: https://github.com/gitleaks/gitleaks/blob/master/config/gitleaks.toml
+
+title = "SubTrackr Secret Scanning Rules"
 
 [extend]
+# Inherit the official Gitleaks default rule set
 useDefault = true
 
-[allowlist]
- feat/stellar-wave-issues
-description = "Allow test fixtures, documentation examples, and lockfiles to avoid noisy findings."
+# ---------------------------------------------------------------------------
+# Project-specific rules (supplement the defaults)
+# ---------------------------------------------------------------------------
 
-description = "Allow test fixtures, documentation examples, demo UI placeholder credentials, and lockfiles to avoid noisy findings."
-main
+[[rules]]
+id          = "subtrackr-jwt-secret"
+description = "Hard-coded JWT signing secret"
+regex       = '''(?i)(jwt[_\-]?secret\s*[:=]\s*["']?)[A-Za-z0-9+/=]{32,}'''
+tags        = ["secret", "jwt"]
+
+[[rules]]
+id          = "subtrackr-db-password"
+description = "Database password in connection string"
+regex       = '''postgres(?:ql)?://[^:]+:([^@]{8,})@'''
+tags        = ["secret", "database"]
+[rules.allowlist]
+  regexes = ["localhost", "127\\.0\\.0\\.1", "\\$\\{[^}]+\\}", "\\$[A-Z_]+"]
+
+[[rules]]
+id          = "subtrackr-shopify-secret"
+description = "Shopify webhook or app secret"
+regex       = '''(?i)(shopify[_\-]?(webhook[_\-]?)?secret\s*[:=]\s*["']?)([a-f0-9]{32,64})'''
+tags        = ["secret", "shopify"]
+
+# ---------------------------------------------------------------------------
+# Allowlist — paths that may contain test fixtures or example values
+# ---------------------------------------------------------------------------
+
+[allowlist]
+description = "Suppress false positives from test fixtures and documentation"
 paths = [
-    '''\.env\.example$''',
-    '''.*\.test\.ts$''',
-    '''.*\.test\.tsx$''',
-    '''.*\.spec\.ts$''',
-    '''.*\.spec\.tsx$''',
-    '''.*/__tests__/.*''',
-    '''.*/__mocks__/.*''',
-    '''.*\.md$''',
-    '''.*package-lock\.json$''',
-    '''.*pnpm-lock\.yaml$''',
-    '''.*yarn\.lock$''',
-    '''.*Cargo\.lock$''',
-feat/stellar-wave-issues
-    # Developer-portal demo screen: mock API-key fixtures rendered in the UI.
-    # These are fake values in local state, never real credentials.
-    '''developer-portal/pages/ApiKeysPage\.tsx$''',
+  ".gitleaks.toml",
+  "**/*.test.ts",
+  "**/*.spec.ts",
+  "**/__tests__/**",
+  "**/fixtures/**",
+  "**/__mocks__/**",
+  "**/*.example",
+  "**/*.example.env",
+  "docs/**",
 ]
-# Literal placeholder tokens used in docs snippets and demo copy.
-stopwords = [
-    'YOUR_API_KEY',
-    'YOUR_API_KEY_HERE',
-    'sk_test_your_key', main
+regexes = [
+  # Placeholder values used in documentation / README
+  "your[_\\-]?(secret|token|key|password)",
+  "INSERT[_\\-]?SECRET[_\\-]?HERE",
+  "CHANGE[_\\-]?ME",
 ]
