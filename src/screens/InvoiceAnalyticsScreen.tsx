@@ -1,12 +1,5 @@
 import React, { useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  ActivityIndicator,
-  Dimensions,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Dimensions } from 'react-native';
 import { useInvoiceStore } from '../store/invoiceStore';
 import { useTheme } from '../theme/useTheme';
 
@@ -32,7 +25,11 @@ export default function InvoiceAnalyticsScreen() {
     <View style={[styles.metricCard, { backgroundColor: theme.colors.card }]}>
       <Text style={[styles.metricTitle, { color: theme.colors.textSecondary }]}>{title}</Text>
       <Text style={[styles.metricValue, { color: color || theme.colors.text }]}>{value}</Text>
-      {subtitle && <Text style={[styles.metricSubtitle, { color: theme.colors.textSecondary }]}>{subtitle}</Text>}
+      {subtitle && (
+        <Text style={[styles.metricSubtitle, { color: theme.colors.textSecondary }]}>
+          {subtitle}
+        </Text>
+      )}
     </View>
   );
 
@@ -66,11 +63,7 @@ export default function InvoiceAnalyticsScreen() {
             subtitle={`${analytics.paidInvoices} paid invoices`}
             color="#10B981"
           />
-          <MetricCard
-            title="Total Invoices"
-            value={analytics.totalInvoices}
-            subtitle="All time"
-          />
+          <MetricCard title="Total Invoices" value={analytics.totalInvoices} subtitle="All time" />
           <MetricCard
             title="Average Amount"
             value={`$${analytics.averageInvoiceAmount.toFixed(2)}`}
@@ -105,27 +98,32 @@ export default function InvoiceAnalyticsScreen() {
         </View>
       </View>
 
-      {analytics.paymentMethodBreakdown && Object.keys(analytics.paymentMethodBreakdown).length > 0 && (
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Payment Methods</Text>
-          {Object.entries(analytics.paymentMethodBreakdown).map(([method, count]) => (
-            <View key={method} style={[styles.paymentMethodRow, { backgroundColor: theme.colors.card }]}>
-              <Text style={[styles.paymentMethodLabel, { color: theme.colors.text }]}>
-                {method || 'Not specified'}
-              </Text>
-              <Text style={[styles.paymentMethodCount, { color: theme.colors.textSecondary }]}>
-                {count} invoices
-              </Text>
-            </View>
-          ))}
-        </View>
-      )}
+      {analytics.paymentMethodBreakdown &&
+        Object.keys(analytics.paymentMethodBreakdown).length > 0 && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Payment Methods</Text>
+            {Object.entries(analytics.paymentMethodBreakdown).map(([method, count]) => (
+              <View
+                key={method}
+                style={[styles.paymentMethodRow, { backgroundColor: theme.colors.card }]}>
+                <Text style={[styles.paymentMethodLabel, { color: theme.colors.text }]}>
+                  {method || 'Not specified'}
+                </Text>
+                <Text style={[styles.paymentMethodCount, { color: theme.colors.textSecondary }]}>
+                  {count} invoices
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
 
       {analytics.topSubscriptions.length > 0 && (
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Top Subscriptions</Text>
           {analytics.topSubscriptions.map((sub, index) => (
-            <View key={sub.subscriptionId} style={[styles.topSubCard, { backgroundColor: theme.colors.card }]}>
+            <View
+              key={sub.subscriptionId}
+              style={[styles.topSubCard, { backgroundColor: theme.colors.card }]}>
               <View style={styles.topSubRank}>
                 <Text style={[styles.topSubRankText, { color: theme.colors.primary }]}>
                   #{index + 1}

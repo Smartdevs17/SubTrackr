@@ -42,6 +42,9 @@ Consent preferences for analytics and marketing can be toggled at any time in th
 - **Deactivated Accounts**: Anonymized immediately; logs deleted after 90 days.
 - **On-chain Data**: Persists on the Stellar network indefinitely.
 
+These limits are enforced automatically by the backend retention engine, with legal-hold
+support. See [Data Retention Policy Enforcement](data-retention.md).
+
 ## 5. Security Measures
 
 - Data encryption at rest and in transit.

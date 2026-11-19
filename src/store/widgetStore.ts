@@ -11,12 +11,48 @@ export interface WidgetItem {
 }
 
 export const DEFAULT_WIDGET_ITEMS: WidgetItem[] = [
-  { id: 'overview', title: 'MRR & ARR Overview', description: 'Key recurring revenue metrics', enabled: true, order: 0 },
-  { id: 'revenueTrend', title: 'Historical Revenue Trend', description: '6-month MRR/ARR trajectory chart', enabled: true, order: 1 },
-  { id: 'forecast', title: 'Revenue Forecasting', description: 'Predictive trajectory models', enabled: true, order: 2 },
-  { id: 'cohortHeatmap', title: 'Cohort Retention Heatmap', description: 'Lifecycle retention curves', enabled: true, order: 3 },
-  { id: 'churnBreakdown', title: 'Churn vs. Logo Breakdown', description: 'Revenue loss vs subscriber churn', enabled: true, order: 4 },
-  { id: 'planMigrations', title: 'Plan Migrations Flow', description: 'Sankey diagram for plan changes', enabled: true, order: 5 },
+  {
+    id: 'overview',
+    title: 'MRR & ARR Overview',
+    description: 'Key recurring revenue metrics',
+    enabled: true,
+    order: 0,
+  },
+  {
+    id: 'revenueTrend',
+    title: 'Historical Revenue Trend',
+    description: '6-month MRR/ARR trajectory chart',
+    enabled: true,
+    order: 1,
+  },
+  {
+    id: 'forecast',
+    title: 'Revenue Forecasting',
+    description: 'Predictive trajectory models',
+    enabled: true,
+    order: 2,
+  },
+  {
+    id: 'cohortHeatmap',
+    title: 'Cohort Retention Heatmap',
+    description: 'Lifecycle retention curves',
+    enabled: true,
+    order: 3,
+  },
+  {
+    id: 'churnBreakdown',
+    title: 'Churn vs. Logo Breakdown',
+    description: 'Revenue loss vs subscriber churn',
+    enabled: true,
+    order: 4,
+  },
+  {
+    id: 'planMigrations',
+    title: 'Plan Migrations Flow',
+    description: 'Sankey diagram for plan changes',
+    enabled: true,
+    order: 5,
+  },
 ];
 
 export interface WidgetState {

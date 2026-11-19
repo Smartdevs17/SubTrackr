@@ -74,14 +74,17 @@ jobs:
       # ── Push / manual mode: update the changelog file and commit ────────────
       - name: Generate changelog and update file (push to main / manual)
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+          INPUT_BREAKING_GATE: ${{ github.event.inputs.breaking_gate }}
         run: |
           VERSION_ARG=""
-          if [ -n "${{ github.event.inputs.version }}" ]; then
-            VERSION_ARG="--version ${{ github.event.inputs.version }}"
+          if [ -n "$INPUT_VERSION" ]; then
+            VERSION_ARG="--version $INPUT_VERSION"
           fi
 
           BREAKING_ARG=""
-          if [ "${{ github.event.inputs.breaking_gate }}" = "true" ]; then
+          if [ "$INPUT_BREAKING_GATE" = "true" ]; then
             BREAKING_ARG="--breaking"
           fi
 
@@ -106,7 +109,7 @@ jobs:
       # ── Always upload the changelog as an artifact ──────────────────────────
       - name: Upload changelog artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: api-changelog
           path: developer-portal/docs/changelog.md

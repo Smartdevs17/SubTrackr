@@ -3,13 +3,24 @@ import * as Notifications from 'expo-notifications';
 
 import type { Subscription } from '../types/subscription';
 import {
+  NOTIFICATION_CHANNELS,
   NOTIFICATION_TYPE_META,
+  NOTIFICATION_TYPES,
   type DeliveryResult,
   type NotificationChannel,
   type NotificationRecord,
   type NotificationType,
 } from '../types/notification';
-import { useNotificationPreferencesStore } from '../store/notificationPreferencesStore';
+import {
+  useNotificationPreferencesStore,
+  type NotificationPreferences,
+} from '../store/notificationPreferencesStore';
+import {
+  digestBuilder,
+  digestWindowFor,
+  isWithinQuietHoursDate,
+  nextQuietHoursEnd,
+} from './pushScheduleEngine';
 import { navigationRef } from '../navigation/navigationRef';
 
 export const NOTIFICATION_DATA_TYPE = {
@@ -406,30 +417,91 @@ function transportFor(channel: NotificationChannel): ChannelTransport | undefine
   return transports.get(channel);
 }
 
-/** True when `date` falls inside the subscriber's quiet window. */
+/** True when `date` falls inside the subscriber's quiet window (Issue #1744:
+ *  evaluated against the configured timezone, not hard-coded UTC). */
 function isInQuietHours(
   date: Date,
-  quietHours: { enabled: boolean; startHour: number; endHour: number }
+  quietHours: { enabled: boolean; startHour: number; endHour: number; timezone: string }
 ): boolean {
-  if (!quietHours.enabled) return false;
-  const hour = date.getUTCHours();
-  return quietHours.startHour < quietHours.endHour
-    ? hour >= quietHours.startHour && hour < quietHours.endHour
-    : hour >= quietHours.startHour || hour < quietHours.endHour;
+  return isWithinQuietHoursDate(date, { ...quietHours, timezone: quietHours.timezone || 'UTC' });
 }
 
 /** The next moment outside the quiet window, or `date` if already outside. */
 function nextDeliveryTime(
   date: Date,
-  quietHours: { enabled: boolean; startHour: number; endHour: number }
+  quietHours: { enabled: boolean; startHour: number; endHour: number; timezone: string }
 ): Date {
   if (!isInQuietHours(date, quietHours)) return date;
-  const result = new Date(date);
-  result.setUTCHours(quietHours.endHour, 0, 0, 0);
-  if (result <= date) {
-    result.setUTCDate(result.getUTCDate() + 1);
-  }
-  return result;
+  return nextQuietHoursEnd(date, { ...quietHours, timezone: quietHours.timezone || 'UTC' });
+}
+
+// ── Email digest batching (Issue #1746) ──────────────────────────────────────
+//
+// When a subscriber picks a daily or weekly digest, non-critical notifications
+// are buffered instead of going out one by one. The buffer is flushed as a
+// single grouped notification (Issue #1746: "content grouped") once its UTC
+// window has passed, or when the subscriber switches back to immediate.
+
+/** Unix ms of the first notification currently sitting in the digest buffer. */
+let digestBufferedSinceMs: number | null = null;
+
+function digestFrequencyOf(preferences: NotificationPreferences): 'daily' | 'weekly' {
+  return preferences.digestFrequency === 'weekly' ? 'weekly' : 'daily';
+}
+
+/** Deliver every buffered item as one grouped `digest` notification. */
+async function flushBufferedDigest(
+  userId: string,
+  frequency: 'daily' | 'weekly',
+  now: Date
+): Promise<DeliveryResult | null> {
+  const entry = digestBuilder.buildDigest(userId, frequency);
+  digestBufferedSinceMs = null;
+  if (!entry) return null;
+
+  const subject = `Your ${frequency} digest — ${entry.notifications.length} updates`;
+  const body = entry.notifications.map((n) => `• ${n.title}: ${n.body}`).join('\n');
+  return deliverNotification({ type: 'digest', userId, subject, body, at: now });
+}
+
+/**
+ * Flush the digest buffer if its scheduled UTC window has passed.
+ * Called at the top of every delivery, and exported so the app can call it on
+ * foreground/resume.
+ */
+export async function maybeFlushDueDigest(
+  preferences: NotificationPreferences = useNotificationPreferencesStore.getState().preferences,
+  now: Date = new Date(),
+  userId: string = 'me'
+): Promise<DeliveryResult | null> {
+  if (digestBufferedSinceMs === null) return null;
+  const frequency = digestFrequencyOf(preferences);
+  const due =
+    preferences.digestFrequency === 'immediate' ||
+    digestWindowFor(frequency, new Date(digestBufferedSinceMs)).getTime() <= now.getTime();
+  if (!due) return null;
+  return flushBufferedDigest(userId, frequency, now);
+}
+
+/** Build and send the buffered digest right now, regardless of the window. */
+export async function flushDigestNow(
+  userId: string = 'me',
+  now: Date = new Date()
+): Promise<DeliveryResult | null> {
+  const preferences = useNotificationPreferencesStore.getState().preferences;
+  if (digestBufferedSinceMs === null) return null;
+  return flushBufferedDigest(userId, digestFrequencyOf(preferences), now);
+}
+
+/** Number of notifications waiting in the digest buffer. */
+export function pendingDigestCount(userId: string): number {
+  return digestBuilder.getPendingCount(userId);
+}
+
+/** Drop everything buffered for the digest without delivering it. */
+export function resetDigestBuffer(): void {
+  digestBufferedSinceMs = null;
+  digestBuilder.clear();
 }
 
 export interface DeliverNotificationInput {
@@ -463,6 +535,12 @@ export async function deliverNotification(
   const meta = NOTIFICATION_TYPE_META[input.type];
   const userId = input.userId ?? 'me';
   const now = input.at ?? new Date();
+
+  // Send any digest whose UTC window has already passed before this delivery.
+  if (input.type !== 'digest') {
+    await maybeFlushDueDigest(store.preferences, now, userId);
+  }
+
   const channels = store.channelsFor(input.type);
 
   const result: DeliveryResult = {
@@ -492,6 +570,39 @@ export async function deliverNotification(
     });
     result.suppressed.push(suppressed.channel);
     result.records.push(suppressed);
+    return result;
+  }
+
+  // Digest batching (Issue #1746): buffer non-critical notifications when the
+  // subscriber asked for a daily/weekly digest instead of discrete sends.
+  if (
+    input.type !== 'digest' &&
+    store.preferences.digestFrequency !== 'immediate' &&
+    meta.priority !== 'critical'
+  ) {
+    const frequency = digestFrequencyOf(store.preferences);
+    const bufferedChannel = channels[0];
+    const rendered = store.renderFor(input.type, bufferedChannel, input.variables, {
+      subject: input.subject,
+      body: input.body,
+    });
+    digestBuilder.enqueue(userId, rendered.subject, rendered.body, meta.category);
+    if (digestBufferedSinceMs === null) digestBufferedSinceMs = now.getTime();
+
+    const scheduledFor = digestWindowFor(frequency, now);
+    const buffered = record({
+      channel: bufferedChannel,
+      title: rendered.subject,
+      body: rendered.body,
+      status: 'scheduled',
+      createdAt: now.toISOString(),
+      scheduledFor: scheduledFor.toISOString(),
+      reason: `Batched into the ${frequency} email digest`,
+      data: input.data,
+    });
+    result.records.push(buffered);
+    result.scheduled = true;
+    result.scheduledFor = scheduledFor.toISOString();
     return result;
   }
 
@@ -597,9 +708,6 @@ export function attachNotificationResponseListeners(): () => void {
 // Issue #920 — Frontend notification preference management helpers
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { useNotificationPreferencesStore } from '../store/notificationPreferencesStore';
-import type { NotificationType, NotificationChannel } from '../types/notification';
-
 /**
  * Notification preference summary for display in the settings UI.
  */
@@ -608,7 +716,22 @@ export interface NotificationPreferenceSummary {
   totalDisabled: number;
   channelSummary: Record<NotificationChannel, { enabled: number; disabled: number }>;
   hasQuietHours: boolean;
-  frequency: string;
+  frequency: NotificationPreferences['digestFrequency'];
+  /** Types the subscriber has muted entirely. */
+  mutedTypes: NotificationType[];
+}
+
+/** True when `now` falls inside the configured quiet-hours window, read in
+ *  the subscriber's configured timezone (Issue #1744). */
+export function isWithinQuietHours(
+  quietHours: NotificationPreferences['quietHours'],
+  now: Date = new Date()
+): boolean {
+  if (!quietHours.enabled || quietHours.startHour === quietHours.endHour) return false;
+  return isWithinQuietHoursDate(now, {
+    ...quietHours,
+    timezone: quietHours.timezone || 'UTC',
+  });
 }
 
 /**
@@ -618,50 +741,32 @@ export interface NotificationPreferenceSummary {
  * from any component without prop-drilling.
  */
 export function getNotificationPreferenceSummary(): NotificationPreferenceSummary {
-  const store = useNotificationPreferencesStore.getState();
-  const prefs = store.preferences;
+  const { preferences } = useNotificationPreferencesStore.getState();
 
-  if (!prefs) {
-    return {
-      totalEnabled: 0,
-      totalDisabled: 0,
-      channelSummary: {
-        push: { enabled: 0, disabled: 0 },
-        email: { enabled: 0, disabled: 0 },
-        sms: { enabled: 0, disabled: 0 },
-        inApp: { enabled: 0, disabled: 0 },
-      },
-      hasQuietHours: false,
-      frequency: 'immediate',
-    };
-  }
-
-  const channelSummary: Record<NotificationChannel, { enabled: number; disabled: number }> = {
-    push: { enabled: 0, disabled: 0 },
-    email: { enabled: 0, disabled: 0 },
-    sms: { enabled: 0, disabled: 0 },
-    inApp: { enabled: 0, disabled: 0 },
-  };
+  const channelSummary = NOTIFICATION_CHANNELS.reduce(
+    (acc, channel) => {
+      acc[channel] = { enabled: 0, disabled: 0 };
+      return acc;
+    },
+    {} as Record<NotificationChannel, { enabled: number; disabled: number }>
+  );
 
   let totalEnabled = 0;
   let totalDisabled = 0;
+  const mutedTypes: NotificationType[] = [];
 
-  if (prefs.typePreferences) {
-    for (const typePref of Object.values(prefs.typePreferences)) {
-      if (typeof typePref === 'object' && typePref !== null && 'channels' in typePref) {
-        const channels = (typePref as { channels: Record<string, boolean> }).channels;
-        for (const [ch, enabled] of Object.entries(channels)) {
-          const channel = ch as NotificationChannel;
-          if (channel in channelSummary) {
-            if (enabled) {
-              channelSummary[channel].enabled += 1;
-              totalEnabled += 1;
-            } else {
-              channelSummary[channel].disabled += 1;
-              totalDisabled += 1;
-            }
-          }
-        }
+  for (const type of NOTIFICATION_TYPES) {
+    const preference = preferences.types[type];
+    if (!preference) continue;
+    if (preference.muted) mutedTypes.push(type);
+
+    for (const channel of NOTIFICATION_CHANNELS) {
+      if (preference.channels[channel]) {
+        channelSummary[channel].enabled += 1;
+        totalEnabled += 1;
+      } else {
+        channelSummary[channel].disabled += 1;
+        totalDisabled += 1;
       }
     }
   }
@@ -670,23 +775,27 @@ export function getNotificationPreferenceSummary(): NotificationPreferenceSummar
     totalEnabled,
     totalDisabled,
     channelSummary,
-    hasQuietHours: prefs.quietHoursEnabled ?? false,
-    frequency: prefs.frequency ?? 'immediate',
+    hasQuietHours: preferences.quietHours.enabled,
+    frequency: preferences.digestFrequency,
+    mutedTypes,
   };
 }
 
 /**
  * Bulk-enable or bulk-disable all notification types for a specific channel.
  * Useful for a "Pause all email notifications" toggle.
+ *
+ * A required type keeps its last remaining channel, so the store may refuse a
+ * disable for that one type — the call is deliberately fire-and-forget per type.
  */
 export async function setAllChannelNotifications(
   channel: NotificationChannel,
   enabled: boolean,
-  notificationTypes: NotificationType[]
+  notificationTypes: NotificationType[] = NOTIFICATION_TYPES
 ): Promise<void> {
   const store = useNotificationPreferencesStore.getState();
   for (const type of notificationTypes) {
-    await store.setTypeChannelEnabled?.(type, channel, enabled);
+    store.setChannelPreference(type, channel, enabled);
   }
 }
 
@@ -700,39 +809,20 @@ export function shouldShowNotification(
   type: NotificationType,
   channel: NotificationChannel
 ): boolean {
-  const store = useNotificationPreferencesStore.getState();
-  const prefs = store.preferences;
-  if (!prefs) return true; // default to showing if prefs haven't loaded yet
+  const { preferences } = useNotificationPreferencesStore.getState();
+  const preference = preferences.types[type];
 
-  // Check channel-level toggle.
-  const channelEnabled = prefs.channels?.[channel as keyof typeof prefs.channels] ?? true;
-  if (!channelEnabled) return false;
+  // Preferences have not hydrated yet — never drop a notification on a guess.
+  if (!preference) return true;
 
-  // Check type-level toggle.
-  if (prefs.typePreferences) {
-    const typePref = (prefs.typePreferences as Record<string, unknown>)[type];
-    if (typeof typePref === 'object' && typePref !== null && 'channels' in typePref) {
-      const channels = (typePref as { channels: Record<string, boolean> }).channels;
-      if (channel in channels && !channels[channel]) return false;
-    }
-  }
+  const meta = NOTIFICATION_TYPE_META[type];
+  if (preference.muted && !meta.required) return false;
+  if (!preference.channels[channel]) return false;
 
-  // Check quiet hours.
-  if (prefs.quietHoursEnabled) {
-    const now = new Date();
-    const [startH, startM] = (prefs.quietHoursStart ?? '22:00').split(':').map(Number);
-    const [endH, endM] = (prefs.quietHoursEnd ?? '08:00').split(':').map(Number);
-    const nowMinutes = now.getHours() * 60 + now.getMinutes();
-    const startMinutes = startH * 60 + startM;
-    const endMinutes = endH * 60 + endM;
-
-    const inQuiet =
-      startMinutes < endMinutes
-        ? nowMinutes >= startMinutes && nowMinutes < endMinutes
-        : nowMinutes >= startMinutes || nowMinutes < endMinutes; // overnight window
-
-    if (inQuiet) return false;
-  }
+  // Critical alerts, and anything landing in the in-app inbox, ignore quiet
+  // hours — the same rule PushScheduleEngine applies when it schedules.
+  if (meta.priority === 'critical' || channel === 'in_app') return true;
+  if (preferences.quietHours.enabled && isWithinQuietHours(preferences.quietHours)) return false;
 
   return true;
 }

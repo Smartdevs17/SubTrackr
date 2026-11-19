@@ -66,7 +66,9 @@ describe('resellerMarketplace utility functions', () => {
     });
 
     it('returns correct tier commission rates', () => {
-      expect(getTierCommissionRate(ResellerTier.BRONZE)).toBe(TIER_COMMISSION_RATES[ResellerTier.BRONZE]);
+      expect(getTierCommissionRate(ResellerTier.BRONZE)).toBe(
+        TIER_COMMISSION_RATES[ResellerTier.BRONZE]
+      );
       expect(getTierCommissionRate(ResellerTier.SILVER)).toBe(10);
       expect(getTierCommissionRate(ResellerTier.GOLD)).toBe(15);
       expect(getTierCommissionRate(ResellerTier.PLATINUM)).toBe(20);

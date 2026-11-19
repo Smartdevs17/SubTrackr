@@ -178,6 +178,55 @@ describe('SSOService', () => {
       const disabled = service.setJITProvisioning(idp.id, false);
       expect(disabled.jitProvisioningEnabled).toBe(false);
     });
+
+    it('provisions user just-in-time on SAML callback when enabled', () => {
+      const idp = service.createIdentityProvider('org_1', 'Okta', 'saml2');
+      service.configureSAML(idp.id, makeSAMLConfig());
+      service.setRoleMappings(idp.id, [{ idpGroup: 'engineering', subtrackrRole: 'admin' }]);
+      service.setJITProvisioning(idp.id, true);
+
+      const { state } = service.initiateSSOLogin({ identityProviderId: idp.id });
+      const samlXml = `<samlp:Response InResponseTo="${state}"><email>alice@example.com</email><displayName>Alice Smith</displayName><groups>engineering</groups></samlp:Response>`;
+      const samlResponse = Buffer.from(samlXml).toString('base64');
+
+      const session = service.handleSSOCallback({ state, samlResponse });
+      expect(session.provisionedUser).toBeDefined();
+      expect(session.provisionedUser?.email).toBe('alice@example.com');
+      expect(session.provisionedUser?.role).toBe('admin');
+      expect(session.userId).toBe(session.provisionedUser?.id);
+    });
+
+    it('provisions user just-in-time on OIDC callback with claims when enabled', () => {
+      const idp = service.createIdentityProvider('org_1', 'Azure AD', 'oidc');
+      service.configureOIDC(idp.id, {
+        issuer: 'https://login.microsoftonline.com/tenant',
+        authorizationEndpoint: 'https://login.microsoftonline.com/authorize',
+        tokenEndpoint: 'https://login.microsoftonline.com/token',
+        userinfoEndpoint: 'https://graph.microsoft.com/oidc/userinfo',
+        jwksUri: 'https://login.microsoftonline.com/discovery/keys',
+        clientId: 'client_123',
+        clientSecretHash: 'secret_hash',
+        scopes: ['openid', 'email', 'profile'],
+      });
+      service.setRoleMappings(idp.id, [{ idpGroup: 'finance_dept', subtrackrRole: 'billing' }]);
+      service.setJITProvisioning(idp.id, true);
+
+      const { state } = service.initiateSSOLogin({ identityProviderId: idp.id });
+      const session = service.handleSSOCallback({
+        state,
+        code: 'auth_code_xyz',
+        claims: {
+          email: 'bob@enterprise.com',
+          displayName: 'Bob Jones',
+          groups: ['finance_dept'],
+        },
+      });
+
+      expect(session.provisionedUser).toBeDefined();
+      expect(session.provisionedUser?.email).toBe('bob@enterprise.com');
+      expect(session.provisionedUser?.role).toBe('billing');
+      expect(session.userId).toBe(session.provisionedUser?.id);
+    });
   });
 
   describe('SSO Login Flow', () => {

@@ -130,6 +130,11 @@ Validation errors follow the standard API response envelope:
       "body.name": "String must contain at least 1 character(s)",
       "body.amount": "Amount must be positive"
     }
+  },
+  "meta": {
+    "timestamp": "2026-10-17T15:00:00.000Z",
+    "requestId": "req_abc123",
+    "apiVersion": 1
   }
 }
 ```

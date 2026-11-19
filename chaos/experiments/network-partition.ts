@@ -73,8 +73,6 @@ export async function runNetworkPartitionExperiment(): Promise<ChaosResult> {
     passed,
     duration: Date.now() - start,
     recovery: passed ? 'partition-healed' : undefined,
-    error: passed
-      ? undefined
-      : `degraded=${degradesGracefully}, recovered=${recovered}`,
+    error: passed ? undefined : `degraded=${degradesGracefully}, recovered=${recovered}`,
   };
 }

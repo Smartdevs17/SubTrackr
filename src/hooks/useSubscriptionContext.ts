@@ -47,9 +47,15 @@ export function useSubscriptionManager(subscriptionId: string) {
     [subscriptionId, updateSubscription]
   );
 
-  const remove = useCallback(() => deleteSubscription(subscriptionId), [subscriptionId, deleteSubscription]);
+  const remove = useCallback(
+    () => deleteSubscription(subscriptionId),
+    [subscriptionId, deleteSubscription]
+  );
 
-  const toggle = useCallback(() => toggleSubscriptionStatus(subscriptionId), [subscriptionId, toggleSubscriptionStatus]);
+  const toggle = useCallback(
+    () => toggleSubscriptionStatus(subscriptionId),
+    [subscriptionId, toggleSubscriptionStatus]
+  );
 
   const recordOutcome = useCallback(
     (outcome: 'success' | 'failed') => recordBillingOutcome(subscriptionId, outcome),
@@ -65,11 +71,17 @@ export function useSubscriptionManager(subscriptionId: string) {
 /**
  * Hook to get subscriptions grouped by category.
  */
-export function useSubscriptionsByCategory(): Record<SubscriptionCategory, import('../types/subscription').Subscription[]> {
+export function useSubscriptionsByCategory(): Record<
+  SubscriptionCategory,
+  import('../types/subscription').Subscription[]
+> {
   const { subscriptions } = useBaseContext();
 
   return useMemo(() => {
-    const grouped = {} as Record<SubscriptionCategory, import('../types/subscription').Subscription[]>;
+    const grouped = {} as Record<
+      SubscriptionCategory,
+      import('../types/subscription').Subscription[]
+    >;
     for (const sub of subscriptions) {
       if (!grouped[sub.category]) {
         grouped[sub.category] = [];
@@ -83,7 +95,10 @@ export function useSubscriptionsByCategory(): Record<SubscriptionCategory, impor
 /**
  * Hook to get subscriptions grouped by billing cycle.
  */
-export function useSubscriptionsByBillingCycle(): Record<BillingCycle, import('../types/subscription').Subscription[]> {
+export function useSubscriptionsByBillingCycle(): Record<
+  BillingCycle,
+  import('../types/subscription').Subscription[]
+> {
   const { subscriptions } = useBaseContext();
 
   return useMemo(() => {
@@ -108,9 +123,7 @@ export function useSubscriptionSearch(query: string) {
     if (!query.trim()) return subscriptions;
     const lower = query.toLowerCase();
     return subscriptions.filter(
-      (s) =>
-        s.name.toLowerCase().includes(lower) ||
-        s.description?.toLowerCase().includes(lower)
+      (s) => s.name.toLowerCase().includes(lower) || s.description?.toLowerCase().includes(lower)
     );
   }, [subscriptions, query]);
 }

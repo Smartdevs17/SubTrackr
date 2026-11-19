@@ -129,9 +129,16 @@ export class MonitoredPool implements Pool {
   async connect(): Promise<PoolClient> {
     const client = await this.inner.connect();
 
-    // Inject query timeout on new connections
+    // Inject query timeout on new connections.
+    // PostgreSQL SET does not accept parameterised values, but set_config() does.
+    // We use set_config('statement_timeout', $1, false) so the value is passed
+    // as a query parameter and never interpolated into SQL.
     try {
-      await client.query(`SET statement_timeout = ${this.cfg.queryTimeoutMs}`);
+      const timeoutMs = Math.max(0, Math.trunc(Number(this.cfg.queryTimeoutMs)));
+      await client.query(
+        `SELECT pg_catalog.set_config('statement_timeout', $1, false)`,
+        [String(timeoutMs)],
+      );
     } catch {
       logger.warn(`[PoolMonitor:${this.cfg.name}] Could not set statement_timeout`);
     }

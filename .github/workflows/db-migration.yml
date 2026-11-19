@@ -3,7 +3,7 @@ name: DB Migration Validation
 on: workflow_dispatch
 
 env:
-  NODE_VERSION: '20'
+  NODE_VERSION: '24'
   # Configurable timeout; default 30 s per acceptance criteria
   MIGRATION_TIMEOUT_MS: '30000'
 

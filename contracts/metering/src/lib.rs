@@ -1,4 +1,9 @@
 #![no_std]
+// TODO: migrate `env.events().publish(..)` to the `#[contractevent]` macro.
+// soroban-sdk 28 deprecated the imperative form; it is still functional and
+// still emits identical events, so the deprecation is allowed crate-wide
+// until the event payloads are reworked. CI lints with `-D warnings`.
+#![allow(deprecated)]
 #![allow(clippy::too_many_arguments)]
 //! SubTrackr usage-metering contract.
 //!
@@ -16,6 +21,8 @@
 //! * usage alerts and full history/trend access
 #[cfg(test)]
 mod test;
+
+mod metering;
 
 pub use metering::{
     billable_units, bucket_start, rate_units, validate_tiers, Charge, ChargeLine, Meter,
@@ -375,6 +382,5 @@ impl SubTrackrMetering {
         env.storage()
             .persistent()
             .set(&DataKey::Meters(sub), &metrics);
->>>>>>> upstream/main
     }
 }

@@ -43,7 +43,7 @@ export class HashChainService {
 
   computeHash(data: { id: string; actorId: string; action: string; resourceType: string; resourceId: string; timestamp: number; prevHash: string }): string {
     return createHash('sha256')
-      .update(prevHash)
+      .update(data.prevHash)
       .update(data.id)
       .update(data.actorId)
       .update(data.action)

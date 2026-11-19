@@ -31,6 +31,7 @@ import { TrackingOverview } from '../components/home/TrackingOverview';
 import { SubscriptionList } from '../components/home/SubscriptionList';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { StatsCardSkeleton, SubscriptionListSkeleton } from '../components/common/SkeletonLoader';
+import { DeviceIntegrityBanner } from '../components/security/DeviceIntegrityBanner';
 
 type HomeNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -166,6 +167,7 @@ const HomeScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
         </View>
+        <DeviceIntegrityBanner />
         <FilterBar
           searchQuery={filters.searchQuery}
           setSearchQuery={filters.setSearchQuery}

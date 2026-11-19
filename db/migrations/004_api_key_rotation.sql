@@ -47,3 +47,18 @@ CREATE TABLE IF NOT EXISTS api_key_rotation_policies (
 );
 
 COMMIT;
+
+-- @down
+BEGIN;
+DROP TABLE IF EXISTS api_key_rotation_policies;
+DROP TABLE IF EXISTS api_key_rotation_history;
+ALTER TABLE IF EXISTS api_keys
+  DROP COLUMN IF EXISTS status,
+  DROP COLUMN IF EXISTS last_rotated_by,
+  DROP COLUMN IF EXISTS rotation_count,
+  DROP COLUMN IF EXISTS grace_period_end,
+  DROP COLUMN IF EXISTS expires_at,
+  DROP COLUMN IF EXISTS rotated_at,
+  DROP COLUMN IF EXISTS key_hash,
+  DROP COLUMN IF EXISTS key_prefix;
+COMMIT;

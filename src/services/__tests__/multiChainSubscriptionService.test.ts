@@ -62,7 +62,9 @@ describe('registration', () => {
   });
 
   it('rejects a subscription with no id', () => {
-    expect(() => service.register(sub({ subscriptionId: '' }))).toThrow(/requires a subscriptionId/);
+    expect(() => service.register(sub({ subscriptionId: '' }))).toThrow(
+      /requires a subscriptionId/
+    );
   });
 
   it('rejects a negative or non-finite amount', () => {
@@ -71,9 +73,9 @@ describe('registration', () => {
   });
 
   it('rejects a subscription with no network binding', () => {
-    expect(() =>
-      service.register(sub({ binding: { ...POLYGON, networkId: '' } }))
-    ).toThrow(/not bound to a network/);
+    expect(() => service.register(sub({ binding: { ...POLYGON, networkId: '' } }))).toThrow(
+      /not bound to a network/
+    );
   });
 
   it('scopes listings by subscriber', () => {

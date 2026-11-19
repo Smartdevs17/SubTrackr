@@ -52,7 +52,11 @@ function addMonths(period: string, n: number): string {
 }
 
 /** Linear regression over [0..n-1] → [y0..yn-1]. Returns { slope, intercept }. */
-function linearRegression(values: number[]): { slope: number; intercept: number; rSquared: number } {
+function linearRegression(values: number[]): {
+  slope: number;
+  intercept: number;
+  rSquared: number;
+} {
   const n = values.length;
   if (n < 2) return { slope: 0, intercept: values[0] ?? 0, rSquared: 0 };
 
@@ -93,11 +97,7 @@ function movingAverageValue(values: number[], window: number = MA_WINDOW): numbe
 }
 
 /** Confidence interval half-width based on std deviation of residuals. */
-function confidenceHalfWidth(
-  values: number[],
-  predicted: number,
-  confidence: number
-): number {
+function confidenceHalfWidth(values: number[], predicted: number, confidence: number): number {
   if (values.length < 2) return predicted * 0.2;
   const mean = values.reduce((a, b) => a + b, 0) / values.length;
   const variance = values.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / values.length;
@@ -153,11 +153,7 @@ export function analyzeTrend(data: RevenueDataPoint[]): TrendAnalysis {
   const hasSeasonality = revenues.length >= 4 && Math.abs(growthRate) < 5 && rSquared < 0.5;
 
   const direction: TrendAnalysis['direction'] =
-    Math.abs(slope) < 1 || rSquared < 0.1
-      ? 'stable'
-      : slope > 0
-      ? 'up'
-      : 'down';
+    Math.abs(slope) < 1 || rSquared < 0.1 ? 'stable' : slope > 0 ? 'up' : 'down';
 
   return {
     direction,
@@ -186,7 +182,8 @@ export function generateRevenueForecast(
 
   const revenues = data.map((d) => d.revenue);
   const subscribers = data.map((d) => d.subscriberCount);
-  const lastPeriod = data.length > 0 ? data[data.length - 1].period : new Date().toISOString().slice(0, 7);
+  const lastPeriod =
+    data.length > 0 ? data[data.length - 1].period : new Date().toISOString().slice(0, 7);
   const halfWidth = confidenceHalfWidth(revenues, revenues[revenues.length - 1] ?? 0, confidence);
 
   // ── per-model forecasting logic ──────────────────────────────────────────
@@ -205,12 +202,16 @@ export function generateRevenueForecast(
     const smoothedSub = exponentialSmoothing(subscribers);
     const lastSmRev = smoothedRev[smoothedRev.length - 1] ?? 0;
     const lastSmSub = smoothedSub[smoothedSub.length - 1] ?? 0;
-    const revGrowth = revenues.length >= 2 && revenues[revenues.length - 2] > 0
-      ? (revenues[revenues.length - 1] - revenues[revenues.length - 2]) / revenues[revenues.length - 2]
-      : 0;
-    const subGrowth = subscribers.length >= 2 && subscribers[subscribers.length - 2] > 0
-      ? (subscribers[subscribers.length - 1] - subscribers[subscribers.length - 2]) / subscribers[subscribers.length - 2]
-      : 0;
+    const revGrowth =
+      revenues.length >= 2 && revenues[revenues.length - 2] > 0
+        ? (revenues[revenues.length - 1] - revenues[revenues.length - 2]) /
+          revenues[revenues.length - 2]
+        : 0;
+    const subGrowth =
+      subscribers.length >= 2 && subscribers[subscribers.length - 2] > 0
+        ? (subscribers[subscribers.length - 1] - subscribers[subscribers.length - 2]) /
+          subscribers[subscribers.length - 2]
+        : 0;
     predictRevenue = (step) => Math.max(0, lastSmRev * Math.pow(1 + revGrowth, step));
     predictSubs = (step) => Math.max(0, lastSmSub * Math.pow(1 + subGrowth, step));
   } else {
@@ -282,17 +283,13 @@ export function calculateAccuracy(
     return { mae: 0, mape: 0, rmse: 0, rSquared: 0, comparisons: [] };
   }
 
-  const mae =
-    comparisons.reduce((sum, c) => sum + c.absoluteError, 0) / comparisons.length;
-  const mape =
-    comparisons.reduce((sum, c) => sum + c.percentageError, 0) / comparisons.length;
+  const mae = comparisons.reduce((sum, c) => sum + c.absoluteError, 0) / comparisons.length;
+  const mape = comparisons.reduce((sum, c) => sum + c.percentageError, 0) / comparisons.length;
   const rmse = Math.sqrt(
-    comparisons.reduce((sum, c) => sum + Math.pow(c.absoluteError, 2), 0) /
-      comparisons.length
+    comparisons.reduce((sum, c) => sum + Math.pow(c.absoluteError, 2), 0) / comparisons.length
   );
 
-  const actualMean =
-    comparisons.reduce((sum, c) => sum + c.actual, 0) / comparisons.length;
+  const actualMean = comparisons.reduce((sum, c) => sum + c.actual, 0) / comparisons.length;
   const ssTot = comparisons.reduce((sum, c) => sum + Math.pow(c.actual - actualMean, 2), 0);
   const ssRes = comparisons.reduce((sum, c) => sum + Math.pow(c.actual - c.forecasted, 2), 0);
   const rSquared = ssTot > 0 ? 1 - ssRes / ssTot : 1;
@@ -329,12 +326,10 @@ export function generateVisualizationData(
     upperBound: f.upperBound,
   }));
 
-  const currentMrr =
-    historical.length > 0 ? historical[historical.length - 1].revenue : 0;
+  const currentMrr = historical.length > 0 ? historical[historical.length - 1].revenue : 0;
   const projectedMrr =
     forecasts.length > 0 ? forecasts[forecasts.length - 1].predictedRevenue : currentMrr;
-  const growthRate =
-    currentMrr > 0 ? ((projectedMrr - currentMrr) / currentMrr) * 100 : 0;
+  const growthRate = currentMrr > 0 ? ((projectedMrr - currentMrr) / currentMrr) * 100 : 0;
 
   return {
     series: [...historicalSeries, ...forecastSeries],

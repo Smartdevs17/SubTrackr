@@ -216,7 +216,7 @@ export class TypedSubTrackrClient {
     method: string,
     path: string,
     body?: unknown,
-    options: RequestOptions = {},
+    options: RequestOptions = {}
   ): Promise<ApiSuccessEnvelope<T>> {
     const retryOpts: RetryOptions = {
       ...this.retryOptions,
@@ -272,8 +272,7 @@ export class TypedSubTrackrClient {
         } catch (err: unknown) {
           clearTimeout(timeoutHandle);
           const isAbort =
-            err instanceof Error &&
-            (err.name === 'AbortError' || err.message.includes('abort'));
+            err instanceof Error && (err.name === 'AbortError' || err.message.includes('abort'));
           if (isAbort) {
             throw new RetryableError(`Request timeout after ${timeoutMs}ms`, 408);
           }
@@ -289,11 +288,7 @@ export class TypedSubTrackrClient {
         // Handle retryable HTTP status codes
         if (!response.ok && isRetryableStatus(response.status, method)) {
           const retryAfterMs = parseRetryAfterMs(response.headers.get('Retry-After'));
-          throw new RetryableError(
-            `HTTP ${response.status}`,
-            response.status,
-            retryAfterMs,
-          );
+          throw new RetryableError(`HTTP ${response.status}`, response.status, retryAfterMs);
         }
 
         // Check API version in the response and warn/throw as appropriate
@@ -326,7 +321,7 @@ export class TypedSubTrackrClient {
           throw new ApiError(
             envelope?.error?.message ?? response.statusText,
             response.status,
-            envelope?.error?.code,
+            envelope?.error?.code
           );
         }
 
@@ -356,11 +351,7 @@ export class TypedSubTrackrClient {
         const envelope = json as ApiEnvelope<T>;
         if (!envelope.success) {
           const errEnv = envelope as ApiErrorEnvelope;
-          throw new ApiError(
-            errEnv.error.message,
-            response.status,
-            errEnv.error.code,
-          );
+          throw new ApiError(errEnv.error.message, response.status, errEnv.error.code);
         }
 
         return envelope as ApiSuccessEnvelope<T>;
@@ -381,7 +372,7 @@ export class TypedSubTrackrClient {
   async *paginate<T>(
     path: string,
     params: Record<string, string> = {},
-    requestOptions: RequestOptions = {},
+    requestOptions: RequestOptions = {}
   ): AsyncGenerator<ApiSuccessEnvelope<T[]>> {
     let cursor: string | undefined;
     let hasMore = true;
@@ -438,7 +429,7 @@ export class TypedSubTrackrClient {
 
   async deactivatePlan(
     data: PlanIdRequest & { merchant: string },
-    opts?: RequestOptions,
+    opts?: RequestOptions
   ): Promise<void> {
     await this.request<void>('POST', '/deactivate_plan', data, opts);
   }
@@ -462,7 +453,7 @@ export class TypedSubTrackrClient {
 
   async subscribe(
     data: { subscriber: string; plan_id: number },
-    opts?: RequestOptions,
+    opts?: RequestOptions
   ): Promise<number> {
     const res = await this.request<number>('POST', '/subscribe', data, {
       ...opts,
@@ -473,39 +464,33 @@ export class TypedSubTrackrClient {
 
   async cancelSubscription(
     data: SubscriberSubscriptionRequest,
-    opts?: RequestOptions,
+    opts?: RequestOptions
   ): Promise<void> {
     await this.request<void>('POST', '/cancel_subscription', data, opts);
   }
 
   async pauseSubscription(
     data: SubscriberSubscriptionRequest,
-    opts?: RequestOptions,
+    opts?: RequestOptions
   ): Promise<void> {
     await this.request<void>('POST', '/pause_subscription', data, opts);
   }
 
   async resumeSubscription(
     data: SubscriberSubscriptionRequest,
-    opts?: RequestOptions,
+    opts?: RequestOptions
   ): Promise<void> {
     await this.request<void>('POST', '/resume_subscription', data, opts);
   }
 
-  async chargeSubscription(
-    data: SubscriptionIdRequest,
-    opts?: RequestOptions,
-  ): Promise<void> {
+  async chargeSubscription(data: SubscriptionIdRequest, opts?: RequestOptions): Promise<void> {
     await this.request<void>('POST', '/charge_subscription', data, {
       ...opts,
       idempotencyKey: opts?.idempotencyKey ?? generateRequestId(),
     });
   }
 
-  async getSubscription(
-    data: SubscriptionIdRequest,
-    opts?: RequestOptions,
-  ): Promise<Subscription> {
+  async getSubscription(data: SubscriptionIdRequest, opts?: RequestOptions): Promise<Subscription> {
     const res = await this.request<Subscription>('POST', '/get_subscription', data, opts);
     return res.data;
   }
@@ -515,10 +500,7 @@ export class TypedSubTrackrClient {
     return res.data;
   }
 
-  async getUserSubscriptions(
-    data: SubscriberRequest,
-    opts?: RequestOptions,
-  ): Promise<number[]> {
+  async getUserSubscriptions(data: SubscriberRequest, opts?: RequestOptions): Promise<number[]> {
     const res = await this.request<number[]>('POST', '/get_user_subscriptions', data, opts);
     return res.data;
   }
@@ -532,7 +514,7 @@ export class TypedSubTrackrClient {
 
   async createSubscription(
     data: Omit<Subscription, 'id' | 'status'>,
-    opts?: RequestOptions,
+    opts?: RequestOptions
   ): Promise<Subscription> {
     const res = await this.request<Subscription>('POST', '/v1/subscriptions', data, {
       ...opts,
@@ -565,10 +547,7 @@ export class TypedSubTrackrClient {
     return res.data;
   }
 
-  async createWebhook(
-    data: Omit<Webhook, 'id'>,
-    opts?: RequestOptions,
-  ): Promise<Webhook> {
+  async createWebhook(data: Omit<Webhook, 'id'>, opts?: RequestOptions): Promise<Webhook> {
     const res = await this.request<Webhook>('POST', '/v1/webhooks', data, opts);
     return res.data;
   }

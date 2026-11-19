@@ -25,7 +25,7 @@ describe('CircuitBreaker (Frontend)', () => {
 
     const result = await cb.execute(async () => 'success');
     expect(result).toBe('success');
-    
+
     // No state change, no trace for state change
     expect(mockTracer.startClientSpan).not.toHaveBeenCalled();
   });
@@ -35,9 +35,11 @@ describe('CircuitBreaker (Frontend)', () => {
 
     // Fail 3 times
     for (let i = 0; i < 3; i++) {
-      await expect(cb.execute(async () => {
-        throw new Error('fail');
-      })).rejects.toThrow('fail');
+      await expect(
+        cb.execute(async () => {
+          throw new Error('fail');
+        })
+      ).rejects.toThrow('fail');
     }
 
     expect(cb.state).toBe('open');
@@ -62,11 +64,17 @@ describe('CircuitBreaker (Frontend)', () => {
   });
 
   it('should transition to half-open after recovery timeout', async () => {
-    const cb = new CircuitBreaker({ failureThreshold: 1, recoveryTimeoutMs: 1000, tracer: mockTracer });
+    const cb = new CircuitBreaker({
+      failureThreshold: 1,
+      recoveryTimeoutMs: 1000,
+      tracer: mockTracer,
+    });
 
-    await expect(cb.execute(async () => {
-      throw new Error('fail');
-    })).rejects.toThrow('fail');
+    await expect(
+      cb.execute(async () => {
+        throw new Error('fail');
+      })
+    ).rejects.toThrow('fail');
 
     expect(cb.state).toBe('open');
 
@@ -85,21 +93,37 @@ describe('CircuitBreaker (Frontend)', () => {
   });
 
   it('should trip back to open if a failure occurs while half-open', async () => {
-    const cb = new CircuitBreaker({ failureThreshold: 1, recoveryTimeoutMs: 1000, tracer: mockTracer });
+    const cb = new CircuitBreaker({
+      failureThreshold: 1,
+      recoveryTimeoutMs: 1000,
+      tracer: mockTracer,
+    });
 
-    await expect(cb.execute(async () => { throw new Error('fail'); })).rejects.toThrow();
+    await expect(
+      cb.execute(async () => {
+        throw new Error('fail');
+      })
+    ).rejects.toThrow();
     expect(cb.state).toBe('open');
 
     jest.advanceTimersByTime(1000);
 
     // Now in half-open state, if it fails again, it immediately trips to open
-    await expect(cb.execute(async () => { throw new Error('fail2'); })).rejects.toThrow('fail2');
+    await expect(
+      cb.execute(async () => {
+        throw new Error('fail2');
+      })
+    ).rejects.toThrow('fail2');
     expect(cb.state).toBe('open');
   });
 
   it('can be manually reset', async () => {
     const cb = new CircuitBreaker({ failureThreshold: 1, tracer: mockTracer });
-    await expect(cb.execute(async () => { throw new Error('fail'); })).rejects.toThrow();
+    await expect(
+      cb.execute(async () => {
+        throw new Error('fail');
+      })
+    ).rejects.toThrow();
     expect(cb.state).toBe('open');
 
     cb.reset();

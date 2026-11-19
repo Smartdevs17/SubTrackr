@@ -49,18 +49,24 @@ export const RpcHealthDashboard: React.FC = () => {
         successCount: 12,
         circuitState: 'CLOSED',
         lastFailureTime: null,
-      }
+      },
     ];
     setMetrics(mockData);
 
     const interval = setInterval(() => {
       // Simulate real-time updates
-      setMetrics(prev => prev.map(m => {
-        if (m.circuitState === 'CLOSED' && m.successCount > 0) {
-          return { ...m, latencyMs: m.latencyMs + (Math.random() * 10 - 5), successCount: m.successCount + 1 };
-        }
-        return m;
-      }));
+      setMetrics((prev) =>
+        prev.map((m) => {
+          if (m.circuitState === 'CLOSED' && m.successCount > 0) {
+            return {
+              ...m,
+              latencyMs: m.latencyMs + (Math.random() * 10 - 5),
+              successCount: m.successCount + 1,
+            };
+          }
+          return m;
+        })
+      );
     }, 2000);
 
     return () => clearInterval(interval);
@@ -68,10 +74,14 @@ export const RpcHealthDashboard: React.FC = () => {
 
   const getStatusColor = (state: string) => {
     switch (state) {
-      case 'CLOSED': return '#22C55E';
-      case 'OPEN': return '#EF4444';
-      case 'HALF_OPEN': return '#F59E0B';
-      default: return '#6B7280';
+      case 'CLOSED':
+        return '#22C55E';
+      case 'OPEN':
+        return '#EF4444';
+      case 'HALF_OPEN':
+        return '#F59E0B';
+      default:
+        return '#6B7280';
     }
   };
 
@@ -91,11 +101,15 @@ export const RpcHealthDashboard: React.FC = () => {
           </View>
           {metrics.map((item, index) => (
             <View key={index} style={styles.tableRow}>
-              <Text style={[styles.cell, { flex: 2 }]} numberOfLines={1}>{item.endpoint}</Text>
+              <Text style={[styles.cell, { flex: 2 }]} numberOfLines={1}>
+                {item.endpoint}
+              </Text>
               <Text style={styles.cell}>{Math.round(item.latencyMs)} ms</Text>
               <Text style={styles.cell}>{item.errorCount}</Text>
               <View style={[styles.cell, styles.statusContainer]}>
-                <View style={[styles.statusDot, { backgroundColor: getStatusColor(item.circuitState) }]} />
+                <View
+                  style={[styles.statusDot, { backgroundColor: getStatusColor(item.circuitState) }]}
+                />
                 <Text style={{ color: getStatusColor(item.circuitState), fontWeight: '600' }}>
                   {item.circuitState}
                 </Text>

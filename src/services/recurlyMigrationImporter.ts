@@ -93,10 +93,7 @@ export class RecurlyMigrationImporter {
 
     // Resolve full plan details from registry for trial info
     const fullPlan = this.options.plansRegistry.get(plan.code);
-    const trialDays = toTrialDays(
-      fullPlan?.trial_interval_length,
-      fullPlan?.trial_interval_unit
-    );
+    const trialDays = toTrialDays(fullPlan?.trial_interval_length, fullPlan?.trial_interval_unit);
 
     const price = centsToMajor(sub.unit_amount_in_cents * (sub.quantity || 1));
     const currency = sub.currency || this.options.defaultCurrency;
@@ -170,7 +167,9 @@ export class RecurlyMigrationImporter {
       }
 
       // Yield to event loop between batches to avoid blocking UI thread
-      await new Promise<void>((resolve) => { setTimeout(resolve, 0); });
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 0);
+      });
     }
 
     const completedAt = new Date();
@@ -192,7 +191,9 @@ export class RecurlyMigrationImporter {
    * Import subscriptions synchronously (no batching delay). Useful for small
    * datasets or testing scenarios.
    */
-  importAll(subscriptions: RecurlySubscription[]): Omit<MigrationReport, 'startedAt' | 'completedAt'> {
+  importAll(
+    subscriptions: RecurlySubscription[]
+  ): Omit<MigrationReport, 'startedAt' | 'completedAt'> {
     const importedSubs: ImportedSubscription[] = [];
     const errors: MigrationReport['errors'] = [];
     const skippedIds: string[] = [];

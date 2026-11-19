@@ -19,6 +19,12 @@ export interface RevenueScheduleEntry {
   periodEnd: number; // Unix ms
   recognisedAmount: number;
   isRecognised: boolean;
+  /**
+   * Cumulative amount already recognised for this entry across all prior
+   * runs. Optional so schedules persisted before progress tracking existed
+   * still load; treat a missing value as 0.
+   */
+  recognisedToDate?: number;
 }
 
 export interface RevenueSchedule {
@@ -42,6 +48,12 @@ export interface RecognitionJournalEntry {
   type: 'scheduled' | 'accelerated' | 'partial';
 }
 
+/** Per-entry cumulative recognition progress recorded by a run. */
+export interface EntryRecognitionProgress {
+  periodStart: number;
+  recognisedToDate: number;
+}
+
 export interface RevenueRecognitionRepository {
   /** Return all schedules where at least one entry is not yet recognised. */
   getPendingSchedules(): Promise<RevenueSchedule[]>;
@@ -54,6 +66,19 @@ export interface RevenueRecognitionRepository {
   ): Promise<void>;
   /** Mark individual schedule entries as recognised. */
   markEntriesRecognised(subscriptionId: string, entryPeriodStarts: number[]): Promise<void>;
+  /**
+   * Persist cumulative per-entry recognition progress.
+   *
+   * Optional. Without it a partially-elapsed entry cannot record how much of
+   * itself it has already recognised, and the next run re-recognises the whole
+   * elapsed portion — inflating recognised revenue on every run. When the
+   * method is absent the job degrades to recognising each entry only once,
+   * at its full amount, which is slower but never over-counts.
+   */
+  recordEntryProgress?(
+    subscriptionId: string,
+    progress: EntryRecognitionProgress[]
+  ): Promise<void>;
 }
 
 export interface RecognitionJobMetrics {
@@ -68,6 +93,12 @@ export interface RecognitionJobMetrics {
 let _seq = 0;
 function nextId(): string {
   return `rev-${Date.now().toString(36)}-${(++_seq).toString(36)}`;
+}
+
+/** Rounds to minor units, mapping non-finite input to zero. */
+function roundMoney(amount: number): number {
+  if (!Number.isFinite(amount)) return 0;
+  return Math.round((amount + Number.EPSILON * Math.sign(amount)) * 100) / 100;
 }
 
 /**
@@ -150,13 +181,48 @@ export class MonthlyRevenueRecognitionJob {
     for (const schedule of schedules) {
       localMetrics.schedulesProcessed += 1;
       const recognisedPeriodStarts: number[] = [];
+      const progressUpdates: EntryRecognitionProgress[] = [];
       let totalRecognisedForSchedule = 0;
 
-      for (const entry of schedule.entries) {
-        const { amount, type } = computeEntryRecognition(entry, now);
-        if (!type || amount <= 0) continue;
+      // Deferred revenue is what was contractually billed but not yet
+      // recognised, i.e. the schedule total minus everything recognised on
+      // prior runs and earlier in *this* run. Ignoring prior runs produced a
+      // deferred balance that grew without bound.
+      const previouslyRecognised = (schedule.entries ?? []).reduce(
+        (sum, entry) => sum + (entry.recognisedToDate ?? 0),
+        0
+      );
+      let recognisedSoFar = previouslyRecognised;
 
-        const deferredBefore = schedule.totalAmount - totalRecognisedForSchedule;
+      const canTrackProgress = typeof this.repo.recordEntryProgress === 'function';
+
+      for (const entry of schedule.entries) {
+        const { amount: cumulativeTarget, type } = computeEntryRecognition(entry, now);
+        if (!type || cumulativeTarget <= 0) continue;
+
+        // Recognise only the increment since the last run. Recognising the
+        // full elapsed portion again on every run is what compounded the
+        // misstatement day after day.
+        const alreadyRecognised = entry.recognisedToDate ?? 0;
+        const amount = canTrackProgress
+          ? roundMoney(Math.max(cumulativeTarget - alreadyRecognised, 0))
+          : // Without progress tracking, only recognise an entry once its
+            // period has fully elapsed, so it is never recognised twice.
+            type === 'partial'
+            ? 0
+            : roundMoney(cumulativeTarget);
+
+        if (amount <= 0) {
+          if (type === 'scheduled' || type === 'accelerated') {
+            // Already fully recognised on a prior run; close it out.
+            recognisedPeriodStarts.push(entry.periodStart);
+          }
+          continue;
+        }
+
+        const deferredBefore = roundMoney(
+          Math.max(schedule.totalAmount - recognisedSoFar, 0)
+        );
         const journalEntry: RecognitionJournalEntry = {
           id: nextId(),
           subscriptionId: schedule.subscriptionId,
@@ -165,19 +231,33 @@ export class MonthlyRevenueRecognitionJob {
           periodEnd: entry.periodEnd,
           recognisedAmount: amount,
           deferredBefore,
-          deferredAfter: deferredBefore - amount,
+          // Deferred can never go negative: recognising more than was
+          // deferred would be reported as an amount owed back to the merchant.
+          deferredAfter: roundMoney(Math.max(deferredBefore - amount, 0)),
           createdAt: now,
           type,
         };
 
         try {
           await this.repo.writeJournalEntry(journalEntry);
+          recognisedSoFar += amount;
           totalRecognisedForSchedule += amount;
           localMetrics.entriesRecognised += 1;
           localMetrics.totalAmountRecognised += amount;
 
-          // Only mark fully-elapsed entries as done.
-          if (type === 'scheduled' || type === 'accelerated') {
+          progressUpdates.push({
+            periodStart: entry.periodStart,
+            recognisedToDate: roundMoney(alreadyRecognised + amount),
+          });
+
+          // Only close out entries whose period has fully elapsed AND that
+          // are now fully recognised.
+          const recognisedTotal = roundMoney(alreadyRecognised + amount);
+          if (
+            type === 'scheduled' ||
+            type === 'accelerated' ||
+            recognisedTotal >= roundMoney(entry.recognisedAmount)
+          ) {
             recognisedPeriodStarts.push(entry.periodStart);
           }
         } catch (err) {
@@ -195,6 +275,12 @@ export class MonthlyRevenueRecognitionJob {
             recognisedDelta: totalRecognisedForSchedule,
             deferredDelta: -totalRecognisedForSchedule,
           });
+          if (progressUpdates.length > 0 && canTrackProgress) {
+            await this.repo.recordEntryProgress!(
+              schedule.subscriptionId,
+              progressUpdates
+            );
+          }
           if (recognisedPeriodStarts.length > 0) {
             await this.repo.markEntriesRecognised(
               schedule.subscriptionId,

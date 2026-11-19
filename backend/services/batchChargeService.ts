@@ -43,7 +43,7 @@ export interface BatchChargeResult {
 export class BatchChargeService {
   private intervalHandle: ReturnType<of setInterval> | null = null;
   private lastMatchTimestamp = 0;
-  private RunHistory: BatchChargeResult[] = [];
+  private runHistory: BatchChargeResult[] = [];
   private maxHistory = 50;
   private cronExpression = '0 0 * * *';
   private checkIntervalMs = 60_000;

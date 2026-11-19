@@ -128,6 +128,110 @@ export type {
   TwilioConfig,
 } from './smsProvider';
 
+// ── Voice Provider (#1255) ─────────────────────────────────────────────────────
+export {
+  TwilioVoiceProvider,
+  buildVoiceTransport,
+  buildTwiML,
+  say,
+  escapeTwiml,
+  createVoiceProviderFromEnv,
+  createStubVoiceProvider,
+  voiceProvider,
+} from './voiceProvider';
+export type {
+  VoiceCallRequest,
+  VoiceCallResult,
+  VoiceProvider,
+  TwilioVoiceConfig,
+} from './voiceProvider';
+
+// ── Communication Preferences (#1253) ─────────────────────────────────────────
+export {
+  CommunicationPreferenceService,
+  InMemoryCommunicationPreferenceRepository,
+  PreferenceViolationError,
+  buildDefaultCommunicationPreferences,
+  isWithinQuietHours,
+  nextQuietHoursEnd,
+  localMinutesOfDay,
+  communicationPreferenceService,
+  communicationPreferenceRepository,
+  DEFAULT_QUIET_HOURS,
+} from './communicationPreferencesService';
+export type {
+  CommunicationPreferenceRepository,
+  CommunicationPreferences,
+  ChannelDecision,
+  QuietHours,
+  RouteResult,
+  PreferenceChangeEvent,
+  SuppressionReason,
+  ContactPointOptOutLookup,
+  CommunicationPreferenceServiceDeps,
+} from './communicationPreferencesService';
+export { COMM_CHANNELS, COMM_CATEGORIES } from './commPreferencesTypes';
+
+// ── Transactional Email Templates (#1254) ─────────────────────────────────────
+export {
+  TRANSACTIONAL_TEMPLATES,
+  TRANSACTIONAL_TEMPLATE_IDS,
+  TransactionalTemplateError,
+  registerTransactionalTemplates,
+  renderTransactionalEmail,
+  renderTransactionalText,
+} from './transactionalEmailTemplates';
+export type {
+  TransactionalTemplateId,
+  TransactionalTemplateDefinition,
+  TransactionalRenderResult,
+} from './transactionalEmailTemplates';
+
+// ── Voice Call Reminders (#1255) ──────────────────────────────────────────────
+export {
+  VoiceReminderService,
+  voiceReminderService,
+  isWithinCallingHours,
+  msUntilCallingHoursOpen,
+  milestoneForRenewal,
+  buildRenewalReminderScript,
+  DEFAULT_CALLING_HOURS,
+  MILESTONE_DAYS,
+} from './voiceReminderService';
+export type {
+  CallingHours,
+  RenewalToRemind,
+  VoiceReminderContext,
+  VoiceReminderDecision,
+  VoiceReminderMilestone,
+  VoiceReminderRecord,
+  VoiceReminderResult,
+  VoiceReminderServiceDeps,
+  VoiceReminderSkipReason,
+} from './voiceReminderService';
+
+// ── Two-Way SMS (#1256) ───────────────────────────────────────────────────────
+export {
+  SmsInboundHandler,
+  smsInboundHandler,
+  parseInboundSms,
+  matchCommand,
+  DEFAULT_KEYWORD_MAP,
+  HELP_MESSAGE,
+  SNOOZE_DEFAULT_DAYS,
+} from './smsInboundHandler';
+export type {
+  InboundSms,
+  InboundSmsAudit,
+  SmsCommand,
+  SmsCommandActions,
+  SmsInboundHandlerDeps,
+  SmsInboundResult,
+  SmsIntent,
+  TwilioSmsPayload,
+  UserIdLookup,
+} from './smsInboundHandler';
+
 // ── Slack ─────────────────────────────────────────────────────────────────────
 export {
   SlackNotifier,
@@ -144,6 +248,55 @@ export type {
   SlackDeliveryResult,
   SubscriptionAlertContext,
 } from './slack';
+export {
+  SlackThreadStore,
+  SlackThreadedNotifier,
+  threadKeyFor,
+  updateKeyFor,
+  renderThreadSummary,
+  summarizeThreadByEvent,
+  createThreadTransport,
+} from './slackThreads';
+export type {
+  ThreadEntry,
+  ThreadMessage,
+  ThreadStats,
+  ThreadKeyStrategy,
+  ThreadTransport,
+  ThreadedMessageOptions,
+  ThreadedNotifierDeps,
+  ThreadedSendResult,
+  SlackTs,
+} from './slackThreads';
+
+// ── Digest ──────────────────────────────────────────────────────────────────────
+export {
+  DigestEmailService,
+  createDigestEmailService,
+  buildDigestWindow,
+  windowForSubscriber,
+  isWithinWindow,
+  selectDigestRecords,
+  groupIntoSections,
+  renderDigest,
+  summariseDigestRun,
+  assertValidFrequency,
+  DIGEST_FREQUENCIES,
+  DIGEST_INLINE_LIMIT,
+} from './digestService';
+export type {
+  DigestContent,
+  DigestFrequency,
+  DigestItem,
+  DigestResult,
+  DigestRunSummary,
+  DigestSection,
+  DigestServiceDeps,
+  DigestSubscriberSource,
+  DigestSubscription,
+  DigestWindow,
+  DigestPreferencesSource,
+} from './digestService';
 
 // ── Webhook Queue (BullMQ) ────────────────────────────────────────────────────
 export {
@@ -167,3 +320,63 @@ export type {
   SubscriptionContext,
   SubscriptionNotifierDeps,
 } from './subscriptionNotifier';
+
+// ── Overdue Invoice Reminders (#1737) ─────────────────────────────────────────
+export {
+  OverdueInvoiceReminderService,
+  createOverdueInvoiceReminderService,
+  InMemoryScheduleStore,
+  InMemoryEntryStore,
+  DEFAULT_OVERDUE_REMINDER_STAGES,
+  MAX_REMINDER_STAGES,
+  FAILURE_RETRY_MS,
+  MAX_STAGE_ATTEMPTS,
+  MIN_REMINDER_GAP_MS,
+  stopReasonForStatus,
+  stageDueAt,
+  daysOverdueAt,
+  overduePhrase,
+  validateStages,
+  resolveRecipients,
+  initialStageIndex,
+} from './overdueInvoiceReminderService';
+export type {
+  OverdueInvoice,
+  OverdueInvoiceSource,
+  OverdueReminderStage,
+  OverdueReminderEntry,
+  OverdueReminderEntryStatus,
+  OverdueReminderSchedule,
+  OverdueReminderStopReason,
+  OverdueReminderRunSummary,
+  CreateOverdueReminderScheduleInput,
+  UpdateOverdueReminderScheduleInput,
+  OverdueReminderScheduleStore,
+  OverdueReminderEntryStore,
+  OverdueInvoiceReminderServiceDeps,
+} from './overdueInvoiceReminderService';
+export { createOverdueInvoiceReminderRouter } from './overdueInvoiceReminderRouter';
+export {
+  createPostgresOverdueInvoiceSource,
+  createInvoiceListSource,
+  SETTLED_INVOICE_STATUSES,
+  DEFAULT_MERCHANT_ID,
+  DEFAULT_INVOICE_SOURCE_LIMIT,
+  DEFAULT_SETTLED_LOOKBACK_DAYS,
+} from './overdueInvoiceSource';
+export type {
+  PostgresOverdueInvoiceSourceOptions,
+  InvoiceListSourceOptions,
+} from './overdueInvoiceSource';
+export {
+  OVERDUE_REMINDER_JOB_NAME,
+  DEFAULT_OVERDUE_REMINDER_JOB_CRON,
+  DEFAULT_OVERDUE_REMINDER_POLL_MS,
+  registerOverdueReminderJob,
+  createOverdueReminderPoller,
+  createOverdueReminderHandler,
+} from './jobs/overdueInvoiceReminderJob';
+export type {
+  OverdueReminderJobOptions,
+  OverdueReminderJobHandle,
+} from './jobs/overdueInvoiceReminderJob';

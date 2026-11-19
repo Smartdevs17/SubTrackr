@@ -85,7 +85,7 @@ Use the in-repo gas profiler to compare costs around the refactor:
 
 ```bash
 # Build the optimized wasm
-cd contracts && cargo build --release --target wasm32-unknown-unknown -p subtrackr-subscription
+cd contracts && cargo build --release --target wasm32v1-none -p subtrackr-subscription
 
 # Measure per-function resource usage with the gas profiler module
 #   (see contracts/subscription/src/gas_profiler.rs and gas_storage.rs)

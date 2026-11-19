@@ -376,6 +376,10 @@ export function resolveVersion(
   options: VersionExtractionOptions = {},
 ): VersionResolution | null {
   const defaultVersion = registry.getDefault();
+  // An explicitly requested version that is not registered is rejected rather
+  // than silently served as the default, so clients notice a typo or a
+  // version that never existed.
+  let requestedUnknown = false;
 
   // 1. Path
   if (opts.path && options.fromPath !== false) {
@@ -383,6 +387,7 @@ export function resolveVersion(
     if (v && registry.has(v)) {
       return { version: v, source: 'path', config: registry.get(v)! };
     }
+    if (v) requestedUnknown = true;
   }
 
   // 2. Header
@@ -391,6 +396,7 @@ export function resolveVersion(
     if (v && registry.has(v)) {
       return { version: v, source: 'header', config: registry.get(v)! };
     }
+    if (v) requestedUnknown = true;
   }
 
   // 3. Query param
@@ -399,7 +405,10 @@ export function resolveVersion(
     if (v && registry.has(v)) {
       return { version: v, source: 'query', config: registry.get(v)! };
     }
+    if (v) requestedUnknown = true;
   }
+
+  if (requestedUnknown) return null;
 
   // 4. Default
   if (defaultVersion && registry.has(defaultVersion)) {
@@ -586,26 +595,18 @@ export function createVersionMiddleware(
 // ─── Singleton registry ───────────────────────────────────────────────────────
 
 /**
- * Application-wide version registry.
- * Pre-configured with SubTrackr's version history.
+ * Application-wide version registry. Mirrors what is actually served: every
+ * route is v1 (`/api/v1/*`, `X-API-Version: 1`). Register v2 here as `draft`
+ * when its first breaking change lands; see docs/api-versioning.md for the
+ * deprecation policy.
  */
 export const versionRegistry = new ApiVersionRegistry();
 
 versionRegistry
   .register({
     version: 'v1',
-    lifecycle: 'deprecated',
-    releasedAt: '2024-01-01T00:00:00Z',
-    deprecatedAt: '2025-01-01T00:00:00Z',
-    sunsetAt: '2026-06-01T00:00:00Z',
-    successorVersion: 'v2',
-    migrationUrl: 'https://docs.subtrackr.io/migration/v1-to-v2',
-    description: 'Initial release. Deprecated in favour of v2.',
-  })
-  .register({
-    version: 'v2',
     lifecycle: 'active',
-    releasedAt: '2025-01-01T00:00:00Z',
+    releasedAt: '2024-01-01T00:00:00Z',
     description: 'Current stable API version.',
   })
-  .setDefault('v2');
+  .setDefault('v1');

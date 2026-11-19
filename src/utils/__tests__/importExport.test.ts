@@ -27,8 +27,22 @@ describe('importExport utilities', () => {
   test('validateImport finds missing required fields', () => {
     const data: ImportData = {
       subscriptions: [
-        { name: '', category: 'other', price: 10, currency: 'USD', billingCycle: 'monthly', nextBillingDate: '2026-01-01' },
-        { name: 'Valid', category: 'other', price: -5, currency: 'USD', billingCycle: 'monthly', nextBillingDate: 'invalid-date' },
+        {
+          name: '',
+          category: 'other',
+          price: 10,
+          currency: 'USD',
+          billingCycle: 'monthly',
+          nextBillingDate: '2026-01-01',
+        },
+        {
+          name: 'Valid',
+          category: 'other',
+          price: -5,
+          currency: 'USD',
+          billingCycle: 'monthly',
+          nextBillingDate: 'invalid-date',
+        },
       ],
       mode: 'create' as ImportMode,
     };
@@ -40,13 +54,42 @@ describe('importExport utilities', () => {
 
   test('processImport creates and updates subscriptions correctly', () => {
     const existing = [
-      { id: 'a', name: 'Existing', description: '', category: 'other', price: 5, currency: 'USD', billingCycle: 'monthly', nextBillingDate: '2026-05-01', isActive: true, notificationsEnabled: true, isCryptoEnabled: false, createdAt: new Date(), updatedAt: new Date() },
+      {
+        id: 'a',
+        name: 'Existing',
+        description: '',
+        category: 'other',
+        price: 5,
+        currency: 'USD',
+        billingCycle: 'monthly',
+        nextBillingDate: '2026-05-01',
+        isActive: true,
+        notificationsEnabled: true,
+        isCryptoEnabled: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
     ];
 
     const data: ImportData = {
       subscriptions: [
-        { id: 'a', name: 'Existing', category: 'other', price: 7, currency: 'USD', billingCycle: 'monthly', nextBillingDate: '2026-06-01' },
-        { name: 'NewSub', category: 'other', price: 3.5, currency: 'USD', billingCycle: 'monthly', nextBillingDate: '2026-07-01' },
+        {
+          id: 'a',
+          name: 'Existing',
+          category: 'other',
+          price: 7,
+          currency: 'USD',
+          billingCycle: 'monthly',
+          nextBillingDate: '2026-06-01',
+        },
+        {
+          name: 'NewSub',
+          category: 'other',
+          price: 3.5,
+          currency: 'USD',
+          billingCycle: 'monthly',
+          nextBillingDate: '2026-07-01',
+        },
       ],
       mode: 'upsert' as ImportMode,
     };

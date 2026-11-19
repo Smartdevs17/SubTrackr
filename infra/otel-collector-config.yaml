@@ -7,12 +7,20 @@
 # error and slow traces regardless of the head decision.
 
 receivers:
+  # Transport is TLS-only (#2104): the collector refuses plaintext OTLP. Certificates
+  # are mounted at /etc/otel/tls (see docker-compose.observability.yml).
   otlp:
     protocols:
       http:
         endpoint: 0.0.0.0:4318
+        tls:
+          cert_file: /etc/otel/tls/server.crt
+          key_file: /etc/otel/tls/server.key
       grpc:
         endpoint: 0.0.0.0:4317
+        tls:
+          cert_file: /etc/otel/tls/server.crt
+          key_file: /etc/otel/tls/server.key
 
 processors:
   batch:
@@ -50,7 +58,9 @@ exporters:
   otlp/tempo:
     endpoint: tempo:4317
     tls:
-      insecure: true
+      # Verify Tempo's certificate against the local CA. Never skip verification (#2104).
+      insecure: false
+      ca_file: /etc/otel/tls/ca.crt
   # Useful for local debugging — prints spans to the collector log.
   debug:
     verbosity: normal

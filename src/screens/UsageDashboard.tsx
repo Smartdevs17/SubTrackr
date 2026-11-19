@@ -158,6 +158,24 @@ const UsageDashboard: React.FC = () => {
           <Button title="Export JSON" onPress={exportAsJson} style={styles.exportButton} />
           <Button title="Export CSV" onPress={exportAsCsv} style={styles.exportButton} />
         </View>
+
+        {/* Navigate to Usage Alerts screen */}
+        <TouchableOpacity
+          style={styles.alertsNavCard}
+          onPress={() => navigation.navigate('UsageAlerts')}
+          accessibilityRole="button"
+          accessibilityLabel="View usage alerts and overage notifications">
+          <View style={styles.alertsNavContent}>
+            <Ionicons name="notifications-outline" size={24} color={colors.primary} />
+            <View style={styles.alertsNavText}>
+              <Text style={styles.alertsNavTitle}>Usage Alerts & Overages</Text>
+              <Text style={styles.alertsNavSubtitle}>
+                Configure thresholds and view quota breach notifications
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+          </View>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -278,6 +296,31 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderColor: colors.border,
     borderWidth: 1,
+  },
+  alertsNavCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    marginTop: spacing.md,
+    ...shadows.sm,
+  },
+  alertsNavContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  alertsNavText: {
+    flex: 1,
+  },
+  alertsNavTitle: {
+    ...typography.body,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  alertsNavSubtitle: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
   },
 });
 

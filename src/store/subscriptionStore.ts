@@ -7,7 +7,10 @@ import {
   SubscriptionStats,
   SubscriptionCategory, // eslint-disable-line
   BillingCycle, // eslint-disable-line
+  SubscriptionLifecycleEvent,
+  SubscriptionLifecycleEventType,
 } from '../types/subscription';
+import { createLifecycleEvent, sortLifecycleHistory } from '../utils/lifecycleHistory';
 import {
   CreditAccountState,
   CreditApplicationResult,
@@ -27,7 +30,8 @@ import { InvoiceStatus, isOpenInvoice } from '../types/invoice';
 import { dummySubscriptions } from '../utils/dummyData'; // eslint-disable-line
 import { advanceBillingDate, calculateNextBillingDate } from '../utils/billingDate';
 import { buildBillingPeriod } from '../utils/invoice';
-import { BILLING_CONVERSIONS, CACHE_CONSTANTS } from '../utils/constants/values';
+import { CACHE_CONSTANTS } from '../utils/constants/values';
+import { monthlyEquivalent, yearlyEquivalent } from '../utils/billingCycleMath';
 import {
   syncRenewalReminders,
   presentChargeSuccessNotification,
@@ -99,7 +103,7 @@ export type SubscriptionSyncStatus = 'idle' | 'pending' | 'syncing' | 'conflict'
 
 type PersistedSubscriptionSlice = Pick<
   SubscriptionState,
-  'subscriptions' | 'creditAccounts' | 'pauseHistory' | 'crdtMetadata'
+  'subscriptions' | 'creditAccounts' | 'pauseHistory' | 'crdtMetadata' | 'lifecycleHistory'
 >;
 
 function stampCrdtMetadata(
@@ -308,6 +312,10 @@ const serializeForStorage = (state: PersistedSubscriptionSlice): PersistedSubscr
     plannedResumeDate: record.plannedResumeDate ? new Date(record.plannedResumeDate) : undefined,
     resumeAt: record.resumeAt ? new Date(record.resumeAt) : undefined,
   })),
+  lifecycleHistory: (state.lifecycleHistory ?? []).map((event) => ({
+    ...event,
+    occurredAt: new Date(event.occurredAt),
+  })),
   crdtMetadata: state.crdtMetadata ?? {},
 });
 
@@ -316,7 +324,13 @@ const migratePersistedState = (
   _version: number
 ): PersistedSubscriptionSlice => {
   if (!persisted || typeof persisted !== 'object') {
-    return { subscriptions: [], creditAccounts: {}, pauseHistory: [], crdtMetadata: {} };
+    return {
+      subscriptions: [],
+      creditAccounts: {},
+      pauseHistory: [],
+      lifecycleHistory: [],
+      crdtMetadata: {},
+    };
   }
 
   const maybeState = persisted as Partial<PersistedSubscriptionSlice>;
@@ -353,7 +367,14 @@ const migratePersistedState = (
       ? maybeState.crdtMetadata
       : {};
 
-  return { subscriptions, creditAccounts, pauseHistory, crdtMetadata };
+  const lifecycleHistory = Array.isArray(maybeState.lifecycleHistory)
+    ? maybeState.lifecycleHistory.map((event) => ({
+        ...event,
+        occurredAt: toValidDate(event.occurredAt, new Date()),
+      }))
+    : [];
+
+  return { subscriptions, creditAccounts, pauseHistory, lifecycleHistory, crdtMetadata };
 };
 
 const pendingWrites = new Map<string, string>();
@@ -405,11 +426,14 @@ export interface SubscriptionState {
   subscriptions: Subscription[];
   creditAccounts: Record<string, CreditAccountState>;
   pauseHistory: PauseRecord[];
+  /** Timestamped record of plan/subscription state transitions. */
+  lifecycleHistory: SubscriptionLifecycleEvent[];
   stats: SubscriptionStats;
   isLoading: boolean;
   error: AppError | null;
   prorationPreview: ProrationPreview | null;
   creditMemos: Record<string, CreditMemo>;
+  
 
   // Actions
   pauseSubscription: (
@@ -422,6 +446,14 @@ export interface SubscriptionState {
   resumeSubscription: (id: string, early?: boolean) => PauseRecord | null;
   getPauseHistory: (subscriptionId?: string) => PauseRecord[];
   getActivePause: (subscriptionId: string) => PauseRecord | undefined;
+  /** Record a timestamped lifecycle transition for a subscription. */
+  recordLifecycleEvent: (
+    subscriptionId: string,
+    type: SubscriptionLifecycleEventType,
+    details?: string
+  ) => SubscriptionLifecycleEvent;
+  /** Timestamped lifecycle events for a subscription (newest first). Omit the id for all events. */
+  getLifecycleHistory: (subscriptionId?: string) => SubscriptionLifecycleEvent[];
   addSubscription: (data: SubscriptionFormData) => Promise<void>;
   addFromTemplate: (
     callerId: string,
@@ -432,8 +464,7 @@ export interface SubscriptionState {
   updateSubscription: (id: string, data: Partial<Subscription>) => Promise<void>;
   deleteSubscription: (id: string) => Promise<void>;
   toggleSubscriptionStatus: (id: string) => Promise<void>;
-  pauseSubscription: (id: string, durationDays?: number) => Promise<void>;
-  resumeSubscription: (id: string) => Promise<void>;
+  reassignCategory: (fromCategoryId: string, toCategoryId: string) => Promise<void>;
   previewPauseAdjustment: (
     id: string,
     resumeDate?: Date
@@ -479,6 +510,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       subscriptions: dummySubscriptions,
       creditAccounts: {},
       pauseHistory: [],
+      lifecycleHistory: [],
       stats: {
         totalActive: 0,
         totalMonthlySpend: 0,
@@ -489,6 +521,30 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       error: null,
       prorationPreview: null,
       creditMemos: {},
+
+      reassignCategory: async (fromCategoryId: string, toCategoryId: string) => {
+  set({ isLoading: true, error: null });
+  try {
+    set((state) => ({
+      subscriptions: state.subscriptions.map((sub) =>
+        sub.category === fromCategoryId
+          ? { ...sub, category: toCategoryId, updatedAt: new Date() }
+          : sub
+      ),
+      isLoading: false,
+    }));
+
+    get().calculateStats();
+    await syncRenewalReminders(get().subscriptions);
+  } catch (error) {
+    const appError = errorHandler.handleError(error as Error, {
+      action: 'reassignCategory',
+      metadata: { fromCategoryId, toCategoryId },
+    });
+    set({ error: appError, isLoading: false });
+  }
+},
+      
       syncStatus: 'idle' as SubscriptionSyncStatus,
       crdtMetadata: {},
 
@@ -608,6 +664,23 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             (record.state === PauseState.PAUSED || record.status === 'active')
         ),
 
+      recordLifecycleEvent: (subscriptionId, type, details) => {
+        const event = createLifecycleEvent(subscriptionId, type, details);
+        set((state) => ({
+          lifecycleHistory: [...(state.lifecycleHistory ?? []), event],
+        }));
+        return event;
+      },
+
+      getLifecycleHistory: (subscriptionId) => {
+        const events = get().lifecycleHistory ?? [];
+        return sortLifecycleHistory(
+          subscriptionId
+            ? events.filter((event) => event.subscriptionId === subscriptionId)
+            : events
+        );
+      },
+
       previewPlanChange: (
         id: string,
         newPrice: number,
@@ -660,6 +733,11 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             isLoading: false,
           }));
 
+          get().recordLifecycleEvent(
+            id,
+            'plan_changed',
+            `${sub.price} ${sub.currency} → ${newPlanData.price ?? sub.price} ${sub.currency} (${effectiveDate})`
+          );
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
         } catch (error) {
@@ -707,6 +785,11 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             isLoading: false,
           }));
 
+          get().recordLifecycleEvent(
+            newSubscription.id,
+            'created',
+            `${newSubscription.name} added`
+          );
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
           await notifySubscriptionEvent(SUBSCRIPTION_EVENT.ADDED, newSubscription);
@@ -789,9 +872,16 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             previous &&
             previous.price !== data.price
           ) {
+            get().recordLifecycleEvent(
+              id,
+              'price_changed',
+              `${previous.price} ${updatedSubscription.currency} → ${data.price} ${updatedSubscription.currency}`
+            );
             await notifySubscriptionEvent(SUBSCRIPTION_EVENT.PRICE_CHANGED, updatedSubscription, {
               previousPrice: previous.price,
             });
+          } else if (updatedSubscription) {
+            get().recordLifecycleEvent(id, 'updated');
           }
           if (updatedSubscription) {
             await useCalendarStore.getState().syncSubscriptionToCalendars(updatedSubscription);
@@ -831,6 +921,11 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             isLoading: false,
           }));
 
+          get().recordLifecycleEvent(
+            id,
+            'cancelled',
+            current ? `${current.name} removed` : undefined
+          );
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
           if (current) {
@@ -874,6 +969,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           await syncRenewalReminders(get().subscriptions);
           const updatedSubscription = get().subscriptions.find((sub) => sub.id === id);
           if (updatedSubscription) {
+            get().recordLifecycleEvent(id, updatedSubscription.isActive ? 'resumed' : 'paused');
             await notifySubscriptionEvent(
               updatedSubscription.isActive ? SUBSCRIPTION_EVENT.RESUMED : SUBSCRIPTION_EVENT.PAUSED,
               updatedSubscription
@@ -889,96 +985,6 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             error: appError,
             isLoading: false,
           });
-        }
-      },
-
-      pauseSubscription: async (id: string, durationDays: number = 30) => {
-        set({ isLoading: true, error: null });
-        try {
-          const now = new Date();
-          const pausedUntil = new Date(now.getTime() + durationDays * 86400 * 1000);
-          set((state) => ({
-            subscriptions: state.subscriptions.map((sub) =>
-              sub.id === id
-                ? {
-                    ...sub,
-                    isActive: false,
-                    isPaused: true,
-                    pausedAt: now,
-                    pauseDurationDays: durationDays,
-                    pausedUntil,
-                    updatedAt: now,
-                  }
-                : sub
-            ),
-            isLoading: false,
-          }));
-
-          get().calculateStats();
-          await syncRenewalReminders(get().subscriptions);
-          const updatedSubscription = get().subscriptions.find((sub) => sub.id === id);
-          if (updatedSubscription) {
-            await notifySubscriptionEvent(SUBSCRIPTION_EVENT.PAUSED, updatedSubscription);
-            await useCalendarStore.getState().syncSubscriptionToCalendars(updatedSubscription);
-          }
-        } catch (error) {
-          const appError = errorHandler.handleError(error as Error, {
-            action: 'pauseSubscription',
-            subscriptionId: id,
-          });
-          set({ error: appError, isLoading: false });
-        }
-      },
-
-      resumeSubscription: async (id: string) => {
-        set({ isLoading: true, error: null });
-        try {
-          const sub = get().subscriptions.find((s) => s.id === id);
-          if (!sub) throw new Error('Subscription not found');
-
-          const now = new Date();
-          let pauseMs = 0;
-          if (sub.pausedAt) {
-            const pausedAtTime = new Date(sub.pausedAt).getTime();
-            const elapsed = now.getTime() - pausedAtTime;
-            const maxPauseMs = (sub.pauseDurationDays || 30) * 86400 * 1000;
-            pauseMs = Math.max(0, Math.min(elapsed, maxPauseMs));
-          }
-
-          const oldNextBilling = new Date(sub.nextBillingDate).getTime();
-          const adjustedNextBillingDate = new Date(oldNextBilling + pauseMs);
-
-          set((state) => ({
-            subscriptions: state.subscriptions.map((s) =>
-              s.id === id
-                ? {
-                    ...s,
-                    isActive: true,
-                    isPaused: false,
-                    pausedAt: undefined,
-                    pauseDurationDays: undefined,
-                    pausedUntil: undefined,
-                    nextBillingDate: adjustedNextBillingDate,
-                    updatedAt: now,
-                  }
-                : s
-            ),
-            isLoading: false,
-          }));
-
-          get().calculateStats();
-          await syncRenewalReminders(get().subscriptions);
-          const updatedSubscription = get().subscriptions.find((s) => s.id === id);
-          if (updatedSubscription) {
-            await notifySubscriptionEvent(SUBSCRIPTION_EVENT.RESUMED, updatedSubscription);
-            await useCalendarStore.getState().syncSubscriptionToCalendars(updatedSubscription);
-          }
-        } catch (error) {
-          const appError = errorHandler.handleError(error as Error, {
-            action: 'resumeSubscription',
-            subscriptionId: id,
-          });
-          set({ error: appError, isLoading: false });
         }
       },
 
@@ -1392,11 +1398,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             preferredCurrency,
             rates
           );
-          if (sub.billingCycle === 'monthly') return total + priceInPreferred;
-          if (sub.billingCycle === 'yearly') return total + priceInPreferred / 12;
-          if (sub.billingCycle === 'weekly')
-            return total + priceInPreferred * BILLING_CONVERSIONS.WEEKS_PER_MONTH;
-          return total + priceInPreferred;
+          return total + monthlyEquivalent(priceInPreferred, sub.billingCycle);
         }, 0);
 
         const totalYearlySpend = activeSubs.reduce((total, sub) => {
@@ -1406,12 +1408,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             preferredCurrency,
             rates
           );
-          if (sub.billingCycle === 'yearly') return total + priceInPreferred;
-          if (sub.billingCycle === 'monthly')
-            return total + priceInPreferred * BILLING_CONVERSIONS.MONTHS_PER_YEAR;
-          if (sub.billingCycle === 'weekly')
-            return total + priceInPreferred * BILLING_CONVERSIONS.WEEKS_PER_YEAR;
-          return total + priceInPreferred * BILLING_CONVERSIONS.MONTHS_PER_YEAR;
+          return total + yearlyEquivalent(priceInPreferred, sub.billingCycle);
         }, 0);
 
         const categoryBreakdown = activeSubs.reduce(
@@ -1447,6 +1444,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           subscriptions: state.subscriptions,
           creditAccounts: state.creditAccounts,
           pauseHistory: state.pauseHistory,
+          lifecycleHistory: state.lifecycleHistory,
           crdtMetadata: state.crdtMetadata,
         }),
       migrate: (persistedState, version) => migratePersistedState(persistedState, version),

@@ -31,7 +31,11 @@ import {
   PaymentMethodExpiryAlert,
   PaymentMethodAnalytics,
 } from '../../types/wallet';
-import type { ManagerTab, PaymentMethodFormState, PaymentMethodManagerProps } from '../../types/paymentMethod';
+import type {
+  ManagerTab,
+  PaymentMethodFormState,
+  PaymentMethodManagerProps,
+} from '../../types/paymentMethod';
 
 // ── Colour palette (matches existing app theme) ────────────────────────────
 
@@ -84,7 +88,10 @@ const SectionHeader: React.FC<SectionHeaderProps> = ({ title, action }) => (
   <View style={styles.sectionHeader}>
     <Text style={styles.sectionTitle}>{title}</Text>
     {action && (
-      <TouchableOpacity onPress={action.onPress} accessibilityRole="button" accessibilityLabel={action.label}>
+      <TouchableOpacity
+        onPress={action.onPress}
+        accessibilityRole="button"
+        accessibilityLabel={action.label}>
         <Text style={styles.sectionAction}>{action.label}</Text>
       </TouchableOpacity>
     )}
@@ -117,8 +124,7 @@ const TabBar: React.FC<TabBarProps> = ({ active, onChange, alertCount }) => (
           onPress={() => onChange(tab.id)}
           accessibilityRole="tab"
           accessibilityState={{ selected: isActive }}
-          accessibilityLabel={`${tab.label}${badge ? `, ${badge} alerts` : ''}`}
-        >
+          accessibilityLabel={`${tab.label}${badge ? `, ${badge} alerts` : ''}`}>
           <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>{tab.label}</Text>
           {badge > 0 && (
             <View style={styles.badge} accessibilityLabel={`${badge} alerts`}>
@@ -165,12 +171,13 @@ const MethodCard: React.FC<MethodCardProps> = ({
     <View
       style={[styles.card, !method.isActive && styles.cardInactive]}
       accessibilityRole="none"
-      accessible={false}
-    >
+      accessible={false}>
       {/* Header row */}
       <View style={styles.cardHeader}>
         <View style={styles.cardTitleRow}>
-          <Text style={styles.cardTitle} numberOfLines={1}>{method.label}</Text>
+          <Text style={styles.cardTitle} numberOfLines={1}>
+            {method.label}
+          </Text>
           {!method.isActive && <Pill label="Inactive" color={COLORS.muted} small />}
           {method.isVerified ? (
             <Pill label="Verified" color={COLORS.success} small />
@@ -228,14 +235,12 @@ const MethodCard: React.FC<MethodCardProps> = ({
             onPress={() => onSetPriority(method.id, p)}
             accessibilityRole="radio"
             accessibilityState={{ checked: method.priority === p }}
-            accessibilityLabel={`Set priority to ${PRIORITY_LABEL[p]}`}
-          >
+            accessibilityLabel={`Set priority to ${PRIORITY_LABEL[p]}`}>
             <Text
               style={[
                 styles.priorityBtnText,
                 method.priority === p && styles.priorityBtnTextActive,
-              ]}
-            >
+              ]}>
               {PRIORITY_LABEL[p]}
             </Text>
           </TouchableOpacity>
@@ -248,8 +253,7 @@ const MethodCard: React.FC<MethodCardProps> = ({
           style={styles.actionBtn}
           onPress={() => onEdit(method)}
           accessibilityRole="button"
-          accessibilityLabel={`Edit ${method.label}`}
-        >
+          accessibilityLabel={`Edit ${method.label}`}>
           <Text style={styles.actionBtnText}>Edit</Text>
         </TouchableOpacity>
         {!method.isVerified && (
@@ -257,8 +261,7 @@ const MethodCard: React.FC<MethodCardProps> = ({
             style={[styles.actionBtn, styles.actionBtnVerify]}
             onPress={() => onVerify(method.id)}
             accessibilityRole="button"
-            accessibilityLabel={`Verify ${method.label}`}
-          >
+            accessibilityLabel={`Verify ${method.label}`}>
             <Text style={[styles.actionBtnText, { color: COLORS.warning }]}>Verify</Text>
           </TouchableOpacity>
         )}
@@ -271,8 +274,7 @@ const MethodCard: React.FC<MethodCardProps> = ({
             ])
           }
           accessibilityRole="button"
-          accessibilityLabel={`Remove ${method.label}`}
-        >
+          accessibilityLabel={`Remove ${method.label}`}>
           <Text style={[styles.actionBtnText, { color: COLORS.danger }]}>Remove</Text>
         </TouchableOpacity>
       </View>
@@ -306,12 +308,7 @@ interface MethodFormProps {
   onCancel: () => void;
   isLoading: boolean;
 }
-const MethodForm: React.FC<MethodFormProps> = ({
-  initial,
-  onSubmit,
-  onCancel,
-  isLoading,
-}) => {
+const MethodForm: React.FC<MethodFormProps> = ({ initial, onSubmit, onCancel, isLoading }) => {
   const [values, setValues] = useState<MethodFormValues>({ ...EMPTY_FORM, ...initial });
   const set = (key: keyof MethodFormValues, value: string) =>
     setValues((prev) => ({ ...prev, [key]: value }));
@@ -339,8 +336,7 @@ const MethodForm: React.FC<MethodFormProps> = ({
             onPress={() => set('tokenType', t)}
             accessibilityRole="radio"
             accessibilityState={{ checked: values.tokenType === t }}
-            accessibilityLabel={t}
-          >
+            accessibilityLabel={t}>
             <Text style={[styles.segmentText, values.tokenType === t && styles.segmentTextActive]}>
               {t}
             </Text>
@@ -383,11 +379,8 @@ const MethodForm: React.FC<MethodFormProps> = ({
             onPress={() => set('priority', p)}
             accessibilityRole="radio"
             accessibilityState={{ checked: values.priority === p }}
-            accessibilityLabel={PRIORITY_LABEL[p]}
-          >
-            <Text
-              style={[styles.segmentText, values.priority === p && styles.segmentTextActive]}
-            >
+            accessibilityLabel={PRIORITY_LABEL[p]}>
+            <Text style={[styles.segmentText, values.priority === p && styles.segmentTextActive]}>
               {PRIORITY_LABEL[p]}
             </Text>
           </TouchableOpacity>
@@ -411,8 +404,7 @@ const MethodForm: React.FC<MethodFormProps> = ({
           onPress={onCancel}
           accessibilityRole="button"
           accessibilityLabel="Cancel"
-          disabled={isLoading}
-        >
+          disabled={isLoading}>
           <Text style={styles.formBtnText}>Cancel</Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -420,8 +412,7 @@ const MethodForm: React.FC<MethodFormProps> = ({
           onPress={() => onSubmit(values)}
           accessibilityRole="button"
           accessibilityLabel="Save payment method"
-          disabled={isLoading}
-        >
+          disabled={isLoading}>
           {isLoading ? (
             <ActivityIndicator color={COLORS.white} size="small" />
           ) : (
@@ -454,7 +445,10 @@ const MethodsTab: React.FC<MethodsTabProps> = ({
   onVerify,
   onSetPriority,
 }) => {
-  const [formState, setFormState] = useState<PaymentMethodFormState>({ editingId: null, isOpen: false });
+  const [formState, setFormState] = useState<PaymentMethodFormState>({
+    editingId: null,
+    isOpen: false,
+  });
   const [editingMethod, setEditingMethod] = useState<PaymentMethod | null>(null);
 
   const openAdd = () => {
@@ -533,8 +527,7 @@ const MethodsTab: React.FC<MethodsTabProps> = ({
             style={styles.emptyStateBtn}
             onPress={openAdd}
             accessibilityRole="button"
-            accessibilityLabel="Add your first payment method"
-          >
+            accessibilityLabel="Add your first payment method">
             <Text style={styles.emptyStateBtnText}>Add your first method</Text>
           </TouchableOpacity>
         </View>
@@ -581,9 +574,7 @@ const ChainsTab: React.FC<ChainsTabProps> = ({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const toggleMethod = (id: string) =>
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
   const handleCreate = () => {
     if (!newName.trim()) {
@@ -600,10 +591,7 @@ const ChainsTab: React.FC<ChainsTabProps> = ({
     setShowNewForm(false);
   };
 
-  const methodById = useMemo(
-    () => new Map(methods.map((m) => [m.id, m])),
-    [methods]
-  );
+  const methodById = useMemo(() => new Map(methods.map((m) => [m.id, m])), [methods]);
 
   return (
     <ScrollView style={styles.tabContent}>
@@ -633,20 +621,13 @@ const ChainsTab: React.FC<ChainsTabProps> = ({
             methods.map((m) => (
               <TouchableOpacity
                 key={m.id}
-                style={[
-                  styles.checkRow,
-                  selectedIds.includes(m.id) && styles.checkRowSelected,
-                ]}
+                style={[styles.checkRow, selectedIds.includes(m.id) && styles.checkRowSelected]}
                 onPress={() => toggleMethod(m.id)}
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: selectedIds.includes(m.id) }}
-                accessibilityLabel={m.label}
-              >
+                accessibilityLabel={m.label}>
                 <View
-                  style={[
-                    styles.checkbox,
-                    selectedIds.includes(m.id) && styles.checkboxChecked,
-                  ]}
+                  style={[styles.checkbox, selectedIds.includes(m.id) && styles.checkboxChecked]}
                 />
                 <View style={styles.checkRowContent}>
                   <Text style={styles.checkRowLabel}>{m.label}</Text>
@@ -664,18 +645,20 @@ const ChainsTab: React.FC<ChainsTabProps> = ({
           <View style={styles.formActions}>
             <TouchableOpacity
               style={[styles.formBtn, styles.formBtnCancel]}
-              onPress={() => { setShowNewForm(false); setNewName(''); setSelectedIds([]); }}
+              onPress={() => {
+                setShowNewForm(false);
+                setNewName('');
+                setSelectedIds([]);
+              }}
               accessibilityRole="button"
-              accessibilityLabel="Cancel new chain"
-            >
+              accessibilityLabel="Cancel new chain">
               <Text style={styles.formBtnText}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.formBtn, styles.formBtnSubmit]}
               onPress={handleCreate}
               accessibilityRole="button"
-              accessibilityLabel="Create chain"
-            >
+              accessibilityLabel="Create chain">
               <Text style={[styles.formBtnText, { color: COLORS.white }]}>Create</Text>
             </TouchableOpacity>
           </View>
@@ -735,8 +718,7 @@ const ChainsTab: React.FC<ChainsTabProps> = ({
                     ])
                   }
                   accessibilityRole="button"
-                  accessibilityLabel={`Delete chain ${chain.name}`}
-                >
+                  accessibilityLabel={`Delete chain ${chain.name}`}>
                   <Text style={[styles.actionBtnText, { color: COLORS.danger }]}>Delete</Text>
                 </TouchableOpacity>
               </View>
@@ -784,10 +766,11 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ analytics }) => {
           <View key={entry.methodId} style={styles.card}>
             <View style={styles.cardHeader}>
               <Text style={styles.cardTitle}>{entry.label}</Text>
-              <Text style={[
-                styles.cardDetail,
-                { color: entry.successRate >= 0.8 ? COLORS.success : COLORS.danger }
-              ]}>
+              <Text
+                style={[
+                  styles.cardDetail,
+                  { color: entry.successRate >= 0.8 ? COLORS.success : COLORS.danger },
+                ]}>
                 {pct(entry.successRate)}
               </Text>
             </View>
@@ -812,7 +795,9 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ analytics }) => {
           <SectionHeader title="Failure Reasons" />
           {analytics.failureReasons.map(({ reason, count }) => (
             <View key={reason} style={styles.failureRow}>
-              <Text style={styles.failureReason} numberOfLines={2}>{reason}</Text>
+              <Text style={styles.failureReason} numberOfLines={2}>
+                {reason}
+              </Text>
               <Text style={styles.failureCount}>{count}×</Text>
             </View>
           ))}
@@ -855,8 +840,7 @@ const AlertsTab: React.FC<AlertsTabProps> = ({ alerts, onDeactivateExpired }) =>
             )
           }
           accessibilityRole="button"
-          accessibilityLabel="Deactivate all expired methods"
-        >
+          accessibilityLabel="Deactivate all expired methods">
           <Text style={styles.deactivateBtnText}>Deactivate all expired</Text>
         </TouchableOpacity>
       )}
@@ -870,9 +854,12 @@ const AlertsTab: React.FC<AlertsTabProps> = ({ alerts, onDeactivateExpired }) =>
         alerts.map((alert) => (
           <View
             key={alert.methodId}
-            style={[styles.card, styles.alertCard, { borderLeftColor: severityColor[alert.severity] }]}
-            accessibilityRole="alert"
-          >
+            style={[
+              styles.card,
+              styles.alertCard,
+              { borderLeftColor: severityColor[alert.severity] },
+            ]}
+            accessibilityRole="alert">
             <View style={styles.cardHeader}>
               <Text style={styles.cardTitle}>{alert.label}</Text>
               <Pill
@@ -889,9 +876,7 @@ const AlertsTab: React.FC<AlertsTabProps> = ({ alerts, onDeactivateExpired }) =>
                 ⚠ Still in an active fallback chain
               </Text>
             )}
-            <Text style={styles.textMuted}>
-              Expires: {alert.expiresAt.toLocaleDateString()}
-            </Text>
+            <Text style={styles.textMuted}>Expires: {alert.expiresAt.toLocaleDateString()}</Text>
           </View>
         ))
       )}
@@ -927,10 +912,7 @@ export const PaymentMethodManager: React.FC<PaymentMethodManagerProps> = ({
 
   // Derived
   const alerts = useMemo(() => expiryAlerts(), [expiryAlerts, paymentMethods, fallbackChains]);
-  const analytics = useMemo(
-    () => paymentAnalytics(),
-    [paymentAnalytics, paymentMethods]
-  );
+  const analytics = useMemo(() => paymentAnalytics(), [paymentAnalytics, paymentMethods]);
 
   // Handlers
   const handleAdd = useCallback(
@@ -1015,8 +997,7 @@ export const PaymentMethodManager: React.FC<PaymentMethodManagerProps> = ({
             onPress={onClose}
             style={styles.closeBtn}
             accessibilityRole="button"
-            accessibilityLabel="Close payment method manager"
-          >
+            accessibilityLabel="Close payment method manager">
             <Text style={styles.closeBtnText}>✕</Text>
           </TouchableOpacity>
         )}

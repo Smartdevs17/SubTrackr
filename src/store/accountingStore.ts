@@ -18,6 +18,10 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { asyncStorageAdapter } from '../utils/storage';
 import { BillingCycle } from '../types/subscription';
+import {
+  exportRecognitionEntries,
+  type RecognitionExportOptions,
+} from '../services/revenueRecognitionExport';
 
 // ── Domain types ──────────────────────────────────────────────────────────────
 
@@ -219,6 +223,12 @@ interface AccountingState {
     subscriptionIds?: string[],
     subscriptionNames?: Record<string, string>
   ) => string;
+
+  /**
+   * Export revenue recognition entries per period as CSV or JSON.
+   * Supports accrual and cash bases and an optional period window (Issue #1743).
+   */
+  exportRecognitionEntries: (options: RecognitionExportOptions) => string;
 }
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
@@ -691,6 +701,9 @@ export const useAccountingStore = create<AccountingState>()(
         );
         return [header, ...lines].join('\n');
       },
+
+      exportRecognitionEntries: (options) =>
+        exportRecognitionEntries(Object.values(get().schedules), options),
     }),
     {
       name: STORAGE_KEY,

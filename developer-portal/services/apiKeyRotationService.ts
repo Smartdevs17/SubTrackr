@@ -19,12 +19,7 @@ import {
 import type { ApiKey, ApiPermission } from '../types/developer';
 
 // Re-export so portal consumers can import from a single path.
-export type {
-  RotationOptions,
-  RotationResult,
-  ApiKeyValidationResult,
-  ApiKeyRotationMetrics,
-};
+export type { RotationOptions, RotationResult, ApiKeyValidationResult, ApiKeyRotationMetrics };
 
 // ---------------------------------------------------------------------------
 // Mapping helpers
@@ -78,7 +73,7 @@ export class PortalApiKeyRotationService {
     name: string,
     environment: 'test' | 'production',
     permissions: ApiPermission[] = [],
-    ttlMs?: number,
+    ttlMs?: number
   ): ApiKey {
     const managed = this.inner.createKey(developerId, name, environment, permissions, ttlMs);
     return toPortalApiKey(managed);
@@ -95,7 +90,7 @@ export class PortalApiKeyRotationService {
    */
   async rotateKey(
     keyId: string,
-    options: RotationOptions = {},
+    options: RotationOptions = {}
   ): Promise<{
     newKey: ApiKey;
     oldKey: ApiKey;
@@ -162,7 +157,7 @@ export class PortalApiKeyRotationService {
    * Returns the grace period status for a key currently mid-rotation.
    */
   getGracePeriodStatus(
-    keyId: string,
+    keyId: string
   ): { gracePeriodEndsAt: Date; remainingMs: number; successorKeyId: string } | null {
     const status = this.inner.getGracePeriodStatus(keyId);
     if (!status) return null;

@@ -33,12 +33,18 @@ describe('useFeatureAccessTierStore', () => {
       useFeatureAccessTierStore.getState().recordUsage(FeatureId.BASIC_SUBSCRIPTION_TRACKING);
     }
 
-    expect(useFeatureAccessTierStore.getState().usageRecords[FeatureId.BASIC_SUBSCRIPTION_TRACKING]).toBe(5);
-    expect(useFeatureAccessTierStore.getState().hasAccess(FeatureId.BASIC_SUBSCRIPTION_TRACKING)).toBe(false);
+    expect(
+      useFeatureAccessTierStore.getState().usageRecords[FeatureId.BASIC_SUBSCRIPTION_TRACKING]
+    ).toBe(5);
+    expect(
+      useFeatureAccessTierStore.getState().hasAccess(FeatureId.BASIC_SUBSCRIPTION_TRACKING)
+    ).toBe(false);
 
     // Reset usage
     useFeatureAccessTierStore.getState().resetUsage(FeatureId.BASIC_SUBSCRIPTION_TRACKING);
-    expect(useFeatureAccessTierStore.getState().hasAccess(FeatureId.BASIC_SUBSCRIPTION_TRACKING)).toBe(true);
+    expect(
+      useFeatureAccessTierStore.getState().hasAccess(FeatureId.BASIC_SUBSCRIPTION_TRACKING)
+    ).toBe(true);
   });
 
   it('applies custom feature overrides', () => {

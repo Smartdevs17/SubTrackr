@@ -28,7 +28,7 @@ export type {
   TaxRemittanceReportRequest,
 } from './taxTypes';
 export { DunningService, dunningService } from './dunningService';
-export type { FailureType, RetryScheduleConfig, RetryAnalytics } from './dunningService';
+export type { FailureType, RetryScheduleConfig, RetryAnalytics, RetryHistoryRecord } from './dunningService';
 export { ProrationService, prorationService } from './proration';
 export type {
   ProrationConfiguration,
@@ -72,6 +72,7 @@ export type {
   PrepaymentWallet,
   TopAccount,
   TransferCreditInput,
+  LowBalanceAlert,
 } from './creditTypes';
 export type {
   IMeteringService,
@@ -98,3 +99,14 @@ export { PricingAnalyticsService, RevenueMetrics } from './billingAnalytics';
 // Trial Management exports (Issue #958)
 export { TrialManagementService, trialManagementService, DEFAULT_TRIAL_POLICY } from './trialManagementService';
 export type { TrialPolicy, TrialSubscriptionRecord, ConversionIncentive, TrialReminderItem, TrialConversionFunnel, UserActivitySignals, PropensityCategory } from './trialManagementService';
+
+// Multi-Entity Billing exports (Issue #562)
+export { EntityBillingService, entityBillingService, EntityBillingError } from './entityBilling';
+export type {
+  EntityBillingConfig,
+  EntityCharge,
+  EntityInvoiceLineItem,
+  EntityInvoice,
+  EntityHierarchyNode,
+  ConsolidatedBillingSummary,
+} from './entityBilling';

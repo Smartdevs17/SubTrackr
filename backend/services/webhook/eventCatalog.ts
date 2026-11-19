@@ -93,6 +93,9 @@ export const EVENT_CATALOG: EventDefinition[] = [
   defineEvent('payment.chargeback', 'Chargeback initiated', 'payment', { amount: amountField, currency: currencyField }),
   defineEvent('payment.method_updated', 'Payment method changed', 'payment'),
   defineEvent('payment.retry_scheduled', 'Failed payment retry scheduled', 'payment', { retryAt: { type: 'number', required: true, description: 'Retry timestamp' }, attemptNumber: { type: 'number', required: true, description: 'Attempt count' } }),
+  defineEvent('payment.finalized', 'Payment reached on-chain finality', 'payment', { amount: amountField, currency: currencyField, transactionHash: { type: 'string', required: false, description: 'On-chain transaction hash' }, confirmations: { type: 'number', required: true, description: 'Current confirmation depth' }, requiredConfirmations: { type: 'number', required: true, description: 'Confirmations required for finality' } }),
+  defineEvent('payment.expired', 'Payment intent expired before settlement', 'payment', { amount: amountField, currency: currencyField, expiredAt: { type: 'number', required: true, description: 'Expiry timestamp' } }),
+  defineEvent('payment.cancelled', 'Payment intent cancelled', 'payment', { amount: amountField, currency: currencyField, cancelledAt: { type: 'number', required: true, description: 'Cancellation timestamp' } }),
 
   // ── Invoice events ───────────────────────────────────────────────────────
   defineEvent('invoice.created', 'Invoice generated', 'invoice', { invoiceId: { type: 'string', required: true, description: 'Invoice ID' }, amount: amountField }),

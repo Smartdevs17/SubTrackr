@@ -55,3 +55,25 @@ CREATE INDEX IF NOT EXISTS idx_encryption_audit_key_id ON encryption_audit_log(k
 CREATE INDEX IF NOT EXISTS idx_encryption_audit_performed_at ON encryption_audit_log(performed_at);
 
 COMMIT;
+
+-- @down
+BEGIN;
+DROP INDEX IF EXISTS idx_encryption_audit_performed_at;
+DROP INDEX IF EXISTS idx_encryption_audit_key_id;
+DROP TABLE IF EXISTS encryption_audit_log;
+DROP TABLE IF EXISTS encryption_keys;
+ALTER TABLE IF EXISTS subscriptions
+  DROP COLUMN IF EXISTS subscriber_phone_encrypted,
+  DROP COLUMN IF EXISTS subscriber_name_encrypted,
+  DROP COLUMN IF EXISTS subscriber_email_encrypted;
+ALTER TABLE IF EXISTS merchant_records
+  DROP COLUMN IF EXISTS contact_phone_encrypted,
+  DROP COLUMN IF EXISTS contact_email_encrypted,
+  DROP COLUMN IF EXISTS business_address_encrypted,
+  DROP COLUMN IF EXISTS business_name_encrypted;
+ALTER TABLE IF EXISTS users
+  DROP COLUMN IF EXISTS address_encrypted,
+  DROP COLUMN IF EXISTS phone_encrypted,
+  DROP COLUMN IF EXISTS name_encrypted,
+  DROP COLUMN IF EXISTS email_encrypted;
+COMMIT;

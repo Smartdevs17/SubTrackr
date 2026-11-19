@@ -3,6 +3,7 @@
  */
 
 import { ok } from '../../services/shared/apiResponse';
+import { buildPage, decodeCursor, type PageOptions } from '../../services/shared/pagination';
 import { SURROGATE_KEY, scopedSurrogateKey } from '../../shared/cache/surrogateKeys';
 import { publicDataStore } from '../store/publicDataStore';
 import type { CacheableEndpointResult } from './types';
@@ -32,16 +33,54 @@ const DEFAULT_PLANS: PublicPlan[] = [
   { id: 'enterprise', name: 'Enterprise', price: 29.99, currency: 'USD', billingCycle: 'monthly' },
 ];
 
-/** GET /plans */
+export interface ListPlansOptions extends PageOptions {
+  page?: number;
+}
+
+/** GET /plans with stable ordering and bounded cursor pagination */
 export async function getPlans(
   provider: PlansDataProvider = storePlansProvider,
   requestId?: string,
+  options: ListPlansOptions = {},
 ): Promise<CacheableEndpointResult<PublicPlan[]>> {
-  const plans = await provider.listPlans();
-  const surrogateKeys = [SURROGATE_KEY.PLAN, ...plans.map((p) => scopedSurrogateKey(SURROGATE_KEY.PLAN, p.id))];
+  const allPlans = await provider.listPlans();
+  const sorted = [...allPlans].sort((a, b) => a.id.localeCompare(b.id));
+
+  const rawLimit = options.limit ?? 20;
+  const limit = Math.min(Math.max(1, rawLimit), options.maxLimit ?? 100);
+
+  let startIndex = 0;
+  if (options.cursor) {
+    const decoded = decodeCursor(options.cursor);
+    if (decoded) {
+      const idx = sorted.findIndex((p) => p.id === decoded.id);
+      if (idx !== -1) {
+        startIndex = idx + 1;
+      }
+    }
+  } else if (options.page && options.page > 1) {
+    startIndex = (options.page - 1) * limit;
+  }
+
+  const pagedRows = sorted.slice(startIndex, startIndex + limit + 1);
+  const pageResult = buildPage(
+    pagedRows,
+    limit,
+    (row) => row.id,
+    (row) => row.id,
+    options.direction ?? 'asc',
+    'id',
+    sorted.length,
+  );
+
+  const surrogateKeys = [SURROGATE_KEY.PLAN, ...pageResult.items.map((p) => scopedSurrogateKey(SURROGATE_KEY.PLAN, p.id))];
 
   return {
-    response: ok(plans, requestId),
+    response: ok(pageResult.items, requestId, {
+      cursor: pageResult.nextCursor,
+      hasMore: pageResult.hasMore,
+      total: sorted.length,
+    }),
     surrogateKeys,
   };
 }

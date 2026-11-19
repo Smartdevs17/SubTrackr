@@ -33,11 +33,7 @@ export interface PaymentMethod {
 }
 
 export type PaymentFailureReason =
-  | 'expired'
-  | 'limit_exceeded'
-  | 'insufficient_balance'
-  | 'inactive'
-  | 'unknown';
+  'expired' | 'limit_exceeded' | 'insufficient_balance' | 'inactive' | 'unknown';
 
 export interface PaymentAttemptResult {
   methodId: string;

@@ -31,9 +31,16 @@ The commands resolve `@stryker-mutator/core`, `@stryker-mutator/jest-runner` and
 
 ## What to expect
 
-- The HTML report is written to `reports/mutation/html/index.html`.
+- The HTML report is written to `reports/mutation/frontend/mutation.html` (and
+  `reports/mutation/backend/mutation.html` for the backend run).
 - The run fails if the mutation score drops below the configured thresholds in the
   relevant `stryker*.conf.json`.
+- `npm run mutation:report` re-reads the JSON reports, prints per-module scores
+  and the weakest files, and writes `reports/mutation-dashboard/dashboard.json`.
+  It **reads the report paths and thresholds from the Stryker configs**, so it
+  cannot drift from the gate Stryker and CI actually enforce. A missing report is
+  a failure by default — run `npm run mutation:test:all` first — or pass
+  `--allow-missing` to skip that check.
 - `reports/` and `.stryker-tmp/` are git-ignored.
 
 ## Critical paths covered

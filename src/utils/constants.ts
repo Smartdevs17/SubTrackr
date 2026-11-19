@@ -18,6 +18,8 @@ export const colors = {
 
   // Text colors (unchanged)
   text: '#f8fafc', // Slate 50
+  /** Alias of `text`; used across screens as the primary foreground token. */
+  textPrimary: '#f8fafc', // Slate 50
   textSecondary: '#cbd5e1', // Slate 300
 
   // On-brand colors (unchanged)
@@ -53,6 +55,30 @@ export const borderRadius = {
 };
 
 export const typography = {
+  /**
+   * Scale-based accessors, e.g. `typography.fontSize.sm`.
+   * Values match the named variants below so both styles stay in sync.
+   */
+  fontSize: {
+    xs: 12,
+    sm: 14,
+    md: 16,
+    lg: 20,
+    xl: 24,
+    '2xl': 28,
+    '3xl': 32,
+  } as const,
+
+  /**
+   * Named weights, e.g. `typography.fontWeight.bold`.
+   */
+  fontWeight: {
+    normal: 'normal',
+    medium: '500',
+    semibold: '600',
+    bold: 'bold',
+  } as const,
+
   h1: {
     fontSize: 32,
     fontWeight: 'bold' as const,
@@ -71,6 +97,11 @@ export const typography = {
   body: {
     fontSize: 16,
     fontWeight: 'normal' as const,
+    lineHeight: 24,
+  },
+  bodyBold: {
+    fontSize: 16,
+    fontWeight: '600' as const,
     lineHeight: 24,
   },
   body2: {

@@ -126,7 +126,7 @@ const FALLBACK_STRATEGY: RetryStrategy = {
   communicationChannels: ['email', 'push'],
 };
 
-interface RetryHistoryRecord {
+export interface RetryHistoryRecord {
   subscriptionId: string;
   merchantId: string;
   failureType: FailureType;
@@ -396,6 +396,12 @@ export class DunningService {
         this.progressiveEngine.trackStageEntry(entry, now_ts);
         this.sendCommunication(entry, nextStage, strategy);
       } else {
+        // Give the subscriber one explicit warning before the cancellation
+        // action is scheduled. The communication is also retained in the
+        // per-subscription log for auditability.
+        const warningStage = stages.find((s) => s.stage === 'warn') ??
+          DEFAULT_DUNNING_STAGES.find((s) => s.stage === 'warn');
+        if (warningStage) this.sendCommunication(entry, warningStage, strategy);
         entry.currentStage = 'cancel';
         entry.failedAttempts = 0;
         delayHours = 24;
@@ -451,6 +457,13 @@ export class DunningService {
 
   getDunningEntry(subscriptionId: string): DunningEntry | undefined {
     return this.entries.get(subscriptionId);
+  }
+
+  /** Immutable copy of every failed and successful retry attempt. */
+  getRetryHistory(merchantId?: string): RetryHistoryRecord[] {
+    return this.retryHistory
+      .filter((attempt) => !merchantId || attempt.merchantId === merchantId)
+      .map((attempt) => ({ ...attempt }));
   }
 
   listActiveDunning(merchantId?: string): DunningEntry[] {

@@ -13,12 +13,7 @@
  *   const result = await manager.charge(methods, attempts, subscriptionId, amount, chainId);
  */
 
-import {
-  PaymentMethod,
-  PaymentAttempt,
-  FallbackChain,
-  PaymentPriority,
-} from '../types/wallet';
+import { PaymentMethod, PaymentAttempt, FallbackChain, PaymentPriority } from '../types/wallet';
 import {
   PaymentMethodService,
   PaymentMethodError,
@@ -42,9 +37,9 @@ export interface CircuitBreakerState {
   halfOpenAttempts: number;
 }
 
-const CIRCUIT_OPEN_THRESHOLD = 3;       // consecutive failures before opening
-const CIRCUIT_RESET_MS = 60_000;        // 1 min before switching to half-open
-const HALF_OPEN_MAX_ATTEMPTS = 1;       // probes allowed while half-open
+const CIRCUIT_OPEN_THRESHOLD = 3; // consecutive failures before opening
+const CIRCUIT_RESET_MS = 60_000; // 1 min before switching to half-open
+const HALF_OPEN_MAX_ATTEMPTS = 1; // probes allowed while half-open
 
 // ---------------------------------------------------------------------------
 // Health scoring
@@ -52,15 +47,15 @@ const HALF_OPEN_MAX_ATTEMPTS = 1;       // probes allowed while half-open
 
 export interface MethodHealthScore {
   methodId: string;
-  score: number;          // 0-100; higher is better
-  successRate: number;    // 0-1
+  score: number; // 0-100; higher is better
+  successRate: number; // 0-1
   recentAttempts: number;
   averageLatencyMs: number;
   lastUpdated: number;
 }
 
 /** Window of recent attempts considered for health scoring */
-const HEALTH_WINDOW_MS = 10 * 60 * 1000;   // last 10 minutes
+const HEALTH_WINDOW_MS = 10 * 60 * 1000; // last 10 minutes
 const MAX_SCORE = 100;
 
 // ---------------------------------------------------------------------------
@@ -205,7 +200,10 @@ export class PaymentMethodManager {
 
     // Record timestamps for rate limiting and update circuit states
     const now = Date.now();
-    for (const attempt of [...result.fallbackAttempts, ...(result.attempt ? [result.attempt] : [])]) {
+    for (const attempt of [
+      ...result.fallbackAttempts,
+      ...(result.attempt ? [result.attempt] : []),
+    ]) {
       this._recordRateLimitTimestamp(attempt.paymentMethodId, now);
       if (attempt.status === 'failed') {
         this._recordFailure(attempt.paymentMethodId);
@@ -268,7 +266,7 @@ export class PaymentMethodManager {
       const recent = timestamps.filter((t) => t > windowStart);
       rateLimitStates[id] = {
         used: recent.length,
-        windowEndsAt: recent.length > 0 ? (recent[0] + this._rateLimitConfig.windowMs) : now,
+        windowEndsAt: recent.length > 0 ? recent[0] + this._rateLimitConfig.windowMs : now,
       };
     }
 
@@ -395,8 +393,10 @@ export class PaymentMethodManager {
 
       // Score: 60% success rate + 40% priority weighting - circuit penalty
       const priorityBonus =
-        method.priority === PaymentPriority.PRIMARY ? 20
-          : method.priority === PaymentPriority.BACKUP ? 10
+        method.priority === PaymentPriority.PRIMARY
+          ? 20
+          : method.priority === PaymentPriority.BACKUP
+            ? 10
             : 0;
 
       const raw = Math.round(successRate * 60 + priorityBonus - circuitPenalty);

@@ -206,9 +206,7 @@ function diffParameters(prevOp, currOp) {
   for (const [key, currP] of currParams) {
     const prevP = prevParams.get(key);
     if (prevP && !prevP.required && currP.required) {
-      changes.push(
-        `  - **[Breaking]** Parameter \`${currP.name}\` (${currP.in}) is now required`
-      );
+      changes.push(`  - **[Breaking]** Parameter \`${currP.name}\` (${currP.in}) is now required`);
     } else if (prevP && prevP.required && !currP.required) {
       changes.push(`  - Parameter \`${currP.name}\` (${currP.in}) is now optional`);
     }
@@ -483,8 +481,11 @@ function diffSpecs(prevSpec, currSpec) {
     }
   }
 
-  const { added: schemasAdded, removed: schemasRemoved, changed: schemasChanged } =
-    diffSchemas(prevSpec, currSpec);
+  const {
+    added: schemasAdded,
+    removed: schemasRemoved,
+    changed: schemasChanged,
+  } = diffSchemas(prevSpec, currSpec);
   const securityChanges = diffSecuritySchemes(prevSpec, currSpec);
   const serverChanges = diffServers(prevSpec, currSpec);
 
@@ -676,7 +677,12 @@ function main() {
   if (args.help) {
     const helpText = fs.readFileSync(__filename, 'utf8').match(/\/\*\*([\s\S]*?)\*\//);
     if (helpText) {
-      console.log(helpText[0].replace(/^\s*\*\s?/gm, '').replace(/^\/\*\*|\*\/$/g, '').trim());
+      console.log(
+        helpText[0]
+          .replace(/^\s*\*\s?/gm, '')
+          .replace(/^\/\*\*|\*\/$/g, '')
+          .trim()
+      );
     }
     process.exit(0);
   }
@@ -684,8 +690,7 @@ function main() {
   const root = process.cwd();
 
   // ── Resolve current spec ─────────────────────────────────────────────────
-  const currPath =
-    args.curr || path.join(root, 'developer-portal/docs/openapi.json');
+  const currPath = args.curr || path.join(root, 'developer-portal/docs/openapi.json');
 
   let currSpec;
   try {
@@ -739,10 +744,8 @@ function main() {
   }
 
   // ── Version & date ───────────────────────────────────────────────────────
-  const version =
-    args.version || (currSpec.info && currSpec.info.version) || '0.0.0';
-  const date =
-    args.date || new Date().toISOString().slice(0, 10);
+  const version = args.version || (currSpec.info && currSpec.info.version) || '0.0.0';
+  const date = args.date || new Date().toISOString().slice(0, 10);
 
   // ── Diff ─────────────────────────────────────────────────────────────────
   console.log(
@@ -772,8 +775,7 @@ function main() {
   if (args.stdout) {
     process.stdout.write(section + '\n');
   } else {
-    const outputPath =
-      args.output || path.join(root, 'developer-portal/docs/changelog.md');
+    const outputPath = args.output || path.join(root, 'developer-portal/docs/changelog.md');
 
     prependToChangelog(outputPath, section);
     console.log(
@@ -790,9 +792,7 @@ function main() {
       fs.copyFileSync(path.resolve(currPath), snapshotPath);
       console.log(`[generate-api-changelog] Snapshot saved to spec/openapi.previous.json`);
     } catch (err) {
-      console.warn(
-        `[generate-api-changelog] Could not save snapshot: ${err.message}`
-      );
+      console.warn(`[generate-api-changelog] Could not save snapshot: ${err.message}`);
     }
   }
 

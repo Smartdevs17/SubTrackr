@@ -6,6 +6,12 @@ This document specifies the design, mathematical model, backend service architec
 
 When subscribers change plans or billing intervals mid-cycle, the proration engine calculates exact prorated charges for plan upgrades or prorated credits for plan downgrades, ensuring fair and transparent billing.
 
+The backend validates plan identity, non-negative finite prices, and ordered
+cycle dates before calculating. An effective date outside the current cycle is
+clamped to the nearest cycle boundary, so previews cannot accidentally charge
+or credit time outside the subscription period. Invalid input returns a
+validation error rather than producing a misleading amount.
+
 ---
 
 ## Proration Principles & Formula

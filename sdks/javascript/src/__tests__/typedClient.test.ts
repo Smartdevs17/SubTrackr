@@ -56,7 +56,7 @@ function mockOptions(fetchImpl: typeof fetch) {
     apiKey: 'sk_test',
     baseUrl: 'https://api.example.com',
     fetchImpl,
-    retry: { maxAttempts: 1 },  // disable retries unless explicitly testing
+    retry: { maxAttempts: 1 }, // disable retries unless explicitly testing
   };
 }
 
@@ -89,12 +89,14 @@ describe('TypedSubTrackrClient core', () => {
 
   it('falls back to legacy (non-envelope) response', async () => {
     const rawData = [{ id: 1, status: 'Active' }];
-    const fetchImpl = makeFetch([{
-      ok: true,
-      status: 200,
-      headers: {},  // no x-api-version header
-      body: rawData,
-    }]);
+    const fetchImpl = makeFetch([
+      {
+        ok: true,
+        status: 200,
+        headers: {}, // no x-api-version header
+        body: rawData,
+      },
+    ]);
 
     const client = new TypedSubTrackrClient(mockOptions(fetchImpl as unknown as typeof fetch));
     const result = await client.getSubscriptions();
@@ -102,12 +104,14 @@ describe('TypedSubTrackrClient core', () => {
   });
 
   it('throws ApiError on non-retryable non-ok response', async () => {
-    const fetchImpl = makeFetch([{
-      ok: false,
-      status: 404,
-      headers: { 'x-api-version': '1' },
-      body: { error: { code: 'NOT_FOUND', message: 'Subscription not found' } },
-    }]);
+    const fetchImpl = makeFetch([
+      {
+        ok: false,
+        status: 404,
+        headers: { 'x-api-version': '1' },
+        body: { error: { code: 'NOT_FOUND', message: 'Subscription not found' } },
+      },
+    ]);
 
     const client = new TypedSubTrackrClient(mockOptions(fetchImpl as unknown as typeof fetch));
     await expect(client.getSubscription({ subscription_id: 999 })).rejects.toBeInstanceOf(ApiError);
@@ -116,7 +120,9 @@ describe('TypedSubTrackrClient core', () => {
   it('handles empty body (void endpoints)', async () => {
     const fetchImpl = makeFetch([{ ok: true, status: 204, headers: {}, text: '' }]);
     const client = new TypedSubTrackrClient(mockOptions(fetchImpl as unknown as typeof fetch));
-    await expect(client.cancelSubscription({ subscription_id: 1, subscriber: 'GABC' })).resolves.toBeUndefined();
+    await expect(
+      client.cancelSubscription({ subscription_id: 1, subscriber: 'GABC' })
+    ).resolves.toBeUndefined();
   });
 });
 
@@ -129,7 +135,12 @@ describe('TypedSubTrackrClient retry', () => {
   it('retries on 429 and succeeds on second attempt', async () => {
     const subs: Subscription[] = [{ id: 2, status: 'Active' }];
     const fetchImpl = makeFetch([
-      { ok: false, status: 429, headers: { 'retry-after': '0' }, body: { error: { code: 'RATE_LIMIT_EXCEEDED', message: 'slow down' } } },
+      {
+        ok: false,
+        status: 429,
+        headers: { 'retry-after': '0' },
+        body: { error: { code: 'RATE_LIMIT_EXCEEDED', message: 'slow down' } },
+      },
       envelope(subs),
     ]);
 
@@ -148,7 +159,12 @@ describe('TypedSubTrackrClient retry', () => {
 
   it('does not retry POST 500 (non-retryable method + status)', async () => {
     const fetchImpl = makeFetch([
-      { ok: false, status: 500, headers: { 'x-api-version': '1' }, body: { error: { code: 'INTERNAL_SERVER_ERROR', message: 'crash' } } },
+      {
+        ok: false,
+        status: 500,
+        headers: { 'x-api-version': '1' },
+        body: { error: { code: 'INTERNAL_SERVER_ERROR', message: 'crash' } },
+      },
     ]);
 
     const client = new TypedSubTrackrClient({
@@ -156,7 +172,9 @@ describe('TypedSubTrackrClient retry', () => {
       retry: { maxAttempts: 3, initialDelayMs: 10, jitter: false },
     });
 
-    await expect(client.createSubscription({ name: 'Test' } as any)).rejects.toBeInstanceOf(ApiError);
+    await expect(client.createSubscription({ name: 'Test' } as any)).rejects.toBeInstanceOf(
+      ApiError
+    );
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
@@ -187,9 +205,24 @@ describe('TypedSubTrackrClient retry', () => {
 
   it('throws after exhausting all attempts', async () => {
     const fetchImpl = makeFetch([
-      { ok: false, status: 503, headers: {}, body: { error: { code: 'SERVICE_UNAVAILABLE', message: 'down' } } },
-      { ok: false, status: 503, headers: {}, body: { error: { code: 'SERVICE_UNAVAILABLE', message: 'down' } } },
-      { ok: false, status: 503, headers: {}, body: { error: { code: 'SERVICE_UNAVAILABLE', message: 'down' } } },
+      {
+        ok: false,
+        status: 503,
+        headers: {},
+        body: { error: { code: 'SERVICE_UNAVAILABLE', message: 'down' } },
+      },
+      {
+        ok: false,
+        status: 503,
+        headers: {},
+        body: { error: { code: 'SERVICE_UNAVAILABLE', message: 'down' } },
+      },
+      {
+        ok: false,
+        status: 503,
+        headers: {},
+        body: { error: { code: 'SERVICE_UNAVAILABLE', message: 'down' } },
+      },
     ]);
 
     const client = new TypedSubTrackrClient({
@@ -247,12 +280,14 @@ describe('getMetrics()', () => {
   });
 
   it('tracks failed requests', async () => {
-    const fetchImpl = makeFetch([{
-      ok: false,
-      status: 400,
-      headers: {},
-      body: { error: { code: 'BAD_REQUEST', message: 'bad' } },
-    }]);
+    const fetchImpl = makeFetch([
+      {
+        ok: false,
+        status: 400,
+        headers: {},
+        body: { error: { code: 'BAD_REQUEST', message: 'bad' } },
+      },
+    ]);
 
     const client = new TypedSubTrackrClient(mockOptions(fetchImpl as unknown as typeof fetch));
     await client.getSubscriptions().catch(() => {});
@@ -281,7 +316,12 @@ describe('paginate()', () => {
       body: {
         success: true,
         data: [{ id: 1, status: 'Active' }],
-        meta: { timestamp: '', requestId: 'r1', apiVersion: 1, pagination: { hasMore: true, cursor: 'c1' } },
+        meta: {
+          timestamp: '',
+          requestId: 'r1',
+          apiVersion: 1,
+          pagination: { hasMore: true, cursor: 'c1' },
+        },
       },
     };
     const page2 = {

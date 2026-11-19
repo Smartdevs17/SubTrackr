@@ -76,10 +76,34 @@ const ENDPOINTS: EndpointDoc[] = [
     description:
       'Returns a paginated list of all subscriptions. Use `status` to filter, and `page`/`limit` for pagination.',
     params: [
-      { name: 'status', type: 'string', required: false, description: 'Filter by status', example: 'active' },
-      { name: 'category', type: 'string', required: false, description: 'Filter by category', example: 'streaming' },
-      { name: 'page', type: 'number', required: false, description: 'Page number (1-based)', example: '1' },
-      { name: 'limit', type: 'number', required: false, description: 'Items per page (max 100)', example: '20' },
+      {
+        name: 'status',
+        type: 'string',
+        required: false,
+        description: 'Filter by status',
+        example: 'active',
+      },
+      {
+        name: 'category',
+        type: 'string',
+        required: false,
+        description: 'Filter by category',
+        example: 'streaming',
+      },
+      {
+        name: 'page',
+        type: 'number',
+        required: false,
+        description: 'Page number (1-based)',
+        example: '1',
+      },
+      {
+        name: 'limit',
+        type: 'number',
+        required: false,
+        description: 'Items per page (max 100)',
+        example: '20',
+      },
     ],
     responseSchema: '{ data: Subscription[], pagination: { page, limit, total, hasNext } }',
   },
@@ -89,13 +113,24 @@ const ENDPOINTS: EndpointDoc[] = [
     path: '/v1/subscriptions',
     name: 'Create Subscription',
     group: 'Subscriptions',
-    description: 'Creates a new subscription record. Returns the created subscription with its generated ID.',
+    description:
+      'Creates a new subscription record. Returns the created subscription with its generated ID.',
     hasBody: true,
     defaultBody: JSON.stringify(
-      { name: 'Netflix', category: 'streaming', price: 15.99, currency: 'USD', billingCycle: 'monthly', nextBillingDate: '2026-10-01T00:00:00Z', notificationsEnabled: true },
-      null, 2
+      {
+        name: 'Netflix',
+        category: 'streaming',
+        price: 15.99,
+        currency: 'USD',
+        billingCycle: 'monthly',
+        nextBillingDate: '2026-10-01T00:00:00Z',
+        notificationsEnabled: true,
+      },
+      null,
+      2
     ),
-    bodySchema: 'name: string (required), category: string, price: number (required), currency: string (required), billingCycle: monthly|yearly|weekly (required), nextBillingDate: ISO 8601, notificationsEnabled: boolean',
+    bodySchema:
+      'name: string (required), category: string, price: number (required), currency: string (required), billingCycle: monthly|yearly|weekly (required), nextBillingDate: ISO 8601, notificationsEnabled: boolean',
     responseSchema: 'Subscription',
   },
   {
@@ -106,7 +141,13 @@ const ENDPOINTS: EndpointDoc[] = [
     group: 'Subscriptions',
     description: 'Retrieves a single subscription by its ID.',
     params: [
-      { name: 'id', type: 'string', required: true, description: 'Subscription ID', example: 'sub_123' },
+      {
+        name: 'id',
+        type: 'string',
+        required: true,
+        description: 'Subscription ID',
+        example: 'sub_123',
+      },
     ],
     responseSchema: 'Subscription',
   },
@@ -140,7 +181,8 @@ const ENDPOINTS: EndpointDoc[] = [
     path: '/v1/subscriptions/:id/pause',
     name: 'Pause Subscription',
     group: 'Subscriptions',
-    description: 'Pauses a subscription for a given number of days. Billing is suspended during the pause.',
+    description:
+      'Pauses a subscription for a given number of days. Billing is suspended during the pause.',
     hasBody: true,
     defaultBody: JSON.stringify({ durationDays: 30 }, null, 2),
     bodySchema: 'durationDays: number (1-365)',
@@ -174,8 +216,13 @@ const ENDPOINTS: EndpointDoc[] = [
     group: 'Plans',
     description: 'Creates a new subscription plan.',
     hasBody: true,
-    defaultBody: JSON.stringify({ name: 'Pro', price: 29, token: 'USDC', interval: 'Monthly' }, null, 2),
-    bodySchema: 'name: string, price: number, token: string, interval: Weekly|Monthly|Quarterly|Yearly',
+    defaultBody: JSON.stringify(
+      { name: 'Pro', price: 29, token: 'USDC', interval: 'Monthly' },
+      null,
+      2
+    ),
+    bodySchema:
+      'name: string, price: number, token: string, interval: Weekly|Monthly|Quarterly|Yearly',
     responseSchema: 'Plan',
   },
   // Payments
@@ -187,8 +234,20 @@ const ENDPOINTS: EndpointDoc[] = [
     group: 'Payments',
     description: 'Returns a paginated history of payments.',
     params: [
-      { name: 'subscriptionId', type: 'string', required: false, description: 'Filter by subscription', example: 'sub_123' },
-      { name: 'status', type: 'string', required: false, description: 'succeeded | failed | pending', example: 'succeeded' },
+      {
+        name: 'subscriptionId',
+        type: 'string',
+        required: false,
+        description: 'Filter by subscription',
+        example: 'sub_123',
+      },
+      {
+        name: 'status',
+        type: 'string',
+        required: false,
+        description: 'succeeded | failed | pending',
+        example: 'succeeded',
+      },
     ],
     responseSchema: '{ data: Payment[], pagination }',
   },
@@ -198,7 +257,8 @@ const ENDPOINTS: EndpointDoc[] = [
     path: '/v1/subscriptions/:id/charge',
     name: 'Charge Subscription',
     group: 'Payments',
-    description: 'Triggers an immediate charge for a subscription. Respects the configured fallback chain.',
+    description:
+      'Triggers an immediate charge for a subscription. Respects the configured fallback chain.',
     hasBody: false,
     responseSchema: '{ success: boolean, amount, txHash? }',
   },
@@ -228,11 +288,16 @@ const ENDPOINTS: EndpointDoc[] = [
     path: '/v1/webhooks',
     name: 'Create Webhook',
     group: 'Webhooks',
-    description: 'Registers a new webhook. Provide the URL and the list of events you wish to receive.',
+    description:
+      'Registers a new webhook. Provide the URL and the list of events you wish to receive.',
     hasBody: true,
     defaultBody: JSON.stringify(
-      { url: 'https://your-app.example/webhook', events: ['subscription.created', 'payment.completed'] },
-      null, 2
+      {
+        url: 'https://your-app.example/webhook',
+        events: ['subscription.created', 'payment.completed'],
+      },
+      null,
+      2
     ),
     bodySchema: 'url: string (required), events: EventType[] (required), secret?: string',
     responseSchema: 'Webhook',
@@ -260,7 +325,10 @@ const ENDPOINTS: EndpointDoc[] = [
 
 // ── Mock response builders ─────────────────────────────────────────────────────
 
-function buildMockResponse(ep: EndpointDoc, requestBody: string): { status: number; body: unknown } {
+function buildMockResponse(
+  ep: EndpointDoc,
+  requestBody: string
+): { status: number; body: unknown } {
   const now = new Date().toISOString();
 
   switch (ep.id) {
@@ -270,8 +338,26 @@ function buildMockResponse(ep: EndpointDoc, requestBody: string): { status: numb
         body: {
           success: true,
           data: [
-            { id: 'sub_001', name: 'Netflix', category: 'streaming', price: 15.99, currency: 'USD', billingCycle: 'monthly', status: 'active', nextBillingDate: '2026-10-01T00:00:00Z' },
-            { id: 'sub_002', name: 'GitHub Copilot', category: 'software', price: 10.00, currency: 'USD', billingCycle: 'monthly', status: 'active', nextBillingDate: '2026-10-05T00:00:00Z' },
+            {
+              id: 'sub_001',
+              name: 'Netflix',
+              category: 'streaming',
+              price: 15.99,
+              currency: 'USD',
+              billingCycle: 'monthly',
+              status: 'active',
+              nextBillingDate: '2026-10-01T00:00:00Z',
+            },
+            {
+              id: 'sub_002',
+              name: 'GitHub Copilot',
+              category: 'software',
+              price: 10.0,
+              currency: 'USD',
+              billingCycle: 'monthly',
+              status: 'active',
+              nextBillingDate: '2026-10-05T00:00:00Z',
+            },
           ],
           pagination: { page: 1, limit: 20, total: 2, hasNext: false },
         },
@@ -281,84 +367,251 @@ function buildMockResponse(ep: EndpointDoc, requestBody: string): { status: numb
         const parsed = JSON.parse(requestBody || '{}');
         return {
           status: 201,
-          body: { success: true, data: { id: `sub_${Date.now().toString(36)}`, ...parsed, status: 'active', createdAt: now } },
+          body: {
+            success: true,
+            data: {
+              id: `sub_${Date.now().toString(36)}`,
+              ...parsed,
+              status: 'active',
+              createdAt: now,
+            },
+          },
         };
       } catch {
-        return { status: 400, body: { success: false, error: { code: 'INVALID_JSON', message: 'Request body is not valid JSON' } } };
+        return {
+          status: 400,
+          body: {
+            success: false,
+            error: { code: 'INVALID_JSON', message: 'Request body is not valid JSON' },
+          },
+        };
       }
     }
     case 'get_subscription':
       return {
         status: 200,
-        body: { success: true, data: { id: 'sub_001', name: 'Netflix', category: 'streaming', price: 15.99, currency: 'USD', billingCycle: 'monthly', status: 'active', nextBillingDate: '2026-10-01T00:00:00Z' } },
+        body: {
+          success: true,
+          data: {
+            id: 'sub_001',
+            name: 'Netflix',
+            category: 'streaming',
+            price: 15.99,
+            currency: 'USD',
+            billingCycle: 'monthly',
+            status: 'active',
+            nextBillingDate: '2026-10-01T00:00:00Z',
+          },
+        },
       };
     case 'update_subscription': {
       try {
         const updates = JSON.parse(requestBody || '{}');
-        return { status: 200, body: { success: true, data: { id: 'sub_001', name: 'Netflix', price: 15.99, ...updates, updatedAt: now } } };
+        return {
+          status: 200,
+          body: {
+            success: true,
+            data: { id: 'sub_001', name: 'Netflix', price: 15.99, ...updates, updatedAt: now },
+          },
+        };
       } catch {
-        return { status: 400, body: { success: false, error: { code: 'INVALID_JSON', message: 'Invalid JSON body' } } };
+        return {
+          status: 400,
+          body: { success: false, error: { code: 'INVALID_JSON', message: 'Invalid JSON body' } },
+        };
       }
     }
     case 'cancel_subscription':
-      return { status: 200, body: { success: true, data: { id: 'sub_001', status: 'cancelled', cancelAtPeriodEnd: true, effectiveAt: '2026-10-31T23:59:59Z' } } };
+      return {
+        status: 200,
+        body: {
+          success: true,
+          data: {
+            id: 'sub_001',
+            status: 'cancelled',
+            cancelAtPeriodEnd: true,
+            effectiveAt: '2026-10-31T23:59:59Z',
+          },
+        },
+      };
     case 'pause_subscription':
-      return { status: 200, body: { success: true, data: { id: 'sub_001', isPaused: true, pausedUntil: '2026-11-24T00:00:00Z' } } };
+      return {
+        status: 200,
+        body: {
+          success: true,
+          data: { id: 'sub_001', isPaused: true, pausedUntil: '2026-11-24T00:00:00Z' },
+        },
+      };
     case 'resume_subscription':
-      return { status: 200, body: { success: true, data: { id: 'sub_001', isActive: true, isPaused: false, nextBillingDate: '2026-11-01T00:00:00Z' } } };
+      return {
+        status: 200,
+        body: {
+          success: true,
+          data: {
+            id: 'sub_001',
+            isActive: true,
+            isPaused: false,
+            nextBillingDate: '2026-11-01T00:00:00Z',
+          },
+        },
+      };
     case 'list_plans':
       return {
         status: 200,
-        body: { success: true, data: [
-          { id: 1, name: 'Free', price: 0, token: 'USDC', interval: 'Monthly', active: true, subscriberCount: 45 },
-          { id: 2, name: 'Pro', price: 29, token: 'USDC', interval: 'Monthly', active: true, subscriberCount: 120 },
-          { id: 3, name: 'Enterprise', price: 199, token: 'USDC', interval: 'Monthly', active: true, subscriberCount: 12 },
-        ]},
+        body: {
+          success: true,
+          data: [
+            {
+              id: 1,
+              name: 'Free',
+              price: 0,
+              token: 'USDC',
+              interval: 'Monthly',
+              active: true,
+              subscriberCount: 45,
+            },
+            {
+              id: 2,
+              name: 'Pro',
+              price: 29,
+              token: 'USDC',
+              interval: 'Monthly',
+              active: true,
+              subscriberCount: 120,
+            },
+            {
+              id: 3,
+              name: 'Enterprise',
+              price: 199,
+              token: 'USDC',
+              interval: 'Monthly',
+              active: true,
+              subscriberCount: 12,
+            },
+          ],
+        },
       };
     case 'create_plan': {
       try {
         const plan = JSON.parse(requestBody || '{}');
-        return { status: 201, body: { success: true, data: { id: Date.now(), ...plan, active: true, subscriberCount: 0, createdAt: now } } };
+        return {
+          status: 201,
+          body: {
+            success: true,
+            data: { id: Date.now(), ...plan, active: true, subscriberCount: 0, createdAt: now },
+          },
+        };
       } catch {
-        return { status: 400, body: { success: false, error: { code: 'INVALID_JSON', message: 'Invalid JSON body' } } };
+        return {
+          status: 400,
+          body: { success: false, error: { code: 'INVALID_JSON', message: 'Invalid JSON body' } },
+        };
       }
     }
     case 'list_payments':
       return {
         status: 200,
-        body: { success: true, data: [
-          { id: 'pay_abc', subscriptionId: 'sub_001', amount: 15.99, currency: 'USD', status: 'succeeded', method: 'USDC', createdAt: now },
-        ], pagination: { page: 1, limit: 20, total: 1, hasNext: false } },
+        body: {
+          success: true,
+          data: [
+            {
+              id: 'pay_abc',
+              subscriptionId: 'sub_001',
+              amount: 15.99,
+              currency: 'USD',
+              status: 'succeeded',
+              method: 'USDC',
+              createdAt: now,
+            },
+          ],
+          pagination: { page: 1, limit: 20, total: 1, hasNext: false },
+        },
       };
     case 'charge_subscription':
       return { status: 200, body: { success: true, amount: 15.99, txHash: '0xabcdef1234567890' } };
     case 'list_invoices':
       return {
         status: 200,
-        body: { success: true, data: [
-          { id: 'inv_1', subscriptionId: 'sub_001', total: 15.99, currency: 'USD', status: 'paid', dueAt: '2026-10-01T00:00:00Z' },
-          { id: 'inv_2', subscriptionId: 'sub_002', total: 10.00, currency: 'USD', status: 'open', dueAt: '2026-10-05T00:00:00Z' },
-        ]},
+        body: {
+          success: true,
+          data: [
+            {
+              id: 'inv_1',
+              subscriptionId: 'sub_001',
+              total: 15.99,
+              currency: 'USD',
+              status: 'paid',
+              dueAt: '2026-10-01T00:00:00Z',
+            },
+            {
+              id: 'inv_2',
+              subscriptionId: 'sub_002',
+              total: 10.0,
+              currency: 'USD',
+              status: 'open',
+              dueAt: '2026-10-05T00:00:00Z',
+            },
+          ],
+        },
       };
     case 'list_webhooks':
       return {
         status: 200,
-        body: { success: true, data: [
-          { id: 'wh_1', url: 'https://your-app.example/webhook', events: ['subscription.created'], status: 'enabled', createdAt: now },
-        ]},
+        body: {
+          success: true,
+          data: [
+            {
+              id: 'wh_1',
+              url: 'https://your-app.example/webhook',
+              events: ['subscription.created'],
+              status: 'enabled',
+              createdAt: now,
+            },
+          ],
+        },
       };
     case 'create_webhook': {
       try {
         const wh = JSON.parse(requestBody || '{}');
-        return { status: 201, body: { success: true, data: { id: `wh_${Date.now().toString(36)}`, ...wh, status: 'enabled', createdAt: now } } };
+        return {
+          status: 201,
+          body: {
+            success: true,
+            data: { id: `wh_${Date.now().toString(36)}`, ...wh, status: 'enabled', createdAt: now },
+          },
+        };
       } catch {
-        return { status: 400, body: { success: false, error: { code: 'INVALID_JSON', message: 'Invalid JSON body' } } };
+        return {
+          status: 400,
+          body: { success: false, error: { code: 'INVALID_JSON', message: 'Invalid JSON body' } },
+        };
       }
     }
     case 'analytics_overview':
-      return { status: 200, body: { success: true, data: { mrr: 2459.80, activeSubscriptions: 177, churnRate: 0.024, trialConversionRate: 0.62 } } };
+      return {
+        status: 200,
+        body: {
+          success: true,
+          data: {
+            mrr: 2459.8,
+            activeSubscriptions: 177,
+            churnRate: 0.024,
+            trialConversionRate: 0.62,
+          },
+        },
+      };
     case 'analytics_usage':
-      return { status: 200, body: { success: true, data: { requests: { total: 12450, window: 'daily' }, credits: { used: 340, remaining: 660 }, rateLimit: { shortTerm: 78, longTerm: 340 } } } };
+      return {
+        status: 200,
+        body: {
+          success: true,
+          data: {
+            requests: { total: 12450, window: 'daily' },
+            credits: { used: 340, remaining: 660 },
+            rateLimit: { shortTerm: 78, longTerm: 340 },
+          },
+        },
+      };
     default:
       return { status: 200, body: { success: true, data: [] } };
   }
@@ -555,7 +808,14 @@ export const ApiPlayground: React.FC = () => {
   const handleExecute = useCallback(() => {
     if (selectedEndpoint.hasBody && !validateBody(requestBody)) return;
     if (!apiKey.trim()) {
-      setResponse({ status: 401, data: JSON.stringify({ success: false, error: { code: 'UNAUTHORIZED', message: 'API key is required' } }, null, 2) });
+      setResponse({
+        status: 401,
+        data: JSON.stringify(
+          { success: false, error: { code: 'UNAUTHORIZED', message: 'API key is required' } },
+          null,
+          2
+        ),
+      });
       return;
     }
 
@@ -674,7 +934,9 @@ export const ApiPlayground: React.FC = () => {
             style={styles.docsToggle}
             onPress={() => setShowDocs((v) => !v)}
             accessibilityRole="button"
-            accessibilityLabel={showDocs ? 'Hide endpoint documentation' : 'Show endpoint documentation'}>
+            accessibilityLabel={
+              showDocs ? 'Hide endpoint documentation' : 'Show endpoint documentation'
+            }>
             <Text style={styles.docsToggleText}>
               {showDocs ? '▼ Hide docs' : '▶ Show parameters & schema'}
             </Text>
@@ -693,9 +955,7 @@ export const ApiPlayground: React.FC = () => {
                         {p.required && <Text style={styles.paramRequired}>required</Text>}
                       </View>
                       <Text style={styles.paramDesc}>{p.description}</Text>
-                      {p.example && (
-                        <Text style={styles.paramExample}>Example: {p.example}</Text>
-                      )}
+                      {p.example && <Text style={styles.paramExample}>Example: {p.example}</Text>}
                     </View>
                   ))}
                 </View>
@@ -781,10 +1041,7 @@ export const ApiPlayground: React.FC = () => {
                   accessibilityRole="tab"
                   accessibilityState={{ selected: selectedLang === lang }}>
                   <Text
-                    style={[
-                      styles.langTabText,
-                      selectedLang === lang && styles.langTabTextActive,
-                    ]}>
+                    style={[styles.langTabText, selectedLang === lang && styles.langTabTextActive]}>
                     {lang}
                   </Text>
                 </TouchableOpacity>
@@ -855,9 +1112,7 @@ export const ApiPlayground: React.FC = () => {
                     ]}>
                     <Text style={styles.statusText}>{entry.status}</Text>
                   </View>
-                  <Text style={styles.historyTime}>
-                    {entry.executedAt.toLocaleTimeString()}
-                  </Text>
+                  <Text style={styles.historyTime}>{entry.executedAt.toLocaleTimeString()}</Text>
                 </TouchableOpacity>
               ))}
             </View>

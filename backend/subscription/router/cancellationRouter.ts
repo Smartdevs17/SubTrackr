@@ -9,7 +9,9 @@
  *   POST /retention/:offerId/decline               – decline retention offer
  *   GET  /subscriptions/:id/cancel/status         – get cancellation status
  *   GET  /subscriptions/:id/cancel/history         – cancellation history
- *   GET  /cancellation/analytics                    – aggregated analytics
+ *   GET  /cancellation/analytics                    – aggregated analytics (?planId=)
+ *   GET  /cancellation/plans/:planId/reasons        – plan's reason vocabulary
+ *   PUT  /cancellation/plans/:planId/reasons        – configure plan reasons
  *
  * @see https://github.com/Smartdevs17/SubTrackr/issues/1119
  */
@@ -75,6 +77,16 @@ export function createCancellationRouter(
   router.get(
     '/cancellation/analytics',
     wrap((req, res) => controller.analytics(req, res)),
+  );
+
+  router.get(
+    '/cancellation/plans/:planId/reasons',
+    wrap((req, res) => controller.reasons(req, res)),
+  );
+
+  router.put(
+    '/cancellation/plans/:planId/reasons',
+    wrap((req, res) => controller.configureReasons(req, res)),
   );
 
   return router;

@@ -38,7 +38,7 @@ const DEFAULT_PERMISSIONS_POLICY: Record<string, (string | 'none')[]> = {
   xrSpatialTracking: ["'none'"],
 };
 
-function buildHsts(options: SecurityHeadersOptions): string {
+export function buildHsts(options: SecurityHeadersOptions): string {
   const maxAge = options.hstsMaxAge ?? 63_072_000;
   const includeSubDomains = options.hstsIncludeSubDomains ?? true;
   const preload = options.hstsPreload ?? true;
@@ -48,7 +48,7 @@ function buildHsts(options: SecurityHeadersOptions): string {
   return parts.join('; ');
 }
 
-function buildPermissionsPolicy(
+export function buildPermissionsPolicy(
   options: SecurityHeadersOptions,
 ): string {
   const policy = { ...DEFAULT_PERMISSIONS_POLICY, ...(options.permissionsPolicy ?? {}) };

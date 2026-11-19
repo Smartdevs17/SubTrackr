@@ -1,5 +1,5 @@
-import type { SplitConfiguration, SplitExecution, PartnerPayoutSchedule } from '../../src/types/partner';
-import { SplitEngine, type SplitResult } from '../../src/services/partnerService';
+import type { SplitConfiguration, SplitExecution, PartnerPayoutSchedule } from '../../../src/types/partner';
+import { SplitEngine, type SplitResult } from '../../../src/services/partnerService';
 
 export interface PartnerSplitExecutionInput {
   splitConfiguration: SplitConfiguration;

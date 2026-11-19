@@ -5,16 +5,21 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Switch,
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../navigation/types';
 import { useUserStore } from '../store/userStore';
 import { gdprService } from '../services/gdpr';
 import { useThemeColors } from '../hooks/useThemeColors';
 
+type Nav = NativeStackNavigationProp<RootStackParamList>;
+
 const GDPRSettingsScreen = () => {
-  const { consent, setConsent } = useUserStore();
+  const navigation = useNavigation<Nav>();
+  const { consent } = useUserStore();
   const colors = useThemeColors();
   const styles = React.useMemo(() => createStyles(colors), [colors]);
   const [loading, setLoading] = useState(false);
@@ -64,33 +69,19 @@ const GDPRSettingsScreen = () => {
           Manage how SubTrackr processes your data and what notifications you receive.
         </Text>
 
-        <View style={styles.row}>
-          <View style={styles.labelContainer}>
-            <Text style={styles.label}>Analytics</Text>
-            <Text style={styles.subLabel}>Help us improve by sharing anonymous usage data.</Text>
-          </View>
-          <Switch
-            value={consent.analytics}
-            onValueChange={(val) => setConsent({ analytics: val })}
-            accessibilityLabel="Analytics data sharing"
-            accessibilityRole="switch"
-            accessibilityState={{ checked: consent.analytics }}
-          />
-        </View>
-
-        <View style={styles.row}>
-          <View style={styles.labelContainer}>
-            <Text style={styles.label}>Marketing Notifications</Text>
-            <Text style={styles.subLabel}>Receive updates about new features and offers.</Text>
-          </View>
-          <Switch
-            value={consent.marketing}
-            onValueChange={(val) => setConsent({ marketing: val })}
-            accessibilityLabel="Marketing notifications"
-            accessibilityRole="switch"
-            accessibilityState={{ checked: consent.marketing }}
-          />
-        </View>
+        <TouchableOpacity
+          style={styles.button}
+          onPress={() => navigation.navigate('ConsentManagement')}
+          testID="gdpr-manage-consent"
+          accessibilityRole="button"
+          accessibilityLabel="Manage consent preferences"
+          accessibilityHint="Grant or withdraw consent for analytics, marketing, and notifications">
+          <Text style={styles.buttonText}>Manage Consent Preferences</Text>
+        </TouchableOpacity>
+        <Text style={styles.infoText}>
+          Analytics: {consent.analytics ? 'On' : 'Off'} · Marketing:{' '}
+          {consent.marketing ? 'On' : 'Off'} · Notifications: {consent.notifications ? 'On' : 'Off'}
+        </Text>
       </View>
 
       <View style={styles.section}>
@@ -163,26 +154,6 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       color: colors.textSecondary,
       marginBottom: 20,
       lineHeight: 20,
-    },
-    row: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 20,
-    },
-    labelContainer: {
-      flex: 1,
-      paddingRight: 10,
-    },
-    label: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: colors.text.primary,
-    },
-    subLabel: {
-      fontSize: 12,
-      color: colors.textSecondary,
-      marginTop: 2,
     },
     button: {
       backgroundColor: colors.primary,

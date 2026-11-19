@@ -23,7 +23,8 @@ Client                          Server
 |---|---|
 | `backend/shared/middleware/etagMiddleware.ts` | Core ETag logic, 304 handling, Cache-Control |
 | `backend/shared/middleware/index.ts` | Barrel export |
-| `backend/server.ts` | `applyETagToRawHandler` wired into raw HTTP server |
+| `backend/services/shared/compression.ts` | ETag + `If-None-Match` handling used by `backend/server.ts` (`sendJson` → `applyCompression`) |
+| `backend/server/createApiServer.ts` | Express app; uses Express's built-in ETag and `304` handling |
 
 ## ETag Generation
 
@@ -98,14 +99,23 @@ applyETagToRawHandler(req, res, { bypassForAuth: false });
 
 ### Raw HTTP server (default in `backend/server.ts`)
 
-```ts
-import { applyETagToRawHandler } from './shared/middleware/etagMiddleware';
+Every `200` JSON response from `backend/server.ts` goes through `sendJson` →
+`applyCompression`, which computes the ETag from the uncompressed body (so it
+is the same for gzip, brotli and identity) and answers `304 Not Modified` when
+`If-None-Match` matches. Matching uses the weak comparison from RFC 9110: the
+header may list several tags and a `W/` prefix is ignored, so a CDN that
+weakens the tag still gets a `304`.
 
-const server = http.createServer(async (req, res) => {
-  applyETagToRawHandler(req, res);
-  // … handler logic …
-});
+```bash
+curl -i http://localhost:3001/plans/plan-1                  # 200 + ETag: "…"
+curl -i -H 'If-None-Match: "…"' http://localhost:3001/plans/plan-1   # 304, empty body
 ```
+
+For a new raw handler that does not use `sendJson`, call
+`applyETagToRawHandler(req, res)` before writing the response.
+
+Covered by `backend/__tests__/server.test.ts` and
+`backend/services/shared/__tests__/compression.test.ts`.
 
 ### Express
 

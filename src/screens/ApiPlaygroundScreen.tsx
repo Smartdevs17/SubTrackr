@@ -13,7 +13,10 @@ import { ApiPlayground } from '../../developer-portal/components/ApiPlayground';
 import { colors, spacing, typography } from '../utils/constants';
 
 const ApiPlaygroundScreen: React.FC = () => (
-  <SafeAreaView style={styles.root} accessibilityLabel="API Playground screen" testID="api-playground-screen">
+  <SafeAreaView
+    style={styles.root}
+    accessibilityLabel="API Playground screen"
+    testID="api-playground-screen">
     <View style={styles.header}>
       <Text style={styles.title} accessibilityRole="header">
         API Playground

@@ -194,6 +194,25 @@ def parse_snyk(path: Path) -> list[dict[str, str]]:
     return findings
 
 
+def parse_gitleaks(path: Path) -> list[dict[str, str]]:
+    data = load_json(path)
+    if not isinstance(data, dict):
+        return []
+    findings = []
+    for finding in data.get("Findings", []):
+        findings.append(
+            {
+                "tool": "gitleaks",
+                "severity": "Critical",
+                "target": finding.get("File", "unknown repository file"),
+                "finding": finding.get("RuleID", "secret leak"),
+                "guidance": finding.get("Description")
+                or "Rotate the exposed secret and purge it from git history.",
+            }
+        )
+    return findings
+
+
 def parse_zap(path: Path) -> list[dict[str, str]]:
     data = load_json(path)
     if not isinstance(data, dict):
@@ -223,6 +242,7 @@ def collect_findings(report_dir: Path) -> list[dict[str, str]]:
         ("cargo-audit", parse_cargo_audit),
         ("trivy", parse_trivy),
         ("snyk", parse_snyk),
+        ("gitleaks", parse_gitleaks),
         ("zap", parse_zap),
     ]
     findings: list[dict[str, str]] = []

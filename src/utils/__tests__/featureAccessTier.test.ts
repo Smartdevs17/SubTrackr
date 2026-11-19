@@ -24,9 +24,13 @@ describe('featureAccessTier utility functions', () => {
 
   describe('getRequiredTierForFeature', () => {
     it('returns correct required tier for features', () => {
-      expect(getRequiredTierForFeature(FeatureId.BASIC_SUBSCRIPTION_TRACKING)).toBe(SubscriptionTier.FREE);
+      expect(getRequiredTierForFeature(FeatureId.BASIC_SUBSCRIPTION_TRACKING)).toBe(
+        SubscriptionTier.FREE
+      );
       expect(getRequiredTierForFeature(FeatureId.BUDGET_ALERTS)).toBe(SubscriptionTier.BASIC);
-      expect(getRequiredTierForFeature(FeatureId.ADVANCED_ANALYTICS)).toBe(SubscriptionTier.PREMIUM);
+      expect(getRequiredTierForFeature(FeatureId.ADVANCED_ANALYTICS)).toBe(
+        SubscriptionTier.PREMIUM
+      );
       expect(getRequiredTierForFeature(FeatureId.WHITE_LABEL)).toBe(SubscriptionTier.ENTERPRISE);
     });
   });
@@ -88,7 +92,10 @@ describe('featureAccessTier utility functions', () => {
 
   describe('getTierUpgradeRecommendation', () => {
     it('returns null if user already has access', () => {
-      const rec = getTierUpgradeRecommendation(SubscriptionTier.PREMIUM, FeatureId.ADVANCED_ANALYTICS);
+      const rec = getTierUpgradeRecommendation(
+        SubscriptionTier.PREMIUM,
+        FeatureId.ADVANCED_ANALYTICS
+      );
       expect(rec).toBeNull();
     });
 

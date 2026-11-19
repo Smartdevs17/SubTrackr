@@ -60,3 +60,8 @@ CREATE TABLE IF NOT EXISTS audit_quarantine (
   reason          TEXT NOT NULL,
   details         JSONB DEFAULT '{}'::jsonb
 );
+
+-- @down
+DROP TABLE IF EXISTS audit_quarantine;
+DROP TABLE IF EXISTS audit_anchors;
+DROP TABLE IF EXISTS audit_events;

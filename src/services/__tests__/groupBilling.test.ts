@@ -60,11 +60,21 @@ describe('GroupBillingService', () => {
     expect(summary.memberBalances['0xMEMBER1']).toBe(10);
   });
 
-  it('aggregates charges within period', () => {
-    const items = service.aggregateCharges(sampleGroup, 30);
+  it('aggregates charges within the requested period', () => {
+    const now = Date.now();
+    const items = service.aggregateCharges(sampleGroup, now - 30 * 86400000, now);
     expect(items.length).toBe(2);
     const ownerItem = items.find((i) => i.memberAddress === '0xOWNER');
     expect(ownerItem?.amount).toBe(29.99);
+  });
+
+  it('excludes charges outside the requested period', () => {
+    const now = Date.now();
+    // The window is anchored to the period, not to "the last N days from
+    // now" — a period that ended long ago must not pick up today's charges.
+    const items = service.aggregateCharges(sampleGroup, now - 90 * 86400000, now - 60 * 86400000);
+    const ownerItem = items.find((i) => i.memberAddress === '0xOWNER');
+    expect(ownerItem?.amount).toBe(0);
   });
 
   it('generates and processes invoices', () => {
@@ -126,12 +136,7 @@ describe('GroupBillingService', () => {
     expect(plan.customName).toBe('Custom Enterprise Family');
     expect(service.getGroupPlanCustomization('grp_test_1')).toEqual(plan);
 
-    const updatedMember = service.overrideMemberBalance(
-      sampleGroup,
-      '0xMEMBER1',
-      0,
-      '0xOWNER'
-    );
+    const updatedMember = service.overrideMemberBalance(sampleGroup, '0xMEMBER1', 0, '0xOWNER');
     expect(updatedMember?.outstandingBalance).toBe(0);
   });
 });

@@ -1,10 +1,5 @@
 export type PIICategory =
-  | 'identity'
-  | 'contact'
-  | 'financial'
-  | 'behavioral'
-  | 'technical'
-  | 'subscription';
+  'identity' | 'contact' | 'financial' | 'behavioral' | 'technical' | 'subscription';
 
 export interface PIIField {
   field: string;
@@ -22,6 +17,7 @@ export interface ConsentRecord {
   ipAddress?: string;
   userAgent?: string;
   version: string; // policy version
+  source?: 'banner' | 'settings';
 }
 
 export interface DPARecord {

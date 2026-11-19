@@ -8,6 +8,7 @@ import { useTransactionQueue } from './src/hooks/useTransactionQueue';
 import { useOfflineSync } from './src/hooks/useOfflineSync';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import { HydrationGate } from './src/components/HydrationGate';
+import { ConsentPrompt } from './src/components/privacy/ConsentPrompt';
 import { initI18n } from './src/i18n/config';
 import i18n from './src/i18n/config';
 import { I18nextProvider } from 'react-i18next';
@@ -24,7 +25,11 @@ import { performanceMonitor } from './src/services/performanceMonitor';
 import { createAppKit, defaultConfig, AppKit } from '@reown/appkit-ethers-react-native';
 
 import { EVM_RPC_URLS } from './src/config/evm';
-import { useNetworkStore, useSettingsStore } from './src/store';
+// Imported directly rather than from './src/store': the barrel re-exports every
+// persisted zustand store, and Metro cannot tree-shake a CommonJS barrel, so the
+// barrel form pulled all of them into the cold-start bundle.
+import { useNetworkStore } from './src/store/networkStore';
+import { useSettingsStore } from './src/store/settingsStore';
 import { sessionService } from './src/services/auth/session';
 
 // Get projectId from environment variable
@@ -202,6 +207,7 @@ export default function App() {
             <HydrationGate>
               <NotificationBootstrap />
               <AppNavigator />
+              <ConsentPrompt />
             </HydrationGate>
           </I18nextProvider>
         </ErrorBoundary>

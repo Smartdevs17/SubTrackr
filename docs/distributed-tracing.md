@@ -32,27 +32,40 @@ trace id is shared and parent/child span linkage is preserved.
 
 ## Per-language usage
 
-### Backend (TypeScript) — `backend/services/shared`
+### Backend (TypeScript) — `backend/shared/middleware/requestObservability.ts`
 
-```ts
-import { startServerSpan, traceDbQuery, traceExternalCall } from './shared/monitoring';
+Both backend HTTP servers (`backend/server.ts` and the Express app in
+`backend/server/createApiServer.ts`) run every request through
+`createRequestObservability`. It:
 
-async function handleCharge(req) {
-  const { span, downstreamHeaders } = startServerSpan('POST /v1/charges', req.headers);
-  try {
-    const sub = await traceDbQuery('select subscription', span.context, () => db.query(...));
-    await traceExternalCall('ml-service', span.context, (_s, headers) =>
-      fetch(ML_URL, { headers }) // headers already carry traceparent
-    );
-    span.setStatus('ok');
-  } catch (e) {
-    span.recordException(e);
-    throw e;
-  } finally {
-    span.end();
-  }
-}
-```
+- continues the caller's `traceparent` (or starts a new trace) with a `server`
+  span named `<METHOD> <path>`;
+- records `http.method`, `http.target` (path only), `http.status_code` and
+  `request.id`; 5xx responses and aborted requests get status `error`;
+- exports the span through the tracer built by `createTracerFromEnv`
+  (`backend/services/shared/tracing.ts`): OTLP/HTTP to
+  `$OTEL_EXPORTER_OTLP_ENDPOINT/v1/traces` when set, otherwise an in-memory
+  buffer.
+
+Service names: `subtrackr-backend` (`server.ts`) and `subtrackr-api`
+(`createApiServer.ts`).
+
+To propagate a context to a downstream call, add the headers from
+`injectContext(span.context)` to the outgoing request.
+
+### Correlating traces and logs
+
+The middleware also sets `X-Request-Id` (kept from the caller when it is a safe
+token, otherwise a UUID) and runs the handler in the logger's correlation
+context. So:
+
+- every log written while serving the request has `correlationId` = request id;
+- the `http.request` access log line carries `requestId`, `traceId` and
+  `spanId`;
+- the server span carries the `request.id` attribute.
+
+From a log line, search Tempo by `traceId`; from a trace, filter logs by
+`correlationId` = the span's `request.id`. See [api-logging.md](api-logging.md).
 
 ### Mobile (TypeScript) — `src/services/network/apiClient.ts`
 

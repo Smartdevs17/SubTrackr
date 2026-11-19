@@ -1,8 +1,8 @@
-import { ChannelProvider } from '../types/channel';
-import { EmailProvider } from './email';
-import { PushProvider } from './push';
-import { SMSProvider } from './sms';
-import { Notification } from '../types/notification';
+import { ChannelProvider } from '../types/channel.js';
+import { EmailProvider } from './email.js';
+import { PushProvider } from './push.js';
+import { SMSProvider } from './sms.js';
+import { Notification } from '../types/notification.js';
 
 export class ChannelFactory {
   private providers: Map<string, ChannelProvider> = new Map();

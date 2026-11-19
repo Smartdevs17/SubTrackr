@@ -64,11 +64,7 @@ export interface UseSubscriptionSlaMonitorReturn {
   // ── Metric recording ──────────────────────────────────────────────────
 
   /** Record a single metric sample */
-  recordMetric: (
-    subscriptionId: string,
-    kind: SlaMetricKind,
-    value: number
-  ) => void;
+  recordMetric: (subscriptionId: string, kind: SlaMetricKind, value: number) => void;
 
   /** Record multiple metric samples at once */
   recordMetrics: (
@@ -123,7 +119,10 @@ export function useSubscriptionSlaMonitor(): UseSubscriptionSlaMonitorReturn {
 
   const activeBreaches = useMemo(() => store.getActiveBreaches(), [store.breaches]);
   const unreadAlerts = useMemo(() => store.getUnreadAlerts(), [store.alerts]);
-  const dashboard = useMemo(() => store.getDashboard(), [store.statuses, store.breaches, store.alerts]);
+  const dashboard = useMemo(
+    () => store.getDashboard(),
+    [store.statuses, store.breaches, store.alerts]
+  );
 
   const recordMetric = useCallback(
     (subscriptionId: string, kind: SlaMetricKind, value: number) => {

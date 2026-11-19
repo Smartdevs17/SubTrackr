@@ -143,9 +143,7 @@ export function evaluateSubscriptionSla(input: SlaEvaluationInput): SlaEvaluatio
     const deviationPercent = target !== 0 ? ((actual - target) / target) * 100 : 0;
     const activeBreachForKind = existingBreaches.find(
       (b) =>
-        b.metricKind === kind &&
-        b.subscriptionId === config.subscriptionId &&
-        b.resolvedAt === null
+        b.metricKind === kind && b.subscriptionId === config.subscriptionId && b.resolvedAt === null
     );
 
     if (breached && !activeBreachForKind) {
@@ -222,9 +220,7 @@ export function evaluateSubscriptionSla(input: SlaEvaluationInput): SlaEvaluatio
     (b) => b.subscriptionId === config.subscriptionId && b.resolvedAt === null
   );
 
-  const allSubBreaches = updatedBreaches.filter(
-    (b) => b.subscriptionId === config.subscriptionId
-  );
+  const allSubBreaches = updatedBreaches.filter((b) => b.subscriptionId === config.subscriptionId);
 
   const totalCredits = allSubBreaches.reduce((sum, b) => sum + b.creditIssued, 0);
 
@@ -436,9 +432,7 @@ export function buildSubscriptionSlaDashboard(
   const now = Date.now();
   const complianceTrend: Array<{ date: string; compliance: number; breaches: number }> = [];
   const avgUptime =
-    total > 0
-      ? statuses.reduce((sum, s) => sum + s.uptimePercentage, 0) / total
-      : 100;
+    total > 0 ? statuses.reduce((sum, s) => sum + s.uptimePercentage, 0) / total : 100;
 
   for (let i = 6; i >= 0; i--) {
     const dayStart = now - i * 86_400_000;
@@ -517,35 +511,35 @@ function generateRecommendations(
   if (analytics.averageUptime < 99) {
     recs.push(
       `Average uptime is ${analytics.averageUptime}%, below the 99% industry standard. ` +
-      'Investigate infrastructure reliability and redundancy.'
+        'Investigate infrastructure reliability and redundancy.'
     );
   }
 
   if (analytics.breachesBySeverity.critical > 0) {
     recs.push(
       `${analytics.breachesBySeverity.critical} critical breach(es) detected. ` +
-      'Prioritize root cause analysis and immediate remediation.'
+        'Prioritize root cause analysis and immediate remediation.'
     );
   }
 
   if (analytics.mttr > 60) {
     recs.push(
       `Mean time to resolution is ${analytics.mttr.toFixed(0)} minutes. ` +
-      'Consider implementing automated failover and faster incident response procedures.'
+        'Consider implementing automated failover and faster incident response procedures.'
     );
   }
 
   if (analytics.breachesByMetric.response_time > 5) {
     recs.push(
       'Multiple response time SLA breaches detected. ' +
-      'Review API performance, caching strategies, and database query optimization.'
+        'Review API performance, caching strategies, and database query optimization.'
     );
   }
 
   if (analytics.breachesByMetric.error_rate > 3) {
     recs.push(
       'Recurring error rate SLA breaches. ' +
-      'Implement circuit breakers, retry logic, and improved error handling.'
+        'Implement circuit breakers, retry logic, and improved error handling.'
     );
   }
 
@@ -553,7 +547,7 @@ function generateRecommendations(
   if (enterpriseBreaches.length > 0) {
     recs.push(
       `${enterpriseBreaches.length} breach(es) affecting enterprise tier subscriptions. ` +
-      'Enterprise SLAs carry the highest credit obligations — address immediately.'
+        'Enterprise SLAs carry the highest credit obligations — address immediately.'
     );
   }
 

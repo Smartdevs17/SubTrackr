@@ -54,9 +54,7 @@ export class RemovedError extends Error {
     const hint = opts.replacement
       ? ` Use ${opts.replacement} instead.`
       : ' See the migration guide.';
-    super(
-      `${opts.method}() was removed in SDK v${opts.removedIn}.${hint}`
-    );
+    super(`${opts.method}() was removed in SDK v${opts.removedIn}.${hint}`);
     this.name = 'RemovedError';
     this.method = opts.method;
     this.removedIn = opts.removedIn;

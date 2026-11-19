@@ -94,7 +94,7 @@ export class ColumnEncryptionService {
       const authTag = Buffer.from(encrypted.authTag, 'base64');
       const ciphertext = Buffer.from(encrypted.ciphertext, 'base64');
 
-      const decipher = createDecipheriv('aes-256-gcm', dek, iv);
+      const decipher = createDecipheriv('aes-256-gcm', dek, iv, { authTagLength: 16 });
       decipher.setAuthTag(authTag);
       const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
 

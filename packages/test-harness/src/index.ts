@@ -7,7 +7,7 @@ export async function deployContract(wasmHex: string) {
   const resp = await fetch(`${DEFAULT_RPC}/deploy`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ wasm: wasmHex })
+    body: JSON.stringify({ wasm: wasmHex }),
   });
   return resp.json();
 }
@@ -26,7 +26,7 @@ export async function invokeContract(payload: any) {
     const resp = await fetch(`${DEFAULT_RPC}/invoke`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
     });
     const body = await resp.json();
     if (resp.ok) return body;

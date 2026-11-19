@@ -55,14 +55,13 @@ export interface SubscriberNotificationPreferences {
   updatedAt: string;
 }
 
-/** Sends one rendered message on one channel. Resolves false on refusal. */
-export type ChannelTransport = (input: {
-  userId: string;
-  channel: NotificationChannel;
-  subject: string;
-  body: string;
-  data?: Record<string, string>;
-}) => Promise<boolean>;
+/**
+ * Sends one rendered message on one channel. Resolves false on refusal.
+ * Owned by `@subtrackr/notification-providers` and re-exported here so the
+ * backend and the standalone notification microservice agree on the shape.
+ */
+export type { ChannelTransport } from '@subtrackr/notification-providers';
+import type { ChannelTransport } from '@subtrackr/notification-providers';
 
 export interface DeliverInput {
   userId: string;

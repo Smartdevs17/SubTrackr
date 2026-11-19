@@ -46,7 +46,7 @@ import {
   getBatchHistory,
   saveBatchHistory,
   clearBatchHistory as clearPersistedBatchHistory,
-} from '../../app/services/batchTransactionService';
+} from '../../../app/services/batchTransactionService';
 
 const MAX_STORE_HISTORY = 100;
 

@@ -468,4 +468,82 @@ describe('WebhookDeliveryService', () => {
     expect(result.delivery.status).toBe('delivered');
     expect(result.delivery.payload.merchantId).toBe('override_merchant');
   });
+
+  // ── Optional Signing (Issue #1751) ───────────────────────────────────────────
+
+  it('registers an unsigned webhook when signingEnabled is false', () => {
+    const service = new WebhookDeliveryService({ fetchImpl: jest.fn() as unknown as typeof fetch });
+
+    const webhook = service.registerWebhook({
+      merchantId: 'merchant_1',
+      url: 'https://partner.example.com/webhook',
+      events: ['subscription.created' as any],
+      signingEnabled: false,
+    });
+
+    expect(webhook.signingEnabled).toBe(false);
+    expect(webhook.secretKey).toBeUndefined();
+    expect(webhook.secrets).toHaveLength(0);
+  });
+
+  it('delivers an unsigned event without the X-SubTrackr-Signature header', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue({ ok: true, status: 200 });
+    const service = new WebhookDeliveryService({ fetchImpl: fetchImpl as typeof fetch });
+
+    const webhook = service.registerWebhook({
+      merchantId: 'merchant_1',
+      url: 'https://partner.example.com/webhook',
+      events: ['subscription.charged'],
+      signingEnabled: false,
+    });
+
+    const result = await service.deliverEvent(makeInput({ webhookId: webhook.id }));
+
+    expect(result?.delivery.status).toBe('delivered');
+    expect(result?.delivery.signature).toBeUndefined();
+
+    const [, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    const headers = init.headers as Record<string, string>;
+    expect(headers['X-SubTrackr-Signature']).toBeUndefined();
+    // Other metadata headers must still be present
+    expect(headers['X-SubTrackr-Event-Type']).toBe('subscription.charged');
+  });
+
+  it('throws when registering with signingEnabled=true but no secretKey', () => {
+    const service = new WebhookDeliveryService({ fetchImpl: jest.fn() as unknown as typeof fetch });
+
+    expect(() =>
+      service.registerWebhook({
+        merchantId: 'merchant_1',
+        url: 'https://example.com/webhook',
+        events: ['subscription.charged'],
+        signingEnabled: true,
+        // secretKey deliberately omitted
+      })
+    ).toThrow(/secretKey is required when signingEnabled is true/);
+  });
+
+  it('can upgrade an unsigned webhook to signed by updating with a secretKey', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue({ ok: true, status: 200 });
+    const service = new WebhookDeliveryService({ fetchImpl: fetchImpl as typeof fetch });
+
+    const webhook = service.registerWebhook({
+      merchantId: 'merchant_1',
+      url: 'https://partner.example.com/webhook',
+      events: ['subscription.charged'],
+      signingEnabled: false,
+    });
+
+    const updated = service.updateWebhook(webhook.id, {
+      signingEnabled: true,
+      secretKey: 'new-secret',
+    });
+
+    expect(updated.signingEnabled).toBe(true);
+    expect(updated.secretKey).toBe('new-secret');
+
+    const result = await service.deliverEvent(makeInput({ webhookId: webhook.id }));
+    expect(result?.delivery.status).toBe('delivered');
+    expect(result?.delivery.signature).toBeDefined();
+  });
 });

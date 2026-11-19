@@ -750,21 +750,17 @@ describe('createVersionMiddleware — version resolution order', () => {
 // ─── Singleton versionRegistry ────────────────────────────────────────────────
 
 describe('versionRegistry singleton', () => {
-  it('is exported and has v1 and v2 registered', () => {
+  it('registers v1, the version every route is served under', () => {
     expect(versionRegistry.has('v1')).toBe(true);
-    expect(versionRegistry.has('v2')).toBe(true);
   });
 
-  it('default version is v2', () => {
-    expect(versionRegistry.getDefault()).toBe('v2');
+  it('defaults to v1', () => {
+    expect(versionRegistry.getDefault()).toBe('v1');
   });
 
-  it('v1 is deprecated', () => {
-    expect(versionRegistry.get('v1')?.lifecycle).toBe('deprecated');
-  });
-
-  it('v2 is active', () => {
-    expect(versionRegistry.get('v2')?.lifecycle).toBe('active');
+  it('keeps v1 active so clients get no deprecation headers', () => {
+    expect(versionRegistry.get('v1')?.lifecycle).toBe('active');
+    expect(versionRegistry.getDeprecationWarning('v1')).toBeNull();
   });
 });
 

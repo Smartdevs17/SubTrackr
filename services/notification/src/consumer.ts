@@ -1,5 +1,5 @@
-import { ChannelFactory } from './channels/factory';
-import { Notification } from './types/notification';
+import { ChannelFactory } from './channels/factory.js';
+import { Notification } from './types/notification.js';
 
 let factory: ChannelFactory;
 

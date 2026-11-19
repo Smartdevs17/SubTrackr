@@ -81,4 +81,30 @@ describe("RevenueAnalyticsService", () => {
       expect(result.revenueChurnRate).toBe(0);
     });
   });
+
+  describe("buildRevenueReport", () => {
+    const entries = [
+      { id: "sale", merchantId: "m1", type: "revenue" as const, amount: 100, currency: "USD", occurredAt: new Date("2026-02-02") },
+      { id: "refund", merchantId: "m1", type: "refund" as const, amount: -20, currency: "USD", occurredAt: new Date("2026-02-03") },
+      { id: "credit", merchantId: "m1", type: "adjustment" as const, amount: -5, currency: "USD", occurredAt: new Date("2026-02-04") },
+      { id: "outside", merchantId: "m2", type: "revenue" as const, amount: 999, currency: "USD", occurredAt: new Date("2026-01-01") },
+    ];
+
+    it("reports revenue, refunds and adjustments on separate lines", () => {
+      const report = service.buildRevenueReport(entries);
+      expect(report.lines.revenue.map((entry) => entry.id)).toEqual(["sale", "outside"]);
+      expect(report.lines.refund.map((entry) => entry.id)).toEqual(["refund"]);
+      expect(report.lines.adjustment.map((entry) => entry.id)).toEqual(["credit"]);
+      expect(report.totals).toEqual({ revenue: 1099, refunds: 20, adjustments: -5, netRevenue: 1074 });
+    });
+
+    it("filters inclusively by period and merchant", () => {
+      const report = service.buildRevenueReport(entries, {
+        merchantId: "m1",
+        from: new Date("2026-02-03"),
+        to: new Date("2026-02-04T23:59:59Z"),
+      });
+      expect(report.totals).toEqual({ revenue: 0, refunds: 20, adjustments: -5, netRevenue: -25 });
+    });
+  });
 });

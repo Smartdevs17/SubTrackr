@@ -43,6 +43,7 @@ export interface ManagedApiKey {
   readonly developerId: string;
   readonly environment: ApiKeyEnvironment;
   readonly permissions: string[];
+  readonly scopes?: string[];
   status: ApiKeyStatus;
   readonly createdAt: number;
   expiresAt: number;
@@ -134,6 +135,7 @@ export class ApiKeyRotationService {
     environment: ApiKeyEnvironment,
     permissions: string[] = [],
     ttlMs = DEFAULT_KEY_TTL_MS,
+    scopes?: string[],
   ): ManagedApiKey {
     const id = this.generateId('key');
     const secret = this.generateSecret(environment);
@@ -146,6 +148,7 @@ export class ApiKeyRotationService {
       developerId,
       environment,
       permissions: [...permissions],
+      scopes: scopes ? [...scopes] : (permissions.length > 0 ? [...permissions] : ['*']),
       status: 'active',
       createdAt: now,
       expiresAt: now + ttlMs,
@@ -253,7 +256,7 @@ export class ApiKeyRotationService {
    * - Returns `isGrace: true` with the remaining grace window when the old
    *   key is used after rotation so callers can surface a deprecation warning.
    */
-  validateKey(secret: string): ApiKeyValidationResult {
+  validateKey(secret: string, requiredScope?: string): ApiKeyValidationResult {
     this.totalValidations++;
 
     const id = this.keyIndex.get(secret);
@@ -278,6 +281,14 @@ export class ApiKeyRotationService {
     if (now > key.expiresAt && key.status === 'active') {
       key.status = 'expired';
       return { valid: false, key, isGrace: false, graceRemainingMs: 0, reason: 'expired' };
+    }
+
+    if (requiredScope) {
+      const scopes = key.scopes ?? key.permissions;
+      const isAllowed = scopes.includes('*') || scopes.includes(requiredScope) || scopes.some((s) => s.endsWith(':*') && requiredScope.startsWith(s.slice(0, -1)));
+      if (!isAllowed) {
+        return { valid: false, key, isGrace: false, graceRemainingMs: 0, reason: 'insufficient_scope' };
+      }
     }
 
     // Record usage

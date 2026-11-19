@@ -25,6 +25,9 @@ const DAYS_IN_CYCLE: Record<BillingCycle, number> = {
   [BillingCycle.WEEKLY]: 7,
   [BillingCycle.MONTHLY]: 30,
   [BillingCycle.YEARLY]: 365,
+  // `annual` bills yearly. Without an entry it fell through to the 30-day
+  // default, so an annual plan prorated a year's worth of fees over a month.
+  [BillingCycle.ANNUAL]: 365,
   [BillingCycle.CUSTOM]: 30,
 };
 

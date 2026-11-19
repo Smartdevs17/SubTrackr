@@ -54,6 +54,34 @@ export interface RevenueDashboardData {
   generatedAt: string;
 }
 
+export type RevenueEntryType = "revenue" | "refund" | "adjustment";
+
+export interface RevenueEntry {
+  id: string;
+  merchantId: string;
+  type: RevenueEntryType;
+  amount: number;
+  currency: string;
+  occurredAt: Date;
+}
+
+export interface RevenueReportFilter {
+  from?: Date;
+  to?: Date;
+  merchantId?: string;
+}
+
+export interface RevenueReport {
+  lines: Record<RevenueEntryType, RevenueEntry[]>;
+  totals: {
+    revenue: number;
+    refunds: number;
+    adjustments: number;
+    netRevenue: number;
+  };
+  period: { from: string | null; to: string | null };
+}
+
 export class RevenueAnalyticsService {
   constructor(private readonly pool: Pool) {}
 
@@ -80,6 +108,48 @@ export class RevenueAnalyticsService {
    */
   computeArr(mrr: number): number {
     return mrr * 12;
+  }
+
+  /**
+   * Build a period report without folding refunds and adjustments into gross
+   * revenue. Refund amounts are reported as positive values and deducted from
+   * net revenue; adjustments retain their sign.
+   */
+  buildRevenueReport(entries: RevenueEntry[], filter: RevenueReportFilter = {}): RevenueReport {
+    if (filter.from && filter.to && filter.from > filter.to) {
+      throw new RangeError("Revenue report start date must not be after end date");
+    }
+
+    const { from, to, merchantId } = filter;
+    const filtered = entries.filter((entry) => {
+      const occurredAt = new Date(entry.occurredAt);
+      return (
+        (!merchantId || entry.merchantId === merchantId) &&
+        (!from || occurredAt >= from) &&
+        (!to || occurredAt <= to)
+      );
+    });
+    const lines: RevenueReport["lines"] = { revenue: [], refund: [], adjustment: [] };
+    for (const entry of filtered) lines[entry.type].push(entry);
+
+    const round = (value: number) => Math.round(value * 100) / 100;
+    const revenue = round(lines.revenue.reduce((sum, entry) => sum + entry.amount, 0));
+    const refunds = round(lines.refund.reduce((sum, entry) => sum + Math.abs(entry.amount), 0));
+    const adjustments = round(lines.adjustment.reduce((sum, entry) => sum + entry.amount, 0));
+
+    return {
+      lines,
+      totals: {
+        revenue,
+        refunds,
+        adjustments,
+        netRevenue: round(revenue - refunds + adjustments),
+      },
+      period: {
+        from: filter.from?.toISOString() ?? null,
+        to: filter.to?.toISOString() ?? null,
+      },
+    };
   }
 
   /**

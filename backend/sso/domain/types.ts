@@ -79,6 +79,7 @@ export interface SSOSession {
   attributes: Record<string, string | string[]>;
   authenticatedAt: string;
   expiresAt: string;
+  provisionedUser?: SCIMUser;
 }
 
 export interface SSOLoginRequest {
@@ -91,6 +92,7 @@ export interface SSOCallbackPayload {
   code?: string;
   state?: string;
   relayState?: string;
+  claims?: Record<string, string | string[]>;
 }
 
 export interface SAMLMetadata {

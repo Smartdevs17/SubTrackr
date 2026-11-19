@@ -30,15 +30,15 @@ module.exports = {
     '!src/**/index.ts',
     '!src/**/*.stories.tsx',
     '!src/**/*.test.tsx',
-    '!src/**/*.test.ts'
+    '!src/**/*.test.ts',
   ],
   coverageThreshold: {
     global: {
       branches: 80,
       functions: 80,
       lines: 80,
-      statements: 80
-    }
+      statements: 80,
+    },
   },
   testMatch: ['**/__tests__/**/*.(test|spec).[jt]s?(x)', '**/?(*.)+(spec|test).[jt]s?(x)'],
   modulePathIgnorePatterns: ['<rootDir>/e2e'],

@@ -165,9 +165,7 @@ export class MultiChainSubscriptionService {
       );
     }
     if (!subscription.binding?.networkId) {
-      throw new Error(
-        `Subscription ${subscription.subscriptionId} is not bound to a network`
-      );
+      throw new Error(`Subscription ${subscription.subscriptionId} is not bound to a network`);
     }
     this.subscriptions.set(subscription.subscriptionId, subscription);
     return subscription;
@@ -296,16 +294,10 @@ export class MultiChainSubscriptionService {
    * same token and routes through a bridge; with no such chain the step is
    * blocked rather than silently dropped.
    */
-  planSettlement(
-    subscriberId: string,
-    options: SettlementOptions = {}
-  ): SettlementPlan {
-    const healthByNetwork = new Map(
-      (options.health ?? []).map((h) => [h.networkId, h.healthy])
-    );
+  planSettlement(subscriberId: string, options: SettlementOptions = {}): SettlementPlan {
+    const healthByNetwork = new Map((options.health ?? []).map((h) => [h.networkId, h.healthy]));
     const balances = options.balances ?? {};
-    const isHealthy = (networkId: string): boolean =>
-      healthByNetwork.get(networkId) ?? true;
+    const isHealthy = (networkId: string): boolean => healthByNetwork.get(networkId) ?? true;
 
     const steps: SettlementStep[] = [];
 

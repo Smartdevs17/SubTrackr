@@ -1,3 +1,3 @@
-export { EmailProvider } from './email';
-export { PushProvider } from './push';
-export { SMSProvider } from './sms';
+export { EmailProvider } from './email.js';
+export { PushProvider } from './push.js';
+export { SMSProvider } from './sms.js';

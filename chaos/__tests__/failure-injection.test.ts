@@ -1,7 +1,4 @@
-import {
-  injectFailure,
-  runFailureInjectionExperiment,
-} from '../experiments/failure-injection';
+import { injectFailure, runFailureInjectionExperiment } from '../experiments/failure-injection';
 
 describe('Failure Injection Experiment', () => {
   it('injects failure into marked steps', async () => {

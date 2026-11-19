@@ -81,6 +81,16 @@ export interface PrepaymentWallet {
   totalWithdrawn: number;
   createdAt: number;
   updatedAt: number;
+  lowBalanceThreshold?: number;
+}
+
+export interface LowBalanceAlert {
+  walletId: number;
+  accountId: string;
+  subscriptionId: string;
+  balance: number;
+  threshold: number;
+  currency: string;
 }
 
 // ─── Operation inputs / outputs ─────────────────────────────────────────────

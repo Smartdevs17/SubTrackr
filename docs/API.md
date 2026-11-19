@@ -1026,7 +1026,7 @@ Set via `CONTRACT_ID` environment variable. Deploy with:
 
 ```bash
 soroban contract deploy \
-  --wasm target/wasm32-unknown-unknown/release/subtrackr.wasm \
+  --wasm target/wasm32v1-none/release/subtrackr.wasm \
   --network testnet
 ```
 

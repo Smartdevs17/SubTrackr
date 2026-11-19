@@ -202,4 +202,137 @@ describe('fraudStore', () => {
     expect(store.reviewQueue[0].status).toBe('dismissed');
     expect(store.analytics.falsePositiveRate).toBeGreaterThanOrEqual(0);
   });
+
+  describe('velocity scoring is scoped to the subscriber', () => {
+    const baseSubscription = {
+      merchantId: 'm9',
+      merchantName: 'VelocityCo',
+      subscriptionName: 'Plan V',
+      currency: 'USD',
+      amount: 10,
+      expectedUsage: 1,
+      observedUsage: 1,
+      chargebacks: 0,
+      usagePattern: 'steady',
+      signals: [],
+      isBlocked: false,
+      isFlagged: false,
+    };
+
+    /** Scores a record with only velocity contributing to the total. */
+    function velocityScoreFor(subscriptionId: string, siblings: Record<string, unknown>[]) {
+      useFraudStore.setState({
+        merchants: [],
+        subscriptions: [...siblings],
+        reviewQueue: [],
+      });
+
+      act(() => {
+        useFraudStore.getState().refreshFraudSignals();
+      });
+
+      return useFraudStore
+        .getState()
+        .assessments.find((assessment) => assessment.subscriptionId === subscriptionId);
+    }
+
+    it('adds no velocity signal for a lone subscription', () => {
+      const assessment = velocityScoreFor('lone', [
+        {
+          ...baseSubscription,
+          id: 'lone',
+          subscriberId: 'solo',
+          createdAt: '2026-04-24T07:00:00.000Z',
+          riskScore: 0,
+          action: 'approve',
+          reason: '',
+        },
+      ]);
+
+      expect(assessment?.signals.some((signal) => signal.kind === 'velocity')).toBe(false);
+      expect(assessment?.totalScore).toBe(0);
+    });
+
+    it('raises velocity when the same subscriber creates several in a day', () => {
+      const sameDay = ['07:00:00.000Z', '08:00:00.000Z', '09:00:00.000Z'];
+      const assessment = velocityScoreFor('v3', [
+        ...sameDay.map((time, index) => ({
+          ...baseSubscription,
+          id: `v${index + 1}`,
+          subscriberId: 'bursty',
+          createdAt: `2026-04-24T${time}`,
+          riskScore: 0,
+          action: 'approve',
+          reason: '',
+        })),
+      ]);
+
+      // Three records in the 24h window scores the maximum velocity signal (24).
+      const velocity = assessment?.signals.find((signal) => signal.kind === 'velocity');
+      expect(velocity?.score).toBe(24);
+    });
+
+    it('does not let one subscriber burst inflate another subscriber risk', () => {
+      const bursty = ['07:00:00.000Z', '08:00:00.000Z', '09:00:00.000Z'].map((time, index) => ({
+        ...baseSubscription,
+        id: `b${index + 1}`,
+        subscriberId: 'bursty',
+        createdAt: `2026-04-24T${time}`,
+        riskScore: 0,
+        action: 'approve',
+        reason: '',
+      }));
+
+      const assessment = velocityScoreFor('calm', [
+        ...bursty,
+        {
+          ...baseSubscription,
+          id: 'calm',
+          subscriberId: 'calm-one',
+          createdAt: '2026-04-24T07:00:00.000Z',
+          riskScore: 0,
+          action: 'approve',
+          reason: '',
+        },
+      ]);
+
+      // The calm subscriber has no same-subscriber siblings, so no velocity.
+      expect(assessment?.signals.some((signal) => signal.kind === 'velocity')).toBe(false);
+      expect(assessment?.totalScore).toBe(0);
+    });
+
+    it('ignores same-subscriber activity outside the 24 hour window', () => {
+      const assessment = velocityScoreFor('old', [
+        {
+          ...baseSubscription,
+          id: 'a',
+          subscriberId: 'slow',
+          createdAt: '2026-04-01T07:00:00.000Z',
+          riskScore: 0,
+          action: 'approve',
+          reason: '',
+        },
+        {
+          ...baseSubscription,
+          id: 'b',
+          subscriberId: 'slow',
+          createdAt: '2026-04-02T07:00:00.000Z',
+          riskScore: 0,
+          action: 'approve',
+          reason: '',
+        },
+        {
+          ...baseSubscription,
+          id: 'old',
+          subscriberId: 'slow',
+          createdAt: '2026-04-24T07:00:00.000Z',
+          riskScore: 0,
+          action: 'approve',
+          reason: '',
+        },
+      ]);
+
+      expect(assessment?.signals.some((signal) => signal.kind === 'velocity')).toBe(false);
+    });
+  });
 });

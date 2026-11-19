@@ -8,8 +8,7 @@ const LOG_LEVEL_PRIORITY: Record<LogLevel, number> = {
 };
 
 const DEFAULT_LOG_LEVEL: LogLevel = 'info';
-const GLOBAL_LOG_LEVEL: LogLevel =
-  (process.env.LOG_LEVEL as LogLevel) || DEFAULT_LOG_LEVEL;
+const GLOBAL_LOG_LEVEL: LogLevel = (process.env.LOG_LEVEL as LogLevel) || DEFAULT_LOG_LEVEL;
 
 const SENSITIVE_FIELD_PATTERNS = [
   /password/i,
@@ -53,9 +52,7 @@ function redactSensitiveFields(value: unknown): unknown {
   if (value && typeof value === 'object') {
     return Object.entries(value as Record<string, unknown>).reduce(
       (acc, [key, item]) => {
-        acc[key] = isSensitiveField(key)
-          ? '[REDACTED]'
-          : redactSensitiveFields(item);
+        acc[key] = isSensitiveField(key) ? '[REDACTED]' : redactSensitiveFields(item);
         return acc;
       },
       {} as Record<string, unknown>

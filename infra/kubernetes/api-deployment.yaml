@@ -1,0 +1,130 @@
+# Issue #1289: Implement horizontal autoscaling for API
+#
+# Workload + Service for the SubTrackr API. This is the scale target for the
+# HorizontalPodAutoscaler in api-autoscaling.yaml, so the container MUST keep
+# its resources.requests block in sync with the HPA's Resource metrics — a
+# resource metric without a matching request never scales.
+#
+# Validate with:  node scripts/validate-autoscaling.js
+# Apply with:     kubectl apply -f api-deployment.yaml
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: subtrackr-api
+  namespace: subtrackr
+  labels:
+    app: subtrackr-api
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # Never take the whole fleet down while the HPA is resizing it.
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: subtrackr-api
+  template:
+    metadata:
+      labels:
+        app: subtrackr-api
+    spec:
+      # Give in-flight requests time to finish before the kubelet sends SIGTERM.
+      # Webhooks and subscription renewals are in flight at all times, so an
+      # abrupt kill is a correctness problem, not just an availability one.
+      terminationGracePeriodSeconds: 45
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: subtrackr-api
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app: subtrackr-api
+      containers:
+        - name: api
+          # Push docker/backend.Dockerfile to your registry and retag before
+          # applying; the literal below is only a default for local clusters.
+          image: subtrackr/api:latest
+          imagePullPolicy: Always
+          command: ['npx', 'tsx', 'backend/server/start.ts']
+          ports:
+            - containerPort: 3000
+              protocol: TCP
+              name: http
+          env:
+            - name: NODE_ENV
+              value: 'production'
+            - name: PORT
+              value: '3000'
+          # Keep the request rate per pod flat as the fleet grows. Each
+          # additional replica is a full Node process, so the connection pool
+          # and the BullMQ worker share of the process must be bounded.
+          resources:
+            requests:
+              memory: '512Mi'
+              cpu: '500m'
+            limits:
+              memory: '1Gi'
+              cpu: '1000m'
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 3000
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 3000
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              exec:
+                # Fail readiness first so the Service removes this pod, then
+                # sleep long enough for that propagation to land cluster-wide.
+                command: ['sh', '-c', 'sleep 10']
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: subtrackr-api
+  namespace: subtrackr
+  labels:
+    app: subtrackr-api
+spec:
+  selector:
+    app: subtrackr-api
+  ports:
+    - port: 80
+      targetPort: 3000
+      protocol: TCP
+      name: http
+  type: ClusterIP

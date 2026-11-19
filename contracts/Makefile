@@ -3,7 +3,7 @@
 # compilation benchmarks, and binary size reports.
 #
 # Prerequisites:
-#   rustup target add wasm32-unknown-unknown
+#   rustup target add wasm32v1-none
 #   cargo install wasm-opt       (optional — for post-processing)
 #   cargo install twiggy          (optional — for WASM size analysis)
 #
@@ -19,7 +19,7 @@
 #   make clean                   # Remove build artefacts
 
 SHELL := /bin/bash
-TARGET := wasm32-unknown-unknown
+TARGET := wasm32v1-none
 CARGO  := cargo
 PROFILE := release
 BUILD_DIR := target/$(TARGET)/$(PROFILE)

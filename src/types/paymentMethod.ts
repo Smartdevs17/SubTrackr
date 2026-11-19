@@ -24,12 +24,7 @@ export {
   PaymentMethodAnalytics,
 } from './wallet';
 
-export type {
-  GasEstimate,
-  TokenBalance,
-  CryptoStream,
-  StreamSetup,
-} from './wallet';
+export type { GasEstimate, TokenBalance, CryptoStream, StreamSetup } from './wallet';
 
 // ── Additional UI-layer types not present in wallet.ts ──────────────────────
 

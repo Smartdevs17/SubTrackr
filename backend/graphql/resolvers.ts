@@ -81,42 +81,46 @@ async function subscriptionsResolver(
   params.push(first + 1);
   const limitParam = params.length;
 
-  const result = await ctx.pool.query<{
-    id: string;
-    userId: string;
-    name: string;
-    amount: number;
-    currency: string;
-    billingCycle: string;
-    status: string;
-    nextBillingDate: string;
-    createdAt: string;
-    updatedAt: string;
-  }>(
-    `SELECT s.id,
-            s.user_id           AS "userId",
-            s.name,
-            s.amount,
-            s.currency,
-            s.billing_cycle     AS "billingCycle",
-            s.status,
-            s.next_billing_date AS "nextBillingDate",
-            s.created_at        AS "createdAt",
-            s.updated_at        AS "updatedAt"
-     FROM subscriptions s
-     ${whereSql}
-     ORDER BY s.created_at DESC, s.id ASC
-     LIMIT $${limitParam}`,
-    params,
-  );
+  // The page query and the total count are independent, so they are issued
+  // concurrently: latency becomes max(page, count) rather than their sum.
+  const [result, countResult] = await Promise.all([
+    ctx.pool.query<{
+      id: string;
+      userId: string;
+      name: string;
+      amount: number;
+      currency: string;
+      billingCycle: string;
+      status: string;
+      nextBillingDate: string;
+      createdAt: string;
+      updatedAt: string;
+    }>(
+      `SELECT s.id,
+              s.user_id           AS "userId",
+              s.name,
+              s.amount,
+              s.currency,
+              s.billing_cycle     AS "billingCycle",
+              s.status,
+              s.next_billing_date AS "nextBillingDate",
+              s.created_at        AS "createdAt",
+              s.updated_at        AS "updatedAt"
+       FROM subscriptions s
+       ${whereSql}
+       ORDER BY s.created_at DESC, s.id ASC
+       LIMIT $${limitParam}`,
+      params,
+    ),
+    ctx.pool.query<{ count: string }>(
+      `SELECT COUNT(*) AS count FROM subscriptions WHERE user_id = $1`,
+      [args.userId],
+    ),
+  ]);
 
   const hasNextPage = result.rows.length > first;
   const rows = hasNextPage ? result.rows.slice(0, first) : result.rows;
 
-  const countResult = await ctx.pool.query<{ count: string }>(
-    `SELECT COUNT(*) AS count FROM subscriptions WHERE user_id = $1`,
-    [args.userId],
-  );
   const totalCount = parseInt(countResult.rows[0]?.count ?? '0', 10);
 
   const edges = rows.map((row) => ({
@@ -155,38 +159,41 @@ async function transactionsResolver(
 
   params.push(first + 1);
 
-  const result = await ctx.pool.query<{
-    id: string;
-    subscriptionId: string;
-    userId: string;
-    amount: number;
-    currency: string;
-    status: string;
-    timestamp: string;
-    txHash: string | null;
-  }>(
-    `SELECT t.id,
-            t.subscription_id AS "subscriptionId",
-            t.user_id         AS "userId",
-            t.amount,
-            t.currency,
-            t.status,
-            t.timestamp,
-            t.tx_hash         AS "txHash"
-     FROM transactions t
-     ${whereSql}
-     ORDER BY t.timestamp DESC, t.id ASC
-     LIMIT $${params.length}`,
-    params,
-  );
+  // Independent of the page query — see the note in `subscriptionsResolver`.
+  const [result, countResult] = await Promise.all([
+    ctx.pool.query<{
+      id: string;
+      subscriptionId: string;
+      userId: string;
+      amount: number;
+      currency: string;
+      status: string;
+      timestamp: string;
+      txHash: string | null;
+    }>(
+      `SELECT t.id,
+              t.subscription_id AS "subscriptionId",
+              t.user_id         AS "userId",
+              t.amount,
+              t.currency,
+              t.status,
+              t.timestamp,
+              t.tx_hash         AS "txHash"
+       FROM transactions t
+       ${whereSql}
+       ORDER BY t.timestamp DESC, t.id ASC
+       LIMIT $${params.length}`,
+      params,
+    ),
+    ctx.pool.query<{ count: string }>(
+      `SELECT COUNT(*) AS count FROM transactions WHERE subscription_id = $1`,
+      [subscriptionId],
+    ),
+  ]);
 
   const hasNextPage = result.rows.length > first;
   const rows = hasNextPage ? result.rows.slice(0, first) : result.rows;
 
-  const countResult = await ctx.pool.query<{ count: string }>(
-    `SELECT COUNT(*) AS count FROM transactions WHERE subscription_id = $1`,
-    [subscriptionId],
-  );
   const totalCount = parseInt(countResult.rows[0]?.count ?? '0', 10);
 
   const edges = rows.map((row) => ({

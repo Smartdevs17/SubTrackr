@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useGamificationStore } from '../store/gamificationStore';
 import { useUserStore } from '../store/userStore';
 import { gamificationService } from '../services/gamificationService';
 import { useTheme } from '../theme/useTheme';
 import { LeaderboardCategory } from '../types/gamification';
+import { useAccessibilityAnnouncement } from '../hooks/useAccessibilityAnnouncement';
+import { A11yRole } from '../utils/accessibility';
 import {
   BadgeCard,
   LevelProgressBar,
@@ -14,8 +16,18 @@ import {
   GamificationConfigModal,
 } from '../components/gamification/GamificationComponents';
 
+type GamificationTab = 'dashboard' | 'rewards' | 'leaderboard';
+
+/** The top-level tabs, in display order. Drives both render and a11y labels. */
+const TABS: readonly { key: GamificationTab; label: string; glyph: string }[] = [
+  { key: 'dashboard', label: 'Dashboard', glyph: '📊' },
+  { key: 'rewards', label: 'Rewards', glyph: '🎁' },
+  { key: 'leaderboard', label: 'Leaderboard', glyph: '🏆' },
+];
+
 export const GamificationScreen: React.FC = () => {
   const theme = useTheme();
+  const { announceIfChanged } = useAccessibilityAnnouncement();
   const {
     points,
     level,
@@ -30,7 +42,7 @@ export const GamificationScreen: React.FC = () => {
   } = useGamificationStore();
   const { user } = useUserStore();
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'rewards' | 'leaderboard'>('dashboard');
+  const [activeTab, setActiveTab] = useState<GamificationTab>('dashboard');
   const [leaderboardCategory, setLeaderboardCategory] = useState<LeaderboardCategory>('all_time');
   const [settingsVisible, setSettingsVisible] = useState(false);
 
@@ -47,11 +59,26 @@ export const GamificationScreen: React.FC = () => {
     await gamificationService.shareLevel(useGamificationStore.getState());
   };
 
+  // Switching tabs changes most of the screen, so announce it rather than
+  // leaving a screen reader user to infer it from the focus position.
+  const activeTabLabel = TABS.find((tab) => tab.key === activeTab)?.label ?? activeTab;
+  useEffect(() => {
+    announceIfChanged(`${activeTabLabel} tab selected`);
+  }, [activeTabLabel, announceIfChanged]);
+
+  const pendingRewardCount = earnedRewards.filter((reward) => !reward.isClaimed).length;
+
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background.primary }]}>
+    <View
+      style={[styles.container, { backgroundColor: theme.colors.background.primary }]}
+      accessibilityLabel="Gamification hub"
+      testID="gamification-screen">
       <View style={styles.topHeader}>
         <View>
-          <Text style={[styles.headerTitle, { color: theme.colors.text.primary }]}>
+          <Text
+            style={[styles.headerTitle, { color: theme.colors.text.primary }]}
+            accessibilityRole={A11yRole.header}
+            accessibilityLabel="Gamification hub">
             🎮 Gamification Hub
           </Text>
           <Text style={[styles.headerSubtitle, { color: theme.colors.text.secondary }]}>
@@ -61,13 +88,22 @@ export const GamificationScreen: React.FC = () => {
         <View style={styles.headerActions}>
           <TouchableOpacity
             style={[styles.shareBtn, { backgroundColor: theme.colors.background.secondary }]}
-            onPress={handleShareProgress}>
+            onPress={handleShareProgress}
+            accessibilityRole={A11yRole.button}
+            accessibilityLabel="Share your progress"
+            accessibilityHint="Opens the system share sheet with your level and points">
             <Text style={styles.shareBtnText}>🚀 Share</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.settingsBtn, { backgroundColor: theme.colors.background.secondary }]}
-            onPress={() => setSettingsVisible(true)}>
-            <Text style={styles.settingsBtnText}>⚙️</Text>
+            onPress={() => setSettingsVisible(true)}
+            accessibilityRole={A11yRole.button}
+            accessibilityLabel="Open gamification settings"
+            accessibilityHint="Opens sound, notification and leaderboard options"
+            testID="gamification-settings-button">
+            <Text style={styles.settingsBtnText} accessible={false}>
+              ⚙️
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -76,70 +112,37 @@ export const GamificationScreen: React.FC = () => {
         <LevelProgressBar points={points} level={level} />
       </View>
 
-      <View style={[styles.navTabs, { borderBottomColor: theme.colors.border.default }]}>
-        <TouchableOpacity
-          style={[
-            styles.navTab,
-            activeTab === 'dashboard' && styles.navTabActive,
-            activeTab === 'dashboard' && { borderBottomColor: theme.colors.brand.primary },
-          ]}
-          onPress={() => setActiveTab('dashboard')}>
-          <Text
-            style={[
-              styles.navTabText,
-              {
-                color:
-                  activeTab === 'dashboard'
-                    ? theme.colors.brand.primary
-                    : theme.colors.text.secondary,
-              },
-            ]}>
-            📊 Dashboard
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.navTab,
-            activeTab === 'rewards' && styles.navTabActive,
-            activeTab === 'rewards' && { borderBottomColor: theme.colors.brand.primary },
-          ]}
-          onPress={() => setActiveTab('rewards')}>
-          <Text
-            style={[
-              styles.navTabText,
-              {
-                color:
-                  activeTab === 'rewards'
-                    ? theme.colors.brand.primary
-                    : theme.colors.text.secondary,
-              },
-            ]}>
-            🎁 Rewards{' '}
-            {earnedRewards.filter((r) => !r.isClaimed).length > 0
-              ? `(${earnedRewards.filter((r) => !r.isClaimed).length})`
-              : ''}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.navTab,
-            activeTab === 'leaderboard' && styles.navTabActive,
-            activeTab === 'leaderboard' && { borderBottomColor: theme.colors.brand.primary },
-          ]}
-          onPress={() => setActiveTab('leaderboard')}>
-          <Text
-            style={[
-              styles.navTabText,
-              {
-                color:
-                  activeTab === 'leaderboard'
-                    ? theme.colors.brand.primary
-                    : theme.colors.text.secondary,
-              },
-            ]}>
-            🏆 Leaderboard
-          </Text>
-        </TouchableOpacity>
+      <View
+        style={[styles.navTabs, { borderBottomColor: theme.colors.border.default }]}
+        accessibilityRole={A11yRole.tablist}>
+        {TABS.map((tab) => {
+          const isActive = activeTab === tab.key;
+          return (
+            <TouchableOpacity
+              key={tab.key}
+              style={[
+                styles.navTab,
+                isActive && styles.navTabActive,
+                isActive && { borderBottomColor: theme.colors.brand.primary },
+              ]}
+              onPress={() => setActiveTab(tab.key)}
+              accessibilityRole={A11yRole.tab}
+              accessibilityLabel={tab.label}
+              accessibilityState={{ selected: isActive }}
+              testID={`gamification-tab-${tab.key}`}>
+              <Text
+                style={[
+                  styles.navTabText,
+                  {
+                    color: isActive ? theme.colors.brand.primary : theme.colors.text.secondary,
+                  },
+                ]}>
+                {tab.glyph} {tab.label}
+                {tab.key === 'rewards' && pendingRewardCount > 0 ? ` (${pendingRewardCount})` : ''}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
@@ -149,7 +152,10 @@ export const GamificationScreen: React.FC = () => {
 
             <View style={styles.section}>
               <View style={styles.sectionHeaderRow}>
-                <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>
+                <Text
+                  style={[styles.sectionTitle, { color: theme.colors.text.primary }]}
+                  accessibilityRole={A11yRole.header}
+                  accessibilityLabel={`Your badges, ${earnedBadges.length} of ${allBadges.length} earned`}>
                   Your Badges ({earnedBadges.length}/{allBadges.length})
                 </Text>
               </View>
@@ -247,9 +253,10 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   settingsBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    // 44pt meets the WCAG 2.5.5 / MIN_TOUCH_TARGET floor; this was 36pt.
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
   },

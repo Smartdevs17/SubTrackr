@@ -1,4 +1,4 @@
-import { ErrorCode } from './apiResponse';
+import { ErrorCode, ERROR_HTTP_STATUS_MAP } from './apiResponse';
 
 export interface StructuredErrorDetails {
   code: string;
@@ -10,23 +10,88 @@ export interface StructuredErrorDetails {
   requestId?: string | null;
 }
 
+export interface DomainErrorOptions {
+  userMessage?: string;
+  recovery?: string | null;
+  details?: Record<string, any> | null;
+  requestId?: string | null;
+  cause?: unknown;
+}
+
 export class DomainError extends Error {
   readonly timestamp: string;
+  public readonly code: string;
+  public readonly statusCode: number;
+  public readonly details?: Record<string, any> | null;
+  public readonly requestId?: string | null;
+  public readonly userMessage?: string;
+  public readonly recovery?: string | null;
 
   constructor(
-    public readonly code: ErrorCode | string,
-    message: string,
-    public readonly details?: Record<string, any>,
-    public readonly statusCode: number = 400,
-    public readonly requestId?: string,
-    public readonly userMessage?: string,
-    public readonly recovery?: string,
-    public readonly cause?: unknown
+    arg1: string = 'Domain error',
+    arg2?: string,
+    arg3?: number | Record<string, any>,
+    arg4?: DomainErrorOptions | Record<string, any>,
   ) {
+    let message = arg1;
+    let code = 'INTERNAL_SERVER_ERROR';
+    let statusCode = 400;
+    let details: Record<string, any> | null | undefined;
+    let requestId: string | null | undefined;
+    let userMessage: string | undefined;
+    let recovery: string | null | undefined;
+    let cause: unknown;
+
+    if (typeof arg3 === 'number') {
+      // Signature: (message, code, statusCode, options)
+      message = arg1;
+      code = arg2 ?? 'INTERNAL_SERVER_ERROR';
+      statusCode = arg3;
+      if (arg4 && typeof arg4 === 'object') {
+        const opts = arg4 as DomainErrorOptions;
+        details = opts.details;
+        requestId = opts.requestId;
+        userMessage = opts.userMessage;
+        recovery = opts.recovery;
+        cause = opts.cause;
+      }
+    } else if (typeof arg2 === 'string') {
+      // Check if arg1 is an uppercase snake_case error code
+      const arg1IsCode = /^[A-Z0-9_]+$/.test(arg1);
+      if (arg1IsCode) {
+        code = arg1;
+        message = arg2;
+        details = (arg3 as Record<string, any>) ?? undefined;
+        statusCode = ERROR_HTTP_STATUS_MAP[code as ErrorCode] ?? 400;
+      } else {
+        message = arg1;
+        code = arg2;
+        statusCode = typeof arg3 === 'number' ? arg3 : 400;
+        if (arg4 && typeof arg4 === 'object') {
+          const opts = arg4 as DomainErrorOptions;
+          details = opts.details;
+          requestId = opts.requestId;
+          userMessage = opts.userMessage;
+          recovery = opts.recovery;
+        }
+      }
+    } else {
+      // Single argument: (message)
+      message = arg1;
+      code = 'INTERNAL_SERVER_ERROR';
+      statusCode = 400;
+    }
+
     const fullMessage =
       cause instanceof Error ? `${message} (Caused by: ${cause.message})` : message;
     super(fullMessage);
     this.name = this.constructor.name;
+    this.code = code;
+    this.statusCode = statusCode;
+    this.details = details;
+    this.requestId = requestId;
+    this.userMessage = userMessage;
+    this.recovery = recovery;
     this.timestamp = new Date().toISOString();
     Object.setPrototypeOf(this, new.target.prototype);
 
@@ -53,13 +118,13 @@ export class DomainError extends Error {
 
 export class ValidationError extends DomainError {
   constructor(
-    message: string,
+    message = 'Validation failed',
     details?: Record<string, any>,
     requestId?: string,
     userMessage?: string,
     recovery?: string
   ) {
-    super(ErrorCode.INVALID_INPUT, message, details, 400, requestId, userMessage, recovery);
+    super(message, 'VALIDATION_ERROR', 400, { details, requestId, userMessage, recovery });
   }
 }
 
@@ -71,7 +136,7 @@ export class UnauthorizedError extends DomainError {
     userMessage?: string,
     recovery?: string
   ) {
-    super(ErrorCode.UNAUTHORIZED, message, details, 401, requestId, userMessage, recovery);
+    super(message, 'UNAUTHORIZED', 401, { details, requestId, userMessage, recovery });
   }
 }
 
@@ -83,7 +148,7 @@ export class ForbiddenError extends DomainError {
     userMessage?: string,
     recovery?: string
   ) {
-    super(ErrorCode.FORBIDDEN, message, details, 403, requestId, userMessage, recovery);
+    super(message, 'FORBIDDEN', 403, { details, requestId, userMessage, recovery });
   }
 }
 
@@ -95,7 +160,7 @@ export class NotFoundError extends DomainError {
     userMessage?: string,
     recovery?: string
   ) {
-    super(ErrorCode.NOT_FOUND, message, details, 404, requestId, userMessage, recovery);
+    super(message, 'NOT_FOUND', 404, { details, requestId, userMessage, recovery });
   }
 }
 
@@ -107,7 +172,7 @@ export class ConflictError extends DomainError {
     userMessage?: string,
     recovery?: string
   ) {
-    super(ErrorCode.CONFLICT, message, details, 409, requestId, userMessage, recovery);
+    super(message, 'CONFLICT', 409, { details, requestId, userMessage, recovery });
   }
 }
 
@@ -119,7 +184,7 @@ export class UnprocessableEntityError extends DomainError {
     userMessage?: string,
     recovery?: string
   ) {
-    super('UNPROCESSABLE_ENTITY', message, details, 422, requestId, userMessage, recovery);
+    super(message, 'UNPROCESSABLE_ENTITY', 422, { details, requestId, userMessage, recovery });
   }
 }
 
@@ -131,7 +196,7 @@ export class RateLimitExceededError extends DomainError {
     userMessage?: string,
     recovery?: string
   ) {
-    super(ErrorCode.RATE_LIMIT_EXCEEDED, message, details, 429, requestId, userMessage, recovery);
+    super(message, 'RATE_LIMIT_EXCEEDED', 429, { details, requestId, userMessage, recovery });
   }
 }
 
@@ -143,7 +208,7 @@ export class InternalServerError extends DomainError {
     userMessage?: string,
     recovery?: string
   ) {
-    super(ErrorCode.INTERNAL_SERVER_ERROR, message, details, 500, requestId, userMessage, recovery);
+    super(message, 'INTERNAL_SERVER_ERROR', 500, { details, requestId, userMessage, recovery });
   }
 }
 
@@ -155,7 +220,7 @@ export class BadGatewayError extends DomainError {
     userMessage?: string,
     recovery?: string
   ) {
-    super('BAD_GATEWAY', message, details, 502, requestId, userMessage, recovery);
+    super(message, 'BAD_GATEWAY', 502, { details, requestId, userMessage, recovery });
   }
 }
 
@@ -167,7 +232,7 @@ export class ServiceUnavailableError extends DomainError {
     userMessage?: string,
     recovery?: string
   ) {
-    super(ErrorCode.SERVICE_UNAVAILABLE, message, details, 533, requestId, userMessage, recovery);
+    super(message, 'SERVICE_UNAVAILABLE', 503, { details, requestId, userMessage, recovery });
   }
 }
 
@@ -175,12 +240,15 @@ export function isDomainError(error: unknown): error is DomainError {
   return error instanceof DomainError;
 }
 
-export function fromUnknownError(err: unknown, requestId?: string): DomainError {
+export function fromUnknownError(
+  err: unknown,
+  code = 'INTERNAL_SERVER_ERROR',
+  statusCode = 500,
+  requestId?: string
+): DomainError {
   if (isDomainError(err)) {
     return err;
   }
-  if (err instanceof Error) {
-    return new InternalServerError(err.message, undefined, requestId, undefined, undefined);
-  }
-  return new InternalServerError(String(err), undefined, requestId, undefined, undefined);
+  const message = err instanceof Error ? err.message : String(err);
+  return new DomainError(message, code, statusCode, { requestId });
 }

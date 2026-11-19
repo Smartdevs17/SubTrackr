@@ -53,9 +53,23 @@ export interface GroupPlanCustomization {
   sharedFeatures: string[];
   memberLimits: Record<string, number>;
   ownerDiscount: number;
+  /** Tax rate in basis points (e.g. 2000 = 20%). Optional; 0 when unset. */
+  taxRateBps?: number;
   createdAt: number;
   updatedAt: number;
 }
+
+/** Rounds to minor units, mapping non-finite input to zero. */
+const roundMoney = (amount: number): number => {
+  if (!Number.isFinite(amount)) return 0;
+  return Math.round((amount + Number.EPSILON * Math.sign(amount)) * 100) / 100;
+};
+
+/** Constrains a basis-point tax rate to a sane `[0, 100%]` range. */
+const clampRate = (bps: number | undefined): number => {
+  if (bps === undefined || !Number.isFinite(bps)) return 0;
+  return Math.min(Math.max(bps, 0), 10_000);
+};
 
 const createId = (prefix: string): string =>
   `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -97,28 +111,40 @@ export class GroupBillingService {
     };
   }
 
-  aggregateCharges(group: SubscriptionGroup, periodDays = 30): GroupBillingLineItem[] {
-    const cutoff = Date.now() - periodDays * 24 * 60 * 60 * 1000;
-    const recentCharges = group.charges.filter(
-      (c) => c.chargedAt.getTime() >= cutoff
-    );
+  aggregateCharges(
+    group: SubscriptionGroup,
+    periodStart: number,
+    periodEnd: number
+  ): GroupBillingLineItem[] {
+    // The window is the requested period, not "the last N days relative to
+    // now". Deriving the cutoff from `Date.now()` made a historical invoice
+    // price a completely different set of charges than the period it claims
+    // to cover, so the line items never summed to the stated period.
+    const start = Math.min(periodStart, periodEnd);
+    const end = Math.max(periodStart, periodEnd);
+    const periodCharges = group.charges.filter((c) => {
+      const chargedAt = c.chargedAt.getTime();
+      return chargedAt >= start && chargedAt <= end;
+    });
 
     const memberCharges = new Map<string, number>();
     for (const member of group.members) {
       memberCharges.set(member.address, 0);
     }
 
-    for (const charge of recentCharges) {
+    for (const charge of periodCharges) {
       for (const item of charge.breakdown) {
         const current = memberCharges.get(item.memberAddress) ?? 0;
-        memberCharges.set(item.memberAddress, current + item.amount);
+        memberCharges.set(item.memberAddress, roundMoney(current + item.amount));
       }
     }
+
+    const periodDays = Math.max(1, Math.ceil((end - start) / (24 * 60 * 60 * 1000)));
 
     return Array.from(memberCharges.entries()).map(([address, amount]) => ({
       memberAddress: address,
       amount,
-      description: `Aggregated charges over last ${periodDays} days`,
+      description: `Aggregated charges over ${periodDays} day(s)`,
     }));
   }
 
@@ -130,15 +156,24 @@ export class GroupBillingService {
     periodEnd: number,
     currency = 'USD'
   ): GroupInvoice {
-    const aggregated = this.aggregateCharges(group, Math.ceil((periodEnd - periodStart) / (24 * 60 * 60 * 1000)));
-    const totalAmount = aggregated.reduce((sum, item) => sum + item.amount, 0);
+    const aggregated = this.aggregateCharges(group, periodStart, periodEnd);
+    const totalAmount = roundMoney(aggregated.reduce((sum, item) => sum + item.amount, 0));
 
     const customization = this.planCustomizations.get(group.groupId);
-    const discountAmount = customization?.ownerDiscount
-      ? (totalAmount * customization.ownerDiscount) / 100
-      : 0;
-    const taxAmount = 0;
-    const finalAmount = totalAmount - discountAmount + taxAmount;
+
+    // `ownerDiscount` is a percentage but arrives from user-editable config.
+    // A negative value used to *increase* the bill and anything above 100
+    // produced a negative payable amount, so both ends are clamped.
+    const rawDiscountPercent = customization?.ownerDiscount ?? 0;
+    const discountPercent = Math.min(Math.max(Number.isFinite(rawDiscountPercent) ? rawDiscountPercent : 0, 0), 100);
+    const discountAmount = roundMoney((totalAmount * discountPercent) / 100);
+
+    // Tax was hard-coded to 0, so group invoices were never taxed even for
+    // entities inside a tax jurisdiction.
+    const taxRate = clampRate(customization?.taxRateBps);
+    const taxableAmount = Math.max(totalAmount - discountAmount, 0);
+    const taxAmount = roundMoney((taxableAmount * taxRate) / 10_000);
+    const finalAmount = roundMoney(Math.max(taxableAmount + taxAmount, 0));
 
     const invoice: GroupInvoice = {
       id: createId('ginv'),

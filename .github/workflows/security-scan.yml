@@ -15,7 +15,7 @@ permissions:
   actions: read
 
 env:
-  NODE_VERSION: '20'
+  NODE_VERSION: '24'
   SECURITY_REPORT_DIR: security-reports
   DAST_LOCAL_URL: http://127.0.0.1:3000
 
@@ -64,14 +64,14 @@ jobs:
 
       - name: Upload Semgrep SARIF
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: security-reports/semgrep.sarif
           category: semgrep
 
       - name: Upload SAST reports
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: security-sast-semgrep
           path: security-reports/
@@ -87,10 +87,11 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          cache: pnpm
 
       - name: Setup Python
         uses: actions/setup-python@v7
@@ -131,7 +132,7 @@ jobs:
 
       - name: Upload dependency reports
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: security-dependency-scan
           path: security-reports/
@@ -174,9 +175,59 @@ jobs:
 
       - name: Upload container reports
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: security-container-trivy
+          path: security-reports/
+          if-no-files-found: ignore
+
+  secret-scan:
+    name: Secret Scanning - gitleaks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Prepare report directory
+        run: mkdir -p "$SECURITY_REPORT_DIR"
+
+      - name: Run gitleaks secret scan
+        run: |
+          docker run \
+            --rm \
+            --name gitleaks \
+            -v "$GITHUB_WORKSPACE":/repo \
+            -w /repo \
+            ghcr.io/gitleaks/gitleaks:latest \
+            detect \
+            --source=/repo \
+feat/stellar-wave-issues
+            --log-opts=all \
+            --redact \
+            --report-format=json \
+            --report-path="$SECURITY_REPORT_DIR/gitleaks.json" \
+            --exit-code=0 || true
+
+      - name: Block critical secret findings
+
+      --log-opts=--all \
+            --redact \
+            --report-format=json \
+            --report-path="$SECURITY_REPORT_DIR/gitleaks.json" \
+            --exit-code=1
+
+      - name: Block critical secret findings
+        if: always()
+        main
+        run: python scripts/security-dashboard.py "$SECURITY_REPORT_DIR" --tool gitleaks --fail-on-critical
+
+      - name: Upload secret scan reports
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: security-secret-scan
           path: security-reports/
           if-no-files-found: ignore
 
@@ -189,17 +240,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
       - name: Setup Node.js for local sandbox fallback
         if: env.ZAP_TARGET_URL == ''
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          cache: pnpm
 
       - name: Start local sandbox API fallback
         if: env.ZAP_TARGET_URL == ''
         run: |
-          npm ci --legacy-peer-deps
+          pnpm install --frozen-lockfile
           PORT=3000 npm run api:start > zap-local-api.log 2>&1 &
           for attempt in {1..30}; do
             status="$(curl -s -o /dev/null -w '%{http_code}' "$DAST_LOCAL_URL" || true)"
@@ -227,7 +280,7 @@ jobs:
 
       - name: Upload DAST reports
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: security-dast-zap
           path: security-reports/
@@ -236,7 +289,7 @@ jobs:
   security-dashboard:
     name: Security Dashboard
     runs-on: ubuntu-latest
-    needs: [sast-semgrep, dependency-scan, container-scan, dast-zap]
+    needs: [sast-semgrep, dependency-scan, container-scan, secret-scan, dast-zap]
     if: always()
     environment: security-review
     steps:
@@ -244,7 +297,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Download security artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: security-*
           path: security-reports
@@ -256,7 +309,7 @@ jobs:
           cat security-dashboard.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload dashboard
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: security-dashboard
           path: security-dashboard.md

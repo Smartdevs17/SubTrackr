@@ -6,22 +6,12 @@
 // ─── Enums / unions ───────────────────────────────────────────────────────────
 
 export type RecurlySubscriptionState =
-  | 'active'
-  | 'canceled'
-  | 'expired'
-  | 'future'
-  | 'paused'
-  | 'failed';
+  'active' | 'canceled' | 'expired' | 'future' | 'paused' | 'failed';
 
 export type RecurlyAccountState = 'active' | 'closed';
 
 export type RecurlyInvoiceState =
-  | 'pending'
-  | 'processing'
-  | 'past_due'
-  | 'paid'
-  | 'failed'
-  | 'open';
+  'pending' | 'processing' | 'past_due' | 'paid' | 'failed' | 'open';
 
 export type RecurlyIntervalUnit = 'days' | 'months';
 

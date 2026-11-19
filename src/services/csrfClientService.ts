@@ -184,7 +184,7 @@ export class CsrfClientService {
     if (response.status === 403) {
       let body: { code?: string } = {};
       try {
-        body = await response.clone().json() as { code?: string };
+        body = (await response.clone().json()) as { code?: string };
       } catch {
         // ignore parse errors
       }
@@ -220,7 +220,7 @@ export class CsrfClientService {
         const token = res.headers.get(CSRF_HEADER_NAME);
         if (!token) {
           throw new Error(
-            `[CsrfClientService] No ${CSRF_HEADER_NAME} header in response from ${this.endpoint}`,
+            `[CsrfClientService] No ${CSRF_HEADER_NAME} header in response from ${this.endpoint}`
           );
         }
         this.cached = { token, expiresAt: Date.now() + this.ttlMs };

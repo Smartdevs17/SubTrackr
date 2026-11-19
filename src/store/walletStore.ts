@@ -15,10 +15,7 @@ import {
   PaymentMethodShare,
   PaymentMethodShareRole,
 } from '../types/wallet';
-import {
-  WalletServiceManager,
-  WalletConnection,
-} from '../services/walletService';
+import { WalletServiceManager, WalletConnection } from '../services/walletService';
 import {
   PaymentMethodService,
   PaymentMethodError,
@@ -33,6 +30,30 @@ import { Network } from '../config/networks';
 export interface NetworkMismatch {
   connectedChainId: number;
   preferredNetwork: Network;
+}
+
+/**
+ * Adapts stored `PaymentAttempt` records to the shape the fallback-chain
+ * health monitor consumes.
+ *
+ * The two shapes previously disagreed: this code read `attempt.success` and
+ * `attempt.createdAt`, neither of which exists on `PaymentAttempt` (it has
+ * `status` and `attemptedAt`). Every field resolved to `undefined`, so the
+ * monitor's look-back window discarded *all* attempts and every payment
+ * method scored a 100% success rate. Smart fallback ordering was therefore
+ * permanently inert.
+ */
+function buildRecentAttempts(attempts: PaymentAttempt[]): Array<{
+  paymentMethodId: string;
+  success: boolean;
+  timestamp: Date;
+  latencyMs?: number;
+}> {
+  return attempts.map((attempt) => ({
+    paymentMethodId: attempt.paymentMethodId,
+    success: attempt.status === 'success',
+    timestamp: attempt.attemptedAt,
+  }));
 }
 
 interface WalletState {
@@ -441,7 +462,7 @@ export const useWalletStore = create<WalletState>()(
               const updatedMethods = paymentMethods.map((m) =>
                 m.id === id ? { ...m, isVerified: true, updatedAt: new Date() } : m
               );
-              set({ paymentMethods: updatedMethods, isLoading: false });
+              set({ paymentMethods: updatedMethods });
             }
             return verified;
           } catch (error) {
@@ -452,9 +473,13 @@ export const useWalletStore = create<WalletState>()(
                   : error instanceof Error
                     ? error.message
                     : 'Failed to verify payment method',
-              isLoading: false,
             });
             throw error;
+          } finally {
+            // Cleared unconditionally: previously `isLoading` was only reset
+            // inside the `if (verified)` branch and the catch, so a `false`
+            // result left the UI spinning forever.
+            set({ isLoading: false });
           }
         },
 
@@ -799,18 +824,10 @@ export const useWalletStore = create<WalletState>()(
           const chain = get().fallbackChains.find((c) => c.id === chainId);
           if (!chain) return null;
 
-          // Build lightweight attempt objects from stored PaymentAttempts.
-          const recentAttempts = get().paymentAttempts.map((a) => ({
-            paymentMethodId: a.paymentMethodId,
-            success: a.success,
-            timestamp: new Date(a.createdAt),
-            latencyMs: undefined as number | undefined,
-          }));
-
           return _chainHealthMonitor.snapshotChainHealth(
             chainId,
             chain.methodIds,
-            recentAttempts
+            buildRecentAttempts(get().paymentAttempts)
           );
         },
 
@@ -821,8 +838,7 @@ export const useWalletStore = create<WalletState>()(
           const chain = get().fallbackChains.find((c) => c.id === chainId);
           if (!chain) return null;
 
-          const policy =
-            get().rotationPolicies.find((p) => p.chainId === chainId) ?? null;
+          const policy = get().rotationPolicies.find((p) => p.chainId === chainId) ?? null;
 
           return _smartSelector.selectFallbackOrder(chain.methodIds, snapshot, policy);
         },
@@ -837,9 +853,7 @@ export const useWalletStore = create<WalletState>()(
         setRotationPolicy: (policy: PaymentMethodRotationPolicy) => {
           _chainHealthMonitor.setRotationPolicy(policy);
           set((state) => {
-            const existing = state.rotationPolicies.findIndex(
-              (p) => p.chainId === policy.chainId
-            );
+            const existing = state.rotationPolicies.findIndex((p) => p.chainId === policy.chainId);
             const updated = [...state.rotationPolicies];
             if (existing >= 0) {
               updated[existing] = policy;
@@ -857,6 +871,7 @@ export const useWalletStore = create<WalletState>()(
 
         applyAllRotationPolicies: () => {
           const { rotationPolicies, fallbackChains, paymentAttempts } = get();
+          const recentAttempts = buildRecentAttempts(paymentAttempts);
           const updatedPolicies: PaymentMethodRotationPolicy[] = [];
 
           for (const policy of rotationPolicies) {
@@ -865,12 +880,6 @@ export const useWalletStore = create<WalletState>()(
               updatedPolicies.push(policy);
               continue;
             }
-
-            const recentAttempts = paymentAttempts.map((a) => ({
-              paymentMethodId: a.paymentMethodId,
-              success: a.success,
-              timestamp: new Date(a.createdAt),
-            }));
 
             const snapshot = _chainHealthMonitor.snapshotChainHealth(
               chain.id,

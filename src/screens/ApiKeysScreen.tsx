@@ -36,19 +36,12 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 const ApiKeysScreen: React.FC = () => {
   const navigation = useNavigation<Nav>();
-  const {
-    apiKeys,
-    createApiKey,
-    revokeApiKey,
-    rotateApiKey,
-    deleteApiKey,
-    getKeyStats,
-    maskKey,
-  } = useApiStore();
+  const { apiKeys, createApiKey, revokeApiKey, rotateApiKey, deleteApiKey, getKeyStats, maskKey } =
+    useApiStore();
 
-  const [newKeyName, setNewKeyName]     = useState('');
+  const [newKeyName, setNewKeyName] = useState('');
   const [selectedTier, setSelectedTier] = useState('free');
-  const [showNewKey, setShowNewKey]     = useState<string | null>(null);
+  const [showNewKey, setShowNewKey] = useState<string | null>(null);
 
   const stats = getKeyStats();
 
@@ -58,10 +51,7 @@ const ApiKeysScreen: React.FC = () => {
       Alert.alert('Name required', 'Please provide a name for the API key.');
       return;
     }
-    const created = createApiKey(
-      name,
-      selectedTier as 'free' | 'basic' | 'pro' | 'enterprise'
-    );
+    const created = createApiKey(name, selectedTier as 'free' | 'basic' | 'pro' | 'enterprise');
     setShowNewKey(created.key);
     setNewKeyName('');
   }, [newKeyName, selectedTier, createApiKey]);
@@ -71,49 +61,57 @@ const ApiKeysScreen: React.FC = () => {
     Alert.alert('Copied', 'API key copied to clipboard.');
   }, []);
 
-  const handleRotate = useCallback((keyId: string, keyName: string) => {
-    Alert.alert(
-      'Rotate Key',
-      `Rotating "${keyName}" will immediately invalidate the current secret. Continue?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Rotate',
-          onPress: () => {
-            const newRaw = rotateApiKey(keyId);
-            if (newRaw) {
-              setShowNewKey(newRaw);
-            } else {
-              Alert.alert('Error', 'Could not rotate key. It may no longer be active.');
-            }
+  const handleRotate = useCallback(
+    (keyId: string, keyName: string) => {
+      Alert.alert(
+        'Rotate Key',
+        `Rotating "${keyName}" will immediately invalidate the current secret. Continue?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Rotate',
+            onPress: () => {
+              const newRaw = rotateApiKey(keyId);
+              if (newRaw) {
+                setShowNewKey(newRaw);
+              } else {
+                Alert.alert('Error', 'Could not rotate key. It may no longer be active.');
+              }
+            },
           },
-        },
-      ]
-    );
-  }, [rotateApiKey]);
+        ]
+      );
+    },
+    [rotateApiKey]
+  );
 
-  const handleRevoke = useCallback((keyId: string, keyName: string) => {
-    Alert.alert(
-      'Revoke Key',
-      `Revoking "${keyName}" will immediately invalidate it. This cannot be undone.`,
-      [
+  const handleRevoke = useCallback(
+    (keyId: string, keyName: string) => {
+      Alert.alert(
+        'Revoke Key',
+        `Revoking "${keyName}" will immediately invalidate it. This cannot be undone.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Revoke', style: 'destructive', onPress: () => revokeApiKey(keyId) },
+        ]
+      );
+    },
+    [revokeApiKey]
+  );
+
+  const handleDelete = useCallback(
+    (keyId: string, keyName: string) => {
+      Alert.alert('Delete Key', `Permanently delete "${keyName}"?`, [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Revoke', style: 'destructive', onPress: () => revokeApiKey(keyId) },
-      ]
-    );
-  }, [revokeApiKey]);
-
-  const handleDelete = useCallback((keyId: string, keyName: string) => {
-    Alert.alert('Delete Key', `Permanently delete "${keyName}"?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => deleteApiKey(keyId) },
-    ]);
-  }, [deleteApiKey]);
+        { text: 'Delete', style: 'destructive', onPress: () => deleteApiKey(keyId) },
+      ]);
+    },
+    [deleteApiKey]
+  );
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
-
         {/* Header */}
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
@@ -132,8 +130,8 @@ const ApiKeysScreen: React.FC = () => {
         {/* Stats */}
         <View style={styles.statsGrid}>
           {[
-            { label: 'Total',   value: stats.total,   color: colors.text },
-            { label: 'Active',  value: stats.active,  color: colors.success },
+            { label: 'Total', value: stats.total, color: colors.text },
+            { label: 'Active', value: stats.active, color: colors.success },
             { label: 'Revoked', value: stats.revoked, color: colors.error },
             { label: 'Expired', value: stats.expired, color: colors.warning },
           ].map(({ label, value, color }) => (
@@ -150,7 +148,9 @@ const ApiKeysScreen: React.FC = () => {
             <Text style={styles.newKeyTitle}>New API Key</Text>
             <Text style={styles.newKeyWarning}>Copy now — shown once only.</Text>
             <View style={styles.keyDisplayBox}>
-              <Text style={styles.keyMonoText} selectable>{showNewKey}</Text>
+              <Text style={styles.keyMonoText} selectable>
+                {showNewKey}
+              </Text>
             </View>
             <View style={styles.rowButtons}>
               <TouchableOpacity
@@ -195,7 +195,8 @@ const ApiKeysScreen: React.FC = () => {
                 accessibilityRole="radio"
                 accessibilityState={{ checked: selectedTier === tierKey }}
                 accessibilityLabel={`Select ${info.label} tier`}>
-                <Text style={[styles.tierLabel, selectedTier === tierKey && styles.tierLabelSelected]}>
+                <Text
+                  style={[styles.tierLabel, selectedTier === tierKey && styles.tierLabelSelected]}>
                   {info.label}
                 </Text>
                 <Text style={styles.tierDesc}>{info.desc}</Text>
@@ -225,7 +226,9 @@ const ApiKeysScreen: React.FC = () => {
             apiKeys.map((key) => (
               <View key={key.id} style={styles.keyCard}>
                 <View style={styles.keyCardTop}>
-                  <Text style={styles.keyName} numberOfLines={1}>{key.name}</Text>
+                  <Text style={styles.keyName} numberOfLines={1}>
+                    {key.name}
+                  </Text>
                   <View
                     style={[
                       styles.statusBadge,
@@ -292,7 +295,6 @@ const ApiKeysScreen: React.FC = () => {
             ))
           )}
         </Card>
-
       </ScrollView>
     </SafeAreaView>
   );

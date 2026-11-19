@@ -50,7 +50,7 @@ export function advanceBillingDate(from: Date, cycle: BillingCycle): Date {
  * Align a billing date to a specific day of the month.
  * If the target day doesn't exist in the month (e.g., 31st in February),
  * it uses the last day of that month.
- * 
+ *
  * @param baseDate - The starting date
  * @param dayOfMonth - Preferred day of month (1-31)
  * @returns Date aligned to the specified day
@@ -65,10 +65,10 @@ export function alignBillingToDay(baseDate: Date, dayOfMonth: number): Date {
 
   // Get the last day of the current month
   const lastDayOfMonth = new Date(aligned.getFullYear(), aligned.getMonth() + 1, 0).getDate();
-  
+
   // Use the minimum of the desired day and the last day of the month
   const targetDay = Math.min(dayOfMonth, lastDayOfMonth);
-  
+
   aligned.setDate(targetDay);
 
   // If the target day is before the current day, move to next month
@@ -84,7 +84,7 @@ export function alignBillingToDay(baseDate: Date, dayOfMonth: number): Date {
 
 /**
  * Calculate the next billing date with optional day-of-month alignment.
- * 
+ *
  * @param currentDate - Current billing date
  * @param cycle - Billing cycle (monthly, yearly, etc.)
  * @param dayOfMonth - Optional preferred day of month for alignment
@@ -96,11 +96,11 @@ export function calculateNextBillingDate(
   dayOfMonth?: number
 ): Date {
   const nextDate = advanceBillingDate(currentDate, cycle);
-  
+
   // Apply alignment only for monthly and yearly cycles
   if (dayOfMonth && (cycle === BillingCycle.MONTHLY || cycle === BillingCycle.YEARLY)) {
     return alignBillingToDay(nextDate, dayOfMonth);
   }
-  
+
   return nextDate;
 }

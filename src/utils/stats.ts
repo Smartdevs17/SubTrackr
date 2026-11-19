@@ -5,6 +5,7 @@ import {
   SubscriptionStats,
 } from '../types/subscription';
 import { BILLING_CONVERSIONS } from './constants/values';
+import { isAnnualBillingCycle } from './annualBilling';
 
 type PriceConverter = (amount: number, currency: string) => number;
 
@@ -24,7 +25,12 @@ export const getMonthlySubscriptionSpend = (
 ): number => {
   const price = convertPrice(subscription.price, subscription.currency);
 
-  if (subscription.billingCycle === BillingCycle.YEARLY) return price / 12;
+  // `annual` is a first-class annual cycle, not a synonym to be defaulted to
+  // monthly. Treating it as monthly reports a whole year of fees as a single
+  // month's cost, which is the most misleading figure the dashboard can show.
+  if (isAnnualBillingCycle(subscription.billingCycle)) {
+    return price / BILLING_CONVERSIONS.MONTHS_PER_YEAR;
+  }
   if (subscription.billingCycle === BillingCycle.WEEKLY)
     return price * BILLING_CONVERSIONS.WEEKS_PER_MONTH;
   return price;
@@ -36,7 +42,7 @@ export const getYearlySubscriptionSpend = (
 ): number => {
   const price = convertPrice(subscription.price, subscription.currency);
 
-  if (subscription.billingCycle === BillingCycle.YEARLY) return price;
+  if (isAnnualBillingCycle(subscription.billingCycle)) return price;
   if (subscription.billingCycle === BillingCycle.WEEKLY)
     return price * BILLING_CONVERSIONS.WEEKS_PER_YEAR;
   return price * BILLING_CONVERSIONS.MONTHS_PER_YEAR;

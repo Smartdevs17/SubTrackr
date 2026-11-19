@@ -6,6 +6,8 @@
  */
 
 import type { InvoiceData, GeneratedInvoice } from "./InvoiceGenerator";
+import { formatTaxLabel } from "./InvoiceGenerator";
+import { formatDate, formatMoney } from './formatting';
 
 export interface EmailConfig {
   fromEmail: string;
@@ -39,7 +41,7 @@ export class InvoiceEmailService {
    * Build the HTML email body for an invoice.
    */
   buildHtmlBody(invoice: InvoiceData): string {
-    const fmt = (n: number) => `$${n.toFixed(2)}`;
+    const fmt = (n: number) => formatMoney(n, invoice.currency, invoice.locale);
     const itemsHtml = invoice.items
       .map(
         (item) => `
@@ -55,7 +57,7 @@ export class InvoiceEmailService {
     return `
       <html>
         <body style="font-family:Helvetica,Arial,sans-serif;color:#333;max-width:600px;margin:0 auto;">
-          <div style="background:#4F46E5;padding:24px;border-radius:8px 8px 0 0;">
+          <div style="background:${invoice.branding.primaryColor ?? '#4F46E5'};padding:24px;border-radius:8px 8px 0 0;">
             <h1 style="color:#fff;margin:0;">Invoice ${invoice.invoiceNumber}</h1>
             <p style="color:#C7D2FE;margin:4px 0 0;">${this.config.fromName}</p>
           </div>
@@ -67,8 +69,8 @@ export class InvoiceEmailService {
                   <p style="margin:0;">${this.escapeHtml(invoice.customerName)}</p>
                 </td>
                 <td style="vertical-align:top;width:50%;text-align:right;">
-                  <p style="margin:0;"><strong>Date:</strong> ${new Date(invoice.invoiceDate).toLocaleDateString()}</p>
-                  <p style="margin:0;"><strong>Due:</strong> ${new Date(invoice.dueDate).toLocaleDateString()}</p>
+                  <p style="margin:0;"><strong>Date:</strong> ${formatDate(invoice.invoiceDate, invoice.locale)}</p>
+                  <p style="margin:0;"><strong>Due:</strong> ${formatDate(invoice.dueDate, invoice.locale)}</p>
                 </td>
               </tr>
             </table>
@@ -86,11 +88,11 @@ export class InvoiceEmailService {
             <table style="width:100%;margin-bottom:16px;">
               <tr><td style="text-align:right;padding:4px 0;">Subtotal:</td><td style="text-align:right;padding:4px 0;width:120px;">${fmt(invoice.subtotal)}</td></tr>
               ${invoice.discount > 0 ? `<tr><td style="text-align:right;padding:4px 0;">Discount:</td><td style="text-align:right;padding:4px 0;">-${fmt(invoice.discount)}</td></tr>` : ""}
-              ${invoice.taxAmount > 0 ? `<tr><td style="text-align:right;padding:4px 0;">Tax (${(invoice.taxRate * 100).toFixed(1)}%):</td><td style="text-align:right;padding:4px 0;">${fmt(invoice.taxAmount)}</td></tr>` : ""}
+              ${invoice.taxAmount > 0 ? `<tr><td style="text-align:right;padding:4px 0;">Tax (${formatTaxLabel(invoice)}):</td><td style="text-align:right;padding:4px 0;">${fmt(invoice.taxAmount)}</td></tr>` : ""}
               <tr style="font-size:18px;font-weight:700;"><td style="text-align:right;padding:8px 0;border-top:2px solid #4F46E5;">Total:</td><td style="text-align:right;padding:8px 0;border-top:2px solid #4F46E5;">${fmt(invoice.total)}</td></tr>
             </table>
             ${invoice.notes ? `<p style="color:#6B7280;font-size:13px;">${this.escapeHtml(invoice.notes)}</p>` : ""}
-            <p style="color:#6B7280;font-size:13px;margin-top:24px;">Please find the PDF invoice attached. Payment is due by ${new Date(invoice.dueDate).toLocaleDateString()}.</p>
+            <p style="color:#6B7280;font-size:13px;margin-top:24px;">Please find the PDF invoice attached. Payment is due by ${formatDate(invoice.dueDate, invoice.locale)}.</p>
           </div>
         </body>
       </html>`;
@@ -103,19 +105,19 @@ export class InvoiceEmailService {
     const lines = [
       `Invoice ${invoice.invoiceNumber}`,
       `From: ${this.config.fromName}`,
-      `Date: ${new Date(invoice.invoiceDate).toLocaleDateString()}`,
-      `Due: ${new Date(invoice.dueDate).toLocaleDateString()}`,
+      `Date: ${formatDate(invoice.invoiceDate, invoice.locale)}`,
+      `Due: ${formatDate(invoice.dueDate, invoice.locale)}`,
       "",
       `Bill To: ${invoice.customerName}`,
       "",
       "Items:",
-      ...invoice.items.map((i) => `  ${i.description} x${i.quantity} - $${i.total.toFixed(2)}`),
+      ...invoice.items.map((i) => `  ${i.description} x${i.quantity} - ${formatMoney(i.total, invoice.currency, invoice.locale)}`),
       "",
-      `Subtotal: $${invoice.subtotal.toFixed(2)}`,
+      `Subtotal: ${formatMoney(invoice.subtotal, invoice.currency, invoice.locale)}`,
     ];
-    if (invoice.discount > 0) lines.push(`Discount: -$${invoice.discount.toFixed(2)}`);
-    if (invoice.taxAmount > 0) lines.push(`Tax: $${invoice.taxAmount.toFixed(2)}`);
-    lines.push(`Total: $${invoice.total.toFixed(2)}`, "", "PDF invoice attached.", `Payment due by ${new Date(invoice.dueDate).toLocaleDateString()}.`);
+    if (invoice.discount > 0) lines.push(`Discount: -${formatMoney(invoice.discount, invoice.currency, invoice.locale)}`);
+    if (invoice.taxAmount > 0) lines.push(`Tax (${formatTaxLabel(invoice)}): ${formatMoney(invoice.taxAmount, invoice.currency, invoice.locale)}`);
+    lines.push(`Total: ${formatMoney(invoice.total, invoice.currency, invoice.locale)}`, "", "PDF invoice attached.", `Payment due by ${formatDate(invoice.dueDate, invoice.locale)}.`);
     return lines.join("\n");
   }
 

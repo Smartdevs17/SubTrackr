@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'crypto';
+import { SCIMService, scimService as defaultScimService } from './SCIMService';
 import type {
   IdentityProvider,
   IdPCertificate,
@@ -6,6 +7,7 @@ import type {
   RoleMapping,
   SAMLConfiguration,
   SAMLMetadata,
+  SCIMUser,
   SSOCallbackPayload,
   SSOLoginRequest,
   SSOProtocol,
@@ -25,6 +27,8 @@ export class SSOService {
   private providers = new Map<string, IdentityProvider>();
   private sessions = new Map<string, SSOSession>();
   private pendingStates = new Map<string, { idpId: string; relayState?: string; createdAt: string }>();
+
+  constructor(private scimService: SCIMService = defaultScimService) {}
 
   createIdentityProvider(
     organizationId: string,
@@ -206,10 +210,33 @@ export class SSOService {
     const attributes = this.extractAttributes(idp, payload);
     const email = (attributes.email as string) ?? `user_${stateKey.slice(0, 8)}@${idp.name}.sso`;
     const nameId = (attributes.nameId as string) ?? email;
+    const displayName = (attributes.displayName as string) ?? email.split('@')[0];
+
+    let groups: string[] = [];
+    if (Array.isArray(attributes.groups)) {
+      groups = attributes.groups as string[];
+    } else if (typeof attributes.groups === 'string') {
+      groups = (attributes.groups as string).split(',').map((g) => g.trim());
+    }
+
+    let provisionedUser: SCIMUser | undefined;
+    let userId = this.resolveUserId(email, idp);
+
+    if (idp.jitProvisioningEnabled) {
+      provisionedUser = this.scimService.jitProvision(
+        idp.organizationId,
+        idp.id,
+        email,
+        displayName,
+        groups,
+        idp.roleMappings
+      );
+      userId = provisionedUser.id;
+    }
 
     const session: SSOSession = {
       id: generateId('sso_sess'),
-      userId: this.resolveUserId(email, idp),
+      userId,
       identityProviderId: idp.id,
       protocol: idp.protocol,
       nameId,
@@ -217,6 +244,7 @@ export class SSOService {
       attributes,
       authenticatedAt: now.toISOString(),
       expiresAt: expiresAt.toISOString(),
+      provisionedUser,
     };
 
     this.sessions.set(session.id, session);
@@ -342,13 +370,21 @@ export class SSOService {
         if (emailMatch) attrs.email = emailMatch[1];
         const nameMatch = decoded.match(/displayName[^>]*>([^<]+)</);
         if (nameMatch) attrs.displayName = nameMatch[1];
+        const groupsMatch = decoded.match(/groups[^>]*>([^<]+)</);
+        if (groupsMatch) attrs.groups = groupsMatch[1].split(',').map((g) => g.trim());
       } catch {
         // Attribute extraction failed — continue with empty attrs
       }
     }
 
-    if (idp.protocol === 'oidc' && payload.code) {
-      attrs.code = payload.code;
+    if (idp.protocol === 'oidc') {
+      if (payload.code) attrs.code = payload.code;
+      if (payload.claims) {
+        Object.assign(attrs, payload.claims);
+      }
+      if (payload.code && payload.code.includes('@') && !attrs.email) {
+        attrs.email = payload.code;
+      }
     }
 
     return attrs;

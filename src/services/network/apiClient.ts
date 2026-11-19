@@ -8,8 +8,25 @@
  * attributes to the span. Sensitive headers are never recorded.
  */
 
-import { formatTraceparent, mobileTracer, MobileTracer } from './trace';
+import { formatTraceparent, mobileTracer, MobileSpan, MobileTracer } from './trace';
 import { CircuitBreaker, CircuitBreakerOptions } from './circuitBreaker';
+import {
+  CertificatePinner,
+  CertificatePinningConfig,
+  CertificatePinningError,
+  defaultPeerCertificateProvider,
+  hostnameOf,
+  PeerCertificateProvider,
+} from './certificatePinning';
+
+export interface ApiCertificatePinningOptions {
+  /** Pre-built pinner; takes precedence over `config`. */
+  pinner?: CertificatePinner;
+  /** Raw pin configuration (e.g. from build-time env / remote config). */
+  config?: CertificatePinningConfig;
+  /** Source of the peer SPKI hash; defaults to the native TLS hook. */
+  peerCertificateProvider?: PeerCertificateProvider;
+}
 
 export interface ApiClientOptions {
   baseUrl?: string;
@@ -19,6 +36,12 @@ export interface ApiClientOptions {
   defaultHeaders?: Record<string, string>;
   /** Optional circuit breaker configuration */
   circuitBreaker?: CircuitBreakerOptions;
+  /**
+   * Certificate pinning. Defaults to `CertificatePinner.fromEnv()` with the
+   * native TLS hook provider — i.e. config-driven, and a no-op until pins or
+   * the native provider are configured.
+   */
+  certificatePinning?: ApiCertificatePinningOptions;
 }
 
 export interface ApiRequestOptions {
@@ -42,6 +65,8 @@ export class ApiClient {
   private readonly fetchImpl: typeof fetch;
   private readonly defaultHeaders: Record<string, string>;
   private readonly circuitBreaker: CircuitBreaker;
+  private readonly pinner: CertificatePinner;
+  private readonly peerCertificateProvider: PeerCertificateProvider;
 
   constructor(options: ApiClientOptions = {}) {
     this.baseUrl = (options.baseUrl ?? process.env.EXPO_PUBLIC_API_BASE_URL ?? '').replace(
@@ -51,7 +76,17 @@ export class ApiClient {
     this.tracer = options.tracer ?? mobileTracer;
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.defaultHeaders = { 'Content-Type': 'application/json', ...options.defaultHeaders };
-    this.circuitBreaker = new CircuitBreaker({ name: 'frontend-api-client', tracer: this.tracer, ...options.circuitBreaker });
+    this.circuitBreaker = new CircuitBreaker({
+      name: 'frontend-api-client',
+      tracer: this.tracer,
+      ...options.circuitBreaker,
+    });
+    const pinning = options.certificatePinning ?? {};
+    this.pinner =
+      pinning.pinner ??
+      (pinning.config ? new CertificatePinner(pinning.config) : CertificatePinner.fromEnv());
+    this.peerCertificateProvider =
+      pinning.peerCertificateProvider ?? defaultPeerCertificateProvider;
   }
 
   async request<T>(path: string, options: ApiRequestOptions = {}): Promise<ApiResponse<T>> {
@@ -70,6 +105,8 @@ export class ApiClient {
     };
 
     try {
+      await this.verifyCertificate(url, span);
+
       let response: Response;
       try {
         response = await this.circuitBreaker.execute(async () => {
@@ -104,6 +141,33 @@ export class ApiClient {
         'error.message': error instanceof Error ? error.message : String(error),
       });
       throw error;
+    }
+  }
+
+  /**
+   * Verify the peer certificate against the configured pins for HTTPS URLs.
+   * Non-HTTPS requests (local dev, mock E2E hosts) are skipped. Throws
+   * `CertificatePinningError` when the fallback/mode says the request must not
+   * proceed; in `report` mode mismatches are only recorded on the span.
+   */
+  private async verifyCertificate(url: string, span: MobileSpan): Promise<void> {
+    if (!/^https:\/\//i.test(url)) return;
+
+    const hostname = hostnameOf(url);
+    let peer = null;
+    try {
+      peer = await this.peerCertificateProvider(url);
+    } catch {
+      peer = null; // provider failure → treated as "unavailable"
+    }
+
+    const result = this.pinner.verify(hostname, peer);
+    span.attributes['security.cert_pinning.mode'] = this.pinner.getMode();
+    span.attributes['security.cert_pinning.status'] = result.status;
+
+    if (!result.ok) {
+      // Span attributes above stay attached; the caller's catch ends the span.
+      throw new CertificatePinningError(result);
     }
   }
 

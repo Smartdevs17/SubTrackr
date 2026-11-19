@@ -65,10 +65,14 @@ const ExportScreen: React.FC = () => {
         }
       } else {
         // Accounting-format exports (pdf, quickbooks, xero)
-        const result = await export_to_accounting('default-merchant', exportFormat as AccountingFormat, {
-          subscriptions,
-          includeSchema: exportFormat === 'json' ? includeSchema : undefined,
-        });
+        const result = await export_to_accounting(
+          'default-merchant',
+          exportFormat as AccountingFormat,
+          {
+            subscriptions,
+            includeSchema: exportFormat === 'json' ? includeSchema : undefined,
+          }
+        );
         data = result.content;
       }
 
@@ -279,8 +283,8 @@ const ExportScreen: React.FC = () => {
       <View style={styles.infoRow}>
         <Text style={styles.infoLabel}>QuickBooks / Xero:</Text>
         <Text style={styles.infoValue}>
-          Accounting-ready CSVs with standard column names (Customer, UnitAmount, etc.).
-          For advanced column mapping, use the Accounting Export screen.
+          Accounting-ready CSVs with standard column names (Customer, UnitAmount, etc.). For
+          advanced column mapping, use the Accounting Export screen.
         </Text>
       </View>
     </Card>

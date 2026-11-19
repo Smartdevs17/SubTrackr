@@ -49,6 +49,16 @@
 import { BasePaymentGateway } from './PaymentGateway';
 import { PaymentError } from '../../errors';
 import { createLoggerFor } from '../../../shared/logging';
+import {
+  DEFAULT_MAX_ATTEMPTS,
+  DEFAULT_RETRY_BASE_DELAY_MS,
+  defaultSleep,
+  isRetryableStatus,
+  parseJsonObject,
+  resolveFetchImpl,
+  resolveMaxAttempts,
+  runWithRetries,
+} from '../../../shared/httpRetry';
 import type {
   CustomerResult,
   PaymentMethodResult,
@@ -61,8 +71,6 @@ import type {
 } from '../../interfaces';
 
 const DEFAULT_API_VERSION = '2025-07';
-const DEFAULT_MAX_ATTEMPTS = 3;
-const DEFAULT_RETRY_BASE_DELAY_MS = 250;
 
 const logger = createLoggerFor('payment.shopify');
 
@@ -211,25 +219,6 @@ const CUSTOMER_PAYMENT_METHOD = `
     }
   }
 `;
-
-function defaultSleep(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
-
-function parseJson(text: string): {
-  data?: unknown;
-  errors?: readonly { readonly message?: string | null }[];
-} | null {
-  try {
-    const parsed: unknown = JSON.parse(text);
-    if (typeof parsed !== 'object' || parsed === null) return null;
-    return parsed as { data?: unknown; errors?: readonly { message?: string | null }[] };
-  } catch {
-    return null;
-  }
-}
 
 /** Shopify's `userErrors` array, reduced to the first message. */
 function firstUserErrorMessage(errors: readonly ShopifyUserError[] | null | undefined): string | null {
@@ -528,12 +517,6 @@ export class ShopifyAdapter extends BasePaymentGateway {
     };
   }
 
-  private resolveFetch(): ShopifyFetch | undefined {
-    if (this.injectedFetch) return this.injectedFetch;
-    const candidate = (globalThis as { fetch?: ShopifyFetch }).fetch;
-    return typeof candidate === 'function' ? candidate : undefined;
-  }
-
   private headers(idempotencyKey?: string): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -554,7 +537,7 @@ export class ShopifyAdapter extends BasePaymentGateway {
     variables: Record<string, unknown>,
     options: { idempotencyKey?: string; retryable?: boolean } = {},
   ): Promise<ShopifyOutcome<T>> {
-    const fetchImpl = this.resolveFetch();
+    const fetchImpl = resolveFetchImpl(this.injectedFetch);
     if (!fetchImpl) {
       return {
         status: 'error',
@@ -565,75 +548,98 @@ export class ShopifyAdapter extends BasePaymentGateway {
 
     const url = `https://${this.shopDomain}/admin/api/${this.apiVersion}/graphql.json`;
     const body = JSON.stringify({ query, variables });
-    const attempts = options.retryable ? this.maxAttempts : 1;
-    let lastError = {
-      code: 'shopify_unreachable',
-      message: 'the request was never attempted',
-    };
+    const headers = this.headers(options.idempotencyKey);
+    const maxAttempts = resolveMaxAttempts(options.retryable === true, this.maxAttempts);
 
-    for (let attempt = 1; attempt <= attempts; attempt += 1) {
-      try {
-        const response = await fetchImpl(url, {
-          method: 'POST',
-          headers: this.headers(options.idempotencyKey),
-          body,
-        });
-
-        if (response.status === 429 || response.status >= 500) {
-          const text = await response.text();
-          lastError = {
-            code: `shopify_http_${response.status}`,
-            message: text.slice(0, 300) || `Shopify Admin API returned HTTP ${response.status}`,
-          };
-          logger.warn('Shopify request throttled or unavailable', {
-            operation,
-            status: response.status,
-            attempt,
-          });
-        } else if (!response.ok) {
-          const text = await response.text();
+    return runWithRetries<ShopifyOutcome<T>>(
+      async () => {
+        let response: ShopifyFetchResponse;
+        let text: string;
+        try {
+          response = await fetchImpl(url, { method: 'POST', headers, body });
+          text = await response.text();
+        } catch (error) {
           return {
-            status: 'error',
-            code: `shopify_http_${response.status}`,
-            message: text.slice(0, 300) || `Shopify Admin API returned HTTP ${response.status}`,
+            done: false,
+            retry: true,
+            value: {
+              status: 'error',
+              code: 'shopify_transport_error',
+              message: error instanceof Error ? error.message : String(error),
+            },
           };
-        } else {
-          const text = await response.text();
-          const parsed = parseJson(text);
-          if (!parsed) {
-            return {
+        }
+
+        if (isRetryableStatus(response.status)) {
+          return {
+            done: false,
+            retry: true,
+            value: {
+              status: 'error',
+              code: `shopify_http_${response.status}`,
+              message: text.slice(0, 300) || `Shopify Admin API returned HTTP ${response.status}`,
+            },
+          };
+        }
+
+        if (!response.ok) {
+          return {
+            done: false,
+            retry: false,
+            value: {
+              status: 'error',
+              code: `shopify_http_${response.status}`,
+              message: text.slice(0, 300) || `Shopify Admin API returned HTTP ${response.status}`,
+            },
+          };
+        }
+
+        const parsed = parseJsonObject<{
+          data?: unknown;
+          errors?: readonly { readonly message?: string | null }[];
+        }>(text);
+        if (!parsed) {
+          return {
+            done: false,
+            retry: false,
+            value: {
               status: 'error',
               code: 'shopify_invalid_json',
               message: 'Shopify Admin API returned a body that is not JSON',
-            };
-          }
+            },
+          };
+        }
 
-          const graphErrors = (parsed.errors ?? [])
-            .map((error) => error?.message?.trim())
-            .filter((message): message is string => Boolean(message));
-          if (graphErrors.length > 0) {
-            return {
+        const graphErrors = (parsed.errors ?? [])
+          .map((error) => error?.message?.trim())
+          .filter((message): message is string => Boolean(message));
+        if (graphErrors.length > 0) {
+          return {
+            done: false,
+            retry: false,
+            value: {
               status: 'error',
               code: 'shopify_graphql_error',
               message: graphErrors.join('; '),
-            };
-          }
-
-          return { status: 'ok', data: (parsed.data ?? {}) as T };
+            },
+          };
         }
-      } catch (error) {
-        lastError = {
-          code: 'shopify_transport_error',
-          message: error instanceof Error ? error.message : String(error),
-        };
-        logger.warn('Shopify request failed', { operation, attempt, error: lastError.message });
-      }
 
-      if (attempt < attempts) {
-        await this.sleep(this.retryBaseDelayMs * attempt);
-      }
-    }
-
-    return { status: 'error', code: lastError.code, message: lastError.message };
+        return { done: true, value: { status: 'ok', data: (parsed.data ?? {}) as T } };
+      },
+      {
+        maxAttempts,
+        baseDelayMs: this.retryBaseDelayMs,
+        sleep: this.sleep,
+        onRetry: ({ attempt }, outcome) => {
+          const code = outcome.status === 'error' ? outcome.code : '';
+          if (code.startsWith('shopify_http_')) {
+            logger.warn('Shopify request throttled or unavailable', { operation, attempt, code });
+          } else {
+            logger.warn('Shopify request failed', { operation, attempt, error: code });
+          }
+        },
+      },
+    );
   }
 }

@@ -1,5 +1,5 @@
-import { ChannelFactory, createDefaultFactory } from './channels/factory';
-import { processNotification } from './consumer';
+import { createDefaultFactory } from './channels/factory.js';
+import { processNotification, setChannelFactory } from './consumer.js';
 
 const QUEUE = process.env.RABBITMQ_QUEUE ?? 'notification.deliver';
 
@@ -14,8 +14,6 @@ async function main() {
   await channel.assertQueue(QUEUE, { durable: true });
   await channel.prefetch(10);
 
-  const server = Bun ? { listen: (port: number) => console.log(`Listening on ${port}`) } : {};
-
   console.log(`Notification service listening on queue: ${QUEUE}`);
 
   channel.consume(QUEUE, async (msg) => {
@@ -23,7 +21,7 @@ async function main() {
     try {
       const notification = JSON.parse(
         msg.content.toString()
-      ) as import('./types/notification').Notification;
+      ) as import('./types/notification.js').Notification;
       await processNotification(notification);
       channel.ack(msg);
     } catch (err) {

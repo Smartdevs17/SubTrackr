@@ -11,7 +11,7 @@
 # The seed script (scripts/seed-local.js) reads DB connection details
 # from the environment variables injected by docker-compose.yml.
 
-FROM node:18-alpine
+FROM node:24-alpine
 
 # Install curl + postgresql-client for healthcheck probing and psql fallback
 RUN apk add --no-cache curl postgresql-client bash
@@ -27,5 +27,9 @@ RUN npm install --omit=dev --legacy-peer-deps && npm cache clean --force
 
 COPY scripts/seed-local.js ./scripts/seed-local.js
 COPY db/migrations/ ./db/migrations/
+
+# Run as non-root user to reduce container attack surface
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+USER appuser
 
 CMD ["node", "scripts/seed-local.js"]

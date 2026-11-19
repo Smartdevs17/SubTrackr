@@ -16,9 +16,7 @@ describe('Network Partition Experiment', () => {
   });
 
   it('recovers once partition heals', async () => {
-    const nodes: PartitionNode[] = [
-      { name: 'a', reachable: false, value: 'ok' },
-    ];
+    const nodes: PartitionNode[] = [{ name: 'a', reachable: false, value: 'ok' }];
     const recovered = await simulateNetworkPartition(nodes, true);
     expect(recovered[0].ok).toBe(true);
   });

@@ -1,10 +1,7 @@
 // Issue 561: Upsell/recommendation engine types
 
 export type RecommendationTrigger =
-  | 'checkout'
-  | 'usage_threshold'
-  | 'renewal_window'
-  | 'support_request';
+  'checkout' | 'usage_threshold' | 'renewal_window' | 'support_request';
 
 export type RecommendationType = 'upgrade_tier' | 'add_on' | 'complementary_plan';
 

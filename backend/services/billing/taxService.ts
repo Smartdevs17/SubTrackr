@@ -4,6 +4,7 @@ import type {
   DigitalGoodsTaxRule,
   MidCycleTaxChange,
   NexusReport,
+  RegionTaxRateConfig,
   TaxCalculationResult,
   TaxInvoiceContext,
   TaxJurisdiction,
@@ -264,6 +265,15 @@ const BUILT_IN_TAX_RATES: TaxRateEntry[] = [
 const taxRateCache = new Map<string, TaxRateCacheEntry>();
 const taxStatusCache = new Map<string, { status: CustomerTaxStatus; cachedAt: number }>();
 
+/**
+ * Configurable per-region rate overrides. Checked before the built-in rate
+ * table so operators can adjust rates without a code change.
+ */
+const regionRateOverrides = new Map<string, TaxRateEntry>();
+
+/** 10,000 bps = 100%. */
+const MAX_TAX_RATE_BPS = 10_000;
+
 function deduplicate<T>(arr: T[]): T[] {
   return [...new Set(arr)];
 }
@@ -325,6 +335,18 @@ export class TaxService {
     const keys = jurisdictionFallbackKeys(jurisdiction);
 
     for (const key of keys) {
+      const override = regionRateOverrides.get(key);
+      if (override) {
+        taxRateCache.set(cacheKey, {
+          jurisdictionKey: key,
+          entry: override,
+          cachedAt: Date.now(),
+          ttlMs: DEFAULT_TAX_CACHE_TTL_MS,
+        });
+        cleanRateCache();
+        return override;
+      }
+
       const entry = BUILT_IN_TAX_RATES.find((r) => r.jurisdictionKey === key);
       if (entry) {
         if (digitalGoodsClass && !entry.appliesToDigitalGoods) {
@@ -365,6 +387,81 @@ export class TaxService {
   static resolveTaxRateBps(jurisdiction: TaxJurisdiction, digitalGoodsClass?: DigitalGoodsClass): number {
     const entry = TaxService.getTaxRate(jurisdiction, digitalGoodsClass);
     return entry?.rateBps ?? 0;
+  }
+
+  /**
+   * Configure (or replace) the tax rate for a region. Overrides take
+   * precedence over the built-in rate table and are applied at invoice time.
+   */
+  static configureRegionRate(config: RegionTaxRateConfig): TaxRateEntry {
+    const region = (config.region ?? '').trim().toUpperCase();
+    if (!region) {
+      throw new Error('region is required');
+    }
+    if (
+      !Number.isFinite(config.rateBps) ||
+      config.rateBps < 0 ||
+      config.rateBps > MAX_TAX_RATE_BPS
+    ) {
+      throw new Error(`rateBps must be between 0 and ${MAX_TAX_RATE_BPS}`);
+    }
+
+    const existing =
+      regionRateOverrides.get(region) ??
+      BUILT_IN_TAX_RATES.find((r) => r.jurisdictionKey === region);
+
+    const entry: TaxRateEntry = {
+      jurisdictionKey: region,
+      taxType: config.taxType ?? existing?.taxType ?? 'vat',
+      rateBps: Math.round(config.rateBps),
+      displayName: config.displayName ?? existing?.displayName ?? `${region} Tax Rate`,
+      effectiveFrom: existing?.effectiveFrom ?? 0,
+      effectiveUntil: existing?.effectiveUntil ?? 0,
+      appliesToDigitalGoods: existing?.appliesToDigitalGoods ?? true,
+      reverseCharge: existing?.reverseCharge ?? false,
+      nexusThreshold: existing?.nexusThreshold ?? 0,
+    };
+
+    regionRateOverrides.set(region, entry);
+    taxRateCache.clear();
+    return entry;
+  }
+
+  /** Get the configured override for a region, if one exists. */
+  static getRegionRate(region: string): TaxRateEntry | null {
+    return regionRateOverrides.get((region ?? '').trim().toUpperCase()) ?? null;
+  }
+
+  /** List all configured region rate overrides. */
+  static listRegionRates(): TaxRateEntry[] {
+    return Array.from(regionRateOverrides.values());
+  }
+
+  /** Remove a configured region override. Returns true if one existed. */
+  static clearRegionRate(region: string): boolean {
+    const removed = regionRateOverrides.delete((region ?? '').trim().toUpperCase());
+    if (removed) {
+      taxRateCache.clear();
+    }
+    return removed;
+  }
+
+  /** Remove all configured region overrides. */
+  static clearRegionRates(): void {
+    regionRateOverrides.clear();
+    taxRateCache.clear();
+  }
+
+  /**
+   * Resolve the tax rate for a region key such as "DE", "US-CA", or "US-CA-SF".
+   * Configured overrides win over built-in rates.
+   */
+  static resolveRegionTaxRate(region: string): TaxRateEntry | null {
+    const normalized = (region ?? '').trim().toUpperCase();
+    if (!normalized) return null;
+
+    const [country = '', state = '', city = ''] = normalized.split('-');
+    return TaxService.getTaxRate({ country, state, city });
   }
 
   /**
@@ -615,17 +712,30 @@ export class TaxService {
   }
 
   /**
-   * Get all registered jurisdiction tax rates.
+   * Get all registered jurisdiction tax rates, with configured overrides
+   * replacing any built-in entry for the same region.
    */
   static getRegisteredJurisdictions(): TaxRateEntry[] {
-    return BUILT_IN_TAX_RATES;
+    const merged = new Map<string, TaxRateEntry>();
+    for (const entry of BUILT_IN_TAX_RATES) {
+      merged.set(entry.jurisdictionKey, entry);
+    }
+    for (const [key, entry] of regionRateOverrides) {
+      merged.set(key, entry);
+    }
+    return Array.from(merged.values());
   }
 
   /**
-   * Get tax rate for a specific jurisdiction key.
+   * Get tax rate for a specific jurisdiction key (overrides included).
    */
   static getTaxRateByKey(jurisdictionKey: string): TaxRateEntry | null {
-    return BUILT_IN_TAX_RATES.find((r) => r.jurisdictionKey === jurisdictionKey) ?? null;
+    const key = (jurisdictionKey ?? '').trim().toUpperCase();
+    return (
+      regionRateOverrides.get(key) ??
+      BUILT_IN_TAX_RATES.find((r) => r.jurisdictionKey === key) ??
+      null
+    );
   }
 
   /**
@@ -715,10 +825,10 @@ export class TaxService {
   }
 
   /**
-   * List all supported jurisdictions.
+   * List all supported jurisdictions (built-in plus configured regions).
    */
   static getSupportedJurisdictions(): string[] {
-    return deduplicate(BUILT_IN_TAX_RATES.map((r) => r.jurisdictionKey));
+    return deduplicate(TaxService.getRegisteredJurisdictions().map((r) => r.jurisdictionKey));
   }
 
   /**

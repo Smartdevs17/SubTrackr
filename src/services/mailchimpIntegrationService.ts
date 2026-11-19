@@ -34,7 +34,9 @@ function emailHash(email: string): string {
   // encoding so the service remains dependency-free and fully testable.
   const lower = email.toLowerCase().trim();
   // btoa is available in React Native / browser environments
-  return btoa(lower).replace(/[^a-z0-9]/gi, '').toLowerCase();
+  return btoa(lower)
+    .replace(/[^a-z0-9]/gi, '')
+    .toLowerCase();
 }
 
 function formatDate(date: Date | undefined): string {
@@ -52,16 +54,15 @@ const EVENT_TAG_MAP: Record<SubscriptionEventType, string> = {
   subscription_cancelled: 'subtrackr-cancelled',
 };
 
-const EVENT_SUBJECT_MAP: Record<SubscriptionEventType, (payload: SubscriptionEventPayload) => string> = {
+const EVENT_SUBJECT_MAP: Record<
+  SubscriptionEventType,
+  (payload: SubscriptionEventPayload) => string
+> = {
   subscription_created: (p) => `Welcome to ${p.planName}!`,
-  renewal_reminder: (p) =>
-    `Your ${p.planName} renews on ${formatDate(p.nextBillingDate)}`,
-  payment_failed: (p) =>
-    `Action required: payment failed for ${p.planName}`,
-  trial_ending: (p) =>
-    `Your ${p.planName} trial ends on ${formatDate(p.trialEndDate)}`,
-  subscription_cancelled: (p) =>
-    `Your ${p.planName} subscription has been cancelled`,
+  renewal_reminder: (p) => `Your ${p.planName} renews on ${formatDate(p.nextBillingDate)}`,
+  payment_failed: (p) => `Action required: payment failed for ${p.planName}`,
+  trial_ending: (p) => `Your ${p.planName} trial ends on ${formatDate(p.trialEndDate)}`,
+  subscription_cancelled: (p) => `Your ${p.planName} subscription has been cancelled`,
 };
 
 // ─── MailchimpIntegrationService ──────────────────────────────────────────────
@@ -71,7 +72,10 @@ export class MailchimpIntegrationService {
   private baseUrl: string;
   private fetchFn: (input: string, init?: RequestInit) => Promise<Response>;
 
-  constructor(config: MailchimpConfig, fetchFn?: (input: string, init?: RequestInit) => Promise<Response>) {
+  constructor(
+    config: MailchimpConfig,
+    fetchFn?: (input: string, init?: RequestInit) => Promise<Response>
+  ) {
     this.config = {
       fromName: config.fromName ?? 'SubTrackr',
       replyTo: config.replyTo ?? 'noreply@subtrackr.app',
@@ -143,11 +147,9 @@ export class MailchimpIntegrationService {
    */
   async removeSubscriber(email: string): Promise<MailchimpApiResponse> {
     const hash = emailHash(email);
-    return this.request(
-      'PATCH',
-      `/lists/${this.config.defaultListId}/members/${hash}`,
-      { status: 'unsubscribed' satisfies MailchimpMemberStatus }
-    );
+    return this.request('PATCH', `/lists/${this.config.defaultListId}/members/${hash}`, {
+      status: 'unsubscribed' satisfies MailchimpMemberStatus,
+    });
   }
 
   /**
@@ -155,10 +157,7 @@ export class MailchimpIntegrationService {
    */
   async deleteSubscriber(email: string): Promise<MailchimpApiResponse> {
     const hash = emailHash(email);
-    return this.request(
-      'DELETE',
-      `/lists/${this.config.defaultListId}/members/${hash}`
-    );
+    return this.request('DELETE', `/lists/${this.config.defaultListId}/members/${hash}`);
   }
 
   /**
@@ -188,11 +187,9 @@ export class MailchimpIntegrationService {
    */
   async updateTags(email: string, tags: MailchimpTag[]): Promise<MailchimpApiResponse> {
     const hash = emailHash(email);
-    return this.request(
-      'POST',
-      `/lists/${this.config.defaultListId}/members/${hash}/tags`,
-      { tags }
-    );
+    return this.request('POST', `/lists/${this.config.defaultListId}/members/${hash}/tags`, {
+      tags,
+    });
   }
 
   /**
@@ -312,10 +309,7 @@ export class MailchimpIntegrationService {
   /**
    * Schedule a campaign for delivery.
    */
-  async scheduleCampaign(
-    campaignId: string,
-    scheduleTime: Date
-  ): Promise<MailchimpApiResponse> {
+  async scheduleCampaign(campaignId: string, scheduleTime: Date): Promise<MailchimpApiResponse> {
     return this.request('POST', `/campaigns/${campaignId}/actions/schedule`, {
       schedule_time: scheduleTime.toISOString(),
     });

@@ -41,38 +41,53 @@ jest.mock('../../services/walletService', () => ({
 
 // ── PaymentMethodService mock ──────────────────────────────────────────────
 
-const mockValidate        = jest.fn().mockReturnValue({ isValid: true, errors: [], warnings: [] });
-const mockCanAdd          = jest.fn().mockReturnValue({ canAdd: true });
-const mockIsDuplicate     = jest.fn().mockReturnValue(false);
-const mockVerify          = jest.fn().mockResolvedValue(true);
-const mockGenerateId      = jest.fn().mockImplementation(
-  () => `pm_${Math.random().toString(36).slice(2, 8)}`
-);
-const mockCheckExpiry     = jest.fn().mockReturnValue({
-  isExpired: false, isExpiringSoon: false, daysUntilExpiry: null,
+const mockValidate = jest.fn().mockReturnValue({ isValid: true, errors: [], warnings: [] });
+const mockCanAdd = jest.fn().mockReturnValue({ canAdd: true });
+const mockIsDuplicate = jest.fn().mockReturnValue(false);
+const mockVerify = jest.fn().mockResolvedValue(true);
+const mockGenerateId = jest
+  .fn()
+  .mockImplementation(() => `pm_${Math.random().toString(36).slice(2, 8)}`);
+const mockCheckExpiry = jest.fn().mockReturnValue({
+  isExpired: false,
+  isExpiringSoon: false,
+  daysUntilExpiry: null,
 });
-const mockGetExpired      = jest.fn().mockReturnValue([]);
-const mockBuildAlerts     = jest.fn().mockReturnValue([]);
+const mockGetExpired = jest.fn().mockReturnValue([]);
+const mockBuildAlerts = jest.fn().mockReturnValue([]);
 const mockComputeAnalytics = jest.fn().mockReturnValue({
-  totalAttempts: 0, totalSuccesses: 0, totalFailures: 0, successRate: 0,
-  fallbackRate: 0, byMethod: [], failureReasons: [],
-  mostReliableMethodId: null, activeMethods: 0, expiringMethods: 0,
+  totalAttempts: 0,
+  totalSuccesses: 0,
+  totalFailures: 0,
+  successRate: 0,
+  fallbackRate: 0,
+  byMethod: [],
+  failureReasons: [],
+  mostReliableMethodId: null,
+  activeMethods: 0,
+  expiringMethods: 0,
 });
 const mockProcessFallback = jest.fn();
-const mockValidateChain   = jest.fn().mockReturnValue({ isValid: true, errors: [], warnings: [] });
-const mockSelectChain     = jest.fn().mockReturnValue(null);
+const mockValidateChain = jest.fn().mockReturnValue({ isValid: true, errors: [], warnings: [] });
+const mockSelectChain = jest.fn().mockReturnValue(null);
 const mockBuildDefaultChain = jest.fn().mockReturnValue({
-  id: 'chain_default', name: 'Default', methodIds: [], subscriptionId: null,
-  maxAttempts: 0, stopOnHardDecline: false, isActive: true,
-  createdAt: new Date(), updatedAt: new Date(),
+  id: 'chain_default',
+  name: 'Default',
+  methodIds: [],
+  subscriptionId: null,
+  maxAttempts: 0,
+  stopOnHardDecline: false,
+  isActive: true,
+  createdAt: new Date(),
+  updatedAt: new Date(),
 });
 const mockProcessWithChain = jest.fn();
-const mockDetectUpgrade   = jest.fn().mockResolvedValue({ upgraded: false });
-const mockMarkExpired     = jest.fn().mockImplementation(
-  (m: PaymentMethod) => ({ ...m, isActive: false })
-);
-const mockCreateShare     = jest.fn();
-const mockIsShareActive   = jest.fn().mockReturnValue(true);
+const mockDetectUpgrade = jest.fn().mockResolvedValue({ upgraded: false });
+const mockMarkExpired = jest
+  .fn()
+  .mockImplementation((m: PaymentMethod) => ({ ...m, isActive: false }));
+const mockCreateShare = jest.fn();
+const mockIsShareActive = jest.fn().mockReturnValue(true);
 const mockGetSharedMethods = jest.fn().mockReturnValue([]);
 
 jest.mock('../../services/paymentMethodService', () => ({
@@ -183,16 +198,22 @@ beforeEach(() => {
   mockGetExpired.mockReturnValue([]);
   mockBuildAlerts.mockReturnValue([]);
   mockComputeAnalytics.mockReturnValue({
-    totalAttempts: 0, totalSuccesses: 0, totalFailures: 0, successRate: 0,
-    fallbackRate: 0, byMethod: [], failureReasons: [],
-    mostReliableMethodId: null, activeMethods: 0, expiringMethods: 0,
+    totalAttempts: 0,
+    totalSuccesses: 0,
+    totalFailures: 0,
+    successRate: 0,
+    fallbackRate: 0,
+    byMethod: [],
+    failureReasons: [],
+    mostReliableMethodId: null,
+    activeMethods: 0,
+    expiringMethods: 0,
   });
 });
 
 // ── Tests ──────────────────────────────────────────────────────────────────
 
 describe('useWalletStore — payment methods', () => {
-
   // addPaymentMethod ─────────────────────────────────────────────────────────
 
   describe('addPaymentMethod', () => {
@@ -438,7 +459,10 @@ describe('useWalletStore — payment methods', () => {
 
       mockGetExpired.mockReturnValue([expired]);
       mockCheckExpiry.mockReturnValue({
-        method: expired, daysUntilExpiry: -2, isExpired: true, isExpiringSoon: false,
+        method: expired,
+        daysUntilExpiry: -2,
+        isExpired: true,
+        isExpiringSoon: false,
       });
 
       const info = useWalletStore.getState().getExpiryInfo();
@@ -462,7 +486,6 @@ describe('useWalletStore — payment methods', () => {
 // ── Fallback chains ────────────────────────────────────────────────────────
 
 describe('useWalletStore — fallback chains', () => {
-
   describe('createFallbackChain', () => {
     it('adds chain to the store', () => {
       const m = baseMethod({ id: 'pm_c1' });
@@ -551,7 +574,11 @@ describe('useWalletStore — fallback chains', () => {
     it('returns validation result for known chain', () => {
       const chain = baseChain({ id: 'chain_v', methodIds: ['pm_1'] });
       useWalletStore.setState({ fallbackChains: [chain] });
-      mockValidateChain.mockReturnValue({ isValid: true, errors: [], warnings: ['Only one method'] });
+      mockValidateChain.mockReturnValue({
+        isValid: true,
+        errors: [],
+        warnings: ['Only one method'],
+      });
 
       const result = useWalletStore.getState().validateFallbackChain('chain_v');
       expect(result?.isValid).toBe(true);
@@ -574,7 +601,6 @@ describe('useWalletStore — fallback chains', () => {
 // ── Expiry & alerts ────────────────────────────────────────────────────────
 
 describe('useWalletStore — expiry', () => {
-
   describe('deactivateExpiredMethods', () => {
     it('deactivates expired methods and returns count', () => {
       const expired = baseMethod({ id: 'pm_e1', expiresAt: new Date(0) });
@@ -632,15 +658,20 @@ describe('useWalletStore — analytics', () => {
 // ── Sharing ────────────────────────────────────────────────────────────────
 
 describe('useWalletStore — sharing', () => {
-
   describe('sharePaymentMethod', () => {
     it('adds share to store', () => {
       const m = baseMethod({ id: 'pm_sh' });
       useWalletStore.setState({ paymentMethods: [m] });
 
       const share = {
-        id: 'sh_1', methodId: m.id, granteeId: '0xG', role: 'viewer' as const,
-        spendLimit: null, expiresAt: null, createdAt: new Date(), revokedAt: null,
+        id: 'sh_1',
+        methodId: m.id,
+        granteeId: '0xG',
+        role: 'viewer' as const,
+        spendLimit: null,
+        expiresAt: null,
+        createdAt: new Date(),
+        revokedAt: null,
       };
       mockCreateShare.mockReturnValue(share);
 
@@ -664,8 +695,14 @@ describe('useWalletStore — sharing', () => {
   describe('revokePaymentMethodShare', () => {
     it('sets revokedAt on the targeted share', () => {
       const share = {
-        id: 'sh_rev', methodId: 'pm_1', granteeId: '0xG', role: 'viewer' as const,
-        spendLimit: null, expiresAt: null, createdAt: new Date(), revokedAt: null,
+        id: 'sh_rev',
+        methodId: 'pm_1',
+        granteeId: '0xG',
+        role: 'viewer' as const,
+        spendLimit: null,
+        expiresAt: null,
+        createdAt: new Date(),
+        revokedAt: null,
       };
       useWalletStore.setState({ paymentMethodShares: [share] });
 
@@ -678,8 +715,13 @@ describe('useWalletStore — sharing', () => {
 
     it('ignores already-revoked shares', () => {
       const alreadyRevoked = {
-        id: 'sh_already', methodId: 'pm_1', granteeId: '0xG', role: 'viewer' as const,
-        spendLimit: null, expiresAt: null, createdAt: new Date(),
+        id: 'sh_already',
+        methodId: 'pm_1',
+        granteeId: '0xG',
+        role: 'viewer' as const,
+        spendLimit: null,
+        expiresAt: null,
+        createdAt: new Date(),
         revokedAt: new Date('2025-01-01'),
       };
       useWalletStore.setState({ paymentMethodShares: [alreadyRevoked] });
@@ -689,17 +731,23 @@ describe('useWalletStore — sharing', () => {
       });
 
       // revokedAt should remain the original date, not updated
-      expect(
-        useWalletStore.getState().paymentMethodShares[0].revokedAt?.toISOString()
-      ).toBe('2025-01-01T00:00:00.000Z');
+      expect(useWalletStore.getState().paymentMethodShares[0].revokedAt?.toISOString()).toBe(
+        '2025-01-01T00:00:00.000Z'
+      );
     });
   });
 
   describe('sharesForMethod', () => {
     it('returns active shares for a method via service delegation', () => {
       const share = {
-        id: 'sh_1', methodId: 'pm_1', granteeId: '0xG', role: 'viewer' as const,
-        spendLimit: null, expiresAt: null, createdAt: new Date(), revokedAt: null,
+        id: 'sh_1',
+        methodId: 'pm_1',
+        granteeId: '0xG',
+        role: 'viewer' as const,
+        spendLimit: null,
+        expiresAt: null,
+        createdAt: new Date(),
+        revokedAt: null,
       };
       useWalletStore.setState({ paymentMethodShares: [share] });
       mockIsShareActive.mockReturnValue(true);
@@ -758,9 +806,7 @@ describe('useWalletStore — checkTokenContractUpgrade', () => {
 
     expect(result).toBe(false);
     // Hash should still be persisted
-    expect(
-      useWalletStore.getState().paymentMethods[0].metadata['token_code_hash']
-    ).toBe('0xabc');
+    expect(useWalletStore.getState().paymentMethods[0].metadata['token_code_hash']).toBe('0xabc');
   });
 
   it('stores new hash and returns true when upgrade detected', async () => {
@@ -779,9 +825,9 @@ describe('useWalletStore — checkTokenContractUpgrade', () => {
     });
 
     expect(result).toBe(true);
-    expect(
-      useWalletStore.getState().paymentMethods[0].metadata['token_code_hash']
-    ).toBe('0xnewhash');
+    expect(useWalletStore.getState().paymentMethods[0].metadata['token_code_hash']).toBe(
+      '0xnewhash'
+    );
   });
 
   it('returns false when method id does not exist', async () => {

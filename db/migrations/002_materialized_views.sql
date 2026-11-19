@@ -117,3 +117,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_csm_cohort_month
 
 -- No DDL needed — refreshed_at is already a computed column in each view.
 -- The backend monitoring service reads it via the view_freshness_metric.
+
+-- @down
+DROP MATERIALIZED VIEW IF EXISTS churn_summary_mv;
+DROP MATERIALIZED VIEW IF EXISTS monthly_revenue_mv;
+DROP MATERIALIZED VIEW IF EXISTS subscriber_balance_mv;
+DROP MATERIALIZED VIEW IF EXISTS active_subscriptions_summary;

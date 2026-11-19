@@ -14,7 +14,8 @@ import { useTheme } from '../theme/useTheme';
 
 export default function InvoiceManagementScreen({ navigation }: any) {
   const { theme } = useTheme();
-  const { invoices, isLoading, error, loadInvoices, deleteInvoice, generatePDF } = useInvoiceStore();
+  const { invoices, isLoading, error, loadInvoices, deleteInvoice, generatePDF } =
+    useInvoiceStore();
   const [filterStatus, setFilterStatus] = useState<InvoiceStatus | 'all'>('all');
 
   useEffect(() => {
@@ -22,29 +23,25 @@ export default function InvoiceManagementScreen({ navigation }: any) {
   }, []);
 
   const filteredInvoices = invoices.filter(
-    inv => filterStatus === 'all' || inv.status === filterStatus
+    (inv) => filterStatus === 'all' || inv.status === filterStatus
   );
 
   const handleDeleteInvoice = (id: string) => {
-    Alert.alert(
-      'Delete Invoice',
-      'Are you sure you want to delete this invoice?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteInvoice(id);
-              Alert.alert('Success', 'Invoice deleted successfully');
-            } catch (err) {
-              Alert.alert('Error', 'Failed to delete invoice');
-            }
-          },
+    Alert.alert('Delete Invoice', 'Are you sure you want to delete this invoice?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteInvoice(id);
+            Alert.alert('Success', 'Invoice deleted successfully');
+          } catch (err) {
+            Alert.alert('Error', 'Failed to delete invoice');
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const handleGeneratePDF = async (invoiceId: string) => {
@@ -76,8 +73,7 @@ export default function InvoiceManagementScreen({ navigation }: any) {
   const renderInvoiceItem = ({ item }: { item: Invoice }) => (
     <TouchableOpacity
       style={[styles.invoiceCard, { backgroundColor: theme.colors.card }]}
-      onPress={() => navigation.navigate('InvoiceDetail', { invoiceId: item.id })}
-    >
+      onPress={() => navigation.navigate('InvoiceDetail', { invoiceId: item.id })}>
       <View style={styles.invoiceHeader}>
         <Text style={[styles.invoiceNumber, { color: theme.colors.text }]}>
           {item.invoiceNumber}
@@ -111,14 +107,12 @@ export default function InvoiceManagementScreen({ navigation }: any) {
       <View style={styles.actionButtons}>
         <TouchableOpacity
           style={[styles.actionButton, { backgroundColor: theme.colors.primary }]}
-          onPress={() => handleGeneratePDF(item.id)}
-        >
+          onPress={() => handleGeneratePDF(item.id)}>
           <Text style={styles.actionButtonText}>Generate PDF</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.actionButton, styles.deleteButton]}
-          onPress={() => handleDeleteInvoice(item.id)}
-        >
+          onPress={() => handleDeleteInvoice(item.id)}>
           <Text style={styles.actionButtonText}>Delete</Text>
         </TouchableOpacity>
       </View>
@@ -129,7 +123,7 @@ export default function InvoiceManagementScreen({ navigation }: any) {
     const filters: Array<InvoiceStatus | 'all'> = ['all', 'draft', 'pending', 'paid', 'overdue'];
     return (
       <View style={styles.filterContainer}>
-        {filters.map(filter => (
+        {filters.map((filter) => (
           <TouchableOpacity
             key={filter}
             style={[
@@ -137,15 +131,13 @@ export default function InvoiceManagementScreen({ navigation }: any) {
               { backgroundColor: theme.colors.card },
               filterStatus === filter && { backgroundColor: theme.colors.primary },
             ]}
-            onPress={() => setFilterStatus(filter)}
-          >
+            onPress={() => setFilterStatus(filter)}>
             <Text
               style={[
                 styles.filterButtonText,
                 { color: theme.colors.text },
                 filterStatus === filter && { color: '#FFFFFF' },
-              ]}
-            >
+              ]}>
               {filter.toUpperCase()}
             </Text>
           </TouchableOpacity>
@@ -180,8 +172,7 @@ export default function InvoiceManagementScreen({ navigation }: any) {
         </Text>
         <TouchableOpacity
           style={[styles.addButton, { backgroundColor: theme.colors.primary }]}
-          onPress={() => navigation.navigate('CreateInvoice')}
-        >
+          onPress={() => navigation.navigate('CreateInvoice')}>
           <Text style={styles.addButtonText}>+ New Invoice</Text>
         </TouchableOpacity>
       </View>
@@ -189,7 +180,7 @@ export default function InvoiceManagementScreen({ navigation }: any) {
       <FlatList
         data={filteredInvoices}
         renderItem={renderInvoiceItem}
-        keyExtractor={item => item.id}
+        keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContainer}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>

@@ -12,6 +12,12 @@ const SOFT_THRESHOLD_RATIO = 0.8;
 const HARD_THRESHOLD_RATIO = 1.0;
 const MAX_BATCH_SIZE = 500;
 
+/** Monotonic sequence used to keep same-millisecond auto-keys distinct. */
+let _autoSequence = 0;
+function nextAutoSequence(): number {
+  return ++_autoSequence;
+}
+
 export interface UsageMetric {
   userId: string;
   metricType: 'api' | 'compute' | 'storage';
@@ -126,7 +132,14 @@ export class MeteringService {
   }
 
   private async recordOne(metric: UsageMetric): Promise<UsageIngestResult> {
-    const idempotencyKey = metric.idempotencyKey ?? `auto-${meterKey(metric.userId, metric.metricType)}-${metric.timestamp.getTime()}`;
+    // An auto-generated key built purely from the event timestamp collides
+    // for two legitimate events landing in the same millisecond, and the
+    // second one was then reported as a duplicate and silently never rated —
+    // under-billing the customer. A monotonic sequence keeps distinct events
+    // distinct. Callers that need retry-idempotency must pass an explicit key.
+    const idempotencyKey =
+      metric.idempotencyKey ??
+      `auto-${meterKey(metric.userId, metric.metricType)}-${metric.timestamp.getTime()}-${nextAutoSequence()}`;
 
     const cached = this.seenIdempotencyKeys.get(idempotencyKey);
     if (cached) {
@@ -228,12 +241,22 @@ export class MeteringService {
     this.events.delete(meterKey(userId, metricType));
   }
 
-  getUsageByMetric(subscriptionId: string): Record<string, number> {
+  /**
+ * Sums recorded usage per metric for a subscription.
+ *
+ * An optional window is essential: without one this returns the entire
+ * lifetime total, which callers then label as a single billing period.
+ */
+getUsageByMetric(subscriptionId: string, from?: Date, to?: Date): Record<string, number> {
+    const fromMs = from instanceof Date ? from.getTime() : undefined;
+    const toMs = to instanceof Date ? to.getTime() : undefined;
     const usage: Record<string, number> = {};
     for (const entry of this.usageHistory) {
-      if (entry.subscriptionId === subscriptionId) {
-        usage[entry.metric] = (usage[entry.metric] || 0) + entry.value;
-      }
+      if (entry.subscriptionId !== subscriptionId) continue;
+      const entryTime = entry.timestamp.getTime();
+      if (fromMs !== undefined && entryTime < fromMs) continue;
+      if (toMs !== undefined && entryTime > toMs) continue;
+      usage[entry.metric] = (usage[entry.metric] || 0) + entry.value;
     }
     return usage;
   }
@@ -299,13 +322,29 @@ export class MeteringService {
   }
 
   calculateUsageBilling(subscriptionId: string, unitPrice: number, currency: string): UsageBillingIntegration {
-    const metricUsage = this.getUsageByMetric(subscriptionId);
     const now = new Date();
     const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    // `new Date(y, m + 1, 0)` is midnight *starting* the last day, which
+    // excluded the final day of the month from the billed usage.
+    const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    // Bill only usage inside the period being invoiced. Summing the full
+    // lifetime history while labelling the result "this month" over-billed
+    // every account with any prior history, compounding each cycle.
+    const metricUsage = this.getUsageByMetric(subscriptionId, periodStart, periodEnd);
     let totalMetered = 0;
     for (const usage of Object.values(metricUsage)) totalMetered += usage;
-    return { subscriptionId, meteredAmount: totalMetered, unitPrice, totalAmount: totalMetered * unitPrice, currency, period: { start: periodStart, end: periodEnd } };
+
+    const totalAmount = Number.isFinite(unitPrice) ? totalMetered * unitPrice : 0;
+
+    return {
+      subscriptionId,
+      meteredAmount: totalMetered,
+      unitPrice,
+      totalAmount,
+      currency,
+      period: { start: periodStart, end: periodEnd },
+    };
   }
 }
 

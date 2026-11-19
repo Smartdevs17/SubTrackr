@@ -43,9 +43,9 @@ jest.mock('ethers', () => {
     utils: {
       ...(actual.utils as Record<string, unknown>),
       isAddress: jest.fn().mockReturnValue(true),
-      formatUnits: jest.fn().mockImplementation((_v: unknown, unit: string) =>
-        unit === 'gwei' ? '20.0' : '1.0'
-      ),
+      formatUnits: jest
+        .fn()
+        .mockImplementation((_v: unknown, unit: string) => (unit === 'gwei' ? '20.0' : '1.0')),
       parseUnits: jest.fn().mockReturnValue({
         gte: jest.fn().mockReturnValue(true),
       }),
@@ -95,10 +95,7 @@ function makeMethod(overrides: Partial<PaymentMethod> = {}): PaymentMethod {
   };
 }
 
-function makeChain(
-  methodIds: string[],
-  overrides: Partial<FallbackChain> = {}
-): FallbackChain {
+function makeChain(methodIds: string[], overrides: Partial<FallbackChain> = {}): FallbackChain {
   return {
     id: `chain_${Math.random().toString(36).slice(2, 9)}`,
     name: 'Test chain',
@@ -129,13 +126,20 @@ describe('Integration: sequential fallback', () => {
   it('succeeds on the second method when the first has insufficient balance', async () => {
     const svc = freshService();
     const m1 = makeMethod({ id: 'pm_m1', label: 'Primary (empty)' });
-    const m2 = makeMethod({ id: 'pm_m2', label: 'Backup (funded)', priority: PaymentPriority.BACKUP });
+    const m2 = makeMethod({
+      id: 'pm_m2',
+      label: 'Backup (funded)',
+      priority: PaymentPriority.BACKUP,
+    });
     const chain = makeChain([m1.id, m2.id]);
 
-    jest.spyOn(svc, 'validateGasPrice').mockResolvedValue({ acceptable: true, currentGasPrice: '20' });
-    jest.spyOn(svc, 'checkBalance')
+    jest
+      .spyOn(svc, 'validateGasPrice')
+      .mockResolvedValue({ acceptable: true, currentGasPrice: '20' });
+    jest
+      .spyOn(svc, 'checkBalance')
       .mockResolvedValueOnce({ sufficient: false, balance: '0', symbol: 'ETH' })
-      .mockResolvedValueOnce({ sufficient: true,  balance: '500', symbol: 'ETH' });
+      .mockResolvedValueOnce({ sufficient: true, balance: '500', symbol: 'ETH' });
 
     const result = await svc.processPaymentWithChain(chain, [m1, m2], 'sub_1', '10', 1);
 
@@ -160,8 +164,12 @@ describe('Integration: full chain failure', () => {
     ];
     const chain = makeChain(methods.map((m) => m.id));
 
-    jest.spyOn(svc, 'validateGasPrice').mockResolvedValue({ acceptable: true, currentGasPrice: '20' });
-    jest.spyOn(svc, 'checkBalance').mockResolvedValue({ sufficient: false, balance: '0', symbol: 'ETH' });
+    jest
+      .spyOn(svc, 'validateGasPrice')
+      .mockResolvedValue({ acceptable: true, currentGasPrice: '20' });
+    jest
+      .spyOn(svc, 'checkBalance')
+      .mockResolvedValue({ sufficient: false, balance: '0', symbol: 'ETH' });
 
     const result = await svc.processPaymentWithChain(chain, methods, 'sub_2', '10', 1);
 
@@ -179,12 +187,14 @@ describe('Integration: stopOnHardDecline', () => {
   it('halts the chain immediately when the first method is expired', async () => {
     const svc = freshService();
     const expired = makeMethod({ id: 'pm_exp', expiresAt: new Date(0) });
-    const backup  = makeMethod({ id: 'pm_bk',  priority: PaymentPriority.BACKUP });
-    const chain   = makeChain([expired.id, backup.id], { stopOnHardDecline: true });
+    const backup = makeMethod({ id: 'pm_bk', priority: PaymentPriority.BACKUP });
+    const chain = makeChain([expired.id, backup.id], { stopOnHardDecline: true });
 
     // Inject expired into resolved list so the expiry check is reached
     jest.spyOn(svc, 'resolveChainMethods').mockReturnValue([expired, backup]);
-    jest.spyOn(svc, 'validateGasPrice').mockResolvedValue({ acceptable: true, currentGasPrice: '20' });
+    jest
+      .spyOn(svc, 'validateGasPrice')
+      .mockResolvedValue({ acceptable: true, currentGasPrice: '20' });
 
     const result = await svc.processPaymentWithChain(chain, [expired, backup], 'sub_3', '10', 1);
 
@@ -204,10 +214,17 @@ describe('Integration: maxAttempts cap', () => {
     const methods = Array.from({ length: 5 }, (_, i) =>
       makeMethod({ id: `pm_cap_${i}`, priority: PaymentPriority.PRIMARY })
     );
-    const chain = makeChain(methods.map((m) => m.id), { maxAttempts: 2 });
+    const chain = makeChain(
+      methods.map((m) => m.id),
+      { maxAttempts: 2 }
+    );
 
-    jest.spyOn(svc, 'validateGasPrice').mockResolvedValue({ acceptable: true, currentGasPrice: '20' });
-    jest.spyOn(svc, 'checkBalance').mockResolvedValue({ sufficient: false, balance: '0', symbol: 'ETH' });
+    jest
+      .spyOn(svc, 'validateGasPrice')
+      .mockResolvedValue({ acceptable: true, currentGasPrice: '20' });
+    jest
+      .spyOn(svc, 'checkBalance')
+      .mockResolvedValue({ sufficient: false, balance: '0', symbol: 'ETH' });
 
     const result = await svc.processPaymentWithChain(chain, methods, 'sub_4', '10', 1);
 
@@ -226,7 +243,9 @@ describe('Integration: gas price spike', () => {
     const m2 = makeMethod({ id: 'pm_gas2', priority: PaymentPriority.BACKUP });
     const chain = makeChain([m1.id, m2.id]);
 
-    jest.spyOn(svc, 'validateGasPrice').mockResolvedValue({ acceptable: false, currentGasPrice: '999' });
+    jest
+      .spyOn(svc, 'validateGasPrice')
+      .mockResolvedValue({ acceptable: false, currentGasPrice: '999' });
 
     const result = await svc.processPaymentWithChain(chain, [m1, m2], 'sub_5', '10', 1);
 
@@ -280,7 +299,7 @@ describe('Integration: geo-aware strategy', () => {
     const svc = freshService();
     const engine = new FallbackChainEngine(svc);
 
-    const onChain  = makeMethod({ id: 'pm_on',  chainId: 137 });
+    const onChain = makeMethod({ id: 'pm_on', chainId: 137 });
     const offChain = makeMethod({ id: 'pm_off', chainId: 1 });
 
     const preview = engine.preview('geo-aware', [onChain, offChain], [], {
@@ -306,8 +325,12 @@ describe('Integration: circuit breaker', () => {
 
     const m = makeMethod({ id: 'pm_cb' });
 
-    jest.spyOn(svc, 'validateGasPrice').mockResolvedValue({ acceptable: true, currentGasPrice: '20' });
-    jest.spyOn(svc, 'checkBalance').mockResolvedValue({ sufficient: false, balance: '0', symbol: 'ETH' });
+    jest
+      .spyOn(svc, 'validateGasPrice')
+      .mockResolvedValue({ acceptable: true, currentGasPrice: '20' });
+    jest
+      .spyOn(svc, 'checkBalance')
+      .mockResolvedValue({ sufficient: false, balance: '0', symbol: 'ETH' });
 
     // Run 3 consecutive failing charges (threshold is 3)
     for (let i = 0; i < 3; i++) {
@@ -374,8 +397,12 @@ describe('Integration: validate then process', () => {
     const validation = svc.validateChain(chain, [m1, m2]);
     expect(validation.isValid).toBe(true);
 
-    jest.spyOn(svc, 'validateGasPrice').mockResolvedValue({ acceptable: true, currentGasPrice: '20' });
-    jest.spyOn(svc, 'checkBalance').mockResolvedValue({ sufficient: true, balance: '1000', symbol: 'ETH' });
+    jest
+      .spyOn(svc, 'validateGasPrice')
+      .mockResolvedValue({ acceptable: true, currentGasPrice: '20' });
+    jest
+      .spyOn(svc, 'checkBalance')
+      .mockResolvedValue({ sufficient: true, balance: '1000', symbol: 'ETH' });
 
     const result = await svc.processPaymentWithChain(chain, [m1, m2], 'sub_rt', '5', 1);
     expect(result.success).toBe(true);
@@ -393,21 +420,36 @@ describe('Integration: analytics after mixed attempts', () => {
     const attempts: PaymentAttempt[] = [
       // Sub 1: m1 failed, m2 succeeded (fallback)
       {
-        id: 'att_1a', paymentMethodId: m1.id, subscriptionId: 'sub_a1',
-        amount: '10', tokenType: TokenType.NATIVE, status: 'failed',
+        id: 'att_1a',
+        paymentMethodId: m1.id,
+        subscriptionId: 'sub_a1',
+        amount: '10',
+        tokenType: TokenType.NATIVE,
+        status: 'failed',
         failureReason: 'Insufficient balance',
-        attemptedAt: new Date('2026-01-01T01:00:00Z'), resolvedAt: new Date(),
+        attemptedAt: new Date('2026-01-01T01:00:00Z'),
+        resolvedAt: new Date(),
       },
       {
-        id: 'att_1b', paymentMethodId: m2.id, subscriptionId: 'sub_a1',
-        amount: '10', tokenType: TokenType.NATIVE, status: 'success',
-        attemptedAt: new Date('2026-01-01T01:00:01Z'), resolvedAt: new Date(),
+        id: 'att_1b',
+        paymentMethodId: m2.id,
+        subscriptionId: 'sub_a1',
+        amount: '10',
+        tokenType: TokenType.NATIVE,
+        status: 'success',
+        attemptedAt: new Date('2026-01-01T01:00:01Z'),
+        resolvedAt: new Date(),
       },
       // Sub 2: m1 succeeded directly
       {
-        id: 'att_2a', paymentMethodId: m1.id, subscriptionId: 'sub_a2',
-        amount: '10', tokenType: TokenType.NATIVE, status: 'success',
-        attemptedAt: new Date('2026-01-01T02:00:00Z'), resolvedAt: new Date(),
+        id: 'att_2a',
+        paymentMethodId: m1.id,
+        subscriptionId: 'sub_a2',
+        amount: '10',
+        tokenType: TokenType.NATIVE,
+        status: 'success',
+        attemptedAt: new Date('2026-01-01T02:00:00Z'),
+        resolvedAt: new Date(),
       },
     ];
 

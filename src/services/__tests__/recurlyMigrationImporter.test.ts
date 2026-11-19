@@ -199,7 +199,14 @@ describe('RecurlyMigrationImporter', () => {
     });
 
     it('uses empty description when plan not in registry', () => {
-      const sub = makeSub({ plan: { code: 'unknown', name: 'Unknown', plan_interval_length: 1, plan_interval_unit: 'months' } });
+      const sub = makeSub({
+        plan: {
+          code: 'unknown',
+          name: 'Unknown',
+          plan_interval_length: 1,
+          plan_interval_unit: 'months',
+        },
+      });
       const result = importer.importSubscription(sub);
       expect(result.description).toBe('');
     });

@@ -131,10 +131,19 @@ export function generateETag(body: Buffer): string {
   return `"${hash.slice(0, 27)}"`;
 }
 
+/**
+ * If-None-Match uses the weak comparison (RFC 9110 §13.1.2): the header may
+ * list several tags, and a `W/` prefix on either side is ignored.
+ */
 export function isETagMatch(req: IncomingMessage, etag: string): boolean {
-  const ifNoneMatch = req.headers['if-none-match'];
+  const raw = req.headers['if-none-match'];
+  const ifNoneMatch = Array.isArray(raw) ? raw.join(',') : raw;
   if (!ifNoneMatch) return false;
-  return ifNoneMatch === etag || ifNoneMatch === '*';
+  if (ifNoneMatch.trim() === '*') return true;
+
+  const opaque = (tag: string) => tag.trim().replace(/^W\//, '');
+  const target = opaque(etag);
+  return ifNoneMatch.split(',').some((candidate) => opaque(candidate) === target);
 }
 
 // ─── Compression ─────────────────────────────────────────────────────────────

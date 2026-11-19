@@ -10,14 +10,44 @@
 
 export type CancellationMode = 'immediate' | 'end_of_period';
 
-export type CancellationReason =
+export type KnownCancellationReason =
   | 'too_expensive'
   | 'not_using'
   | 'missing_features'
   | 'found_alternative'
   | 'poor_experience'
   | 'technical_issues'
+  | 'payment_expired'
   | 'other';
+
+/**
+ * Plans may register their own reason vocabulary. The union keeps the
+ * built-in reasons discoverable while the `(string & {})` arm allows a plan
+ * to add wording specific to its product without a type change.
+ */
+export type CancellationReason = KnownCancellationReason | (string & {});
+
+/** Reasons offered when a plan has not configured its own list. */
+export const DEFAULT_CANCELLATION_REASONS: KnownCancellationReason[] = [
+  'too_expensive',
+  'not_using',
+  'missing_features',
+  'found_alternative',
+  'poor_experience',
+  'technical_issues',
+  'other',
+];
+
+export interface PlanCancellationReasonConfig {
+  planId: string;
+  /** Reasons shown on the cancellation form for this plan. */
+  reasons: CancellationReason[];
+  /**
+   * When true a reason must be supplied for this plan. Defaults to false, so
+   * the reason stays optional unless a plan explicitly opts in.
+   */
+  requireReason?: boolean;
+}
 
 export type RetentionOfferType =
   | 'discount'
@@ -69,6 +99,8 @@ export interface CancellationRecord {
   id: string;
   subscriptionId: string;
   userId: string;
+  /** Plan the subscription was on when the cancellation was requested. */
+  planId?: string;
   mode: CancellationMode;
   status: CancellationStatus;
   reason?: CancellationReason;
@@ -89,6 +121,10 @@ export interface CancellationAnalytics {
   offerAcceptanceRate: number;
   byReason: Record<string, number>;
   byMode: Record<string, number>;
+  /** Cancellation count per plan. Records without a plan are omitted. */
+  byPlan: Record<string, number>;
+  /** Reason counts per plan, for per-plan reporting. */
+  byPlanReason: Record<string, Record<string, number>>;
   averageTimeToCancel: number; // days from creation to cancellation request
 }
 
@@ -140,9 +176,61 @@ export class CancellationService {
   private offers = new Map<string, RetentionOffer>();
   private feedback = new Map<string, CancellationFeedback>();
   private subscriptionCreatedAt = new Map<string, number>();
+  private planReasonConfigs = new Map<string, PlanCancellationReasonConfig>();
 
   /** Default retention offer expiry: 7 days */
   private offerExpiryDays = 7;
+
+  /**
+   * Configure the cancellation reasons offered for a plan.
+   * Replaces any previous configuration for the same plan.
+   */
+  configurePlanReasons(config: PlanCancellationReasonConfig): PlanCancellationReasonConfig {
+    if (!config.planId) {
+      throw new Error('planId is required');
+    }
+    if (!Array.isArray(config.reasons) || config.reasons.length === 0) {
+      throw new Error('At least one cancellation reason is required');
+    }
+
+    const reasons = Array.from(
+      new Set(config.reasons.map((reason) => reason.trim()).filter(Boolean)),
+    );
+    if (reasons.length === 0) {
+      throw new Error('At least one non-empty cancellation reason is required');
+    }
+
+    const normalized: PlanCancellationReasonConfig = {
+      planId: config.planId,
+      reasons,
+      requireReason: config.requireReason ?? false,
+    };
+    this.planReasonConfigs.set(config.planId, normalized);
+    return { ...normalized, reasons: [...reasons] };
+  }
+
+  /** Get the reason configuration for a plan, or null when not configured. */
+  getPlanReasonConfig(planId: string): PlanCancellationReasonConfig | null {
+    const config = this.planReasonConfigs.get(planId);
+    return config ? { ...config, reasons: [...config.reasons] } : null;
+  }
+
+  /** List the reasons a plan accepts. Falls back to the default vocabulary. */
+  getPlanReasons(planId?: string): CancellationReason[] {
+    if (planId) {
+      const config = this.planReasonConfigs.get(planId);
+      if (config) return [...config.reasons];
+    }
+    return [...DEFAULT_CANCELLATION_REASONS];
+  }
+
+  /** All explicitly configured plan reason lists. */
+  listPlanReasonConfigs(): PlanCancellationReasonConfig[] {
+    return Array.from(this.planReasonConfigs.values()).map((config) => ({
+      ...config,
+      reasons: [...config.reasons],
+    }));
+  }
 
   /**
    * Initiate a cancellation request.
@@ -153,6 +241,7 @@ export class CancellationService {
   initiate(params: {
     subscriptionId: string;
     userId: string;
+    planId?: string;
     mode: CancellationMode;
     reason?: CancellationReason;
     nextBillingDate?: number | string;
@@ -165,6 +254,16 @@ export class CancellationService {
       throw new Error(
         `Subscription ${params.subscriptionId} already has an active cancellation (${existing.id})`,
       );
+    }
+
+    const planConfig = params.planId ? this.planReasonConfigs.get(params.planId) : undefined;
+    if (params.reason && planConfig && !planConfig.reasons.includes(params.reason)) {
+      throw new Error(
+        `Reason "${params.reason}" is not configured for plan "${params.planId}"`,
+      );
+    }
+    if (!params.reason && planConfig?.requireReason) {
+      throw new Error(`Cancellation reason is required for plan "${params.planId}"`);
     }
 
     const effectiveAt =
@@ -180,6 +279,7 @@ export class CancellationService {
       id: generateId('cancel'),
       subscriptionId: params.subscriptionId,
       userId: params.userId,
+      planId: params.planId,
       mode: params.mode,
       status: params.mode === 'immediate' ? 'active' : 'pending',
       reason: params.reason,
@@ -384,9 +484,11 @@ export class CancellationService {
     this.subscriptionCreatedAt.set(subscriptionId, createdAt);
   }
 
-  /** Build cancellation analytics. */
-  getAnalytics(): CancellationAnalytics {
-    const all = Array.from(this.cancellations.values());
+  /** Build cancellation analytics, optionally restricted to one plan. */
+  getAnalytics(filter: { planId?: string } = {}): CancellationAnalytics {
+    const all = Array.from(this.cancellations.values()).filter(
+      (cancellation) => !filter.planId || cancellation.planId === filter.planId,
+    );
     const total = all.length;
     const active = all.filter((c) => c.status === 'active').length;
     const pending = all.filter((c) => c.status === 'pending').length;
@@ -402,14 +504,23 @@ export class CancellationService {
 
     const byReason: Record<string, number> = {};
     const byMode: Record<string, number> = {};
+    const byPlan: Record<string, number> = {};
+    const byPlanReason: Record<string, Record<string, number>> = {};
     let timeToCancelSum = 0;
     let timeToCancelCount = 0;
 
     for (const c of all) {
       if (c.reason) {
         byReason[c.reason] = (byReason[c.reason] ?? 0) + 1;
+        if (c.planId) {
+          byPlanReason[c.planId] = byPlanReason[c.planId] ?? {};
+          byPlanReason[c.planId][c.reason] = (byPlanReason[c.planId][c.reason] ?? 0) + 1;
+        }
       }
       byMode[c.mode] = (byMode[c.mode] ?? 0) + 1;
+      if (c.planId) {
+        byPlan[c.planId] = (byPlan[c.planId] ?? 0) + 1;
+      }
 
       const created = this.subscriptionCreatedAt.get(c.subscriptionId);
       if (created) {
@@ -427,6 +538,8 @@ export class CancellationService {
       offerAcceptanceRate: Math.round(offerAcceptanceRate * 100) / 100,
       byReason,
       byMode,
+      byPlan,
+      byPlanReason,
       averageTimeToCancel:
         timeToCancelCount > 0 ? Math.round((timeToCancelSum / timeToCancelCount) * 100) / 100 : 0,
     };

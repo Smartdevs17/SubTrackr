@@ -222,7 +222,7 @@ export interface IPartnerService {
 
 export interface IGroupBillingService {
   generateBillingSummary(group: any): any;
-  aggregateCharges(group: any, periodDays?: number): any[];
+  aggregateCharges(group: any, periodStart: number, periodEnd: number): any[];
   generateInvoice(group: any, periodStart: number, periodEnd: number, currency?: string): any;
   issueInvoice(invoiceId: string, groupId: string): any | null;
   markInvoicePaid(invoiceId: string, groupId: string): any | null;

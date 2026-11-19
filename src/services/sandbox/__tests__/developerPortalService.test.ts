@@ -1,7 +1,12 @@
 import { describe, expect, it, jest, beforeEach } from '@jest/globals';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { developerPortalService } from '../developerPortalService';
-import type { DeveloperProfile, OnboardingStep, DocumentationSection, IntegrationGuide } from '../../types/developerPortal';
+import type {
+  DeveloperProfile,
+  OnboardingStep,
+  DocumentationSection,
+  IntegrationGuide,
+} from '../../types/developerPortal';
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
   setItem: jest.fn(() => Promise.resolve()),
@@ -49,7 +54,9 @@ describe('DeveloperPortalService', () => {
   describe('updateDeveloper', () => {
     it('updates fields on an existing developer', async () => {
       const dev = await developerPortalService.registerDeveloper('upd@example.com', 'Updater');
-      const updated = await developerPortalService.updateDeveloper(dev.id, { name: 'Updated Name' });
+      const updated = await developerPortalService.updateDeveloper(dev.id, {
+        name: 'Updated Name',
+      });
       expect(updated?.name).toBe('Updated Name');
       expect(updated?.email).toBe('upd@example.com');
     });

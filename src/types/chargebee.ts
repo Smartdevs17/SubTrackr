@@ -5,12 +5,7 @@
 
 export type ChargbeePeriodUnit = 'day' | 'week' | 'month' | 'year';
 export type ChargebeeStatus =
-  | 'active'
-  | 'cancelled'
-  | 'future'
-  | 'in_trial'
-  | 'non_renewing'
-  | 'paused';
+  'active' | 'cancelled' | 'future' | 'in_trial' | 'non_renewing' | 'paused';
 export type ChargebeeCurrencyCode = string; // ISO 4217, e.g. "USD", "EUR"
 
 // ─── Plan ────────────────────────────────────────────────────────────────────
