@@ -22,5 +22,24 @@
   "rtl": {
     "direction": "rtl",
     "languageName": "עברית"
+  },
+  "status": {
+    "banner_title": "מצב השירות",
+    "operational": "כל המערכות פועלות כרגיל",
+    "degraded": "חלק מהשירותים פועלים באיטיות",
+    "outage": "אנחנו חווים הפסקת שירות",
+    "affected": "מושפע: {{provider}}",
+    "updated": "עודכן {{date}}",
+    "retry": "נסה שוב",
+    "dismiss": "סגור"
+  },
+  "renewal": {
+    "title": "בדיקת חידוש אוטומטי",
+    "checking": "בודק את החידוש שלך…",
+    "safe": "המנוי שלך יחודש כמתוכנן",
+    "risky": "מומלץ לבדוק את אמצעי התשלום",
+    "deferred": "החידוש נדחה ל-{{date}}",
+    "count_one": "{{count}} חידוש אחד צפוי",
+    "count_other": "{{count}} חידושים צפויים"
   }
 }

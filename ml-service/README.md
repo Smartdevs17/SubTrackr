@@ -56,3 +56,18 @@ ID); connection, timeout, and malformed response failures raise
 `InferenceTransportError`. Input constraints raise `ValueError` before a request
 is sent. The same client exposes `predict_churn_batch`, `forecast_revenue`, and
 `health`.
+
+## Renewal pre-flight
+
+`churn/` turns the churn probability into an auto-renewal decision (`renew`,
+`review`, `defer` or `block`) with fail-closed handling for stale or missing
+predictions. Run it standalone with:
+
+```bash
+uvicorn churn.api:app --port 8001
+```
+
+The billing worker calls `POST /v1/churn/renewal/preflight` through
+`backend/src/services/renewal.ts`. See **[churn/README.md](churn/README.md)**
+and **[docs/renewal-preflight.md](../docs/renewal-preflight.md)** for the full
+policy and integration contract.
