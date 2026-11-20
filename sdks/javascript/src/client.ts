@@ -28,7 +28,7 @@ import {
   Webhook,
 } from './types';
 import { AuthManager } from './auth';
-import { ApiError, UnsupportedVersionError, VersionMismatchError } from './errors';
+import { apiErrorFromBody, UnsupportedVersionError, VersionMismatchError } from './errors';
 import {
   SDK_VERSION,
   CURRENT_API_VERSION,
@@ -113,12 +113,8 @@ export class SubTrackrClient {
     this._checkResponseVersion(response);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: response.statusText }));
-      throw new ApiError(
-        errorData.message || 'API request failed',
-        response.status,
-        errorData.code
-      );
+      const errorData = await response.json().catch(() => ({}));
+      throw apiErrorFromBody(errorData, response.status, response.statusText || 'API request failed');
     }
 
     const text = await response.text();

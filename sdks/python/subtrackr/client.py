@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
+from .errors import raise_for_response
 from .version import (
     SDK_VERSION,
     CURRENT_API_VERSION,
@@ -116,7 +117,7 @@ class SubTrackrClient:
         response = requests.get(
             f"{self.base_url}/subscriptions", headers=self._headers()
         )
-        response.raise_for_status()
+        raise_for_response(response)
         return response.json()  # type: ignore[no-any-return]
 
     def create_subscription(self, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -124,7 +125,7 @@ class SubTrackrClient:
         response = requests.post(
             f"{self.base_url}/subscriptions", json=payload, headers=self._headers()
         )
-        response.raise_for_status()
+        raise_for_response(response)
         return response.json()  # type: ignore[no-any-return]
 
     # ── Deprecated aliases ────────────────────────────────────────────────────

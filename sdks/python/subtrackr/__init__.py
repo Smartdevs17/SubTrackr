@@ -1,5 +1,5 @@
 from .client import SubTrackrClient, UnsupportedVersionError
-from .errors import SubTrackrError, AuthenticationError, ApiError
+from .errors import SubTrackrError, AuthenticationError, ApiError, parse_error_body, raise_for_response
 from .version import (
     SDK_VERSION,
     CURRENT_API_VERSION,
@@ -20,6 +20,8 @@ __all__ = [
     "SubTrackrError",
     "AuthenticationError",
     "ApiError",
+    "parse_error_body",
+    "raise_for_response",
     # Versioning
     "SDK_VERSION",
     "CURRENT_API_VERSION",
