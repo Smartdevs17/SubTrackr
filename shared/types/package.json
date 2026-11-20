@@ -1,0 +1,8 @@
+{
+  "name": "@subtrackr/contract-types",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TypeScript mirror of the SubTrackr Soroban contract types",
+  "main": "index.ts",
+  "types": "index.ts"
+}

@@ -5,8 +5,17 @@ export type {
   Subscription,
   Webhook,
   BillingInterval,
+  Interval,
   SubscriptionStatus,
 } from './types';
+export {
+  INTERVALS,
+  INTERVAL_SECONDS,
+  SUBSCRIPTION_STATUSES,
+  intervalSeconds,
+  isInterval,
+  isSubscriptionStatus,
+} from '../../../shared/types/contract';
 export {
   ApiError,
   AuthenticationError,
