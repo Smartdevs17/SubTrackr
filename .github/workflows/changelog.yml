@@ -64,7 +64,7 @@ jobs:
 
       - name: Generate API changelog
         run: |
-          node scripts/openapi-changelog.js --output api-changelog.md
+          node scripts/openapi-changelog.js --output=api-changelog.md
           cat api-changelog.md >> "$GITHUB_STEP_SUMMARY"
           cat api-changelog.md
 

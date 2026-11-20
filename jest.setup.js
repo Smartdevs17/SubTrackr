@@ -4,7 +4,7 @@
 // - Hermes parser crashes when RN internals are loaded during tests
 
 jest.mock('@react-native-async-storage/async-storage', () => {
-  return require('@react-native-async-storage/async-storage/jest/async-storage-mock');
+  return require('./src/__mocks__/@react-native-async-storage/async-storage');
 });
 
 // Mock ViewConfigIgnore to prevent Hermes parser from choking on Flow syntax

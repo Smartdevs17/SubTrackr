@@ -15,8 +15,8 @@ if (!globalThis.expo) {
     SharedObject,
     SharedRef,
     modules: {},
-    uuidv4: () => '00000000-0000-4000-8000-000000000000',
-    uuidv5: () => '00000000-0000-5000-8000-000000000000',
+    uuidv4: () => 'expo-mock-uuid-v4',
+    uuidv5: () => 'expo-mock-uuid-v5',
     getViewConfig: () => {
       throw new Error('Method not implemented.');
     },
