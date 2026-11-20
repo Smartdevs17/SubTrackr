@@ -3,17 +3,7 @@ import inspect
 import json
 from typing import Dict, Iterable, List
 
-
-FEATURE_SET_NAME = "churn"
-TRANSFORMATION_VERSION = "2026-06-25.1"
-
-REFERENCE_DISTRIBUTION = {
-    "payment_failures": [0.0, 0.0, 0.1, 0.25, 0.4, 0.75, 1.0],
-    "login_frequency_drop": [0.0, 0.05, 0.1, 0.18, 0.3, 0.55, 0.8],
-    "support_tickets": [0.0, 0.0, 0.1, 0.25, 0.5, 0.75, 1.0],
-    "app_crashes": [0.0, 0.0, 0.02, 0.05, 0.08, 0.12, 0.2],
-    "price_sensitivity": [0.1, 0.25, 0.4, 0.5, 0.65, 0.8, 0.95],
-}
+from .spec import FEATURE_SET_NAME, RAW_INPUT_DEFAULTS, REFERENCE_DISTRIBUTION, TRANSFORMATION_VERSION
 
 
 def _bounded(value: float, lower: float = 0.0, upper: float = 1.0) -> float:
@@ -21,16 +11,17 @@ def _bounded(value: float, lower: float = 0.0, upper: float = 1.0) -> float:
 
 
 def compute_features(user_data: Dict) -> Dict[str, float]:
-    baseline_logins = max(float(user_data.get("baseline_logins_per_month", 1)), 1.0)
+    raw = {**RAW_INPUT_DEFAULTS, **user_data}
+    baseline_logins = max(float(raw["baseline_logins_per_month"]), 1.0)
     recent_logins = float(user_data.get("recent_logins", baseline_logins))
     login_drop = max(0.0, (baseline_logins - recent_logins) / baseline_logins)
 
     return {
-        "payment_failures": _bounded(float(user_data.get("recent_payment_failures", 0)) / 3.0),
+        "payment_failures": _bounded(float(raw["recent_payment_failures"]) / 3.0),
         "login_frequency_drop": _bounded(login_drop),
-        "support_tickets": _bounded(float(user_data.get("open_support_tickets", 0)) / 2.0),
-        "app_crashes": _bounded(float(user_data.get("app_crashes", 0)) / 10.0),
-        "price_sensitivity": _bounded(float(user_data.get("price_sensitivity_index", 0.5))),
+        "support_tickets": _bounded(float(raw["open_support_tickets"]) / 2.0),
+        "app_crashes": _bounded(float(raw["app_crashes"]) / 10.0),
+        "price_sensitivity": _bounded(float(raw["price_sensitivity_index"])),
     }
 
 
