@@ -1,0 +1,21 @@
+name: EAS Build Matrix
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [preview, production]
+        platform: [android, ios]
+    uses: ./.github/workflows/eas-build-reusable.yml
+    with:
+      profile: ${{ matrix.profile }}
+      platform: ${{ matrix.platform }}
+    secrets:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
