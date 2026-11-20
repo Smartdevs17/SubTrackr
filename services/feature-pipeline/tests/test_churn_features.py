@@ -6,6 +6,7 @@ import unittest
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from features.churn import compute_features, drift_report, feature_set_hash
+from features.spec import FEATURE_NAMES, RAW_INPUT_DEFAULTS, REFERENCE_DISTRIBUTION
 
 
 class ChurnFeatureTests(unittest.TestCase):
@@ -35,6 +36,22 @@ class ChurnFeatureTests(unittest.TestCase):
         self.assertEqual(len(transform_hash), 16)
         self.assertEqual(report["feature_set"], "churn")
         self.assertIn("payment_failures", report["features"])
+
+    def test_spec_is_single_source_for_feature_names(self):
+        self.assertEqual(set(compute_features({})), set(FEATURE_NAMES))
+        self.assertEqual(set(REFERENCE_DISTRIBUTION), set(FEATURE_NAMES))
+
+    def test_empty_input_uses_spec_defaults_and_stays_bounded(self):
+        from_defaults = compute_features(dict(RAW_INPUT_DEFAULTS))
+        self.assertEqual(compute_features({}), from_defaults)
+        self.assertEqual(from_defaults["login_frequency_drop"], 0.0)
+        for value in from_defaults.values():
+            self.assertTrue(0.0 <= value <= 1.0)
+
+    def test_reference_distributions_are_sorted_and_bounded(self):
+        for name, values in REFERENCE_DISTRIBUTION.items():
+            self.assertEqual(values, sorted(values), name)
+            self.assertTrue(all(0.0 <= v <= 1.0 for v in values), name)
 
 
 if __name__ == "__main__":

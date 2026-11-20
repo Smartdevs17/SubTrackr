@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
 from feature_store import FeatureRecord, FeatureStoreUnavailable, RedisFeatureStore
+from features.spec import RAW_INPUT_DEFAULTS
 from features.churn import FEATURE_SET_NAME, REFERENCE_DISTRIBUTION, compute_features, drift_report, feature_set_hash
 from jobs.scheduler import CRON_SCHEDULES, daily_historical_aggregate_refresh, hourly_real_time_refresh
 
@@ -14,12 +15,12 @@ store = RedisFeatureStore()
 
 
 class ChurnUserData(BaseModel):
-    recent_payment_failures: int = 0
-    baseline_logins_per_month: int = 10
-    recent_logins: int = 10
-    open_support_tickets: int = 0
-    app_crashes: int = 0
-    price_sensitivity_index: float = Field(0.5, ge=0.0, le=1.0)
+    recent_payment_failures: int = RAW_INPUT_DEFAULTS["recent_payment_failures"]
+    baseline_logins_per_month: int = RAW_INPUT_DEFAULTS["baseline_logins_per_month"]
+    recent_logins: int = RAW_INPUT_DEFAULTS["recent_logins"]
+    open_support_tickets: int = RAW_INPUT_DEFAULTS["open_support_tickets"]
+    app_crashes: int = RAW_INPUT_DEFAULTS["app_crashes"]
+    price_sensitivity_index: float = Field(RAW_INPUT_DEFAULTS["price_sensitivity_index"], ge=0.0, le=1.0)
 
 
 class ChurnFeatureRequest(BaseModel):
