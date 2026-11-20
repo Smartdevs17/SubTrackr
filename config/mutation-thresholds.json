@@ -1,0 +1,11 @@
+{
+  "frontend": {
+    "src/utils/proration.ts": 85,
+    "src/utils/invoice.ts": 85,
+    "src/utils/billingAlignment.ts": 85,
+    "src/utils/subscriptionHelpers.ts": 85
+  },
+  "backend": {
+    "backend/subscription/domain/pauseBilling.ts": 85
+  }
+}
