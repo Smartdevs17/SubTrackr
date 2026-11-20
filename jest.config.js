@@ -53,6 +53,8 @@ module.exports = {
     '<rootDir>/babel.config.test.js',
   ],
   moduleNameMapper: {
+    '^expo-modules-core/src/polyfill/dangerous-internal$':
+      '<rootDir>/src/__mocks__/expo-modules-core-dangerous-internal.js',
     '^bullmq$': '<rootDir>/backend/shared/queue/__mocks__/bullmq.ts',
     '^@/(.*)$': '<rootDir>/src/$1',
     '^@testing-library/react-native$': '<rootDir>/src/__mocks__/@testing-library/react-native.js',
