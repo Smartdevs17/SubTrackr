@@ -1,4 +1,5 @@
 import { logger } from '../logging';
+import { localMinutesOfDay } from '../../../shared/time';
 
 export interface NotificationPreferences {
   userId: string;
@@ -59,20 +60,7 @@ export class NotificationPreferenceService {
     const end = parseTime(prefs.quietHours.endTime);
     if (start === null || end === null) return true;
 
-    let current: number;
-    try {
-      const parts = new Intl.DateTimeFormat('en-US', {
-        timeZone: prefs.quietHours.timezone,
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      }).formatToParts(new Date());
-      const hour = Number(parts.find((part) => part.type === 'hour')?.value);
-      const minute = Number(parts.find((part) => part.type === 'minute')?.value);
-      current = hour * 60 + minute;
-    } catch {
-      return true;
-    }
+    const current = localMinutesOfDay(new Date(), prefs.quietHours.timezone);
 
     return start === end ? false : start < end
       ? current < start || current >= end

@@ -12,6 +12,11 @@ import type {
   ProratedAdjustment,
   ScheduleConflict,
 } from '../types/calendar';
+import {
+  formatInTimeZone,
+  isDaylightSavingTransitionWithin,
+  timeZoneOffsetMs,
+} from '../../shared/time';
 
 const DEFAULT_REDIRECT_URI = 'subtrackr://calendar/callback';
 const PROVIDER_SCOPES: Record<CalendarProvider, string> = {
@@ -432,37 +437,22 @@ export function buildTimezoneAwareEvent(
 }
 
 export function formatDateInTimezone(isoString: string, timezone: string): string {
-  try {
-    const date = new Date(isoString);
-    return date.toLocaleString('en-US', { timeZone: timezone });
-  } catch {
-    return new Date(isoString).toLocaleString();
-  }
+  const date = new Date(isoString);
+  if (!Number.isFinite(date.getTime())) return 'Invalid Date';
+  return formatInTimeZone(date, timezone, 'en-US', { dateStyle: 'short', timeStyle: 'short' });
 }
 
 export function convertToTimezone(isoString: string, targetTimezone: string): string {
   const date = new Date(isoString);
-  const offset = getTimezoneOffset(date, targetTimezone);
+  const offset = timeZoneOffsetMs(date, targetTimezone);
   const adjusted = new Date(date.getTime() + offset);
   return adjusted.toISOString();
-}
-
-function getTimezoneOffset(date: Date, timezone: string): number {
-  try {
-    const tzDate = new Date(date.toLocaleString('en-US', { timeZone: timezone }));
-    return tzDate.getTime() - date.getTime();
-  } catch {
-    return 0;
-  }
 }
 
 // ── Check for DST Transition ──────────────────────────────────────────────
 
 export function isDSTTransitionPeriod(date: Date, timezone: string): boolean {
-  const oneWeekLater = new Date(date.getTime() + 7 * 24 * 60 * 60 * 1000);
-  const currentOffset = getTimezoneOffset(date, timezone);
-  const laterOffset = getTimezoneOffset(oneWeekLater, timezone);
-  return currentOffset !== laterOffset;
+  return isDaylightSavingTransitionWithin(date, timezone);
 }
 
 export function adjustForDST(
@@ -471,7 +461,7 @@ export function adjustForDST(
 ): CalendarEventTemplate {
   const startDate = new Date(event.startAt);
   if (isDSTTransitionPeriod(startDate, timezone)) {
-    const offset = getTimezoneOffset(startDate, timezone);
+    const offset = timeZoneOffsetMs(startDate, timezone);
     const adjusted = new Date(startDate.getTime() - offset);
     return {
       ...event,
