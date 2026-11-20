@@ -2,16 +2,22 @@
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { createRepositories, Repositories } from '../../src/repositories';
 import { REQUIRE_PERMISSION_KEY } from './permissions.decorator';
 import { hasPermission } from '../rbac/permission-matcher';
 import { permissionCache } from '../rbac/permissionCache';
 
 @Injectable()
 export class PermissionGuard implements CanActivate {
+  private readonly repos: Repositories;
+
   constructor(
     private reflector: Reflector,
-    private prisma: PrismaService,
-  ) {}
+    prisma: PrismaService,
+    repos?: Repositories,
+  ) {
+    this.repos = repos ?? createRepositories(prisma as any);
+  }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     // 1. Scan metadata to see if the specific route endpoint is protected
@@ -26,14 +32,7 @@ export class PermissionGuard implements CanActivate {
     //    guarded request does not pay for the role/permission join every time.
     let userPermissions = permissionCache.get(user.id);
     if (userPermissions === null) {
-      const userAssignments = await this.prisma.userRole.findMany({
-        where: { userId: user.id },
-        include: { role: { include: { permissions: true } } },
-      });
-
-      userPermissions = userAssignments.flatMap((ua) =>
-        ua.role.permissions.map((p) => p.permission)
-      );
+      userPermissions = await this.repos.userRoles.findPermissions(user.id);
       permissionCache.set(user.id, userPermissions);
     }
 
@@ -41,13 +40,11 @@ export class PermissionGuard implements CanActivate {
     const isAllowed = hasPermission(userPermissions, requiredPermission);
 
     // 4. Create an Audit Log track entry
-    await this.prisma.permissionAuditLog.create({
-      data: {
-        action: requiredPermission,
-        actorId: user.id,
-        resource: request.params.id || 'generic',
-        outcome: isAllowed ? 'ALLOW' : 'DENY',
-      },
+    await this.repos.permissionAudit.record({
+      action: requiredPermission,
+      actorId: user.id,
+      resource: request.params.id || 'generic',
+      outcome: isAllowed ? 'ALLOW' : 'DENY',
     });
 
     if (!isAllowed) {

@@ -13,7 +13,10 @@ export {
   SubTrackrError,
   UnsupportedVersionError,
   VersionMismatchError,
+  parseErrorBody,
+  apiErrorFromBody,
 } from './errors';
+export type { ParsedErrorBody } from './errors';
 export { TypedSubTrackrClient } from './typedClient';
 export type {
   TypedClientOptions,

@@ -24,6 +24,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { Pool } from 'pg';
 import { IDEMPOTENCY_KEY_HEADER, hashRequest } from '../../services/idempotencyService';
+import { sendError } from './errorEnvelope';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -106,9 +107,13 @@ export function createIdempotencyMiddleware(pool: Pool) {
     }
 
     if (typeof key !== 'string' || key.length === 0 || key.length > 255) {
-      res.status(400).json({
-        error: `${IDEMPOTENCY_KEY_HEADER} must be a non-empty string of at most 255 characters.`,
-      });
+      sendError(
+        req,
+        res,
+        400,
+        `${IDEMPOTENCY_KEY_HEADER} must be a non-empty string of at most 255 characters.`,
+        { code: 'IDEMPOTENCY_KEY_INVALID' },
+      );
       return;
     }
 
@@ -126,20 +131,26 @@ export function createIdempotencyMiddleware(pool: Pool) {
 
     if (existing) {
       if (existing.request_hash !== requestHash) {
-        res.status(422).json({
-          error:
-            `Idempotency key "${key}" was already used with a different request payload. ` +
+        sendError(
+          req,
+          res,
+          422,
+          `Idempotency key "${key}" was already used with a different request payload. ` +
             `Use a new key for a different operation.`,
-        });
+          { code: 'IDEMPOTENCY_KEY_REUSED' },
+        );
         return;
       }
 
       if (existing.status === 'pending') {
-        res.status(409).json({
-          error:
-            `A request with idempotency key "${key}" is already in progress. ` +
+        sendError(
+          req,
+          res,
+          409,
+          `A request with idempotency key "${key}" is already in progress. ` +
             `Retry after the original request completes.`,
-        });
+          { code: 'IDEMPOTENCY_KEY_IN_PROGRESS' },
+        );
         return;
       }
 

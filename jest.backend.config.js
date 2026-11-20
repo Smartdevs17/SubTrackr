@@ -12,6 +12,7 @@ module.exports = {
     '**/backend/billing/tests/**/*.test.ts',
     '**/backend/billing/tests/**/*.spec.ts',
     '**/developer-portal/__tests__/**/*.test.ts',
+    '**/packages/ui/**/__tests__/**/*.test.ts',
   ],
   transform: {
     '^.+\\.tsx?$': [

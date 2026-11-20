@@ -93,16 +93,13 @@ func (c *Client) doRequest(method, path string, body interface{}, result interfa
 		}
 
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			var errResp ApiErrorResponse
-			_ = json.Unmarshal(respBody, &errResp)
-			msg := errResp.Message
-			if msg == "" {
-				msg = http.StatusText(resp.StatusCode)
-			}
+			parsed := parseErrorBody(respBody, http.StatusText(resp.StatusCode))
 			return &ApiError{
-				Message:    msg,
+				Message:    parsed.Message,
 				StatusCode: resp.StatusCode,
-				Code:       errResp.Code,
+				Code:       parsed.Code,
+				RequestID:  parsed.RequestID,
+				Details:    parsed.Details,
 			}
 		}
 
