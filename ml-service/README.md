@@ -32,3 +32,27 @@ Health check: `GET /health`
 pip install pytest httpx
 pytest tests/ -v
 ```
+
+## Typed Python inference client
+
+`inference_client.py` provides a dependency-free synchronous client for churn
+prediction, batch prediction, revenue forecasting, and health checks. It includes
+typed input and output dataclasses, sends a correlation ID on every request, and
+supports the service API key when configured:
+
+```python
+from inference_client import ChurnFeatures, InferenceClient
+
+client = InferenceClient("http://localhost:8000", api_key="your-api-key", timeout=3)
+result = client.predict_churn(
+    "subscriber-123",
+    ChurnFeatures(1, 20, 8, 0, 0.4),
+)
+print(result.risk_level, result.churn_probability)
+```
+
+HTTP failures raise `InferenceAPIError` (including status and server correlation
+ID); connection, timeout, and malformed response failures raise
+`InferenceTransportError`. Input constraints raise `ValueError` before a request
+is sent. The same client exposes `predict_churn_batch`, `forecast_revenue`, and
+`health`.
