@@ -1,0 +1,24 @@
+[
+  {
+    "id": "premium-payment-failure",
+    "description": "Premium subscribers hear about failed payments on every channel",
+    "priority": 10,
+    "when": {
+      "all": [
+        { "field": "template", "eq": "payment_failed" },
+        { "field": "metadata.tier", "in": ["premium", "enterprise"] }
+      ]
+    },
+    "then": [
+      { "type": "route", "channels": ["email", "push", "sms"] },
+      { "type": "setPriority", "priority": "high" }
+    ],
+    "stop": true
+  },
+  {
+    "id": "mute-test-recipients",
+    "priority": 100,
+    "when": { "field": "recipient", "matches": "@example\\.(com|org)$" },
+    "then": [{ "type": "suppress", "reason": "test recipient" }]
+  }
+]

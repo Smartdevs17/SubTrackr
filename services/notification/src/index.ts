@@ -1,11 +1,19 @@
 import { createDefaultFactory } from './channels/factory.js';
-import { processNotification, setChannelFactory } from './consumer.js';
+import {
+  InvalidNotificationError,
+  processNotification,
+  setChannelFactory,
+  setRuleEngine,
+} from './consumer.js';
+import { loadRuleEngine } from './rules/loader.js';
 
 const QUEUE = process.env.RABBITMQ_QUEUE ?? 'notification.deliver';
 
 async function main() {
   const factory = createDefaultFactory(process.env);
   setChannelFactory(factory);
+  const engine = await loadRuleEngine(process.env);
+  setRuleEngine(engine);
 
   const url = process.env.RABBITMQ_URL ?? 'amqp://localhost';
   const amqp = await import('amqplib');
@@ -14,19 +22,18 @@ async function main() {
   await channel.assertQueue(QUEUE, { durable: true });
   await channel.prefetch(10);
 
-  console.log(`Notification service listening on queue: ${QUEUE}`);
+  console.log(`Notification service listening on queue: ${QUEUE} (${engine.size} rules)`);
 
   channel.consume(QUEUE, async (msg) => {
     if (!msg) return;
     try {
-      const notification = JSON.parse(
-        msg.content.toString()
-      ) as import('./types/notification.js').Notification;
-      await processNotification(notification);
+      await processNotification(JSON.parse(msg.content.toString()));
       channel.ack(msg);
     } catch (err) {
       console.error('Failed to process notification', err);
-      channel.nack(msg, false, true);
+      // Malformed messages would fail forever; drop them instead of requeueing.
+      const poison = err instanceof SyntaxError || err instanceof InvalidNotificationError;
+      channel.nack(msg, false, !poison);
     }
   });
 
