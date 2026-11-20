@@ -1,0 +1,41 @@
+name: EAS Build (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      profile:
+        description: EAS build profile from eas.json
+        required: true
+        type: string
+      platform:
+        description: Target platform (android or ios)
+        required: true
+        type: string
+    secrets:
+      EXPO_TOKEN:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: EAS ${{ inputs.platform }} / ${{ inputs.profile }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Expo and EAS CLI
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Build on EAS
+        run: >-
+          eas build
+          --platform ${{ inputs.platform }}
+          --profile ${{ inputs.profile }}
+          --non-interactive
