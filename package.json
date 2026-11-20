@@ -15,6 +15,7 @@
     "web": "expo start --web",
     "lint": "eslint . --ext .ts,.tsx",
     "lint:fix": "eslint . --ext .ts,.tsx --fix",
+    "env:parity": "node scripts/env-parity-check.js",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
     "test:shard": "jest --shard=${SHARD:-1}/${SHARD_COUNT:-3}",
     "credit:test": "jest --config jest.credit.config.js app/stores/__tests__/creditStore.test.ts app/tests/integration/credit-wallet.integration.test.ts --runInBand",
