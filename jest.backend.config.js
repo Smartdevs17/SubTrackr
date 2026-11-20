@@ -13,6 +13,7 @@ module.exports = {
     '**/backend/billing/tests/**/*.spec.ts',
     '**/developer-portal/__tests__/**/*.test.ts',
     '**/packages/ui/**/__tests__/**/*.test.ts',
+    '**/packages/flags/**/__tests__/**/*.test.ts',
     '**/shared/types/__tests__/**/*.test.ts',
   ],
   transform: {
