@@ -68,7 +68,7 @@ import type {
   PayoutResult,
   RefundRequest,
   RefundResult,
-} from '../../interfaces';
+} from '@subtrackr/billing-types';
 
 const DEFAULT_API_VERSION = '2025-07';
 

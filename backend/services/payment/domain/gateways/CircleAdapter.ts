@@ -1,5 +1,14 @@
 import { BasePaymentGateway } from './PaymentGateway';
-import type { PaymentRequest, PaymentResult, RefundRequest, RefundResult, CustomerResult, PaymentMethodResult, PayoutRequest, PayoutResult } from '../../interfaces';
+import type {
+  CustomerResult,
+  PaymentMethodResult,
+  PaymentRequest,
+  PaymentResult,
+  PayoutRequest,
+  PayoutResult,
+  RefundRequest,
+  RefundResult,
+} from '@subtrackr/billing-types';
 
 export class CircleAdapter extends BasePaymentGateway {
   readonly name = 'circle';
