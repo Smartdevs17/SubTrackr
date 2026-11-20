@@ -27,6 +27,11 @@ import {
   REQUIRED_CATEGORIES,
   buildDefaultPreferences,
 } from './commPreferencesTypes';
+import {
+  localMinutesOfDay,
+  utcInstantForLocalDateTime,
+  zonedDateTimeParts,
+} from '../../../shared/time';
 import type {
   CategoryPreference,
   CommCategory,
@@ -104,19 +109,7 @@ export class PreferenceViolationError extends Error {
 
 // ─── Quiet hours ───────────────────────────────────────────────────────────────
 
-/** Minutes since local midnight for an instant, in the given IANA timezone. */
-export function localMinutesOfDay(instant: Date, timezone: string): number {
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone,
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
-  const parts = formatter.formatToParts(instant);
-  const hour = Number(parts.find((p) => p.type === 'hour')?.value ?? '0');
-  const minute = Number(parts.find((p) => p.type === 'minute')?.value ?? '0');
-  return (hour % 24) * 60 + minute;
-}
+export { localMinutesOfDay } from '../../../shared/time';
 
 /**
  * True when `instant` falls inside the customer's quiet hours.
@@ -146,8 +139,13 @@ export function nextQuietHoursEnd(
   if (!quietHours.enabled || !isWithinQuietHours(quietHours, instant)) return null;
   const end = normaliseMinute(quietHours.endMinute);
   const now = localMinutesOfDay(instant, quietHours.timezone);
-  const delta = end > now ? end - now : 24 * 60 - now + end;
-  return new Date(instant.getTime() + delta * 60_000);
+  const local = zonedDateTimeParts(instant, quietHours.timezone);
+  const dayOffset = end > now ? 0 : 1;
+  const target = new Date(Date.UTC(local.year, local.month - 1, local.day + dayOffset));
+  return utcInstantForLocalDateTime(
+    target.getUTCFullYear(), target.getUTCMonth() + 1, target.getUTCDate(),
+    Math.floor(end / 60), end % 60, quietHours.timezone,
+  );
 }
 
 function normaliseMinute(minute: number): number {

@@ -5,6 +5,9 @@
  * DigestBuilder — batches low-priority notifications into daily/weekly digests.
  */
 
+import { localHourOf, utcInstantForLocalHour } from '../../shared/time';
+export { localHourOf, utcInstantForLocalHour } from '../../shared/time';
+
 export type NotificationPriority = 'critical' | 'informative' | 'marketing';
 
 export type OptInCategory = 'billing' | 'product' | 'marketing' | 'security';
@@ -176,80 +179,6 @@ export interface QuietHoursWindow {
   startHour: number; // 0-23, local to `timezone`
   endHour: number; // 0-23, local to `timezone`
   timezone: string; // IANA zone, e.g. 'Europe/Berlin'
-}
-
-function timeZoneOffsetMs(at: Date, timezone: string): number {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: timezone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(at);
-  const get = (type: string): number => Number(parts.find((p) => p.type === type)?.value ?? '0');
-  const truncated = Math.floor(at.getTime() / 1000) * 1000;
-  const asUtc = Date.UTC(
-    get('year'),
-    get('month') - 1,
-    get('day'),
-    get('hour'),
-    get('minute'),
-    get('second')
-  );
-  return asUtc - truncated;
-}
-
-/** The wall-clock hour (0-23) `date` falls on in `timezone`, or UTC if unknown. */
-export function localHourOf(date: Date, timezone: string): number {
-  try {
-    const hour = new Intl.DateTimeFormat('en-CA', {
-      timeZone: timezone,
-      hour: '2-digit',
-      hourCycle: 'h23',
-    }).format(date);
-    return Number(hour) % 24;
-  } catch {
-    return date.getUTCHours();
-  }
-}
-
-/**
- * The first UTC instant at or after `date` whose wall-clock time in
- * `timezone` is `hour:00`. Two passes handle DST offsets correctly.
- */
-export function utcInstantForLocalHour(date: Date, hour: number, timezone: string): Date {
-  try {
-    const local = new Intl.DateTimeFormat('en-CA', {
-      timeZone: timezone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).formatToParts(date);
-    const get = (type: string): number => Number(local.find((p) => p.type === type)?.value ?? '0');
-
-    const base = Date.UTC(get('year'), get('month') - 1, get('day'), hour);
-    let candidate = base - timeZoneOffsetMs(new Date(base), timezone);
-    candidate = base - timeZoneOffsetMs(new Date(candidate), timezone);
-    if (candidate <= date.getTime()) {
-      const nextDay = new Date(candidate);
-      const shifted = Date.UTC(
-        nextDay.getUTCFullYear(),
-        nextDay.getUTCMonth(),
-        nextDay.getUTCDate() + 1,
-        hour
-      );
-      candidate = shifted - timeZoneOffsetMs(new Date(shifted), timezone);
-    }
-    return new Date(candidate);
-  } catch {
-    const fallback = new Date(date);
-    fallback.setUTCHours(hour, 0, 0, 0);
-    if (fallback <= date) fallback.setUTCDate(fallback.getUTCDate() + 1);
-    return fallback;
-  }
 }
 
 /** True when `date` sits inside the quiet window, evaluated in `timezone`. */
