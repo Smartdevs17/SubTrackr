@@ -1,4 +1,14 @@
-import type { IPaymentGateway, PaymentRequest, PaymentResult, RefundRequest, RefundResult, CustomerResult, PaymentMethodResult, PayoutRequest, PayoutResult } from '../../interfaces';
+import type {
+  CustomerResult,
+  IPaymentGateway,
+  PaymentMethodResult,
+  PaymentRequest,
+  PaymentResult,
+  PayoutRequest,
+  PayoutResult,
+  RefundRequest,
+  RefundResult,
+} from '@subtrackr/billing-types';
 
 export abstract class BasePaymentGateway implements IPaymentGateway {
   abstract readonly name: string;

@@ -1,5 +1,5 @@
 import { BasePaymentGateway } from './PaymentGateway';
-import type { PaymentRequest, PaymentResult, RefundRequest, RefundResult, CustomerResult, PaymentMethodResult, PayoutRequest, PayoutResult } from '../../interfaces';
+import type { PaymentRequest, PaymentResult, RefundRequest, RefundResult, CustomerResult, PaymentMethodResult, PayoutRequest, PayoutResult } from '@subtrackr/billing-types';
 
 export class StellarAdapter extends BasePaymentGateway {
   readonly name = 'stellar';

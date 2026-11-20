@@ -38,6 +38,9 @@ importers:
       '@graphql-tools/schema':
         specifier: ^11.0.9
         version: 11.0.9(graphql@17.1.0)
+      '@subtrackr/billing-types':
+        specifier: workspace:*
+        version: link:shared/billing
       '@react-native-async-storage/async-storage':
         specifier: 3.1.1
         version: 3.1.1(react-native@0.88.1(@babel/core@7.29.13(supports-color@8.1.1))(@react-native-community/cli@21.0.0(bufferutil@4.1.0)(supports-color@8.1.1)(typescript@5.8.3)(utf-8-validate@5.0.10))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.1)(supports-color@8.1.1)(utf-8-validate@5.0.10))(react@19.3.1)
@@ -273,6 +276,8 @@ importers:
       typescript:
         specifier: ~5.8.3
         version: 5.8.3
+
+  shared/billing: {}
 
   packages/notification-providers:
     devDependencies:
