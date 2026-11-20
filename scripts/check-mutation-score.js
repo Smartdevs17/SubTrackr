@@ -108,6 +108,19 @@ function findWeakTests(report, moduleName, lowThreshold) {
   return weak.sort((a, b) => a.score - b.score);
 }
 
+function findCriticalFailures(report, thresholds) {
+  const failures = [];
+  for (const [filePath, threshold] of Object.entries(thresholds)) {
+    const fileData = report.files && report.files[filePath];
+    const fileMetrics = fileData && (fileData.metrics || fileData);
+    const score = fileMetrics ? fileMetrics.mutationScore : undefined;
+    if (typeof score !== 'number' || score < threshold) {
+      failures.push({ file: filePath, score, threshold });
+    }
+  }
+  return failures;
+}
+
 function printScore(name, data, breakThreshold) {
   if (!data) {
     console.log('\n  [' + name + '] No report found');
@@ -208,6 +221,9 @@ console.log('\n=== Mutation Score Check ===\n');
 const configs = MODULES.map((m) => loadModuleConfig(m.name, m.config));
 const frontendConfig = configs.find((c) => c.name === 'frontend');
 const backendConfig = configs.find((c) => c.name === 'backend');
+const criticalThresholds = JSON.parse(
+  fs.readFileSync(path.join(process.cwd(), 'config', 'mutation-thresholds.json'), 'utf-8')
+);
 
 function checkModule(config) {
   const report = readReport(config.reportPath);
@@ -219,7 +235,14 @@ function checkModule(config) {
     weak = findWeakTests(report, config.name, config.lowThreshold);
     printWeakTests(weak, config.lowThreshold);
   }
-  return { score, weak, passed };
+  const criticalFailures = report
+    ? findCriticalFailures(report, criticalThresholds[config.name] || {})
+    : [];
+  criticalFailures.forEach((f) => {
+    const actual = typeof f.score === 'number' ? f.score.toFixed(2) + '%' : 'missing from report';
+    console.log('\n  \u2717 Critical module below ' + f.threshold + '%: ' + f.file + ' (' + actual + ')');
+  });
+  return { score, weak, passed: passed && criticalFailures.length === 0 };
 }
 
 const frontendResult =
