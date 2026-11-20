@@ -38,15 +38,15 @@ tags        = ["secret", "shopify"]
 [allowlist]
 description = "Suppress false positives from test fixtures and documentation"
 paths = [
-  ".gitleaks.toml",
-  "**/*.test.ts",
-  "**/*.spec.ts",
-  "**/__tests__/**",
-  "**/fixtures/**",
-  "**/__mocks__/**",
-  "**/*.example",
-  "**/*.example.env",
-  "docs/**",
+  '(^|/)\.gitleaks\.toml$',
+  '(^|/)[^/]*\.test\.ts$',
+  '(^|/)[^/]*\.spec\.ts$',
+  '(^|/)__tests__/',
+  '(^|/)fixtures/',
+  '(^|/)__mocks__/',
+  '(^|/)[^/]*\.example$',
+  '(^|/)[^/]*\.example\.env$',
+  '(^|/)docs/',
 ]
 regexes = [
   # Placeholder values used in documentation / README
