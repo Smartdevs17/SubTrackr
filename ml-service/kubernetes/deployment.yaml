@@ -15,6 +15,9 @@ spec:
       labels:
         app: ml-inference
     spec:
+      # Own identity with read-only access to models/onnx/ (see ml-service/iam/policies/ml-inference.json).
+      serviceAccountName: ml-inference
+      automountServiceAccountToken: false
       containers:
         - name: onnx-serving
           image: subtrackr/ml-inference:latest
@@ -32,6 +35,8 @@ spec:
           env:
             - name: MODEL_DIR
               value: '/app/models'
+            - name: ML_ARTIFACT_WORKLOAD
+              value: 'ml-inference'
           livenessProbe:
             httpGet:
               path: /health

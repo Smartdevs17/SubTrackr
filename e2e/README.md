@@ -63,7 +63,7 @@ UPDATE_VISUAL_BASELINE=true npm run e2e:test-ios -- --testNamePattern "Subscript
 - Every test starts with `launchCleanApp()` which deletes app data and relaunches fresh.
 - `waitFor(...).withTimeout(...)` guards are used throughout instead of fixed delays.
 - `dismissAnySystemAlert()` handles OS permission prompts that may appear mid-test.
-- The CI workflow retries the lifecycle suite once on failure to handle simulator/emulator cold-start issues.
+- CI runs each Detox test step through `e2e/scripts/bootRetry.js`. A device boot/launch failure (matched by output signature) is retried up to `E2E_BOOT_ATTEMPTS` times (default 3) with exponential backoff starting at `E2E_BOOT_BACKOFF_MS` (default 15000). Every attempt is appended as a JSON line to `artifacts/boot-trace.jsonl` with its start/end timestamps, label, platform, device, duration and outcome. Test failures that are not boot failures are not retried at this layer; per-test retries are handled by `e2e/setup.ts`.
 - Blockchain-dependent flows use local simulation buttons — no live network calls required in CI.
 
 ## Test data cleanup
