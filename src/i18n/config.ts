@@ -7,12 +7,9 @@ import hi from './locales/hi.json';
 import ar from './locales/ar.json';
 import he from './locales/he.json';
 import fa from './locales/fa.json';
+import { isRTLLanguage, normalizeLocale, RTL_LANGUAGES } from './pipeline';
 
-export const RTL_LANGUAGES = ['ar', 'he', 'fa'];
-
-export const isRTLLanguage = (lang: string): boolean => {
-  return RTL_LANGUAGES.includes(lang);
-};
+export { isRTLLanguage, RTL_LANGUAGES };
 
 const RESOURCES = {
   en: { translation: en },
@@ -25,11 +22,7 @@ const RESOURCES = {
 const LANGUAGE_KEY = '@subtrackr_language';
 
 export const initI18n = async () => {
-  let savedLanguage = await AsyncStorage.getItem(LANGUAGE_KEY);
-
-  if (!savedLanguage) {
-    savedLanguage = 'en';
-  }
+  const savedLanguage = normalizeLocale(await AsyncStorage.getItem(LANGUAGE_KEY));
 
   await i18n.use(initReactI18next).init({
     resources: RESOURCES,
