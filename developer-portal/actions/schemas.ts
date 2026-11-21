@@ -74,6 +74,10 @@ export const createApiKeySchema = z.object({
   name: z.string().min(1, 'Key name is required'),
   type: apiKeyTypeSchema,
   permissions: z.array(apiPermissionSchema).min(1, 'At least one permission is required'),
+  /** Key lifetime; defaults to the tier maximum (see utils/apiKeyScopes.ts). */
+  expiresInDays: z.number().int().min(1).max(365).optional(),
+  /** IPv4 addresses or CIDR ranges allowed to use the key. */
+  ipAllowlist: z.array(z.string().min(1)).max(20).optional(),
 });
 
 export const revokeApiKeySchema = z.object({

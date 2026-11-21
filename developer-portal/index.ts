@@ -9,6 +9,23 @@ export { DeveloperOnboarding } from './components/DeveloperOnboarding';
 export { ApiKeyManager } from './components/ApiKeyManager';
 export { ApiPlayground } from './components/ApiPlayground';
 export {
+  ApiKeyIssuanceService,
+  ApiKeyIssuanceError,
+  apiKeyIssuanceService,
+} from './services/apiKeyIssuanceService';
+export type {
+  IssueApiKeyInput,
+  IssuedApiKey,
+  AuthorizationResult,
+  AuthorizationDenial,
+} from './services/apiKeyIssuanceService';
+export {
+  ALL_SCOPES,
+  TIER_KEY_POLICIES,
+  normalizeScopes,
+  scopeSatisfies,
+} from './utils/apiKeyScopes';
+export {
   PortalApiKeyRotationService,
   portalApiKeyRotationService,
 } from './services/apiKeyRotationService';
