@@ -47,6 +47,7 @@ export async function processNotification(message: unknown): Promise<Decision> {
     matchedRules: decision.matchedRules,
     channels: decision.deliveries.map((d) => d.channel),
     suppressedBy: decision.suppressedBy,
+    deferredUntil: decision.deferredUntil?.toISOString(),
   });
 
   const results = await Promise.all(

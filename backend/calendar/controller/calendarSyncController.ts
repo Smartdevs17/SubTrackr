@@ -116,6 +116,24 @@ export function createCalendarSyncController(deps: {
       }
     },
 
+    createUpcomingBillingEvents(body: {
+      userId: string;
+      subscriptionId: string;
+      billingAt: string;
+      amount: number;
+      currency: string;
+      title?: string;
+    }): ControllerResult<CalendarEvent[]> {
+      try {
+        if (!body.userId || !body.subscriptionId || !body.billingAt || !body.currency) {
+          return { success: false, error: 'Missing required fields', status: 400 };
+        }
+        return { success: true, data: syncService.createUpcomingBillingEvents(body) };
+      } catch (err) {
+        return { success: false, error: (err as Error).message, status: 400 };
+      }
+    },
+
     listEvents(connectionId: string): ControllerResult<CalendarEvent[]> {
       try {
         const events = syncService.listEvents(connectionId);

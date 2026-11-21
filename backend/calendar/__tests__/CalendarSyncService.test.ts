@@ -142,6 +142,20 @@ describe('CalendarSyncService', () => {
       expect(service.listEvents(connectionId)).toHaveLength(0);
       expect(service.getEvent(event.id)!.deleted).toBe(true);
     });
+
+    it('creates upcoming billing events for each enabled user calendar', () => {
+      service.createConnection('user_1', 'ical', 'tok', undefined, 'a@a.com', 'ical', 'to_calendar', ['payment_due']);
+      const events = service.createUpcomingBillingEvents({
+        userId: 'user_1',
+        subscriptionId: 'sub_1',
+        billingAt: '2026-12-01T09:00:00Z',
+        amount: 12,
+        currency: 'USD',
+      });
+      expect(events).toHaveLength(2);
+      expect(events.every((event) => event.eventType === 'payment_due')).toBe(true);
+      expect(events[0].startTime).toBe('2026-12-01T09:00:00.000Z');
+    });
   });
 
   describe('Push Sync (to calendar)', () => {

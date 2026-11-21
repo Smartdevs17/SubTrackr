@@ -139,6 +139,20 @@ describe('PaymentRouter', () => {
       expect(result.gatewayUsed).toBe('stellar');
     });
 
+    it('routes issuer-backed custom assets through Stellar', async () => {
+      const result = await router.charge({
+        amount: 12.5,
+        currency: 'USDC',
+        asset: 'USDC',
+        issuer: 'GISSUER',
+        customerId: 'merchant-custom-stellar',
+        paymentMethodId: 'GDESTINATION',
+        idempotencyKey: 'ik_custom_stellar',
+      });
+
+      expect(result.gatewayUsed).toBe('stellar');
+    });
+
     it('uses metadata chain type when the request field is omitted', async () => {
       const result = await router.charge({
         amount: 25,

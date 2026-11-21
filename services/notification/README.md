@@ -35,6 +35,10 @@ evaluated against the original message:
 - `{ "type": "setPriority", "priority": "high" }`
 - `{ "type": "suppress", "reason": "..." }` delivers nothing and ends evaluation
 
+Notifications may include a per-user `schedule` with an IANA `timezone`, optional
+quiet-hour range, and optional weekday list (`0` = Sunday). Notifications inside
+the quiet period are deferred by the rule engine until the next allowed minute.
+
 ## Delivery and failures
 
 - Each message is validated against `NotificationSchema`. Malformed JSON and

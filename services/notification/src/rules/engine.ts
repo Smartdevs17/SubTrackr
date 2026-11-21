@@ -10,6 +10,8 @@ export interface Decision {
   suppressedBy?: { ruleId: string; reason: string };
   /** Ids of rules whose condition matched, in evaluation order. */
   matchedRules: string[];
+  /** Set when a user schedule defers delivery. */
+  deferredUntil?: Date;
 }
 
 function readPath(source: unknown, path: string): unknown {
@@ -19,6 +21,52 @@ function readPath(source: unknown, path: string): unknown {
     current = (current as Record<string, unknown>)[key];
   }
   return current;
+}
+
+function nextAllowedTime(
+  schedule: NonNullable<Notification['schedule']>,
+  now: Date
+): Date | undefined {
+  if (!schedule.quietHours && !schedule.days) return undefined;
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: schedule.timezone,
+    hour: 'numeric',
+    hour12: false,
+    weekday: 'short',
+  });
+  const parts = Object.fromEntries(
+    formatter.formatToParts(now).map((part) => [part.type, part.value])
+  );
+  const hour = Number(parts.hour);
+  const day = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(parts.weekday);
+  const quiet = schedule.quietHours;
+  const inQuiet =
+    quiet &&
+    (quiet.start === quiet.end ||
+      (quiet.start < quiet.end
+        ? hour >= quiet.start && hour < quiet.end
+        : hour >= quiet.start || hour < quiet.end));
+  if ((!schedule.days || schedule.days.includes(day)) && !inQuiet) return undefined;
+
+  for (let minutes = 1; minutes <= 8 * 24 * 60; minutes += 1) {
+    const candidate = new Date(now.getTime() + minutes * 60_000);
+    const candidateParts = Object.fromEntries(
+      formatter.formatToParts(candidate).map((part) => [part.type, part.value])
+    );
+    const candidateHour = Number(candidateParts.hour);
+    const candidateDay = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(
+      candidateParts.weekday
+    );
+    const candidateQuiet =
+      quiet &&
+      (quiet.start === quiet.end ||
+        (quiet.start < quiet.end
+          ? candidateHour >= quiet.start && candidateHour < quiet.end
+          : candidateHour >= quiet.start || candidateHour < quiet.end));
+    if ((!schedule.days || schedule.days.includes(candidateDay)) && !candidateQuiet)
+      return candidate;
+  }
+  return undefined;
 }
 
 export function evaluateCondition(condition: Condition, notification: Notification): boolean {
@@ -52,7 +100,11 @@ export class RuleEngine {
     return this.rules.length;
   }
 
-  evaluate(notification: Notification): Decision {
+  evaluate(notification: Notification, now = new Date()): Decision {
+    const deferredUntil = notification.schedule
+      ? nextAllowedTime(notification.schedule, now)
+      : undefined;
+    if (deferredUntil) return { deliveries: [], matchedRules: [], deferredUntil };
     let channels: Channel[] = [notification.channel];
     let priority = notification.priority;
     const matchedRules: string[] = [];
@@ -63,7 +115,11 @@ export class RuleEngine {
 
       for (const action of rule.then) {
         if (action.type === 'suppress') {
-          return { deliveries: [], suppressedBy: { ruleId: rule.id, reason: action.reason }, matchedRules };
+          return {
+            deliveries: [],
+            suppressedBy: { ruleId: rule.id, reason: action.reason },
+            matchedRules,
+          };
         }
         if (action.type === 'route') channels = [...new Set(action.channels)];
         if (action.type === 'setPriority') priority = action.priority;

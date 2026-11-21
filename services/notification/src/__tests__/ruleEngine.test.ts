@@ -43,7 +43,12 @@ describe('RuleEngine', () => {
     const engine = new RuleEngine([
       {
         id: 'premium-payment-failure',
-        when: { all: [{ field: 'template', eq: 'payment_failed' }, { field: 'metadata.tier', eq: 'premium' }] },
+        when: {
+          all: [
+            { field: 'template', eq: 'payment_failed' },
+            { field: 'metadata.tier', eq: 'premium' },
+          ],
+        },
         then: [
           { type: 'route', channels: ['email', 'push', 'email'] },
           { type: 'setPriority', priority: 'high' },
@@ -60,8 +65,18 @@ describe('RuleEngine', () => {
 
   it('suppresses and stops evaluating further actions and rules', () => {
     const engine = new RuleEngine([
-      { id: 'route-sms', priority: 0, when: { field: 'channel', eq: 'email' }, then: [{ type: 'route', channels: ['sms'] }] },
-      { id: 'mute-test-users', priority: 10, when: { field: 'recipient', matches: '@example\\.com$' }, then: [{ type: 'suppress', reason: 'test recipient' }] },
+      {
+        id: 'route-sms',
+        priority: 0,
+        when: { field: 'channel', eq: 'email' },
+        then: [{ type: 'route', channels: ['sms'] }],
+      },
+      {
+        id: 'mute-test-users',
+        priority: 10,
+        when: { field: 'recipient', matches: '@example\\.com$' },
+        then: [{ type: 'suppress', reason: 'test recipient' }],
+      },
     ]);
     const decision = engine.evaluate(base);
     expect(decision.deliveries).toEqual([]);
@@ -71,9 +86,23 @@ describe('RuleEngine', () => {
 
   it('orders by priority, keeps file order on ties, honours stop and skips disabled rules', () => {
     const rules: RuleInput[] = [
-      { id: 'a', when: { field: 'channel', eq: 'email' }, then: [{ type: 'route', channels: ['push'] }] },
-      { id: 'b', when: { field: 'channel', eq: 'email' }, then: [{ type: 'route', channels: ['sms'] }] },
-      { id: 'off', priority: 99, enabled: false, when: { field: 'channel', eq: 'email' }, then: [{ type: 'suppress', reason: 'x' }] },
+      {
+        id: 'a',
+        when: { field: 'channel', eq: 'email' },
+        then: [{ type: 'route', channels: ['push'] }],
+      },
+      {
+        id: 'b',
+        when: { field: 'channel', eq: 'email' },
+        then: [{ type: 'route', channels: ['sms'] }],
+      },
+      {
+        id: 'off',
+        priority: 99,
+        enabled: false,
+        when: { field: 'channel', eq: 'email' },
+        then: [{ type: 'suppress', reason: 'x' }],
+      },
     ];
     expect(new RuleEngine(rules).evaluate(base).deliveries.map((d) => d.channel)).toEqual(['sms']);
     expect(new RuleEngine(rules).evaluate(base).matchedRules).toEqual(['a', 'b']);
@@ -85,15 +114,37 @@ describe('RuleEngine', () => {
 
   it('matches conditions against the original notification, not the rewritten one', () => {
     const engine = new RuleEngine([
-      { id: 'to-sms', when: { field: 'channel', eq: 'email' }, then: [{ type: 'route', channels: ['sms'] }] },
-      { id: 'sms-only', when: { field: 'channel', eq: 'sms' }, then: [{ type: 'suppress', reason: 'no' }] },
+      {
+        id: 'to-sms',
+        when: { field: 'channel', eq: 'email' },
+        then: [{ type: 'route', channels: ['sms'] }],
+      },
+      {
+        id: 'sms-only',
+        when: { field: 'channel', eq: 'sms' },
+        then: [{ type: 'suppress', reason: 'no' }],
+      },
     ]);
     expect(engine.evaluate(base).deliveries.map((d) => d.channel)).toEqual(['sms']);
+  });
+
+  it('defers delivery during a user quiet period', () => {
+    const notification = {
+      ...base,
+      schedule: { timezone: 'UTC', quietHours: { start: 22, end: 7 } },
+    };
+    const decision = new RuleEngine().evaluate(notification, new Date('2026-11-21T23:00:00Z'));
+    expect(decision.deliveries).toEqual([]);
+    expect(decision.deferredUntil).toBeInstanceOf(Date);
   });
 });
 
 describe('rule validation', () => {
-  const valid = { id: 'r', when: { field: 'channel', eq: 'email' }, then: [{ type: 'suppress', reason: 'r' }] };
+  const valid = {
+    id: 'r',
+    when: { field: 'channel', eq: 'email' },
+    then: [{ type: 'suppress', reason: 'r' }],
+  };
 
   it.each([
     ['unknown channel', { ...valid, then: [{ type: 'route', channels: ['fax'] }] }],

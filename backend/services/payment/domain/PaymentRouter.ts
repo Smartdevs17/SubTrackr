@@ -121,6 +121,9 @@ export class PaymentRouter implements IPaymentRouter {
     if (normalizedCurrency(request.currency) === 'XLM') {
       return 'stellar';
     }
+    if (request.issuer) {
+      return 'stellar';
+    }
     return 'fiat';
   }
 

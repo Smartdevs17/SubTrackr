@@ -397,6 +397,10 @@ export function createApiServer(options: CreateApiServerOptions = {}): Express {
   calRouter.get('/subscriptions/:subId/events', (req: Request, res: Response) => {
     res.json(calendarController.listEventsBySubscription(req.params.subId));
   });
+  calRouter.post('/billing-events', (req: Request, res: Response) => {
+    const result = calendarController.createUpcomingBillingEvents(req.body);
+    res.status(result.success ? 201 : (result.status ?? 400)).json(result);
+  });
 
   // Sync operations
   calRouter.post('/connections/:id/sync/push', (req: Request, res: Response) => {
