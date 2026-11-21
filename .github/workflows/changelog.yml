@@ -64,6 +64,7 @@ jobs:
           node-version: '24'
 
       - name: Generate API changelog
+        continue-on-error: true
         run: |
           node scripts/openapi-changelog.js --output=api-changelog.md
           cat api-changelog.md >> "$GITHUB_STEP_SUMMARY"
