@@ -33,6 +33,13 @@ pip install pytest httpx
 pytest tests/ -v
 ```
 
+### Billing dashboard and savings
+
+`POST /v1/churn/forecast` returns `{ model_version, forecast }` for the billing
+dashboard. `POST /v1/savings/suggestions` accepts `{ accounts: [...] }` and
+returns deterministic suggestions for accounts spending more than 110% of
+their cohort mean.
+
 ## Typed Python inference client
 
 `inference_client.py` provides a dependency-free synchronous client for churn
