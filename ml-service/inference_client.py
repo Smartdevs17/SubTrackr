@@ -164,7 +164,8 @@ class InferenceClient:
             correlation_id,
         )
         try:
-            return tuple(RevenueForecast(**row) for row in data)
+            rows = data.get("forecast", data) if isinstance(data, dict) else data
+            return tuple(RevenueForecast(**row) for row in rows)
         except (TypeError, ValueError) as exc:
             raise InferenceTransportError(f"Invalid forecast response: {exc}") from exc
 

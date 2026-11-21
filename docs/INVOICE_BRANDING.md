@@ -96,6 +96,10 @@ legacy `INV-<year>-<random>` number rather than failing the invoice.
 
 ## Rendering
 
+The mobile branding editor persists the selected profile and PDF template in
+the invoice store. The background preview worker reads that same state, so a
+preview and a generated invoice use the same template selection.
+
 ```ts
 const rendered = InvoiceCustomizationService.renderInvoice(invoice);
 rendered.html;   // self-contained document for the PDF pipeline

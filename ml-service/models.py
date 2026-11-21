@@ -115,12 +115,20 @@ class RevenueForecastModel:
         )
         deviation = math.sqrt(variance)
 
+        last_period = str(observations[-1].get("period", "")) if observations else ""
+        try:
+            year, month = (int(part) for part in last_period.split("-")[:2])
+        except (TypeError, ValueError):
+            year, month = 2000, 1
+
         forecast = []
         for step in range(1, horizon + 1):
             expected = max(0, latest + average_delta * step)
             confidence = deviation * math.sqrt(step) * 1.96
+            absolute_month = month - 1 + step
+            period = f"{year + absolute_month // 12:04d}-{absolute_month % 12 + 1:02d}"
             forecast.append({
-                "period": f"forecast_{step}",
+                "period": period,
                 "expected_revenue": round(expected, 2),
                 "lower_bound": round(max(0, expected - confidence), 2),
                 "upper_bound": round(expected + confidence, 2),

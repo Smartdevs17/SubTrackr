@@ -15,7 +15,8 @@ import type { InvoiceBranding } from '../types/invoice';
 
 export default function InvoiceBrandingScreen({ navigation }: any) {
   const { theme } = useTheme();
-  const { branding, isLoading, loadBranding, saveBranding } = useInvoiceStore();
+  const { config, templates, isLoading, setInvoiceBranding, setDefaultTemplate } =
+    useInvoiceStore();
 
   const [formData, setFormData] = useState({
     companyName: '',
@@ -25,25 +26,23 @@ export default function InvoiceBrandingScreen({ navigation }: any) {
     accentColor: '#10B981',
     fontFamily: 'Arial, sans-serif',
     logoPosition: 'left' as 'left' | 'center' | 'right',
+    templateId: '',
   });
 
   useEffect(() => {
-    loadBranding();
-  }, []);
-
-  useEffect(() => {
-    if (branding) {
+    if (config.defaultBranding) {
       setFormData({
-        companyName: branding.companyName,
-        companyLogo: branding.companyLogo || '',
-        primaryColor: branding.primaryColor,
-        secondaryColor: branding.secondaryColor,
-        accentColor: branding.accentColor || '#10B981',
-        fontFamily: branding.fontFamily || 'Arial, sans-serif',
-        logoPosition: branding.logoPosition || 'left',
+        companyName: config.defaultBranding.companyName || '',
+        companyLogo: config.defaultBranding.companyLogo || config.defaultBranding.logoUrl || '',
+        primaryColor: config.defaultBranding.primaryColor || '#4F46E5',
+        secondaryColor: config.defaultBranding.secondaryColor || '#6B7280',
+        accentColor: config.defaultBranding.accentColor || '#10B981',
+        fontFamily: config.defaultBranding.fontFamily || 'Arial, sans-serif',
+        logoPosition: config.defaultBranding.logoPosition || 'left',
+        templateId: config.defaultTemplateId || templates[0]?.id || '',
       });
     }
-  }, [branding]);
+  }, [config.defaultBranding, config.defaultTemplateId, templates]);
 
   const handleSave = async () => {
     if (!formData.companyName.trim()) {
@@ -52,7 +51,17 @@ export default function InvoiceBrandingScreen({ navigation }: any) {
     }
 
     try {
-      await saveBranding(formData);
+      setInvoiceBranding({
+        companyName: formData.companyName.trim(),
+        logoUrl: formData.companyLogo.trim() || undefined,
+        companyLogo: formData.companyLogo.trim() || undefined,
+        primaryColor: formData.primaryColor,
+        secondaryColor: formData.secondaryColor,
+        accentColor: formData.accentColor,
+        fontFamily: formData.fontFamily,
+        logoPosition: formData.logoPosition,
+      });
+      if (formData.templateId) setDefaultTemplate(formData.templateId);
       Alert.alert('Success', 'Branding saved successfully');
       navigation.goBack();
     } catch (error) {
@@ -69,7 +78,7 @@ export default function InvoiceBrandingScreen({ navigation }: any) {
     { name: 'Orange', primary: '#F97316', secondary: '#6B7280' },
   ];
 
-  if (isLoading && !branding) {
+  if (isLoading) {
     return (
       <View style={[styles.centerContainer, { backgroundColor: theme.colors.background }]}>
         <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -210,6 +219,31 @@ export default function InvoiceBrandingScreen({ navigation }: any) {
           placeholder="Arial, sans-serif"
           placeholderTextColor={theme.colors.textSecondary}
         />
+
+        <Text style={[styles.label, { color: theme.colors.text }]}>PDF Template</Text>
+        <View style={styles.radioGroup}>
+          {templates.map((template) => (
+            <TouchableOpacity
+              key={template.id}
+              style={[
+                styles.radioButton,
+                { backgroundColor: theme.colors.card },
+                formData.templateId === template.id && { backgroundColor: theme.colors.primary },
+              ]}
+              onPress={() => setFormData({ ...formData, templateId: template.id })}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: formData.templateId === template.id }}>
+              <Text
+                style={[
+                  styles.radioButtonText,
+                  { color: theme.colors.text },
+                  formData.templateId === template.id && { color: '#FFFFFF' },
+                ]}>
+                {template.name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
       </View>
 
       <View style={styles.buttonContainer}>

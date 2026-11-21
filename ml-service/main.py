@@ -22,6 +22,9 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from models import ChurnPredictionModel, RevenueForecastModel
+from model_registry import registry
+from forecast import build_dashboard_forecast
+from savings import suggest_savings
 from auth import EXEMPT_PATHS, TOKEN_HEADER, is_authorized, load_tokens
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -192,6 +195,16 @@ class ForecastRequest(BaseModel):
     horizon: int = Field(3, ge=1, le=24, description="Number of periods to forecast")
 
 
+class SavingsAccount(BaseModel):
+    account_id: str
+    cohort: str = "default"
+    monthly_spend: float = Field(..., ge=0)
+
+
+class SavingsRequest(BaseModel):
+    accounts: List[SavingsAccount] = Field(..., min_length=1, max_length=500)
+
+
 class InterventionRequest(BaseModel):
     subscribers: List[str] = Field(
         ..., min_length=1, max_length=500, description="Subscriber IDs to evaluate"
@@ -274,11 +287,16 @@ async def forecast_revenue(req: ForecastRequest) -> Dict[str, Any]:
     logger.info("forecast_revenue", horizon=req.horizon, observations=len(req.observations))
     try:
         observations = [obs.model_dump() for obs in req.observations]
-        forecast = forecast_model.forecast(observations, req.horizon)
-        return forecast
+        return build_dashboard_forecast(observations, req.horizon)
     except Exception as e:
         logger.error("forecast_revenue_failed", error=str(e))
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/v1/savings/suggestions")
+async def savings_suggestions(req: SavingsRequest) -> Dict[str, Any]:
+    logger.info("savings_suggestions", accounts=len(req.accounts))
+    return {"suggestions": suggest_savings([account.model_dump() for account in req.accounts])}
 
 
 @app.post("/v1/models/retrain")
