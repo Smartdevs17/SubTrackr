@@ -1,0 +1,28 @@
+# PgBouncer configuration for SubTrackr backend workers and read replicas.
+# Generated from infra/pgbouncer/presets.json — do not hand-edit the sizing values.
+# Regenerate with: node infra/pgbouncer/render.js --preset __PGBOUNCER_PRESET__
+#
+# Preset: __PGBOUNCER_PRESET__ (__PGBOUNCER_PRESET_LABEL__)
+# Worker profile: __WORKER_CONCURRENCY__ concurrent jobs, __WORKER_POOL_MAX__ client pool connections
+# Server budget: __DEFAULT_POOL_SIZE__ pool + __RESERVE_POOL_SIZE__ reserve connections
+# Pool mode: transaction. Do not use session-level features (LISTEN/NOTIFY,
+# session SET, advisory locks, WITH HOLD cursors) through this endpoint.
+
+[databases]
+* = host=__PGBOUNCER_DB_HOST__ port=5432 dbname=subtrackr
+
+[pgbouncer]
+listen_addr = 0.0.0.0
+listen_port = 6432
+auth_type = md5
+auth_file = /etc/pgbouncer/userlist.txt
+pool_mode = transaction
+default_pool_size = __DEFAULT_POOL_SIZE__
+min_pool_size = __MIN_POOL_SIZE__
+reserve_pool_size = __RESERVE_POOL_SIZE__
+reserve_pool_timeout = __RESERVE_POOL_TIMEOUT__
+max_client_conn = __MAX_CLIENT_CONN__
+max_prepared_statements = __MAX_PREPARED_STATEMENTS__
+server_reset_query = DISCARD ALL
+server_reset_query_always = 1
+ignore_startup_parameters = extra_float_digits

@@ -1,5 +1,7 @@
 import {
   DEFAULT_DATABASE_CONFIG,
+  type DatabaseConfigHooks,
+  type PgBouncerSizingEvent,
   loadDatabaseConfig,
   replicaPoolConfig,
 } from '../database';
@@ -142,5 +144,97 @@ describe('pool tuning configuration (issue #1797)', () => {
     expect(loadDatabaseConfig({ DB_POOL_METRICS_ENABLED: 'false' }).poolTuning.metricsEnabled).toBe(false);
     expect(loadDatabaseConfig({ DB_POOL_METRICS_ENABLED: 'true' }).poolTuning.metricsEnabled).toBe(true);
     expect(loadDatabaseConfig({ DB_POOL_METRICS_ENABLED: undefined }).poolTuning.metricsEnabled).toBe(true);
+  });
+});
+
+// ── PgBouncer worker sizing presets (issue #2076) ───────────────────────────
+
+describe('PgBouncer worker sizing presets (issue #2076)', () => {
+  let warnSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    warnSpy.mockRestore();
+  });
+
+  it('defaults to the standard worker preset', () => {
+    const resolved: unknown[] = [];
+    const hooks: DatabaseConfigHooks = {
+      onPgBouncerSizingResolved: (sizing) => resolved.push(sizing),
+    };
+    const config = loadDatabaseConfig({}, hooks);
+
+    expect(config.pgbouncer.name).toBe('standard');
+    expect(config.pgbouncer.poolMode).toBe('transaction');
+    expect(config.pgbouncer.workerConcurrency).toBe(10);
+    expect(config.pgbouncer.defaultPoolSize).toBe(25);
+    expect(config.primary.max).toBe(20);
+    expect(config.replicaPoolSize).toBe(25);
+    expect(resolved).toEqual([config.pgbouncer]);
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it('applies a selected preset to both worker and replica pool caps', () => {
+    const config = loadDatabaseConfig({ PGBOUNCER_PRESET: 'small' });
+
+    expect(config.pgbouncer.name).toBe('small');
+    expect(config.pgbouncer.workerPoolMax).toBe(8);
+    expect(config.primary.max).toBe(8);
+    expect(config.replicaPoolSize).toBe(10);
+    expect(config.pgbouncer.serverConnectionBudget).toBe(12);
+  });
+
+  it('lets DB_POOL_MAX and DB_REPLICA_POOL_SIZE override preset defaults', () => {
+    const config = loadDatabaseConfig({
+      PGBOUNCER_PRESET: 'batch',
+      DB_POOL_MAX: '48',
+      DB_REPLICA_POOL_SIZE: '72',
+    });
+
+    expect(config.pgbouncer.name).toBe('batch');
+    expect(config.pgbouncer.poolSizeOverridden).toBe(true);
+    expect(config.primary.max).toBe(48);
+    expect(config.replicaPoolSize).toBe(72);
+    expect(config.pgbouncer.serverConnectionBudget).toBe(87);
+  });
+
+  it('warns and falls back for an unknown preset', () => {
+    const events: PgBouncerSizingEvent[] = [];
+    const config = loadDatabaseConfig(
+      { PGBOUNCER_PRESET: 'turbo' },
+      { onPgBouncerSizingEvent: (event) => events.push(event) },
+    );
+
+    expect(config.pgbouncer.name).toBe('standard');
+    expect(config.pgbouncer.fallbackUsed).toBe(true);
+    expect(events).toEqual([
+      expect.objectContaining({
+        code: 'UNKNOWN_PRESET',
+        requestedPreset: 'turbo',
+        resolvedPreset: 'standard',
+      }),
+    ]);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Unknown PgBouncer preset "turbo"'));
+  });
+
+  it('warns and uses the preset pool size for an invalid override', () => {
+    const events: PgBouncerSizingEvent[] = [];
+    const config = loadDatabaseConfig(
+      { PGBOUNCER_PRESET: 'large', DB_REPLICA_POOL_SIZE: '0' },
+      { onPgBouncerSizingEvent: (event) => events.push(event) },
+    );
+
+    expect(config.pgbouncer.name).toBe('large');
+    expect(config.replicaPoolSize).toBe(40);
+    expect(events).toEqual([
+      expect.objectContaining({
+        code: 'INVALID_REPLICA_POOL_SIZE',
+        resolvedPreset: 'large',
+      }),
+    ]);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Invalid DB_REPLICA_POOL_SIZE: 0'));
   });
 });

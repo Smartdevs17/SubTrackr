@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "defaultPreset": "standard",
+  "poolMode": "transaction",
+  "presets": {
+    "small": {
+      "label": "Low-volume backend workers",
+      "workerConcurrency": 4,
+      "workerPoolMax": 8,
+      "defaultPoolSize": 10,
+      "minPoolSize": 2,
+      "reservePoolSize": 2,
+      "reservePoolTimeout": 3,
+      "maxClientConn": 100,
+      "maxPreparedStatements": 200
+    },
+    "standard": {
+      "label": "Default backend workers",
+      "workerConcurrency": 10,
+      "workerPoolMax": 20,
+      "defaultPoolSize": 25,
+      "minPoolSize": 5,
+      "reservePoolSize": 5,
+      "reservePoolTimeout": 3,
+      "maxClientConn": 200,
+      "maxPreparedStatements": 500
+    },
+    "large": {
+      "label": "High-throughput backend workers",
+      "workerConcurrency": 20,
+      "workerPoolMax": 40,
+      "defaultPoolSize": 40,
+      "minPoolSize": 10,
+      "reservePoolSize": 10,
+      "reservePoolTimeout": 2,
+      "maxClientConn": 400,
+      "maxPreparedStatements": 1000
+    },
+    "batch": {
+      "label": "Bursty batch backend workers",
+      "workerConcurrency": 32,
+      "workerPoolMax": 60,
+      "defaultPoolSize": 60,
+      "minPoolSize": 10,
+      "reservePoolSize": 15,
+      "reservePoolTimeout": 2,
+      "maxClientConn": 600,
+      "maxPreparedStatements": 1500
+    }
+  }
+}
