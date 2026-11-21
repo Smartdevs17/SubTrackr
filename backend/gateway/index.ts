@@ -16,7 +16,7 @@
 
 import express from 'express';
 import type { Application, Request, Response, NextFunction } from 'express';
-import { compressionMiddleware } from '../shared/middleware/compression';
+import { compressionMiddleware } from '../src/middleware/compression';
 import { streamingMiddleware } from '../shared/middleware/streaming';
 import { idempotencyMiddleware } from '../services/idempotencyMiddleware';
 import { API_VERSION_HEADER, API_VERSION_VALUE } from '../services/shared/apiResponse';
