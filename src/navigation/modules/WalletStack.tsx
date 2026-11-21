@@ -1,9 +1,9 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { lazyScreen } from '../../utils/lazyLoading';
-import { RootStackParamList } from '../types';
+import { WalletStackParamList } from '../types';
 
-const Stack = createNativeStackNavigator<RootStackParamList>();
+const Stack = createNativeStackNavigator<WalletStackParamList>();
 
 const WalletConnectScreen = lazyScreen(() => import('../../screens/WalletConnectV2Screen'));
 const CryptoPaymentScreen = lazyScreen(() => import('../../screens/CryptoPaymentScreen'));

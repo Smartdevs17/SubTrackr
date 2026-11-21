@@ -1,9 +1,9 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { lazyScreen } from '../../utils/lazyLoading';
-import { RootStackParamList } from '../types';
+import { SettingsStackParamList } from '../types';
 
-const Stack = createNativeStackNavigator<RootStackParamList>();
+const Stack = createNativeStackNavigator<SettingsStackParamList>();
 
 // SettingsScreen has no default export, so the named one is mapped onto the
 // shape `lazyScreen` expects.
@@ -54,6 +54,8 @@ export const SettingsStack = () => (
       name="DeliveryStatus"
       component={DeliveryStatusScreen}
       options={{ title: 'Delivery Status', headerShown: true }}
+    />
+    <Stack.Screen
       name="NotificationInbox"
       component={NotificationInboxScreen}
       options={{ title: 'Notification Inbox', headerShown: true }}

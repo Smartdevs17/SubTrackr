@@ -1,9 +1,9 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { lazyScreen } from '../../utils/lazyLoading';
-import { RootStackParamList } from '../types';
+import { SocialStackParamList } from '../types';
 
-const Stack = createNativeStackNavigator<RootStackParamList>();
+const Stack = createNativeStackNavigator<SocialStackParamList>();
 
 const CommunityScreen = lazyScreen(() => import('../../screens/CommunityScreen'));
 const ProfileScreen = lazyScreen(() => import('../../screens/ProfileScreen'));
