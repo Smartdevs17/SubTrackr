@@ -148,6 +148,32 @@ export class CalendarSyncService {
     return event;
   }
 
+  /** Create the upcoming billing reminder for every enabled user calendar. */
+  createUpcomingBillingEvents(input: {
+    userId: string;
+    subscriptionId: string;
+    billingAt: string;
+    amount: number;
+    currency: string;
+    title?: string;
+  }): CalendarEvent[] {
+    const start = new Date(input.billingAt);
+    if (Number.isNaN(start.getTime())) throw new Error('billingAt must be a valid date');
+    const end = new Date(start.getTime() + 30 * 60 * 1000).toISOString();
+    const title = input.title ?? `Subscription payment due: ${input.amount} ${input.currency}`;
+    return this.listConnections(input.userId)
+      .filter((connection) => connection.enabledEventTypes.includes('payment_due'))
+      .map((connection) => this.createEvent(
+        connection.id,
+        input.subscriptionId,
+        'payment_due',
+        title,
+        `Upcoming billing event for ${input.subscriptionId}`,
+        start.toISOString(),
+        end,
+      ));
+  }
+
   getEvent(eventId: string): CalendarEvent | undefined {
     return this.events.get(eventId);
   }
