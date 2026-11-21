@@ -12,7 +12,14 @@ import {
 } from '../types/developer';
 import { sandboxService } from '../../sandbox/services/sandboxService';
 
-export class DeveloperPortalService {
+/**
+ * Developer lifecycle service — registration, onboarding, API keys, usage
+ * tracking, and dashboard.
+ *
+ * Renamed from DeveloperPortalService to resolve the name collision with
+ * the portal dashboard service in portalService.ts (issue #2061).
+ */
+export class DeveloperLifecycleService {
   private developers: Map<string, Developer> = new Map();
   private documentation: Map<string, Documentation> = new Map();
   private integrationGuides: Map<string, IntegrationGuide> = new Map();
@@ -464,4 +471,4 @@ export class DeveloperPortalService {
   }
 }
 
-export const developerPortalService = new DeveloperPortalService();
+export const developerPortalService = new DeveloperLifecycleService();

@@ -24,7 +24,7 @@ jest.mock(
 );
 
 import { DocumentationService } from '../services/documentationService';
-import { DeveloperPortalService } from '../services/developerPortalService';
+import { DeveloperLifecycleService } from '../services/developerPortalService';
 import openApiSpec from '../docs/openapi.json';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -156,11 +156,11 @@ describe('DocumentationService', () => {
 // DeveloperPortalService
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('DeveloperPortalService', () => {
-  let svc: DeveloperPortalService;
+describe('DeveloperLifecycleService', () => {
+  let svc: DeveloperLifecycleService;
 
   beforeEach(() => {
-    svc = new DeveloperPortalService();
+    svc = new DeveloperLifecycleService();
   });
 
   // ── Developer registration ─────────────────────────────────────────────────
