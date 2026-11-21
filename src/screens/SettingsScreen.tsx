@@ -4,6 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { useTheme } from '../context/ThemeContext';
+import { useNotificationCenterStore } from '../store/notificationCenterStore';
 
 type SettingsNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -14,6 +15,7 @@ export const SettingsScreen = () => {
   const [emailEnabled, setEmailEnabled] = useState(false);
   const [smsEnabled, setSmsEnabled] = useState(false);
   const [quietHoursEnabled, setQuietHoursEnabled] = useState(false);
+  const inboxUnread = useNotificationCenterStore((s) => s.getUnreadCount());
 
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -54,6 +56,26 @@ export const SettingsScreen = () => {
         <Text style={styles.sectionTitle}>Notifications</Text>
         <TouchableOpacity
           style={styles.linkRow}
+          testID="notification-inbox-link"
+          accessibilityRole="button"
+          accessibilityLabel={
+            inboxUnread > 0
+              ? `Open notification inbox, ${inboxUnread} unread`
+              : 'Open notification inbox'
+          }
+          onPress={() => navigation.navigate('NotificationInbox')}>
+          <View style={styles.modeTextWrap}>
+            <Text style={styles.rowLabel}>
+              Notification Inbox{inboxUnread > 0 ? ` (${inboxUnread} unread)` : ''}
+            </Text>
+            <Text style={styles.modeSubLabel}>
+              Read, re-open and dismiss notifications delivered on any channel
+            </Text>
+          </View>
+          <Text style={styles.chevron}>›</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.linkRow}
           testID="notification-preferences-link"
           accessibilityRole="button"
           accessibilityLabel="Open notification preferences"
@@ -62,6 +84,24 @@ export const SettingsScreen = () => {
             <Text style={styles.rowLabel}>Notification Preferences</Text>
             <Text style={styles.modeSubLabel}>
               Categories, channels, digest schedule, and quiet hours
+            </Text>
+          </View>
+          <Text style={styles.chevron}>›</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Delivery Status</Text>
+        <TouchableOpacity
+          style={styles.linkRow}
+          testID="delivery-status-link"
+          accessibilityRole="button"
+          accessibilityLabel="Open delivery status"
+          onPress={() => navigation.navigate('DeliveryStatus')}>
+          <View style={styles.modeTextWrap}>
+            <Text style={styles.rowLabel}>Delivery Status</Text>
+            <Text style={styles.modeSubLabel}>
+              Whether each notification was delivered, and any errors
             </Text>
           </View>
           <Text style={styles.chevron}>›</Text>
@@ -129,6 +169,12 @@ export const SettingsScreen = () => {
           testID="consent-management-link"
           onPress={() => navigation.navigate('ConsentManagement')}>
           <Text style={styles.linkButtonText}>Consent Preferences</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.linkButton}
+          testID="sms-consent-link"
+          onPress={() => navigation.navigate('SmsConsent')}>
+          <Text style={styles.linkButtonText}>SMS Consent</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.linkButton}

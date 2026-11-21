@@ -71,7 +71,7 @@ import type {
   PayoutResult,
   RefundRequest,
   RefundResult,
-} from '../../interfaces';
+} from '@subtrackr/billing-types';
 
 const logger = createLoggerFor('payment.paddle');
 

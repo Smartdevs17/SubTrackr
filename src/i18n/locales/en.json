@@ -77,5 +77,24 @@
     "privacy_policy_hint": "Opens privacy policy in browser",
     "terms_of_service": "Terms of Service",
     "terms_of_service_hint": "Opens terms of service in browser"
+  },
+  "status": {
+    "banner_title": "Service status",
+    "operational": "All systems operational",
+    "degraded": "Some services are slower than usual",
+    "outage": "We are experiencing a service outage",
+    "affected": "Affected: {{provider}}",
+    "updated": "Updated {{date}}",
+    "retry": "Try again",
+    "dismiss": "Dismiss"
+  },
+  "renewal": {
+    "title": "Auto-renewal check",
+    "checking": "Checking your renewal…",
+    "safe": "Your subscription will renew as scheduled",
+    "risky": "We recommend reviewing your payment method",
+    "deferred": "Renewal moved to {{date}}",
+    "count_one": "{{count}} renewal due",
+    "count_other": "{{count}} renewals due"
   }
 }

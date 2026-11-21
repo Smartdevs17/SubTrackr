@@ -23,10 +23,19 @@ export function roundMoney(amount: number, decimals = 2): number {
 }
 
 export interface LineTotalSource {
+  kind?: string;
   lineTotal?: number;
   amount?: number;
   unitPrice?: number;
   quantity?: number;
+}
+
+/**
+ * A discount line item is itemised rather than folded into the subtotal. Any
+ * other `kind` (including `undefined` and legacy records) is a chargeable line.
+ */
+export function isDiscountLineItem(item: { kind?: string }): boolean {
+  return item.kind === 'discount';
 }
 
 /**
@@ -66,6 +75,11 @@ export interface InvoiceTotals {
  * Computes invoice totals with every component rounded to minor units and a
  * non-negative payable amount.
  *
+ * Discount line items (those with `kind: 'discount'`) are kept out of the
+ * subtotal and summed into `discount` instead, so an itemised discount is
+ * subtracted exactly once. A legacy scalar `discount` is added to whatever the
+ * discount lines contribute.
+ *
  * The clamp matters: a discount larger than the subtotal otherwise produces a
  * negative tax base and a negative total, which downstream code then treats as
  * a credit owed to the customer rather than an over-discounted invoice.
@@ -73,16 +87,29 @@ export interface InvoiceTotals {
 export function calculateInvoiceTotals(input: InvoiceTotalsInput): InvoiceTotals {
   const decimals = input.currencyDecimals ?? 2;
 
-  const hasLineItems = (input.lineItems?.length ?? 0) > 0;
-  const rawSubtotal = hasLineItems
-    ? (input.lineItems ?? []).reduce((sum, item) => sum + resolveLineTotal(item), 0)
-    : (input.amount ?? 0);
+  const lineItems = input.lineItems ?? [];
+  const chargeItems = lineItems.filter((item) => !isDiscountLineItem(item));
+  const discountItems = lineItems.filter((item) => isDiscountLineItem(item));
+
+  // A discount-only invoice has nothing to charge; fall back to the flat
+  // amount if the caller supplied one rather than reporting a zero subtotal.
+  const rawSubtotal =
+    chargeItems.length > 0
+      ? chargeItems.reduce((sum, item) => sum + resolveLineTotal(item), 0)
+      : (input.amount ?? 0);
 
   const subtotal = roundMoney(rawSubtotal, decimals);
   const tax = roundMoney(input.tax ?? 0, decimals);
 
+  // Discount lines carry a positive magnitude (or a negative one); either way
+  // they reduce the amount payable.
+  const lineDiscount = roundMoney(
+    discountItems.reduce((sum, item) => sum + Math.abs(resolveLineTotal(item)), 0),
+    decimals
+  );
+
   // A discount may not exceed what is being discounted.
-  const requestedDiscount = roundMoney(input.discount ?? 0, decimals);
+  const requestedDiscount = roundMoney((input.discount ?? 0) + lineDiscount, decimals);
   const discount = roundMoney(Math.min(Math.max(requestedDiscount, 0), subtotal), decimals);
 
   const total = roundMoney(Math.max(subtotal + tax - discount, 0), decimals);

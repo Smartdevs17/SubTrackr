@@ -42,6 +42,20 @@ export { BasePaymentGateway } from './domain/gateways/PaymentGateway';
 export { GatewayConfigController, gatewayConfigController } from './controller/gatewayConfigController';
 export type { IPaymentGateway, IPaymentRouter, PaymentRequest, PaymentResult, RefundRequest, RefundResult, CustomerResult, PaymentMethodResult, PayoutRequest, PayoutResult, GatewayConfig } from './interfaces';
 export { PaymentError, PaymentErrorCode } from './errors';
+// ── Cross-account payment splitting (Issue #1720) ────────────────────────────
+export { PaymentSplitService, validateSplits, splitAmount } from './domain/PaymentSplitService';
+export type {
+  PaymentSplitEntry,
+  SplitPaymentRequest,
+  SplitEntryResult,
+  SplitPaymentResult,
+} from './domain/PaymentSplitService';
+export {
+  PaymentSplitController,
+  paymentSplitController,
+  defaultSplitService,
+} from './controller/paymentSplitController';
+export { createPaymentSplitRouter } from './router/paymentSplitRouter';
 export {
   upsertFallbackChain,
   getFallbackChain,
@@ -66,3 +80,37 @@ export type {
   GatewayName,
   FallbackStatus,
 } from './domain/fallbackChainService';
+
+// ── Payment intents (Issues #1716, #1717, #1719) ─────────────────────────────
+export {
+  PaymentIntentService,
+  paymentIntentService,
+} from './domain/paymentIntentService';
+export type {
+  PaymentIntent,
+  PaymentIntentStatus,
+  PaymentIntentRepository,
+} from './domain/PaymentIntent';
+export { InMemoryPaymentIntentRepository } from './domain/PaymentIntent';
+export {
+  AssetPolicyService,
+  assetPolicyService,
+} from './domain/AssetPolicyService';
+export type {
+  AssetPolicyRule,
+  AssetPolicyChain,
+  AssetPolicyMode,
+} from './domain/AssetPolicyService';
+export { AssetNotAllowedError } from './domain/AssetPolicyService';
+export {
+  PaymentExpiryService,
+  paymentExpiryService,
+  cancelSubscriptionOnExpiry,
+} from './domain/paymentExpiryService';
+export { FinalityService, finalityService } from './domain/finalityService';
+export {
+  PaymentExpirySweeper,
+  startPaymentExpirySweeper,
+} from './jobs/paymentExpirySweeper';
+export { createPaymentRouter } from './router/paymentIntentRouter';
+export { createAssetPolicyRouter } from './router/assetPolicyRouter';

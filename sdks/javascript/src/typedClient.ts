@@ -31,7 +31,7 @@ import {
   BillingInterval,
   SubscriptionStatus,
 } from './types';
-import { ApiError, AuthenticationError, SubTrackrError } from './errors';
+import { ApiError, AuthenticationError, SubTrackrError, apiErrorFromBody } from './errors';
 import { AuthManager } from './auth';
 import {
   withRetry,
@@ -317,12 +317,7 @@ export class TypedSubTrackrClient {
 
         if (!response.ok) {
           const errBody = await response.json().catch(() => ({}));
-          const envelope = errBody as Partial<ApiErrorEnvelope>;
-          throw new ApiError(
-            envelope?.error?.message ?? response.statusText,
-            response.status,
-            envelope?.error?.code
-          );
+          throw apiErrorFromBody(errBody, response.status, response.statusText);
         }
 
         const text = await response.text();
@@ -350,8 +345,7 @@ export class TypedSubTrackrClient {
 
         const envelope = json as ApiEnvelope<T>;
         if (!envelope.success) {
-          const errEnv = envelope as ApiErrorEnvelope;
-          throw new ApiError(errEnv.error.message, response.status, errEnv.error.code);
+          throw apiErrorFromBody(envelope, response.status, response.statusText);
         }
 
         return envelope as ApiSuccessEnvelope<T>;

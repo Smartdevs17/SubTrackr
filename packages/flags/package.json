@@ -1,0 +1,9 @@
+{
+  "name": "@subtrackr/flags",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Feature-flag evaluation shared by the SubTrackr mobile app and backend",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts"
+}

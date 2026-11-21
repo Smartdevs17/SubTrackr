@@ -50,7 +50,7 @@ export class KmsProvider implements IKmsProvider {
 
     const [ciphertextB64, authTagB64] = encrypted.ciphertext.split(':');
     const iv = randomBytes(16);
-    const decipher = createDecipheriv('aes-256-gcm', key.id.padEnd(32, '0').slice(0, 32), iv);
+    const decipher = createDecipheriv('aes-256-gcm', key.id.padEnd(32, '0').slice(0, 32), iv, { authTagLength: 16 });
     decipher.setAuthTag(Buffer.from(authTagB64, 'base64'));
     return Buffer.concat([decipher.update(Buffer.from(ciphertextB64, 'base64')), decipher.final()]);
   }

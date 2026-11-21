@@ -11,11 +11,15 @@ import {
 import { MeterUsageBreakdown } from '../types/usage';
 import { formatCurrency, formatDate } from './formatting';
 import { ProrationPreview, buildProrationLineItem } from './proration';
+import { isDiscountLineItem } from './invoiceTotals';
 
 /** Limits keep invoice metadata useful while preventing oversized persisted/PDF payloads. */
 export const MAX_LINE_ITEM_METADATA_ENTRIES = 50;
 export const MAX_LINE_ITEM_METADATA_KEY_LENGTH = 100;
 export const MAX_LINE_ITEM_METADATA_VALUE_LENGTH = 500;
+
+/** Default description used when a scalar discount is itemised onto an invoice. */
+export const DISCOUNT_LINE_ITEM_DESCRIPTION = 'Discount';
 
 export const validateInvoiceLineItemMetadata = (
   metadata: unknown,
@@ -124,12 +128,19 @@ export const calculateInvoiceTotals = (
     return { subtotal: 0, tax: 0, total: 0 };
   }
 
-  const subtotal = roundMoney(lineItems.reduce((sum, item) => sum + resolveLineTotal(item), 0));
+  const chargeItems = lineItems.filter((item) => !isDiscountLineItem(item));
+  const discountItems = lineItems.filter((item) => isDiscountLineItem(item));
+
+  const subtotal = roundMoney(chargeItems.reduce((sum, item) => sum + resolveLineTotal(item), 0));
+  const discount = roundMoney(
+    discountItems.reduce((sum, item) => sum + Math.abs(resolveLineTotal(item)), 0)
+  );
+  const appliedDiscount = Math.min(discount, subtotal);
   const tax = calculateInvoiceTax(subtotal, taxRateBps);
   return {
     subtotal,
     tax,
-    total: roundMoney(subtotal + tax),
+    total: roundMoney(Math.max(subtotal + tax - appliedDiscount, 0)),
   };
 };
 
@@ -172,6 +183,7 @@ export const buildInvoiceLineItem = (
   );
 
   return {
+    kind: 'item',
     description: subscription.name,
     quantity: 1,
     unitPrice,
@@ -179,6 +191,38 @@ export const buildInvoiceLineItem = (
     exchangeRate,
     taxRateBps,
     lineTotal: unitPrice,
+  };
+};
+
+/**
+ * Builds an explicit discount line item for an invoice.
+ *
+ * A discount is modelled as a first-class line (rather than only a scalar
+ * `discountAmount`) so it shows up on the rendered invoice. It is deliberately
+ * separate from coupons/promotions, which are applied at checkout and are not
+ * part of the invoice model.
+ *
+ * The amount is stored as a positive magnitude; totals subtract it.
+ */
+export const buildDiscountLineItem = (params: {
+  amount: number;
+  id?: string;
+  description?: string;
+  currency?: string;
+  exchangeRate?: number;
+}): InvoiceLineItem => {
+  const magnitude = Math.abs(params.amount);
+  return {
+    ...(params.id ? { id: params.id } : {}),
+    kind: 'discount',
+    description: params.description ?? DISCOUNT_LINE_ITEM_DESCRIPTION,
+    quantity: 1,
+    unitPrice: magnitude,
+    currency: params.currency ?? DEFAULT_INVOICE_CONFIG.defaultCurrency,
+    exchangeRate: params.exchangeRate ?? DEFAULT_INVOICE_CONFIG.exchangeRateScale,
+    taxRateBps: 0,
+    lineTotal: magnitude,
+    amount: magnitude,
   };
 };
 
@@ -339,13 +383,22 @@ export const generateInvoicePdfPreview = (invoice: Invoice): string => {
     `Period: ${formatDate(invoice.period.start)} - ${formatDate(invoice.period.end)}`,
     `Due: ${formatDate(invoice.dueDate)}`,
     `Subtotal: ${formatCurrency(invoice.subtotal, invoice.currency)}`,
+    ...(invoice.discountAmount
+      ? [`Discount: -${formatCurrency(invoice.discountAmount, invoice.currency)}`]
+      : []),
     `Tax: ${formatCurrency(invoice.tax, invoice.currency)}`,
     `Total: ${formatCurrency(invoice.total, invoice.currency)}`,
     'Items:',
-    ...invoice.lineItems.flatMap((item) => [
-      `${item.description} x${item.quantity} @ ${formatCurrency(item.unitPrice, item.currency)}`,
-      ...Object.entries(item.metadata ?? {}).map(([key, value]) => `  ${key}: ${value}`),
-    ]),
+    ...invoice.lineItems.flatMap((item) => {
+      const total = resolveLineTotal(item);
+      const amount = isDiscountLineItem(item)
+        ? `-${formatCurrency(Math.abs(total), item.currency)}`
+        : formatCurrency(total, item.currency);
+      return [
+        `${item.description} x${item.quantity} @ ${formatCurrency(item.unitPrice, item.currency)} = ${amount}`,
+        ...Object.entries(item.metadata ?? {}).map(([key, value]) => `  ${key}: ${value}`),
+      ];
+    }),
   ];
 
   return lines.join('\n');
@@ -406,21 +459,27 @@ export const buildProratedInvoice = (
 /** Generates clean, printable HTML representation of an invoice with print styles (issue #1277). */
 export const generatePrintableInvoiceHtml = (invoice: Invoice): string => {
   const lineItemsHtml = invoice.lineItems
-    .map(
-      (item) => `
+    .map((item) => {
+      const isDiscount = isDiscountLineItem(item);
+      const amount = formatCurrency(Math.abs(resolveLineTotal(item)), item.currency);
+      const signedAmount = isDiscount ? `-${amount}` : amount;
+      const signedUnitPrice = isDiscount
+        ? `-${formatCurrency(Math.abs(item.unitPrice), item.currency)}`
+        : formatCurrency(item.unitPrice, item.currency);
+      return `
       <tr>
         <td style="padding: 10px; border-bottom: 1px solid #e5e7eb;">${item.description}</td>
         <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: center;">${item.quantity}</td>
-        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">${formatCurrency(item.unitPrice, item.currency)}</td>
-        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">${formatCurrency(item.lineTotal ?? item.amount ?? 0, item.currency)}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">${signedUnitPrice}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right; color: ${isDiscount ? '#047857' : 'inherit'};">${signedAmount}</td>
       </tr>
       ${Object.entries(item.metadata ?? {})
         .map(
           ([key, value]) =>
             `<tr><td colspan="4" style="padding: 0 10px 8px; color: #6b7280; font-size: 12px;"><strong>${escapeHtml(key)}:</strong> ${escapeHtml(value)}</td></tr>`
         )
-        .join('')}`
-    )
+        .join('')}`;
+    })
     .join('');
 
   return `<!DOCTYPE html>
@@ -491,6 +550,7 @@ export const generatePrintableInvoiceHtml = (invoice: Invoice): string => {
     </table>
     <div class="totals">
       <div class="totals-row"><span>Subtotal:</span><span>${formatCurrency(invoice.subtotal, invoice.currency)}</span></div>
+      ${invoice.discountAmount ? `<div class="totals-row"><span>Discount:</span><span>-${formatCurrency(invoice.discountAmount, invoice.currency)}</span></div>` : ''}
       <div class="totals-row"><span>Tax:</span><span>${formatCurrency(invoice.tax, invoice.currency)}</span></div>
       <div class="totals-row grand"><span>Total Due:</span><span>${formatCurrency(invoice.total, invoice.currency)}</span></div>
     </div>

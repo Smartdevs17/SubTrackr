@@ -6,6 +6,7 @@
  */
 
 import type { InvoiceData, GeneratedInvoice } from "./InvoiceGenerator";
+import { formatTaxLabel } from "./InvoiceGenerator";
 import { formatDate, formatMoney } from './formatting';
 
 export interface EmailConfig {
@@ -87,7 +88,7 @@ export class InvoiceEmailService {
             <table style="width:100%;margin-bottom:16px;">
               <tr><td style="text-align:right;padding:4px 0;">Subtotal:</td><td style="text-align:right;padding:4px 0;width:120px;">${fmt(invoice.subtotal)}</td></tr>
               ${invoice.discount > 0 ? `<tr><td style="text-align:right;padding:4px 0;">Discount:</td><td style="text-align:right;padding:4px 0;">-${fmt(invoice.discount)}</td></tr>` : ""}
-              ${invoice.taxAmount > 0 ? `<tr><td style="text-align:right;padding:4px 0;">Tax (${(invoice.taxRate * 100).toFixed(1)}%):</td><td style="text-align:right;padding:4px 0;">${fmt(invoice.taxAmount)}</td></tr>` : ""}
+              ${invoice.taxAmount > 0 ? `<tr><td style="text-align:right;padding:4px 0;">Tax (${formatTaxLabel(invoice)}):</td><td style="text-align:right;padding:4px 0;">${fmt(invoice.taxAmount)}</td></tr>` : ""}
               <tr style="font-size:18px;font-weight:700;"><td style="text-align:right;padding:8px 0;border-top:2px solid #4F46E5;">Total:</td><td style="text-align:right;padding:8px 0;border-top:2px solid #4F46E5;">${fmt(invoice.total)}</td></tr>
             </table>
             ${invoice.notes ? `<p style="color:#6B7280;font-size:13px;">${this.escapeHtml(invoice.notes)}</p>` : ""}
@@ -115,7 +116,7 @@ export class InvoiceEmailService {
       `Subtotal: ${formatMoney(invoice.subtotal, invoice.currency, invoice.locale)}`,
     ];
     if (invoice.discount > 0) lines.push(`Discount: -${formatMoney(invoice.discount, invoice.currency, invoice.locale)}`);
-    if (invoice.taxAmount > 0) lines.push(`Tax: ${formatMoney(invoice.taxAmount, invoice.currency, invoice.locale)}`);
+    if (invoice.taxAmount > 0) lines.push(`Tax (${formatTaxLabel(invoice)}): ${formatMoney(invoice.taxAmount, invoice.currency, invoice.locale)}`);
     lines.push(`Total: ${formatMoney(invoice.total, invoice.currency, invoice.locale)}`, "", "PDF invoice attached.", `Payment due by ${formatDate(invoice.dueDate, invoice.locale)}.`);
     return lines.join("\n");
   }

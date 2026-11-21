@@ -23,6 +23,7 @@ import type {
   ResolvedInvoiceBranding,
 } from '../../../src/types/invoice';
 import { useInvoiceStore } from '../../../src/store/invoiceStore';
+import { isDiscountLineItem } from '../../../src/utils/invoiceTotals';
 
 /** Applied wherever a tenant has not supplied its own value. */
 export const FALLBACK_BRANDING: Required<
@@ -141,7 +142,8 @@ function renderLineItems(items: InvoiceLineItem[], currency: string, branding: I
   }
   return items
     .map((item) => {
-      const amount = formatMoney(Number(item.lineTotal ?? 0), currency);
+      const isDiscount = isDiscountLineItem(item);
+      const amount = `${isDiscount ? '-' : ''}${formatMoney(Math.abs(Number(item.lineTotal ?? 0)), currency)}`;
       const quantity = item.quantity ?? 1;
       const metadata = Object.entries(item.metadata ?? {})
         .map(([key, value]) => `<div class="line-metadata"><strong>${escapeHtml(key)}:</strong> ${escapeHtml(value)}</div>`)
@@ -150,7 +152,7 @@ function renderLineItems(items: InvoiceLineItem[], currency: string, branding: I
         '<tr>',
         `<td>${escapeHtml(item.description ?? 'Item')}${metadata}</td>`,
         `<td class="num">${escapeHtml(quantity)}</td>`,
-        `<td class="num" style="color:${branding.textColor}">${escapeHtml(amount)}</td>`,
+        `<td class="num" style="color:${isDiscount ? '#047857' : branding.textColor}">${escapeHtml(amount)}</td>`,
         '</tr>',
       ].join('');
     })
@@ -246,6 +248,9 @@ export class InvoiceCustomizationService {
       `<tbody>${renderLineItems(invoice.lineItems ?? [], currency, branding)}</tbody>`,
       '<tfoot>',
       `<tr><td colspan="2" class="num">Subtotal</td><td class="num">${escapeHtml(formatMoney(invoice.subtotal, currency))}</td></tr>`,
+      invoice.discountAmount
+        ? `<tr><td colspan="2" class="num">Discount</td><td class="num" style="color:#047857">-${escapeHtml(formatMoney(invoice.discountAmount, currency))}</td></tr>`
+        : '',
       `<tr><td colspan="2" class="num">Tax</td><td class="num">${escapeHtml(formatMoney(invoice.tax, currency))}</td></tr>`,
       `<tr><td colspan="2" class="num total">Total</td><td class="num total">${escapeHtml(formatMoney(invoice.total, currency))}</td></tr>`,
       '</tfoot></table>',
@@ -260,12 +265,16 @@ export class InvoiceCustomizationService {
       `Period: ${formatDate(invoice.period.start)} - ${formatDate(invoice.period.end)}`,
       `Due: ${formatDate(invoice.dueDate)}`,
       '',
-      ...(invoice.lineItems ?? []).map(
-        (item) =>
-          `- ${item.description ?? 'Item'} x${item.quantity ?? 1}: ${formatMoney(Number(item.lineTotal ?? 0), currency)}`
-      ),
+      ...(invoice.lineItems ?? []).map((item) => {
+        const isDiscount = isDiscountLineItem(item);
+        const amount = formatMoney(Math.abs(Number(item.lineTotal ?? 0)), currency);
+        return `- ${item.description ?? 'Item'} x${item.quantity ?? 1}: ${isDiscount ? '-' : ''}${amount}`;
+      }),
       '',
       `Subtotal: ${formatMoney(invoice.subtotal, currency)}`,
+      ...(invoice.discountAmount
+        ? [`Discount: -${formatMoney(invoice.discountAmount, currency)}`]
+        : []),
       `Tax: ${formatMoney(invoice.tax, currency)}`,
       `Total: ${formatMoney(invoice.total, currency)}`,
       branding.footerText ? `\n${branding.footerText}` : '',

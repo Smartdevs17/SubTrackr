@@ -251,6 +251,7 @@ ${c.bold('Global options:')}
   --base-url <url>     Override stored base URL for this invocation
   --format json        Output raw JSON instead of formatted tables
   --no-color           Disable ANSI colour output
+  --no-summary         Hide the end-of-run task summary (written to stderr)
   --version            Print CLI version
   --help, -h           Show this help
 
@@ -942,7 +943,70 @@ async function dispatchAuth(subArgs) {
   }
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
+// ── Task summary ──────────────────────────────────────────────────────────────
+// Each command dispatched from main() runs as a task. When the process exits, a
+// plain-text summary (task name, PASS/FAIL, elapsed time) is written to stderr,
+// so stdout stays clean for --format json. Failing commands already exit with
+// code 1 via process.exit(1), so exit codes for successful runs are unchanged.
+
+const RUN_START = process.hrtime.bigint();
+const tasks = [];
+let summaryEnabled = true;
+
+function elapsedMs(since) {
+  return Number(process.hrtime.bigint() - since) / 1e6;
+}
+
+function formatSeconds(ms) {
+  return `${(ms / 1000).toFixed(2)}s`;
+}
+
+async function runTask(name, fn) {
+  const task = { name, status: 'running', start: process.hrtime.bigint(), ms: 0 };
+  tasks.push(task);
+  try {
+    await fn();
+    task.status = 'pass';
+  } catch (err) {
+    task.status = 'fail';
+    throw err;
+  } finally {
+    task.ms = elapsedMs(task.start);
+  }
+}
+
+function printTaskSummary() {
+  if (!summaryEnabled || tasks.length === 0) return;
+
+  // A task still "running" at exit ended through process.exit(1) inside its
+  // handler, so it counts as failed.
+  const rows = tasks.map((t) => ({
+    name: t.name,
+    failed: t.status !== 'pass',
+    ms: t.status === 'running' ? elapsedMs(t.start) : t.ms,
+  }));
+  const failedCount = rows.filter((r) => r.failed).length;
+  const width = Math.max(...rows.map((r) => r.name.length));
+
+  const lines = ['', 'Task summary'];
+  for (const r of rows) {
+    lines.push(`  ${r.failed ? 'FAIL' : 'PASS'}  ${r.name.padEnd(width)}  ${formatSeconds(r.ms)}`);
+  }
+  const total = formatSeconds(elapsedMs(RUN_START));
+  lines.push(
+    failedCount
+      ? `${failedCount} of ${rows.length} task(s) failed in ${total}`
+      : `All ${rows.length} task(s) passed in ${total}`
+  );
+
+  try {
+    fs.writeSync(2, lines.join('\n') + '\n');
+  } catch (_) {
+    // stderr unavailable (e.g. closed pipe): the summary is best-effort.
+  }
+}
+
+// ── Main──────────────────────────────────────────────────────────────────────
 
 async function main() {
   const argv = process.argv.slice(2);
@@ -960,6 +1024,11 @@ async function main() {
   Object.assign(subArgs.options, args.options);
   Object.assign(subArgs.flags, args.flags);
 
+  // Task summary: printed to stderr when the process exits
+  summaryEnabled = !args.flags['no-summary'];
+  process.on('exit', printTaskSummary);
+  const taskName = [command, subArgs._[0]].filter(Boolean).join(' ');
+
   // Resolve config (stored + env overrides)
   const cfg = resolveConfig(args);
 
@@ -970,20 +1039,20 @@ async function main() {
 
   switch (command) {
     case 'auth':
-      return dispatchAuth(subArgs);
+      return runTask(taskName, () => dispatchAuth(subArgs));
 
     case 'subscriptions':
     case 'sub':
     case 'subs':
-      return dispatchSubscriptions(subArgs, cfg);
+      return runTask(taskName, () => dispatchSubscriptions(subArgs, cfg));
 
     case 'plans':
     case 'plan':
-      return dispatchPlans(subArgs, cfg);
+      return runTask(taskName, () => dispatchPlans(subArgs, cfg));
 
     case 'webhooks':
     case 'webhook':
-      return dispatchWebhooks(subArgs, cfg);
+      return runTask(taskName, () => dispatchWebhooks(subArgs, cfg));
 
     default:
       fail(`Unknown command: ${command}`);

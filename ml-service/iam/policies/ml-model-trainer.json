@@ -1,0 +1,25 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadWriteRegistryAndOnnxModels",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject"],
+      "Resource": [
+        "${bucket_arn}/models/registry/*",
+        "${bucket_arn}/models/onnx/*"
+      ]
+    },
+    {
+      "Sid": "ListModelPrefixes",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "${bucket_arn}",
+      "Condition": {
+        "StringLike": {
+          "s3:prefix": ["models/registry/*", "models/onnx/*"]
+        }
+      }
+    }
+  ]
+}

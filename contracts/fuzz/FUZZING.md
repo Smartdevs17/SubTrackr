@@ -74,12 +74,65 @@ When a crash is found:
 4. **Add regression test**: Copy the minimized input to
    `.github/corpus/<target>/` so the corpus cache prevents regression.
 
+## Configurable Iterations
+
+Fuzz runs can be driven by **time** or by **iteration count**:
+
+```bash
+# Time-based (default): run each target for N seconds
+cargo fuzz run subscription_lifecycle -- -max_total_time=1800
+
+# Iteration-based: run exactly N inputs
+cargo fuzz run subscription_lifecycle -- -runs=100000
+```
+
+In CI (`.github/workflows/fuzz-test.yml`), the `workflow_dispatch` trigger
+exposes both:
+
+- `fuzz_seconds` — seconds per target (time-based; default `1800`).
+- `fuzz_runs` — iteration count per target (`-runs=N`). When set, it
+  overrides `fuzz_seconds` so a run can be bounded by input count.
+
+## Regression Replay (failures reproducible)
+
+Crash artifacts found by `cargo-fuzz` are promoted into deterministic
+`cargo test` cases via the **regression replay harness** at
+`contracts/subscription/tests/fuzz_regressions.rs`. This runs on the
+**stable** toolchain — no nightly/libfuzzer required.
+
+### Triage → permanent regression guard
+
+1. `contracts/fuzz/scripts/triage-crash.sh <target> <crash-file>` copies a
+   crash into `contracts/subscription/tests/regressions/<target>_<sha>.bin`.
+2. `cargo test --test fuzz_regressions` replays every `.bin` in that
+   directory. A previously-crashing input that still crashes fails the
+   test, so a fixed bug can never silently regress.
+
+### Seeded in-process fuzz smoke
+
+The harness also runs a deterministic, seeded in-process fuzzer whose
+iteration count is configurable via `FUZZ_REGRESSION_ITERATIONS`
+(default `64`):
+
+```bash
+# default 64 iterations
+cargo test --manifest-path contracts/subscription/Cargo.toml --test fuzz_regressions
+
+# heavier smoke
+FUZZ_REGRESSION_ITERATIONS=1024 cargo test --test fuzz_regressions -- --nocapture
+```
+
+This gives a fast, reproducible fuzz smoke that runs in CI on every PR
+(see the `regression-replay` job).
+
 ## CI Pipeline
 
 The workflow in `.github/workflows/fuzz-test.yml`:
 
-- Runs all 4 targets **in parallel** via a build matrix
-- Each target runs for **30 minutes** with AddressSanitizer
+- Runs the coverage-guided targets **in parallel** via a build matrix
+  (nightly + AddressSanitizer), bounded by `fuzz_seconds` or `fuzz_runs`
+- Runs a **stable-toolchain regression-replay** job that replays all
+  crash artifacts and the seeded fuzz smoke on every PR
 - Crash artifacts are uploaded and kept for 14 days
 - Seed corpus is cached between runs for coverage continuity
 - Runs on every push/PR touching contracts and weekly on Monday

@@ -23,6 +23,12 @@ export interface Subscription {
   totalGasSpent?: number;
   chargeCount?: number;
   lastGasCost?: number;
+  fiatPrice?: number;
+  fiatCurrency?: string;
+  fiatPriceUpdatedAt?: Date;
+  oraclePriceDeviationBps?: number;
+  groupId?: string;
+  groupMemberAddress?: string;
   /** Preferred day of month for billing (1-31), used for cycle alignment */
   billingDayOfMonth?: number;
   timezone?: string;
@@ -79,8 +85,8 @@ export interface SubscriptionPlan {
   price: number;
   currency: string;
   billingCycle: BillingCycle;
-  features: import('./feature').FeatureId[]; // Feature IDs included in this plan
-  limits: Record<string, number>; // Feature limits (e.g., { 'max_subscriptions': 10 })
+  features: import('./feature').FeatureId[];
+  limits: Record;
   isPopular?: boolean;
   description: string;
 }
@@ -105,6 +111,46 @@ export interface SubscriptionStats {
   totalActive: number;
   totalMonthlySpend: number;
   totalYearlySpend: number;
-  categoryBreakdown: Record<SubscriptionCategory, number>;
+  categoryBreakdown: Record;
   totalGasSpent?: number;
+}
+
+// ── Lifecycle history ─────────────────────────────────────────────────────────
+
+export type SubscriptionLifecycleEventType =
+  | 'created'
+  | 'updated'
+  | 'price_changed'
+  | 'plan_changed'
+  | 'activated'
+  | 'paused'
+  | 'resumed'
+  | 'cancelled';
+
+/** A single timestamped state transition in a subscription's lifecycle. */
+export interface SubscriptionLifecycleEvent {
+  id: string;
+  subscriptionId: string;
+  type: SubscriptionLifecycleEventType;
+  occurredAt: Date;
+  /** Optional human-readable context, e.g. "9.99 USD → 12.99 USD". */
+  details?: string;
+}
+
+export interface CustomCategory {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+  isDefault: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type CategoryValue = SubscriptionCategory | string;
+
+export interface CustomCategoryFormData {
+  name: string;
+  icon: string;
+  color: string;
 }

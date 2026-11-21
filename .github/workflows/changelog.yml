@@ -39,7 +39,7 @@ jobs:
 
       - name: Upload changelog preview
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: changelog-preview
           path: CHANGELOG.md
@@ -55,9 +55,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Node.js
+      - name: Setup pnpm
         uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: '24'
 
@@ -69,7 +70,7 @@ jobs:
 
       - name: Upload API changelog
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: api-changelog
           path: api-changelog.md

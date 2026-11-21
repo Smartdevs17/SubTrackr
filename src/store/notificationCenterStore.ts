@@ -20,6 +20,7 @@
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { dayKeyInTimeZone } from '../../shared/time';
 import { asyncStorageAdapter } from '../utils/storage';
 import {
   NOTIFICATION_TYPE_META,
@@ -128,20 +129,7 @@ export function toInboxEntry(record: NotificationRecord): InboxEntry {
 export function dayKeyFor(instant: string | Date, timezone: string): string {
   const date = typeof instant === 'string' ? new Date(instant) : instant;
   if (Number.isNaN(date.getTime())) return 'unknown';
-
-  try {
-    const parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone: timezone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).formatToParts(date);
-    const get = (type: string): string => parts.find((part) => part.type === type)?.value ?? '';
-    return `${get('year')}-${get('month')}-${get('day')}`;
-  } catch {
-    // An invalid IANA zone must not break the feed; fall back to UTC.
-    return date.toISOString().slice(0, 10);
-  }
+  return dayKeyInTimeZone(date, timezone);
 }
 
 /** "Today" / "Yesterday" / an absolute date, in the subscriber's timezone. */

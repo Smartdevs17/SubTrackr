@@ -293,6 +293,8 @@ export interface CRDTSyncRequest {
   operations: CRDTOperation[];
   /** Local CRDT state for entities that have pending operations. */
   entityStates: EntityCRDTState[];
+  /** `cursor` from the previous sync response; omit on first sync. */
+  since?: number;
 }
 
 /**
@@ -307,4 +309,6 @@ export interface CRDTSyncResponse {
   conflicts: CRDTConflict[];
   /** ISO timestamp of the sync. */
   syncedAt: string;
+  /** Position in the server's sync log; send it back as `since` next time. */
+  cursor?: number;
 }

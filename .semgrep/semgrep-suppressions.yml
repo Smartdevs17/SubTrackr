@@ -34,3 +34,26 @@ accepted_suppressions:
       legitimate delivery as a duplicate.
     reviewed_by: security review of PR #1703
     expires: 2027-04-16
+
+  # backend/services/shared/poolMonitor.ts — SET statement_timeout
+  # PostgreSQL SET commands do not support parameterized values; the timeout
+  # is an integer-cast config field, not user input.
+  - rule_id: semgrep.subtrackr.sql.unparameterized-query
+    path: backend/services/shared/poolMonitor.ts
+    reason: >-
+      SET statement_timeout requires a numeric literal; parameterised queries
+      are unsupported for SET commands. Value is explicitly cast to a safe
+      integer from a validated config field (queryTimeoutMs), not user input.
+    reviewed_by: security fix in PR #1842
+    expires: 2027-10-19
+
+  # backend/shared/db/connectionPool.ts — SET statement_timeout
+  # Same as poolMonitor.ts above.
+  - rule_id: semgrep.subtrackr.sql.unparameterized-query
+    path: backend/shared/db/connectionPool.ts
+    reason: >-
+      SET statement_timeout requires a numeric literal; parameterised queries
+      are unsupported for SET commands. Value is explicitly cast to a safe
+      integer from a validated config field (statementTimeout), not user input.
+    reviewed_by: security fix in PR #1842
+    expires: 2027-10-19

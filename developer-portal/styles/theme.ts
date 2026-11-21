@@ -48,3 +48,34 @@ export const portalTheme = {
 };
 
 export type PortalTheme = typeof portalTheme;
+
+export type ThemeColors = typeof portalTheme.colors;
+
+/**
+ * Dark-mode color tokens for the docs dark-mode preview (issue #2110).
+ * Same keys as portalTheme.colors. Text tokens target WCAG AA (4.5:1) or better
+ * against `background` and `surface`.
+ */
+export const portalDarkColors: ThemeColors = {
+  primary: '#60A5FA',
+  primaryDark: '#3B82F6',
+  primaryLight: '#1E3A8A',
+  success: '#4ADE80',
+  successLight: '#052E16',
+  warning: '#FBBF24',
+  warningLight: '#451A03',
+  error: '#F87171',
+  errorLight: '#450A0A',
+  background: '#0F172A',
+  surface: '#1E293B',
+  text: '#F1F5F9',
+  textSecondary: '#CBD5E1',
+  textMuted: '#94A3B8',
+  border: '#334155',
+  borderLight: '#1E293B',
+};
+
+/** Returns the color tokens for a theme mode. */
+export function getThemeColors(mode: 'light' | 'dark'): ThemeColors {
+  return mode === 'dark' ? portalDarkColors : portalTheme.colors;
+}

@@ -1,6 +1,38 @@
 name: SDK Auto-Generation
 
-on: workflow_dispatch
+# Runs whenever the OpenAPI spec, its generator inputs, or committed SDK output change.
+# Regeneration happens in CI and the PR fails if committed output differs from it.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'spec/openapi.yaml'
+      - 'developer-portal/docs/openapi.json'
+      - 'backend/services/shared/schemas.ts'
+      - 'scripts/generate-openapi.ts'
+      - 'scripts/generate-sdks.js'
+      - 'scripts/sdk-generate.sh'
+      - 'sdks/**'
+      - '.github/workflows/sdk-generate.yml'
+  pull_request:
+    paths:
+      - 'spec/openapi.yaml'
+      - 'developer-portal/docs/openapi.json'
+      - 'backend/services/shared/schemas.ts'
+      - 'scripts/generate-openapi.ts'
+      - 'scripts/generate-sdks.js'
+      - 'scripts/sdk-generate.sh'
+      - 'sdks/**'
+      - '.github/workflows/sdk-generate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sdk-generate-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   validate-spec:
@@ -18,18 +50,25 @@ jobs:
           old-spec-file: docs/openapi.yaml
 
   generate-sdks:
+    name: Regenerate ${{ matrix.language }} SDK
     needs: validate-spec
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         language: [javascript, python, go]
+    env:
+      SDK_GEN_OUT: ${{ runner.temp }}/sdk-gen
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: 'pnpm'
+      # openapi-generator runs on the JVM
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
       - uses: actions/setup-python@v7
         with:
           python-version: '3.11'
@@ -38,28 +77,30 @@ jobs:
         with:
           go-version: '1.22'
         if: matrix.language == 'go'
-      - name: Generate ${{ matrix.language }} SDK
-        run: bash scripts/sdk-generate.sh ${{ matrix.language }}
-      - name: Check for changes
-        id: diff
+      - name: Regenerate and verify ${{ matrix.language }} SDK matches committed output
+        run: bash scripts/sdk-generate.sh ${{ matrix.language }} --check
+      - name: Upload regenerated output when drift is found
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdk-${{ matrix.language }}-regenerated
+          path: ${{ runner.temp }}/sdk-gen/${{ matrix.language }}
+          if-no-files-found: ignore
+
+  endpoints-index:
+    name: Verify sdks/generated/endpoints.json
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Regenerate endpoints index
+        run: node scripts/generate-sdks.js
+      - name: Fail if endpoints index is stale
         run: |
-          if [ -n "$(git status --porcelain sdks/${{ matrix.language }}/)" ]; then
-            echo "changed=true" >> $GITHUB_OUTPUT
-          else
-            echo "changed=false" >> $GITHUB_OUTPUT
+          if [ -n "$(git status --porcelain -- sdks/generated)" ]; then
+            echo "sdks/generated is out of date. Run: node scripts/generate-sdks.js" >&2
+            git --no-pager diff -- sdks/generated >&2
+            exit 1
           fi
-      - name: Create PR for SDK changes
-        if: steps.diff.outputs.changed == 'true' && github.event_name == 'push'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          BRANCH="sdk-auto/${{ matrix.language }}-$(date +%s)"
-          git checkout -b "$BRANCH"
-          git add sdks/${{ matrix.language }}/
-          git commit -m "chore(sdk): auto-generate ${{ matrix.language }} SDK from OpenAPI spec"
-          git push origin "$BRANCH"
-          gh pr create \
-            --base main \
-            --title "chore(sdk): auto-generate ${{ matrix.language }} SDK" \
-            --body "Auto-generated ${{ matrix.language }} SDK from OpenAPI spec changes in \`spec/openapi.yaml\`." \
-            --label automated

@@ -11,10 +11,14 @@
  *   GET    /user/:userId      — get reminders for a user
  *   GET    /upcoming          — get reminders firing within N days
  *   POST   /process           — run the full reminder sweep (cron endpoint)
+ *   GET    /config            — get the reminder lead-time configuration
+ *   PUT    /config            — update the reminder lead-time configuration
  */
 
 import type {
   RenewalReminderScheduler,
+  ReminderLeadTime,
+  ReminderSchedulerConfig,
   SubscriptionForReminder,
   ScheduleRenewalsResult,
   ReminderRecord,
@@ -136,6 +140,32 @@ export function createRenewalReminderController(deps: {
       const now = body.now ? new Date(body.now) : new Date();
       const result = scheduler.processReminders(body.subscriptions, now);
       return { success: true, data: result };
+    },
+
+    /**
+     * GET /reminders/config
+     * Returns the configurable reminder intervals (and other scheduler options).
+     */
+    getConfig(): ControllerResult<ReminderSchedulerConfig> {
+      return { success: true, data: scheduler.getConfig() };
+    },
+
+    /**
+     * PUT /reminders/config
+     * Body: Partial<ReminderSchedulerConfig>
+     * Updates the reminder intervals at runtime, e.g. `{ leadTimes: [...] }`.
+     */
+    updateConfig(body: Partial<ReminderSchedulerConfig>): ControllerResult<ReminderSchedulerConfig> {
+      try {
+        const config = scheduler.configure(body ?? {});
+        return { success: true, data: config };
+      } catch (err) {
+        return {
+          success: false,
+          error: err instanceof Error ? err.message : 'Invalid reminder configuration',
+          status: 400,
+        };
+      }
     },
   };
 }

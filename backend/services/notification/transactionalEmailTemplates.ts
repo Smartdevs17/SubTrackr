@@ -31,6 +31,7 @@ import { substituteVariables } from './emailTemplateEngine';
 export type TransactionalTemplateId =
   | 'receipt_payment_succeeded'
   | 'invoice_due'
+  | 'invoice_overdue'
   | 'payment_method_updated'
   | 'refund_issued'
   | 'subscription_renewed'
@@ -147,6 +148,46 @@ export const TRANSACTIONAL_TEMPLATES: Record<TransactionalTemplateId, Transactio
       'Hi {{subscriber_name}},',
       'Invoice for {{subscription_name}} is due on {{due_date}}.',
       'Amount payable: {{currency}} {{amount}}',
+      'Pay now: {{invoice_url}}',
+    ],
+    ['This is an automated message from {{merchant_name}}.', 'Questions? {{support_email}}']
+  ),
+
+  invoice_overdue: define(
+    'invoice_overdue',
+    'Invoice Overdue',
+    'invoice.overdue',
+    '{{escalation_label}}: invoice {{invoice_number}} is {{overdue_phrase}} overdue',
+    [
+      'merchant_name',
+      'invoice_number',
+      'subscription_name',
+      'amount',
+      'currency',
+      'due_date',
+      'overdue_phrase',
+      'invoice_url',
+      'escalation_label',
+    ],
+    [
+      PRESET_COMPONENTS.brandedHeader(),
+      PRESET_COMPONENTS.spacer(16),
+      PRESET_COMPONENTS.greeting(),
+      PRESET_COMPONENTS.spacer(8),
+      PRESET_COMPONENTS.body(
+        'Invoice {{invoice_number}} for {{subscription_name}} was due on {{due_date}} and is now {{overdue_phrase}} overdue. Amount outstanding: {{currency}} {{amount}}.'
+      ),
+      PRESET_COMPONENTS.body('Please settle the balance to avoid late fees or interruption of service.'),
+      PRESET_COMPONENTS.spacer(16),
+      PRESET_COMPONENTS.ctaButton('Pay Invoice', '{{invoice_url}}'),
+      PRESET_COMPONENTS.divider(),
+      SUPPORT_FOOTER,
+    ],
+    [
+      'Hi {{subscriber_name}},',
+      'Invoice {{invoice_number}} for {{subscription_name}} was due on {{due_date}}.',
+      'It is now {{overdue_phrase}} overdue.',
+      'Amount outstanding: {{currency}} {{amount}}',
       'Pay now: {{invoice_url}}',
     ],
     ['This is an automated message from {{merchant_name}}.', 'Questions? {{support_email}}']

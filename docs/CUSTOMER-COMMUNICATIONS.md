@@ -9,10 +9,10 @@ voice renewal reminders and two-way SMS.
 | [#1254](https://github.com/mbo223/SubTrackr/issues/1254) | Transactional email templates | `backend/services/notification/transactionalEmailTemplates.ts` |
 | [#1255](https://github.com/mbo223/SubTrackr/issues/1255) | Voice call reminders for renewals | `backend/services/notification/voiceProvider.ts`, `voiceReminderService.ts` |
 | [#1256](https://github.com/mbo223/SubTrackr/issues/1256) | SMS two-way responses | `backend/services/notification/smsInboundHandler.ts` |
+| [#1737](https://github.com/Smartdevs17/SubTrackr/issues/1737) | Overdue invoice reminders | `backend/services/notification/overdueInvoiceReminderService.ts` |
 
-All four sit on top of the existing `EmailTemplateEngine` and Twilio-based
-`smsProvider`, share one preference service, and are exported from
-`backend/services/notification/index.ts`.
+All five sit on top of the existing `EmailTemplateEngine` and Twilio-based
+`smsProvider`, and are exported from `backend/services/notification/index.ts`.
 
 ---
 
@@ -82,12 +82,13 @@ ships for tests and local dev; the Postgres shape lives in
 
 ## #1254 Transactional email templates
 
-Seven system-generated templates, all on the `transactional` layout:
+Eight system-generated templates, all on the `transactional` layout:
 
 | Template id | Trigger |
 | ----------- | ------- |
 | `receipt_payment_succeeded` | `payment.succeeded` |
 | `invoice_due` | `invoice.due` |
+| `invoice_overdue` | `invoice.overdue` |
 | `payment_method_updated` | `payment_method.updated` |
 | `refund_issued` | `payment.refunded` |
 | `subscription_renewed` | `subscription.renewed` |
@@ -220,6 +221,70 @@ new SmsInboundHandler({
   lookupUserByPhone: async (phone) => db.users.findByPhone(phone)?.id ?? null,
   actions: { renew, snooze, status },
 });
+```
+
+---
+
+## #1737 Overdue invoice reminders
+
+`OverdueInvoiceReminderService` chases invoices past their due date with an
+**escalating ladder of reminders** that stops the moment the invoice is settled.
+
+- **Configurable schedule** — a merchant owns one schedule: an ordered list of
+  stages (`daysOverdue` + escalation `label`), extra recipients and an
+  `enabled` flag. Defaults fire at 1/3/7/14 days overdue
+  (`DEFAULT_OVERDUE_REMINDER_STAGES`), at most `MAX_REMINDER_STAGES` stages.
+- **Escalating** — stages fire strictly in order, at least
+  `MIN_REMINDER_GAP_MS` apart, and the escalation label travels in the subject
+  (`Payment reminder: …` → `Final notice: …`). An invoice first seen long past
+  due skips the stages already behind it and receives the current one.
+- **Stops on payment** — reminders stop when the invoice status settles
+  (`paid`, `void`, `cancelled`, `refunded`), when it disappears from the
+  invoice source, when the schedule is deleted or disabled, and after the last
+  stage (`completed`). Every stop is recorded on the entry with a reason, and
+  `POST /overdue-reminders/invoices/:invoiceId/stop` stops an invoice
+  explicitly the moment a payment webhook lands.
+- **Job** — a poller (default every 30 minutes, `OVERDUE_REMINDER_POLL_MS`)
+  drives `runDue()`; `OVERDUE_REMINDER_JOB_NAME` is registered with the
+  `JobScheduler` for cron-style deployments.
+
+### API
+
+```
+POST   /overdue-reminders                            create a schedule
+GET    /overdue-reminders?merchantId=…               list schedules
+GET    /overdue-reminders/:id                        get a schedule
+PATCH  /overdue-reminders/:id                        update stages/recipients/enabled
+DELETE /overdue-reminders/:id                        delete a schedule
+GET    /overdue-reminders/entries?…                  list per-invoice reminder state
+POST   /overdue-reminders/run-now                    trigger a pass
+POST   /overdue-reminders/invoices/:invoiceId/stop   stop reminders (payment received)
+```
+
+```jsonc
+// PATCH /overdue-reminders/:id
+{
+  "enabled": true,
+  "stages": [
+    { "daysOverdue": 1, "label": "Payment reminder" },
+    { "daysOverdue": 5, "label": "Final notice" }
+  ],
+  "recipients": ["ar@example.com"]
+}
+```
+
+### Sources
+
+`runDue(source)` is fed by an injected adapter — `createPostgresOverdueInvoiceSource`
+reads the `invoices` table (keeping recently settled rows for a grace window so
+their stops are explicit), while `createInvoiceListSource` adapts an in-process
+invoice list.
+
+```bash
+INVOICE_FROM_EMAIL=billing@subtrackr.com   # from address
+DEFAULT_MERCHANT_ID=default                # merchant the SQL source files invoices under
+OVERDUE_REMINDER_POLL_MS=1800000           # poll cadence (default 30 minutes)
+APP_BASE_URL=https://app.subtrackr.io      # invoice link base
 ```
 
 ---

@@ -1,4 +1,4 @@
-FROM python:3.14-slim
+FROM python:3.15-slim
 
 WORKDIR /app
 
@@ -14,6 +14,10 @@ COPY onnx-serving/server.py ./server.py
 
 ENV PYTHONUNBUFFERED=1
 ENV MODEL_DIR=/app/models
+
+# Run as non-root user to reduce container attack surface
+RUN useradd -m -u 1001 appuser
+USER appuser
 
 EXPOSE 8000
 

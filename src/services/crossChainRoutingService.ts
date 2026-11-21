@@ -3,6 +3,10 @@ import { ChainType } from '../types/wallet';
 import { walletServiceManager, WalletError, WalletErrorCode } from './walletService';
 import { logger } from './logging';
 import { simulateStellarTransaction } from './stellarTransactionService';
+feat/stellar-wave-issues
+import { isStellarPublicKey, signViaDeepLink } from './sep0007Service';
+
+ main
 
 export interface CrossChainPaymentRoute {
   sourceChainType: ChainType;
@@ -103,6 +107,12 @@ export class CrossChainRoutingService {
     try {
       const freighterApi = walletServiceManager.getStellarProvider();
       if (!freighterApi) {
+        // Issue #1718: no injected provider (e.g. mobile) - hand the unsigned
+        // transaction to an installed wallet via a SEP-0007 deep link.
+        const deepLinkHash = await this.signViaSep0007(route);
+        if (deepLinkHash) {
+          return deepLinkHash;
+        }
         throw new WalletError(
           WalletErrorCode.NOT_CONNECTED,
           'Freighter wallet is required.',
@@ -140,6 +150,26 @@ export class CrossChainRoutingService {
         error
       );
     }
+  }
+
+  /**
+   * Issue #1718 - build the unsigned transfer and open an installed wallet
+   * through a SEP-0007 deep link. Returns the transaction hash, or null
+   * when no wallet handled the deep link (caller falls back to Freighter).
+   */
+  private async signViaSep0007(route: CrossChainPaymentRoute): Promise<string | null> {
+    const connection = walletServiceManager.getConnection();
+    const publicKey = connection?.stellarPublicKey ?? connection?.address;
+    if (!isStellarPublicKey(publicKey)) {
+      return null;
+    }
+
+    const txXdr = await this.buildStellarTransferTx(publicKey, route);
+    return signViaDeepLink({
+      xdr: txXdr,
+      msg: 'Approve your SubTrackr payment',
+      pubkey: publicKey,
+    });
   }
 
   private async executeEvmPayment(route: CrossChainPaymentRoute): Promise<string> {

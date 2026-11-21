@@ -5,15 +5,27 @@ export type {
   Subscription,
   Webhook,
   BillingInterval,
+  Interval,
   SubscriptionStatus,
 } from './types';
+export {
+  INTERVALS,
+  INTERVAL_SECONDS,
+  SUBSCRIPTION_STATUSES,
+  intervalSeconds,
+  isInterval,
+  isSubscriptionStatus,
+} from '../../../shared/types/contract';
 export {
   ApiError,
   AuthenticationError,
   SubTrackrError,
   UnsupportedVersionError,
   VersionMismatchError,
+  parseErrorBody,
+  apiErrorFromBody,
 } from './errors';
+export type { ParsedErrorBody } from './errors';
 export { TypedSubTrackrClient } from './typedClient';
 export type {
   TypedClientOptions,

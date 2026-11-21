@@ -28,4 +28,8 @@ RUN npm install --omit=dev --legacy-peer-deps && npm cache clean --force
 COPY scripts/seed-local.js ./scripts/seed-local.js
 COPY db/migrations/ ./db/migrations/
 
+# Run as non-root user to reduce container attack surface
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+USER appuser
+
 CMD ["node", "scripts/seed-local.js"]

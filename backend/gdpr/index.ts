@@ -54,3 +54,7 @@ export type {
 
 export { RetentionEnforcementJob } from './retentionEnforcementJob';
 export { RetentionController } from './retentionController';
+export { PostgresRetentionStore, createDefaultRetentionStores } from './postgresRetentionStore';
+export type { PostgresRetentionStoreConfig } from './postgresRetentionStore';
+export { PurgeJobScheduler } from './purgeJobScheduler';
+export type { PurgeJobSchedulerOptions } from './purgeJobScheduler';

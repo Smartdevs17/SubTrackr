@@ -60,6 +60,101 @@ export const DEFAULT_PAUSE_LIMITS: PauseLimits = {
   maxPausesPerYear: 2,
 };
 
+// ─── Per-plan pause window registry ──────────────────────────────────────────
+
+/**
+ * Per-plan pause window configuration.
+ * When registered, these limits override DEFAULT_PAUSE_LIMITS for that plan.
+ */
+export interface PlanPauseWindow {
+  /** The plan this window applies to. */
+  planId: string;
+  /**
+   * Minimum allowed pause duration in days (must be ≥ 1).
+   */
+  minDays: number;
+  /**
+   * Maximum allowed pause duration in days (must be > minDays).
+   */
+  maxDays: number;
+  /**
+   * Maximum number of pause sessions allowed per calendar year.
+   */
+  maxPausesPerYear: number;
+  /** Optional description for admin display. */
+  description?: string;
+}
+
+/**
+ * Registry that maps plan IDs to their pause window configuration.
+ * Falls back to DEFAULT_PAUSE_LIMITS when no config is registered for a plan.
+ */
+export class PauseWindowRegistry {
+  private configs = new Map<string, PlanPauseWindow>();
+
+  /**
+   * Register (or replace) a pause window for a plan.
+   * Throws when the window values are inconsistent.
+   */
+  register(window: PlanPauseWindow): void {
+    if (!Number.isFinite(window.minDays) || window.minDays < 1) {
+      throw new Error(
+        `PlanPauseWindow for "${window.planId}": minDays must be a positive integer.`,
+      );
+    }
+    if (!Number.isFinite(window.maxDays) || window.maxDays <= window.minDays) {
+      throw new Error(
+        `PlanPauseWindow for "${window.planId}": maxDays must be greater than minDays (${window.minDays}).`,
+      );
+    }
+    if (!Number.isFinite(window.maxPausesPerYear) || window.maxPausesPerYear < 1) {
+      throw new Error(
+        `PlanPauseWindow for "${window.planId}": maxPausesPerYear must be at least 1.`,
+      );
+    }
+    this.configs.set(window.planId, { ...window });
+  }
+
+  /**
+   * Retrieve the PauseLimits for a plan.
+   * Returns DEFAULT_PAUSE_LIMITS when the plan has no registered window.
+   */
+  getLimitsForPlan(planId: string): PauseLimits {
+    const cfg = this.configs.get(planId);
+    if (!cfg) return { ...DEFAULT_PAUSE_LIMITS };
+    return {
+      minDays: cfg.minDays,
+      maxDays: cfg.maxDays,
+      maxPausesPerYear: cfg.maxPausesPerYear,
+    };
+  }
+
+  /**
+   * Get the raw window config for a plan (undefined when not registered).
+   */
+  getWindow(planId: string): PlanPauseWindow | undefined {
+    return this.configs.get(planId);
+  }
+
+  /** Enumerate all registered windows. */
+  list(): PlanPauseWindow[] {
+    return Array.from(this.configs.values());
+  }
+
+  /** Remove the window for a plan (reverts to DEFAULT_PAUSE_LIMITS). */
+  remove(planId: string): boolean {
+    return this.configs.delete(planId);
+  }
+
+  /** Clear all registered windows. */
+  clear(): void {
+    this.configs.clear();
+  }
+}
+
+/** Shared singleton — import this in PauseStateStore and PauseBillingService. */
+export const pauseWindowRegistry = new PauseWindowRegistry();
+
 export const CREDIT_EXPIRY_DAYS = 90;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 

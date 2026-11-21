@@ -11,6 +11,7 @@ import {
   type PauseReason,
   daysFromNow,
   validatePauseRequest,
+  pauseWindowRegistry,
 } from './pauseBilling';
 
 export type PauseStatus = 'paused' | 'resumed';
@@ -28,6 +29,13 @@ export interface PauseSession {
   adjustment: PauseBillingAdjustment;
   /** Credit still available on the ledger entry. */
   creditRemaining: number;
+  /**
+   * The next billing date after resuming.
+   * Shifted forward by the actual pause duration so the paused time
+   * does not count against the current billing period (Issue #1723).
+   * Only set after `resume()` is called.
+   */
+  nextBillingDate?: string;
 }
 
 export interface PauseStoreSeed {
@@ -38,6 +46,11 @@ export interface PauseStoreSeed {
   pauseDays: number;
   reason: PauseReason;
   note?: string;
+  /**
+   * Plan identifier used to look up per-plan pause window limits.
+   * When omitted the global DEFAULT_PAUSE_LIMITS apply.
+   */
+  planId?: string;
 }
 
 export class PauseStateStore {
@@ -71,14 +84,24 @@ export class PauseStateStore {
   }
 
   /**
-   * Pause a subscription. Throws an Error with a human readable reason when
-   * the request violates the configured limits.
+   * Pause a subscription.
+   *
+   * Pause window (min/max days, max per year) is resolved in order:
+   *   1. Per-plan config registered in {@link pauseWindowRegistry} (when `seed.planId` is set)
+   *   2. Global {@link DEFAULT_PAUSE_LIMITS}
+   *
+   * Throws an Error with a human readable reason when the request violates the limits.
    */
   pause(seed: PauseStoreSeed, now: Date = new Date()): PauseSession {
+    const limits = seed.planId
+      ? pauseWindowRegistry.getLimitsForPlan(seed.planId)
+      : undefined;
+
     const validation = validatePauseRequest(
       seed.pauseDays,
       Boolean(this.getActive(seed.subscriptionId)),
-      this.pausesThisYear(seed.subscriptionId, now)
+      this.pausesThisYear(seed.subscriptionId, now),
+      limits,
     );
     if (!validation.valid) {
       throw new Error(validation.reason ?? 'Invalid pause request.');
@@ -121,11 +144,18 @@ export class PauseStateStore {
     const fractionLeft = early ? (active.pauseDays - daysElapsed) / active.pauseDays : 0;
     const creditRemaining = round2(active.adjustment.creditAmount * fractionLeft);
 
+    // Shift the next billing date forward by the actual number of paused days
+    // so that time frozen during the pause does not count against the billing
+    // period (Issue #1723: "Time does not count against period").
+    const actualPausedDays = early ? daysElapsed : active.pauseDays;
+    const nextBillingDate = daysFromNow(actualPausedDays, now);
+
     const resumed: PauseSession = {
       ...active,
       status: 'resumed',
       resumedAt: now.toISOString(),
       creditRemaining,
+      nextBillingDate,
     };
     this.sessions.set(resumed.id, resumed);
     return resumed;

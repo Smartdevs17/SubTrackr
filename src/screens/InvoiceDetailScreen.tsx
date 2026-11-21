@@ -18,6 +18,7 @@ import { RootStackParamList } from '../navigation/types';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { generateInvoicePdfPreview } from '../utils/invoice';
+import { isDiscountLineItem } from '../utils/invoiceTotals';
 
 type RoutePropType = RouteProp<RootStackParamList, 'InvoiceDetail'>;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -97,25 +98,39 @@ const InvoiceDetailScreen: React.FC = () => {
 
         <Card style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Line items</Text>
-          {invoice.lineItems.map((item) => (
-            <View key={`${item.description}-${item.unitPrice}`} style={styles.lineItem}>
-              <View style={styles.lineItemCopy}>
-                <Text style={styles.lineItemTitle}>{item.description}</Text>
-                <Text style={styles.lineItemSubtext}>
-                  Qty {item.quantity} · Tax {item.taxRateBps / 100}% · FX {item.exchangeRate}
+          {invoice.lineItems.map((item) => {
+            const isDiscount = isDiscountLineItem(item);
+            const lineTotal = Math.abs(item.lineTotal ?? item.amount ?? 0);
+            return (
+              <View key={`${item.description}-${item.unitPrice}`} style={styles.lineItem}>
+                <View style={styles.lineItemCopy}>
+                  <Text style={styles.lineItemTitle}>{item.description}</Text>
+                  <Text style={styles.lineItemSubtext}>
+                    Qty {item.quantity} · Tax {item.taxRateBps / 100}% · FX {item.exchangeRate}
+                    {isDiscount ? ' · Discount' : ''}
+                  </Text>
+                </View>
+                <Text style={[styles.lineItemTotal, isDiscount && styles.discountValue]}>
+                  {isDiscount ? '-' : ''}
+                  {formatCurrency(lineTotal, item.currency)}
                 </Text>
               </View>
-              <Text style={styles.lineItemTotal}>
-                {formatCurrency(item.lineTotal, item.currency)}
-              </Text>
-            </View>
-          ))}
+            );
+          })}
           <View style={styles.breakdownRow}>
             <Text style={styles.breakdownLabel}>Subtotal</Text>
             <Text style={styles.breakdownValue}>
               {formatCurrency(invoice.subtotal, invoice.currency)}
             </Text>
           </View>
+          {invoice.discountAmount ? (
+            <View style={styles.breakdownRow}>
+              <Text style={styles.breakdownLabel}>Discount</Text>
+              <Text style={[styles.breakdownValue, styles.discountValue]}>
+                -{formatCurrency(invoice.discountAmount, invoice.currency)}
+              </Text>
+            </View>
+          ) : null}
           <View style={styles.breakdownRow}>
             <Text style={styles.breakdownLabel}>Tax</Text>
             <Text style={styles.breakdownValue}>
@@ -200,6 +215,7 @@ const styles = StyleSheet.create({
   lineItemTitle: { ...typography.body, color: colors.text },
   lineItemSubtext: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
   lineItemTotal: { ...typography.body, color: colors.text, fontWeight: '700' },
+  discountValue: { color: '#047857' },
   breakdownRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.xs },
   breakdownLabel: { ...typography.body, color: colors.textSecondary },
   breakdownValue: { ...typography.body, color: colors.text },

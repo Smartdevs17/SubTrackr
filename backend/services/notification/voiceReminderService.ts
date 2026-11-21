@@ -19,6 +19,11 @@ import { buildTwiML, voiceProvider } from './voiceProvider';
 import type { VoiceCallResult, VoiceProvider } from './voiceProvider';
 import { communicationPreferenceService } from './communicationPreferencesService';
 import type { CommunicationPreferenceService } from './communicationPreferencesService';
+import {
+  localMinutesOfDay,
+  utcInstantForLocalDateTime,
+  zonedDateTimeParts,
+} from '../../../shared/time';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -94,35 +99,20 @@ export const DEFAULT_CALLING_HOURS: CallingHours = {
   includeWeekends: false,
 };
 
-const MINUTE_MS = 60_000;
-
 /** True when `instant` is a permitted calling window in `hours`. */
 export function isWithinCallingHours(
   hours: CallingHours = DEFAULT_CALLING_HOURS,
   instant: Date = new Date()
 ): boolean {
-  const dayFormatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: hours.timezone,
-    weekday: 'short',
-  });
-  const weekday = dayFormatter.format(instant);
-  if (!hours.includeWeekends && (weekday === 'Sat' || weekday === 'Sun')) {
+  const { weekday } = zonedDateTimeParts(instant, hours.timezone);
+  if (!hours.includeWeekends && (weekday === 0 || weekday === 6)) {
     return false;
   }
   return isWithinWindow(hours, instant);
 }
 
 function isWithinWindow(hours: CallingHours, instant: Date): boolean {
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: hours.timezone,
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
-  const parts = formatter.formatToParts(instant);
-  const hour = Number(parts.find((p) => p.type === 'hour')?.value ?? '0') % 24;
-  const minute = Number(parts.find((p) => p.type === 'minute')?.value ?? '0');
-  const nowMinutes = hour * 60 + minute;
+  const nowMinutes = localMinutesOfDay(instant, hours.timezone);
   return nowMinutes >= hours.startMinute && nowMinutes < hours.endMinute;
 }
 
@@ -132,21 +122,15 @@ export function msUntilCallingHoursOpen(
   instant: Date = new Date()
 ): number {
   if (isWithinCallingHours(hours, instant)) return 0;
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: hours.timezone,
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
-  const parts = formatter.formatToParts(instant);
-  const hour = Number(parts.find((p) => p.type === 'hour')?.value ?? '0') % 24;
-  const minute = Number(parts.find((p) => p.type === 'minute')?.value ?? '0');
-  const nowMinutes = hour * 60 + minute;
-  const delta =
-    nowMinutes < hours.startMinute
-      ? hours.startMinute - nowMinutes
-      : 24 * 60 - nowMinutes + hours.startMinute;
-  return Math.max(1, delta) * MINUTE_MS;
+  const local = zonedDateTimeParts(instant, hours.timezone);
+  const nowMinutes = localMinutesOfDay(instant, hours.timezone);
+  const dayOffset = nowMinutes < hours.startMinute ? 0 : 1;
+  const target = new Date(Date.UTC(local.year, local.month - 1, local.day + dayOffset));
+  const opening = utcInstantForLocalDateTime(
+    target.getUTCFullYear(), target.getUTCMonth() + 1, target.getUTCDate(),
+    Math.floor(hours.startMinute / 60), hours.startMinute % 60, hours.timezone,
+  );
+  return Math.max(1, opening.getTime() - instant.getTime());
 }
 
 // ─── Milestones ────────────────────────────────────────────────────────────────

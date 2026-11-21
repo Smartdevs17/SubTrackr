@@ -1,8 +1,22 @@
 import { Subscription } from '../../../src/types/subscription';
 import { Invoice, InvoiceConfig, InvoicePeriod } from '../../../src/types/invoice';
 import { ConsolidationGroup } from '../../../src/types/billingAlignment';
-import { buildConsolidatedInvoice } from '../../../src/utils/invoice';
+import { buildConsolidatedInvoice, buildInvoice } from '../../../src/utils/invoice';
 import { groupForConsolidation } from '../../../src/utils/billingAlignment';
+
+export interface MerchantConsolidationSetting {
+  merchantId: string;
+  enabled: boolean;
+  updatedAt: Date;
+}
+
+export interface CycleInvoicesInput {
+  merchantId: string;
+  subscriptions: Subscription[];
+  sequence: number;
+  period: InvoicePeriod;
+  config?: InvoiceConfig;
+}
 
 /**
  * Merges subscriptions that share a billing date into a single invoice.
@@ -16,6 +30,91 @@ import { groupForConsolidation } from '../../../src/utils/billingAlignment';
  * for billing purposes.
  */
 export class ConsolidationEngine {
+  private merchantSettings = new Map<string, MerchantConsolidationSetting>();
+
+  /**
+   * Opt a merchant in or out of monthly invoice consolidation.
+   *
+   * Default is opt-out (`false`) so existing merchants keep one invoice per
+   * charge until they explicitly enable consolidation.
+   */
+  setMerchantConsolidation(
+    merchantId: string,
+    enabled: boolean,
+    now: Date = new Date()
+  ): MerchantConsolidationSetting {
+    if (typeof merchantId !== 'string' || merchantId.trim().length === 0) {
+      throw new Error('merchantId is required');
+    }
+    const setting: MerchantConsolidationSetting = {
+      merchantId,
+      enabled: Boolean(enabled),
+      updatedAt: new Date(now),
+    };
+    this.merchantSettings.set(merchantId, setting);
+    return { ...setting, updatedAt: new Date(setting.updatedAt) };
+  }
+
+  getMerchantConsolidation(
+    merchantId: string
+  ): MerchantConsolidationSetting | undefined {
+    const setting = this.merchantSettings.get(merchantId);
+    return setting
+      ? { ...setting, updatedAt: new Date(setting.updatedAt) }
+      : undefined;
+  }
+
+  isMerchantConsolidationEnabled(merchantId: string): boolean {
+    return this.merchantSettings.get(merchantId)?.enabled ?? false;
+  }
+
+  clearMerchantConsolidation(merchantId: string): boolean {
+    return this.merchantSettings.delete(merchantId);
+  }
+
+  /**
+   * Generates the invoice(s) for one merchant billing cycle.
+   *
+   * - Opted-out merchants keep one invoice per active paid subscription.
+   * - Opted-in merchants receive one consolidated invoice containing every
+   *   subscription as a separate line item.
+   * - Inactive and free subscriptions are skipped in both modes.
+   * - A single billable subscription always produces a normal invoice.
+   */
+  generateCycleInvoices(input: CycleInvoicesInput): Invoice[] {
+    const billable = input.subscriptions.filter(
+      (subscription) => subscription.isActive && subscription.price > 0
+    );
+
+    if (billable.length === 0) return [];
+
+    if (billable.length === 1) {
+      return [
+        buildInvoice(billable[0], input.sequence, input.period, input.config),
+      ];
+    }
+
+    if (!this.isMerchantConsolidationEnabled(input.merchantId)) {
+      return billable.map((subscription, index) =>
+        buildInvoice(
+          subscription,
+          input.sequence + index,
+          input.period,
+          input.config
+        )
+      );
+    }
+
+    return [
+      buildConsolidatedInvoice(
+        billable,
+        input.sequence,
+        input.period,
+        input.config
+      ),
+    ];
+  }
+
   /**
    * Groups of 2+ active, paid subscriptions sharing the same billing date.
    * Group plan subscriptions are grouped by their billing date as well.

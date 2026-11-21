@@ -19,7 +19,7 @@ A central catalogue of every operation that must be audited, including:
 | data_modification  | subscription create/cancel/modify, profile_update, data_delete |
 | admin              | user_role_change, config_change, billing_plan_change       |
 | security           | access_denied, suspicious_activity                         |
-| compliance         | data_retention_purge                                       |
+| compliance         | data_retention_purge, tax_exempt_change                   |
 
 Each operation definition includes:
 - **severity** — `low` | `medium` | `high` | `critical`

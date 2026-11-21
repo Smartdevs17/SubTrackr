@@ -86,7 +86,14 @@ export async function createPool(overrides: Partial<PoolConfig> = {}): Promise<P
   (pool as Pool & { connect: () => Promise<PoolClient> }).connect = async () => {
     const client = await origConnect();
     try {
-      await client.query(`SET statement_timeout = ${config.statementTimeout ?? 30_000}`);
+      // PostgreSQL SET does not accept parameterised values, but set_config() does.
+      // We use set_config('statement_timeout', $1, false) so the value is passed
+      // as a query parameter and never interpolated into SQL.
+      const timeoutMs = Math.max(0, Math.trunc(Number(config.statementTimeout ?? 30_000)));
+      await client.query(
+        `SELECT pg_catalog.set_config('statement_timeout', $1, false)`,
+        [String(timeoutMs)],
+      );
     } catch (err) {
       console.warn('[DB Pool] Could not set statement_timeout:', err);
     }

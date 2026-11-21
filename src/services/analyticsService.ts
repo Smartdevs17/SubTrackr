@@ -54,6 +54,8 @@ export const toMonthlyRevenue = (
   subscription: Pick<Subscription, 'price' | 'billingCycle'>
 ): number => monthlyEquivalent(subscription.price, subscription.billingCycle);
 
+const MONTHS_PER_YEAR = 12;
+
 const monthKey = (date: Date): string =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 

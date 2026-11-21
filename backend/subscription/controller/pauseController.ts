@@ -14,8 +14,8 @@ import {
   getPeriodDays,
   daysBetween,
   type PauseReason,
-} from '../../domain/pauseBilling';
-import { pauseStateStore, type PauseSession } from '../../domain/pauseStateStore';
+} from '../domain/pauseBilling';
+import { pauseStateStore, type PauseSession } from '../domain/pauseStateStore';
 
 export interface PauseRequestBody {
   price?: number;
@@ -25,6 +25,11 @@ export interface PauseRequestBody {
   pauseDays?: number;
   reason?: PauseReason;
   note?: string;
+  /**
+   * Plan identifier — when supplied the per-plan PauseWindowRegistry limits
+   * are applied instead of the global DEFAULT_PAUSE_LIMITS (Issue #1723).
+   */
+  planId?: string;
 }
 
 export interface ResumeRequestBody {
@@ -126,6 +131,7 @@ export function pauseSubscription(
       pauseDays: body.pauseDays,
       reason,
       note: body.note,
+      planId: body.planId,
     });
     const view = toView(session);
     return { ...view, status: 201 };

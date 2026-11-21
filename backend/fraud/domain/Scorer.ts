@@ -7,10 +7,17 @@
 
 import { FraudRule, FraudTransaction, FraudContext, RuleResult } from './rules/FraudRule';
 import { RuleRegistry } from './RuleRegistry';
+import {
+  aggregateScore,
+  determineAction,
+  DEFAULT_BLOCK_THRESHOLD,
+  DEFAULT_FLAG_THRESHOLD,
+  FraudAction,
+} from './aggregation';
+
+export type { FraudAction };
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-
-export type FraudAction = 'approve' | 'flag' | 'block';
 
 export interface ScoredRule {
   ruleName: string;
@@ -29,11 +36,6 @@ export interface ScorerResult {
   /** Wall-clock time in ms taken to evaluate all rules. */
   evaluationMs: number;
 }
-
-// ── Default thresholds ────────────────────────────────────────────────────────
-
-const DEFAULT_FLAG_THRESHOLD = 50;
-const DEFAULT_BLOCK_THRESHOLD = 80;
 
 // ── Scorer ────────────────────────────────────────────────────────────────────
 
@@ -76,9 +78,7 @@ export class Scorer {
     }
 
     const scoredRules: ScoredRule[] = [];
-    let weightedSum = 0;
-    let totalWeight = 0;
-
+    const weighted: { rawScore: number; weight: number }[] = [];
     for (const rule of enabledRules) {
       this.registry.recordEvaluation(rule.name);
       let result: RuleResult;
@@ -91,8 +91,7 @@ export class Scorer {
       }
 
       const weightedScore = result.score * rule.weight;
-      weightedSum += weightedScore;
-      totalWeight += rule.weight;
+      weighted.push({ rawScore: result.score, weight: rule.weight });
 
       if (result.triggered) {
         this.registry.recordHit(rule.name, result.score);
@@ -108,11 +107,7 @@ export class Scorer {
       });
     }
 
-    // Normalise to 0–100 scale
-    const falsePositivePenalty = Math.min((transaction.falsePositiveCount ?? 0) * 40, 60);
-    const rawTotal = totalWeight > 0 ? (weightedSum / totalWeight) * 1.5 : 0;
-    const totalScore = Math.max(0, Math.min(100, Math.round(rawTotal - falsePositivePenalty)));
-
+    const totalScore = aggregateScore(weighted, transaction.falsePositiveCount);
     const action = this.determineAction(totalScore);
     const reason = this.buildReason(scoredRules);
 
@@ -126,9 +121,7 @@ export class Scorer {
   }
 
   private determineAction(score: number): FraudAction {
-    if (score >= this.blockThreshold) return 'block';
-    if (score >= this.flagThreshold) return 'flag';
-    return 'approve';
+    return determineAction(score, { flag: this.flagThreshold, block: this.blockThreshold });
   }
 
   private buildReason(rules: ScoredRule[]): string {

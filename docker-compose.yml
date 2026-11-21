@@ -1,28 +1,40 @@
 # docker-compose.yml
 #
 # Issue #1175 — Implement local development environment with Docker
+# Issue #2109 — Add docker-compose profiles for 'core', 'full', and 'minimal' stacks
 #
 # Full local development stack for SubTrackr.
 # All service ports are driven by COMPOSE_PORT_* variables defined in .env.example.
 # Copy .env.example to .env and run ./scripts/setup.sh to get started.
 #
+# Profiles (select one or more with --profile):
+#   minimal  — postgres, redis, backend (smallest working API stack)
+#   core     — minimal + workers, webhook-dispatcher (usual backend services)
+#   full     — core + stellar-standalone, mobile, feature-pipeline, ml-service
+#   tools    — one-shot helpers (seed)
+#
+#   docker compose --profile minimal up -d
+#   docker compose --profile core up -d
+#   docker compose --profile full up -d
+#
 # Services:
-#   postgres           — PostgreSQL 16 database
-#   redis              — Redis 7 (shared: app queues + ML feature store)
-#   backend            — Express API server  (port COMPOSE_PORT_BACKEND  = 3000)
-#   workers            — BullMQ billing/queue workers (same image, different CMD)
-#   webhook-dispatcher — Webhook delivery worker    (same image, different CMD)
-#   stellar-standalone — Local Soroban/Stellar node  (port COMPOSE_PORT_SOROBAN = 8000)
-#   mobile             — Expo dev server             (port COMPOSE_PORT_EXPO   = 8081)
-#   feature-pipeline   — ML feature ingestion pipeline (port 8010)
-#   ml-service         — Python anomaly detection service (port COMPOSE_PORT_ML = 8001)
-#   seed               — One-shot DB seeder (run with: docker compose run --rm seed)
+#   postgres           — PostgreSQL 16 database                       [minimal, core, full]
+#   redis              — Redis 7 (shared: app queues + ML feature store) [minimal, core, full]
+#   backend            — Express API server  (port COMPOSE_PORT_BACKEND  = 3000) [minimal, core, full]
+#   workers            — BullMQ billing/queue workers (same image, different CMD) [core, full]
+#   webhook-dispatcher — Webhook delivery worker    (same image, different CMD) [core, full]
+#   stellar-standalone — Local Soroban/Stellar node  (port COMPOSE_PORT_SOROBAN = 8000) [full]
+#   mobile             — Expo dev server             (port COMPOSE_PORT_EXPO   = 8081) [full]
+#   feature-pipeline   — ML feature ingestion pipeline (port 8010) [full]
+#   ml-service         — Python anomaly detection service (port COMPOSE_PORT_ML = 8001) [full]
+#   seed               — One-shot DB seeder (run with: docker compose run --rm seed) [tools]
 
 services:
 
   # ── Database ───────────────────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
+    profiles: ["minimal", "core", "full"]
     restart: unless-stopped
     environment:
       POSTGRES_DB:       ${DB_NAME:-subtrackr}
@@ -43,6 +55,7 @@ services:
   # ── Cache / Message broker ─────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
+    profiles: ["minimal", "core", "full"]
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     ports:
@@ -58,6 +71,7 @@ services:
 
   # ── Backend API ────────────────────────────────────────────────────────────
   backend:
+    profiles: ["minimal", "core", "full"]
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
@@ -92,6 +106,7 @@ services:
 
   # ── BullMQ Workers ─────────────────────────────────────────────────────────
   workers:
+    profiles: ["core", "full"]
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
@@ -118,6 +133,7 @@ services:
 
   # ── Webhook Dispatcher ─────────────────────────────────────────────────────
   webhook-dispatcher:
+    profiles: ["core", "full"]
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
@@ -144,6 +160,7 @@ services:
 
   # ── Stellar / Soroban Standalone Node ──────────────────────────────────────
   stellar-standalone:
+    profiles: ["full"]
     build:
       context: ./docker
       dockerfile: stellar-standalone.Dockerfile
@@ -160,6 +177,7 @@ services:
 
   # ── Expo Mobile Dev Server ─────────────────────────────────────────────────
   mobile:
+    profiles: ["full"]
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
@@ -177,6 +195,7 @@ services:
 
   # ── ML Feature Pipeline ────────────────────────────────────────────────────
   feature-pipeline:
+    profiles: ["full"]
     build:
       context: .
       dockerfile: services/feature-pipeline/Dockerfile
@@ -192,6 +211,7 @@ services:
 
   # ── ML Anomaly Detection Service ───────────────────────────────────────────
   ml-service:
+    profiles: ["full"]
     build:
       context: .
       dockerfile: ml-service/Dockerfile

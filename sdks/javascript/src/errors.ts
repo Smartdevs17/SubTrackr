@@ -1,4 +1,9 @@
 export class SubTrackrError extends Error {
+  /** Server-assigned request id (envelope `meta.requestId`), for support/debugging. */
+  public requestId?: string;
+  /** Per-field validation details (envelope `error.details`). */
+  public details?: Record<string, string>;
+
   constructor(
     public message: string,
     public statusCode?: number,
@@ -17,10 +22,64 @@ export class AuthenticationError extends SubTrackrError {
 }
 
 export class ApiError extends SubTrackrError {
-  constructor(message: string, statusCode: number, code?: string) {
+  constructor(
+    message: string,
+    statusCode: number,
+    code?: string,
+    extra: { requestId?: string; details?: Record<string, string> } = {}
+  ) {
     super(message, statusCode, code);
     this.name = 'ApiError';
+    this.requestId = extra.requestId;
+    this.details = extra.details;
   }
+
+  /** Whether retrying the same request may succeed. */
+  get retryable(): boolean {
+    const s = this.statusCode ?? 0;
+    return s === 408 || s === 429 || s >= 500;
+  }
+}
+
+export interface ParsedErrorBody {
+  message: string;
+  code?: string;
+  requestId?: string;
+  details?: Record<string, string>;
+}
+
+/**
+ * Extracts error information from a response body. Accepts the canonical
+ * envelope `{ success:false, error:{code,message,details}, meta:{requestId} }`
+ * and the two legacy shapes `{ message, code }` and `{ error: "text" }`.
+ */
+export function parseErrorBody(body: unknown, fallbackMessage: string): ParsedErrorBody {
+  const b = (body && typeof body === 'object' ? body : {}) as Record<string, any>;
+  const meta = b.meta && typeof b.meta === 'object' ? b.meta : {};
+  const requestId = typeof meta.requestId === 'string' ? meta.requestId : undefined;
+
+  if (b.error && typeof b.error === 'object') {
+    return {
+      message: typeof b.error.message === 'string' && b.error.message ? b.error.message : fallbackMessage,
+      code: typeof b.error.code === 'string' ? b.error.code : undefined,
+      details: b.error.details && typeof b.error.details === 'object' ? b.error.details : undefined,
+      requestId,
+    };
+  }
+  if (typeof b.error === 'string' && b.error) {
+    return { message: b.error, code: typeof b.code === 'string' ? b.code : undefined, requestId };
+  }
+  return {
+    message: typeof b.message === 'string' && b.message ? b.message : fallbackMessage,
+    code: typeof b.code === 'string' ? b.code : undefined,
+    requestId,
+  };
+}
+
+/** Builds an ApiError from a failed response body. */
+export function apiErrorFromBody(body: unknown, status: number, fallbackMessage: string): ApiError {
+  const p = parseErrorBody(body, fallbackMessage);
+  return new ApiError(p.message, status, p.code, { requestId: p.requestId, details: p.details });
 }
 
 /**
