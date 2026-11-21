@@ -8,7 +8,7 @@ produces a fresh array of item objects.
 
 ```tsx
 import React, { useCallback } from 'react';
-import { FlatList } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import {
   createKeyExtractor,
   SubscriptionRow,
@@ -24,7 +24,12 @@ const renderItem = useCallback(
   [handlePress]
 );
 
-<FlatList data={subscriptions} renderItem={renderItem} keyExtractor={keyExtractor} />;
+<FlashList
+  data={subscriptions}
+  renderItem={renderItem}
+  keyExtractor={keyExtractor}
+  estimatedItemSize={76}
+/>;
 ```
 
 ## What makes it fast
