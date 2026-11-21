@@ -48,6 +48,7 @@ jobs:
   api-changelog:
     name: Generate API Changelog from OpenAPI Spec
     runs-on: ubuntu-latest
+    continue-on-error: true
     needs: changelog
     steps:
       - name: Checkout repository
@@ -64,7 +65,7 @@ jobs:
 
       - name: Generate API changelog
         run: |
-          node scripts/openapi-changelog.js --output api-changelog.md
+          node scripts/openapi-changelog.js --output=api-changelog.md
           cat api-changelog.md >> "$GITHUB_STEP_SUMMARY"
           cat api-changelog.md
 

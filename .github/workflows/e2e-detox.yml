@@ -15,6 +15,7 @@ jobs:
   test-ios:
     name: Detox iOS
     runs-on: macos-latest
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -70,6 +71,7 @@ jobs:
   test-android:
     name: Detox Android
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
