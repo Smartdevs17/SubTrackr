@@ -14,6 +14,7 @@ members = [
     "metering",
     "access_control",
     "security",
+    "recurring",
 ]
 exclude = ["fuzz"]
 
