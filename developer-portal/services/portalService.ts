@@ -7,7 +7,13 @@ import {
   Announcement,
 } from '../types/portal';
 
-export class DeveloperPortalService {
+/**
+ * Portal dashboard service — manages portal users and the dashboard view.
+ *
+ * Renamed from DeveloperPortalService to resolve the name collision with
+ * the developer-lifecycle service in developerPortalService.ts (issue #2061).
+ */
+export class PortalDashboardService {
   private users: Map<string, PortalUser> = new Map();
   private activities: Map<string, ActivityEntry[]> = new Map();
 
