@@ -28,7 +28,7 @@ BUILD_DIR := target/$(TARGET)/$(PROFILE)
 CORE_CONTRACTS := types storage proxy subscription
 
 # ── All workspace contracts ───────────────────────────────────────────────────
-ALL_CONTRACTS := $(CORE_CONTRACTS) api oracle fraud batch credit metering access_control security audit utils
+ALL_CONTRACTS := $(CORE_CONTRACTS) api oracle fraud batch credit metering access_control security audit utils recurring
 
 # ── Colour helpers ────────────────────────────────────────────────────────────
 GREEN  := \033[0;32m

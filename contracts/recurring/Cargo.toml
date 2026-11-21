@@ -1,0 +1,22 @@
+[package]
+name = "subtrackr-recurring"
+version = "0.1.0"
+edition = "2021"
+authors = ["SubTrackr Team"]
+description = "SubTrackr recurring-charge contract with calendar-aware cycles (Soroban)"
+
+# The contract source lives at contracts/src/recurring.rs; this manifest only
+# makes it a workspace member so it is built, linted and tested in CI.
+[lib]
+path = "../src/recurring.rs"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+soroban-sdk = { workspace = true }
+
+[features]
+default = []
+testutils = ["soroban-sdk/testutils"]
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
