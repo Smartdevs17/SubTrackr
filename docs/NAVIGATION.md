@@ -2,159 +2,183 @@
 
 ## Overview
 
-SubTrackr uses a feature-based modular navigation architecture built on React Navigation 6. The navigation is organized into feature-specific stack navigators, each handling a distinct domain of the application.
+SubTrackr uses a feature-based modular navigation architecture built on React Navigation 6. Each feature domain owns its own typed stack navigator param list. A `RootStackParamList` intersection type provides backward compatibility for screens that have not yet been migrated to a specific stack type.
 
-## Architecture
-
-### Module Structure
+## File layout
 
 ```
 src/navigation/
-├── AppNavigator.tsx          # Main navigator with tab and stack configuration
-├── types.ts                  # TypeScript types for routes and params
-├── navigationRef.ts          # Typed navigation ref for external navigation
-├── linking.ts                # Deep linking configuration
-├── analytics.ts              # Navigation analytics tracking
-├── benchmark.ts              # Navigation performance benchmarks
-├── NavigationErrorBoundary.tsx  # Error boundary for navigation
+├── AppNavigator.tsx            # Root navigator wiring tabs and stacks
+├── types.ts                    # All param list types and typed hook helpers
+├── navigationRef.ts            # Typed nav ref + per-stack navigate helpers
+├── linking.ts                  # Deep linking configuration
+├── analytics.ts                # Navigation analytics tracking
+├── NavigationErrorBoundary.tsx # Error boundary for navigation failures
 └── modules/
-    ├── SubscriptionStack.tsx # Subscription management screens
-    ├── AnalyticsStack.tsx    # Analytics and reporting screens
-    ├── SettingsStack.tsx     # Settings and preferences screens
-    ├── AdminStack.tsx        # Admin dashboard screens
-    ├── WalletStack.tsx       # Wallet and invoice screens
-    ├── DeveloperStack.tsx    # Developer tools screens
-    └── SocialStack.tsx       # Community and social features
+    ├── index.ts
+    ├── SubscriptionStack.tsx
+    ├── AnalyticsStack.tsx
+    ├── SettingsStack.tsx
+    ├── AdminStack.tsx
+    ├── WalletStack.tsx
+    ├── DeveloperStack.tsx
+    └── SocialStack.tsx
 ```
 
-### Feature Modules
+## Type map
 
-| Module | Purpose | Screens |
-|--------|---------|---------|
-| SubscriptionStack | Subscription lifecycle | Add, Detail, Edit, Change Plan, Cancel, Pause, Usage |
-| AnalyticsStack | Analytics & reporting | Analytics, Revenue, Performance, Churn |
-| SettingsStack | App settings | Settings, Language, Notifications, Privacy, Tax |
-| AdminStack | Admin operations | Dashboard, Merchants, Fraud, Billing, SLA |
-| WalletStack | Payments & invoices | Wallet, Crypto, Invoices, Payments, Calendar |
-| DeveloperStack | Developer tools | Portal, Sandbox, API Keys, Docs, Webhooks |
-| SocialStack | Community features | Community, Profile, Gamification, Loyalty, Groups |
+`types.ts` exports the following types. Import the narrowest type that fits your use-case.
 
-### Tab Navigator
+### Per-stack param lists
 
-The bottom tab navigator provides 6 primary entry points:
+Each module stack declares its own param list. TypeScript enforces that only routes registered in that navigator are reachable from code that navigates within it.
 
-1. **HomeTab** - HomeStack with subscription management
-2. **AddTab** - Quick add subscription
-3. **WalletTab** - Wallet and payment management
-4. **AnalyticsTab** - Analytics dashboard
-5. **RevenueTab** - Revenue reporting
-6. **SettingsTab** - Settings and admin
+| Type | Navigator | Key screens |
+|------|-----------|-------------|
+| `SubscriptionStackParamList` | `SubscriptionStack` | SubscriptionDashboard, AddSubscription, SubscriptionDetail `{id}`, EditSubscription `{id}`, ChangePlan `{subscriptionId}`, CancellationFlow `{subscriptionId}`, PauseSubscription, UsageDashboard, UsageAlerts, PlanTemplates |
+| `AnalyticsStackParamList` | `AnalyticsStack` | Analytics, AnalyticsDashboard, RevenueReport, PerformanceDashboard, ChurnPrediction, ForecastingDashboard |
+| `SettingsStackParamList` | `SettingsStack` | Settings, LanguageSettings, NotificationPreferences, DeliveryStatus, NotificationInbox, EmailTemplateEditor, TemplateVersionHistory `{type, channel}`, GDPRSettings, PrivacyCenter, ConsentManagement, SmsConsent, DataExport, DPALog, TaxSettings, TaxCompliance, AdvancedSearch |
+| `WalletStackParamList` | `WalletStack` | WalletConnect, CryptoPayment, InvoiceList, InvoiceDetail `{id}`, InvoiceCustomization, InvoiceMarketplace, InvoiceAnalytics, PaymentMethods, CalendarIntegration |
+| `AdminStackParamList` | `AdminStack` | AdminDashboard, MerchantOnboarding, FraudDashboard, ErrorDashboard, SlaDashboard, BillingSettings, BillingAlignment, DunningDashboard, CreditsAndPrepayments, SessionManagement, RoleManagement, CustomerHealth |
+| `DeveloperStackParamList` | `DeveloperStack` | DeveloperPortal, ApiPlayground, SandboxDashboard, ApiKeyManagement, ApiKeys, DocumentationPortal, IntegrationGuides, WebhookSettings, WebhookLogs, Import, Export, BatchOperations, AccountingExport |
+| `SocialStackParamList` | `SocialStack` | Community, Profile, Gamification, LoyaltyDashboard, AffiliateDashboard, CampaignManagement, PromotionManagement, SegmentManagement, SegmentDetail `{segmentId}`, GroupManagement, SupportDashboard, TrialDetails, NotFound |
 
-## Lazy Loading
+### Composite types
 
-All screens except the Home screen use lazy loading via `dynamic import()` wrapped in `lazyScreen()`. Metro dynamic import support is enabled in `metro.config.js` and `inlineRequires` keeps non-visible modules off the startup path. This ensures:
+| Type | Purpose |
+|------|---------|
+| `RootStackParamList` | Intersection of all per-stack lists. Used by `useAppRoute` / `useAppNavigation` and by any screen that spans multiple stacks. Prefer the specific stack type where possible. |
+| `TabParamList` | Bottom-tab navigator: `HomeTab`, `WalletTab`, `AnalyticsTab`, `SettingsTab`. |
+| `RootNavigatorParamList` | Root native-stack navigator: `MainTabs` plus the four named stacks for modal/full-screen presentation. |
 
-- Faster initial load time
-- Reduced memory footprint
-- Code splitting per feature module
+### Parametric routes
+
+| Route | Required params |
+|-------|----------------|
+| `SubscriptionDetail` | `{ id: string }` |
+| `EditSubscription` | `{ id: string }` |
+| `ChangePlan` | `{ subscriptionId: string }` |
+| `CancellationFlow` | `{ subscriptionId: string }` |
+| `InvoiceDetail` | `{ id: string }` |
+| `SegmentDetail` | `{ segmentId: string }` |
+| `TemplateVersionHistory` | `{ type: NotificationType; channel: NotificationChannel }` |
+| `SmsConsent` | `{ userId?: string } \| undefined` |
+| `CryptoPayment` | `{ subscriptionId?: string } \| undefined` |
+| `Profile` | `{ subscriber?: string } \| undefined` |
+| `NotFound` | `{ reason?: string }` |
+
+## Typed hook helpers
 
 ```typescript
-const SubscriptionDetailScreen = lazyScreen(
-  () => import('../screens/SubscriptionDetailScreen'),
-  { displayName: 'LazyRoute(SubscriptionDetail)' }
-);
+import { useAppRoute, useAppNavigation } from '../navigation/types';
+
+// Inside any screen component:
+const route = useAppRoute<'SubscriptionDetail'>();
+// route.params.id  →  string ✓
+
+const navigation = useAppNavigation<'SubscriptionDetail'>();
+// navigation.navigate('EditSubscription', { id: route.params.id }) ✓
 ```
 
-High-frequency routes can be warmed after first paint through the exported
-preload plan in `AppNavigator.tsx`:
+When you know exactly which stack a screen lives in, prefer the stack-specific type:
 
 ```typescript
-export const routePreloadPlan = [
-  { name: 'AddSubscription', load: () => import('../screens/AddSubscriptionScreen') },
-  { name: 'WalletConnect', load: () => import('../screens/WalletConnectV2Screen') },
-];
+import type { SubscriptionStackParamList } from '../navigation/types';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-prefetchRouteChunks(routePreloadPlan);
+const navigation =
+  useNavigation<NativeStackNavigationProp<SubscriptionStackParamList, 'SubscriptionDetail'>>();
 ```
 
-Keep prefetch lists short. Add routes that users commonly open in the first
-session; leave admin/reporting screens fully lazy unless performance profiling
-shows repeated cold-load pain.
+## Out-of-component navigation
 
-## Feature Gating
-
-Routes can be gated by feature flags and subscription tiers:
+`navigationRef.ts` exports helpers for navigating from outside React components (push notification handlers, background services, etc.).
 
 ```typescript
-const routeFeatureMap: Partial<Record<keyof RootStackParamList, FeatureId>> = {
-  CryptoPayment: FeatureId.CRYPTO_INTEGRATION,
-  Analytics: FeatureId.ADVANCED_ANALYTICS,
-};
+import {
+  navigateSubscription,
+  navigateSettings,
+  navigateWallet,
+  navigateAnalytics,
+} from '../navigation/navigationRef';
+
+navigateSubscription('SubscriptionDetail', { id: 'sub-123' });
+navigateSettings('NotificationPreferences');
+navigateWallet('InvoiceDetail', { id: 'inv-7' });
+navigateAnalytics('RevenueReport');
 ```
 
-## Auth Gating
+Each helper guards on `navigationRef.isReady()` and routes into the correct tab so the user lands with a coherent back-stack.
 
-Protected routes require authentication:
+The deprecated `navigateHomeScreen` and `navigateSettingsScreen` aliases are still present. Migrate call sites to `navigateSubscription` and `navigateSettings` respectively; the aliases will be removed in a future wave.
+
+## Lazy loading
+
+All screens use `lazyScreen()` from `src/utils/lazyLoading`. Frequently accessed routes are warmed in `AppNavigator.tsx` via `prefetchModule()` after first paint:
 
 ```typescript
-const authRequiredRoutes: Set<keyof RootStackParamList> = new Set([
-  'Profile',
-  'AdminDashboard',
-  'MerchantOnboarding',
-]);
+prefetchModule('AddSubscription', () => import('../screens/AddSubscriptionScreen'));
+prefetchModule('WalletConnect',   () => import('../screens/WalletConnectV2Screen'));
 ```
 
-## Deep Linking
+Keep the prefetch list short — only routes that users commonly open in the first session.
 
-The app supports deep linking with URL prefixes:
-- `subtrackr://`
-- `https://subtrackr.app`
+## Deep linking
 
-### URL Patterns
+| URL | Route |
+|-----|-------|
+| `subtrackr:///` | HomeTab → SubscriptionDashboard |
+| `subtrackr:///subscription/add` | AddSubscription |
+| `subtrackr:///subscription/:id` | SubscriptionDetail |
+| `subtrackr:///settings` | Settings |
 
-| Pattern | Route |
-|---------|-------|
-| `/home` | HomeTab |
-| `/subscriptions/:id` | SubscriptionDetail |
-| `/settings/admin` | AdminDashboard |
-| `/wallet/connect` | WalletConnect |
-| `/analytics` | AnalyticsTab |
+Add new paths in `linking.ts`. Use the `parse` option to coerce query-string values to the right type:
 
-## Error Handling
+```typescript
+AddSubscription: {
+  path: 'subscription/add',
+  parse: { amount: (v: string) => parseFloat(v) },
+},
+```
 
-The `NavigationErrorBoundary` component catches navigation errors and provides a graceful fallback UI with retry capability.
+## Adding a new screen
 
-## Analytics
-
-Navigation analytics track:
-- Screen views with previous screen context
-- Navigation actions
-- Navigation errors
-- Deep link usage
-- Screen render performance
-
-## Performance Benchmarks
-
-Target metrics:
-- Screen render: < 250ms (p95)
-- Navigation transition: < 300ms
-- Deep link resolution: < 500ms
-- Tab bar response: < 100ms
+1. Create the screen component in `src/screens/`.
+2. Add its route name and params to the **specific per-stack param list** in `types.ts`. Only add to `RootStackParamList` if the screen is legitimately reachable from multiple stacks.
+3. Add a `lazyScreen()` import and a `<Stack.Screen>` entry in the matching `modules/*.tsx` file.
+4. If the screen needs a deep link, add it to `linking.ts`.
+5. If the screen is feature-gated, register it in the feature map in `AppNavigator.tsx`.
 
 ## Testing
 
-Navigation tests verify:
-- Analytics event tracking
-- Screen metric calculations
-- Navigation path building
-- Event limits and clearing
-- Lazy route fallback and stable display names
+```bash
+# Type and ref tests (pure TS, no React Native preset):
+npx jest --config jest.backend.config.js \
+  --testPathPattern 'src/navigation/__tests__/navigationTypes'
 
-## Adding a New Screen
+npx jest --config jest.backend.config.js \
+  --testPathPattern 'src/navigation/__tests__/navigationRef'
 
-1. Create the screen component in `src/screens/`
-2. Add route to `RootStackParamList` in `types.ts`
-3. Add lazy import in the appropriate module stack
-4. Register in `AppNavigator.tsx` if needed for direct access
-5. Add deep link path in `linking.ts` if applicable
-6. Add feature gate if tier-restricted
+# Analytics tests:
+npx jest --config jest.backend.config.js \
+  --testPathPattern 'src/navigation/__tests__/navigationAnalytics'
+```
+
+Tests live in `src/navigation/__tests__/` and cover:
+
+- Per-stack param list shapes (route counts and key names).
+- `RootStackParamList` intersection — one representative route from every stack.
+- Typed param objects for every parametric route.
+- `useAppRoute` and `useAppNavigation` delegation.
+- All `navigateRef` helpers: ready/not-ready guard, correct tab targeting, nested screen params passed through.
+- Navigation analytics tracking, screen metrics, navigation path, and event-count limits.
+
+## Performance targets
+
+| Metric | Target |
+|--------|--------|
+| Screen render | < 250 ms p95 |
+| Navigation transition | < 300 ms |
+| Deep link resolution | < 500 ms |
+| Tab bar response | < 100 ms |

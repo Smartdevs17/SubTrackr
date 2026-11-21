@@ -6,7 +6,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import { prefetchModule } from '../utils/lazyLoading';
-import { RootStackParamList, TabParamList } from './types';
+import { RootNavigatorParamList, TabParamList } from './types';
 import { useTheme } from '../theme';
 import { darkNavigationTheme, lightNavigationTheme } from '../theme/navigationTheme';
 import { NavigationErrorBoundary } from './NavigationErrorBoundary';
@@ -15,7 +15,7 @@ import { NavigationErrorBoundary } from './NavigationErrorBoundary';
 import { SubscriptionStack, AnalyticsStack, SettingsStack, WalletStack } from './modules';
 
 const Tab = createBottomTabNavigator<TabParamList>();
-const Stack = createNativeStackNavigator<RootStackParamList>();
+const Stack = createNativeStackNavigator<RootNavigatorParamList>();
 
 /**
  * Root Stack Navigator encapsulating tab navigation and global modal screens.

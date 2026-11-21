@@ -1,9 +1,9 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { lazyScreen } from '../../utils/lazyLoading';
-import { RootStackParamList } from '../types';
+import { AnalyticsStackParamList } from '../types';
 
-const Stack = createNativeStackNavigator<RootStackParamList>();
+const Stack = createNativeStackNavigator<AnalyticsStackParamList>();
 
 const AnalyticsScreen = lazyScreen(() => import('../../screens/AnalyticsScreen'));
 const RevenueReportScreen = lazyScreen(() => import('../../screens/RevenueReportScreen'));
