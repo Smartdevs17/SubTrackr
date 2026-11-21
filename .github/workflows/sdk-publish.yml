@@ -1,54 +1,233 @@
-name: Automated SDK Build & Publish
+name: SDK Publish
+
+# Builds, verifies and publishes the JavaScript, Python and Go SDKs together.
+#
+# - Pull requests, pushes to main and manual runs are dry runs: every SDK is
+#   tested and packaged, nothing is published.
+# - Pushing a tag `sdk-vX.Y.Z` that matches sdks/VERSION publishes all three,
+#   and only after all three verified. A re-run skips registries that already
+#   have the version.
+#
+# Runbook: sdks/docs/releasing.md
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+    tags: ['sdk-v*']
     paths:
-      - 'developer-portal/docs/openapi.json'
       - 'sdks/**'
+      - '.github/workflows/sdk-publish.yml'
+  pull_request:
+    paths:
+      - 'sdks/**'
+      - '.github/workflows/sdk-publish.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sdk-publish-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 jobs:
-  validate-and-build:
-    name: Build & Validate SDKs
+  prepare:
+    name: Plan release
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.plan.outputs.version }}
+      python_version: ${{ steps.plan.outputs.python_version }}
+      npm_tag: ${{ steps.plan.outputs.npm_tag }}
+      go_module: ${{ steps.plan.outputs.go_module }}
+      go_tag: ${{ steps.plan.outputs.go_tag }}
+      publish: ${{ steps.plan.outputs.publish }}
+      npm_published: ${{ steps.registry.outputs.npm_published }}
+      pypi_published: ${{ steps.registry.outputs.pypi_published }}
+      go_published: ${{ steps.registry.outputs.go_published }}
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v7
-
-      - name: Validate OpenAPI 3.1 Spec
-        run: |
-          npx @redocly/cli lint developer-portal/docs/openapi.json
-
-      - name: Setup Node.js
-        uses: pnpm/action-setup@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+      - name: Test release tooling
+        run: node --test sdks/scripts/__tests__/release.test.mjs
+      - name: Check versions and changelog
+        run: node sdks/scripts/release.mjs check
+      - name: Plan
+        id: plan
+        run: node sdks/scripts/release.mjs plan
+      - name: Check registries
+        id: registry
+        if: steps.plan.outputs.publish == 'true'
+        run: node sdks/scripts/release.mjs registry-status
 
-      - name: Build JS SDK
-        run: |
-          cd sdks/javascript
-          pnpm install --frozen-lockfile
-          npm run build || true
+  verify-javascript:
+    name: Verify JavaScript SDK
+    needs: prepare
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sdks/javascript
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: sdks/javascript/package-lock.json
+      - run: npm ci
+      - name: Typecheck
+        run: npm test
+      - name: Build
+        run: npm run build
+      - name: Pack
+        run: npm pack
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdk-javascript
+          path: sdks/javascript/*.tgz
+          if-no-files-found: error
 
-      - name: Setup Python
-        uses: actions/setup-python@v7
+  verify-python:
+    name: Verify Python SDK
+    needs: prepare
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sdks/python
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.11'
-
-      - name: Validate Python SDK
-        run: |
-          cd sdks/python
-          python -m pip install --upgrade pip
-          pip install requests
-
-      - name: Setup Go
-        uses: actions/setup-go@v7
+      - name: Install
+        run: python -m pip install --upgrade pip build twine && python -m pip install -e .
+      - name: Test
+        run: python -m unittest discover tests
+      - name: Build sdist and wheel
+        run: python -m build
+      - name: Check distributions
+        run: python -m twine check --strict dist/*
+      - uses: actions/upload-artifact@v4
         with:
-          go-version: '1.21'
+          name: sdk-python
+          path: sdks/python/dist/*
+          if-no-files-found: error
 
-      - name: Validate Go SDK
+  verify-go:
+    name: Verify Go SDK
+    needs: prepare
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sdks/go
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: sdks/go/go.mod
+      - run: go vet ./...
+      - run: go test -race ./...
+
+  publish-npm:
+    name: Publish to npm
+    needs: [prepare, verify-javascript, verify-python, verify-go]
+    if: needs.prepare.outputs.publish == 'true' && needs.prepare.outputs.npm_published != 'true'
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write # npm provenance
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+      - uses: actions/download-artifact@v4
+        with:
+          name: sdk-javascript
+      - name: Publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TAG: ${{ needs.prepare.outputs.npm_tag }}
+        run: npm publish ./*.tgz --tag "$NPM_TAG" --access public --provenance
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: [prepare, verify-javascript, verify-python, verify-go]
+    if: needs.prepare.outputs.publish == 'true' && needs.prepare.outputs.pypi_published != 'true'
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write # PyPI trusted publishing
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: sdk-python
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
+
+  publish-go:
+    name: Publish Go module
+    needs: [prepare, verify-javascript, verify-python, verify-go]
+    if: needs.prepare.outputs.publish == 'true' && needs.prepare.outputs.go_published != 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the sdks/go/vX.Y.Z tag
+    env:
+      GO_TAG: ${{ needs.prepare.outputs.go_tag }}
+      GO_MODULE: ${{ needs.prepare.outputs.go_module }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: sdks/go/go.mod
+      - name: Tag module
         run: |
-          cd sdks/go
-          go test ./... || true
+          if git ls-remote --exit-code --tags origin "refs/tags/$GO_TAG" >/dev/null; then
+            echo "[sdk-release] $GO_TAG already exists; not re-tagging"
+          else
+            git tag "$GO_TAG" "$GITHUB_SHA"
+            git push origin "refs/tags/$GO_TAG"
+            echo "[sdk-release] pushed $GO_TAG at $GITHUB_SHA"
+          fi
+      - name: Register with the Go module proxy
+        run: |
+          cd "$(mktemp -d)"
+          for attempt in 1 2 3 4 5; do
+            if GOPROXY=https://proxy.golang.org GOFLAGS=-mod=mod go mod download -json "$GO_MODULE@v$VERSION"; then
+              echo "[sdk-release] $GO_MODULE@v$VERSION is available on proxy.golang.org"
+              exit 0
+            fi
+            echo "[sdk-release] proxy not ready (attempt $attempt); retrying"
+            sleep $((attempt * 15))
+          done
+          echo "::error::$GO_MODULE@v$VERSION did not become available on proxy.golang.org"
+          exit 1
+
+  summary:
+    name: Release summary
+    needs:
+      [prepare, verify-javascript, verify-python, verify-go, publish-npm, publish-pypi, publish-go]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Summarise
+        env:
+          # When publishing, report the publish job unless the registry already
+          # had the version; otherwise report the verify job.
+          JAVASCRIPT_RESULT: ${{ (needs.prepare.outputs.publish == 'true' && needs.prepare.outputs.npm_published != 'true') && needs.publish-npm.result || needs.verify-javascript.result }}
+          PYTHON_RESULT: ${{ (needs.prepare.outputs.publish == 'true' && needs.prepare.outputs.pypi_published != 'true') && needs.publish-pypi.result || needs.verify-python.result }}
+          GO_RESULT: ${{ (needs.prepare.outputs.publish == 'true' && needs.prepare.outputs.go_published != 'true') && needs.publish-go.result || needs.verify-go.result }}
+          JAVASCRIPT_ALREADY_PUBLISHED: ${{ needs.prepare.outputs.npm_published }}
+          PYTHON_ALREADY_PUBLISHED: ${{ needs.prepare.outputs.pypi_published }}
+          GO_ALREADY_PUBLISHED: ${{ needs.prepare.outputs.go_published }}
+        run: node sdks/scripts/release.mjs summary

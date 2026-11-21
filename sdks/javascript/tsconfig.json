@@ -11,5 +11,6 @@
     "forceConsistentCasingInFileNames": true,
     "types": ["jest", "node"]
   },
-  "include": ["src/**/*", "../../shared/types/contract.ts"]
+  "include": ["src/**/*", "../../shared/types/contract.ts"],
+  "exclude": ["src/**/__tests__/**"]
 }

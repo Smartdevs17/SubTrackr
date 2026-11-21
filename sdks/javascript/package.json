@@ -1,15 +1,39 @@
 {
   "name": "@subtrackr/sdk",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Official SubTrackr JavaScript SDK",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Smartdevs17/SubTrackr.git",
+    "directory": "sdks/javascript"
+  },
+  "homepage": "https://github.com/Smartdevs17/SubTrackr/tree/main/sdks/javascript#readme",
   "main": "dist/sdks/javascript/src/index.js",
   "types": "dist/sdks/javascript/src/index.d.ts",
+  "files": [
+    "dist/sdks/javascript/src/**/*.js",
+    "dist/sdks/javascript/src/**/*.d.ts",
+    "!dist/**/__tests__/**",
+    "dist/shared/**/*.js",
+    "dist/shared/**/*.d.ts",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "build": "tsc",
-    "test": "tsc --noEmit"
+    "test": "tsc --noEmit",
+    "prepublishOnly": "npm test && npm run build"
   },
   "dependencies": {},
   "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "@types/node": "^20.0.0",
     "typescript": "^5.0.0"
   }
 }

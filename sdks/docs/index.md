@@ -60,7 +60,7 @@ for sub in subs:
 
 ### Installation
 ```bash
-go get github.com/Smartdevs17/SubTrackr/sdks/go
+go get github.com/Smartdevs17/SubTrackr/sdks/go/v2
 ```
 
 ### Basic Usage
@@ -69,7 +69,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/Smartdevs17/SubTrackr/sdks/go"
+	subtrackr "github.com/Smartdevs17/SubTrackr/sdks/go/v2"
 )
 
 func main() {
@@ -107,4 +107,13 @@ npm run sdk:test:go
 
 ## Publication
 
-The `SDK Packages` GitHub Actions workflow validates all SDKs on pull requests that touch SDK or OpenAPI files. Tags matching `sdk-v*` publish the JavaScript SDK to npm using `NPM_TOKEN`.
+All three SDKs share one version (`sdks/VERSION`) and are released together
+by the `SDK Publish` workflow (`.github/workflows/sdk-publish.yml`):
+
+- Pull requests that touch `sdks/**` run a dry run: every SDK is tested and
+  packaged, and nothing is published.
+- Pushing a tag `sdk-vX.Y.Z` that matches `sdks/VERSION` publishes to npm,
+  PyPI and the Go module proxy, and only if all three SDKs pass.
+
+See [releasing.md](releasing.md) for the runbook and the one-time registry
+setup.
