@@ -33,7 +33,8 @@ Tuned via environment variables in `backend/config/database.ts`:
 | Variable | Default | Description |
 |---|---|---|
 | `DB_POOL_MAX` | `20` | Max primary connections |
-| `DB_REPLICA_POOL_SIZE` | `25` | Connections per replica (via PgBouncer) |
+| `DB_REPLICA_POOL_SIZE` | Preset default (`25`) | Connections per replica (via PgBouncer) |
+| `PGBOUNCER_PRESET` | `standard` | Worker sizing preset: `small`, `standard`, `large`, `batch` (see `infra/pgbouncer/README.md`) |
 | `DB_IDLE_TIMEOUT_MS` | `10000` | Idle connection recycling |
 | `DB_CONNECTION_TIMEOUT_MS` | `30000` | Acquisition timeout |
 | `DB_STATEMENT_TIMEOUT_MS` | `30000` | Per-query statement timeout |

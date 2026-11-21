@@ -8,7 +8,8 @@
  * Read replicas (optional — comma-separated host:port pairs OR URLs):
  *   DB_READ_REPLICAS – e.g. "replica-1.internal:6432,replica-2.internal:6433"
  *   DATABASE_READ_URLS – e.g. "postgres://u:p@r1:5432/db,postgres://u:p@r2:5432/db"
- *   DB_REPLICA_POOL_SIZE – PgBouncer pool size per replica (default: 25)
+ *   DB_REPLICA_POOL_SIZE – PgBouncer pool size per replica (overrides the preset)
+ *   PGBOUNCER_PRESET – worker sizing preset: small | standard | large | batch
  *
  * Replication lag thresholds (milliseconds):
  *   DB_REPLICATION_LAG_P99_ALARM_MS – P99 alarm threshold (default: 1000)
@@ -23,6 +24,54 @@ import {
   ConnectionStringRotator,
   type ParsedConnectionString,
 } from '../shared/db/connectionStringRotation';
+
+/**
+ * Canonical PgBouncer sizing presets and their resolver live next to the
+ * generated ini template in infra/pgbouncer. Importing it here prevents the
+ * backend and deployment configuration from drifting apart.
+ */
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { resolvePreset: resolvePgBouncerPreset } = require('../../infra/pgbouncer/render.js') as {
+  resolvePreset: (
+    options?: { preset?: string; replicaPoolSize?: string | number },
+    context?: {
+      warn?: (message: string) => void;
+      env?: NodeJS.ProcessEnv;
+    },
+  ) => PgBouncerSizing;
+};
+
+/** Worker-aware PgBouncer sizing resolved from infra/pgbouncer/presets.json. */
+export interface PgBouncerSizing {
+  name: string;
+  requestedName: string;
+  label: string;
+  fallbackUsed: boolean;
+  poolSizeOverridden: boolean;
+  workerConcurrency: number;
+  workerPoolMax: number;
+  defaultPoolSize: number;
+  minPoolSize: number;
+  reservePoolSize: number;
+  reservePoolTimeout: number;
+  maxClientConn: number;
+  maxPreparedStatements: number;
+  serverConnectionBudget: number;
+  poolMode: 'transaction';
+}
+
+export interface PgBouncerSizingEvent {
+  code: 'UNKNOWN_PRESET' | 'INVALID_REPLICA_POOL_SIZE';
+  requestedPreset: string;
+  resolvedPreset: string;
+  message: string;
+}
+
+/** Optional observability hooks for user-visible sizing fallbacks. */
+export interface DatabaseConfigHooks {
+  onPgBouncerSizingEvent?: (event: PgBouncerSizingEvent) => void;
+  onPgBouncerSizingResolved?: (sizing: PgBouncerSizing) => void;
+}
 
 export interface ReplicaEndpoint {
   /** Logical name used in metrics labels (replica-1, replica-2, …). */
@@ -46,6 +95,8 @@ export interface DatabaseConfig {
   lagPollIntervalMs: number;
   /** Extended pool tuning options (issue #1797) */
   poolTuning: PoolTuningOptions;
+  /** Worker-aware PgBouncer sizing (issue #2076) */
+  pgbouncer: PgBouncerSizing;
 }
 
 export const DEFAULT_DATABASE_CONFIG: Readonly<{
@@ -85,12 +136,12 @@ function parseReplicaEndpoints(raw: string | undefined): ReplicaEndpoint[] {
     });
 }
 
-function poolDefaults(env: NodeJS.ProcessEnv): Pick<
-  Required<PoolConfig>,
-  'max' | 'idleTimeoutMillis' | 'connectionTimeoutMillis' | 'statementTimeout'
-> {
+function poolDefaults(
+  env: NodeJS.ProcessEnv,
+  pgbouncer: PgBouncerSizing,
+): Pick<Required<PoolConfig>, 'max' | 'idleTimeoutMillis' | 'connectionTimeoutMillis' | 'statementTimeout'> {
   return {
-    max: parsePositiveInt(env.DB_POOL_MAX, 20),
+    max: parsePositiveInt(env.DB_POOL_MAX, pgbouncer.workerPoolMax),
     idleTimeoutMillis: parsePositiveInt(env.DB_IDLE_TIMEOUT_MS, 10_000),
     connectionTimeoutMillis: parsePositiveInt(env.DB_CONNECTION_TIMEOUT_MS, 30_000),
     statementTimeout: parsePositiveInt(env.DB_STATEMENT_TIMEOUT_MS, 30_000),
@@ -154,9 +205,10 @@ function parsePositiveFloat(value: string | undefined, fallback: number): number
 function primaryFromParsed(
   parsed: ParsedConnectionString,
   env: NodeJS.ProcessEnv,
+  pgbouncer: PgBouncerSizing,
 ): Required<PoolConfig> {
   return {
-    ...poolDefaults(env),
+    ...poolDefaults(env, pgbouncer),
     host: parsed.host,
     port: parsed.port,
     database: parsed.database,
@@ -166,17 +218,17 @@ function primaryFromParsed(
   };
 }
 
-function buildPrimaryConfig(env: NodeJS.ProcessEnv): Required<PoolConfig> {
+function buildPrimaryConfig(env: NodeJS.ProcessEnv, pgbouncer: PgBouncerSizing): Required<PoolConfig> {
   if (env.DATABASE_URL?.trim()) {
     const rotator = new ConnectionStringRotator({ primaryUrl: env.DATABASE_URL });
     const primary = rotator.getPrimary();
     if (primary) {
-      return primaryFromParsed(primary, env);
+      return primaryFromParsed(primary, env, pgbouncer);
     }
   }
 
   return {
-    ...poolDefaults(env),
+    ...poolDefaults(env, pgbouncer),
     host: env.DB_HOST?.trim() || 'localhost',
     port: parsePositiveInt(env.DB_PORT, 5432),
     database: env.DB_NAME?.trim() || 'subtrackr',
@@ -198,15 +250,47 @@ function resolveReplicas(env: NodeJS.ProcessEnv): ReplicaEndpoint[] {
   return parseReplicaEndpoints(env.DB_READ_REPLICAS);
 }
 
+/**
+ * Resolve worker-aware PgBouncer sizing and surface fallbacks through the
+ * optional observability hook as well as a structured console warning.
+ */
+function resolvePgBouncerSizing(
+  env: NodeJS.ProcessEnv,
+  hooks: DatabaseConfigHooks,
+): PgBouncerSizing {
+  const warnings: string[] = [];
+  const sizing = resolvePgBouncerPreset(
+    { preset: env.PGBOUNCER_PRESET, replicaPoolSize: env.DB_REPLICA_POOL_SIZE },
+    { warn: (message) => warnings.push(message), env },
+  );
+
+  for (const message of warnings) {
+    const event: PgBouncerSizingEvent = {
+      code: message.startsWith('Unknown PgBouncer preset')
+        ? 'UNKNOWN_PRESET'
+        : 'INVALID_REPLICA_POOL_SIZE',
+      requestedPreset: (env.PGBOUNCER_PRESET ?? sizing.name).trim().toLowerCase(),
+      resolvedPreset: sizing.name,
+      message,
+    };
+    console.warn(`[PgBouncer] ${message}`);
+    hooks.onPgBouncerSizingEvent?.(event);
+  }
+
+  hooks.onPgBouncerSizingResolved?.(sizing);
+  return sizing;
+}
+
 /** Load database configuration from environment variables. */
-export function loadDatabaseConfig(env: NodeJS.ProcessEnv = process.env): DatabaseConfig {
+export function loadDatabaseConfig(
+  env: NodeJS.ProcessEnv = process.env,
+  hooks: DatabaseConfigHooks = {},
+): DatabaseConfig {
+  const pgbouncer = resolvePgBouncerSizing(env, hooks);
   return {
-    primary: buildPrimaryConfig(env),
+    primary: buildPrimaryConfig(env, pgbouncer),
     replicas: resolveReplicas(env),
-    replicaPoolSize: parsePositiveInt(
-      env.DB_REPLICA_POOL_SIZE,
-      DEFAULT_DATABASE_CONFIG.replicaPoolSize,
-    ),
+    replicaPoolSize: pgbouncer.defaultPoolSize,
     replicationLagP99AlarmMs: parsePositiveInt(
       env.DB_REPLICATION_LAG_P99_ALARM_MS,
       DEFAULT_DATABASE_CONFIG.replicationLagP99AlarmMs,
@@ -224,6 +308,7 @@ export function loadDatabaseConfig(env: NodeJS.ProcessEnv = process.env): Databa
       DEFAULT_DATABASE_CONFIG.lagPollIntervalMs,
     ),
     poolTuning: loadPoolTuning(env),
+    pgbouncer,
   };
 }
 
