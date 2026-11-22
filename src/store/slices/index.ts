@@ -28,6 +28,8 @@ import { createMeteringSlice } from './meteringSlice';
 import { createPaymentSlice } from './paymentSlice';
 import { createBatchSlice } from './batchSlice';
 import { createAnalyticsSlice } from './analyticsSlice';
+import { createBillingSlice } from './billingSlice';
+import { createCalendarSlice } from './calendarSlice';
 import type { AppState } from './state';
 
 export type { AppState } from './state';
@@ -118,6 +120,33 @@ export {
 export type { AnalyticsSlice, AnalyticsStoreState, CreditMetricSnapshot } from './analyticsSlice';
 export { DEFAULT_WIDGETS, computeCreditSnapshot } from './analyticsSlice';
 
+// ── Billing slice (issue #2045) ───────────────────────────────────────────────
+export type {
+  BillingSlice,
+  BillingStoreState,
+  AdjustmentPolicy,
+  CalendarBilling,
+  CalendarInvoice,
+  InvoiceStatus,
+  MerchantBillingSchedule,
+} from './billingSlice';
+export { calculateNextBillingDate, calculateProRataAmount } from './billingSlice';
+
+// ── Calendar slice (issue #2045) ─────────────────────────────────────────────
+export type {
+  CalendarSlice,
+  CalendarStoreState,
+  CalendarExportPayload,
+  CalendarIntegration,
+  CalendarProvider,
+  CalendarSyncedEvent,
+  OneTimeScheduledPayment,
+  PendingCalendarAuthorization,
+  ProratedAdjustment,
+  ScheduleConflict,
+} from './calendarSlice';
+export { REMINDER_PRESETS } from './calendarSlice';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Storage selection: pick the correct adapter for the runtime environment.
 // Mobile uses AsyncStorage; web/developer-portal use localStorage.
@@ -147,6 +176,8 @@ export const useAppStore = create<AppState>()(
       ...createPaymentSlice(set, get),
       ...createBatchSlice(set, get),
       ...createAnalyticsSlice(set, get),
+      ...createBillingSlice(set, get),
+      ...createCalendarSlice(set, get),
     }),
     {
       name: 'subtrackr-app-store',
@@ -176,6 +207,15 @@ export const useAppStore = create<AppState>()(
         methods: state.methods,
         attemptLog: state.attemptLog,
         chains: state.chains,
+        // billing slice
+        billingSchedules: state.billingSchedules,
+        billingInvoices: state.billingInvoices,
+        // calendar slice
+        calendarIntegrations: state.calendarIntegrations,
+        calendarSyncedEvents: state.calendarSyncedEvents,
+        calendarReminderOffsets: state.calendarReminderOffsets,
+        calendarOneTimePayments: state.calendarOneTimePayments,
+        calendarTimezone: state.calendarTimezone,
       }),
     }
   )
