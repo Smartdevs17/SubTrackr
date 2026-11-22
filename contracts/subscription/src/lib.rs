@@ -7,6 +7,7 @@
 // Contract methods take positional arguments by ABI; parameters cannot be
 // grouped into a struct without changing the contract interface.
 #![allow(clippy::too_many_arguments)]
+mod cancellation;
 mod quota;
 mod revenue;
 mod trial;
@@ -79,6 +80,8 @@ enum FeatureStoreKey {
     ReactivationConfig,
     /// subscription_id -> cancellation timestamp (for reactivation window).
     CancelledAt(u64),
+    /// subscription_id -> CancellationProof (#2027).
+    CancellationProof(u64),
 }
 
 fn feature_get<V: TryFromVal<Env, Val>>(env: &Env, key: FeatureStoreKey) -> Option<V> {
@@ -1020,6 +1023,9 @@ impl SubTrackrSubscription {
             env.ledger().timestamp(),
         );
 
+        // Anchor a verifiable proof of the cancellation in an event (#2027).
+        cancellation::record(&env, subscription_id, sub.plan_id, &subscriber);
+
         // Remove index
         remove_user_plan_index(&env, &storage, &subscriber, sub.plan_id);
 
@@ -1029,6 +1035,29 @@ impl SubTrackrSubscription {
             plan.subscriber_count -= 1;
         }
         storage_persistent_set(&env, &storage, StorageKey::Plan(sub.plan_id), plan);
+    }
+
+    /// Return the stored cancellation proof, if the subscription was cancelled.
+    pub fn get_cancellation_proof(
+        env: Env,
+        proxy: Address,
+        _storage: Address,
+        subscription_id: u64,
+    ) -> Option<cancellation::CancellationProof> {
+        proxy.require_auth();
+        cancellation::get(&env, subscription_id)
+    }
+
+    /// Check a claimed digest against the stored proof for a subscription.
+    pub fn verify_cancellation_proof(
+        env: Env,
+        proxy: Address,
+        _storage: Address,
+        subscription_id: u64,
+        digest: BytesN<32>,
+    ) -> bool {
+        proxy.require_auth();
+        cancellation::verify(&env, subscription_id, &digest)
     }
 
     pub fn pause_subscription(
