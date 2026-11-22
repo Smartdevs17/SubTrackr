@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+﻿import { create } from 'zustand';
 import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -7,6 +7,7 @@ import {
   SubscriptionStats,
   SubscriptionCategory, // eslint-disable-line
   BillingCycle, // eslint-disable-line
+  SubscriptionLifecycleStatus,
   SubscriptionLifecycleEvent,
   SubscriptionLifecycleEventType,
 } from '../types/subscription';
@@ -464,6 +465,8 @@ export interface SubscriptionState {
   updateSubscription: (id: string, data: Partial<Subscription>) => Promise<void>;
   deleteSubscription: (id: string) => Promise<void>;
   toggleSubscriptionStatus: (id: string) => Promise<void>;
+  pauseSubscriptionWithState: (id: string, opts?: { durationDays?: number; reason?: string; resumeAt?: Date }) => Promise<void>;
+  resumeSubscriptionWithState: (id: string) => Promise<void>;
   reassignCategory: (fromCategoryId: string, toCategoryId: string) => Promise<void>;
   previewPauseAdjustment: (
     id: string,
@@ -736,7 +739,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           get().recordLifecycleEvent(
             id,
             'plan_changed',
-            `${sub.price} ${sub.currency} → ${newPlanData.price ?? sub.price} ${sub.currency} (${effectiveDate})`
+            `${sub.price} ${sub.currency} â†’ ${newPlanData.price ?? sub.price} ${sub.currency} (${effectiveDate})`
           );
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
@@ -820,7 +823,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         const { usePlanTemplateStore } = await import('./planTemplateStore');
         const templateStore = usePlanTemplateStore.getState();
 
-        // Resolve template → concrete plan params
+        // Resolve template â†’ concrete plan params
         const resolved = templateStore.instantiate(callerId, templateId, overrides);
 
         const formData: SubscriptionFormData = {
@@ -875,7 +878,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             get().recordLifecycleEvent(
               id,
               'price_changed',
-              `${previous.price} ${updatedSubscription.currency} → ${data.price} ${updatedSubscription.currency}`
+              `${previous.price} ${updatedSubscription.currency} â†’ ${data.price} ${updatedSubscription.currency}`
             );
             await notifySubscriptionEvent(SUBSCRIPTION_EVENT.PRICE_CHANGED, updatedSubscription, {
               previousPrice: previous.price,
@@ -944,76 +947,102 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         }
       },
 
-      toggleSubscriptionStatus: async (id: string) => {
-        set({ isLoading: true, error: null });
-        try {
-          set((state) => {
-            const next = state.subscriptions.map((sub) =>
-              sub.id === id ? { ...sub, isActive: !sub.isActive, updatedAt: new Date() } : sub
-            );
-            const updated = next.find((sub) => sub.id === id);
-            return {
-              subscriptions: next,
-              crdtMetadata: updated
-                ? stampCrdtMetadata(state.crdtMetadata, updated, {
-                    isActive: updated.isActive,
-                    updatedAt: updated.updatedAt,
-                  })
-                : state.crdtMetadata,
-              syncStatus: 'pending' as SubscriptionSyncStatus,
-              isLoading: false,
-            };
-          });
+        toggleSubscriptionStatus: async (id: string) => {
+    const sub = get().subscriptions.find((s) => s.id === id);
+    if (!sub) return;
+    if ((sub as any).status === SubscriptionLifecycleStatus.PAUSED || sub.isPaused || !sub.isActive) {
+      await get().resumeSubscriptionWithState(id);
+    } else {
+      await get().pauseSubscriptionWithState(id);
+    }
+  },
 
-          get().calculateStats();
-          await syncRenewalReminders(get().subscriptions);
-          const updatedSubscription = get().subscriptions.find((sub) => sub.id === id);
-          if (updatedSubscription) {
-            get().recordLifecycleEvent(id, updatedSubscription.isActive ? 'resumed' : 'paused');
-            await notifySubscriptionEvent(
-              updatedSubscription.isActive ? SUBSCRIPTION_EVENT.RESUMED : SUBSCRIPTION_EVENT.PAUSED,
-              updatedSubscription
-            );
-            await useCalendarStore.getState().syncSubscriptionToCalendars(updatedSubscription);
-          }
-        } catch (error) {
-          const appError = errorHandler.handleError(error as Error, {
-            action: 'toggleSubscriptionStatus',
-            subscriptionId: id,
-          });
-          set({
-            error: appError,
-            isLoading: false,
-          });
-        }
-      },
+  pauseSubscriptionWithState: async (
+    id: string,
+    opts?: { durationDays?: number; reason?: string; resumeAt?: Date }
+  ) => {
+    set({ isLoading: true, error: null });
+    try {
+      const now = new Date();
+      const current = get().subscriptions.find((s) => s.id === id);
+      if (!current) throw new Error('Subscription not found');
+      const updatedSubscriptions = get().subscriptions.map((sub) =>
+        sub.id === id
+          ? ({
+              ...sub,
+              isActive: false,
+              isPaused: true,
+              status: SubscriptionLifecycleStatus.PAUSED,
+              pausedAt: now,
+              pausedUntil: opts?.resumeAt,
+              pauseDurationDays: opts?.durationDays,
+              pauseReason: opts?.reason,
+              pauseStateSnapshot: {
+                nextBillingDate: new Date(sub.nextBillingDate),
+                notificationsEnabled: sub.notificationsEnabled ?? true,
+                isActive: sub.isActive,
+                capturedAt: now,
+              },
+              updatedAt: now,
+            } as any)
+          : sub
+      );
+      const lifecycleHistory = appendLifecycleEvent(
+        get().lifecycleHistory,
+        id,
+        createLifecycleEvent(id, 'paused', { description: `${current.name} paused`, metadata: { source: 'pauseSubscriptionWithState' } })
+      );
+      set({ subscriptions: updatedSubscriptions, lifecycleHistory, isLoading: false });
+      get().calculateStats();
+      await syncRenewalReminders(get().subscriptions);
+      const updated = get().subscriptions.find((s) => s.id === id);
+      if (updated) await useCalendarStore.getState().syncSubscriptionToCalendars(updated);
+    } catch (error) {
+      set({ error: errorHandler.handleError(error as Error, { action: 'pauseSubscriptionWithState', subscriptionId: id }), isLoading: false });
+    }
+  },
 
-      previewPauseAdjustment: (id: string, resumeDate?: Date) => {
-        const sub = get().subscriptions.find((s) => s.id === id);
-        if (!sub) throw new Error('Subscription not found');
-
-        const now = resumeDate || new Date();
-        let pauseMs = 0;
-        if (sub.pausedAt) {
-          const pausedAtTime = new Date(sub.pausedAt).getTime();
-          const elapsed = now.getTime() - pausedAtTime;
-          const maxPauseMs = (sub.pauseDurationDays || 30) * 86400 * 1000;
-          pauseMs = Math.max(0, Math.min(elapsed, maxPauseMs));
-        }
-
-        const elapsedPauseDays = Math.round(pauseMs / (86400 * 1000));
-        const adjustedNextBillingDate = new Date(new Date(sub.nextBillingDate).getTime() + pauseMs);
-        const dailyRate = sub.price / 30;
-        const creditAmount = Math.round(dailyRate * elapsedPauseDays * 100) / 100;
-
+  resumeSubscriptionWithState: async (id: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const now = new Date();
+      const current = get().subscriptions.find((s) => s.id === id);
+      if (!current) throw new Error('Subscription not found');
+      const updatedSubscriptions = get().subscriptions.map((sub) => {
+        if (sub.id !== id) return sub;
+        const snap = (sub as any).pauseStateSnapshot;
+        let nextBillingDate = snap?.nextBillingDate ? new Date(snap.nextBillingDate) : new Date(sub.nextBillingDate);
+        while (nextBillingDate.getTime() < now.getTime()) nextBillingDate = advanceBillingDate(nextBillingDate, sub.billingCycle);
         return {
-          adjustedNextBillingDate,
-          elapsedPauseDays,
-          creditAmount,
-        };
-      },
-
-      recordBillingOutcome: async (id: string, outcome: 'success' | 'failed') => {
+          ...sub,
+          isActive: true,
+          isPaused: false,
+          status: SubscriptionLifecycleStatus.ACTIVE,
+          nextBillingDate,
+          notificationsEnabled: snap?.notificationsEnabled ?? sub.notificationsEnabled ?? true,
+          pausedAt: undefined,
+          pausedUntil: undefined,
+          pauseDurationDays: undefined,
+          pauseReason: undefined,
+          pauseStateSnapshot: undefined,
+          updatedAt: now,
+        } as any;
+      });
+      const lifecycleHistory = appendLifecycleEvent(
+        get().lifecycleHistory,
+        id,
+        createLifecycleEvent(id, 'resumed', { description: `${current.name} resumed`, metadata: { source: 'resumeSubscriptionWithState' } })
+      );
+      set({ subscriptions: updatedSubscriptions, lifecycleHistory, isLoading: false });
+      get().calculateStats();
+      await syncRenewalReminders(get().subscriptions);
+      const updated = get().subscriptions.find((s) => s.id === id);
+      if (updated) await useCalendarStore.getState().syncSubscriptionToCalendars(updated);
+    } catch (error) {
+      set({ error: errorHandler.handleError(error as Error, { action: 'resumeSubscriptionWithState', subscriptionId: id }), isLoading: false });
+    }
+  },
+  recordBillingOutcome: async (id: string, outcome: 'success' | 'failed') => {
         const sub = get().subscriptions.find((s) => s.id === id);
         if (!sub) return;
         const accountId = getDefaultAccountId();
@@ -1497,3 +1526,5 @@ export const useSubscriptionStore = create<SubscriptionState>()(
     }
   )
 );
+
+

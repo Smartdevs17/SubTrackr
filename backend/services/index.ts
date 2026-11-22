@@ -171,3 +171,7 @@ export type {
   UnauthorizedAccessEvent,
   AccessCheckOptions,
 } from './accessControl';
+
+// -- Merchant Module -----------------------------------------------------------
+export * from './merchant';
+

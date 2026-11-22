@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { navigationRef } from './navigationRef';
@@ -10,6 +10,7 @@ import { RootNavigatorParamList, TabParamList } from './types';
 import { useTheme } from '../theme';
 import { darkNavigationTheme, lightNavigationTheme } from '../theme/navigationTheme';
 import { NavigationErrorBoundary } from './NavigationErrorBoundary';
+import { linkingConfig } from './linking';
 
 // Import feature-based stack modules
 import { SubscriptionStack, AnalyticsStack, SettingsStack, WalletStack } from './modules';
@@ -55,7 +56,7 @@ const TabNavigator = () => {
         options={{
           tabBarLabel: t('navigation.home'),
           tabBarIcon: ({ color, size }) => (
-            <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>🏠</Text>
+            <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>ðŸ </Text>
           ),
         }}
       />
@@ -65,7 +66,7 @@ const TabNavigator = () => {
         options={{
           tabBarLabel: t('navigation.wallet'),
           tabBarIcon: ({ color, size }) => (
-            <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>🔗</Text>
+            <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>ðŸ”—</Text>
           ),
         }}
       />
@@ -75,7 +76,7 @@ const TabNavigator = () => {
         options={{
           tabBarLabel: t('navigation.analytics'),
           tabBarIcon: ({ color, size }) => (
-            <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>📊</Text>
+            <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>ðŸ“Š</Text>
           ),
         }}
       />
@@ -85,7 +86,7 @@ const TabNavigator = () => {
         options={{
           tabBarLabel: t('navigation.settings'),
           tabBarIcon: ({ color, size }) => (
-            <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>⚙️</Text>
+            <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>âš™ï¸</Text>
           ),
         }}
       />
@@ -105,7 +106,7 @@ export const AppNavigator = () => {
 
   return (
     <NavigationErrorBoundary>
-      <NavigationContainer
+      <NavigationContainer linking={linkingConfig}
         ref={navigationRef}
         theme={isDark ? darkNavigationTheme : lightNavigationTheme}>
         <RootNavigator />
@@ -115,3 +116,4 @@ export const AppNavigator = () => {
 };
 
 export default AppNavigator;
+

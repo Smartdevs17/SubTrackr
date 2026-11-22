@@ -1,4 +1,4 @@
-#![no_std]
+﻿#![no_std]
 // TODO: migrate `env.events().publish(..)` to the `#[contractevent]` macro.
 // soroban-sdk 28 deprecated the imperative form; it is still functional and
 // still emits identical events, so the deprecation is allowed crate-wide
@@ -17,7 +17,7 @@ use subtrackr_types::{
     Subscription, SubscriptionStatus, TimeRange,
 };
 
-// ── Feature types (defined locally to avoid StorageKey enum growth) ──
+// â”€â”€ Feature types (defined locally to avoid StorageKey enum growth) â”€â”€
 
 /// A discount coupon created by a merchant.
 #[soroban_sdk::contracttype]
@@ -569,16 +569,16 @@ fn charge_subscription_guarded(
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Implementation Contract
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[soroban_sdk::contract]
 pub struct SubTrackrSubscription;
 
 #[soroban_sdk::contractimpl]
 impl SubTrackrSubscription {
-    // ── Upgrade interface ──
+    // â”€â”€ Upgrade interface â”€â”€
 
     pub fn get_version(_env: Env, proxy: Address, _storage: Address) -> u32 {
         proxy.require_auth();
@@ -631,7 +631,7 @@ impl SubTrackrSubscription {
         panic!("Unsupported migration path");
     }
 
-    // ── Initialization ──
+    // â”€â”€ Initialization â”€â”€
 
     pub fn initialize(env: Env, proxy: Address, storage: Address, admin: Address) {
         proxy.require_auth();
@@ -657,7 +657,7 @@ impl SubTrackrSubscription {
         storage_instance_remove(&env, &storage, StorageKey::InvoiceContract);
     }
 
-    // ── Rate Limiting Admin ──
+    // â”€â”€ Rate Limiting Admin â”€â”€
 
     pub fn set_rate_limit(
         env: Env,
@@ -823,7 +823,7 @@ impl SubTrackrSubscription {
         );
     }
 
-    // ── Plan Management ──
+    // â”€â”€ Plan Management â”€â”€
 
     pub fn create_plan(
         env: Env,
@@ -897,7 +897,7 @@ impl SubTrackrSubscription {
         storage_persistent_set(&env, &storage, StorageKey::Plan(plan_id), plan);
     }
 
-    // ── Subscription Management ──
+    // â”€â”€ Subscription Management â”€â”€
 
     pub fn subscribe(
         env: Env,
@@ -1142,7 +1142,7 @@ impl SubTrackrSubscription {
         );
     }
 
-    // ── Payment Processing ──
+    // â”€â”€ Payment Processing â”€â”€
 
     pub fn charge_subscription(env: Env, proxy: Address, storage: Address, subscription_id: u64) {
         proxy.require_auth();
@@ -1243,7 +1243,7 @@ impl SubTrackrSubscription {
         );
     }
 
-    // ── Subscription Transfer ──
+    // â”€â”€ Subscription Transfer â”€â”€
 
     pub fn request_transfer(
         env: Env,
@@ -1363,7 +1363,7 @@ impl SubTrackrSubscription {
         );
     }
 
-    // ── Queries ──
+    // â”€â”€ Queries â”€â”€
 
     pub fn get_plan(env: Env, proxy: Address, storage: Address, plan_id: u64) -> Plan {
         proxy.require_auth();
@@ -1445,7 +1445,7 @@ impl SubTrackrSubscription {
         storage_instance_get(&env, &storage, StorageKey::MevAlertCount).unwrap_or(0)
     }
 
-    // ── Revenue Recognition API ──
+    // â”€â”€ Revenue Recognition API â”€â”€
 
     /// Set a revenue recognition rule for a plan (merchant only).
     pub fn set_revenue_rule(
@@ -1515,7 +1515,7 @@ impl SubTrackrSubscription {
         revenue::get_revenue_schedule(&env, &storage, subscription_id)
     }
 
-    // ── Quota & Usage API ──
+    // â”€â”€ Quota & Usage API â”€â”€
 
     pub fn set_plan_quotas(
         env: Env,
@@ -1590,7 +1590,7 @@ impl SubTrackrSubscription {
         usage::check_quota(&env, &storage, subscription_id, sub.plan_id, metric)
     }
 
-    // ── Seat-based plan quantities (#1724) ──
+    // â”€â”€ Seat-based plan quantities (#1724) â”€â”€
 
     /// Set the number of seats (quantity) for a subscription. The quantity
     /// multiplies the plan price on every charge. Mid-cycle changes do not
@@ -1645,7 +1645,7 @@ impl SubTrackrSubscription {
         feature_get(&env, FeatureStoreKey::Quantity(subscription_id)).unwrap_or(1)
     }
 
-    // ── Coupons & promo codes (#1725) ──
+    // â”€â”€ Coupons & promo codes (#1725) â”€â”€
 
     /// Create a discount coupon. `discount_bps` is in basis points (10_000 =
     /// 100 %). `expires_at` of 0 means the coupon never expires.
@@ -1791,7 +1791,7 @@ impl SubTrackrSubscription {
         );
     }
 
-    // ── Scheduled plan changes at cycle end (#1726) ──
+    // â”€â”€ Scheduled plan changes at cycle end (#1726) â”€â”€
 
     /// Schedule a plan upgrade/downgrade that takes effect at the next
     /// billing cycle boundary (i.e. after the next successful charge).
@@ -1889,7 +1889,7 @@ impl SubTrackrSubscription {
         feature_get(&env, FeatureStoreKey::PendingPlanChange(subscription_id))
     }
 
-    // ── Subscription reactivation window (#1727) ──
+    // â”€â”€ Subscription reactivation window (#1727) â”€â”€
 
     /// Configure how long after cancellation a subscriber may reactivate.
     /// Admin-only.
@@ -1999,3 +1999,4 @@ impl SubTrackrSubscription {
         );
     }
 }
+
