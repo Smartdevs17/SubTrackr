@@ -120,3 +120,15 @@ See the migration note in the issue for why the single-key change is acceptable.
 6. Add a thin adapter in `app/stores/<name>Store.ts` and re-export from `src/store/index.ts`.
 7. Add tests under `src/store/__tests__/<name>Slice.test.ts` (see `billingSlice.test.ts`
    and `calendarSlice.test.ts` for reference).
+
+## Atomic updates and fine-grained selectors
+
+Multi-field actions must call `set` once with the complete patch instead of issuing
+one `set` per field. In React components, use `useAtomicState` from
+`src/hooks/useAtomicState.ts` when related fields are local to a hook; it commits a
+whole patch in one render and preserves referential equality for no-op changes.
+
+When reading a store, select only the fields the component uses. Object-returning
+selectors must be wrapped in `useShallow` from `zustand/react/shallow`, otherwise a
+fresh object is produced on every store notification and the component re-renders.
+See `docs/ATOMIC_STATE_UPDATES.md` for examples and test guidance.
