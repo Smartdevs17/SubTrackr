@@ -11,11 +11,16 @@ import { useTheme } from '../theme';
 import { darkNavigationTheme, lightNavigationTheme } from '../theme/navigationTheme';
 import { NavigationErrorBoundary } from './NavigationErrorBoundary';
 import { linkingConfig } from './linking';
+
+// Import feature-based stack modules
 import { SubscriptionStack, AnalyticsStack, SettingsStack, WalletStack } from './modules';
 
 const Tab = createBottomTabNavigator<TabParamList>();
 const Stack = createNativeStackNavigator<RootNavigatorParamList>();
 
+/**
+ * Root Stack Navigator encapsulating tab navigation and global modal screens.
+ */
 const RootNavigator = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="MainTabs" component={TabNavigator} />
@@ -26,9 +31,13 @@ const RootNavigator = () => (
   </Stack.Navigator>
 );
 
+/**
+ * Modular Bottom Tab Navigator organizing main entry points.
+ */
 const TabNavigator = () => {
   const { t } = useTranslation();
   const { colors } = useTheme();
+
   return (
     <Tab.Navigator
       screenOptions={{
@@ -41,10 +50,46 @@ const TabNavigator = () => {
         tabBarInactiveTintColor: colors.navigation.inactiveTab,
         headerShown: false,
       }}>
-      <Tab.Screen name="HomeTab" component={SubscriptionStack} options={{ tabBarLabel: t('navigation.home'), tabBarIcon: ({ color, size }) => <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>🏠</Text> }} />
-      <Tab.Screen name="WalletTab" component={WalletStack} options={{ tabBarLabel: t('navigation.wallet'), tabBarIcon: ({ color, size }) => <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>🔗</Text> }} />
-      <Tab.Screen name="AnalyticsTab" component={AnalyticsStack} options={{ tabBarLabel: t('navigation.analytics'), tabBarIcon: ({ color, size }) => <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>📊</Text> }} />
-      <Tab.Screen name="SettingsTab" component={SettingsStack} options={{ tabBarLabel: t('navigation.settings'), tabBarIcon: ({ color, size }) => <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>⚙️</Text> }} />
+      <Tab.Screen
+        name="HomeTab"
+        component={SubscriptionStack}
+        options={{
+          tabBarLabel: t('navigation.home'),
+          tabBarIcon: ({ color, size }) => (
+            <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>🏠</Text>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="WalletTab"
+        component={WalletStack}
+        options={{
+          tabBarLabel: t('navigation.wallet'),
+          tabBarIcon: ({ color, size }) => (
+            <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>🔗</Text>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="AnalyticsTab"
+        component={AnalyticsStack}
+        options={{
+          tabBarLabel: t('navigation.analytics'),
+          tabBarIcon: ({ color, size }) => (
+            <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>📊</Text>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="SettingsTab"
+        component={SettingsStack}
+        options={{
+          tabBarLabel: t('navigation.settings'),
+          tabBarIcon: ({ color, size }) => (
+            <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>⚙️</Text>
+          ),
+        }}
+      />
     </Tab.Navigator>
   );
 };
@@ -56,10 +101,14 @@ export const AppNavigator = () => {
     prefetchModule('Analytics', () => import('../screens/AnalyticsScreen'));
     prefetchModule('SubscriptionDetail', () => import('../screens/SubscriptionDetailScreen'));
   }, []);
+
   const { isDark } = useTheme();
+
   return (
     <NavigationErrorBoundary>
-      <NavigationContainer ref={navigationRef} linking={linkingConfig} theme={isDark ? darkNavigationTheme : lightNavigationTheme}>
+      <NavigationContainer linking={linkingConfig}
+        ref={navigationRef}
+        theme={isDark ? darkNavigationTheme : lightNavigationTheme}>
         <RootNavigator />
       </NavigationContainer>
     </NavigationErrorBoundary>
@@ -67,3 +116,5 @@ export const AppNavigator = () => {
 };
 
 export default AppNavigator;
+
+

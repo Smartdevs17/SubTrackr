@@ -464,8 +464,8 @@ export interface SubscriptionState {
   updateSubscription: (id: string, data: Partial<Subscription>) => Promise<void>;
   deleteSubscription: (id: string) => Promise<void>;
   toggleSubscriptionStatus: (id: string) => Promise<void>;
-  pauseSubscription: (id: string, opts?: { durationDays?: number; reason?: string; resumeAt?: Date }) => Promise<void>;
-  resumeSubscription: (id: string) => Promise<void>;
+  pauseSubscriptionWithState: (id: string, opts?: { durationDays?: number; reason?: string; resumeAt?: Date }) => Promise<void>;
+  resumeSubscriptionWithState: (id: string) => Promise<void>;
   reassignCategory: (fromCategoryId: string, toCategoryId: string) => Promise<void>;
   previewPauseAdjustment: (
     id: string,
@@ -950,13 +950,13 @@ export const useSubscriptionStore = create<SubscriptionState>()(
     const sub = get().subscriptions.find((s) => s.id === id);
     if (!sub) return;
     if ((sub as any).status === SubscriptionLifecycleStatus.PAUSED || sub.isPaused || !sub.isActive) {
-      await get().resumeSubscription(id);
+      await get().resumeSubscriptionWithState(id);
     } else {
-      await get().pauseSubscription(id);
+      await get().pauseSubscriptionWithState(id);
     }
   },
 
-  pauseSubscription: async (
+  pauseSubscriptionWithState: async (
     id: string,
     opts?: { durationDays?: number; reason?: string; resumeAt?: Date }
   ) => {
@@ -989,10 +989,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       const lifecycleHistory = appendLifecycleEvent(
         get().lifecycleHistory,
         id,
-        createLifecycleEvent(id, 'paused', {
-          description: `${current.name} paused`,
-          metadata: { source: 'pauseSubscription', reason: opts?.reason },
-        })
+        createLifecycleEvent(id, 'paused', { description: `${current.name} paused`, metadata: { source: 'pauseSubscriptionWithState' } })
       );
       set({ subscriptions: updatedSubscriptions, lifecycleHistory, isLoading: false });
       get().calculateStats();
@@ -1000,14 +997,11 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       const updated = get().subscriptions.find((s) => s.id === id);
       if (updated) await useCalendarStore.getState().syncSubscriptionToCalendars(updated);
     } catch (error) {
-      set({
-        error: errorHandler.handleError(error as Error, { action: 'pauseSubscription', subscriptionId: id }),
-        isLoading: false,
-      });
+      set({ error: errorHandler.handleError(error as Error, { action: 'pauseSubscriptionWithState', subscriptionId: id }), isLoading: false });
     }
   },
 
-  resumeSubscription: async (id: string) => {
+  resumeSubscriptionWithState: async (id: string) => {
     set({ isLoading: true, error: null });
     try {
       const now = new Date();
@@ -1036,7 +1030,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       const lifecycleHistory = appendLifecycleEvent(
         get().lifecycleHistory,
         id,
-        createLifecycleEvent(id, 'resumed', { description: `${current.name} resumed`, metadata: { source: 'resumeSubscription' } })
+        createLifecycleEvent(id, 'resumed', { description: `${current.name} resumed`, metadata: { source: 'resumeSubscriptionWithState' } })
       );
       set({ subscriptions: updatedSubscriptions, lifecycleHistory, isLoading: false });
       get().calculateStats();
@@ -1044,10 +1038,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       const updated = get().subscriptions.find((s) => s.id === id);
       if (updated) await useCalendarStore.getState().syncSubscriptionToCalendars(updated);
     } catch (error) {
-      set({
-        error: errorHandler.handleError(error as Error, { action: 'resumeSubscription', subscriptionId: id }),
-        isLoading: false,
-      });
+      set({ error: errorHandler.handleError(error as Error, { action: 'resumeSubscriptionWithState', subscriptionId: id }), isLoading: false });
     }
   },
   recordBillingOutcome: async (id: string, outcome: 'success' | 'failed') => {
