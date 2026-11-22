@@ -1,4 +1,3 @@
-feat/issues-394-405-414-386
 // ── Connection pool (#414) ────────────────────────────────────────────────────
 export { ConnectionPool, getPool, stellarPool } from './connectionPool';
 export type { PoolConfig, PoolMetrics } from './connectionPool';
@@ -28,7 +27,6 @@ export type {
   PaginationMeta,
 } from './apiResponse';
 
-main
 export { AuditService } from './auditService';
 export { CampaignService } from './campaignService';
 export { DunningService, dunningService } from './dunningService';
@@ -92,6 +90,7 @@ export type {
   SupportTicketContext,
   SupportTicketRecord,
 } from './supportAutomation';
+export {
   SubscriptionEventStore,
   subscriptionEventStore,
 } from './subscriptionEventStore';

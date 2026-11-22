@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useAtomicState } from './useAtomicState';
 import { useAppStore } from '../store/slices';
 import {
   allConsent,
@@ -14,7 +15,23 @@ import {
 
 export type ConsentLoadStatus = 'loading' | 'ready' | 'error';
 
+interface ConsentState {
+  status: ConsentLoadStatus;
+  stored: StoredConsent | null;
+  draft: ConsentPreferences;
+  saving: boolean;
+  error: string | null;
+}
+
 const ANONYMOUS_USER_ID = 'anonymous';
+
+const INITIAL_CONSENT_STATE: ConsentState = {
+  status: 'loading',
+  stored: null,
+  draft: DEFAULT_CONSENT_PREFERENCES,
+  saving: false,
+  error: null,
+};
 
 function samePreferences(a: ConsentPreferences, b: ConsentPreferences) {
   return (
@@ -28,19 +45,12 @@ function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
-/**
- * Loads, edits, and saves the user's GDPR consent, mirroring the saved
- * decision into the app store so the rest of the app can gate on it.
- */
 export function useConsentManager(service: ConsentService = defaultConsentService) {
   const userId = useAppStore((s) => s.userId) ?? ANONYMOUS_USER_ID;
   const setStoreConsent = useAppStore((s) => s.setConsent);
 
-  const [status, setStatus] = useState<ConsentLoadStatus>('loading');
-  const [stored, setStored] = useState<StoredConsent | null>(null);
-  const [draft, setDraft] = useState<ConsentPreferences>(DEFAULT_CONSENT_PREFERENCES);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [{ status, stored, draft, saving, error }, patchState] =
+    useAtomicState<ConsentState>(INITIAL_CONSENT_STATE);
   const mounted = useRef(true);
 
   useEffect(() => {
@@ -50,30 +60,29 @@ export function useConsentManager(service: ConsentService = defaultConsentServic
     };
   }, []);
 
-  const apply = useCallback(
+  const applyConsent = useCallback(
     (consent: StoredConsent | null) => {
       const preferences = consent?.preferences ?? DEFAULT_CONSENT_PREFERENCES;
-      setStored(consent);
-      setDraft(preferences);
       setStoreConsent({ ...preferences, hasAcceptedPolicy: !service.requiresConsent(consent) });
+      return { stored: consent, draft: preferences };
     },
     [service, setStoreConsent]
   );
 
   const reload = useCallback(async () => {
-    setStatus('loading');
-    setError(null);
+    patchState({ status: 'loading', error: null });
     try {
       const consent = await service.load();
       if (!mounted.current) return;
-      apply(consent);
-      setStatus('ready');
+      patchState({ ...applyConsent(consent), status: 'ready' });
     } catch (e) {
       if (!mounted.current) return;
-      setError(errorMessage(e, 'Could not load your privacy preferences.'));
-      setStatus('error');
+      patchState({
+        error: errorMessage(e, 'Could not load your privacy preferences.'),
+        status: 'error',
+      });
     }
-  }, [apply, service]);
+  }, [applyConsent, patchState, service]);
 
   useEffect(() => {
     void reload();
@@ -84,20 +93,25 @@ export function useConsentManager(service: ConsentService = defaultConsentServic
       task: () => Promise<SaveConsentResult | null>,
       fallback: string
     ): Promise<SaveConsentResult | null> => {
-      setSaving(true);
-      setError(null);
+      patchState({ saving: true, error: null });
+      let result: SaveConsentResult | null = null;
+      let failure: string | null = null;
       try {
-        const result = await task();
-        if (result && mounted.current) apply(result.consent);
-        return result;
+        result = await task();
       } catch (e) {
-        if (mounted.current) setError(errorMessage(e, fallback));
-        return null;
-      } finally {
-        if (mounted.current) setSaving(false);
+        failure = errorMessage(e, fallback);
       }
+      if (!mounted.current) return result;
+
+      const applied = result ? applyConsent(result.consent) : {};
+      patchState({
+        ...applied,
+        saving: false,
+        error: failure,
+      });
+      return failure ? null : result;
     },
-    [apply]
+    [applyConsent, patchState]
   );
 
   const save = useCallback(
@@ -109,9 +123,12 @@ export function useConsentManager(service: ConsentService = defaultConsentServic
     [run, service, userId]
   );
 
-  const setCategory = useCallback((category: ConsentCategory, granted: boolean) => {
-    setDraft((prev) => ({ ...prev, [category]: granted }));
-  }, []);
+  const setCategory = useCallback(
+    (category: ConsentCategory, granted: boolean) => {
+      patchState((previous) => ({ draft: { ...previous.draft, [category]: granted } }));
+    },
+    [patchState]
+  );
 
   const saved = stored?.preferences ?? DEFAULT_CONSENT_PREFERENCES;
 

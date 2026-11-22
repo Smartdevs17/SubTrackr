@@ -1,16 +1,100 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useCallback, useEffect, useMemo, type SetStateAction } from 'react';
+import { useAtomicState, resolveAtomicValue } from './useAtomicState';
 import { useDebounce } from './useDebounce';
 import { Subscription, SubscriptionCategory, BillingCycle } from '../types/subscription';
 
+interface FilterState {
+  searchQuery: string;
+  selectedCategories: SubscriptionCategory[];
+  selectedBillingCycles: BillingCycle[];
+  priceRange: { min: number; max: number };
+  showActiveOnly: boolean;
+  showCryptoOnly: boolean;
+  sortBy: 'name' | 'price' | 'nextBilling' | 'category';
+  sortOrder: 'asc' | 'desc';
+}
+
+const DEFAULT_FILTERS: FilterState = {
+  searchQuery: '',
+  selectedCategories: [],
+  selectedBillingCycles: [],
+  priceRange: { min: 0, max: 1000 },
+  showActiveOnly: true,
+  showCryptoOnly: false,
+  sortBy: 'name',
+  sortOrder: 'asc',
+};
+
 export const useSubscriptionFilters = (subscriptions: Subscription[]) => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategories, setSelectedCategories] = useState<SubscriptionCategory[]>([]);
-  const [selectedBillingCycles, setSelectedBillingCycles] = useState<BillingCycle[]>([]);
-  const [priceRange, setPriceRange] = useState({ min: 0, max: 1000 });
-  const [showActiveOnly, setShowActiveOnly] = useState(true);
-  const [showCryptoOnly, setShowCryptoOnly] = useState(false);
-  const [sortBy, setSortBy] = useState<'name' | 'price' | 'nextBilling' | 'category'>('name');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [state, patchState, resetState] = useAtomicState<FilterState>(DEFAULT_FILTERS);
+  const {
+    searchQuery,
+    selectedCategories,
+    selectedBillingCycles,
+    priceRange,
+    showActiveOnly,
+    showCryptoOnly,
+    sortBy,
+    sortOrder,
+  } = state;
+
+  const setters = useMemo(
+    () => ({
+      setSearchQuery: (value: SetStateAction<string>) =>
+        patchState((prev) => ({ searchQuery: resolveAtomicValue(value, prev.searchQuery) })),
+      setSelectedCategories: (value: SetStateAction<SubscriptionCategory[]>) =>
+        patchState((prev) => ({
+          selectedCategories: resolveAtomicValue(value, prev.selectedCategories),
+        })),
+      setSelectedBillingCycles: (value: SetStateAction<BillingCycle[]>) =>
+        patchState((prev) => ({
+          selectedBillingCycles: resolveAtomicValue(value, prev.selectedBillingCycles),
+        })),
+      setPriceRange: (value: SetStateAction<FilterState['priceRange']>) =>
+        patchState((prev) => ({ priceRange: resolveAtomicValue(value, prev.priceRange) })),
+      setShowActiveOnly: (value: SetStateAction<boolean>) =>
+        patchState((prev) => ({ showActiveOnly: resolveAtomicValue(value, prev.showActiveOnly) })),
+      setShowCryptoOnly: (value: SetStateAction<boolean>) =>
+        patchState((prev) => ({ showCryptoOnly: resolveAtomicValue(value, prev.showCryptoOnly) })),
+      setSortBy: (value: SetStateAction<FilterState['sortBy']>) =>
+        patchState((prev) => ({ sortBy: resolveAtomicValue(value, prev.sortBy) })),
+      setSortOrder: (value: SetStateAction<FilterState['sortOrder']>) =>
+        patchState((prev) => ({ sortOrder: resolveAtomicValue(value, prev.sortOrder) })),
+    }),
+    [patchState]
+  );
+
+  const filters = useMemo(
+    () => ({
+      searchQuery,
+      setSearchQuery: setters.setSearchQuery,
+      selectedCategories,
+      setSelectedCategories: setters.setSelectedCategories,
+      selectedBillingCycles,
+      setSelectedBillingCycles: setters.setSelectedBillingCycles,
+      priceRange,
+      setPriceRange: setters.setPriceRange,
+      showActiveOnly,
+      setShowActiveOnly: setters.setShowActiveOnly,
+      showCryptoOnly,
+      setShowCryptoOnly: setters.setShowCryptoOnly,
+      sortBy,
+      setSortBy: setters.setSortBy,
+      sortOrder,
+      setSortOrder: setters.setSortOrder,
+    }),
+    [
+      searchQuery,
+      selectedCategories,
+      selectedBillingCycles,
+      priceRange,
+      showActiveOnly,
+      showCryptoOnly,
+      sortBy,
+      sortOrder,
+      setters,
+    ]
+  );
 
   const debouncedSearchQuery = useDebounce(searchQuery);
   const normalizedSearch = useMemo(
@@ -117,20 +201,8 @@ export const useSubscriptionFilters = (subscriptions: Subscription[]) => {
     [cryptoFilteredSubscriptions, comparator]
   );
 
-  const clearAllFilters = useCallback(() => {
-    setSearchQuery('');
-    setSelectedCategories([]);
-    setSelectedBillingCycles([]);
-    setPriceRange({ min: 0, max: 1000 });
-    setShowActiveOnly(true);
-    setShowCryptoOnly(false);
-    setSortBy('name');
-    setSortOrder('asc');
-  }, []);
-
-  // Basic in-dev profiling: logs expensive filter passes on large lists.
-  useMemo(() => {
-    if (__DEV__ && (subscriptions?.length ?? 0) >= 200) {
+  useEffect(() => {
+    if (typeof __DEV__ !== 'undefined' && __DEV__ && (subscriptions?.length ?? 0) >= 200) {
       console.debug('[useSubscriptionFilters] recalculated', {
         total: subscriptions.length,
         filtered: filteredAndSorted.length,
@@ -160,27 +232,10 @@ export const useSubscriptionFilters = (subscriptions: Subscription[]) => {
   ]);
 
   return {
-    filters: {
-      searchQuery,
-      setSearchQuery,
-      selectedCategories,
-      setSelectedCategories,
-      selectedBillingCycles,
-      setSelectedBillingCycles,
-      priceRange,
-      setPriceRange,
-      showActiveOnly,
-      setShowActiveOnly,
-      showCryptoOnly,
-      setShowCryptoOnly,
-      sortBy,
-      setSortBy,
-      sortOrder,
-      setSortOrder,
-    },
+    filters,
     filteredAndSorted,
     activeFilterCount,
     hasActiveFilters: activeFilterCount > 0,
-    clearAllFilters,
+    clearAllFilters: resetState,
   };
 };

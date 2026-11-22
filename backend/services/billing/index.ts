@@ -29,6 +29,17 @@ export type {
 } from './taxTypes';
 export { DunningService, dunningService } from './dunningService';
 export type { FailureType, RetryScheduleConfig, RetryAnalytics, RetryHistoryRecord } from './dunningService';
+export {
+  calculateExactProration,
+  calculateNetProration as calculateNetProrationAdjustment,
+  prorationEngine,
+  ProrationValidationError as ExactProrationValidationError,
+} from './prorationEngine';
+export type {
+  ExactProrationInput,
+  ExactProrationResult,
+  ProrationPrecision,
+} from './prorationEngine';
 export { ProrationService, prorationService } from './proration';
 export type {
   ProrationConfiguration,
@@ -96,8 +107,40 @@ export { BillingEngine, BillingEngineConfig } from './billingEngine';
 export { PricingAnalyticsService, RevenueMetrics } from './billingAnalytics';
 
 
-// Trial Management exports (Issue #958)
+// Subscriber loyalty points and rewards (issue #2196)
+export { LoyaltyService, loyaltyService } from './loyaltyService';
+export { LoyaltyController, loyaltyController } from './loyaltyController';
+export { createLoyaltyRouter } from './loyaltyRouter';
+export type {
+  LoyaltyPointsRule,
+  LoyaltyAnalyticsData,
+  LoyaltyNotification,
+  LoyaltyApiResponse,
+} from './loyaltyService';
+export type {
+  LoyaltyBalance,
+  LoyaltyLedgerEvent,
+  LoyaltyMutationResult,
+  LoyaltyRewardDefinition,
+  LoyaltyTierDefinition,
+  LoyaltyTierId,
+} from './loyaltyRewards';
+
+// Trial Management exports (Issue #958 and optimization work for #2192)
 export { TrialManagementService, trialManagementService, DEFAULT_TRIAL_POLICY } from './trialManagementService';
+export {
+  TrialOptimizationService,
+  trialOptimizationService,
+} from './trialOptimizationService';
+export type {
+  TrialOptimizationAction,
+  TrialOptimizationRecommendation,
+  TrialExpirationWorkflowReport,
+} from './trialOptimizationService';
+export {
+  TrialOptimizationController,
+  createTrialOptimizationRouter,
+} from './trialOptimizationRouter';
 export type { TrialPolicy, TrialSubscriptionRecord, ConversionIncentive, TrialReminderItem, TrialConversionFunnel, UserActivitySignals, PropensityCategory } from './trialManagementService';
 
 // Multi-Entity Billing exports (Issue #562)

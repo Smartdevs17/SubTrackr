@@ -23,6 +23,7 @@ const DAYS_PER_CYCLE: Record<BillingCycle, number> = {
   [BillingCycle.WEEKLY]: 7,
   [BillingCycle.MONTHLY]: 30,
   [BillingCycle.YEARLY]: 365,
+  [BillingCycle.ANNUAL]: 365,
   [BillingCycle.CUSTOM]: 30,
 };
 

@@ -9,6 +9,7 @@
  */
 
 import { create } from 'zustand';
+import { useShallow } from 'zustand/react/shallow';
 import { realtimeService, RealtimeMetrics } from '../services/realtimeService';
 import type { EventFilter, SubscriptionEvent } from '../../backend/services/notification/websocket';
 import type { EventHandler } from '../services/realtimeService';
@@ -104,13 +105,15 @@ export const useWebSocketState = () => useWebSocketStore((s) => s.state);
 export const useWebSocketMetrics = () => useWebSocketStore((s) => s.metrics);
 
 export const useWebSocketActions = () =>
-  useWebSocketStore((s) => ({
-    connect: s.connect,
-    disconnect: s.disconnect,
-    subscribe: s.subscribe,
-    refreshMetrics: s.refreshMetrics,
-    setAutoReconnect: s.setAutoReconnect,
-  }));
+  useWebSocketStore(
+    useShallow((s) => ({
+      connect: s.connect,
+      disconnect: s.disconnect,
+      subscribe: s.subscribe,
+      refreshMetrics: s.refreshMetrics,
+      setAutoReconnect: s.setAutoReconnect,
+    }))
+  );
 
 // ── Subscription event helper ─────────────────────────────────────────────────
 

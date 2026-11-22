@@ -8,6 +8,7 @@
  */
 
 import { useCallback } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import NetInfo from '@react-native-community/netinfo';
 import { useSubscriptionStore } from '../store/subscriptionStore';
 import { cacheService } from '../services/cache/cacheService';
@@ -18,7 +19,27 @@ const SUBS_TAG = 'subscriptions';
 const CACHE_TTL = 5 * 60 * 1000; // 5 min
 
 export function useCachedSubscriptions() {
-  const store = useSubscriptionStore();
+  const {
+    subscriptions,
+    stats,
+    isLoading,
+    error,
+    fetchSubscriptions: storeFetchSubscriptions,
+    addSubscription: storeAddSubscription,
+    updateSubscription: storeUpdateSubscription,
+    deleteSubscription: storeDeleteSubscription,
+  } = useSubscriptionStore(
+    useShallow((s) => ({
+      subscriptions: s.subscriptions,
+      stats: s.stats,
+      isLoading: s.isLoading,
+      error: s.error,
+      fetchSubscriptions: s.fetchSubscriptions,
+      addSubscription: s.addSubscription,
+      updateSubscription: s.updateSubscription,
+      deleteSubscription: s.deleteSubscription,
+    }))
+  );
 
   const isOnline = useCallback(async (): Promise<boolean> => {
     const state = await NetInfo.fetch();
@@ -30,11 +51,11 @@ export function useCachedSubscriptions() {
     const cached = await cacheService.get<Subscription[]>(SUBS_CACHE_KEY);
     if (cached) return cached;
 
-    await store.fetchSubscriptions();
-    const fresh = store.subscriptions;
+    await storeFetchSubscriptions();
+    const fresh = useSubscriptionStore.getState().subscriptions;
     await cacheService.set(SUBS_CACHE_KEY, fresh, { ttl: CACHE_TTL, tags: [SUBS_TAG] });
     return fresh;
-  }, [store]);
+  }, [storeFetchSubscriptions]);
 
   /** Add — write-through; enqueue offline if no connectivity. */
   const addSubscription = useCallback(
@@ -48,10 +69,10 @@ export function useCachedSubscriptions() {
         );
         return;
       }
-      await store.addSubscription(data);
+      await storeAddSubscription(data);
       await cacheService.invalidateByTag(SUBS_TAG);
     },
-    [store, isOnline]
+    [storeAddSubscription, isOnline]
   );
 
   /** Update — write-through; enqueue offline if no connectivity. */
@@ -62,10 +83,10 @@ export function useCachedSubscriptions() {
         await cacheService.enqueueOfflineOperation(`update:${id}`, data, `update:${id}`);
         return;
       }
-      await store.updateSubscription(id, data);
+      await storeUpdateSubscription(id, data);
       await cacheService.invalidateByTag(SUBS_TAG);
     },
-    [store, isOnline]
+    [storeUpdateSubscription, isOnline]
   );
 
   /** Delete — write-through; enqueue offline if no connectivity. */
@@ -76,10 +97,10 @@ export function useCachedSubscriptions() {
         await cacheService.enqueueOfflineOperation(`delete:${id}`, { id }, `delete:${id}`);
         return;
       }
-      await store.deleteSubscription(id);
+      await storeDeleteSubscription(id);
       await cacheService.invalidateByTag(SUBS_TAG);
     },
-    [store, isOnline]
+    [storeDeleteSubscription, isOnline]
   );
 
   /** Flush offline queue when connectivity is restored. */
@@ -88,35 +109,35 @@ export function useCachedSubscriptions() {
     for (const op of ops) {
       const key = op.key;
       if (key.startsWith('add:')) {
-        await store.addSubscription(op.value as SubscriptionFormData);
+        await storeAddSubscription(op.value as SubscriptionFormData);
       } else if (key.startsWith('update:')) {
         const id = key.replace('update:', '');
-        await store.updateSubscription(id, op.value as Partial<Subscription>);
+        await storeUpdateSubscription(id, op.value as Partial<Subscription>);
       } else if (key.startsWith('delete:')) {
         const id = (op.value as { id: string }).id;
-        await store.deleteSubscription(id);
+        await storeDeleteSubscription(id);
       }
     }
     await cacheService.invalidateByTag(SUBS_TAG);
-  }, [store]);
+  }, [storeAddSubscription, storeUpdateSubscription, storeDeleteSubscription]);
 
   /** Prefetch subscriptions for a navigation transition. */
   const prefetchSubscriptions = useCallback(async (): Promise<void> => {
     await cacheService.prefetch(
       SUBS_CACHE_KEY,
       async () => {
-        await store.fetchSubscriptions();
-        return store.subscriptions;
+        await storeFetchSubscriptions();
+        return useSubscriptionStore.getState().subscriptions;
       },
       { ttl: CACHE_TTL, tags: [SUBS_TAG] }
     );
-  }, [store]);
+  }, [storeFetchSubscriptions]);
 
   return {
-    subscriptions: store.subscriptions,
-    stats: store.stats,
-    isLoading: store.isLoading,
-    error: store.error,
+    subscriptions,
+    stats,
+    isLoading,
+    error,
     fetchSubscriptions,
     addSubscription,
     updateSubscription,

@@ -8,6 +8,7 @@
  */
 
 import { useCallback, useMemo } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useProrationStore } from '../store/prorationStore';
 import type {
   ProrationConfig,
@@ -31,44 +32,66 @@ export interface UseProrationCalculatorReturn {
 }
 
 export function useProrationCalculator(): UseProrationCalculatorReturn {
-  const store = useProrationStore();
+  const {
+    config,
+    activePreview,
+    records,
+    isLoading,
+    error,
+    calculate: calculateInStore,
+    applyProration: applyProrationInStore,
+    updateConfig: updateConfigInStore,
+    clearPreview: clearPreviewInStore,
+    clearHistory: clearHistoryInStore,
+  } = useProrationStore(
+    useShallow((s) => ({
+      config: s.config,
+      activePreview: s.activePreview,
+      records: s.records,
+      isLoading: s.isLoading,
+      error: s.error,
+      calculate: s.calculate,
+      applyProration: s.applyProration,
+      updateConfig: s.updateConfig,
+      clearPreview: s.clearPreview,
+      clearHistory: s.clearHistory,
+    }))
+  );
 
-  const analytics = useMemo(() => store.getAnalytics(), [store.records]);
+  const analytics = useMemo(() => useProrationStore.getState().getAnalytics(), [records]);
 
   const calculate = useCallback(
-    (request: ProrationCalculationRequest) => {
-      return store.calculate(request);
-    },
-    [store.calculate]
+    (request: ProrationCalculationRequest) => calculateInStore(request),
+    [calculateInStore]
   );
 
   const applyProration = useCallback(
     (subscriptionId: string, calculation: ProrationCalculationResult) => {
-      store.applyProration(subscriptionId, calculation);
+      applyProrationInStore(subscriptionId, calculation);
     },
-    [store.applyProration]
+    [applyProrationInStore]
   );
 
   const updateConfig = useCallback(
     (newConfig: Partial<ProrationConfig>) => {
-      store.updateConfig(newConfig);
+      updateConfigInStore(newConfig);
     },
-    [store.updateConfig]
+    [updateConfigInStore]
   );
 
   const clearPreview = useCallback(() => {
-    store.clearPreview();
-  }, [store.clearPreview]);
+    clearPreviewInStore();
+  }, [clearPreviewInStore]);
 
   const clearHistory = useCallback(() => {
-    store.clearHistory();
-  }, [store.clearHistory]);
+    clearHistoryInStore();
+  }, [clearHistoryInStore]);
 
   return {
-    config: store.config,
-    activePreview: store.activePreview,
-    isLoading: store.isLoading,
-    error: store.error,
+    config,
+    activePreview,
+    isLoading,
+    error,
     calculate,
     applyProration,
     updateConfig,

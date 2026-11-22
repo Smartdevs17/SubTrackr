@@ -5,36 +5,24 @@
  * @see https://github.com/Smartdevs17/SubTrackr/issues/1117
  */
 
-import { BillingCycle } from '../../../src/types/subscription';
 import type {
-  ProrationConfig,
   ProrationCalculationRequest,
-  ProrationCalculationResult,
-  ProrationBreakdownItem,
   ProrationAnalyticsSummary,
   ProrationRecord,
-  ProrationMode,
 } from '../../../src/types/prorationCalculator';
-import { DEFAULT_PRORATION_CONFIG } from '../../../src/types/prorationCalculator';
+import {
+  ProrationValidationError,
+  calculateExactProration,
+  validateExactProrationRequest,
+  type ExactProrationResult,
+} from '../../services/billing/prorationEngine';
 
-const DAYS_PER_CYCLE: Record<BillingCycle, number> = {
-  [BillingCycle.WEEKLY]: 7,
-  [BillingCycle.MONTHLY]: 30,
-  [BillingCycle.YEARLY]: 365,
-  [BillingCycle.CUSTOM]: 30,
-};
+export { ProrationValidationError } from '../../services/billing/prorationEngine';
 
 function generateId(prefix: string): string {
   const ts = Date.now().toString(36);
-  const rand = Math.random().toString(36).substring(2, 8);
+  const rand = Math.random().toString(36).slice(2, 8);
   return `${prefix}_${ts}_${rand}`;
-}
-
-export class ProrationValidationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ProrationValidationError';
-  }
 }
 
 function toMs(date: number | string | Date, fieldName: string): number {
@@ -63,22 +51,7 @@ export function calculateCycleDays(
 }
 
 export function validateProrationRequest(request: ProrationCalculationRequest): void {
-  if (!request.currentPlanId || !request.currentPlanName || !request.newPlanId || !request.newPlanName) {
-    throw new ProrationValidationError('plan IDs and names are required');
-  }
-  for (const [name, price] of [['currentPrice', request.currentPrice], ['newPrice', request.newPrice]] as const) {
-    if (!Number.isFinite(price) || price < 0) {
-      throw new ProrationValidationError(`${name} must be a non-negative finite number`);
-    }
-  }
-  const startMs = toMs(request.cycleStartDate, 'cycleStartDate');
-  const endMs = toMs(request.cycleEndDate, 'cycleEndDate');
-  if (endMs <= startMs) {
-    throw new ProrationValidationError('cycleEndDate must be after cycleStartDate');
-  }
-  if (request.effectiveDate !== undefined) {
-    toMs(request.effectiveDate, 'effectiveDate');
-  }
+  validateExactProrationRequest(request);
 }
 
 export class ProrationService {
@@ -88,7 +61,7 @@ export class ProrationService {
    * Calculate a proration for a plan change without persisting.
    * Returns a preview that can be shown to the subscriber before confirming.
    */
-  preview(request: ProrationCalculationRequest): ProrationCalculationResult {
+  preview(request: ProrationCalculationRequest): ExactProrationResult {
     return this.calculate(request);
   }
 
@@ -147,174 +120,8 @@ export class ProrationService {
 
   // ── internal ──────────────────────────────────────────────
 
-  private calculate(request: ProrationCalculationRequest): ProrationCalculationResult {
-    validateProrationRequest(request);
-    const config: ProrationConfig = { ...DEFAULT_PRORATION_CONFIG, ...request.config };
-    const startMs = toMs(request.cycleStartDate, 'cycleStartDate');
-    const endMs = toMs(request.cycleEndDate, 'cycleEndDate');
-    const requestedEffectiveMs = request.effectiveDate
-      ? toMs(request.effectiveDate, 'effectiveDate')
-      : Date.now();
-    // Evaluate out-of-cycle previews at the nearest valid boundary.
-    const effectiveMs = Math.max(startMs, Math.min(endMs, requestedEffectiveMs));
-
-    const cycleTotalDays = calculateCycleDays(startMs, endMs);
-    const daysUsed = Math.max(
-      0,
-      Math.min(cycleTotalDays, calculateCycleDays(startMs, effectiveMs)),
-    );
-    const daysRemaining = Math.max(0, cycleTotalDays - daysUsed);
-
-    const oldDailyRate = request.currentPrice / cycleTotalDays;
-    const newCycleTotalDays = DAYS_PER_CYCLE[request.newCycle] ?? cycleTotalDays;
-    const newDailyRate = request.newPrice / newCycleTotalDays;
-
-    const unusedAmount = Math.round(oldDailyRate * daysRemaining * 100) / 100;
-    const proratedNewAmount = Math.round(newDailyRate * daysRemaining * 100) / 100;
-
-    const rawNet = proratedNewAmount - unusedAmount;
-    const isCredit = rawNet < 0;
-    const netProratedAmount = Math.round(Math.abs(rawNet) * 100) / 100;
-
-    let mode: ProrationMode = request.mode ?? 'upgrade';
-    if (!request.mode) {
-      if (request.newPrice > request.currentPrice) mode = 'upgrade';
-      else if (request.newPrice < request.currentPrice) mode = 'downgrade';
-      else if (request.newCycle !== request.currentCycle) mode = 'billing_cycle_change';
-    }
-
-    let taxAmount = 0;
-    if (config.includeTax && config.defaultTaxRate > 0) {
-      taxAmount = Math.round(((rawNet * config.defaultTaxRate) / 100) * 100) / 100;
-    }
-
-    const totalAmountDue = Math.max(0, Math.round((rawNet + taxAmount) * 100) / 100);
-
-    const breakdown: ProrationBreakdownItem[] = [
-      {
-        id: generateId('item'),
-        label: `Unused time on ${request.currentPlanName}`,
-        description: `Credit for ${daysRemaining} unused days of ${cycleTotalDays}-day billing cycle`,
-        unitPrice: request.currentPrice,
-        dailyRate: Math.round(oldDailyRate * 100) / 100,
-        daysActive: daysUsed,
-        daysRemaining,
-        totalCycleDays: cycleTotalDays,
-        amount: unusedAmount,
-        isCredit: true,
-        type: 'unused_portion',
-      },
-      {
-        id: generateId('item'),
-        label: `Prorated charge for ${request.newPlanName}`,
-        description: `Charge for ${daysRemaining} remaining days on new plan`,
-        unitPrice: request.newPrice,
-        dailyRate: Math.round(newDailyRate * 100) / 100,
-        daysActive: 0,
-        daysRemaining,
-        totalCycleDays: newCycleTotalDays,
-        amount: proratedNewAmount,
-        isCredit: false,
-        type: 'new_portion',
-      },
-    ];
-
-    if (taxAmount !== 0) {
-      breakdown.push({
-        id: generateId('item'),
-        label: `Tax (${config.defaultTaxRate}%)`,
-        description: 'Tax calculated on net prorated adjustment',
-        unitPrice: taxAmount,
-        dailyRate: 0,
-        daysActive: 0,
-        daysRemaining,
-        totalCycleDays: cycleTotalDays,
-        amount: Math.abs(taxAmount),
-        isCredit: taxAmount < 0,
-        type: 'tax',
-      });
-    }
-
-    const explanationText = this.generateExplanation({
-      mode,
-      currentPlanName: request.currentPlanName,
-      newPlanName: request.newPlanName,
-      daysRemaining,
-      cycleTotalDays,
-      unusedAmount,
-      proratedNewAmount,
-      netProratedAmount,
-      isCredit,
-      currency: config.currency,
-    });
-
-    return {
-      id: generateId('proration'),
-      mode,
-      currentPlan: {
-        id: request.currentPlanId,
-        name: request.currentPlanName,
-        price: request.currentPrice,
-        cycle: request.currentCycle,
-        unusedDays: daysRemaining,
-        unusedAmount,
-        dailyRate: Math.round(oldDailyRate * 100) / 100,
-      },
-      newPlan: {
-        id: request.newPlanId,
-        name: request.newPlanName,
-        price: request.newPrice,
-        cycle: request.newCycle,
-        remainingDays: daysRemaining,
-        proratedAmount: proratedNewAmount,
-        dailyRate: Math.round(newDailyRate * 100) / 100,
-      },
-      cycleTotalDays,
-      daysUsed,
-      daysRemaining,
-      netProratedAmount,
-      taxAmount,
-      totalAmountDue,
-      isCredit,
-      effectiveDate: effectiveMs,
-      breakdown,
-      explanationText,
-      transparencySummary: {
-        unusedCreditFromOldPlan: unusedAmount,
-        chargeForNewPlan: proratedNewAmount,
-        netAdjustment: isCredit ? -netProratedAmount : netProratedAmount,
-        taxApplied: taxAmount,
-        finalAmountToBillOrCredit: isCredit ? -netProratedAmount : totalAmountDue,
-      },
-      createdAt: Date.now(),
-    };
-  }
-
-  private generateExplanation(p: {
-    mode: ProrationMode;
-    currentPlanName: string;
-    newPlanName: string;
-    daysRemaining: number;
-    cycleTotalDays: number;
-    unusedAmount: number;
-    proratedNewAmount: number;
-    netProratedAmount: number;
-    isCredit: boolean;
-    currency: string;
-  }): string {
-    const sym = p.currency === 'USD' ? '$' : `${p.currency} `;
-    if (p.isCredit) {
-      return (
-        `Switching from ${p.currentPlanName} to ${p.newPlanName} with ${p.daysRemaining} of ${p.cycleTotalDays} days remaining. ` +
-        `You receive a credit of ${sym}${p.unusedAmount.toFixed(2)} for unused time and pay ${sym}${p.proratedNewAmount.toFixed(2)} for your new plan. ` +
-        `Your account will be credited ${sym}${p.netProratedAmount.toFixed(2)} toward future invoices.`
-      );
-    }
-    return (
-      `Switching from ${p.currentPlanName} to ${p.newPlanName} with ${p.daysRemaining} of ${p.cycleTotalDays} days remaining. ` +
-      `You are credited ${sym}${p.unusedAmount.toFixed(2)} for unused time on ${p.currentPlanName} and charged ${sym}${p.proratedNewAmount.toFixed(2)} for the remaining ${p.daysRemaining} days on ${p.newPlanName}. ` +
-      `Your net due today is ${sym}${p.netProratedAmount.toFixed(2)}.`
-    );
+  private calculate(request: ProrationCalculationRequest): ExactProrationResult {
+    return calculateExactProration(request);
   }
 }
 
