@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { asyncStorageAdapter } from '../utils/storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   DunningEntry,
   DunningStage,
@@ -210,9 +210,7 @@ export const useDunningStore = create<DunningState>()(
       pauseDunning: (subscriptionId) => {
         set((s) => ({
           entries: s.entries.map((e) =>
-            e.subscriptionId === subscriptionId
-              ? { ...e, isPaused: true, updatedAt: now() }
-              : e
+            e.subscriptionId === subscriptionId ? { ...e, isPaused: true, updatedAt: now() } : e
           ),
         }));
       },
@@ -265,8 +263,7 @@ export const useDunningStore = create<DunningState>()(
         }));
       },
 
-      getEntry: (subscriptionId) =>
-        get().entries.find((e) => e.subscriptionId === subscriptionId),
+      getEntry: (subscriptionId) => get().entries.find((e) => e.subscriptionId === subscriptionId),
 
       getActiveEntries: () => get().entries.filter((e) => !e.isPaused),
 
@@ -286,7 +283,8 @@ export const useDunningStore = create<DunningState>()(
         return {
           totalActiveDunning: totalActive,
           stageBreakdown: breakdown,
-          recoveryRate: totalActive > 0 ? Math.round(((totalActive - totalLost) / totalActive) * 100) : 0,
+          recoveryRate:
+            totalActive > 0 ? Math.round(((totalActive - totalLost) / totalActive) * 100) : 0,
           totalRecovered: 0,
           totalLost,
           averageDaysToRecovery: 0,
@@ -299,19 +297,8 @@ export const useDunningStore = create<DunningState>()(
     {
       name: STORAGE_KEY,
       version: 1,
-      storage: createJSONStorage(() => asyncStorageAdapter),
+      storage: createJSONStorage(() => AsyncStorage),
       partialize: (s) => ({ entries: s.entries, configurations: s.configurations }),
-      onRehydrateStorage: () => (_state, error) => {
-        if (error) {
-          console.warn('[dunningStore] Hydration error — resetting to defaults:', error);
-          useDunningStore.setState({
-            entries: [],
-            configurations: { default: DEFAULT_CONFIG },
-            isLoading: false,
-            error: null,
-          });
-        }
-      },
     }
   )
 );

@@ -2,6 +2,7 @@ import React from 'react';
 import { Alert } from 'react-native';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 import AddSubscriptionScreen from './AddSubscriptionScreen';
+import { ThemeProvider } from '../context/ThemeContext';
 import { useSubscriptionStore, useSettingsStore } from '../store';
 
 // Navigation is mocked so the screen can be rendered in isolation without a
@@ -14,6 +15,7 @@ jest.mock('@react-navigation/native', () => ({
     goBack: mockGoBack,
     navigate: mockNavigate,
   }),
+  useRoute: () => ({ params: {} }),
 }));
 
 // The store hooks are mocked so each test controls the exact state the screen
@@ -53,7 +55,11 @@ describe('AddSubscriptionScreen', () => {
   describe('form validation', () => {
     it('shows a validation error and does not submit when the name is empty', () => {
       const alertSpy = jest.spyOn(Alert, 'alert');
-      render(<AddSubscriptionScreen />);
+      render(
+        <ThemeProvider>
+          <AddSubscriptionScreen />
+        </ThemeProvider>
+      );
 
       fireEvent.press(screen.getByTestId('save-subscription-button'));
 
@@ -62,7 +68,11 @@ describe('AddSubscriptionScreen', () => {
     });
 
     it('shows an inline error when the price is not a valid number', () => {
-      render(<AddSubscriptionScreen />);
+      render(
+        <ThemeProvider>
+          <AddSubscriptionScreen />
+        </ThemeProvider>
+      );
 
       fireEvent.changeText(screen.getByTestId('subscription-price-input'), 'abc');
 
@@ -71,7 +81,11 @@ describe('AddSubscriptionScreen', () => {
 
     it('does not submit when the name is provided but the price is missing', () => {
       const alertSpy = jest.spyOn(Alert, 'alert');
-      render(<AddSubscriptionScreen />);
+      render(
+        <ThemeProvider>
+          <AddSubscriptionScreen />
+        </ThemeProvider>
+      );
 
       fireEvent.changeText(screen.getByTestId('subscription-name-input'), 'Netflix');
       fireEvent.press(screen.getByTestId('save-subscription-button'));
@@ -84,7 +98,11 @@ describe('AddSubscriptionScreen', () => {
   describe('successful submission', () => {
     it('calls addSubscription with the entered data when the form is valid', async () => {
       mockAddSubscription.mockResolvedValueOnce(undefined);
-      render(<AddSubscriptionScreen />);
+      render(
+        <ThemeProvider>
+          <AddSubscriptionScreen />
+        </ThemeProvider>
+      );
 
       fireEvent.changeText(screen.getByTestId('subscription-name-input'), 'Netflix');
       fireEvent.changeText(screen.getByTestId('subscription-price-input'), '15.99');
@@ -104,7 +122,11 @@ describe('AddSubscriptionScreen', () => {
 
   describe('navigation', () => {
     it('navigates back when cancel is pressed on an empty form', () => {
-      render(<AddSubscriptionScreen />);
+      render(
+        <ThemeProvider>
+          <AddSubscriptionScreen />
+        </ThemeProvider>
+      );
 
       fireEvent.press(screen.getByTestId('cancel-add-subscription-button'));
 
@@ -113,7 +135,11 @@ describe('AddSubscriptionScreen', () => {
 
     it('asks to discard changes instead of navigating back when the form is dirty', () => {
       const alertSpy = jest.spyOn(Alert, 'alert');
-      render(<AddSubscriptionScreen />);
+      render(
+        <ThemeProvider>
+          <AddSubscriptionScreen />
+        </ThemeProvider>
+      );
 
       fireEvent.changeText(screen.getByTestId('subscription-name-input'), 'Netflix');
       fireEvent.press(screen.getByTestId('cancel-add-subscription-button'));

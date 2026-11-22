@@ -245,3 +245,327 @@ export function reEncryptField(
   const decrypted = decryptField(encrypted, decryptKey);
   return encryptField(decrypted.value, newKey);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Key validation helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Returns `true` when the encryption key has passed its `expiresAt` timestamp.
+ */
+export function isKeyExpired(key: EncryptionKey): boolean {
+  return Date.now() >= key.expiresAt;
+}
+
+/**
+ * Validates a key Buffer: must be exactly 32 bytes and non-zero.
+ * Throws if invalid so callers fail loudly.
+ */
+export function validateEncryptionKey(keyBuf: Buffer): void {
+  if (!Buffer.isBuffer(keyBuf) || keyBuf.length !== KEY_LENGTH) {
+    throw new Error(
+      `Invalid encryption key length: expected ${KEY_LENGTH} bytes, got ${keyBuf?.length ?? 0}`
+    );
+  }
+  // A buffer of all zeroes is a degenerate key – reject it
+  if (keyBuf.every((b) => b === 0)) {
+    throw new Error('Encryption key must not be all-zero bytes');
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Object-level encryption helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Encrypts all PII fields found in a plain object, replacing string values with
+ * their `EncryptedField` representation.  Non-PII fields are passed through
+ * unmodified.  Nested objects are processed recursively (max depth 10).
+ *
+ * @param obj    - The source object to encrypt.
+ * @param key    - Active `EncryptionKey` to use.
+ * @param depth  - Internal recursion depth guard (do not pass externally).
+ * @returns A new object with PII string values replaced by `EncryptedField`.
+ *
+ * @example
+ * const encrypted = encryptObject({ email: 'a@b.com', price: 9.99 }, key);
+ * // → { email: { ciphertext: '…', iv: '…', authTag: '…', keyId: '…', algorithm: 'aes-256-gcm' }, price: 9.99 }
+ */
+export function encryptObject(
+  obj: Record<string, unknown>,
+  key: EncryptionKey,
+  depth = 0
+): Record<string, unknown> {
+  if (depth > 10) return obj;
+  const result: Record<string, unknown> = {};
+  for (const [fieldName, value] of Object.entries(obj)) {
+    if (typeof value === 'string' && isPiiField(fieldName)) {
+      result[fieldName] = encryptField(value, key);
+    } else if (
+      value !== null &&
+      typeof value === 'object' &&
+      !Array.isArray(value) &&
+      !(value as Record<string, unknown>).ciphertext // don't re-encrypt already-encrypted fields
+    ) {
+      result[fieldName] = encryptObject(value as Record<string, unknown>, key, depth + 1);
+    } else {
+      result[fieldName] = value;
+    }
+  }
+  return result;
+}
+
+/**
+ * Decrypts all `EncryptedField`-shaped values in an object back to plain
+ * strings, using the supplied key lookup function to resolve the correct key
+ * per field (supports multi-key scenarios during key rotation).
+ *
+ * Non-encrypted fields are passed through unmodified.  Nested objects are
+ * processed recursively.
+ *
+ * @param obj       - The source object with encrypted field values.
+ * @param getKey    - Function that resolves an `EncryptionKey` by id.
+ * @param depth     - Internal recursion depth guard.
+ *
+ * @example
+ * const plain = decryptObject(encrypted, (id) => keyManager.getKeyById(id));
+ */
+export function decryptObject(
+  obj: Record<string, unknown>,
+  getKey: (keyId: string) => EncryptionKey | null,
+  depth = 0
+): Record<string, unknown> {
+  if (depth > 10) return obj;
+  const result: Record<string, unknown> = {};
+  for (const [fieldName, value] of Object.entries(obj)) {
+    if (isEncryptedField(value)) {
+      const key = getKey((value as EncryptedField).keyId);
+      if (!key) {
+        // Key not available – preserve ciphertext rather than silently dropping data
+        result[fieldName] = value;
+      } else {
+        try {
+          result[fieldName] = decryptField(value as EncryptedField, key).value;
+        } catch {
+          // Decryption failure – preserve encrypted form and add error sentinel
+          result[fieldName] = value;
+        }
+      }
+    } else if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+      result[fieldName] = decryptObject(value as Record<string, unknown>, getKey, depth + 1);
+    } else {
+      result[fieldName] = value;
+    }
+  }
+  return result;
+}
+
+/**
+ * Type guard: returns `true` if `value` looks like an `EncryptedField`.
+ */
+export function isEncryptedField(value: unknown): value is EncryptedField {
+  if (typeof value !== 'object' || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.ciphertext === 'string' &&
+    typeof v.iv === 'string' &&
+    typeof v.authTag === 'string' &&
+    typeof v.keyId === 'string' &&
+    v.algorithm === ALGORITHM
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EncryptionService – high-level stateful service for encryption at rest
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Stateful encryption service that manages a live key ring and provides
+ * high-level encrypt/decrypt operations for sensitive data fields stored at
+ * rest in the database.
+ *
+ * ### Key ring
+ * The service keeps a map of all encryption keys (current + historical) so it
+ * can decrypt data encrypted with any previous key while only writing with the
+ * currently active key.
+ *
+ * ### Usage
+ * ```ts
+ * const service = new EncryptionService(masterKey);
+ * const enc = service.encrypt('user@example.com');
+ * const plain = service.decrypt(enc);
+ *
+ * // Encrypt a full object (only PII fields)
+ * const encObj = service.encryptObject({ email: 'a@b.com', price: 9.99 });
+ *
+ * // Rotate key, then re-encrypt old data
+ * service.rotateKey();
+ * const reEnc = service.reEncrypt(enc);  // decrypts with old key, re-encrypts with new
+ * ```
+ */
+export class EncryptionService {
+  private keys: Map<string, EncryptionKey>;
+  private activeKeyId: string;
+
+  /**
+   * Initialize a new key ring from a master key.
+   */
+  constructor(masterKey: Buffer, initialVersion = 1) {
+    validateEncryptionKey(masterKey);
+    const initial = generateEncryptionKey(masterKey, initialVersion);
+    this.keys = new Map([[initial.id, initial]]);
+    this.activeKeyId = initial.id;
+  }
+
+  /**
+   * Reconstitute a key ring from serialized JSON state.
+   */
+  static fromJSON(jsonStr: string): EncryptionService {
+    const data = JSON.parse(jsonStr);
+    const service = Object.create(EncryptionService.prototype) as EncryptionService;
+    service.keys = new Map();
+    for (const k of data.keys) {
+      service.keys.set(k.id, {
+        id: k.id,
+        version: k.version,
+        key: Buffer.from(k.key, 'base64'),
+        createdAt: k.createdAt,
+        expiresAt: k.expiresAt,
+      });
+    }
+    service.activeKeyId = data.activeKeyId;
+    if (!service.keys.has(service.activeKeyId)) {
+      throw new Error(`Active key ${service.activeKeyId} not found in key ring`);
+    }
+    return service;
+  }
+
+  /**
+   * Serialize the key ring to a JSON string for storage.
+   */
+  toJSON(): string {
+    return JSON.stringify({
+      activeKeyId: this.activeKeyId,
+      keys: Array.from(this.keys.values()).map(k => ({
+        ...k,
+        key: k.key.toString('base64')
+      }))
+    });
+  }
+
+  // ── Core field operations ─────────────────────────────────────────────────
+
+  /** Encrypt a single plaintext string using the active key. */
+  encrypt(plaintext: string): EncryptedField {
+    return encryptField(plaintext, this.getActiveKey());
+  }
+
+  /** Decrypt a single `EncryptedField`, resolving its key from the key ring. */
+  decrypt(encrypted: EncryptedField): string {
+    const key = this.keys.get(encrypted.keyId);
+    if (!key) throw new Error(`Unknown keyId: ${encrypted.keyId}`);
+    return decryptField(encrypted, key).value;
+  }
+
+  /** Re-encrypt a field from any historical key to the currently active key. */
+  reEncrypt(encrypted: EncryptedField): EncryptedField {
+    const decryptKey = this.keys.get(encrypted.keyId);
+    if (!decryptKey) throw new Error(`Unknown keyId for re-encryption: ${encrypted.keyId}`);
+    return reEncryptField(encrypted, this.getActiveKey(), decryptKey);
+  }
+
+  // ── Object-level operations ───────────────────────────────────────────────
+
+  /**
+   * Encrypt all PII fields in an object using the active key.
+   * Non-PII fields pass through unchanged.
+   */
+  encryptObject(obj: Record<string, unknown>): Record<string, unknown> {
+    return encryptObject(obj, this.getActiveKey());
+  }
+
+  /**
+   * Decrypt all encrypted fields in an object, resolving keys from the ring.
+   */
+  decryptObject(obj: Record<string, unknown>): Record<string, unknown> {
+    return decryptObject(obj, (id) => this.keys.get(id) ?? null);
+  }
+
+  // ── Blind index operations ────────────────────────────────────────────────
+
+  /**
+   * Generate a blind index for a value so it can be searched without decrypting.
+   * Uses a deterministic HMAC of the active key as the index key.
+   */
+  generateBlindIndex(field: string, value: string): BlindIndex {
+    const indexKey = this.deriveIndexKey();
+    return generateBlindIndexTokens(field, value, indexKey);
+  }
+
+  /** Search a blind index for a query value. */
+  searchBlindIndex(query: string, blindIndex: BlindIndex): boolean {
+    const indexKey = this.deriveIndexKey();
+    return searchBlindIndex(query, blindIndex, indexKey);
+  }
+
+  // ── Key rotation ──────────────────────────────────────────────────────────
+
+  /**
+   * Rotate the active key by generating a new `EncryptionKey` with an
+   * incremented version number.  The old key is retained in the ring for
+   * decryption of existing data until `pruneOldKeys()` is called.
+   *
+   * @returns The new `EncryptionKey`.
+   */
+  rotateKey(masterKey: Buffer): EncryptionKey {
+    validateEncryptionKey(masterKey);
+    const nextVersion = Math.max(...Array.from(this.keys.values()).map((k) => k.version)) + 1;
+    const newKey = generateEncryptionKey(masterKey, nextVersion);
+    this.keys.set(newKey.id, newKey);
+    this.activeKeyId = newKey.id;
+    return newKey;
+  }
+
+  /**
+   * Remove all keys older than `keepCount` most-recent versions from the ring.
+   * Call this only **after** all data has been re-encrypted with the new key.
+   */
+  pruneOldKeys(keepCount = 2): void {
+    const sorted = Array.from(this.keys.values()).sort((a, b) => b.version - a.version);
+    const toRemove = sorted.slice(keepCount);
+    for (const k of toRemove) this.keys.delete(k.id);
+  }
+
+  // ── Introspection ─────────────────────────────────────────────────────────
+
+  /** Return the currently active `EncryptionKey`. */
+  getActiveKey(): EncryptionKey {
+    const key = this.keys.get(this.activeKeyId);
+    if (!key) throw new Error('No active encryption key');
+    return key;
+  }
+
+  /** Return all keys currently in the ring. */
+  getAllKeys(): EncryptionKey[] {
+    return Array.from(this.keys.values());
+  }
+
+  /** Return the key with the given id, or `null` if not in the ring. */
+  getKeyById(id: string): EncryptionKey | null {
+    return this.keys.get(id) ?? null;
+  }
+
+  /** Return `true` if the active key is past its expiry date. */
+  isActiveKeyExpired(): boolean {
+    return isKeyExpired(this.getActiveKey());
+  }
+
+  // ── Private helpers ───────────────────────────────────────────────────────
+
+  private deriveIndexKey(): Buffer {
+    const activeKey = this.getActiveKey();
+    const hmac = createHmac(HMAC_ALGORITHM, activeKey.key);
+    hmac.update('blind-index-v1');
+    return hmac.digest();
+  }
+}

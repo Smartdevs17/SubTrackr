@@ -7,6 +7,7 @@ import {
 } from './encryption';
 import { keyManager } from './keyManager';
 import { piiAuditService } from './piiAudit';
+import { logger } from './logging';
 
 export interface UserConsent {
   analytics: boolean;
@@ -47,7 +48,7 @@ function generateExportId(): string {
 export const exportUserData = async (userId: string): Promise<ExportResult> => {
   await ensureEncryptionInitialized();
 
-  console.log(`Exporting data for user: ${userId}`);
+  logger.info('Exporting user data', { userId });
 
   const userData = {
     profile: { id: userId, email: 'user@example.com', name: 'John Doe', registeredAt: '2026-01-01' },
@@ -98,7 +99,7 @@ export const deleteUserData = async (
 ): Promise<DeletionResult> => {
   await ensureEncryptionInitialized();
 
-  console.log(`Processing deletion for user: ${userId} (Permanent: ${permanent})`);
+  logger.info('Processing user deletion', { userId, permanent });
 
   if (!permanent) {
     return anonymizeUserData(userId) as Promise<DeletionResult>;
@@ -119,7 +120,7 @@ export const deleteUserData = async (
 export const anonymizeUserData = async (userId: string): Promise<AnonymizationResult> => {
   await ensureEncryptionInitialized();
 
-  console.log(`Anonymizing data for user: ${userId}`);
+  logger.info('Anonymizing user data', { userId });
 
   const fields = ['email', 'name', 'phoneNumber', 'address', 'businessName', 'recipientEmail'];
 
@@ -144,7 +145,7 @@ export const updateConsent = async (
     timestamp: new Date().toISOString(),
   };
 
-  console.log(`Consent updated for ${userId}:`, newConsent);
+  logger.info('Consent updated', { userId, newConsent });
 
   return newConsent;
 };

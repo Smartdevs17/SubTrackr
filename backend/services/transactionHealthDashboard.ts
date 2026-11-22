@@ -99,6 +99,15 @@ export class TransactionHealthDashboard {
       avgGasUsed: 0,
       activeAlerts: snap.recentAlerts.filter((a) => !a.resolved),
       recentMetrics: snap.metrics,
+      slaStatuses: [],
+      slaBreaches: [],
+      slaSummary: {
+        totalMonitored: 0,
+        compliant: 0,
+        breached: 0,
+        openBreaches: 0,
+        totalCreditsIssued: 0,
+      },
     };
   }
 

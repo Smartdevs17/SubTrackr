@@ -1,10 +1,25 @@
 export type SlaAvailabilityState = 'healthy' | 'partial_outage' | 'full_outage' | 'maintenance';
 
+export interface SlaExclusionWindow {
+  /** Label for the window, e.g. "Weekly maintenance" */
+  label: string;
+  /** Day of week (0=Sun … 6=Sat), or -1 to match any day */
+  dayOfWeek: number;
+  /** Start time in seconds from midnight (UTC) */
+  startSecond: number;
+  /** Duration in seconds */
+  durationSeconds: number;
+}
+
 export interface SlaConfig {
   merchantId: string;
   uptimeTarget: number;
   measurementInterval: number;
   subscriberContacts?: string[];
+  /** Maximum credit that can be issued per measurement interval (0 = no cap). */
+  creditCap?: number;
+  /** Scheduled windows excluded from SLA measurement (planned maintenance). */
+  exclusionWindows?: SlaExclusionWindow[];
 }
 
 export interface SlaAvailabilityEvent {

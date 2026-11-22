@@ -1,6 +1,7 @@
 import math
 import random
 from typing import Dict, List, Optional
+from .logger import logger
 
 class RecommendationEngine:
     def __init__(self):
@@ -39,7 +40,7 @@ class RecommendationEngine:
                 recommendations.append({"id": rec_id, "score": 0.88})
         return recommendations
 
-    def get_recommendations(self, subscriber_address: str, context: Dict) -> List[Dict]:
+    def get_recommendations(self, subscriber_address: str, context: Dict, correlation_id: str = None) -> List[Dict]:
         """
         Combines collaborative and content-based filtering.
         """
@@ -81,6 +82,7 @@ class RecommendationEngine:
                 "confidence_score": 0.50
             })
             
+        logger.info(f"Generated {len(final_recs)} recommendations for {subscriber_address}", correlation_id=correlation_id)
         return final_recs
 
 if __name__ == "__main__":

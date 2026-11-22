@@ -1,4 +1,4 @@
-import { ElasticsearchService } from '../ElasticsearchService';
+import { ElasticsearchService } from '../../search/ElasticsearchService';
 import {
   Subscription,
   SubscriptionCategory,
@@ -222,5 +222,71 @@ describe('ElasticsearchService', () => {
     const { took } = service.search({ query: 'netflix' });
     expect(typeof took).toBe('number');
     expect(took).toBeGreaterThanOrEqual(0);
+  });
+
+  it('searches customer name, email, plan name, and notes', () => {
+    service.bulkIndex([
+      makeSub({
+        id: 'crm-1',
+        customerName: 'Jane Doe',
+        customerEmail: 'jane@acme.com',
+        planName: 'Enterprise Plus',
+        notes: 'VIP renewal candidate',
+        name: 'Acme Subscription',
+      }),
+    ]);
+
+    expect(service.search({ query: 'Jane' }).total).toBe(1);
+    expect(service.search({ query: 'jane@acme.com' }).total).toBe(1);
+    expect(service.search({ query: 'Enterprise' }).total).toBe(1);
+    expect(service.search({ query: 'renewal' }).total).toBe(1);
+  });
+
+  it('filters by date range', () => {
+    const { hits } = service.search({
+      filters: {
+        dateRange: {
+          from: new Date('2026-04-01'),
+          to: new Date('2026-05-15'),
+          field: 'nextBillingDate',
+        },
+      },
+    });
+    expect(hits.length).toBeGreaterThan(0);
+    expect(
+      hits.every(
+        (h) =>
+          new Date(h.subscription.nextBillingDate) >= new Date('2026-04-01') &&
+          new Date(h.subscription.nextBillingDate) <= new Date('2026-05-15')
+      )
+    ).toBe(true);
+  });
+
+  it('wraps matched terms in highlight tags', () => {
+    const { hits } = service.search({ query: 'Netflix' });
+    const highlighted = Object.values(hits[0].highlights);
+    expect(highlighted.some((value) => value.includes('<em>'))).toBe(true);
+  });
+
+  it('supports saved search notifications for new matches', () => {
+    service.registerSavedSearch({
+      id: 'saved-1',
+      name: 'Streaming',
+      query: { filters: { categories: [SubscriptionCategory.STREAMING] } },
+      notifyOnNewMatches: true,
+      lastMatchCount: 0,
+      createdAt: Date.now(),
+    });
+
+    const first = service.checkSavedSearchNotifications();
+    expect(first[0]?.newMatchCount).toBe(2);
+
+    const second = service.checkSavedSearchNotifications();
+    expect(second.length).toBe(0);
+  });
+
+  it('reindexes on schema change', () => {
+    service.reindexForSchemaChange(SUBS.slice(0, 2));
+    expect(service.documentCount).toBe(2);
   });
 });

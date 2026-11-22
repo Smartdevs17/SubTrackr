@@ -33,6 +33,18 @@ export interface TaxRateEntry {
   nexusThreshold: number;
 }
 
+/** Configurable per-region tax rate override, applied at invoice time. */
+export interface RegionTaxRateConfig {
+  /** Jurisdiction key, e.g. "DE", "US-NY", or "GLOBAL". */
+  region: string;
+  /** Rate in basis points (e.g. 1900 = 19%). */
+  rateBps: number;
+  /** Optional tax type; defaults to the region's existing type or "vat". */
+  taxType?: TaxType;
+  /** Optional display name; defaults to the region's existing name or "${region} Tax Rate". */
+  displayName?: string;
+}
+
 export interface TaxRateChangeEvent {
   jurisdictionKey: string;
   oldRateBps: number;
@@ -141,3 +153,41 @@ export interface TaxRemittanceReportRequest {
 
 export const DEFAULT_TAX_CACHE_TTL_MS = 3_600_000; // 1 hour
 export const TAX_RATE_CACHE_MAX_ENTRIES = 10_000;
+
+// ── Compliance Engine Types ──────────────────────────────────────────────────
+
+export type TaxSyncJobStatus = 'idle' | 'running' | 'success' | 'failed';
+
+export interface TaxRateSyncJob {
+  jobId: string;
+  provider: TaxType;
+  status: TaxSyncJobStatus;
+  startedAt: number;
+  completedAt?: number;
+  syncedRegions: string[];
+  failedRegions: { region: string; error: string }[];
+  totalRatesUpdated: number;
+}
+
+export interface TaxExemptionUpload {
+  uploadId: string;
+  customerId: string;
+  certificateId: string;
+  issuingAuthority: string;
+  validUntil: number;
+  jurisdictions: string[];
+  fileUrl?: string;
+  status: 'pending' | 'validated' | 'rejected';
+  rejectionReason?: string;
+}
+
+export type TaxReportExportFormat = 'csv' | 'json' | 'pdf';
+
+export interface TaxNexusStatus {
+  region: string;
+  hasNexus: boolean;
+  threshold: number;
+  currentRevenue: number;
+  percentToThreshold: number;
+  lastAssessedAt: number;
+}

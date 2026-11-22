@@ -1,0 +1,6 @@
+import os
+
+
+FEATURE_STORE_URL = os.getenv("FEATURE_STORE_URL", "redis://localhost:6379/0")
+FEATURE_TTL_SECONDS = int(os.getenv("FEATURE_TTL_SECONDS", "7200"))
+REFERENCE_TTL_SECONDS = int(os.getenv("REFERENCE_TTL_SECONDS", "604800"))

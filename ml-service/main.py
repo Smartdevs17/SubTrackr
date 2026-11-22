@@ -1,47 +1,333 @@
-from fastapi import FastAPI, HTTPException, BackgroundTasks
-from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
+"""
+ml-service/main.py
+
+Issue #910 — Structured logging with correlation IDs for ml-service.
+
+FastAPI application exposing SubTrackr ML endpoints.  Every HTTP request is
+automatically stamped with a correlation ID (read from X-Correlation-ID header
+or freshly generated) that propagates through all structured log lines for that
+request via a ContextVar, making distributed tracing trivial.
+"""
+
+import os
+import uuid
 import time
 import logging
+import json
+from contextvars import ContextVar
+from typing import Any, Dict, List, Optional
 
-from routers import churn, recommendations, pricing, health
-from model_registry import ModelRegistry
+from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from models import ChurnPredictionModel, RevenueForecastModel
+from model_registry import registry
+from forecast import build_dashboard_forecast
+from savings import suggest_savings
+from auth import EXEMPT_PATHS, TOKEN_HEADER, is_authorized, load_tokens
 
-registry = ModelRegistry()
+# ──────────────────────────────────────────────────────────────────────────────
+# Structured logging with correlation IDs  (issue #910)
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Context var that holds the current correlation ID for the active request.
+# Using ContextVar (not threading.local) so it works correctly with asyncio.
+_correlation_id: ContextVar[str] = ContextVar("correlation_id", default="")
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    registry.load_all()
-    logger.info("ML models loaded")
-    yield
-    logger.info("ML service shutting down")
+class StructuredLogger:
+    """
+    JSON-formatted logger that automatically injects the active correlation ID
+    from the current async context into every log entry.
+
+    Usage::
+
+        logger.info("model_loaded", version="v1.1")
+        logger.error("predict_failed", subscriber=req.subscriber, error=str(e))
+    """
+
+    def __init__(self, service: str = "ml-service") -> None:
+        self._service = service
+        self._raw = logging.getLogger(service)
+        if not self._raw.handlers:
+            handler = logging.StreamHandler()
+            # Emit the pre-serialised JSON string as-is.
+            handler.setFormatter(logging.Formatter("%(message)s"))
+            self._raw.addHandler(handler)
+        self._raw.setLevel(logging.DEBUG)
+
+    def _emit(self, level: str, message: str, **extra: Any) -> None:
+        entry: Dict[str, Any] = {
+            "level": level,
+            "message": message,
+            "service": self._service,
+            "correlation_id": _correlation_id.get() or None,
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            **extra,
+        }
+        # Strip None values to keep log payloads clean.
+        entry = {k: v for k, v in entry.items() if v is not None}
+
+        # Map our level strings to the stdlib logging methods.
+        log_method = getattr(self._raw, level if level != "warning" else "warning", self._raw.info)
+        log_method(json.dumps(entry))
+
+    def debug(self, message: str, **extra: Any) -> None:
+        self._emit("debug", message, **extra)
+
+    def info(self, message: str, **extra: Any) -> None:
+        self._emit("info", message, **extra)
+
+    def warning(self, message: str, **extra: Any) -> None:
+        self._emit("warning", message, **extra)
+
+    def error(self, message: str, **extra: Any) -> None:
+        self._emit("error", message, **extra)
 
 
-app = FastAPI(title="SubTrackr ML Service", version="1.0.0", lifespan=lifespan)
+# Module-level singleton logger used throughout this file.
+logger = StructuredLogger()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# ──────────────────────────────────────────────────────────────────────────────
+# FastAPI application
+# ──────────────────────────────────────────────────────────────────────────────
+
+app = FastAPI(title="SubTrackr ML Service", version="1.0.0")
+
+
+# ── API token middleware (#2099) ───────────────────────────────────────────────
+
+_api_tokens = load_tokens()
+if not _api_tokens:
+    logger.warning("api_token_check_disabled", reason="ML_SERVICE_API_TOKENS not set")
 
 
 @app.middleware("http")
-async def track_latency(request, call_next):
-    start = time.time()
-    response = await call_next(request)
-    latency_ms = (time.time() - start) * 1000
-    response.headers["X-Latency-Ms"] = str(round(latency_ms, 2))
-    logger.info(f"{request.method} {request.url.path} — {latency_ms:.1f}ms")
+async def api_token_middleware(request: Request, call_next: Any) -> Response:
+    """Reject requests whose X-API-Key matches neither the current nor the grace-period token."""
+    if not _api_tokens or request.url.path in EXEMPT_PATHS:
+        return await call_next(request)
+    if not is_authorized(request.headers.get(TOKEN_HEADER), _api_tokens):
+        logger.warning("api_token_rejected", method=request.method, path=request.url.path)
+        return JSONResponse(status_code=401, content={"detail": "invalid or missing API token"})
+    return await call_next(request)
+
+
+# ── Correlation-ID middleware ──────────────────────────────────────────────────
+
+@app.middleware("http")
+async def correlation_id_middleware(request: Request, call_next: Any) -> Response:
+    """
+    Reads X-Correlation-ID from the incoming request (or generates a new UUID4
+    if absent), stores it in the ContextVar, injects it into the response header,
+    and records request/response telemetry through the structured logger.
+    """
+    correlation_id = request.headers.get("X-Correlation-ID") or str(uuid.uuid4())
+    token = _correlation_id.set(correlation_id)
+
+    start = time.monotonic()
+    logger.info(
+        "request_started",
+        method=request.method,
+        path=request.url.path,
+    )
+
+    response: Response
+    try:
+        response = await call_next(request)
+    except Exception as exc:
+        logger.error(
+            "request_error",
+            method=request.method,
+            path=request.url.path,
+            error=str(exc),
+        )
+        raise
+    finally:
+        elapsed_ms = round((time.monotonic() - start) * 1000, 2)
+        logger.info(
+            "request_completed",
+            method=request.method,
+            path=request.url.path,
+            status_code=getattr(response, "status_code", None),
+            duration_ms=elapsed_ms,
+        )
+        _correlation_id.reset(token)
+
+    response.headers["X-Correlation-ID"] = correlation_id
     return response
 
 
-app.include_router(health.router)
-app.include_router(churn.router, prefix="/v1/churn")
-app.include_router(recommendations.router, prefix="/v1/recommendations")
-app.include_router(pricing.router, prefix="/v1/pricing")
+# ──────────────────────────────────────────────────────────────────────────────
+# Pydantic request/response models
+# ──────────────────────────────────────────────────────────────────────────────
+
+class UserChurnData(BaseModel):
+    recent_payment_failures: float
+    baseline_logins_per_month: float
+    recent_logins: float
+    open_support_tickets: float
+    price_sensitivity_index: float
+
+
+class PredictRequest(BaseModel):
+    subscriber: str
+    user_data: UserChurnData
+
+
+class BatchPredictItem(BaseModel):
+    subscriber: str
+    user_data: UserChurnData
+
+
+class BatchChurnPredictRequest(BaseModel):
+    items: List[BatchPredictItem] = Field(..., min_length=1, max_length=500)
+
+
+class RevenueObservation(BaseModel):
+    period: str
+    revenue: float
+
+
+class ForecastRequest(BaseModel):
+    observations: List[RevenueObservation] = Field(..., min_length=2)
+    horizon: int = Field(3, ge=1, le=24, description="Number of periods to forecast")
+
+
+class SavingsAccount(BaseModel):
+    account_id: str
+    cohort: str = "default"
+    monthly_spend: float = Field(..., ge=0)
+
+
+class SavingsRequest(BaseModel):
+    accounts: List[SavingsAccount] = Field(..., min_length=1, max_length=500)
+
+
+class InterventionRequest(BaseModel):
+    subscribers: List[str] = Field(
+        ..., min_length=1, max_length=500, description="Subscriber IDs to evaluate"
+    )
+    user_data_map: Dict[str, UserChurnData] = Field(
+        ..., description="Map of subscriber_id -> user data"
+    )
+    risk_threshold: str = Field(
+        "High", description="Minimum risk level that triggers an intervention ('High' or 'Medium')"
+    )
+
+
+class RetrainRequest(BaseModel):
+    training_samples: Optional[List[Dict[str, Any]]] = Field(
+        None, description="Optional training rows; omit to use registry defaults"
+    )
+
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Model initialisation
+# ──────────────────────────────────────────────────────────────────────────────
+
+churn_model = ChurnPredictionModel()
+forecast_model = RevenueForecastModel()
+
+custom_weights = registry.load_model("v1.1")
+if custom_weights and "feature_weights" in custom_weights:
+    churn_model.feature_weights = custom_weights["feature_weights"]
+    logger.info("model_loaded", version="v1.1")
+else:
+    logger.info("model_loaded", version="v1.0")
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Endpoints
+# ──────────────────────────────────────────────────────────────────────────────
+
+@app.post("/v1/churn/predict")
+async def predict_churn(req: PredictRequest) -> Dict[str, Any]:
+    logger.info("predict_churn", subscriber=req.subscriber)
+    try:
+        prediction: Dict[str, Any] = churn_model.predict_churn(
+            req.subscriber, req.user_data.model_dump()
+        )
+        prediction["model_version"] = "v1.1" if custom_weights else "v1.0"
+        return prediction
+    except Exception as e:
+        logger.error("predict_churn_failed", subscriber=req.subscriber, error=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/v1/churn/predict/batch")
+async def predict_churn_batch(req: BatchChurnPredictRequest) -> Dict[str, Any]:
+    logger.info("predict_churn_batch", count=len(req.items))
+    results: List[Dict[str, Any]] = []
+    for item in req.items:
+        try:
+            pred: Dict[str, Any] = churn_model.predict_churn(
+                item.subscriber, item.user_data.model_dump()
+            )
+            pred["ok"] = True
+            results.append(pred)
+        except Exception as e:
+            logger.warning(
+                "predict_churn_item_failed",
+                subscriber=item.subscriber,
+                error=str(e),
+            )
+            results.append({"subscriber": item.subscriber, "ok": False, "error": str(e)})
+
+    return {
+        "model_version": "v1.1" if custom_weights else "v1.0",
+        "results": results,
+    }
+
+
+@app.post("/v1/churn/forecast")
+async def forecast_revenue(req: ForecastRequest) -> Dict[str, Any]:
+    logger.info("forecast_revenue", horizon=req.horizon, observations=len(req.observations))
+    try:
+        observations = [obs.model_dump() for obs in req.observations]
+        return build_dashboard_forecast(observations, req.horizon)
+    except Exception as e:
+        logger.error("forecast_revenue_failed", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/v1/savings/suggestions")
+async def savings_suggestions(req: SavingsRequest) -> Dict[str, Any]:
+    logger.info("savings_suggestions", accounts=len(req.accounts))
+    return {"suggestions": suggest_savings([account.model_dump() for account in req.accounts])}
+
+
+@app.post("/v1/models/retrain")
+async def retrain_model(req: Optional[RetrainRequest] = None) -> Dict[str, Any]:
+    """Trigger the retraining pipeline."""
+    logger.info("model_retrain_triggered")
+    samples = (req.training_samples if req and req.training_samples else []) or []
+    new_version: str = registry.retrain_model(samples)
+    new_weights = registry.load_model(new_version)
+    if new_weights and "feature_weights" in new_weights:
+        churn_model.feature_weights = new_weights["feature_weights"]
+        logger.info("model_weights_reloaded", version=new_version)
+    return {"status": "success", "new_version": new_version}
+
+
+@app.get("/healthz")
+async def health() -> Dict[str, str]:
+    return {"status": "ok", "service": "ml-service"}
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Entrypoint
+# ──────────────────────────────────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", "8000")),
+        reload=os.getenv("ENV", "production") == "development",
+        log_level="info",
+    )

@@ -1,5 +1,4 @@
 import { useRef, useEffect } from 'react';
-import { findNodeHandle, TextInput } from 'react-native';
 
 /**
  * Hook for managing focus in modals and bottom sheets

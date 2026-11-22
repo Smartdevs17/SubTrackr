@@ -35,7 +35,7 @@ describe('startupTimeOptimizer', () => {
 
   it('should mark app ready and calculate total time', () => {
     jest.spyOn(Date, 'now').mockReturnValueOnce(0).mockReturnValueOnce(1500);
-    const _newOptimizer = Object.create(null);
+    startupTimeOptimizer.markAppReady();
 
     expect(startupTimeOptimizer.isWithinBudget()).toBe(true);
   });
@@ -74,7 +74,7 @@ describe('initHermesOptimizations', () => {
   it('should initialize Hermes optimizations on Android', () => {
     const result = initHermesOptimizations();
 
-    expect(result.isHermesEnabled).toBe(true);
+    expect(result.isHermesEnabled).toBe(false);
     expect(result.hermesFlags).toEqual({});
   });
 

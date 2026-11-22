@@ -1,4 +1,6 @@
-#![cfg(test)]
+// `env.register_contract(..)` is deprecated in favour of `env.register(..)`.
+#![allow(deprecated)]
+
 use soroban_sdk::{testutils::Address as _, testutils::Ledger as _, Address, Bytes, BytesN, Env};
 use subtrackr_types::{ApiKeyConfig, ApiKeyStatus, RateLimitConfig, TimeRange, UsageTier};
 

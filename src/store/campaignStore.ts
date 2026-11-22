@@ -9,9 +9,13 @@ import {
   CouponValidation,
   CampaignSchedule,
   CampaignOverlap,
-  DiscountType,
+  RedemptionContext,
 } from '../types/campaign';
-import { CouponService } from '../services/couponService';
+import {
+  calculatePromotionAnalytics,
+  calculateStackedDiscount,
+  validateCouponRedemption,
+} from '../utils/promotionEngine';
 
 const STORAGE_KEY = 'subtrackr-campaign';
 const STORE_VERSION = 1;
@@ -33,8 +37,8 @@ interface CampaignState {
 
   // Coupon management
   generateCoupons: (campaignId: string, count: number, pattern?: string) => Promise<void>;
-  validateCoupon: (code: string, subscriptionId?: string) => Promise<CouponValidation>;
-  redeemCoupon: (code: string, subscriptionId: string) => Promise<void>;
+  validateCoupon: (code: string, context: RedemptionContext) => CouponValidation;
+  redeemCoupon: (code: string, context: RedemptionContext) => CouponValidation;
 
   // Campaign scheduling
   scheduleCampaign: (id: string, schedule: CampaignSchedule) => Promise<void>;
@@ -46,7 +50,11 @@ interface CampaignState {
   checkCampaignEligibility: (campaignId: string, userId: string) => boolean;
 
   // Stacking & pricing
-  calculateDiscountedPrice: (originalPrice: number, campaignIds: string[]) => number;
+  calculateDiscountedPrice: (
+    originalPrice: number,
+    campaignIds: string[],
+    quantity?: number
+  ) => number;
   applyCampaignToPlan: (campaignId: string, planId: string) => Promise<void>;
   applyCampaignToSubscription: (campaignId: string, subscriptionId: string) => Promise<void>;
 
@@ -213,15 +221,47 @@ export const useCampaignStore = create<CampaignState>()(
         }));
       },
 
-      validateCoupon: async (code: string, subscriptionId?: string) => {
-        return CouponService.validateCoupon(code, subscriptionId || '');
+      validateCoupon: (code: string, context: RedemptionContext) => {
+        const { campaigns } = get();
+        const campaign = campaigns.find((c) => c.couponCodes?.some((cc) => cc.code === code));
+        const coupon = campaign?.couponCodes?.find((cc) => cc.code === code);
+        return validateCouponRedemption(campaign, coupon, context);
       },
 
-      redeemCoupon: async (code: string, subscriptionId: string) => {
-        await CouponService.applyCoupon(code, subscriptionId);
+      redeemCoupon: (code: string, context: RedemptionContext) => {
+        const validation = get().validateCoupon(code, context);
+        if (!validation.isValid || !validation.campaign || !validation.coupon) {
+          return validation;
+        }
+
+        const { campaign, coupon, discountAmount } = validation;
+        const now = new Date();
+
         set((state) => ({
-          redeemedCoupons: [...state.redeemedCoupons],
+          campaigns: state.campaigns.map((c) =>
+            c.id === campaign.id
+              ? {
+                  ...c,
+                  couponCodes: c.couponCodes?.map((cc) =>
+                    cc.code === code ? { ...cc, usedCount: cc.usedCount + 1 } : cc
+                  ),
+                  currentRedemptions: (c.currentRedemptions ?? 0) + 1,
+                  analytics: c.analytics
+                    ? {
+                        ...c.analytics,
+                        couponRedemptions: (c.analytics.couponRedemptions ?? 0) + 1,
+                        totalDiscountGiven:
+                          (c.analytics.totalDiscountGiven ?? 0) + (discountAmount ?? 0),
+                      }
+                    : c.analytics,
+                  updatedAt: now,
+                }
+              : c
+          ),
+          redeemedCoupons: [...state.redeemedCoupons, coupon],
         }));
+
+        return validation;
       },
 
       // Campaign scheduling
@@ -274,23 +314,10 @@ export const useCampaignStore = create<CampaignState>()(
       },
 
       // Stacking & pricing
-      calculateDiscountedPrice: (originalPrice: number, campaignIds: string[]) => {
+      calculateDiscountedPrice: (originalPrice: number, campaignIds: string[], quantity = 1) => {
         const { campaigns } = get();
-        let finalPrice = originalPrice;
-
-        for (const campaignId of campaignIds) {
-          const campaign = campaigns.find((c) => c.id === campaignId);
-          if (!campaign?.promotionRule) continue;
-
-          const { discountType, discountValue } = campaign.promotionRule;
-          if (discountType === DiscountType.PERCENTAGE) {
-            finalPrice -= finalPrice * (discountValue / 100);
-          } else if (discountType === DiscountType.FIXED_AMOUNT) {
-            finalPrice -= discountValue;
-          }
-        }
-
-        return Math.max(0, finalPrice);
+        const selected = campaigns.filter((c) => campaignIds.includes(c.id));
+        return calculateStackedDiscount(originalPrice, selected, quantity).finalPrice;
       },
 
       applyCampaignToPlan: async (campaignId: string, planId: string) => {
@@ -319,10 +346,11 @@ export const useCampaignStore = create<CampaignState>()(
       // Analytics
       getCampaignPerformance: (id: string) => {
         const { campaigns, campaignAnalytics } = get();
-        if (campaignAnalytics[id]) return campaignAnalytics[id];
-
         const campaign = campaigns.find((c) => c.id === id);
-        return campaign?.analytics || initializeAnalytics();
+        const base = campaignAnalytics[id] ?? campaign?.analytics ?? initializeAnalytics();
+        if (!campaign) return base;
+
+        return { ...base, ...calculatePromotionAnalytics(campaign) };
       },
 
       exportCampaignData: async (id: string) => {

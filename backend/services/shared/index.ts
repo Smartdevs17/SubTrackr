@@ -23,8 +23,22 @@ export type { AuditAction, AuditEvent, AuditReport, ExportFormat, RetentionPolic
 export { exportUserData, deleteUserData, anonymizeUserData, updateConsent } from './gdpr';
 export type { UserConsent, ExportResult, DeletionResult, AnonymizationResult } from './gdpr';
 export { piiAuditService, PiiAuditService } from './piiAudit';
-export type { PiiAccessAction, PiiAccessRecord } from './piiAudit';
+export type { PiiAccessAction, PiiAccessRecord, LineageNode, PiiLineageTrail, PiiAuditReport } from './piiAudit';
+export { PiiClassifier, piiClassifier, redact, isPiiField, DEFAULT_PATTERNS } from './piiClassifier';
+export type { ClassificationLevel, PiiPattern, ClassifyResult, RedactOptions } from './piiClassifier';
+export { redactResponse, createPiiRedactionMiddleware } from './apiResponse';
 export { RateLimitingService, rateLimitingService } from './rateLimitingService';
+export type { BypassConfig, CustomLimits } from './rateLimitingService';
+export {
+  createRateLimitMiddleware,
+  createRateLimitStatusMiddleware,
+  RATE_LIMIT_HEADERS,
+} from './rateLimitMiddleware';
+export type {
+  RateLimitRequest,
+  RateLimitResponse,
+  RateLimitMiddlewareOptions,
+} from './rateLimitMiddleware';
 export { apiClient } from './apiClient';
 export {
   ok,
@@ -47,3 +61,232 @@ export type {
 } from './apiResponse';
 export type { TransactionStatus, AlertSeverity, AlertChannel, TransactionEvent, Metric, Alert, AlertRule, AlertChannelConfig, DashboardSnapshot } from './types';
 export { MonitoringService, monitoringService } from './monitoring';
+
+// ── Typed Event Bus ────────────────────────────────────────────────────────────
+export {
+  EventBus,
+  SpyEventBus,
+  EventCollector,
+  InMemoryEventStore,
+  buildEvent,
+  validateEventPayload,
+  EventValidationError,
+  eventBus,
+  eventStore,
+  eventBusPrometheusMetrics,
+} from './events';
+export type {
+  DomainEvent,
+  AnyDomainEvent,
+  EventPayload,
+  EventHandler,
+  EventFilter,
+  EventSubscription,
+  SubscriptionOptions,
+  EventBusMetrics,
+  IEventBus,
+  EventSourcedStore,
+  EventStoreQuery,
+  AggregateSnapshot,
+  ValidationResult,
+  // Subscription domain payloads
+  SubscriptionCreatedPayload,
+  SubscriptionCancelledPayload,
+  SubscriptionRenewedPayload,
+  SubscriptionUpgradedPayload,
+  SubscriptionPausedPayload,
+  SubscriptionResumedPayload,
+  SubscriptionPaymentFailedPayload,
+  SubscriptionEvent,
+  // Billing domain payloads
+  InvoiceGeneratedPayload,
+  PaymentCapturedPayload,
+  UsageThresholdReachedPayload,
+  ChargebackRaisedPayload,
+  BillingEvent,
+  // Analytics domain payloads
+  ChurnRiskUpdatedPayload,
+  CohortAggregatedPayload,
+  MrrChangedPayload,
+  AnalyticsEvent,
+  // Auth domain payloads
+  ApiKeyRotatedPayload,
+  SsoSessionCreatedPayload,
+  AuthEvent,
+  // Contract domain payloads
+  ContractInvokedPayload,
+  ContractUpgradedPayload,
+  ContractEvent,
+} from './events';
+
+// ── Generic Cache Service ──────────────────────────────────────────────────────
+export { CacheService, NullCacheService, wireInvalidation } from './cache';
+export type {
+  ICacheService,
+  CacheServiceConfig,
+  CacheMetrics,
+  InvalidationRule,
+} from './cache';
+
+// ── Compression Middleware ────────────────────────────────────────────────────
+export {
+  applyCompression,
+  negotiateEncoding,
+  generateETag,
+  isETagMatch,
+  compressionMetrics,
+  compressionPrometheusMetrics,
+} from './compression';
+export type {
+  CompressionConfig,
+  CompressionMetrics,
+  CompressionMiddlewareOptions,
+  Encoding,
+} from './compression';
+
+// ── Cursor Pagination + Field Selection ───────────────────────────────────────
+export {
+  encodeCursor,
+  decodeCursor,
+  buildCursorClause,
+  buildPage,
+  parseFieldSelection,
+  selectFields,
+  selectFieldsAll,
+} from './pagination';
+export type {
+  CursorPayload,
+  PageOptions,
+  PageResult,
+  SqlCursorClause,
+} from './pagination';
+
+// ── Connection Pool Monitor ───────────────────────────────────────────────────
+export { MonitoredPool, wrapWithMonitor } from './poolMonitor';
+export type {
+  PoolMonitorConfig,
+  PoolStats,
+  LeakRecord,
+  PoolTuningRecommendation,
+} from './poolMonitor';
+
+export { KycService, kycService } from './kycService';
+export type { KycVerificationOptions, ProcessingResult } from './kycService';
+
+export {
+  ApiVersionRegistry,
+  versionRegistry,
+  createVersionMiddleware,
+  buildVersionHeaders,
+  resolveVersion,
+  extractVersionFromPath,
+  extractVersionFromHeader,
+  extractVersionFromQuery,
+  parseVersionNumber,
+  HEADERS,
+} from './apiVersioning';
+export type {
+  VersionLifecycle,
+  VersionConfig,
+  VersionResolution,
+  DeprecationWarning,
+  VersionAnalytics,
+  VersionRegistryStats,
+  VersionExtractionOptions,
+  VersionMiddlewareOptions,
+  VersionResponseHeaders,
+  MiddlewareRequest,
+  MiddlewareResponse,
+} from './apiVersioning';
+
+export {
+  buildDeprecationReport,
+  severityFor,
+  isHealthy,
+  formatFindings,
+  formatReportTable,
+  toJson,
+  SUNSET_WARNING_DAYS,
+  SUNSET_CRITICAL_DAYS,
+} from './apiDeprecationReport';
+export type {
+  DeprecationSeverity,
+  DeprecationFinding,
+  DeprecationReport,
+  VersionReportRow,
+  BuildReportOptions,
+} from './apiDeprecationReport';
+// ── Build Metrics Exporter ───────────────────────────────────────────────────
+export {
+  BuildMetricsService,
+  BuildMetricsValidationError,
+  buildMetricsService,
+  BUILD_STATUSES,
+  parseBuildRunInput,
+  escapeLabelValue,
+  sampleValue,
+  sampleMs,
+  percentile,
+} from './buildMetricsService';
+export type {
+  BuildStatus,
+  BuildRunInput,
+  BuildRunRecord,
+  BuildStageRecord,
+  BuildArtifactRecord,
+  BuildHandle,
+  BuildStartMeta,
+  EndBuildResult,
+  BuildMetrics,
+  BuildIngestResult,
+  BuildMetricsServiceOptions,
+  PipelineBuildStats,
+  StageBuildStats,
+  ArtifactBuildStats,
+  RejectionReason,
+} from './buildMetricsService';
+
+// ── Provider Circuit Breakers & Outbound Resilience ─────────────────────────
+export {
+  ProviderCircuitBreakerRegistry,
+  providerCircuitBreakerRegistry,
+  executeWithProviderFallback,
+  CircuitOpenError,
+} from './providerCircuitBreaker';
+export type { ProviderFallback, ProviderCircuitBreakerRegistryOptions } from './providerCircuitBreaker';
+
+export {
+  outboundRequest,
+  isIdempotentMethod,
+  isIdempotentRequest,
+  OutboundTimeoutError,
+} from './outboundRequest';
+export type { OutboundRequestOptions, OutboundRequestInit } from './outboundRequest';
+
+// ── Pluggable authentication gateway ──────────────────────────────────────────
+export {
+  CompositeAuthStrategyManager,
+  JwtAuthStrategy,
+  ApiKeyAuthStrategy,
+  WalletAuthStrategy,
+  OAuthSessionAuthStrategy,
+  createUnifiedAuthMiddleware,
+  createRequireRoleMiddleware,
+  createRequireStrategyMiddleware,
+} from './authStrategies';
+export type { AuthUser, IAuthStrategy } from './authStrategies';
+export {
+  Web3AuthStrategy,
+  createWeb3AuthVerifier,
+  createAuthGateway,
+  createAuthGatewayMiddleware,
+} from './authGateway';
+export type {
+  Web3AuthClaims,
+  Web3AuthVerifier,
+  Web3AuthVerifierOptions,
+  AuthGatewayOptions,
+} from './authGateway';
+
+
+

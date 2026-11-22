@@ -2,15 +2,19 @@
 name = "subtrackr-access-control"
 version = "0.1.0"
 edition = "2021"
+authors = ["SubTrackr Team"]
+description = "SubTrackr RBAC access control contract (Soroban)"
 
 [lib]
-name = "subtrackr_access_control"
-path = "src/lib.rs"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-soroban-sdk = "21.0.0"
+soroban-sdk = { workspace = true }
 subtrackr-types = { path = "../types" }
 
+[features]
+default = []
+testutils = ["soroban-sdk/testutils"]
+
 [dev-dependencies]
-soroban-sdk = { version = "21.0.0", features = ["testutils"] }
+soroban-sdk = { workspace = true, features = ["testutils"] }

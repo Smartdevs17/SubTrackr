@@ -1,3 +1,6 @@
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../navigation/types';
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -21,7 +24,10 @@ import {
 } from '../components/developer/DeveloperComponents';
 import { apiKeyService } from '../services/sandbox/apiKeyService';
 
+type DevPortalNavProp = NativeStackNavigationProp<RootStackParamList>;
+
 const DeveloperPortalScreen: React.FC = () => {
+  const navigation = useNavigation<DevPortalNavProp>();
   const {
     sandboxConfig,
     developerProfile,
@@ -267,6 +273,12 @@ const DeveloperPortalScreen: React.FC = () => {
             title="Sandbox Dashboard"
             description="View test data and sandbox metrics"
             onPress={() => {}}
+          />
+          <QuickAction
+            icon="🎮"
+            title="API Playground"
+            description="Try API endpoints interactively in the sandbox"
+            onPress={() => navigation.navigate('ApiPlayground')}
           />
           <QuickAction
             icon="🔑"

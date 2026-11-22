@@ -1,4 +1,4 @@
-import { asyncStorageAdapter } from '../utils/storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
@@ -349,7 +349,7 @@ export const useCalendarStore = create<CalendarState>()(
     }),
     {
       name: STORAGE_KEY,
-      storage: createJSONStorage(() => asyncStorageAdapter),
+      storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) => ({
         integrations: state.integrations,
         syncedEvents: state.syncedEvents,
@@ -357,19 +357,6 @@ export const useCalendarStore = create<CalendarState>()(
         oneTimePayments: state.oneTimePayments,
         timezone: state.timezone,
       }),
-      onRehydrateStorage: () => (_state, error) => {
-        if (error) {
-          console.warn('[calendarStore] Hydration error — resetting to defaults:', error);
-          useCalendarStore.setState({
-            integrations: [],
-            syncedEvents: [],
-            oneTimePayments: [],
-            scheduleConflicts: [],
-            isLoading: false,
-            error: null,
-          });
-        }
-      },
     }
   )
 );

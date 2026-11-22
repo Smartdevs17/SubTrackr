@@ -28,6 +28,17 @@ export interface QueuedTransaction {
   status: 'pending' | 'processing';
   payload: QueuedTransactionPayload;
   lastError?: string;
+  /**
+   * Set immediately before the transaction is handed to the wallet.
+   *
+   * A broadcast can succeed on-chain even when the app dies before the
+   * receipt is observed. Persisting this marker first means the next queue
+   * pass can tell "never sent" apart from "sent, outcome unknown" and refuse
+   * to re-broadcast the latter — which would otherwise charge the user twice.
+   */
+  broadcastedAt?: number;
+  /** Earliest time the next attempt may start (exponential backoff). */
+  nextAttemptAt?: number;
 }
 
 export interface ExecuteOrQueueResult {
@@ -59,7 +70,21 @@ const STORAGE_KEY = 'subtrackr-transaction-queue';
 const STALE_TRANSACTION_TIMEOUT_MS = 30 * 60 * 1000;
 const MAX_ATTEMPTS = 3;
 
+/** First retry delay after a failed attempt. Doubles each subsequent failure. */
+const RETRY_BASE_BACKOFF_MS = 5_000;
+const RETRY_MAX_BACKOFF_MS = 5 * 60 * 1000;
+
+/**
+ * A queued item that was already handed to the wallet but whose receipt was
+ * never observed is *not* safe to re-broadcast. It is retired and surfaced
+ * to the user instead, because the on-chain outcome is genuinely unknown and
+ * a blind retry risks a second charge.
+ */
+const UNKNOWN_OUTCOME_TIMEOUT_MS = 10 * 60 * 1000;
+
 let connectivitySubscription: NetInfoSubscription | null = null;
+/** Reference count so one consumer unmounting does not silence every other. */
+let connectivitySubscriberCount = 0;
 
 const isOnlineState = (isConnected: boolean | null, isInternetReachable: boolean | null): boolean =>
   Boolean(isConnected) && isInternetReachable !== false;
@@ -92,6 +117,52 @@ const isLikelyConflictError = (error: unknown): boolean => {
     message.includes('already known') ||
     message.includes('replacement transaction underpriced')
   );
+};
+
+/**
+ * Exponential backoff with a ceiling, so a flapping connection cannot drive
+ * the queue into a tight retry loop that burns through `MAX_ATTEMPTS` in a
+ * single pass.
+ */
+const backoffDelayMs = (attempts: number): number => {
+  const exponent = Math.max(0, attempts - 1);
+  return Math.min(RETRY_BASE_BACKOFF_MS * 2 ** exponent, RETRY_MAX_BACKOFF_MS);
+};
+
+/**
+ * Runs a fire-and-forget promise without producing an unhandled rejection,
+ * which in React Native terminates the app.
+ */
+const safely = (promise: Promise<unknown>, context: string): void => {
+  void promise.catch((error: unknown) => {
+    console.warn(`[transactionQueue] ${context} failed`, error);
+  });
+};
+
+/**
+ * True only when the error proves the transaction never left the wallet.
+ *
+ * The broadcast marker may be cleared (and the item retried) in exactly these
+ * cases. For every ambiguous failure — a dropped connection, an RPC timeout —
+ * the marker is kept, because the transaction may already be in the mempool
+ * and re-sending it would charge the user twice.
+ */
+const isDefinitelyNotBroadcast = (error: unknown): boolean => {
+  if (!error || typeof error !== 'object') return false;
+
+  const err = error as { code?: unknown; userMessage?: unknown; message?: unknown };
+
+  const code = typeof err.code === 'string' ? err.code : '';
+  if (code === 'USER_REJECTED' || code === 'WALLET_NOT_CONNECTED' || code === 'INVALID_PARAMS') {
+    return true;
+  }
+
+  const text = [err.userMessage, err.message]
+    .filter((part): part is string => typeof part === 'string')
+    .join(' ')
+    .toLowerCase();
+
+  return text.includes('rejected in your wallet') || text.includes('user rejected');
 };
 
 const executeQueuedPayload = async (
@@ -135,10 +206,15 @@ export const useTransactionQueueStore = create<TransactionQueueState>()(
       lastError: null,
 
       initializeConnectivityListener: () => {
+        connectivitySubscriberCount += 1;
+
         if (connectivitySubscription) {
           return () => {
-            connectivitySubscription?.();
-            connectivitySubscription = null;
+            connectivitySubscriberCount = Math.max(0, connectivitySubscriberCount - 1);
+            if (connectivitySubscriberCount === 0) {
+              connectivitySubscription?.();
+              connectivitySubscription = null;
+            }
           };
         }
 
@@ -148,27 +224,37 @@ export const useTransactionQueueStore = create<TransactionQueueState>()(
           set({ isOnline: online });
 
           if (!wasOnline && online) {
-            void presentTransactionQueueNotification(
-              'Back online',
-              'Queued transactions are being processed now.'
+            safely(
+              presentTransactionQueueNotification(
+                'Back online',
+                'Queued transactions are being processed now.'
+              ),
+              'reconnect notification'
             );
-            void get().processQueue();
+            safely(get().processQueue(), 'processQueue after reconnect');
           }
         });
 
         return () => {
-          connectivitySubscription?.();
-          connectivitySubscription = null;
+          connectivitySubscriberCount = Math.max(0, connectivitySubscriberCount - 1);
+          if (connectivitySubscriberCount === 0) {
+            connectivitySubscription?.();
+            connectivitySubscription = null;
+          }
         };
       },
 
       refreshConnectivity: async () => {
-        const state = await NetInfo.fetch();
-        const online = isOnlineState(state.isConnected, state.isInternetReachable);
-        const wasOnline = get().isOnline;
-        set({ isOnline: online });
-        if (!wasOnline && online) {
-          void get().processQueue();
+        try {
+          const state = await NetInfo.fetch();
+          const online = isOnlineState(state.isConnected, state.isInternetReachable);
+          const wasOnline = get().isOnline;
+          set({ isOnline: online });
+          if (!wasOnline && online) {
+            safely(get().processQueue(), 'processQueue after connectivity refresh');
+          }
+        } catch (error) {
+          console.warn('[transactionQueue] connectivity refresh failed', error);
         }
       },
 
@@ -204,11 +290,16 @@ export const useTransactionQueueStore = create<TransactionQueueState>()(
           };
         });
 
-        await presentTransactionQueueNotification(
-          'Transaction queued',
-          replacedExisting
-            ? 'Updated a pending transaction with your latest request.'
-            : 'Transaction will run automatically once you are online.'
+        // A failed notification must not lose the queued transaction: the item is
+        // already persisted above, so this only downgrades to a warning.
+        safely(
+          presentTransactionQueueNotification(
+            'Transaction queued',
+            replacedExisting
+              ? 'Updated a pending transaction with your latest request.'
+              : 'Transaction will run automatically once you are online.'
+          ),
+          'queued notification'
         );
 
         return { transactionId, replacedExisting };
@@ -262,19 +353,58 @@ export const useTransactionQueueStore = create<TransactionQueueState>()(
           for (const tx of sortedQueue) {
             if (!get().isOnline) break;
 
-            const age = now() - tx.createdAt;
+            // Staleness is measured from the last attempt, not creation, so a
+            // transaction that keeps making progress is not expired out from
+            // under itself on a long-lived queue.
+            const reference = tx.lastAttemptAt ?? tx.createdAt;
+            const age = now() - reference;
             if (age > STALE_TRANSACTION_TIMEOUT_MS) {
               set((state) => ({
                 queuedTransactions: state.queuedTransactions.filter((q) => q.id !== tx.id),
               }));
 
-              await presentTransactionQueueNotification(
-                'Queued transaction expired',
-                'A pending transaction was removed because it became stale.'
+              safely(
+                presentTransactionQueueNotification(
+                  'Queued transaction expired',
+                  'A pending transaction was removed because it became stale.'
+                ),
+                'stale notification'
               );
               continue;
             }
 
+            // Respect exponential backoff so a flapping connection cannot
+            // burn every attempt in a single pass.
+            if (tx.nextAttemptAt !== undefined && now() < tx.nextAttemptAt) {
+              continue;
+            }
+
+            // A transaction that was already handed to the wallet but whose
+            // receipt was never observed must not be re-broadcast: the
+            // on-chain outcome is unknown and a retry would double-charge.
+            // Retire it and tell the user to verify manually.
+            if (
+              tx.broadcastedAt !== undefined &&
+              now() - tx.broadcastedAt > UNKNOWN_OUTCOME_TIMEOUT_MS
+            ) {
+              set((state) => ({
+                queuedTransactions: state.queuedTransactions.filter((q) => q.id !== tx.id),
+                lastError:
+                  'A queued transaction may have been submitted before its result could be confirmed.',
+              }));
+
+              safely(
+                presentTransactionQueueNotification(
+                  'Queued transaction needs review',
+                  'It may already have been submitted on-chain. Please check your wallet before retrying.'
+                ),
+                'unknown-outcome notification'
+              );
+              continue;
+            }
+
+            // Mark the broadcast BEFORE handing the payload to the wallet so
+            // a crash between submission and receipt cannot cause a replay.
             set((state) => ({
               queuedTransactions: state.queuedTransactions.map((queued) =>
                 queued.id === tx.id
@@ -283,6 +413,8 @@ export const useTransactionQueueStore = create<TransactionQueueState>()(
                       status: 'processing',
                       attempts: queued.attempts + 1,
                       lastAttemptAt: now(),
+                      broadcastedAt: queued.broadcastedAt ?? now(),
+                      nextAttemptAt: undefined,
                       updatedAt: now(),
                       lastError: undefined,
                     }
@@ -299,9 +431,12 @@ export const useTransactionQueueStore = create<TransactionQueueState>()(
                 ),
               }));
 
-              await presentTransactionQueueNotification(
-                'Queued transaction sent',
-                'A pending transaction has been executed successfully.'
+              safely(
+                presentTransactionQueueNotification(
+                  'Queued transaction sent',
+                  'A pending transaction has been executed successfully.'
+                ),
+                'success notification'
               );
             } catch (error) {
               if (isLikelyNetworkError(error)) {
@@ -334,9 +469,12 @@ export const useTransactionQueueStore = create<TransactionQueueState>()(
                   ),
                 }));
 
-                await presentTransactionQueueNotification(
-                  'Queued transaction skipped',
-                  'A pending transaction conflicted with another on-chain transaction and was removed.'
+                safely(
+                  presentTransactionQueueNotification(
+                    'Queued transaction skipped',
+                    'A pending transaction conflicted with another on-chain transaction and was removed.'
+                  ),
+                  'conflict notification'
                 );
                 continue;
               }
@@ -352,14 +490,23 @@ export const useTransactionQueueStore = create<TransactionQueueState>()(
                   lastError: error instanceof Error ? error.message : 'Queued transaction failed.',
                 }));
 
-                await presentTransactionQueueNotification(
-                  'Queued transaction failed',
-                  error instanceof Error
-                    ? `Dropped after retries: ${error.message}`
-                    : 'Dropped after retry attempts.'
+                safely(
+                  presentTransactionQueueNotification(
+                    'Queued transaction failed',
+                    error instanceof Error
+                      ? `Dropped after retries: ${error.message}`
+                      : 'Dropped after retry attempts.'
+                  ),
+                  'dropped notification'
                 );
                 continue;
               }
+
+              // Schedule the next attempt with exponential backoff. The broadcast marker is
+              // cleared only when the failure proves nothing was submitted;
+              // otherwise it is kept so the queue never re-sends a payment
+              // that may already be in the mempool.
+              const safeToRetry = isDefinitelyNotBroadcast(error);
 
               set((state) => ({
                 queuedTransactions: state.queuedTransactions.map((queued) =>
@@ -367,6 +514,8 @@ export const useTransactionQueueStore = create<TransactionQueueState>()(
                     ? {
                         ...queued,
                         status: 'pending',
+                        broadcastedAt: safeToRetry ? undefined : queued.broadcastedAt,
+                        nextAttemptAt: now() + backoffDelayMs(attempts),
                         updatedAt: now(),
                         lastError: error instanceof Error ? error.message : 'Execution failed.',
                       }
@@ -397,7 +546,10 @@ export const useTransactionQueueStore = create<TransactionQueueState>()(
       storage: createJSONStorage(() => asyncStorageAdapter),
       partialize: (state) => ({ queuedTransactions: state.queuedTransactions }),
       onRehydrateStorage: () => () => {
-        void useTransactionQueueStore.getState().refreshConnectivity();
+        safely(
+          useTransactionQueueStore.getState().refreshConnectivity(),
+          'rehydrate connectivity refresh'
+        );
       },
     }
   )

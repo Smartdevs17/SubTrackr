@@ -5,8 +5,10 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { useNotifications } from './src/hooks/useNotifications';
 import { useTransactionQueue } from './src/hooks/useTransactionQueue';
+import { useOfflineSync } from './src/hooks/useOfflineSync';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import { HydrationGate } from './src/components/HydrationGate';
+import { ConsentPrompt } from './src/components/privacy/ConsentPrompt';
 import { initI18n } from './src/i18n/config';
 import i18n from './src/i18n/config';
 import { I18nextProvider } from 'react-i18next';
@@ -18,11 +20,16 @@ import './src/config/env';
 import '@walletconnect/react-native-compat';
 
 import { initHermesOptimizations } from './src/utils/startupTimeOptimizer';
+import { performanceMonitor } from './src/services/performanceMonitor';
 
 import { createAppKit, defaultConfig, AppKit } from '@reown/appkit-ethers-react-native';
 
 import { EVM_RPC_URLS } from './src/config/evm';
-import { useNetworkStore, useSettingsStore } from './src/store';
+// Imported directly rather than from './src/store': the barrel re-exports every
+// persisted zustand store, and Metro cannot tree-shake a CommonJS barrel, so the
+// barrel form pulled all of them into the cold-start bundle.
+import { useNetworkStore } from './src/store/networkStore';
+import { useSettingsStore } from './src/store/settingsStore';
 import { sessionService } from './src/services/auth/session';
 
 // Get projectId from environment variable
@@ -88,6 +95,7 @@ createAppKit({
 function NotificationBootstrap() {
   useNotifications();
   useTransactionQueue();
+  useOfflineSync();
 
   const { initialize } = useNetworkStore();
   const { initializeSettings } = useSettingsStore();
@@ -98,6 +106,45 @@ function NotificationBootstrap() {
     }
     initialize();
     void initializeSettings();
+
+    // Configure performance budget from performance-budget.json values
+    performanceMonitor.configureBudget({
+      renderMs: 250,
+      apiLatencyMs: 1200,
+      memoryBytes: 262_144_000,
+      routeTransitionMs: 300,
+      lcpMs: 2500,
+      fidMs: 100,
+      clsFrameDrops: 5,
+      bundleSizeBytes: 5 * 1024 * 1024,
+    });
+
+    // Configure RUM endpoint if provided via environment
+    const rumEndpoint = process.env.RUM_ENDPOINT;
+    if (rumEndpoint) {
+      performanceMonitor.configureRum(rumEndpoint);
+    }
+
+    // Regression alerts forwarded to Sentry in production
+    const unsubRegressions = performanceMonitor.onRegression((regression) => {
+      if (!__DEV__) {
+        try {
+          Sentry.addBreadcrumb({
+            category: 'performance',
+            message: `Regression: ${regression.metric.name}`,
+            level: 'warning',
+            data: {
+              actual: regression.actual,
+              budget: regression.budget,
+              exceedancePercent: regression.exceedancePercent,
+            },
+          });
+        } catch {
+          // Sentry not available
+        }
+      }
+    });
+
     void (async () => {
       const session = await sessionService.initializeCurrentSession();
       try {
@@ -106,6 +153,10 @@ function NotificationBootstrap() {
         // ignore
       }
     })();
+
+    return () => {
+      unsubRegressions();
+    };
   }, [initialize, initializeSettings]);
 
   return null;
@@ -156,6 +207,7 @@ export default function App() {
             <HydrationGate>
               <NotificationBootstrap />
               <AppNavigator />
+              <ConsentPrompt />
             </HydrationGate>
           </I18nextProvider>
         </ErrorBoundary>

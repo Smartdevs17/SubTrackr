@@ -194,9 +194,9 @@ class BiometricService {
   // ── Hardening: Exponential backoff ────────────────────────────────────────
 
   private static readonly LOCKOUT_TIERS: [number, number][] = [
-    [3, 3],    // 3 failures → 3 min lockout
-    [6, 10],   // 6 failures → 10 min lockout
-    [9, 30],   // 9 failures → 30 min lockout
+    [3, 3], // 3 failures → 3 min lockout
+    [6, 10], // 6 failures → 10 min lockout
+    [9, 30], // 9 failures → 30 min lockout
   ];
 
   async checkLockout(): Promise<{ locked: boolean; remainingMs: number }> {

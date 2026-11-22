@@ -9,8 +9,12 @@
   nextBillingDate: Date;
   isActive: boolean;
   isPaused?: boolean;
+  status?: SubscriptionLifecycleStatus;
   pausedAt?: Date;
+  pauseResumeAt?: Date;
   pauseDurationDays?: number;
+  pauseReason?: string;
+  pauseStateSnapshot?: SubscriptionPauseSnapshot;
   pausedUntil?: Date;
   billingAdjustmentAmount?: number;
   /** When false, skip renewal reminders and charge alerts for this subscription */
@@ -128,7 +132,7 @@ export interface SubscriptionStats {
   totalGasSpent?: number;
 }
 
-// ── Lifecycle history ─────────────────────────────────────────────────────────
+// â”€â”€ Lifecycle history â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type SubscriptionLifecycleEventType =
   | 'created'
@@ -146,7 +150,7 @@ export interface SubscriptionLifecycleEvent {
   subscriptionId: string;
   type: SubscriptionLifecycleEventType;
   occurredAt: Date;
-  /** Optional human-readable context, e.g. "9.99 USD → 12.99 USD". */
+  /** Optional human-readable context, e.g. "9.99 USD â†’ 12.99 USD". */
   details?: string;
 }
 
@@ -167,4 +171,3 @@ export interface CustomCategoryFormData {
   icon: string;
   color: string;
 }
-

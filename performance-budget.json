@@ -5,6 +5,11 @@
   "androidStartupMs": 2000,
   "androidFrameRateFps": 60,
   "androidFpsTarget": "mid-range",
+  "routeTransitionMs": 300,
+  "lcpMs": 2500,
+  "fidMs": 100,
+  "clsFrameDrops": 5,
+  "bundleSizeBytes": 5242880,
   "hermesOptimizations": {
     "inlineStoreOnPut": true,
     "allocationProfile": true,

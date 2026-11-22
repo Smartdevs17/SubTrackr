@@ -85,9 +85,10 @@ A comprehensive developer portal for SubTrackr with API key management, interact
 ## Security Features
 
 ### 🔒 API Key Security
-- Keys shown only once after creation
-- Secure storage with masked display
-- Permission-based access control (Read, Write, Delete, Admin)
+- Keys shown only once after creation; only a SHA-256 hash is stored
+- Cryptographically random secrets with masked display
+- Scoped permissions (`resource:read` / `resource:write`) limited by tier
+- Optional IPv4 / CIDR allowlist per key
 - Rate limiting to prevent abuse
 - Expiration dates for temporary access
 - Revocation and rotation capabilities
@@ -103,6 +104,16 @@ A comprehensive developer portal for SubTrackr with API key management, interact
 ### Architecture
 ```
 developer-portal/
+├── actions/                          # Typed server actions (issue #2061)
+│   ├── index.ts                      # Barrel export
+│   ├── result.ts                     # ActionResult discriminated union
+│   ├── schemas.ts                    # Zod input validation schemas
+│   ├── observability.ts              # Logger, metrics, withAction wrapper
+│   ├── developerActions.ts           # Register, verify, onboarding, get, update
+│   ├── apiKeyActions.ts              # Create, revoke, rotate, list
+│   ├── usageActions.ts               # GetMetrics, trackUsage
+│   ├── dashboardActions.ts           # GetDashboard
+│   └── documentationActions.ts       # GetDocs, search, getArticle, guides
 ├── src/
 │   ├── screens/
 │   │   ├── DeveloperPortalScreen.tsx      # Main dashboard
@@ -130,18 +141,149 @@ developer-portal/
 - Error handling with user-friendly messages
 
 ### Services
-- `developerPortalService.ts` - Developer profile and onboarding
-- `apiKeyService.ts` - API key CRUD operations
-- `usageTrackingService.ts` - Usage metrics and analytics
+- `developerPortalService.ts` - DeveloperLifecycleService: registration, onboarding, API keys, usage tracking, dashboard
+- `portalService.ts` - PortalDashboardService: portal users and dashboard view
+- `apiKeyRotationService.ts` - PortalApiKeyRotationService: key rotation with grace period
+- `documentationService.ts` - DocumentationService: article CRUD, search, sections
+- `integrationGuidesService.ts` - IntegrationGuidesService: integration guide CRUD
+
+### Typed Server Actions (issue #2061)
+
+All portal data fetching and mutations go through typed server actions in
+`actions/`. Each action:
+
+1. **Validates input** with a Zod schema (`actions/schemas.ts`).
+2. **Returns a discriminated union** `ActionResult<T>` — `{ ok: true; data: T }`
+   or `{ ok: false; error: { code, message, fieldErrors? } }` — so callers
+   narrow on `ok` without try/catch.
+3. **Records observability** via the `withAction` wrapper: structured logs,
+   metrics counters, and Prometheus export.
+
+#### Available actions
+
+| Action | Input | Returns |
+|--------|-------|---------|
+| `registerDeveloperAction` | `{ email, name, company? }` | `Developer` |
+| `verifyEmailAction` | `{ developerId, token }` | `{ verified }` |
+| `completeOnboardingAction` | `{ developerId }` | `Developer` |
+| `getDeveloperAction` | `{ developerId }` | `Developer` |
+| `updateDeveloperAction` | `{ developerId, name?, tier?, ... }` | `Developer` |
+| `createApiKeyAction` | `{ developerId, name, type, permissions }` | `ApiKey` |
+| `revokeApiKeyAction` | `{ developerId, apiKeyId }` | `{ revoked }` |
+| `rotateApiKeyAction` | `{ apiKeyId, gracePeriodMs?, reason? }` | rotation result |
+| `getApiKeysAction` | `{ developerId }` | `ApiKey[]` |
+| `getUsageMetricsAction` | `{ developerId }` | `UsageMetrics` |
+| `trackUsageAction` | `{ developerId, endpoint, method, responseTime, success }` | `{ tracked }` |
+| `getDashboardAction` | `{ developerId }` | `DeveloperDashboard` |
+| `getDocumentationAction` | `{ category? }` | `Documentation[]` |
+| `getDocumentationSectionsAction` | — | `DocumentationSection[]` |
+| `getArticleAction` | `{ slug }` | `DocumentationArticle` |
+| `searchDocumentationAction` | `{ query }` | `DocumentationArticle[]` |
+| `getIntegrationGuidesAction` | `{ platform? }` | `IntegrationGuide[]` |
+| `getIntegrationGuideAction` | `{ guideId }` | `IntegrationGuide` |
+
+#### Usage
+
+```typescript
+import { createApiKeyAction } from '../actions';
+
+const result = await createApiKeyAction({
+  developerId: 'dev_123',
+  name: 'Production Key',
+  type: 'production',
+  permissions: ['subscriptions:read', 'subscriptions:write'],
+});
+
+if (result.ok) {
+  console.log(result.data.key); // sk_live_...
+} else {
+  // result.error.code === 'validation_error' | 'not_found' | ...
+  console.log(result.error.message);
+}
+```
+
+#### Error codes
+
+| Code | Meaning |
+|------|---------|
+| `validation_error` | Input failed Zod validation; `fieldErrors` has details. |
+| `not_found` | Referenced entity (developer, key, guide…) does not exist. |
+| `conflict` | Business rule violation (e.g. duplicate email). |
+| `internal_error` | Unexpected error inside the action body. |
+
+#### Observability
+
+The `withAction` wrapper in `actions/observability.ts` wires three signals:
+
+- **Logs**: `portalLogger` (child of the backend structured logger) emits
+  JSON-structured lines at action start, success, failure, and error, with
+  duration and error codes. PII is automatically redacted.
+- **Metrics**: `portalMetrics.record()` tracks total, success, and failure
+  counts plus cumulative duration per action. Exported in Prometheus text
+  format via `portalMetrics.toPrometheus()` and automatically registered with
+  the backend's default `PrometheusMetricsExporter` (visible at `/metrics`).
+- **Traces**: The backend logger uses `AsyncLocalStorage` for correlation ID
+  propagation, so all log lines inside an action carry the request's
+  correlation ID automatically.
+
+### API Key Issuance and Scopes
+
+`services/apiKeyIssuanceService.ts` issues keys, and `utils/apiKeyScopes.ts`
+holds the rules. `developerPortalService.createApiKey` / `revokeApiKey` /
+`getApiKeys` and `createApiKeyAction` all go through them.
+
+- **Secrets:** each key is 32 random bytes from `crypto`, prefixed `sk_test_`
+  or `sk_live_`. Only a SHA-256 hash is stored. The plaintext comes back once,
+  in `createApiKeyAction`'s `data.key`. Every listing shows a masked key, such
+  as `sk_live_abcd…wxyz`.
+- **Scopes:** `resource:action`, using the `ApiPermission` values. A `write`
+  scope implies `read` on the same resource, and stored scopes include the
+  implied ones.
+- **Tier policy:**
+
+  | Tier | Scopes | Active keys | Max lifetime (default) |
+  |---|---|---|---|
+  | free | all `:read`, `subscriptions:write`, `webhooks:write`, `sandbox:manage` | 3 | 90 days |
+  | pro | all except `users:write` | 10 | 365 days |
+  | enterprise | all | 50 | 365 days |
+
+  Production keys need an `active` (verified) account and can't hold
+  `sandbox:manage`.
+- **IP allowlist:** an optional `ipAllowlist` of IPv4 addresses or CIDR
+  ranges, stored on `ApiKey.ipWhitelist`.
+- **Errors from `createApiKeyAction`:**
+
+  | Problem | Error code |
+  |---|---|
+  | Plan or account doesn't allow the request | `forbidden` |
+  | Active-key limit reached | `conflict` |
+  | Malformed IP allowlist | `validation_error` |
+
+  `fieldErrors` names each problem, with paths `permissions`, `type`,
+  `expiresInDays` and `ipAllowlist`.
+- **Request-time check:** an API gateway calls
+  `apiKeyIssuanceService.authorize(secret, requiredScope, ip)` and gets either
+  `{ allowed: true, developerId, apiKey }` or `{ allowed: false, reason }`.
+  The reason is one of `invalid_key`, `revoked`, `expired`,
+  `insufficient_scope` or `ip_not_allowed`. Usage is recorded on success.
+- **Observability:** logs record `apiKey.issued`,
+  `apiKey.issuance_rejected`, `apiKey.revoked` and
+  `apiKey.authorization_denied` (secrets are never logged). Two Prometheus
+  counters are registered with the default exporter:
+  `developer_portal_api_keys_issued_total` / `_rejected_total` and
+  `developer_portal_api_key_authorizations_total{result,reason}`.
 
 ### Data Models
-- `DeveloperProfile` - Developer account information
-- `ApiKey` - API key with permissions and limits
-- `UsageRecord` - Individual API request record
-- `UsageStats` - Aggregated usage statistics
-- `OnboardingStep` - Onboarding progress tracking
+- `Developer` - Developer account with onboarding status, API keys, usage, billing
+- `ApiKey` - API key with permissions and rate limits
+- `UsageMetrics` - Aggregated API request statistics
+- `DeveloperDashboard` - Dashboard view with sandbox environments and activity
 - `DocumentationSection` - API documentation content
 - `IntegrationGuide` - Step-by-step integration guides
+- `PortalUser` - Portal user profile
+
+Types are consolidated in `types/index.ts` — the single canonical barrel that
+resolves duplicate definitions between `portal.ts` and `developer.ts`.
 
 ## Edge Cases Handled
 

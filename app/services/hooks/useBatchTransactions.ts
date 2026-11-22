@@ -1,8 +1,4 @@
-// ════════════════════════════════════════════════════════════════
-// REACT HOOK - Batch transaction management
-// ════════════════════════════════════════════════════════════════
-
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import {
   BatchTransactionService,
   BatchExecutionResult,
@@ -16,13 +12,16 @@ import {
 
 interface UseBatchTransactionsProps {
   chunkSize?: number;
+  rollbackHandler?: (result: BatchExecutionResult) => Promise<void>;
 }
 
-export function useBatchTransactions({ chunkSize = 50 }: UseBatchTransactionsProps = {}) {
+export function useBatchTransactions({ chunkSize = 50, rollbackHandler }: UseBatchTransactionsProps = {}) {
   const [service] = useState(() => new BatchTransactionService(chunkSize));
   const [isRunning, setIsRunning] = useState(false);
   const [lastResult, setLastResult] = useState<BatchExecutionResult | null>(null);
   const [progress, setProgress] = useState<BatchProgress | null>(null);
+  const rollbackHandlerRef = useRef(rollbackHandler);
+  rollbackHandlerRef.current = rollbackHandler;
 
   const executeCreate = useCallback(
     async (
@@ -140,6 +139,25 @@ export function useBatchTransactions({ chunkSize = 50 }: UseBatchTransactionsPro
     setProgress(null);
   }, [service]);
 
+  const rollbackLast = useCallback(async () => {
+    if (!lastResult) {
+      console.warn('No batch result to rollback');
+      return null;
+    }
+    const handler = rollbackHandlerRef.current;
+    if (!handler) {
+      console.warn('No rollbackHandler configured for useBatchTransactions');
+      return lastResult;
+    }
+    try {
+      await handler(lastResult);
+      return lastResult;
+    } catch (error) {
+      console.error('Rollback failed:', error);
+      throw error;
+    }
+  }, [lastResult]);
+
   return {
     isRunning,
     lastResult,
@@ -149,6 +167,7 @@ export function useBatchTransactions({ chunkSize = 50 }: UseBatchTransactionsPro
     executeCancel,
     executeCharge,
     retryFailed,
+    rollbackLast,
     clearResult,
     getGasEstimate: (count: number) => service.getGasEstimate(count),
     setChunkSize: (size: number) => service.setChunkSize(size),

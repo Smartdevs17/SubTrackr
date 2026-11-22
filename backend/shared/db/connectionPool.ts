@@ -1,15 +1,21 @@
 /**
  * PostgreSQL connection pool configuration using pg-pool.
  *
+ * When DB_READ_REPLICAS is set, getPool() returns a ReadWritePool that routes
+ * SELECT/WITH to replicas and writes to the primary (see readWriteRouter.ts).
+ *
  * Acceptance criteria targets:
- *   - max 20 connections
+ *   - max 20 connections (primary)
+ *   - replica pool size 25 per PgBouncer (configurable via DB_REPLICA_POOL_SIZE)
  *   - idle timeout 10 s
  *   - statement timeout 30 s
- *   - list query for 1000 subscriptions uses <5 connections in <500 ms
  *
  * NOTE: pg and pg-pool are Node.js-only dependencies used exclusively in the
  * backend service layer, not bundled into the React Native app.
  */
+
+import { loadDatabaseConfig } from '../../config/database';
+import { type ReadWritePool, createReadWritePool } from './readWriteRouter';
 
 // pg-pool type interface (install: npm i pg pg-pool @types/pg)
 // Defined inline to avoid a hard runtime dependency in environments
@@ -50,20 +56,13 @@ export interface Pool {
   totalCount: number;
   idleCount: number;
   waitingCount: number;
+  /** Configured max connections (pg-pool exposes this) */
+  max?: number;
 }
 
-const DEFAULT_CONFIG: Required<PoolConfig> = {
-  host: process.env['DB_HOST'] ?? 'localhost',
-  port: Number(process.env['DB_PORT'] ?? 5432),
-  database: process.env['DB_NAME'] ?? 'subtrackr',
-  user: process.env['DB_USER'] ?? 'postgres',
-  password: process.env['DB_PASSWORD'] ?? '',
-  max: 20,
-  idleTimeoutMillis: 10_000,
-  connectionTimeoutMillis: 30_000,
-  statementTimeout: 30_000,
-  ssl: process.env['DB_SSL'] === 'true' ? { rejectUnauthorized: true } : false,
-};
+function defaultPoolConfig(): Required<PoolConfig> {
+  return loadDatabaseConfig().primary;
+}
 
 /**
  * Create a configured pg Pool.
@@ -73,7 +72,7 @@ export async function createPool(overrides: Partial<PoolConfig> = {}): Promise<P
   // Dynamic import keeps this out of the mobile bundle
   const { Pool: PgPool } = await import('pg') as { Pool: new (cfg: PoolConfig) => Pool };
 
-  const config: PoolConfig = { ...DEFAULT_CONFIG, ...overrides };
+  const config: PoolConfig = { ...defaultPoolConfig(), ...overrides };
 
   const pool = new PgPool(config);
 
@@ -87,7 +86,14 @@ export async function createPool(overrides: Partial<PoolConfig> = {}): Promise<P
   (pool as Pool & { connect: () => Promise<PoolClient> }).connect = async () => {
     const client = await origConnect();
     try {
-      await client.query(`SET statement_timeout = ${config.statementTimeout ?? 30_000}`);
+      // PostgreSQL SET does not accept parameterised values, but set_config() does.
+      // We use set_config('statement_timeout', $1, false) so the value is passed
+      // as a query parameter and never interpolated into SQL.
+      const timeoutMs = Math.max(0, Math.trunc(Number(config.statementTimeout ?? 30_000)));
+      await client.query(
+        `SELECT pg_catalog.set_config('statement_timeout', $1, false)`,
+        [String(timeoutMs)],
+      );
     } catch (err) {
       console.warn('[DB Pool] Could not set statement_timeout:', err);
     }
@@ -99,13 +105,24 @@ export async function createPool(overrides: Partial<PoolConfig> = {}): Promise<P
 
 // ── Singleton ─────────────────────────────────────────────────────────────────
 
-let _pool: Pool | null = null;
+let _pool: Pool | ReadWritePool | null = null;
 
 export async function getPool(): Promise<Pool> {
   if (!_pool) {
-    _pool = await createPool();
+    const dbConfig = loadDatabaseConfig();
+    if (dbConfig.replicas.length > 0) {
+      _pool = await createReadWritePool({ config: dbConfig });
+    } else {
+      _pool = await createPool(dbConfig.primary);
+    }
   }
   return _pool;
+}
+
+/** Return the underlying ReadWritePool when replica routing is enabled. */
+export async function getReadWritePool(): Promise<ReadWritePool | null> {
+  const pool = await getPool();
+  return 'getLagStates' in pool ? (pool as ReadWritePool) : null;
 }
 
 export async function closePool(): Promise<void> {
@@ -114,3 +131,7 @@ export async function closePool(): Promise<void> {
     _pool = null;
   }
 }
+
+export type { ReadWritePool };
+export { PoolMetricsCollector } from './poolMetrics';
+export type { PoolMetricsSnapshot, PoolMetricsOptions, ReplicaLagState } from './poolMetrics';

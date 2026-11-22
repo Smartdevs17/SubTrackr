@@ -1,126 +1,185 @@
 /**
- * Monitoring service — ingests transaction events, computes metrics,
- * detects anomalies, and exposes a dashboard snapshot.
+ * Shared SLA Monitoring and Breach Detection Service
+ *
+ * Tracks subscription service health, availability metrics, latency spikes,
+ * error rate thresholds, and detects SLA breaches with credit penalty calculations.
  */
 
-import type { TransactionEvent, Metric, AlertRule, Alert, DashboardSnapshot } from './types';
+export type SlaBreachType = 'uptime_drop' | 'latency_spike' | 'error_rate_surge' | 'outage_duration';
+export type SlaBreachSeverity = 'low' | 'medium' | 'high' | 'critical';
 
-export class MonitoringService {
-  private events: TransactionEvent[] = [];
-  private metrics: Metric[] = [];
-  private rules: AlertRule[] = [];
-  private alerts: Alert[] = [];
+export interface SlaTargetConfig {
+  merchantId: string;
+  uptimeTarget: number; // e.g., 99.9%
+  maxLatencyMs: number; // e.g., 500ms
+  maxErrorRatePercent: number; // e.g., 1.0%
+  measurementIntervalSec: number; // e.g., 86400 (daily)
+  penaltyCreditRateBps: number; // basis points credit per 0.1% uptime drop (e.g. 50 = 0.5%)
+}
 
-  // ── Built-in anomaly detection rules ──────────────────────────────────────
+export interface SlaMetricPoint {
+  timestamp: number;
+  uptimePercentage: number;
+  avgLatencyMs: number;
+  errorRatePercent: number;
+  totalRequests: number;
+  failedRequests: number;
+  downtimeSeconds: number;
+}
 
-  /** Default rules: high failure rate and gas spike */
-  static defaultRules(): AlertRule[] {
-    return [
-      {
-        id: 'high-failure-rate',
-        name: 'High Transaction Failure Rate',
-        severity: 'critical',
-        message: 'Transaction failure rate exceeded 30 %',
-        evaluate(metrics) {
-          const rate = metrics.find((m) => m.name === 'failure_rate');
-          return rate !== undefined && rate.value > 0.3;
-        },
-      },
-      {
-        id: 'gas-spike',
-        name: 'Gas Usage Spike',
-        severity: 'warning',
-        message: 'Average gas usage exceeded 500 000 units',
-        evaluate(metrics) {
-          const gas = metrics.find((m) => m.name === 'avg_gas_used');
-          return gas !== undefined && gas.value > 500_000;
-        },
-      },
-    ];
-  }
+export interface SlaBreachIncident {
+  id: string;
+  merchantId: string;
+  breachType: SlaBreachType;
+  severity: SlaBreachSeverity;
+  targetValue: number;
+  actualValue: number;
+  detectedAt: Date;
+  resolved: boolean;
+  resolvedAt?: Date;
+  creditPenaltyAmount: number;
+  notes?: string;
+}
 
-  constructor(rules: AlertRule[] = MonitoringService.defaultRules()) {
-    this.rules = rules;
-  }
+export interface SlaComplianceReport {
+  merchantId: string;
+  uptimeTarget: number;
+  currentUptime: number;
+  compliant: boolean;
+  activeBreachCount: number;
+  totalBreachesCount: number;
+  totalCreditsIssued: number;
+  recentBreaches: SlaBreachIncident[];
+  metricsHistory: SlaMetricPoint[];
+}
 
-  // ── Transaction ingestion ─────────────────────────────────────────────────
-
-  recordTransaction(event: TransactionEvent): void {
-    this.events.push(event);
-    this._recomputeMetrics();
-    this._evaluateRules();
-  }
-
-  // ── Custom alert rules ────────────────────────────────────────────────────
-
-  addRule(rule: AlertRule): void {
-    this.rules = [...this.rules.filter((r) => r.id !== rule.id), rule];
-  }
-
-  removeRule(id: string): void {
-    this.rules = this.rules.filter((r) => r.id !== id);
-  }
-
-  // ── Alert management ──────────────────────────────────────────────────────
-
-  resolveAlert(alertId: string): void {
-    this.alerts = this.alerts.map((a) => (a.id === alertId ? { ...a, resolved: true } : a));
-  }
-
-  getActiveAlerts(): Alert[] {
-    return this.alerts.filter((a) => !a.resolved);
-  }
-
-  // ── Dashboard ─────────────────────────────────────────────────────────────
-
-  getDashboard(): DashboardSnapshot {
-    const total = this.events.length;
-    const failed = this.events.filter((e) => e.status === 'failed').length;
-    const gasValues = this.events.filter((e) => e.gasUsed !== undefined).map((e) => e.gasUsed!);
-    const avgGas = gasValues.length ? gasValues.reduce((a, b) => a + b, 0) / gasValues.length : 0;
-
+export class SlaBreachDetector {
+  /** Default SLA Targets */
+  public static defaultTargetConfig(merchantId: string): SlaTargetConfig {
     return {
-      totalTransactions: total,
-      successRate: total === 0 ? 1 : (total - failed) / total,
-      failureCount: failed,
-      avgGasUsed: avgGas,
-      activeAlerts: this.getActiveAlerts(),
-      recentMetrics: this.metrics.slice(-20),
+      merchantId,
+      uptimeTarget: 99.9,
+      maxLatencyMs: 500,
+      maxErrorRatePercent: 1.0,
+      measurementIntervalSec: 86400,
+      penaltyCreditRateBps: 100, // 1% credit per 0.1% breach
     };
   }
 
-  // ── Internal ──────────────────────────────────────────────────────────────
+  /**
+   * Evaluate a set of SLA metrics against target configuration to detect breaches
+   */
+  public static evaluateBreaches(
+    config: SlaTargetConfig,
+    metrics: SlaMetricPoint[],
+    monthlySubscriptionFee: number = 100
+  ): SlaBreachIncident[] {
+    const breaches: SlaBreachIncident[] = [];
+    if (!metrics.length) return breaches;
 
-  private _recomputeMetrics(): void {
-    const now = Date.now();
-    const total = this.events.length;
-    const failed = this.events.filter((e) => e.status === 'failed').length;
-    const gasValues = this.events.filter((e) => e.gasUsed !== undefined).map((e) => e.gasUsed!);
-    const avgGas = gasValues.length ? gasValues.reduce((a, b) => a + b, 0) / gasValues.length : 0;
+    const latest = metrics[metrics.length - 1];
 
-    this.metrics.push(
-      { name: 'failure_rate', value: total === 0 ? 0 : failed / total, timestamp: now },
-      { name: 'avg_gas_used', value: avgGas, timestamp: now },
-      { name: 'total_transactions', value: total, timestamp: now }
-    );
-  }
+    // 1. Uptime Drop Detection
+    if (latest.uptimePercentage < config.uptimeTarget) {
+      const drop = config.uptimeTarget - latest.uptimePercentage;
+      const severity: SlaBreachSeverity =
+        drop > 5.0 ? 'critical' : drop > 2.0 ? 'high' : drop > 0.5 ? 'medium' : 'low';
+      const creditPenalty = this.calculateCreditPenalty(drop, monthlySubscriptionFee, config.penaltyCreditRateBps);
 
-  private _evaluateRules(): void {
-    for (const rule of this.rules) {
-      const triggered = rule.evaluate(this.metrics);
-      if (!triggered) continue;
-      // Avoid duplicate open alerts for the same rule
-      const alreadyOpen = this.alerts.some((a) => a.ruleId === rule.id && !a.resolved);
-      if (alreadyOpen) continue;
-      this.alerts.push({
-        id: `${rule.id}-${Date.now()}`,
-        severity: rule.severity,
-        title: rule.name,
-        message: rule.message,
-        timestamp: Date.now(),
+      breaches.push({
+        id: `br_uptime_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        merchantId: config.merchantId,
+        breachType: 'uptime_drop',
+        severity,
+        targetValue: config.uptimeTarget,
+        actualValue: Math.round(latest.uptimePercentage * 100) / 100,
+        detectedAt: new Date(latest.timestamp),
         resolved: false,
-        ruleId: rule.id,
+        creditPenaltyAmount: creditPenalty,
+        notes: `Uptime fell to ${latest.uptimePercentage.toFixed(2)}% (Target: ${config.uptimeTarget}%)`,
       });
     }
+
+    // 2. Latency Spike Detection
+    if (latest.avgLatencyMs > config.maxLatencyMs) {
+      const spikeRatio = latest.avgLatencyMs / config.maxLatencyMs;
+      const severity: SlaBreachSeverity = spikeRatio > 3.0 ? 'critical' : spikeRatio > 2.0 ? 'high' : 'medium';
+      const creditPenalty = Math.round(monthlySubscriptionFee * 0.05 * 100) / 100; // Flat 5% credit penalty for latency breach
+
+      breaches.push({
+        id: `br_latency_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        merchantId: config.merchantId,
+        breachType: 'latency_spike',
+        severity,
+        targetValue: config.maxLatencyMs,
+        actualValue: Math.round(latest.avgLatencyMs),
+        detectedAt: new Date(latest.timestamp),
+        resolved: false,
+        creditPenaltyAmount: creditPenalty,
+        notes: `Average latency of ${Math.round(latest.avgLatencyMs)}ms exceeded threshold of ${config.maxLatencyMs}ms`,
+      });
+    }
+
+    // 3. Error Rate Surge Detection
+    if (latest.errorRatePercent > config.maxErrorRatePercent) {
+      const severity: SlaBreachSeverity =
+        latest.errorRatePercent > 10.0 ? 'critical' : latest.errorRatePercent > 5.0 ? 'high' : 'medium';
+      const creditPenalty = Math.round(monthlySubscriptionFee * 0.10 * 100) / 100; // 10% credit penalty for high error rate
+
+      breaches.push({
+        id: `br_error_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        merchantId: config.merchantId,
+        breachType: 'error_rate_surge',
+        severity,
+        targetValue: config.maxErrorRatePercent,
+        actualValue: Math.round(latest.errorRatePercent * 100) / 100,
+        detectedAt: new Date(latest.timestamp),
+        resolved: false,
+        creditPenaltyAmount: creditPenalty,
+        notes: `Error rate reached ${latest.errorRatePercent.toFixed(2)}% (Max allowed: ${config.maxErrorRatePercent}%)`,
+      });
+    }
+
+    return breaches;
+  }
+
+  /**
+   * Calculate service credit penalty amount for uptime breaches
+   */
+  public static calculateCreditPenalty(
+    uptimeDropPercent: number,
+    subscriptionFee: number,
+    rateBps: number
+  ): number {
+    const dropUnits = Math.ceil(uptimeDropPercent / 0.1);
+    const penaltyRatio = (dropUnits * rateBps) / 10000;
+    const rawPenalty = subscriptionFee * penaltyRatio;
+    return Math.min(subscriptionFee, Math.round(rawPenalty * 100) / 100);
+  }
+
+  /**
+   * Produce a complete SLA compliance report snapshot
+   */
+  public static generateComplianceReport(
+    config: SlaTargetConfig,
+    metrics: SlaMetricPoint[],
+    breaches: SlaBreachIncident[]
+  ): SlaComplianceReport {
+    const latestMetric = metrics.length ? metrics[metrics.length - 1] : null;
+    const currentUptime = latestMetric ? latestMetric.uptimePercentage : 100.0;
+    const activeBreaches = breaches.filter((b) => !b.resolved);
+    const totalCreditsIssued = breaches.reduce((sum, b) => sum + b.creditPenaltyAmount, 0);
+
+    return {
+      merchantId: config.merchantId,
+      uptimeTarget: config.uptimeTarget,
+      currentUptime: Math.round(currentUptime * 100) / 100,
+      compliant: currentUptime >= config.uptimeTarget && activeBreaches.length === 0,
+      activeBreachCount: activeBreaches.length,
+      totalBreachesCount: breaches.length,
+      totalCreditsIssued: Math.round(totalCreditsIssued * 100) / 100,
+      recentBreaches: breaches.slice(-10),
+      metricsHistory: metrics.slice(-30),
+    };
   }
 }

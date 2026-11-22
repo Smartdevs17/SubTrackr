@@ -1,0 +1,36 @@
+{
+  "name": "@subtrackr/notification-service",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@subtrackr/notification-providers": "workspace:*",
+    "amqplib": "^2.4.0",
+    "zod": "^4.6.7",
+    "@sendgrid/mail": "^8.1.1",
+    "twilio": "^6.3.0",
+    "expo-server-sdk": "^8.0.0",
+    "pino": "^10.4.0",
+    "pino-pretty": "^13.2.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/amqplib": "^0.10.5",
+    "@types/node": "^26.6.6",
+    "@vitest/coverage-v8": "^5.1.0",
+    "eslint": "^10.15.0",
+    "tsx": "^4.23.1",
+    "typescript": "~7.0.2",
+    "typescript-eslint": "^8.73.0",
+    "vitest": "^5.1.0"
+  }
+}

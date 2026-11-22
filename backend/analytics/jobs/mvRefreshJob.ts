@@ -6,17 +6,19 @@
  *
  * Runs on a configurable interval (default 60 s for real-time views).
  * Exposes a Prometheus-style metric for view freshness monitoring.
+ *
+ * Queue priority: low (analytics / maintenance class).
  */
 
 import { QueryClient } from '../../../backend/shared/query/queryRouter';
+import type { PriorityClass } from '../../shared/queue';
 
-// ── View definitions ──────────────────────────────────────────────────────────
+/** Background queue priority for MV refresh work. */
+export const MV_REFRESH_JOB_PRIORITY: PriorityClass = 'low';
 
 interface ViewConfig {
   name: string;
-  /** Refresh interval in ms. */
   intervalMs: number;
-  /** Last successful refresh timestamp. */
   lastRefreshedAt: Date | null;
   isRefreshing: boolean;
 }
@@ -26,9 +28,26 @@ const DEFAULT_VIEWS: ViewConfig[] = [
   { name: 'subscriber_balance_mv',        intervalMs: 60_000,  lastRefreshedAt: null, isRefreshing: false },
   { name: 'monthly_revenue_mv',           intervalMs: 300_000, lastRefreshedAt: null, isRefreshing: false },
   { name: 'churn_summary_mv',             intervalMs: 300_000, lastRefreshedAt: null, isRefreshing: false },
+  { name: 'mrr_mv',                       intervalMs: 300_000, lastRefreshedAt: null, isRefreshing: false },
+  { name: 'cohort_retention_mv',          intervalMs: 3_600_000, lastRefreshedAt: null, isRefreshing: false },
+  { name: 'ltv_mv',                       intervalMs: 86_400_000, lastRefreshedAt: null, isRefreshing: false },
 ];
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+/**
+ * Pre-built parameterised-safe SQL strings for REFRESH MATERIALIZED VIEW.
+ * REFRESH MATERIALIZED VIEW is DDL and does not support parameterised identifiers.
+ * We store one static SQL string per known view so that no runtime string
+ * interpolation ever appears in a query() call.
+ */
+const REFRESH_SQL: ReadonlyMap<string, string> = new Map([
+  ['active_subscriptions_summary', 'REFRESH MATERIALIZED VIEW CONCURRENTLY active_subscriptions_summary'],
+  ['subscriber_balance_mv',        'REFRESH MATERIALIZED VIEW CONCURRENTLY subscriber_balance_mv'],
+  ['monthly_revenue_mv',           'REFRESH MATERIALIZED VIEW CONCURRENTLY monthly_revenue_mv'],
+  ['churn_summary_mv',             'REFRESH MATERIALIZED VIEW CONCURRENTLY churn_summary_mv'],
+  ['mrr_mv',                       'REFRESH MATERIALIZED VIEW CONCURRENTLY mrr_mv'],
+  ['cohort_retention_mv',          'REFRESH MATERIALIZED VIEW CONCURRENTLY cohort_retention_mv'],
+  ['ltv_mv',                       'REFRESH MATERIALIZED VIEW CONCURRENTLY ltv_mv'],
+]);
 
 export interface RefreshMetric {
   viewName: string;
@@ -36,8 +55,6 @@ export interface RefreshMetric {
   lagMs: number;
   isStale: boolean;
 }
-
-// ── Job ───────────────────────────────────────────────────────────────────────
 
 export class MVRefreshJob {
   private db: QueryClient;
@@ -52,10 +69,7 @@ export class MVRefreshJob {
   start(): void {
     for (const view of this.views) {
       if (this.timers.has(view.name)) continue;
-
-      // Run immediately on start, then on interval
       void this.refresh(view.name);
-
       const timer = setInterval(
         () => void this.refresh(view.name),
         view.intervalMs,
@@ -71,17 +85,24 @@ export class MVRefreshJob {
     this.timers.clear();
   }
 
-  /** Refresh a single view by name. Skips if already refreshing. */
   async refresh(viewName: string): Promise<void> {
     const view = this.views.find((v) => v.name === viewName);
     if (!view || view.isRefreshing) return;
+
+    // Look up the pre-built static SQL string for this view.
+    // REFRESH MATERIALIZED VIEW is DDL with no parameterised-identifier support;
+    // using a static map ensures no runtime string interpolation reaches query().
+    const sql = REFRESH_SQL.get(viewName);
+    if (!sql) {
+      console.error(`[MVRefreshJob] No refresh SQL registered for view: ${viewName}`);
+      return;
+    }
 
     view.isRefreshing = true;
     const start = Date.now();
 
     try {
-      // CONCURRENTLY requires a unique index on the view — see migration 002
-      await this.db.query(`REFRESH MATERIALIZED VIEW CONCURRENTLY ${viewName}`);
+      await this.db.query(sql);
       view.lastRefreshedAt = new Date();
       console.info(`[MVRefreshJob] Refreshed ${viewName} in ${Date.now() - start}ms`);
     } catch (err) {
@@ -91,7 +112,6 @@ export class MVRefreshJob {
     }
   }
 
-  /** Return freshness metrics for all views (used by monitoring service). */
   getMetrics(): RefreshMetric[] {
     return this.views.map((view) => {
       const lagMs = view.lastRefreshedAt
@@ -106,13 +126,6 @@ export class MVRefreshJob {
     });
   }
 
-  /**
-   * Prometheus-style text format for scraping.
-   *
-   * Metrics exposed:
-   *   subtrackr_mv_lag_ms{view="..."}   – lag in milliseconds
-   *   subtrackr_mv_is_stale{view="..."}  – 1 if stale, 0 if fresh
-   */
   prometheusMetrics(): string {
     const lines: string[] = [
       '# HELP subtrackr_mv_lag_ms Materialized view refresh lag in milliseconds',

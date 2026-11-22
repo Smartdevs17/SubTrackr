@@ -3,6 +3,13 @@ import { useSubscriptionStore } from '../../store/subscriptionStore';
 import { useRefresh } from '../../hooks/useRefresh';
 import { BillingCycle, SubscriptionCategory } from '../../types/subscription';
 
+jest.mock('../../services/notificationService', () => ({
+  syncRenewalReminders: jest.fn(() => Promise.resolve()),
+  presentChargeSuccessNotification: jest.fn(() => Promise.resolve()),
+  presentChargeFailedNotification: jest.fn(() => Promise.resolve()),
+  presentLocalNotification: jest.fn(() => Promise.resolve()),
+}));
+
 /**
  * Test suite for pull-to-refresh race condition fix
  * Verifies that:

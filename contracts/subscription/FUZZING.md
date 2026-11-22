@@ -1,148 +1,76 @@
-# Subscription Contract Fuzzing Test Suite
+# Subscription Contract Fuzzing
 
-## Overview
+SubTrackr uses coverage-guided fuzzing for the subscription lifecycle, pricing, and rate-limit surfaces. The fuzz harnesses live in `contracts/fuzz` and execute the real Soroban proxy, storage, token, and subscription contracts in a test environment.
 
-This document describes the comprehensive fuzzing test suite for the SubTrackr subscription contract.
+## Targets
 
-## Test Files
+| Target | Focus |
+| --- | --- |
+| `subscription_lifecycle` | Plan creation, subscribe, pause, resume, cancel, charge, refund, and core subscription invariants |
+| `subscription_pricing` | Price boundaries, interval combinations, repeated charges, and accounting invariants |
+| `subscription_rate_limits` | Rate-limit configuration and repeated protected operations |
 
-### 1. `tests/fuzz.rs` - Core Fuzzing Tests
+Each target starts from seed corpus files in `contracts/fuzz/corpus/<target>/`. CI also adds a generated seed per run so target-specific corpora are never empty.
 
-Tests basic input validation and state transitions.
+## Run Locally
 
-**Tests:**
-
-- `test_negative_prices()` - Reject negative prices
-- `test_huge_prices()` - Handle very large numbers
-- `test_pause_duration_limits()` - Enforce pause duration limits
-- `test_invalid_state_transitions()` - Prevent double cancellations
-- `test_refund_limits()` - Prevent refunds exceeding total paid
-
-### 2. `tests/pricing_fuzz.rs` - Pricing Differential Fuzzing
-
-Tests pricing calculations across different price points and intervals.
-
-**Tests:**
-
-- `test_pricing_calculations()` - Test all price × interval combinations
-- `test_subscriptions_with_different_prices()` - Multiple subscriptions with different prices
-- `test_price_boundaries()` - Test minimum and maximum prices
-
-### 3. `tests/rate_limit_fuzz.rs` - Rate Limit Fuzzing
-
-Tests rate limiting functionality.
-
-**Tests:**
-
-- `test_rate_limit_intervals()` - Test various rate limit intervals
-- `test_rate_limit_removal()` - Test rate limit removal
-- `test_multiple_rate_limits()` - Test multiple function rate limits
-
-## Running Tests
-
-### Run All Tests
+Install nightly Rust and `cargo-fuzz`:
 
 ```bash
-cd contracts/subscription
-cargo test
+rustup toolchain install nightly
+cargo +nightly install cargo-fuzz --locked
 ```
 
-### Run Specific Test File
+Run the deterministic smoke replay:
 
 ```bash
-cargo test --test fuzz_tests
-cargo test --test pricing_fuzz_tests
-cargo test --test rate_limit_fuzz_tests
+cargo test --manifest-path contracts/subscription/Cargo.toml --test fuzz_smoke -- --nocapture
 ```
 
-### Run Specific Test
+Run a fuzz target:
 
 ```bash
-cargo test test_negative_prices
+cd contracts
+cargo +nightly fuzz run subscription_lifecycle fuzz/corpus/subscription_lifecycle -- -max_total_time=1800
 ```
 
-### Run With Output
+Use the same pattern for `subscription_pricing` and `subscription_rate_limits`.
+
+## CI
+
+`.github/workflows/fuzz-test.yml` runs:
+
+- The smoke replay test.
+- `cargo fuzz list` to verify target registration.
+- Each coverage-guided target for 1800 seconds by default.
+- Corpus and crash artifact upload for triage.
+
+The workflow runs on PRs and pushes touching contract or fuzzing files, weekly on a schedule, and manually with a configurable `fuzz_seconds` input.
+
+## Crash Triage
+
+When CI uploads a crash artifact:
 
 ```bash
-cargo test -- --nocapture
+cd contracts
+cargo +nightly fuzz run subscription_lifecycle path/to/crash
+cargo +nightly fuzz tmin subscription_lifecycle path/to/crash
 ```
 
-### Run Using Script
+The helper script copies a crash into a regression location and prints replay commands:
 
 ```bash
-bash scripts/run_fuzz_tests.sh
+bash contracts/fuzz/scripts/triage-crash.sh subscription_lifecycle path/to/crash
 ```
 
-## Test Coverage
+Promote minimized crashes into deterministic tests under `contracts/subscription/tests/` by replaying the target logic against the saved bytes. Keep the original minimized crash file in `contracts/subscription/tests/regressions/` when the byte sequence matters.
 
-| Category         | Tests  | Status |
-| ---------------- | ------ | ------ |
-| Input Validation | 5      | ✅     |
-| Pricing          | 3      | ✅     |
-| Rate Limiting    | 3      | ✅     |
-| **Total**        | **11** | **✅** |
+## Adding Targets
 
-## Key Findings
+1. Add a new `[[bin]]` entry in `contracts/fuzz/Cargo.toml`.
+2. Create `contracts/fuzz/fuzz_targets/<target>.rs`.
+3. Add at least one corpus seed under `contracts/fuzz/corpus/<target>/`.
+4. Add the target to the workflow matrix.
+5. Document the invariant and expected panic handling here.
 
-### ✅ Vulnerabilities Tested
-
-- Zero price validation
-- Negative price handling
-- Integer overflow scenarios
-- Pause duration limits
-- Double cancellation prevention
-- Refund amount validation
-- Rate limit enforcement
-
-### ✅ Edge Cases Covered
-
-- Minimum price ($1)
-- Maximum price (i128::MAX / 2)
-- Pause duration boundaries (30 days)
-- All subscription intervals (Day, Week, Month, Year)
-- Multiple concurrent rate limits
-
-## CI/CD Integration
-
-Tests automatically run on:
-
-- Push to `main` or `develop`
-- Pull requests to `main` or `develop`
-- Changes to `contracts/subscription/**`
-
-**Workflow:** `.github/workflows/fuzz-tests.yml`
-
-## Expected Results
-
-All tests should pass:
-
-```
-running 11 tests
-test pricing_fuzz_tests::test_pricing_calculations ... ok
-test pricing_fuzz_tests::test_price_boundaries ... ok
-test pricing_fuzz_tests::test_subscriptions_with_different_prices ... ok
-test rate_limit_fuzz_tests::test_multiple_rate_limits ... ok
-test rate_limit_fuzz_tests::test_rate_limit_intervals ... ok
-test rate_limit_fuzz_tests::test_rate_limit_removal ... ok
-test fuzz_tests::test_huge_prices ... ok
-test fuzz_tests::test_invalid_state_transitions ... ok
-test fuzz_tests::test_negative_prices ... ok
-test fuzz_tests::test_pause_duration_limits ... ok
-test fuzz_tests::test_refund_limits ... ok
-
-test result: ok. 11 passed; 0 failed
-```
-
-## Future Improvements
-
-- [ ] Property-based fuzzing with `proptest`
-- [ ] Symbolic execution for pricing logic
-- [ ] Formal verification of contract transitions
-- [ ] Continuous fuzzing infrastructure
-- [ ] Coverage metrics reporting
-
-## Issues Found & Fixed
-
-None at this time. ✅
-
-All tests pass successfully!
+Fuzz targets should catch expected contract panics for invalid user actions, then assert invariants after each successful or rejected operation. Unexpected invariant failures should remain crashes.

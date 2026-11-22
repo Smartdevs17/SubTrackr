@@ -1,4 +1,4 @@
-import { WebSocketServer, SubscriptionEvent } from '../websocket';
+import { InMemorySubscriptionEventBus, WebSocketServer, SubscriptionEvent } from '../websocket';
 
 const makeEvent = (overrides: Partial<SubscriptionEvent> = {}): SubscriptionEvent => ({
   type: 'subscription.created',
@@ -14,6 +14,11 @@ describe('WebSocketServer', () => {
 
   beforeEach(() => {
     server = new WebSocketServer();
+  });
+
+  afterEach(() => {
+    server.shutdown();
+    jest.useRealTimers();
   });
 
   // ── Connection / presence ─────────────────────────────────────────────────
@@ -129,5 +134,73 @@ describe('WebSocketServer', () => {
     server.connect('c1', 'u1', jest.fn());
     server.broadcast(makeEvent());
     expect(handler).toHaveBeenCalledWith(expect.objectContaining({ delivered: 1 }));
+  });
+
+  it('routes broadcasts through an injected event bus', () => {
+    const eventBus = new InMemorySubscriptionEventBus();
+    server.shutdown();
+    server = new WebSocketServer({}, eventBus);
+
+    const published = jest.fn();
+    eventBus.on('subscription.event.published', published);
+
+    const send = jest.fn();
+    server.connect('c1', 'user-1', send);
+    const delivered = server.broadcast(makeEvent({ userId: 'user-1' }));
+
+    expect(delivered).toBe(1);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(published).toHaveBeenCalledWith(
+      expect.objectContaining({ matchedClients: 1 })
+    );
+  });
+
+  it('can consume events published by another producer on the same bus', () => {
+    const eventBus = new InMemorySubscriptionEventBus();
+    server.shutdown();
+    server = new WebSocketServer({}, eventBus);
+    const send = jest.fn();
+    server.connect('c1', 'user-1', send, { userId: 'user-1' });
+
+    const delivered = eventBus.publish(makeEvent({ userId: 'user-1' }));
+
+    expect(delivered).toBe(1);
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it('batches messages when batchIntervalMs is configured', () => {
+    jest.useFakeTimers();
+    server.shutdown();
+    server = new WebSocketServer({ batchIntervalMs: 50, heartbeatIntervalMs: 0 });
+    const send = jest.fn();
+    server.connect('c1', 'user-1', send);
+
+    server.broadcast(makeEvent({ subscriptionId: 'sub-1' }));
+    server.broadcast(makeEvent({ subscriptionId: 'sub-2' }));
+
+    expect(send).not.toHaveBeenCalled();
+    jest.advanceTimersByTime(50);
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(server.getMetrics().batchesFlushed).toBe(1);
+  });
+
+  it('drops the oldest queued event when a batched client exceeds queue capacity', () => {
+    jest.useFakeTimers();
+    server.shutdown();
+    server = new WebSocketServer({
+      batchIntervalMs: 50,
+      heartbeatIntervalMs: 0,
+      maxQueueSize: 1,
+    });
+    const send = jest.fn();
+    server.connect('c1', 'user-1', send);
+
+    server.broadcast(makeEvent({ subscriptionId: 'old' }));
+    server.broadcast(makeEvent({ subscriptionId: 'new' }));
+    jest.advanceTimersByTime(50);
+
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({ subscriptionId: 'new' }));
+    expect(server.getMetrics().eventsDropped).toBe(1);
   });
 });

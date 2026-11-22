@@ -20,7 +20,7 @@ import { colors, spacing, typography, borderRadius } from '../utils/constants';
 
 const STAGE_COLOR: Record<DunningStage, string> = {
   retry: colors.warning,
-  warn: '#f97316',   // orange
+  warn: '#f97316', // orange
   suspend: colors.error,
   cancel: '#6b7280', // gray
 };
@@ -120,11 +120,10 @@ const EntryCard: React.FC<CardProps> = ({ entry, onPress }) => (
         <Text style={styles.cardSubId} numberOfLines={1}>
           {entry.subscriptionId}
         </Text>
-        <Text style={styles.cardMeta}>
-          Subscriber: {entry.subscriberId}
-        </Text>
+        <Text style={styles.cardMeta}>Subscriber: {entry.subscriberId}</Text>
       </View>
-      <View style={[styles.stageBadge, { backgroundColor: STAGE_COLOR[entry.currentStage] + '22' }]}>
+      <View
+        style={[styles.stageBadge, { backgroundColor: STAGE_COLOR[entry.currentStage] + '22' }]}>
         <Text style={[styles.stageBadgeText, { color: STAGE_COLOR[entry.currentStage] }]}>
           {STAGE_LABEL[entry.currentStage]}
         </Text>
@@ -162,8 +161,14 @@ interface DetailProps {
 }
 
 const DetailSheet: React.FC<DetailProps> = ({ entry, onClose }) => {
-  const { pauseDunning, resumeDunning, overrideStage, escalateToSupport, overrideDunning, recordPaymentAttempt } =
-    useDunningStore();
+  const {
+    pauseDunning,
+    resumeDunning,
+    overrideStage,
+    escalateToSupport,
+    overrideDunning,
+    recordPaymentAttempt,
+  } = useDunningStore();
 
   const handleEscalate = () => {
     Alert.alert(
@@ -302,16 +307,16 @@ const DetailSheet: React.FC<DetailProps> = ({ entry, onClose }) => {
                   : pauseDunning(entry.subscriptionId);
                 onClose();
               }}>
-              <Text style={styles.actionBtnText}>
-                {entry.isPaused ? '▶ Resume' : '⏸ Pause'}
-              </Text>
+              <Text style={styles.actionBtnText}>{entry.isPaused ? '▶ Resume' : '⏸ Pause'}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.actionBtn} onPress={handleManualPayment}>
               <Text style={styles.actionBtnText}>💳 Manual Payment Override</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.actionBtn, styles.actionBtnWarn]} onPress={handleEscalate}>
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.actionBtnWarn]}
+              onPress={handleEscalate}>
               <Text style={[styles.actionBtnText, { color: colors.warning }]}>
                 🚨 Escalate to Support
               </Text>
@@ -320,7 +325,9 @@ const DetailSheet: React.FC<DetailProps> = ({ entry, onClose }) => {
             <TouchableOpacity
               style={[styles.actionBtn, styles.actionBtnDanger]}
               onPress={() => handleOverride('resolved')}>
-              <Text style={[styles.actionBtnText, { color: colors.success }]}>✅ Mark Resolved</Text>
+              <Text style={[styles.actionBtnText, { color: colors.success }]}>
+                ✅ Mark Resolved
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -337,7 +344,7 @@ const DetailSheet: React.FC<DetailProps> = ({ entry, onClose }) => {
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
-const STAGE_FILTERS: Array<DunningStage | 'all'> = ['all', 'retry', 'warn', 'suspend', 'cancel'];
+const STAGE_FILTERS: (DunningStage | 'all')[] = ['all', 'retry', 'warn', 'suspend', 'cancel'];
 
 const DunningDashboard: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -527,11 +534,16 @@ const styles = StyleSheet.create({
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
   emptyIcon: { fontSize: 48, marginBottom: spacing.md },
   emptyTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.sm },
-  emptyBody: { ...typography.body, color: colors.textSecondary, textAlign: 'center', lineHeight: 22 },
+  emptyBody: {
+    ...typography.body,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
 
   // Detail sheet
   sheetOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'flex-end',
   },
@@ -571,7 +583,12 @@ const styles = StyleSheet.create({
   infoLabel: { ...typography.body, color: colors.textSecondary },
   infoValue: { ...typography.body, color: colors.text, fontWeight: '500' },
   commSection: { marginTop: spacing.md, marginBottom: spacing.sm },
-  commTitle: { ...typography.caption, color: colors.textSecondary, marginBottom: spacing.xs, fontWeight: '600' },
+  commTitle: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+    fontWeight: '600',
+  },
   commRow: {
     flexDirection: 'row',
     gap: spacing.sm,

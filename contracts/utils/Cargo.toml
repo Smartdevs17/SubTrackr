@@ -2,12 +2,19 @@
 name = "utils"
 version = "0.1.0"
 edition = "2021"
+authors = ["SubTrackr Team"]
+description = "Shared utilities for SubTrackr contracts (Soroban)"
 
 [lib]
+# lib only — no WASM binary; shared across workspace as a utility library
 crate-type = ["lib"]
 
 [dependencies]
-soroban-sdk = "21.0.0"
+soroban-sdk = { workspace = true }
+
+[features]
+default = []
+testutils = ["soroban-sdk/testutils"]
 
 [dev-dependencies]
-soroban-sdk = { version = "21.0.0", features = ["testutils"] }
+soroban-sdk = { workspace = true, features = ["testutils"] }

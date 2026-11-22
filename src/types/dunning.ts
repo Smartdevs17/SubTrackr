@@ -1,7 +1,7 @@
 export type DunningStage = 'retry' | 'warn' | 'suspend' | 'cancel';
+export type FailureReason = 'insufficient_funds' | 'expired_card' | 'network' | 'default';
 
-export interface DunningConfiguration {
-  planId: string;
+export interface RetryStrategy {
   stages: DunningStageConfig[];
   maxRetries: number;
   retryIntervalHours: number;
@@ -9,6 +9,16 @@ export interface DunningConfiguration {
   suspendAfterDays: number;
   cancelAfterDays: number;
   communicationChannels: ('email' | 'push' | 'in_app')[];
+}
+
+export interface DunningConfiguration {
+  planId: string;
+  defaultStrategy: RetryStrategy;
+  strategies: Partial<Record<FailureReason, RetryStrategy>>;
+  abTestConfig?: {
+    enabled: boolean;
+    variants: { id: string; weight: number; strategy: RetryStrategy }[];
+  };
 }
 
 export interface DunningStageConfig {
@@ -24,6 +34,8 @@ export interface DunningEntry {
   subscriberId: string;
   merchantId: string;
   planId: string;
+  failureReason: FailureReason;
+  abTestVariant?: string;
   currentStage: DunningStage;
   failedAttempts: number;
   totalFailedCharges: number;

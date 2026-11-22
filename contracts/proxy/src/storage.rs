@@ -111,7 +111,7 @@ pub(crate) fn clear_scheduled_upgrade(env: &Env) {
 pub(crate) fn previous_count(env: &Env) -> u32 {
     env.storage()
         .instance()
-        .get(&StorageKey::ProxyPrevImplCount)
+        .get(&StorageKey::ProxyPreviousImplementationCount)
         .unwrap_or(0)
 }
 
@@ -133,7 +133,7 @@ pub(crate) fn push_previous(env: &Env, implementation: &Address) {
     );
     env.storage()
         .instance()
-        .set(&StorageKey::ProxyPrevImplCount, &(count + 1));
+        .set(&StorageKey::ProxyPreviousImplementationCount, &(count + 1));
 }
 
 pub(crate) fn swap_previous_top(env: &Env, new_top: &Address) -> Address {

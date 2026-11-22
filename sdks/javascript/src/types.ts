@@ -3,6 +3,18 @@ export interface SDKOptions {
   environment?: 'production' | 'sandbox';
   baseUrl?: string;
   timeout?: number;
+  /**
+   * Target API version to use for all requests.
+   * Defaults to CURRENT_API_VERSION (2).
+   * Must be >= MIN_SUPPORTED_API_VERSION (1).
+   */
+  apiVersion?: number;
+  /**
+   * Whether to emit console warnings when the SDK detects deprecated usage
+   * or an older API version in a server response.
+   * Defaults to true.
+   */
+  warnOnDeprecation?: boolean;
 }
 
 export interface AuthContext {
@@ -10,20 +22,12 @@ export interface AuthContext {
   expiresAt: number | null;
 }
 
-export type BillingInterval = 'Weekly' | 'Monthly' | 'Quarterly' | 'Yearly';
-export type SubscriptionStatus = 'Active' | 'Paused' | 'Cancelled' | 'PastDue';
-
-export interface Plan {
-  id: number;
-  merchant: string;
-  name: string;
-  price: number;
-  token: string;
-  interval: BillingInterval;
-  active: boolean;
-  subscriber_count: number;
-  created_at: number;
-}
+// On-chain contract types come from the shared package so the SDK cannot drift
+// from contracts/types/src/lib.rs. `BillingInterval` is kept as an alias for
+// backwards compatibility; it now includes `Daily`, which the contract supports.
+import type { Interval, SubscriptionStatus } from '../../../shared/types/contract';
+export type { Interval, Plan, SubscriptionStatus } from '../../../shared/types/contract';
+export type BillingInterval = Interval;
 
 export interface Subscription {
   id: number | string;

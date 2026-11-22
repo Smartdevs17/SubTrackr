@@ -38,3 +38,11 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transactions_status
 -- ── Analyse updated tables ───────────────────────────────────────────────────
 ANALYZE subscriptions;
 ANALYZE transactions;
+
+-- @down
+DROP INDEX CONCURRENTLY IF EXISTS idx_transactions_status;
+DROP INDEX CONCURRENTLY IF EXISTS idx_transactions_user_ts;
+DROP INDEX CONCURRENTLY IF EXISTS idx_transactions_subscription_ts;
+DROP INDEX CONCURRENTLY IF EXISTS idx_subscriptions_status;
+DROP INDEX CONCURRENTLY IF EXISTS idx_subscriptions_next_billing;
+DROP INDEX CONCURRENTLY IF EXISTS idx_subscriptions_user_status;

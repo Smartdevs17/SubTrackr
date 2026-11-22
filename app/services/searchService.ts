@@ -1,88 +1,129 @@
-import { Subscription, SubscriptionCategory } from '../types/subscription';
-import { useSubscriptionStore } from '../store/subscriptionStore';
-import { currencyService } from './currencyService';
-import { useSettingsStore } from '../store/settingsStore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  Subscription,
+  SubscriptionCategory,
+  BillingCycle,
+} from '../../src/types/subscription';
+import { useSubscriptionStore } from '../../src/store/subscriptionStore';
+import {
+  elasticsearchService,
+  SearchQuery,
+  SearchResult,
+  SavedSearchDefinition,
+  SavedSearchMatchNotification,
+} from '../../backend/services/search/ElasticsearchService';
 
-export type SearchQuery = {
-  query: string;
-  filters?: {
-    category?: SubscriptionCategory | string;
-    minPrice?: number;
-    maxPrice?: number;
-    activeOnly?: boolean;
-  };
+export type { SearchQuery, SearchResult, SavedSearchDefinition, SavedSearchMatchNotification };
+
+export type SearchFilters = NonNullable<SearchQuery['filters']>;
+
+export type SavedSearch = SavedSearchDefinition;
+
+const SAVED_SEARCHES_KEY = 'subtrackr-saved-searches';
+
+const toBackendQuery = (query: SearchQuery): SearchQuery => query;
+
+const syncIndex = (): void => {
+  const subscriptions = useSubscriptionStore.getState().subscriptions ?? [];
+  elasticsearchService.bulkIndex(subscriptions);
 };
 
-export type SavedSearch = {
-  id: string;
-  name: string;
-  query: string;
-  filters?: any;
-};
-
-export type SearchResult = {
-  subscriptions: Subscription[];
-  total: number;
-  // potential analytics hook-in placeholders
-  // analytics?: any;
-};
-
-// Very lightweight full-text + facet search on subscriptions
 export const search_subscriptions = (query: SearchQuery): SearchResult => {
-  const all = useSubscriptionStore.getState().subscriptions || [];
-  const { query: q, filters } = query;
-
-  const text = (s: Subscription) => {
-    const fields = [s.name, s.description, String(s.category), s.currency, String(s.price)];
-    return fields.filter(Boolean).join(' ').toLowerCase();
-  };
-
-  const normalizedQ = (q || '').toLowerCase().trim();
-
-  const filtered = all.filter((sub) => {
-    // quick skip if not active and user asked for activeOnly
-    if (filters?.activeOnly && sub.isActive !== true) return false;
-    // category facet
-    if (filters?.category && sub.category !== filters!.category) return false;
-    // price filters
-    if (typeof filters?.minPrice === 'number' && sub.price < filters!.minPrice) return false;
-    if (typeof filters?.maxPrice === 'number' && sub.price > filters!.maxPrice) return false;
-    // full-text search against multiple fields
-    if (normalizedQ) {
-      const hay = text(sub);
-      return hay.includes(normalizedQ);
-    }
-    return true;
-  });
-
-  // Sorting (simple): by nextBillingDate asc if available, else by createdAt
-  const sorted = filtered.slice().sort((a, b) => {
-    const ta = a.nextBillingDate?.getTime?.() ?? 0;
-    const tb = b.nextBillingDate?.getTime?.() ?? 0;
-    return ta - tb;
-  });
-
-  // export-friendly result: total and items
-  return { subscriptions: sorted, total: sorted.length };
+  syncIndex();
+  return elasticsearchService.search(toBackendQuery(query));
 };
 
-export const save_search = async (search: SavedSearch): Promise<void> => {
-  // Simple persistence via local store if needed; here we'll just attempt to attach to settings if available
-  // In a full implementation, we'd persist to AsyncStorage or backend; keep minimal for now
-  const _ = search; // placeholder to signal intent
-  return Promise.resolve();
+export const index_subscription = (subscription: Subscription): void => {
+  elasticsearchService.indexDocument(subscription);
+};
+
+export const remove_subscription_from_index = (id: string): void => {
+  elasticsearchService.deleteDocument(id);
 };
 
 export const get_search_suggestions = (partial: string): string[] => {
+  syncIndex();
   const suggestions = new Set<string>();
-  const subs = useSubscriptionStore.getState().subscriptions || [];
-  const q = partial.toLowerCase();
+  const q = partial.toLowerCase().trim();
+  if (!q) return [];
+
+  const subs = useSubscriptionStore.getState().subscriptions ?? [];
   for (const sub of subs) {
-    if (sub.name.toLowerCase().includes(q)) suggestions.add(sub.name);
-    if (sub.description && sub.description.toLowerCase().includes(q)) suggestions.add(sub.description);
+    const candidates = [
+      sub.name,
+      sub.planName,
+      sub.customerName,
+      sub.customerEmail,
+      sub.notes,
+      sub.description,
+    ].filter(Boolean) as string[];
+
+    for (const value of candidates) {
+      if (value.toLowerCase().includes(q)) suggestions.add(value);
+    }
   }
-  // also suggest categories
-  const categories = Object.values(SubscriptionCategory);
-  for (const c of categories) if ((c as string).toLowerCase().includes(q)) suggestions.add(c);
-  return Array.from(suggestions).slice(0, 5);
+
+  for (const category of Object.values(SubscriptionCategory)) {
+    if (category.toLowerCase().includes(q)) suggestions.add(category);
+  }
+
+  for (const top of elasticsearchService.getTopQueries(5)) {
+    if (top.query.includes(q)) suggestions.add(top.query);
+  }
+
+  return Array.from(suggestions).slice(0, 8);
 };
+
+export const load_saved_searches = async (): Promise<SavedSearch[]> => {
+  const raw = await AsyncStorage.getItem(SAVED_SEARCHES_KEY);
+  if (!raw) return [];
+  const parsed = JSON.parse(raw) as SavedSearch[];
+  elasticsearchService.loadSavedSearches(parsed);
+  return parsed;
+};
+
+export const save_search = async (search: SavedSearch): Promise<void> => {
+  const existing = await load_saved_searches();
+  const next = existing.some((s) => s.id === search.id)
+    ? existing.map((s) => (s.id === search.id ? search : s))
+    : [...existing, search];
+
+  elasticsearchService.loadSavedSearches(next);
+  await AsyncStorage.setItem(SAVED_SEARCHES_KEY, JSON.stringify(next));
+  elasticsearchService.registerSavedSearch(search);
+};
+
+export const delete_saved_search = async (id: string): Promise<void> => {
+  const existing = await load_saved_searches();
+  const next = existing.filter((s) => s.id !== id);
+  elasticsearchService.loadSavedSearches(next);
+  elasticsearchService.removeSavedSearch(id);
+  await AsyncStorage.setItem(SAVED_SEARCHES_KEY, JSON.stringify(next));
+};
+
+export const check_saved_search_notifications = (): SavedSearchMatchNotification[] => {
+  syncIndex();
+  return elasticsearchService.checkSavedSearchNotifications();
+};
+
+export const buildDefaultFilters = (): SearchFilters => ({
+  categories: [],
+  billingCycles: [],
+  plans: [],
+  statuses: [],
+  priceRange: { min: 0, max: Number.MAX_SAFE_INTEGER },
+});
+
+export const formatHighlight = (highlight?: string, fallback = ''): string => {
+  if (!highlight) return fallback;
+  return highlight.replace(/<\/?em>/g, '');
+};
+
+export const hasHighlightMatch = (highlight?: string): boolean =>
+  Boolean(highlight && highlight.includes('<em>'));
+
+export const getBillingCycleLabel = (cycle: BillingCycle): string =>
+  cycle.charAt(0).toUpperCase() + cycle.slice(1);
+
+export const getCategoryLabel = (category: SubscriptionCategory): string =>
+  category.charAt(0).toUpperCase() + category.slice(1);

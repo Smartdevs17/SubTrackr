@@ -73,7 +73,7 @@ export const SubscriptionCategorySchema = z.enum([
   'other',
 ]);
 
-export const BillingCycleSchema = z.enum(['monthly', 'yearly', 'weekly', 'custom']);
+export const BillingCycleSchema = z.enum(['monthly', 'yearly', 'annual', 'weekly', 'custom']);
 
 export const SubscriptionSchema = z.object({
   id: z.string(),
@@ -235,3 +235,5 @@ export type QueuedTransactionPayload = z.infer<typeof QueuedTransactionPayloadSc
 export type QueuedTransaction = z.infer<typeof QueuedTransactionSchema>;
 export type SuperfluidStreamResult = z.infer<typeof SuperfluidStreamResultSchema>;
 export type ExecuteOrQueueResult = z.infer<typeof ExecuteOrQueueResultSchema>;
+
+export * from './merchantAnalytics';

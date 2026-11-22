@@ -1,87 +1,32 @@
-import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import { asyncStorageAdapter } from '../utils/storage';
+/**
+ * userStore.ts — User profile + consent state (slices pattern).
+ *
+ * Delegates to the combined `useAppStore` (see slices/index.ts). The legacy
+ * `useUserStore` hook is preserved so all existing consumers keep their exact
+ * behaviour (`useUserStore()`, `.getState()`, `.setState()` all work).
+ */
+
+import { useAppStore, UserSlice } from './slices';
 import { UserProfile } from '../types/api';
 import { SubscriptionTier } from '../types/subscription';
 
-interface ConsentState {
+export type UserState = UserSlice;
+
+export interface ConsentState {
   analytics: boolean;
   marketing: boolean;
   notifications: boolean;
   hasAcceptedPolicy: boolean;
 }
 
-interface UserState {
-  user: UserProfile | null;
-  subscriptionTier: SubscriptionTier;
-  consent: ConsentState;
-  setUser: (user: UserProfile | null) => void;
-  setSubscriptionTier: (subscriptionTier: SubscriptionTier) => void;
-  setConsent: (consent: Partial<ConsentState>) => void;
-  acceptAll: () => void;
-  resetConsent: () => void;
-}
+/**
+ * Legacy hook — backed by the combined app store.
+ */
+export const useUserStore = useAppStore;
 
-export const useUserStore = create<UserState>()(
-  persist(
-    (set) => ({
-      user: null,
-      subscriptionTier: SubscriptionTier.FREE,
-      consent: {
-        analytics: false,
-        marketing: false,
-        notifications: true, // Default to true for core functionality
-        hasAcceptedPolicy: false,
-      },
-      setUser: (user) =>
-        set((state) => ({
-          user,
-          subscriptionTier: user
-            ? (user.subscriptionTier ?? state.subscriptionTier)
-            : SubscriptionTier.FREE,
-        })),
-      setSubscriptionTier: (subscriptionTier) => set(() => ({ subscriptionTier })),
-      setConsent: (newConsent) =>
-        set((state) => ({
-          consent: { ...state.consent, ...newConsent },
-        })),
-      acceptAll: () =>
-        set(() => ({
-          consent: {
-            analytics: true,
-            marketing: true,
-            notifications: true,
-            hasAcceptedPolicy: true,
-          },
-        })),
-      resetConsent: () =>
-        set(() => ({
-          consent: {
-            analytics: false,
-            marketing: false,
-            notifications: false,
-            hasAcceptedPolicy: false,
-          },
-        })),
-    }),
-    {
-      name: 'subtrackr-user-store',
-      storage: createJSONStorage(() => asyncStorageAdapter),
-      onRehydrateStorage: () => (_state, error) => {
-        if (error) {
-          console.warn('[userStore] Hydration error — resetting to defaults:', error);
-          useUserStore.setState({
-            user: null,
-            subscriptionTier: SubscriptionTier.FREE,
-            consent: {
-              analytics: false,
-              marketing: false,
-              notifications: true,
-              hasAcceptedPolicy: false,
-            },
-          });
-        }
-      },
-    }
-  )
-);
+export const selectUser = (s: UserState) => s.user;
+export const selectSubscriptionTier = (s: UserState) => s.subscriptionTier;
+export const selectConsent = (s: UserState) => s.consent;
+
+export type { UserProfile };
+export { SubscriptionTier };

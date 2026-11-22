@@ -24,6 +24,7 @@ import type {
 } from './apiResponse';
 import { API_VERSION_HEADER, REQUEST_ID_HEADER } from './apiResponse';
 import { IDEMPOTENCY_KEY_HEADER, generateIdempotencyKey } from './idempotencyService';
+import { CircuitBreaker, CircuitBreakerOptions } from './circuitBreaker';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Typed error
@@ -62,6 +63,8 @@ export interface ApiClientOptions {
   defaultHeaders?: Record<string, string>;
   /** Inject a custom fetch implementation (useful for testing). */
   fetchImpl?: typeof fetch;
+  /** Configuration for the circuit breaker. */
+  circuitBreaker?: CircuitBreakerOptions;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -72,11 +75,13 @@ export class ApiClient {
   private readonly baseUrl: string;
   private readonly defaultHeaders: Record<string, string>;
   private readonly fetchImpl: typeof fetch;
+  private readonly circuitBreaker: CircuitBreaker;
 
   constructor(options: ApiClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/$/, '');
     this.defaultHeaders = options.defaultHeaders ?? {};
     this.fetchImpl = options.fetchImpl ?? fetch;
+    this.circuitBreaker = new CircuitBreaker({ name: 'backend-api-client', ...options.circuitBreaker });
   }
 
   // ── Core request method ──────────────────────────────────────────────────
@@ -97,44 +102,64 @@ export class ApiClient {
       ...extraHeaders,
     };
 
-    const response = await this.fetchImpl(url, {
-      method,
-      headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+    let errorToThrowOutside: any = null;
+
+    const result = await this.circuitBreaker.execute(async () => {
+      const response = await this.fetchImpl(url, {
+        method,
+        headers,
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+      });
+
+      const rawJson: unknown = await response.json();
+      const isEnveloped = response.headers.get(API_VERSION_HEADER) !== null;
+
+      if (!isEnveloped) {
+        if (!response.ok && response.status >= 500) {
+          throw new Error(`Legacy API error: ${response.status}`);
+        }
+        return { type: 'legacy', response, rawJson } as const;
+      }
+
+      const envelope = rawJson as ApiResponse<T>;
+
+      if (!envelope.success) {
+        const errEnv = envelope as ApiErrorResponse;
+        const err = new ApiClientError(
+          errEnv.error.code,
+          errEnv.error.message,
+          response.status,
+          errEnv.meta.requestId,
+          errEnv.error.details,
+        );
+        if (response.status >= 500) {
+          throw err; // Trip the circuit breaker
+        } else {
+          errorToThrowOutside = err;
+          return { type: 'error', envelope } as const;
+        }
+      }
+
+      return { type: 'success', envelope } as const;
     });
 
-    const rawJson: unknown = await response.json();
+    if (errorToThrowOutside) {
+      throw errorToThrowOutside;
+    }
 
-    // ── Backward-compatibility: detect envelope vs. legacy response ──────
-    const isEnveloped = response.headers.get(API_VERSION_HEADER) !== null;
-
-    if (!isEnveloped) {
-      // Legacy endpoint – wrap the raw body in a synthetic success envelope.
+    if (result.type === 'legacy') {
       return {
         success: true,
-        data: rawJson as T,
+        data: result.rawJson as T,
         meta: {
           timestamp: new Date().toISOString(),
           requestId,
-          apiVersion: 0, // 0 signals "legacy, no envelope"
+          apiVersion: 0,
         },
       };
     }
 
-    const envelope = rawJson as ApiResponse<T>;
-
-    if (!envelope.success) {
-      const errEnv = envelope as ApiErrorResponse;
-      throw new ApiClientError(
-        errEnv.error.code,
-        errEnv.error.message,
-        response.status,
-        errEnv.meta.requestId,
-        errEnv.error.details,
-      );
-    }
-
-    return envelope as ApiSuccessResponse<T>;
+    return result.envelope as ApiSuccessResponse<T>;
   }
 
   // ── Convenience methods ──────────────────────────────────────────────────

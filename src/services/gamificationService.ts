@@ -1,4 +1,12 @@
-import { Achievement, AchievementTrigger, Badge, LeaderboardEntry } from '../types/gamification';
+import { Share } from 'react-native';
+import {
+  Achievement,
+  AchievementTrigger,
+  Badge,
+  LeaderboardCategory,
+  LeaderboardEntry,
+  UserProgress,
+} from '../types/gamification';
 
 export class GamificationService {
   private achievements: Achievement[] = [
@@ -10,6 +18,12 @@ export class GamificationService {
       criteria: (metadata) => metadata.totalSubscriptions >= 1,
       points: 50,
       badgeId: 'novice_tracker',
+      reward: {
+        id: 'rew_first_sub',
+        type: 'credit',
+        value: 100,
+        description: '100 Welcome Credits',
+      },
     },
     {
       id: 'tracker_pro',
@@ -19,6 +33,13 @@ export class GamificationService {
       criteria: (metadata) => metadata.totalSubscriptions >= 5,
       points: 200,
       badgeId: 'professional_tracker',
+      reward: {
+        id: 'rew_tracker_pro',
+        type: 'discount',
+        value: '10%',
+        description: '10% off your next billing cycle',
+        code: 'PRO-10OFF',
+      },
     },
     {
       id: 'crypto_pioneer',
@@ -28,6 +49,12 @@ export class GamificationService {
       criteria: () => true,
       points: 150,
       badgeId: 'crypto_badge',
+      reward: {
+        id: 'rew_crypto_pioneer',
+        type: 'credit',
+        value: 500,
+        description: '500 Crypto Loyalty Credits',
+      },
     },
     {
       id: 'high_roller',
@@ -64,6 +91,12 @@ export class GamificationService {
       criteria: (metadata) => metadata.lifetimePoints >= 5000,
       points: 300,
       badgeId: 'hoarder_badge',
+      reward: {
+        id: 'rew_point_hoarder',
+        type: 'credit',
+        value: 1000,
+        description: '1,000 Bonus Loyalty Credits',
+      },
     },
     {
       id: 'loyal_member',
@@ -73,6 +106,13 @@ export class GamificationService {
       criteria: (metadata) => metadata.lifetimePoints >= 15000,
       points: 500,
       badgeId: 'loyal_badge',
+      reward: {
+        id: 'rew_loyal_member',
+        type: 'discount',
+        value: '20%',
+        description: '20% Lifetime VIP Discount',
+        code: 'VIP-20OFF',
+      },
     },
     {
       id: 'streak_starter',
@@ -91,6 +131,13 @@ export class GamificationService {
       criteria: (metadata) => metadata.streak >= 30,
       points: 200,
       badgeId: 'streak_master_badge',
+      reward: {
+        id: 'rew_streak_master',
+        type: 'discount',
+        value: '15%',
+        description: '15% Streak Master Discount',
+        code: 'STREAK-15OFF',
+      },
     },
     {
       id: 'referral_friend',
@@ -109,6 +156,12 @@ export class GamificationService {
       criteria: (metadata) => metadata.totalReferrals >= 5,
       points: 250,
       badgeId: 'networker_badge',
+      reward: {
+        id: 'rew_referral_pro',
+        type: 'credit',
+        value: 2500,
+        description: '2,500 Ambassador Credits',
+      },
     },
   ];
 
@@ -212,32 +265,85 @@ export class GamificationService {
   }
 
   /**
-   * Generates a mocked leaderboard.
+   * Generates a leaderboard based on category and user stats.
    */
-  getLeaderboard(currentUserPoints: number, currentUserName: string): LeaderboardEntry[] {
+  getLeaderboard(
+    currentUserPoints: number,
+    currentUserName: string,
+    category: LeaderboardCategory = 'all_time',
+    currentUserStreak: number = 0
+  ): LeaderboardEntry[] {
     const mockUsers = [
-      { name: 'Alice', points: 1250, level: 5 },
-      { name: 'Bob', points: 980, level: 4 },
-      { name: 'Charlie', points: 850, level: 3 },
-      { name: 'Diana', points: 600, level: 3 },
-      { name: 'Ethan', points: 450, level: 2 },
+      { name: 'Alice', points: 1250, level: 5, streak: 14, avatar: '👩‍💻' },
+      { name: 'Bob', points: 980, level: 4, streak: 8, avatar: '👨‍🚀' },
+      { name: 'Charlie', points: 850, level: 3, streak: 21, avatar: '🦊' },
+      { name: 'Diana', points: 600, level: 3, streak: 5, avatar: '🎨' },
+      { name: 'Ethan', points: 450, level: 2, streak: 3, avatar: '🎸' },
     ];
 
+    const currentLevel = Math.floor(currentUserPoints / 250) + 1;
     const allEntries = [
       ...mockUsers,
       {
         name: currentUserName,
-        points: currentUserPoints,
-        level: Math.floor(currentUserPoints / 250) + 1,
+        points: category === 'weekly' ? Math.floor(currentUserPoints * 0.3) : currentUserPoints,
+        level: currentLevel,
+        streak: currentUserStreak,
+        avatar: '⭐',
         isCurrentUser: true,
       },
-    ].sort((a, b) => b.points - a.points);
+    ];
+
+    if (category === 'streaks') {
+      allEntries.sort((a, b) => (b.streak || 0) - (a.streak || 0));
+    } else {
+      allEntries.sort((a, b) => b.points - a.points);
+    }
 
     return allEntries.map((entry, index) => ({
       rank: index + 1,
       ...entry,
       level: entry.level || 1,
     }));
+  }
+
+  /**
+   * Share an achievement via native social dialog.
+   */
+  async shareAchievement(achievement: Achievement, progress: UserProgress): Promise<void> {
+    try {
+      await Share.share({
+        message: `🏆 I just unlocked the "${achievement.name}" achievement on SubTrackr and earned ${achievement.points} XP! Currently Level ${progress.level}. Manage your subscriptions like a pro! #SubTrackr #Gamification`,
+      });
+    } catch {
+      // Ignore share cancel/error
+    }
+  }
+
+  /**
+   * Share a badge via native social dialog.
+   */
+  async shareBadge(badge: Badge, progress: UserProgress): Promise<void> {
+    try {
+      await Share.share({
+        message: `${badge.icon} I earned the "${badge.name}" badge on SubTrackr! "${badge.description}" (Level ${progress.level} Tracker). #SubTrackr #Badges`,
+      });
+    } catch {
+      // Ignore share cancel/error
+    }
+  }
+
+  /**
+   * Share overall level and XP via native social dialog.
+   */
+  async shareLevel(progress: UserProgress): Promise<void> {
+    try {
+      await Share.share({
+        message: `🚀 I'm Level ${progress.level} with ${progress.points} XP on SubTrackr! Tracking subscriptions and maintaining streaks. Come join the leaderboard! #SubTrackr #Fintech`,
+      });
+    } catch {
+      // Ignore share cancel/error
+    }
   }
 }
 

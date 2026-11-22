@@ -56,7 +56,7 @@ const TabNavigator = () => {
         options={{
           tabBarLabel: t('navigation.home'),
           tabBarIcon: ({ color, size }) => (
-            <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>🏠</Text>
+            <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>ðŸ </Text>
           ),
         }}
       />
@@ -66,7 +66,7 @@ const TabNavigator = () => {
         options={{
           tabBarLabel: t('navigation.wallet'),
           tabBarIcon: ({ color, size }) => (
-            <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>🔗</Text>
+            <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>ðŸ”—</Text>
           ),
         }}
       />
@@ -76,7 +76,7 @@ const TabNavigator = () => {
         options={{
           tabBarLabel: t('navigation.analytics'),
           tabBarIcon: ({ color, size }) => (
-            <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>📊</Text>
+            <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>ðŸ“Š</Text>
           ),
         }}
       />
@@ -86,7 +86,7 @@ const TabNavigator = () => {
         options={{
           tabBarLabel: t('navigation.settings'),
           tabBarIcon: ({ color, size }) => (
-            <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>⚙️</Text>
+            <Text style={{ color, fontSize: size, fontWeight: 'bold' }}>âš™ï¸</Text>
           ),
         }}
       />
@@ -116,5 +116,4 @@ export const AppNavigator = () => {
 };
 
 export default AppNavigator;
-
 

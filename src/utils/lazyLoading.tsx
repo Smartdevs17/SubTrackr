@@ -9,7 +9,9 @@ import {
 } from 'react-native';
 import { colors, spacing, borderRadius, typography, shadows } from './constants';
 
-export function lazyWithRetry<T extends React.ComponentType<Record<string, unknown>>>(
+// Screen components have route-specific prop types, so this wrapper must stay prop-agnostic.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function lazyWithRetry<T extends React.ComponentType<any>>(
   componentImport: () => Promise<{ default: T }>,
   retries = 3,
   delay = 1500
@@ -97,8 +99,10 @@ export class LazyErrorBoundary extends React.Component<ErrorBoundaryProps, Error
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function lazyScreen<T extends React.ComponentType<any>>(
-  importFn: () => Promise<{ default: T }>
+  importFn: () => Promise<{ default: T }>,
+  options: { displayName?: string } = {}
 ) {
   const LazyComponent = lazyWithRetry(importFn);
 
@@ -110,7 +114,8 @@ export function lazyScreen<T extends React.ComponentType<any>>(
     </LazyErrorBoundary>
   );
 
-  WrappedScreen.displayName = `lazyScreen(${importFn.toString().replace(/\s+/g, ' ')})`;
+  WrappedScreen.displayName =
+    options.displayName ?? `lazyScreen(${importFn.toString().replace(/\s+/g, ' ')})`;
   return WrappedScreen;
 }
 

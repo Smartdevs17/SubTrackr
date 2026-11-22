@@ -22,6 +22,7 @@ import {
   AppStateStatus,
 } from 'react-native';
 import { useBiometricAuth } from '../hooks/useBiometricAuth';
+import { useDeviceIntegrity } from '../hooks/useDeviceIntegrity';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 
 const BIOMETRIC_ICON: Record<string, string> = {
@@ -48,29 +49,32 @@ const BiometricGate: React.FC<Props> = ({ children }) => {
     clearError,
   } = useBiometricAuth();
 
+  const { isOperationAllowed } = useDeviceIntegrity();
+  const biometricsAllowed = isOperationAllowed('BIOMETRIC_AUTH');
+
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
 
   // Re-lock when app comes back from background
   useEffect(() => {
     const sub = AppState.addEventListener('change', (next) => {
-      if (appState === 'background' && next === 'active' && settings.enabled) {
+      if (appState === 'background' && next === 'active' && settings.enabled && biometricsAllowed) {
         // Re-prompt on foreground
         void authenticate();
       }
       setAppState(next);
     });
     return () => sub.remove();
-  }, [appState, settings.enabled, authenticate]);
+  }, [appState, settings.enabled, biometricsAllowed, authenticate]);
 
-  // Auto-prompt on mount when biometrics are enabled
+  // Auto-prompt on mount when biometrics are enabled and permitted
   useEffect(() => {
-    if (!isLoading && settings.enabled && isAvailable && !isAuthenticated) {
+    if (!isLoading && settings.enabled && isAvailable && biometricsAllowed && !isAuthenticated) {
       void authenticate();
     }
-  }, [isLoading, settings.enabled, isAvailable]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isLoading, settings.enabled, isAvailable, biometricsAllowed]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Pass through immediately when biometrics are disabled or unavailable
-  if (!settings.enabled || !isAvailable) {
+  // Pass through immediately when biometrics are disabled, unavailable, or restricted by integrity policy
+  if (!settings.enabled || !isAvailable || !biometricsAllowed) {
     return <>{children}</>;
   }
 

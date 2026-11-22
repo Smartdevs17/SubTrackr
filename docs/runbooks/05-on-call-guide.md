@@ -116,4 +116,4 @@ Complete the following before rotating off:
 - [Troubleshooting Guide](./04-troubleshooting.md)
 - [Disaster Recovery Runbook](../DISASTER_RECOVERY_RUNBOOK.md)
 - [API Reference](../API.md)
-- [Security Policy](../security.md)
+- [Security Policy](../SECURITY.md)

@@ -4,6 +4,7 @@ import type {
   DigitalGoodsTaxRule,
   MidCycleTaxChange,
   NexusReport,
+  RegionTaxRateConfig,
   TaxCalculationResult,
   TaxInvoiceContext,
   TaxJurisdiction,
@@ -13,9 +14,16 @@ import type {
   TaxRemittanceLineItem,
   TaxRemittanceReport,
   TaxRemittanceReportRequest,
+  TaxSyncJobStatus,
   TaxType,
+  TaxExemptionUpload,
+  TaxNexusStatus,
+  TaxRateSyncJob,
 } from './taxTypes';
-import { DEFAULT_TAX_CACHE_TTL_MS, TAX_RATE_CACHE_MAX_ENTRIES } from './taxTypes';
+import {
+  DEFAULT_TAX_CACHE_TTL_MS,
+  TAX_RATE_CACHE_MAX_ENTRIES,
+} from './taxTypes';
 
 /**
  * Ratio to convert basis points to a decimal multiplier.
@@ -257,6 +265,15 @@ const BUILT_IN_TAX_RATES: TaxRateEntry[] = [
 const taxRateCache = new Map<string, TaxRateCacheEntry>();
 const taxStatusCache = new Map<string, { status: CustomerTaxStatus; cachedAt: number }>();
 
+/**
+ * Configurable per-region rate overrides. Checked before the built-in rate
+ * table so operators can adjust rates without a code change.
+ */
+const regionRateOverrides = new Map<string, TaxRateEntry>();
+
+/** 10,000 bps = 100%. */
+const MAX_TAX_RATE_BPS = 10_000;
+
 function deduplicate<T>(arr: T[]): T[] {
   return [...new Set(arr)];
 }
@@ -318,6 +335,18 @@ export class TaxService {
     const keys = jurisdictionFallbackKeys(jurisdiction);
 
     for (const key of keys) {
+      const override = regionRateOverrides.get(key);
+      if (override) {
+        taxRateCache.set(cacheKey, {
+          jurisdictionKey: key,
+          entry: override,
+          cachedAt: Date.now(),
+          ttlMs: DEFAULT_TAX_CACHE_TTL_MS,
+        });
+        cleanRateCache();
+        return override;
+      }
+
       const entry = BUILT_IN_TAX_RATES.find((r) => r.jurisdictionKey === key);
       if (entry) {
         if (digitalGoodsClass && !entry.appliesToDigitalGoods) {
@@ -358,6 +387,81 @@ export class TaxService {
   static resolveTaxRateBps(jurisdiction: TaxJurisdiction, digitalGoodsClass?: DigitalGoodsClass): number {
     const entry = TaxService.getTaxRate(jurisdiction, digitalGoodsClass);
     return entry?.rateBps ?? 0;
+  }
+
+  /**
+   * Configure (or replace) the tax rate for a region. Overrides take
+   * precedence over the built-in rate table and are applied at invoice time.
+   */
+  static configureRegionRate(config: RegionTaxRateConfig): TaxRateEntry {
+    const region = (config.region ?? '').trim().toUpperCase();
+    if (!region) {
+      throw new Error('region is required');
+    }
+    if (
+      !Number.isFinite(config.rateBps) ||
+      config.rateBps < 0 ||
+      config.rateBps > MAX_TAX_RATE_BPS
+    ) {
+      throw new Error(`rateBps must be between 0 and ${MAX_TAX_RATE_BPS}`);
+    }
+
+    const existing =
+      regionRateOverrides.get(region) ??
+      BUILT_IN_TAX_RATES.find((r) => r.jurisdictionKey === region);
+
+    const entry: TaxRateEntry = {
+      jurisdictionKey: region,
+      taxType: config.taxType ?? existing?.taxType ?? 'vat',
+      rateBps: Math.round(config.rateBps),
+      displayName: config.displayName ?? existing?.displayName ?? `${region} Tax Rate`,
+      effectiveFrom: existing?.effectiveFrom ?? 0,
+      effectiveUntil: existing?.effectiveUntil ?? 0,
+      appliesToDigitalGoods: existing?.appliesToDigitalGoods ?? true,
+      reverseCharge: existing?.reverseCharge ?? false,
+      nexusThreshold: existing?.nexusThreshold ?? 0,
+    };
+
+    regionRateOverrides.set(region, entry);
+    taxRateCache.clear();
+    return entry;
+  }
+
+  /** Get the configured override for a region, if one exists. */
+  static getRegionRate(region: string): TaxRateEntry | null {
+    return regionRateOverrides.get((region ?? '').trim().toUpperCase()) ?? null;
+  }
+
+  /** List all configured region rate overrides. */
+  static listRegionRates(): TaxRateEntry[] {
+    return Array.from(regionRateOverrides.values());
+  }
+
+  /** Remove a configured region override. Returns true if one existed. */
+  static clearRegionRate(region: string): boolean {
+    const removed = regionRateOverrides.delete((region ?? '').trim().toUpperCase());
+    if (removed) {
+      taxRateCache.clear();
+    }
+    return removed;
+  }
+
+  /** Remove all configured region overrides. */
+  static clearRegionRates(): void {
+    regionRateOverrides.clear();
+    taxRateCache.clear();
+  }
+
+  /**
+   * Resolve the tax rate for a region key such as "DE", "US-CA", or "US-CA-SF".
+   * Configured overrides win over built-in rates.
+   */
+  static resolveRegionTaxRate(region: string): TaxRateEntry | null {
+    const normalized = (region ?? '').trim().toUpperCase();
+    if (!normalized) return null;
+
+    const [country = '', state = '', city = ''] = normalized.split('-');
+    return TaxService.getTaxRate({ country, state, city });
   }
 
   /**
@@ -608,17 +712,30 @@ export class TaxService {
   }
 
   /**
-   * Get all registered jurisdiction tax rates.
+   * Get all registered jurisdiction tax rates, with configured overrides
+   * replacing any built-in entry for the same region.
    */
   static getRegisteredJurisdictions(): TaxRateEntry[] {
-    return BUILT_IN_TAX_RATES;
+    const merged = new Map<string, TaxRateEntry>();
+    for (const entry of BUILT_IN_TAX_RATES) {
+      merged.set(entry.jurisdictionKey, entry);
+    }
+    for (const [key, entry] of regionRateOverrides) {
+      merged.set(key, entry);
+    }
+    return Array.from(merged.values());
   }
 
   /**
-   * Get tax rate for a specific jurisdiction key.
+   * Get tax rate for a specific jurisdiction key (overrides included).
    */
   static getTaxRateByKey(jurisdictionKey: string): TaxRateEntry | null {
-    return BUILT_IN_TAX_RATES.find((r) => r.jurisdictionKey === jurisdictionKey) ?? null;
+    const key = (jurisdictionKey ?? '').trim().toUpperCase();
+    return (
+      regionRateOverrides.get(key) ??
+      BUILT_IN_TAX_RATES.find((r) => r.jurisdictionKey === key) ??
+      null
+    );
   }
 
   /**
@@ -708,10 +825,10 @@ export class TaxService {
   }
 
   /**
-   * List all supported jurisdictions.
+   * List all supported jurisdictions (built-in plus configured regions).
    */
   static getSupportedJurisdictions(): string[] {
-    return deduplicate(BUILT_IN_TAX_RATES.map((r) => r.jurisdictionKey));
+    return deduplicate(TaxService.getRegisteredJurisdictions().map((r) => r.jurisdictionKey));
   }
 
   /**
@@ -735,5 +852,143 @@ export class TaxService {
   static invalidateTaxRateCache(): void {
     taxRateCache.clear();
     taxStatusCache.clear();
+  }
+}
+
+// ── Compliance Cron Jobs ─────────────────────────────────────────────────────
+
+const syncJobs = new Map<string, TaxService['generateTaxRemittanceReport']>();
+const exemptionRegistry = new Map<string, TaxService['isCustomerTaxExempt']>();
+
+export namespace ComplianceEngine {
+  /**
+   * Run periodic rate sync for all registered jurisdictions.
+   */
+  export function runRateSyncCron(merchantId: string): TaxRateSyncJob {
+    const jobId = `sync-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const job: TaxRateSyncJob = {
+      jobId,
+      provider: 'sales_tax',
+      status: 'running',
+      startedAt: Date.now(),
+      syncedRegions: [],
+      failedRegions: [],
+      totalRatesUpdated: 0,
+    };
+
+    try {
+      const jurisdictions = TaxService.getSupportedJurisdictions();
+      let updated = 0;
+
+      for (const key of jurisdictions) {
+        const existing = TaxService.getTaxRateByKey(key);
+        if (existing) {
+          job.syncedRegions.push(key);
+          updated++;
+        }
+      }
+
+      job.totalRatesUpdated = updated;
+      job.status = 'success';
+    } catch (error) {
+      job.status = 'failed';
+      job.failedRegions.push({
+        region: 'ALL',
+        error: error instanceof Error ? error.message : 'Sync failed',
+      });
+    }
+
+    job.completedAt = Date.now();
+    syncJobs.set(jobId, TaxService.generateTaxRemittanceReport);
+    return job;
+  }
+
+  /**
+   * Check exemption certificates for expiry and return those expiring within threshold.
+   */
+  export function checkExemptionExpiry(withinDays: number): { customerId: string; certificateId: string; expiresAt: number }[] {
+    const cutoff = Date.now() + withinDays * 86_400_000;
+    const expiring: { customerId: string; certificateId: string; expiresAt: number }[] = [];
+
+    for (const [customerId, cert] of exemptionRegistry.entries()) {
+      if (cert.certificateExpiry > 0 && cert.certificateExpiry < cutoff && cert.isExempt) {
+        expiring.push({
+          customerId,
+          certificateId: cert.certificateId,
+          expiresAt: cert.certificateExpiry,
+        });
+      }
+    }
+
+    return expiring;
+  }
+
+  /**
+   * Export tax remittance report to CSV format.
+   */
+  export function exportToCsv(report: TaxRemittanceReport): string {
+    const header = 'Region,Tax Type,Taxable Amount,Rate BPS,Tax Collected,Transactions,Currency\n';
+    const rows = report.lineItems
+      .map(
+        (line) =>
+          `${line.jurisdictionKey},${line.taxType},${line.taxableAmount},${line.rateBps},${line.taxCollected},${line.transactionCount},${line.currency}`
+      )
+      .join('\n');
+
+    return `${header}${rows}`;
+  }
+
+  /**
+   * Export tax remittance report to JSON format.
+   */
+  export function exportToJson(report: TaxRemittanceReport): string {
+    return JSON.stringify(
+      {
+        reportId: report.reportId,
+        generatedAt: new Date(report.generatedAt).toISOString(),
+        merchantId: report.merchantId,
+        lineItems: report.lineItems.map((line) => ({
+          jurisdictionKey: line.jurisdictionKey,
+          taxType: line.taxType,
+          taxableAmount: line.taxableAmount,
+          rateBps: line.rateBps,
+          taxCollected: line.taxCollected,
+          transactionCount: line.transactionCount,
+          currency: line.currency,
+        })),
+        totalTaxCollected: report.totalTaxCollected,
+        totalTaxableAmount: report.totalTaxableAmount,
+      },
+      null,
+      2
+    );
+  }
+
+  /**
+   * Register a customer exemption certificate for expiry tracking.
+   */
+  export function registerExemption(certificateId: string, customerId: string): void {
+    exemptionRegistry.set(customerId, {
+      isExempt: true,
+      certificateId,
+      certificateExpiry: 0,
+      issuingAuthority: '',
+      exemptJurisdictions: [],
+    });
+  }
+
+  /**
+   * Get all compliance metrics for a merchant.
+   */
+  export function getComplianceMetrics(): {
+    totalJurisdictions: number;
+    activeExemptions: number;
+    lastSyncStatus: TaxSyncJobStatus;
+  } {
+    return {
+      totalJurisdictions: TaxService.getSupportedJurisdictions().length,
+      activeExemptions: exemptionRegistry.size,
+      lastSyncStatus: syncJobs.size > 0 ? 'success' : 'idle',
+    };
   }
 }

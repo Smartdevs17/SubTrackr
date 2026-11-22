@@ -3,6 +3,8 @@
  * Supports both EVM and Stellar networks.
  */
 
+import { env } from './env';
+
 export interface Network {
   id: string;
   name: string;
@@ -79,14 +81,14 @@ export interface ContractAddresses {
 export const NETWORK_CONTRACT_ADDRESSES: Record<string, ContractAddresses> = {
   'stellar-testnet': {
     // These would be populated after deployment
-    proxy: process.env.STELLAR_TESTNET_PROXY_ID,
-    storage: process.env.STELLAR_TESTNET_STORAGE_ID,
-    subscription: process.env.STELLAR_TESTNET_SUBSCRIPTION_ID,
+    proxy: env.STELLAR_TESTNET_PROXY_ID,
+    storage: env.STELLAR_TESTNET_STORAGE_ID,
+    subscription: env.STELLAR_TESTNET_SUBSCRIPTION_ID,
   },
   'stellar-mainnet': {
-    proxy: process.env.STELLAR_MAINNET_PROXY_ID,
-    storage: process.env.STELLAR_MAINNET_STORAGE_ID,
-    subscription: process.env.STELLAR_MAINNET_SUBSCRIPTION_ID,
+    proxy: env.STELLAR_MAINNET_PROXY_ID,
+    storage: env.STELLAR_MAINNET_STORAGE_ID,
+    subscription: env.STELLAR_MAINNET_SUBSCRIPTION_ID,
   },
   // EVM addresses (existing)
   ethereum: {

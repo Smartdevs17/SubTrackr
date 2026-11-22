@@ -1,6 +1,7 @@
 import math
 import random
 from typing import Dict, List, Optional
+from .logger import logger
 
 class PricingOptimizationEngine:
     def __init__(self):
@@ -28,7 +29,7 @@ class PricingOptimizationEngine:
         wtp = base_wtp * (1 + (usage_frequency * 0.05) + (retention_rate * 0.2))
         return round(wtp, 2)
 
-    def calculate_optimal_price(self, subscription_id: str, context: Dict) -> Dict:
+    def calculate_optimal_price(self, subscription_id: str, context: Dict, correlation_id: str = None) -> Dict:
         """
         Calculates the optimal price based on several factors.
         """
@@ -57,8 +58,10 @@ class PricingOptimizationEngine:
             },
             "recommendation": "Increase" if optimal_price > current_price else "Decrease" if optimal_price < current_price else "Maintain"
         }
+        logger.info(f"Calculated optimal price {optimal_price} for {subscription_id}", correlation_id=correlation_id)
+        return result
 
-    def get_price_recommendations(self, plan_id: str, historical_data: List[Dict]) -> List[Dict]:
+    def get_price_recommendations(self, plan_id: str, historical_data: List[Dict], correlation_id: str = None) -> List[Dict]:
         """
         Returns a range of price recommendations for a specific plan.
         Useful for A/B testing setup.

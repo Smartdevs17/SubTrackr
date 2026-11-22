@@ -20,8 +20,6 @@ import { RootStackParamList } from '../navigation/types';
 import { useGamificationStore } from '../store/gamificationStore';
 import { useTransactionQueueStore } from '../store/transactionQueueStore';
 import { usePerformanceProfiler } from '../hooks/usePerformanceProfiler';
-import useRefresh from '../hooks/useRefresh';
-import { useAccessibilityAnnouncement } from '../hooks/useAccessibilityAnnouncement';
 
 // Components
 import { FloatingActionButton } from '../components/common/FloatingActionButton';
@@ -29,8 +27,11 @@ import { useFilteredSubscriptions } from '../hooks/useFilteredSubscriptions';
 import { FilterBar } from '../components/home/FilterBar';
 import { FilterModal } from '../components/home/FilterModal';
 import { StatsCard } from '../components/home/StatsCard';
+import { TrackingOverview } from '../components/home/TrackingOverview';
 import { SubscriptionList } from '../components/home/SubscriptionList';
 import { useThemeColors } from '../hooks/useThemeColors';
+import { StatsCardSkeleton, SubscriptionListSkeleton } from '../components/common/SkeletonLoader';
+import { DeviceIntegrityBanner } from '../components/security/DeviceIntegrityBanner';
 
 type HomeNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -46,18 +47,17 @@ const HomeScreen: React.FC = () => {
     isLoading,
   } = useSubscriptionStore();
   const colors = useThemeColors();
-  const styles = useMemo(() => createStyles(colors), [colors]);
-  const { announce } = useAccessibilityAnnouncement();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
 
   const isOnline = useTransactionQueueStore((state) => state.isOnline);
   const pendingTransactions = useTransactionQueueStore((state) => state.queuedTransactions.length);
   const { level } = useGamificationStore();
   const { preferredCurrency, exchangeRates } = useSettingsStore();
-  const { refreshing, refresh } = useRefresh();
+  const [refreshing, setRefreshing] = useState(false);
   const [upcomingSubscriptions, setUpcomingSubscriptions] = useState<Subscription[]>([]);
   const [showFilterModal, setShowFilterModal] = useState(false);
 
-  // Use the filter tracking hook
+  // Use the new hook
   const { filters, filteredAndSorted, activeFilterCount, hasActiveFilters, clearAllFilters } =
     useFilteredSubscriptions(subscriptions);
 
@@ -77,18 +77,9 @@ const HomeScreen: React.FC = () => {
   }, [subscriptions, calculateStats, preferredCurrency, exchangeRates]);
 
   const onRefresh = async () => {
-    announce('Refreshing subscriptions');
-    await refresh({
-      fetcher: fetchSubscriptions,
-      minDurationMs: 400,
-      onError: (err) => {
-        console.error('Pull-to-refresh failed:', err);
-        announce('Failed to refresh subscriptions');
-      },
-      onSuccess: () => {
-        announce('Subscriptions refreshed successfully');
-      }
-    });
+    setRefreshing(true);
+    await fetchSubscriptions();
+    setRefreshing(false);
   };
 
   const handleToggleStatus = async (id: string) => {
@@ -108,7 +99,7 @@ const HomeScreen: React.FC = () => {
         style={styles.scrollView}
         refreshControl={
           <RefreshControl
-            refreshing={refreshing || isLoading}
+            refreshing={refreshing}
             onRefresh={onRefresh}
             tintColor={colors.primary}
           />
@@ -122,7 +113,10 @@ const HomeScreen: React.FC = () => {
               </Text>
               <TouchableOpacity
                 onPress={() => navigation.navigate('Gamification')}
-                style={styles.levelBadge}>
+                style={styles.levelBadge}
+                accessibilityRole="button"
+                accessibilityLabel={`Gamification level ${level}`}
+                accessibilityHint="Opens achievements and rewards">
                 <Text style={styles.levelText}>Lvl {level}</Text>
               </TouchableOpacity>
             </View>
@@ -173,7 +167,7 @@ const HomeScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
         </View>
-
+        <DeviceIntegrityBanner />
         <FilterBar
           searchQuery={filters.searchQuery}
           setSearchQuery={filters.setSearchQuery}
@@ -181,35 +175,51 @@ const HomeScreen: React.FC = () => {
           hasActiveFilters={hasActiveFilters}
           activeFilterCount={activeFilterCount}
         />
+        {isLoading ? (
+          <>
+            <StatsCardSkeleton />
+            <SubscriptionListSkeleton count={4} />
+          </>
+        ) : (
+          <>
+            <StatsCard
+              totalMonthlySpend={stats.totalMonthlySpend}
+              totalActive={stats.totalActive}
+              onWalletPress={() => navigation.navigate('WalletConnect')}
+              currency={preferredCurrency}
+            />
 
-        <StatsCard
-          totalMonthlySpend={stats.totalMonthlySpend}
-          totalActive={stats.totalActive}
-          onWalletPress={() => navigation.navigate('WalletConnect')}
-          currency={preferredCurrency}
-        />
+            <TrackingOverview subscriptions={subscriptions} currency={preferredCurrency} />
 
-        {!isOnline && (
-          <View style={styles.offlineBanner}>
-            <Text style={styles.offlineText}>
-              ⚠️ You are offline. {pendingTransactions} queued syncs pending.
-            </Text>
-          </View>
-        )}
+            {!isOnline && (
+              <View
+                style={styles.offlineBanner}
+                accessibilityRole="alert"
+                accessibilityLiveRegion="polite"
+                accessibilityLabel={`You are offline. ${pendingTransactions} queued syncs pending.`}>
+                <Text style={styles.offlineText}>
+                  ⚠️ You are offline. {pendingTransactions} queued syncs pending.
+                </Text>
+              </View>
+            )}
 
-        <SubscriptionList
-          subscriptions={subscriptions}
-          activeSubscriptions={activeSubscriptions}
-          upcomingSubscriptions={upcomingSubscriptions}
-          hasSubscriptions={subscriptions.length > 0}
-          hasActiveFilters={hasActiveFilters}
-          filteredCount={filteredAndSorted.length}
-          totalCount={subscriptions.length}
-          onSubscriptionPress={(sub) => navigation.navigate('SubscriptionDetail', { id: sub.id })}
-          onToggleStatus={handleToggleStatus}
-          onDelete={handleDelete}
-          onAddFirstPress={() => navigation.navigate('AddSubscription')}
-        />
+            <SubscriptionList
+              subscriptions={subscriptions}
+              activeSubscriptions={activeSubscriptions}
+              upcomingSubscriptions={upcomingSubscriptions}
+              hasSubscriptions={subscriptions.length > 0}
+              hasActiveFilters={hasActiveFilters}
+              filteredCount={filteredAndSorted.length}
+              totalCount={subscriptions.length}
+              onSubscriptionPress={(sub) =>
+                navigation.navigate('SubscriptionDetail', { id: sub.id })
+              }
+              onToggleStatus={handleToggleStatus}
+              onDelete={handleDelete}
+              onAddFirstPress={() => navigation.navigate('AddSubscription')}
+            />
+          </>
+        )}{' '}
       </ScrollView>
 
       {subscriptions.length > 0 && (
@@ -218,6 +228,8 @@ const HomeScreen: React.FC = () => {
           icon="+"
           size="large"
           testID="add-subscription-button"
+          accessibilityLabel="Add subscription"
+          accessibilityHint="Opens the form to track a new subscription"
         />
       )}
 
@@ -263,7 +275,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     title: {
       ...typography.h1,
-      color: colors.text.primary,
+      color: colors.text,
     },
     levelBadge: {
       backgroundColor: colors.primary,
@@ -290,19 +302,23 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
     toolButton: {
       paddingHorizontal: spacing.md,
       paddingVertical: spacing.sm,
+      minHeight: 44,
       borderRadius: borderRadius.md,
       flex: 1,
       alignItems: 'center',
+      justifyContent: 'center',
     },
     toolButtonOutline: {
       paddingHorizontal: spacing.md,
       paddingVertical: spacing.sm,
+      minHeight: 44,
       borderRadius: borderRadius.md,
       borderWidth: 1,
-      borderColor: colors.border.default,
+      borderColor: colors.border,
       backgroundColor: colors.surface,
       flex: 1,
       alignItems: 'center',
+      justifyContent: 'center',
     },
     toolButtonText: {
       color: colors.onPrimary,
@@ -310,7 +326,7 @@ function createStyles(colors: ReturnType<typeof useThemeColors>) {
       fontSize: 12,
     },
     toolButtonTextOutline: {
-      color: colors.text.primary,
+      color: colors.text,
       fontWeight: '700',
       fontSize: 12,
     },

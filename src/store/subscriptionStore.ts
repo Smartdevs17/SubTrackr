@@ -7,6 +7,7 @@ import {
   SubscriptionStats,
   SubscriptionCategory, // eslint-disable-line
   BillingCycle, // eslint-disable-line
+  SubscriptionLifecycleStatus,
   SubscriptionLifecycleEvent,
   SubscriptionLifecycleEventType,
 } from '../types/subscription';
@@ -738,7 +739,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           get().recordLifecycleEvent(
             id,
             'plan_changed',
-            `${sub.price} ${sub.currency} → ${newPlanData.price ?? sub.price} ${sub.currency} (${effectiveDate})`
+            `${sub.price} ${sub.currency} â†’ ${newPlanData.price ?? sub.price} ${sub.currency} (${effectiveDate})`
           );
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
@@ -822,7 +823,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         const { usePlanTemplateStore } = await import('./planTemplateStore');
         const templateStore = usePlanTemplateStore.getState();
 
-        // Resolve template → concrete plan params
+        // Resolve template â†’ concrete plan params
         const resolved = templateStore.instantiate(callerId, templateId, overrides);
 
         const formData: SubscriptionFormData = {
@@ -877,7 +878,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             get().recordLifecycleEvent(
               id,
               'price_changed',
-              `${previous.price} ${updatedSubscription.currency} → ${data.price} ${updatedSubscription.currency}`
+              `${previous.price} ${updatedSubscription.currency} â†’ ${data.price} ${updatedSubscription.currency}`
             );
             await notifySubscriptionEvent(SUBSCRIPTION_EVENT.PRICE_CHANGED, updatedSubscription, {
               previousPrice: previous.price,
@@ -1525,6 +1526,5 @@ export const useSubscriptionStore = create<SubscriptionState>()(
     }
   )
 );
-
 
 

@@ -173,6 +173,23 @@ export const typeDefs = /* GraphQL */ `
     plans(first: Int = 50, after: String): PlanConnection!
 
     """
+    Aggregate subscription metrics report for a user or organization.
+    """
+    subscriptionReport(
+      userId:    String
+      startDate: String
+      endDate:   String
+    ): SubscriptionReport!
+
+    """
+    Subscription analytics overview for executive dashboard reporting.
+    """
+    subscriptionAnalytics(
+      userId: String
+      period: String = "30d"
+    ): SubscriptionReport!
+
+    """
     Legacy offset-based subscription list.
     @deprecated Use subscriptions(first, after) instead.
     """
@@ -181,5 +198,36 @@ export const typeDefs = /* GraphQL */ `
       limit:  Int = 20
       offset: Int = 0
     ): [Subscription!]! @deprecated(reason: "Use subscriptions with cursor pagination")
+  }
+
+  # ── Reporting & Analytics ──────────────────────────────────────────────────
+
+  type StatusBreakdown {
+    status:  String!
+    count:   Int!
+    revenue: Float!
+  }
+
+  type PlanBreakdown {
+    planId:              String!
+    planName:            String!
+    activeSubscriptions: Int!
+    monthlyRevenue:      Float!
+  }
+
+  type SubscriptionReport {
+    totalActiveSubscriptions:   Int!
+    totalCanceledSubscriptions: Int!
+    totalTrialSubscriptions:    Int!
+    totalPastDueSubscriptions:  Int!
+    monthlyRecurringRevenue:    Float!
+    annualRecurringRevenue:     Float!
+    churnRate:                  Float!
+    averageRevenuePerUser:      Float!
+    currency:                   String!
+    periodStart:                String!
+    periodEnd:                  String!
+    breakdownByStatus:          [StatusBreakdown!]!
+    breakdownByPlan:            [PlanBreakdown!]!
   }
 `;

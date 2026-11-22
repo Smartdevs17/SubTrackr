@@ -29,6 +29,23 @@ import { PredictionService } from './analytics/predictionService';
 import { RecommendationService } from './analytics/recommendationService';
 import { RetentionService } from './analytics/retentionService';
 import { oracleMonitorService } from './analytics/oracleMonitorService';
+import { advisoryLockService } from './shared/locking';
+import { billingLockIntegration } from './billing/lockIntegration';
+import { subscriptionLockIntegration } from './subscription/lockIntegration';
+import { kmsProvider, vaultProvider, ColumnEncryptionService } from './shared/encryption';
+import { apiKeyRotationService } from './auth';
+import {
+  paymentRouter,
+  StripeAdapter,
+  CircleAdapter,
+  StellarAdapter,
+  ShopifyAdapter,
+  paymentIntentService,
+  assetPolicyService,
+  paymentExpiryService,
+  finalityService,
+} from './payment';
+import { paymentWebhookPublisher } from './webhook/paymentWebhookPublisher';
 import { getPlanCacheService } from '../subscription/planCacheRegistry';
 import type { PlanCacheService } from '../subscription/domain/PlanCacheService';
 
@@ -219,6 +236,39 @@ container.bind('IRecommendationService', () => new RecommendationService());
 container.bind('IRetentionService', () => new RetentionService());
 container.register('IOracleMonitorService', oracleMonitorService);
 
+// ── Locking (Issue #610) ───────────────────────────────────────────────────────
+container.register('IAdvisoryLockService', advisoryLockService);
+container.register('IBillingLockIntegration', billingLockIntegration);
+container.register('ISubscriptionLockIntegration', subscriptionLockIntegration);
+
+// ── Encryption (Issue #604) ────────────────────────────────────────────────────
+container.register('IKmsProvider', kmsProvider);
+container.register('IVaultProvider', vaultProvider);
+container.bind('IColumnEncryptionService', () => new ColumnEncryptionService(kmsProvider));
+
+// ── Auth / API Key Rotation (Issue #603) ──────────────────────────────────────
+container.register('IApiKeyRotationService', apiKeyRotationService);
+
+// ── Payment Gateway (Issue #581) ──────────────────────────────────────────────
+paymentRouter.registerGateway('stripe', new StripeAdapter());
+paymentRouter.registerGateway('circle', new CircleAdapter());
+paymentRouter.registerGateway('stellar', new StellarAdapter());
+// ── Shopify subscription billing (Issue #1235) ────────────────────────────────
+// Registered only when the shop is configured, so a deployment without Shopify
+// credentials never offers Shopify as a fallback gateway.
+const shopifyAdapter = ShopifyAdapter.fromEnvironment();
+if (shopifyAdapter) {
+  paymentRouter.registerGateway(shopifyAdapter.name, shopifyAdapter);
+}
+container.register('IPaymentRouter', paymentRouter);
+
+// ── Payment intents / asset policy / finality (Issues #1716–#1719) ────────────
+container.register('IPaymentIntentService', paymentIntentService);
+container.register('IAssetPolicyService', assetPolicyService);
+container.register('IPaymentExpiryService', paymentExpiryService);
+container.register('IFinalityService', finalityService);
+container.register('IPaymentWebhookPublisher', paymentWebhookPublisher);
+
 // ── Plan cache (requires bootstrapPlanCache() at startup) ─────────────────────
 container.bind('IPlanCacheService', () => {
   const svc = getPlanCacheService();
@@ -229,3 +279,221 @@ container.bind('IPlanCacheService', () => {
   }
   return svc as PlanCacheService;
 });
+
+// ── Dunning Email Sequences & A/B Testing (#728) ─────────────────────────────
+import { dunningEmailSequenceService } from './notification/dunningEmailSequences';
+container.register('IDunningEmailSequenceService', dunningEmailSequenceService);
+
+// ── SLA Monitoring (#729) ────────────────────────────────────────────────────
+import { slaMonitoringService } from './shared/slaMonitoring';
+container.register('ISlaMonitoringService', slaMonitoringService);
+
+// ── Group Billing (#732) ─────────────────────────────────────────────────────
+import { groupBillingService } from './billing/groupBilling';
+container.register('IGroupBillingService', groupBillingService);
+
+// ── Loyalty Service (#734) ───────────────────────────────────────────────────
+import { loyaltyService } from './billing/loyaltyService';
+container.register('ILoyaltyService', loyaltyService);
+
+// ── Typed Event Bus ───────────────────────────────────────────────────────────
+import { eventBus, eventStore } from './shared/events';
+container.register('IEventBus', eventBus);
+container.register('IEventStore', eventStore);
+
+// ── Generic Cache Service ─────────────────────────────────────────────────────
+import { CacheService, NullCacheService } from './shared/cache';
+import { getPlanCacheService as _getPlanForCache } from '../subscription/planCacheRegistry';
+container.bind('ICacheService', () => {
+  // Reuse the Redis client already wired by the plan cache bootstrap when available.
+  // Falls back to a no-op NullCacheService so the app starts without Redis.
+  const planCache = _getPlanForCache();
+  if (!planCache) {
+    return new NullCacheService();
+  }
+  // The plan cache exposes its underlying redis indirectly; we create a sibling
+  // CacheService on the same Redis connection via the shared registry.
+  // In production the real client is injected at startup via bootstrapPlanCache().
+  return new NullCacheService(); // replaced at startup when Redis is available
+});
+
+// ── Pool Monitor ──────────────────────────────────────────────────────────────
+// Registered lazily — resolved after bootstrapPlanCache() which also creates the DB pool.
+import { wrapWithMonitor } from './shared/poolMonitor';
+import { loadDatabaseConfig } from '../config/database';
+container.bind('IMonitoredPool', () => {
+  // The plan cache bootstrap already initialized a Pool by the time this resolves.
+  // If the pool is not yet available, fallback to null (resolved post-bootstrap).
+  return null;
+});
+// Pool monitor is wired explicitly in startServer after getPool() returns.
+export { wrapWithMonitor, loadDatabaseConfig };
+
+// ── Email Provider ────────────────────────────────────────────────────────────
+import {
+  emailProvider,
+  createEmailProviderFromEnv,
+  getEmailFromAddress,
+  buildEmailTransport,
+} from './notification/emailProvider';
+container.register('IEmailProvider', emailProvider);
+container.bind('IEmailTransport', (c) =>
+  buildEmailTransport(
+    c.resolve('IEmailProvider'),
+    { from: getEmailFromAddress() }
+  )
+);
+
+// ── SMS Provider ──────────────────────────────────────────────────────────────
+import {
+  smsProvider,
+  buildSmsTransport,
+  optOutStore,
+} from './notification/smsProvider';
+container.register('ISmsProvider', smsProvider);
+container.bind('ISmsTransport', (c) =>
+  buildSmsTransport(c.resolve('ISmsProvider'))
+);
+container.register('ISmsOptOutStore', optOutStore);
+
+// ── Voice Provider (#1255) ────────────────────────────────────────────────────
+import { voiceProvider, buildVoiceTransport } from './notification/voiceProvider';
+container.register('IVoiceProvider', voiceProvider);
+container.bind('IVoiceTransport', (c) =>
+  buildVoiceTransport(c.resolve('IVoiceProvider'))
+);
+
+// ── Communication Preferences (#1253) ─────────────────────────────────────────
+import {
+  communicationPreferenceService,
+  communicationPreferenceRepository,
+} from './notification/communicationPreferencesService';
+container.register(
+  'ICommunicationPreferenceService',
+  communicationPreferenceService
+);
+container.register(
+  'ICommunicationPreferenceRepository',
+  communicationPreferenceRepository
+);
+
+// ── Transactional Email Templates (#1254) ─────────────────────────────────────
+import {
+  renderTransactionalEmail,
+  registerTransactionalTemplates,
+} from './notification/transactionalEmailTemplates';
+registerTransactionalTemplates();
+container.register('ITransactionalEmailRenderer', { renderTransactionalEmail });
+
+// ── Two-Way SMS (#1256) ───────────────────────────────────────────────────────
+import { smsInboundHandler } from './notification/smsInboundHandler';
+import {
+  InMemorySmsConsentRepository,
+  SmsConsentService,
+} from './notification/smsConsentService';
+container.register('ISmsInboundHandler', smsInboundHandler);
+
+// ── SMS consent ledger (#1747) ────────────────────────────────────────────────
+// Mirrors consent changes into the shared provider opt-out registry so the
+// low-level send path refuses opted-out numbers even if a caller skips us.
+export const smsConsentService = new SmsConsentService({
+  repository: new InMemorySmsConsentRepository(),
+  optOutRegistry: optOutStore,
+});
+container.register('ISmsConsentService', smsConsentService);
+
+// ── Voice Call Reminders (#1255) ──────────────────────────────────────────────
+import { voiceReminderService } from './notification/voiceReminderService';
+container.register('IVoiceReminderService', voiceReminderService);
+
+// ── Slack Notifier ────────────────────────────────────────────────────────────
+import {
+  slackNotifier,
+  createSlackAlertDispatcherFromEnv,
+} from './notification/slack';
+// slackNotifier may be null when SLACK_WEBHOOK_URL is unset — guard at resolution time.
+container.bind('ISlackNotifier', () => slackNotifier);
+// Wire Slack into AlertingService if credentials are present.
+{
+  const slackDispatcher = createSlackAlertDispatcherFromEnv();
+  if (slackDispatcher) {
+    // Re-bind IAlertingService so Slack is wired in from construction.
+    container.bind('IAlertingService', () => {
+      const svc = new AlertingService();
+      svc.addChannel({ type: 'slack', webhookUrl: process.env.SLACK_ALERTS_WEBHOOK_URL ?? process.env.SLACK_WEBHOOK_URL });
+      return svc;
+    });
+  }
+}
+
+// ── Webhook Queue (BullMQ) ────────────────────────────────────────────────────
+import {
+  WebhookQueue,
+  WebhookQueueWorker,
+  WebhookRetryScheduler,
+  DlqReplayWorker,
+} from './notification/jobs/webhookQueue';
+
+container.bind('IWebhookQueue', () => {
+  const redisHost = process.env.REDIS_HOST ?? 'localhost';
+  const redisPort = parseInt(process.env.REDIS_PORT ?? '6379', 10);
+  const redisPassword = process.env.REDIS_PASSWORD || undefined;
+  return new WebhookQueue({
+    connection: { host: redisHost, port: redisPort, password: redisPassword },
+  });
+});
+
+container.bind('IWebhookQueueWorker', (c) =>
+  new WebhookQueueWorker(
+    c.resolve('IWebhookDeliveryService'),
+    {
+      connection: {
+        host: process.env.REDIS_HOST ?? 'localhost',
+        port: parseInt(process.env.REDIS_PORT ?? '6379', 10),
+        password: process.env.REDIS_PASSWORD || undefined,
+      },
+    }
+  )
+);
+
+container.bind('IWebhookRetryScheduler', (c) =>
+  new WebhookRetryScheduler(
+    c.resolve('IWebhookDeliveryService'),
+    c.resolve('IWebhookQueue')
+  )
+);
+
+container.bind('IDlqReplayWorker', (c) =>
+  new DlqReplayWorker(c.resolve('IWebhookDeliveryService'))
+);
+
+// ── Notification Transport Wiring ─────────────────────────────────────────────
+// Wire email and SMS transports into the NotificationCenterService singleton.
+import { notificationCenterService } from './notification/notificationCenterService';
+import { deliveryReceiptService } from './notification/deliveryReceiptService';
+import { withDeliveryReceipts } from './notification/deliveryReceiptTransport';
+import { notificationTemplateVersionService } from './notification/notificationTemplateVersionService';
+container.register('INotificationCenterService', notificationCenterService);
+container.register('IDeliveryReceiptService', deliveryReceiptService);
+container.register('INotificationTemplateVersionService', notificationTemplateVersionService);
+
+// Register email transport — transport builder is lazy so it runs after env is loaded.
+// Each transport is wrapped so the attempt is recorded as a delivery receipt (#1749).
+notificationCenterService.registerTransport(
+  'email',
+  withDeliveryReceipts(
+    'email',
+    buildEmailTransport(emailProvider, { from: getEmailFromAddress() }),
+    deliveryReceiptService
+  )
+);
+
+// Register SMS transport.
+notificationCenterService.registerTransport(
+  'sms',
+  withDeliveryReceipts('sms', buildSmsTransport(smsProvider), deliveryReceiptService)
+);
+
+// ── Subscription Notifier ─────────────────────────────────────────────────────
+import { subscriptionNotifier } from './notification/subscriptionNotifier';
+container.register('ISubscriptionNotifier', subscriptionNotifier);

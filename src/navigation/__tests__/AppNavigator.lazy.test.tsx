@@ -1,7 +1,16 @@
 import React from 'react';
+// Resolved by Jest's moduleNameMapper to src/__mocks__/@testing-library/react-native.js.
+// eslint-disable-next-line import/no-unresolved
 import { render, fireEvent } from '@testing-library/react-native';
 import { Text } from 'react-native';
-import { lazyWithRetry, LazyErrorBoundary, SuspenseLoadingFallback } from '../../utils/lazyLoading';
+import {
+  lazyScreen,
+  lazyWithRetry,
+  LazyErrorBoundary,
+  prefetchedModules,
+  prefetchModule,
+  SuspenseLoadingFallback,
+} from '../../utils/lazyLoading';
 
 // Mock react-native completely with pass-through elements so testID is fully discoverable by testing-library
 jest.mock('react-native', () => {
@@ -98,6 +107,11 @@ jest.mock('../../utils/constants', () => ({
 const DummyComponent = () => <Text testID="dummy-component">Loaded Content Successfully</Text>;
 
 describe('Lazy Loading Utilities & Error Boundaries', () => {
+  beforeEach(() => {
+    prefetchedModules.clear();
+    delete (global as { requestIdleCallback?: unknown }).requestIdleCallback;
+  });
+
   it('renders SuspenseLoadingFallback correctly', () => {
     const { getByTestId, getByText } = render(<SuspenseLoadingFallback />);
     expect(getByTestId('lazy-loading-fallback')).toBeTruthy();
@@ -135,6 +149,88 @@ describe('Lazy Loading Utilities & Error Boundaries', () => {
 
     expect(result.default).toBe(DummyComponent);
     expect(importFn).toHaveBeenCalledTimes(2);
+  });
+
+  it('lazyWithRetry rejects after retry attempts are exhausted', async () => {
+    jest.useFakeTimers();
+    const error = new Error('Offline');
+    const importFn = jest.fn().mockRejectedValue(error);
+    const lazyComponent = lazyWithRetry(importFn, 2, 5) as unknown as {
+      _payload: { _result: () => Promise<{ default: typeof DummyComponent }> };
+    };
+
+    try {
+      const loadPromise = lazyComponent._payload._result();
+      const assertion = expect(loadPromise).rejects.toBe(error);
+      await Promise.resolve();
+      await jest.advanceTimersByTimeAsync(5);
+      await Promise.resolve();
+      await jest.advanceTimersByTimeAsync(5);
+
+      await assertion;
+      expect(importFn).toHaveBeenCalledTimes(3);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('lazyScreen exposes stable display names for route chunks', () => {
+    const importFn = jest.fn().mockResolvedValue({ default: DummyComponent });
+    const Wrapped = lazyScreen(importFn, { displayName: 'LazyRoute(Settings)' });
+
+    expect(Wrapped.displayName).toBe('LazyRoute(Settings)');
+  });
+
+  it('lazyScreen derives a display name when one is not provided', () => {
+    function importDummy() {
+      return Promise.resolve({ default: DummyComponent });
+    }
+
+    const Wrapped = lazyScreen(importDummy);
+
+    expect(Wrapped.displayName).toContain('lazyScreen(function importDummy');
+  });
+
+  it('prefetchModule caches successful dynamic imports once', async () => {
+    (global as { requestIdleCallback?: (cb: () => void) => void }).requestIdleCallback = (cb) =>
+      cb();
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => undefined);
+    const importFn = jest.fn().mockResolvedValue({ default: DummyComponent });
+    const skippedImport = jest.fn();
+
+    try {
+      prefetchModule('Settings', importFn);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(prefetchedModules.has('Settings')).toBe(true);
+      expect(importFn).toHaveBeenCalledTimes(1);
+
+      prefetchModule('Settings', skippedImport);
+      expect(skippedImport).not.toHaveBeenCalled();
+      expect(logSpy).toHaveBeenCalledWith('[Prefetch] Successfully cached chunk: Settings');
+    } finally {
+      logSpy.mockRestore();
+    }
+  });
+
+  it('prefetchModule logs failed dynamic imports without caching them', async () => {
+    (global as { requestIdleCallback?: (cb: () => void) => void }).requestIdleCallback = (cb) =>
+      cb();
+    const error = new Error('chunk unavailable');
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const importFn = jest.fn().mockRejectedValue(error);
+
+    try {
+      prefetchModule('Analytics', importFn);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(prefetchedModules.has('Analytics')).toBe(false);
+      expect(warnSpy).toHaveBeenCalledWith('[Prefetch] Failed to cache chunk Analytics:', error);
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 
   it('LazyErrorBoundary catches loading failures and renders interactive retry screen', async () => {

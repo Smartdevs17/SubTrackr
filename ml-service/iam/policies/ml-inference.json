@@ -1,0 +1,22 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadOnnxModels",
+      "Effect": "Allow",
+      "Action": "s3:GetObject",
+      "Resource": "${bucket_arn}/models/onnx/*"
+    },
+    {
+      "Sid": "ListOnnxModelPrefix",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "${bucket_arn}",
+      "Condition": {
+        "StringLike": {
+          "s3:prefix": ["models/onnx/*"]
+        }
+      }
+    }
+  ]
+}

@@ -12,13 +12,20 @@ fn put<V: soroban_sdk::IntoVal<Env, soroban_sdk::Val>>(env: &Env, key: BillingSt
     env.storage().persistent().set(&key, &val);
 }
 
-fn get<V: soroban_sdk::TryFromVal<Env, soroban_sdk::Val>>(env: &Env, key: BillingStoreKey) -> Option<V> {
+fn get<V: soroban_sdk::TryFromVal<Env, soroban_sdk::Val>>(
+    env: &Env,
+    key: BillingStoreKey,
+) -> Option<V> {
     env.storage().persistent().get(&key)
 }
 
 /// Store a billing schedule for a subscription.
 pub(crate) fn set_billing_schedule(env: &Env, subscription_id: u64, schedule: &BillingSchedule) {
-    put(env, BillingStoreKey::Schedule(subscription_id), schedule.clone());
+    put(
+        env,
+        BillingStoreKey::Schedule(subscription_id),
+        schedule.clone(),
+    );
 }
 
 /// Retrieve the billing schedule for a subscription.
@@ -27,10 +34,7 @@ pub(crate) fn get_billing_schedule(env: &Env, subscription_id: u64) -> Option<Bi
 }
 
 /// Compute the next billing timestamp given a schedule and reference time.
-pub(crate) fn calculate_next_billing(
-    schedule: &BillingSchedule,
-    from_timestamp: u64,
-) -> u64 {
+pub(crate) fn calculate_next_billing(schedule: &BillingSchedule, from_timestamp: u64) -> u64 {
     let interval_secs = schedule.interval.seconds();
     let aligned = if schedule.start_date > 0 {
         let elapsed = from_timestamp.saturating_sub(schedule.start_date);
@@ -100,7 +104,8 @@ pub(crate) fn get_billing_preview(
                 let promo_frac = remaining_promo_secs as i128;
                 let full_frac = period_secs as i128;
                 remaining_promo_secs = 0;
-                schedule.promotional_rate * promo_frac / full_frac + price * (full_frac - promo_frac) / full_frac
+                schedule.promotional_rate * promo_frac / full_frac
+                    + price * (full_frac - promo_frac) / full_frac
             }
         } else {
             price

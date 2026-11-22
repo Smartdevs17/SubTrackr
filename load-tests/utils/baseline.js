@@ -5,6 +5,7 @@
 // configured tolerance). Returned data is embedded in the generated report and
 // printed to stdout so CI surfaces regressions even when raw thresholds pass.
 
+// k6 does not support ES module JSON imports — use the built-in open() instead.
 const baseline = JSON.parse(open('../baseline.json'));
 
 function pct(measured, base) {

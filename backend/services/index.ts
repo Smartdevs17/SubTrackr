@@ -1,4 +1,4 @@
-﻿// ── Connection pool (#414) ────────────────────────────────────────────────────
+// ── Connection pool (#414) ────────────────────────────────────────────────────
 export { ConnectionPool, getPool, stellarPool } from './connectionPool';
 export type { PoolConfig, PoolMetrics } from './connectionPool';
 
@@ -171,7 +171,6 @@ export type {
   UnauthorizedAccessEvent,
   AccessCheckOptions,
 } from './accessControl';
-
 
 // -- Merchant Module -----------------------------------------------------------
 export * from './merchant';

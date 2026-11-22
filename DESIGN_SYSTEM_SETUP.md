@@ -1,6 +1,7 @@
-/**
- * Design System Setup & Installation Guide
- */
+/\*\*
+
+- Design System Setup & Installation Guide
+  \*/
 
 # SubTrackr Design System - Setup Guide
 
@@ -11,6 +12,7 @@ The SubTrackr Design System has been successfully created and is ready for integ
 ## What Was Created
 
 ### ✓ Design Tokens (5 files)
+
 - **colors.ts**: Dark, Light, and High Contrast themes with WCAG AA compliance
 - **spacing.ts**: 8-point grid system (xs: 4px → xxl: 48px)
 - **typography.ts**: Material Design 3 type scale with accessibility
@@ -19,6 +21,7 @@ The SubTrackr Design System has been successfully created and is ready for integ
 - **animations.ts**: Standardized timing and easing functions
 
 ### ✓ Base Components (5 components)
+
 - **Button**: 7 variants, 3 sizes, loading & disabled states
 - **Input**: Labels, validation, error states, icons
 - **Card**: 4 variants, configurable padding, platform-specific styling
@@ -26,11 +29,13 @@ The SubTrackr Design System has been successfully created and is ready for integ
 - **Toast**: 4 variants, multiple positions, auto-dismiss
 
 ### ✓ Utilities (3 modules)
+
 - **platform.ts**: iOS/Android/Web detection and conditional values
 - **rtl.ts**: Right-to-left language support
 - **fontScaling.ts**: WCAG-compliant font sizing
 
 ### ✓ Testing & Documentation
+
 - **Button.test.tsx**: Comprehensive unit tests with accessibility checks
 - **visualRegression.e2e.ts**: E2E tests for all components
 - **Button.stories.tsx**: Storybook component documentation
@@ -39,6 +44,7 @@ The SubTrackr Design System has been successfully created and is ready for integ
 - **WCAG_COMPLIANCE.md**: Accessibility compliance checklist
 
 ### ✓ Storybook Configuration
+
 - **.storybook/main.js**: Storybook configuration
 - **.storybook/preview.js**: Preview settings with themes
 
@@ -95,6 +101,7 @@ npm install --save-dev @storybook/react-native @storybook/addon-essentials
 ### 2. Verify Configuration
 
 The Storybook configuration is already in place:
+
 - `.storybook/main.js`
 - `.storybook/preview.js`
 
@@ -162,12 +169,7 @@ import {
 ### Use Utilities
 
 ```typescript
-import {
-  isIOS,
-  isAndroid,
-  isRTL,
-  validateFontSizes,
-} from '@/design-system/utils';
+import { isIOS, isAndroid, isRTL, validateFontSizes } from '@/design-system/utils';
 
 if (isIOS()) {
   // iOS-specific code
@@ -181,12 +183,14 @@ if (isRTL()) {
 ## Migration Path
 
 ### Phase 1: Review & Planning (1-2 days)
+
 - [ ] Review this documentation
 - [ ] Review Storybook stories
 - [ ] Identify components to migrate
 - [ ] Plan update order (high-impact first)
 
 ### Phase 2: Component Migration (1-2 weeks)
+
 - [ ] Update imports in screens
 - [ ] Update component usage
 - [ ] Replace color hardcoding with tokens
@@ -194,6 +198,7 @@ if (isRTL()) {
 - [ ] Add accessibility labels
 
 ### Phase 3: Testing & Validation (3-5 days)
+
 - [ ] Run unit tests
 - [ ] Run E2E tests
 - [ ] Visual regression testing
@@ -201,6 +206,7 @@ if (isRTL()) {
 - [ ] Manual testing on devices
 
 ### Phase 4: Documentation & Deployment (1-2 days)
+
 - [ ] Update component documentation
 - [ ] Add Storybook stories
 - [ ] Add migration notes
@@ -209,6 +215,7 @@ if (isRTL()) {
 ## File-by-File Checklist
 
 ### src/screens/
+
 - [ ] SubscriptionList.tsx
 - [ ] SubscriptionDetail.tsx
 - [ ] Settings.tsx
@@ -217,17 +224,20 @@ if (isRTL()) {
 - [ ] (other screens)
 
 ### src/components/
+
 - [ ] subscription/ (update domain components)
 - [ ] home/ (update domain components)
 - [ ] admin/ (update domain components)
 - [ ] common/ (remove or refactor)
 
 ### src/app/
+
 - [ ] (check for inline styles)
 
 ## Key Features
 
 ### ✓ Design Tokens
+
 - Dark, Light, High Contrast themes
 - WCAG 2.1 AA compliant colors
 - 8-point spacing grid
@@ -236,6 +246,7 @@ if (isRTL()) {
 - Predefined animations
 
 ### ✓ Components
+
 - 5 base components with multiple variants
 - WCAG 2.1 AA accessibility
 - Platform-specific styling
@@ -244,6 +255,7 @@ if (isRTL()) {
 - Loading and error states
 
 ### ✓ Accessibility
+
 - Minimum 44x44pt touch targets
 - Semantic roles and labels
 - Screen reader support
@@ -252,6 +264,7 @@ if (isRTL()) {
 - High contrast support
 
 ### ✓ Testing
+
 - Unit tests with accessibility checks
 - E2E visual regression tests
 - Storybook documentation
@@ -269,15 +282,19 @@ The design system is optimized for performance:
 ## Troubleshooting
 
 ### Q: Components not rendering?
+
 **A**: Check imports are from `@/design-system`, not subdirectories
 
 ### Q: Colors not applying?
+
 **A**: Use color tokens from `@/design-system/tokens/colors`
 
 ### Q: Accessibility not working?
+
 **A**: Ensure `accessibilityLabel` prop is provided on interactive elements
 
 ### Q: Theme not switching?
+
 **A**: Check existing `themeStore` integration in `src/theme/`
 
 ## Next Steps

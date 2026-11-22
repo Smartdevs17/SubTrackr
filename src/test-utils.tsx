@@ -2,6 +2,7 @@ import React from 'react';
 import { render, RenderOptions } from '@testing-library/react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider, initialWindowMetrics, Metrics } from 'react-native-safe-area-context';
+import { ThemeProvider } from './context/ThemeContext';
 
 // Under Jest there is no native layout pass, so `initialWindowMetrics` is null
 // and `SafeAreaProvider` would withhold its children until an onLayout event
@@ -25,9 +26,11 @@ interface WrapperProps {
 }
 
 const AllProviders = ({ children }: WrapperProps) => (
-  <SafeAreaProvider initialMetrics={initialWindowMetrics ?? TEST_METRICS}>
-    <NavigationContainer>{children}</NavigationContainer>
-  </SafeAreaProvider>
+  <ThemeProvider>
+    <SafeAreaProvider initialMetrics={initialWindowMetrics ?? TEST_METRICS}>
+      <NavigationContainer>{children}</NavigationContainer>
+    </SafeAreaProvider>
+  </ThemeProvider>
 );
 
 const customRender = (ui: React.ReactElement, options?: RenderOptions) =>

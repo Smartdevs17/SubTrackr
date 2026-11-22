@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import {
   OnboardingStatus,
   DocumentType,
   MerchantOnboardingFormData,
+  OnboardingNotification,
 } from '../types/merchant';
 
 const MerchantOnboardingScreen: React.FC = () => {
@@ -25,10 +26,13 @@ const MerchantOnboardingScreen: React.FC = () => {
     onboarding,
     isLoading,
     startOnboarding,
-    submitDocument,
     nextStep,
     previousStep,
     requestVerification,
+    uploadDocument,
+    addNotification,
+    getUnreadNotificationCount,
+    getOnboardingAnalytics,
   } = useMerchantStore();
 
   const [formData, setFormData] = useState<MerchantOnboardingFormData>({
@@ -38,6 +42,11 @@ const MerchantOnboardingScreen: React.FC = () => {
     phoneNumber: '',
     email: '',
   });
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [showAnalytics, setShowAnalytics] = useState(false);
+
+  const unreadCount = useMemo(() => getUnreadNotificationCount(), [onboarding]);
+  const analytics = useMemo(() => getOnboardingAnalytics(), [onboarding]);
 
   const handleStartOnboarding = useCallback(async () => {
     if (!formData.businessName || !formData.email) {
@@ -45,14 +54,19 @@ const MerchantOnboardingScreen: React.FC = () => {
       return;
     }
     await startOnboarding(formData);
-  }, [formData, startOnboarding]);
+    addNotification({
+      type: 'step_completed',
+      title: 'Onboarding Started',
+      message: 'You have started the merchant verification process.',
+    });
+  }, [formData, startOnboarding, addNotification]);
 
   const handleDocumentUpload = useCallback(
     async (docType: DocumentType) => {
-      await submitDocument(docType, `doc_${Date.now()}`);
+      await uploadDocument(docType, `doc_${Date.now()}`);
       Alert.alert('Success', 'Document uploaded successfully');
     },
-    [submitDocument]
+    [uploadDocument]
   );
 
   const renderStepIndicator = () => {
@@ -184,6 +198,26 @@ const MerchantOnboardingScreen: React.FC = () => {
         <Text style={styles.uploadText}>Business License</Text>
         <Text style={styles.uploadHint}>Tap to upload</Text>
       </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.uploadBox}
+        onPress={() => handleDocumentUpload(DocumentType.PROOF_OF_ADDRESS)}
+        accessibilityRole="button"
+        accessibilityLabel="Upload proof of address">
+        <Text style={styles.uploadIcon}>📍</Text>
+        <Text style={styles.uploadText}>Proof of Address</Text>
+        <Text style={styles.uploadHint}>Tap to upload</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.uploadBox}
+        onPress={() => handleDocumentUpload(DocumentType.TAX_DOCUMENT)}
+        accessibilityRole="button"
+        accessibilityLabel="Upload tax document">
+        <Text style={styles.uploadIcon}>📋</Text>
+        <Text style={styles.uploadText}>Tax Document</Text>
+        <Text style={styles.uploadHint}>Tap to upload (optional)</Text>
+      </TouchableOpacity>
     </View>
   );
 
@@ -225,6 +259,99 @@ const MerchantOnboardingScreen: React.FC = () => {
         <Text style={styles.submitButtonText}>Submit for Verification</Text>
       </TouchableOpacity>
     </View>
+  );
+
+  const renderNotifications = () => {
+    if (!onboarding || onboarding.notifications.length === 0) return null;
+
+    return (
+      <Card style={styles.notificationCard}>
+        <TouchableOpacity
+          style={styles.notificationHeader}
+          onPress={() => setShowNotifications(!showNotifications)}
+          accessibilityRole="button"
+          accessibilityLabel={`Notifications, ${unreadCount} unread`}>
+          <Text style={styles.sectionTitle}>Notifications</Text>
+          {unreadCount > 0 && (
+            <View style={styles.notificationBadge}>
+              <Text style={styles.notificationBadgeText}>{unreadCount}</Text>
+            </View>
+          )}
+          <Text style={styles.expandIcon}>{showNotifications ? '−' : '+'}</Text>
+        </TouchableOpacity>
+        {showNotifications && (
+          <View style={styles.notificationList}>
+            {onboarding.notifications
+              .slice()
+              .reverse()
+              .map((notification: OnboardingNotification) => (
+                <View
+                  key={notification.id}
+                  style={[
+                    styles.notificationItem,
+                    !notification.read && styles.notificationItemUnread,
+                  ]}>
+                  <Text style={styles.notificationTitle}>{notification.title}</Text>
+                  <Text style={styles.notificationMessage}>{notification.message}</Text>
+                  <Text style={styles.notificationTime}>
+                    {new Date(notification.createdAt).toLocaleString()}
+                  </Text>
+                </View>
+              ))}
+          </View>
+        )}
+      </Card>
+    );
+  };
+
+  const renderAnalytics = () => (
+    <Card style={styles.analyticsCard}>
+      <TouchableOpacity
+        style={styles.analyticsHeader}
+        onPress={() => setShowAnalytics(!showAnalytics)}
+        accessibilityRole="button"
+        accessibilityLabel="Toggle onboarding analytics">
+        <Text style={styles.sectionTitle}>Onboarding Analytics</Text>
+        <Text style={styles.expandIcon}>{showAnalytics ? '−' : '+'}</Text>
+      </TouchableOpacity>
+      {showAnalytics && (
+        <View style={styles.analyticsContent}>
+          <View style={styles.analyticsGrid}>
+            <View style={styles.analyticsItem}>
+              <Text style={styles.analyticsValue}>{analytics.totalStarted}</Text>
+              <Text style={styles.analyticsLabel}>Started</Text>
+            </View>
+            <View style={styles.analyticsItem}>
+              <Text style={styles.analyticsValue}>{analytics.totalCompleted}</Text>
+              <Text style={styles.analyticsLabel}>Completed</Text>
+            </View>
+            <View style={styles.analyticsItem}>
+              <Text style={styles.analyticsValue}>
+                {(analytics.completionRate * 100).toFixed(0)}%
+              </Text>
+              <Text style={styles.analyticsLabel}>Completion Rate</Text>
+            </View>
+            <View style={styles.analyticsItem}>
+              <Text style={styles.analyticsValue}>
+                {(analytics.documentRejectionRate * 100).toFixed(0)}%
+              </Text>
+              <Text style={styles.analyticsLabel}>Doc Rejection</Text>
+            </View>
+          </View>
+          {Object.keys(analytics.dropOffByStep).length > 0 && (
+            <View style={styles.dropOffSection}>
+              <Text style={styles.dropOffTitle}>Drop-off Points</Text>
+              {Object.entries(analytics.dropOffByStep).map(([step, count]) => (
+                <View key={step} style={styles.dropOffRow}>
+                  <Text style={styles.dropOffStep}>{step.replace(/_/g, ' ')}</Text>
+                  <Text style={styles.dropOffCount}>{count}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+      )}
+    </Card>
   );
 
   const renderStatus = () => {
@@ -288,9 +415,21 @@ const MerchantOnboardingScreen: React.FC = () => {
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.scrollView}>
         <View style={styles.header}>
-          <Text style={styles.title}>Merchant Onboarding</Text>
-          <Text style={styles.subtitle}>Complete verification to start accepting payments</Text>
+          <View style={styles.headerRow}>
+            <View>
+              <Text style={styles.title}>Merchant Onboarding</Text>
+              <Text style={styles.subtitle}>Complete verification to start accepting payments</Text>
+            </View>
+            {unreadCount > 0 && (
+              <View style={styles.headerBadge}>
+                <Text style={styles.headerBadgeText}>{unreadCount}</Text>
+              </View>
+            )}
+          </View>
         </View>
+
+        {renderNotifications()}
+        {renderAnalytics()}
 
         {onboarding ? (
           <>
@@ -587,6 +726,144 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  headerBadge: {
+    backgroundColor: colors.error,
+    borderRadius: borderRadius.full,
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerBadgeText: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  notificationCard: {
+    padding: spacing.md,
+    margin: spacing.md,
+    marginTop: 0,
+  },
+  notificationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  notificationBadge: {
+    backgroundColor: colors.error,
+    borderRadius: borderRadius.full,
+    width: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  notificationBadgeText: {
+    color: colors.text,
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  expandIcon: {
+    color: colors.textSecondary,
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginLeft: 'auto',
+  },
+  notificationList: {
+    marginTop: spacing.md,
+    gap: spacing.sm,
+  },
+  notificationItem: {
+    padding: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  notificationItemUnread: {
+    borderColor: colors.primary,
+    borderLeftWidth: 3,
+  },
+  notificationTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  notificationMessage: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  },
+  notificationTime: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  },
+  analyticsCard: {
+    padding: spacing.md,
+    margin: spacing.md,
+    marginTop: 0,
+  },
+  analyticsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  analyticsContent: {
+    marginTop: spacing.md,
+  },
+  analyticsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  analyticsItem: {
+    flexBasis: '48%',
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    alignItems: 'center',
+  },
+  analyticsValue: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.text,
+  },
+  analyticsLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  },
+  dropOffSection: {
+    marginTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: spacing.md,
+  },
+  dropOffTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: spacing.sm,
+  },
+  dropOffRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.xs,
+  },
+  dropOffStep: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    textTransform: 'capitalize',
+  },
+  dropOffCount: {
+    fontSize: 13,
+    color: colors.text,
+    fontWeight: '500',
   },
 });
 

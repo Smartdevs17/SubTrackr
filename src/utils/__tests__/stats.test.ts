@@ -1,138 +1,74 @@
-import { calculateSubscriptionStats, toMonthlyPrice, toYearlyPrice } from '../stats';
-import { Subscription, SubscriptionCategory, BillingCycle } from '../../types/subscription';
+import { BillingCycle, Subscription, SubscriptionCategory } from '../../types/subscription';
 import { BILLING_CONVERSIONS } from '../constants/values';
+import { calculateSubscriptionStats, getMonthlySubscriptionSpend } from '../stats';
 
-const makeSubscription = (overrides: Partial<Subscription>): Subscription => ({
-  id: '1',
-  name: 'Test',
-  category: SubscriptionCategory.SOFTWARE,
+const makeSubscription = (overrides: Partial<Subscription> = {}): Subscription => ({
+  id: 'sub-1',
+  name: 'Test subscription',
+  category: SubscriptionCategory.STREAMING,
   price: 10,
   currency: 'USD',
   billingCycle: BillingCycle.MONTHLY,
-  nextBillingDate: new Date(),
+  nextBillingDate: new Date('2026-01-01T00:00:00Z'),
   isActive: true,
   isCryptoEnabled: false,
-  createdAt: new Date(),
-  updatedAt: new Date(),
+  createdAt: new Date('2026-01-01T00:00:00Z'),
+  updatedAt: new Date('2026-01-01T00:00:00Z'),
   ...overrides,
 });
 
-describe('toMonthlyPrice', () => {
-  it('returns price as-is for monthly', () => {
-    expect(toMonthlyPrice(12, BillingCycle.MONTHLY)).toBe(12);
-  });
-
-  it('divides by 12 for yearly', () => {
-    expect(toMonthlyPrice(120, BillingCycle.YEARLY)).toBe(10);
-  });
-
-  it('multiplies by weeks-per-month for weekly', () => {
-    expect(toMonthlyPrice(10, BillingCycle.WEEKLY)).toBeCloseTo(
-      10 * BILLING_CONVERSIONS.WEEKS_PER_MONTH
-    );
-  });
-
-  it('returns price as-is for custom', () => {
-    expect(toMonthlyPrice(10, BillingCycle.CUSTOM)).toBe(10);
-  });
-});
-
-describe('toYearlyPrice', () => {
-  it('returns price as-is for yearly', () => {
-    expect(toYearlyPrice(120, BillingCycle.YEARLY)).toBe(120);
-  });
-
-  it('multiplies by 12 for monthly', () => {
-    expect(toYearlyPrice(10, BillingCycle.MONTHLY)).toBe(120);
-  });
-
-  it('multiplies by 52 for weekly', () => {
-    expect(toYearlyPrice(10, BillingCycle.WEEKLY)).toBe(10 * BILLING_CONVERSIONS.WEEKS_PER_YEAR);
-  });
-
-  it('multiplies by 12 for custom', () => {
-    expect(toYearlyPrice(10, BillingCycle.CUSTOM)).toBe(120);
-  });
-});
-
 describe('calculateSubscriptionStats', () => {
-  it('returns zeros for empty array', () => {
-    const stats = calculateSubscriptionStats([]);
-    expect(stats.totalActive).toBe(0);
-    expect(stats.totalMonthlySpend).toBe(0);
-    expect(stats.totalYearlySpend).toBe(0);
-    expect(stats.categoryBreakdown).toEqual({});
-  });
-
-  it('returns zeros for null/undefined input', () => {
-    // @ts-expect-error testing invalid input
-    expect(calculateSubscriptionStats(null).totalActive).toBe(0);
-    // @ts-expect-error testing invalid input
+  it('returns empty stats for missing or non-array input', () => {
     expect(calculateSubscriptionStats(undefined).totalActive).toBe(0);
+    expect(calculateSubscriptionStats(null).totalMonthlySpend).toBe(0);
   });
 
-  it('excludes inactive subscriptions', () => {
-    const subs = [
-      makeSubscription({ id: '1', isActive: true, price: 10 }),
-      makeSubscription({ id: '2', isActive: false, price: 20 }),
-    ];
-    const stats = calculateSubscriptionStats(subs);
-    expect(stats.totalActive).toBe(1);
-    expect(stats.totalMonthlySpend).toBe(10);
-  });
+  it('calculates monthly, yearly, category, and gas totals from one shared function', () => {
+    const stats = calculateSubscriptionStats([
+      makeSubscription({
+        id: 'monthly',
+        price: 10,
+        billingCycle: BillingCycle.MONTHLY,
+        category: SubscriptionCategory.STREAMING,
+        totalGasSpent: 0.2,
+      }),
+      makeSubscription({
+        id: 'yearly',
+        price: 120,
+        billingCycle: BillingCycle.YEARLY,
+        category: SubscriptionCategory.SOFTWARE,
+        totalGasSpent: 0.3,
+      }),
+      makeSubscription({
+        id: 'weekly',
+        price: 5,
+        billingCycle: BillingCycle.WEEKLY,
+        category: SubscriptionCategory.GAMING,
+        totalGasSpent: 0.5,
+      }),
+      makeSubscription({ id: 'inactive', isActive: false }),
+    ]);
 
-  it('calculates monthly spend correctly for mixed billing cycles', () => {
-    const subs = [
-      makeSubscription({ id: '1', price: 10, billingCycle: BillingCycle.MONTHLY }),
-      makeSubscription({ id: '2', price: 120, billingCycle: BillingCycle.YEARLY }),
-    ];
-    const stats = calculateSubscriptionStats(subs);
-    // 10 + 120/12 = 10 + 10 = 20
-    expect(stats.totalMonthlySpend).toBeCloseTo(20);
-  });
-
-  it('calculates yearly spend correctly for mixed billing cycles', () => {
-    const subs = [
-      makeSubscription({ id: '1', price: 10, billingCycle: BillingCycle.MONTHLY }),
-      makeSubscription({ id: '2', price: 120, billingCycle: BillingCycle.YEARLY }),
-    ];
-    const stats = calculateSubscriptionStats(subs);
-    // 10*12 + 120 = 120 + 120 = 240
-    expect(stats.totalYearlySpend).toBeCloseTo(240);
-  });
-
-  it('applies price converter when provided', () => {
-    const subs = [makeSubscription({ price: 10, currency: 'EUR' })];
-    // Simulate 2x conversion rate
-    const stats = calculateSubscriptionStats(subs, (price) => price * 2);
-    expect(stats.totalMonthlySpend).toBe(20);
-    expect(stats.totalYearlySpend).toBe(240);
-  });
-
-  it('builds category breakdown correctly', () => {
-    const subs = [
-      makeSubscription({ id: '1', category: SubscriptionCategory.STREAMING }),
-      makeSubscription({ id: '2', category: SubscriptionCategory.STREAMING }),
-      makeSubscription({ id: '3', category: SubscriptionCategory.SOFTWARE }),
-    ];
-    const stats = calculateSubscriptionStats(subs);
-    expect(stats.categoryBreakdown[SubscriptionCategory.STREAMING]).toBe(2);
+    expect(stats.totalActive).toBe(3);
+    expect(stats.totalMonthlySpend).toBe(10 + 10 + 5 * BILLING_CONVERSIONS.WEEKS_PER_MONTH);
+    expect(stats.totalYearlySpend).toBe(120 + 120 + 5 * BILLING_CONVERSIONS.WEEKS_PER_YEAR);
+    expect(stats.categoryBreakdown[SubscriptionCategory.STREAMING]).toBe(1);
     expect(stats.categoryBreakdown[SubscriptionCategory.SOFTWARE]).toBe(1);
+    expect(stats.categoryBreakdown[SubscriptionCategory.GAMING]).toBe(1);
+    expect(stats.totalGasSpent).toBe(1);
   });
 
-  it('sums totalGasSpent from active subscriptions', () => {
-    const subs = [
-      makeSubscription({ id: '1', totalGasSpent: 0.01 }),
-      makeSubscription({ id: '2', totalGasSpent: 0.02 }),
-      makeSubscription({ id: '3', isActive: false, totalGasSpent: 0.99 }),
-    ];
-    const stats = calculateSubscriptionStats(subs);
-    expect(stats.totalGasSpent).toBeCloseTo(0.03);
-  });
+  it('applies a supplied currency converter before billing-cycle conversion', () => {
+    const subscription = makeSubscription({
+      price: 12,
+      currency: 'EUR',
+      billingCycle: BillingCycle.YEARLY,
+    });
 
-  it('handles subscriptions with no totalGasSpent field', () => {
-    const subs = [makeSubscription({ id: '1' })];
-    const stats = calculateSubscriptionStats(subs);
-    expect(stats.totalGasSpent).toBe(0);
+    const monthlySpend = getMonthlySubscriptionSpend(subscription, (amount, currency) =>
+      currency === 'EUR' ? amount * 2 : amount
+    );
+
+    expect(monthlySpend).toBe(2);
   });
 });

@@ -107,7 +107,10 @@ pub(crate) fn set_chain_config(env: &Env, config: ChainTimeoutConfig) {
         config.timeout_secs > 0 && config.timeout_secs <= MAX_TIMEOUT_SECS,
         "timeout_secs out of range"
     );
-    assert!(config.max_recovery_attempts <= MAX_RECOVERY_ATTEMPTS, "max_recovery_attempts exceeds cap");
+    assert!(
+        config.max_recovery_attempts <= MAX_RECOVERY_ATTEMPTS,
+        "max_recovery_attempts exceeds cap"
+    );
     put(env, TimeoutStoreKey::ChainConfig(config.chain_id), config);
 }
 
@@ -261,12 +264,7 @@ pub(crate) fn attempt_recovery(
             String::from_str(env, "payment_recovery_attempt"),
             record.subscription_id,
         ),
-        (
-            charge_id,
-            record.recovery_attempts,
-            effective_gas,
-            now,
-        ),
+        (charge_id, record.recovery_attempts, effective_gas, now),
     );
 
     Some(record)
@@ -297,7 +295,11 @@ pub(crate) fn mark_resolved(env: &Env, charge_id: u64) -> Option<PaymentTimeout>
 
 /// Manual retry requested by a user.  Validates that the transaction is in a
 /// retryable state and bumps the recovery attempt counter.
-pub(crate) fn manual_retry(env: &Env, charge_id: u64, new_gas_price: u64) -> Option<PaymentTimeout> {
+pub(crate) fn manual_retry(
+    env: &Env,
+    charge_id: u64,
+    new_gas_price: u64,
+) -> Option<PaymentTimeout> {
     let record: PaymentTimeout = get(env, TimeoutStoreKey::Record(charge_id))?;
 
     // Allow manual retry from any non-terminal state.

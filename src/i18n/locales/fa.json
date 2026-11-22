@@ -1,0 +1,45 @@
+{
+  "common": {
+    "dashboard": "داشبورد",
+    "subscriptions": "اشتراک‌ها",
+    "analytics": "تحلیل و آمار",
+    "settings": "تنظیمات",
+    "cancel": "انصراف",
+    "save": "ذخیره",
+    "delete": "حذف",
+    "edit": "ویرایش",
+    "add": "افزودن"
+  },
+  "subscription": {
+    "title": "مدیریت اشتراک‌ها",
+    "price": "قیمت",
+    "billingCycle": "دوره صورتحساب",
+    "nextBilling": "تاریخ پرداخت بعدی",
+    "active": "فعال",
+    "paused": "متوقف شده",
+    "cancelled": "لغو شده"
+  },
+  "rtl": {
+    "direction": "rtl",
+    "languageName": "فارسی"
+  },
+  "status": {
+    "banner_title": "وضعیت سرویس",
+    "operational": "همه سامانهها بهطور عادی کار میکنند",
+    "degraded": "برخی سرویسها کندتر از حد معمول هستند",
+    "outage": "ما با قطعی سرویس مواجه هستیم",
+    "affected": "تحت تأثیر: {{provider}}",
+    "updated": "بهروزرسانی {{date}}",
+    "retry": "دوباره امتحان کنید",
+    "dismiss": "بستن"
+  },
+  "renewal": {
+    "title": "بررسی تمدید خودکار",
+    "checking": "در حال بررسی تمدید شما…",
+    "safe": "اشتراک شما طبق برنامه تمدید خواهد شد",
+    "risky": "پیشنهاد میکنیم روش پرداخت خود را بررسی کنید",
+    "deferred": "تمدید به {{date}} موکول شد",
+    "count_one": "{{count}} تمدید در انتظار است",
+    "count_other": "{{count}} تمدید در انتظار است"
+  }
+}

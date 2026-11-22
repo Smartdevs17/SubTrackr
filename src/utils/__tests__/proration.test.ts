@@ -5,6 +5,7 @@ import {
   generateCreditMemo,
   applyCreditMemo,
   calculateNetProration,
+  calculateMidCycleProration,
   getPeriodDays,
   getRemainingDays,
 } from '../proration';
@@ -135,5 +136,41 @@ describe('calculateNetProration', () => {
       { oldPrice: 30, newPrice: 20, effectiveDate: 'immediate' },
     ]);
     expect(result.amount).toBe(0);
+  });
+
+  it('computes a mid-cycle upgrade based on exact remaining days', () => {
+    const sub = makeSub({
+      price: 30,
+      nextBillingDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000),
+    });
+
+    const result = calculateMidCycleProration(
+      sub,
+      60,
+      new Date(Date.now() + 5 * 24 * 60 * 60 * 1000)
+    );
+
+    expect(result.effectiveDate).toBe('immediate');
+    expect(result.isCredit).toBe(false);
+    expect(result.amount).toBeGreaterThan(0);
+    expect(result.remainingDays).toBeGreaterThan(0);
+    expect(result.periodDays).toBe(30);
+  });
+
+  it('tracks a downgrade as a credit for the unused portion of the cycle', () => {
+    const sub = makeSub({
+      price: 60,
+      nextBillingDate: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000),
+    });
+
+    const result = calculateMidCycleProration(
+      sub,
+      30,
+      new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
+    );
+
+    expect(result.isCredit).toBe(true);
+    expect(result.amount).toBeGreaterThan(0);
+    expect(result.description).toContain('credit');
   });
 });
