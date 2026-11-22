@@ -1,0 +1,15 @@
+[package]
+name = "subtrackr-storage-core"
+version = "0.1.0"
+edition = "2021"
+authors = ["SubTrackr Team"]
+description = "Reusable storage access and TTL helpers for SubTrackr Soroban contracts"
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+soroban-sdk = { workspace = true }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }

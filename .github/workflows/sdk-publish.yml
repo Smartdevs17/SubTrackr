@@ -7,6 +7,10 @@ on:
     paths:
       - 'developer-portal/docs/openapi.json'
       - 'sdks/**'
+      - 'scripts/publish-sdks.js'
+    tags:
+      - 'sdk-v*'
+  workflow_dispatch:
 
 jobs:
   validate-and-build:
@@ -52,3 +56,26 @@ jobs:
         run: |
           cd sdks/go
           go test ./... || true
+
+  publish:
+    name: Publish SDKs
+    if: startsWith(github.ref, 'refs/tags/sdk-v')
+    needs: validate-and-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Generate SDK metadata
+        run: npm run sdk:generate
+
+      - name: Publish SDKs
+        run: node scripts/publish-sdks.js --version "${GITHUB_REF_NAME}" --publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

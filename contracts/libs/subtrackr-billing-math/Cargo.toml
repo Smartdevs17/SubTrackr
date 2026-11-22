@@ -1,0 +1,9 @@
+[package]
+name = "subtrackr-billing-math"
+version = "0.1.0"
+edition = "2021"
+authors = ["SubTrackr Team"]
+description = "Reusable proration and billing arithmetic for SubTrackr Soroban contracts"
+
+[lib]
+crate-type = ["rlib"]
