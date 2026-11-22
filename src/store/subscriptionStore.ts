@@ -1,28 +1,54 @@
 ﻿import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import { debouncedAsyncStorageAdapter } from '../utils/storage';
+import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Subscription, // eslint-disable-line
   SubscriptionFormData,
   SubscriptionStats,
   SubscriptionCategory, // eslint-disable-line
   BillingCycle, // eslint-disable-line
-  SubscriptionLifecycleStatus,
+  SubscriptionLifecycleEvent,
+  SubscriptionLifecycleEventType,
 } from '../types/subscription';
+import { createLifecycleEvent, sortLifecycleHistory } from '../utils/lifecycleHistory';
+import {
+  CreditAccountState,
+  CreditApplicationResult,
+  CreditPolicy,
+  CreditPurchaseInput,
+  CreditTransferInput,
+} from '../types/credit';
+import {
+  DEFAULT_PAUSE_LIMITS,
+  PauseLimits,
+  PauseReason,
+  PauseState,
+  PauseValidationResult,
+  type PauseRecord,
+} from '../types/pause';
+import { InvoiceStatus, isOpenInvoice } from '../types/invoice';
 import { dummySubscriptions } from '../utils/dummyData'; // eslint-disable-line
-import { advanceBillingDate } from '../utils/billingDate';
+import { advanceBillingDate, calculateNextBillingDate } from '../utils/billingDate';
 import { buildBillingPeriod } from '../utils/invoice';
-import { BILLING_CONVERSIONS, CACHE_CONSTANTS } from '../utils/constants/values';
+import { CACHE_CONSTANTS } from '../utils/constants/values';
+import { monthlyEquivalent, yearlyEquivalent } from '../utils/billingCycleMath';
 import {
   syncRenewalReminders,
   presentChargeSuccessNotification,
   presentChargeFailedNotification,
+  presentLocalNotification,
   presentDunningRetryNotification,
   presentDunningWarningNotification,
   presentDunningSuspendedNotification,
   presentDunningCancelledNotification,
   presentDunningRecoveryNotification,
 } from '../services/notificationService';
+import {
+  notifySubscriptionEvent,
+  SUBSCRIPTION_EVENT,
+} from '../services/subscriptionEventNotifications';
+import { SubscriptionCRDT, type SubscriptionMetadata } from '../services/cache/crdt';
+import { networkMonitor } from '../services/network/networkMonitor';
 import { useCalendarStore } from './calendarStore';
 import { useGamificationStore } from './gamificationStore';
 import { useInvoiceStore } from './invoiceStore';
@@ -34,15 +60,33 @@ import { useSupportStore } from './supportStore';
 import { buildSupportEventMessage } from '../services/ticketingService';
 import { SubscriptionSupportContext, TicketIssueType } from '../types/support';
 import {
+  applyCreditToInvoice,
+  buildCreditAccount,
+  expireCredits,
+  normalizeCreditAccount,
+  purchaseCredit,
+  transferCredit,
+} from '../services/creditService';
+import { useUserStore } from './userStore';
+import {
   previewProration,
   generateCreditMemo,
   applyCreditMemo,
   ProrationPreview,
   CreditMemo,
+  getPeriodDays,
 } from '../utils/proration';
+import {
+  calculateEarlyResumeCredit,
+  calculatePauseCredit,
+  resumePause,
+  validatePauseRequest,
+} from './pauseStore';
+
+export type { PauseRecord } from '../types/pause';
 
 const STORAGE_KEY = 'subtrackr-subscriptions';
-const STORE_VERSION = 1;
+const STORE_VERSION = 2;
 const WRITE_DEBOUNCE_MS = CACHE_CONSTANTS.WRITE_DEBOUNCE_MS;
 
 /**
@@ -55,6 +99,39 @@ const generateUniqueId = (): string => {
   return `${timestamp}-${randomComponent}`;
 };
 
+export type SubscriptionSyncStatus = 'idle' | 'pending' | 'syncing' | 'conflict' | 'error';
+
+type PersistedSubscriptionSlice = Pick<
+  SubscriptionState,
+  'subscriptions' | 'creditAccounts' | 'pauseHistory' | 'crdtMetadata' | 'lifecycleHistory'
+>;
+
+function stampCrdtMetadata(
+  metadata: Record<string, SubscriptionMetadata>,
+  sub: Subscription,
+  updates?: Partial<Subscription>
+): Record<string, SubscriptionMetadata> {
+  const now = Date.now();
+  const current = metadata[sub.id];
+  return {
+    ...metadata,
+    [sub.id]: current
+      ? SubscriptionCRDT.updateMetadata(current, updates ?? sub, now)
+      : SubscriptionCRDT.createMetadata(sub, now),
+  };
+}
+
+function tombstoneCrdtMetadata(
+  metadata: Record<string, SubscriptionMetadata>,
+  id: string
+): Record<string, SubscriptionMetadata> {
+  const current = metadata[id] ?? { timestamps: {} };
+  return {
+    ...metadata,
+    [id]: { ...current, deletedAt: Date.now() },
+  };
+}
+
 const toValidDate = (value: unknown, fallback = new Date()): Date => {
   if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
   if (typeof value === 'string' || typeof value === 'number') {
@@ -66,49 +143,46 @@ const toValidDate = (value: unknown, fallback = new Date()): Date => {
 
 const normalizeSubscription = (raw: Partial<Subscription>): Subscription => {
   const now = new Date();
-  const status = raw.status ?? (raw.isActive === false ? SubscriptionLifecycleStatus.PAUSED : SubscriptionLifecycleStatus.ACTIVE);
   return {
     id: raw.id ?? generateUniqueId(),
     name: raw.name ?? 'Untitled',
     description: raw.description,
-    iconUrl: raw.iconUrl,
     category: raw.category ?? SubscriptionCategory.OTHER,
     price: Number.isFinite(raw.price) ? (raw.price as number) : 0,
     currency: raw.currency ?? 'USD',
     billingCycle: raw.billingCycle ?? BillingCycle.MONTHLY,
     nextBillingDate: toValidDate(raw.nextBillingDate, now),
-    isActive: raw.isActive ?? status === SubscriptionLifecycleStatus.ACTIVE,
-    status,
-    pausedAt: raw.pausedAt ? toValidDate(raw.pausedAt, now) : undefined,
-    pauseResumeAt: raw.pauseResumeAt ? toValidDate(raw.pauseResumeAt, now) : undefined,
-    pauseDurationDays: raw.pauseDurationDays,
-    pauseReason: raw.pauseReason,
-    pauseStateSnapshot: raw.pauseStateSnapshot
-      ? {
-          nextBillingDate: toValidDate(raw.pauseStateSnapshot.nextBillingDate, now),
-          notificationsEnabled: raw.pauseStateSnapshot.notificationsEnabled ?? true,
-          isActive: raw.pauseStateSnapshot.isActive ?? true,
-          capturedAt: toValidDate(raw.pauseStateSnapshot.capturedAt, now),
-        }
-      : undefined,
+    isActive: raw.isActive ?? true,
     notificationsEnabled: raw.notificationsEnabled ?? true,
     isCryptoEnabled: raw.isCryptoEnabled ?? false,
     cryptoStreamId: raw.cryptoStreamId,
     cryptoToken: raw.cryptoToken,
     cryptoAmount: raw.cryptoAmount,
-    gasBudget: raw.gasBudget,
-    totalGasSpent: raw.totalGasSpent,
-    chargeCount: raw.chargeCount,
-    lastGasCost: raw.lastGasCost,
-    fiatPrice: raw.fiatPrice,
-    fiatCurrency: raw.fiatCurrency,
-    fiatPriceUpdatedAt: raw.fiatPriceUpdatedAt ? toValidDate(raw.fiatPriceUpdatedAt, now) : undefined,
-    oraclePriceDeviationBps: raw.oraclePriceDeviationBps,
-    groupId: raw.groupId,
-    groupMemberAddress: raw.groupMemberAddress,
-    timezone: raw.timezone,
     createdAt: toValidDate(raw.createdAt, now),
     updatedAt: toValidDate(raw.updatedAt, now),
+  };
+};
+
+const getDefaultAccountId = (): string => {
+  const { user } = useUserStore.getState();
+  return user?.id ?? user?.email ?? 'local-user';
+};
+
+const getDefaultCurrency = (): string => {
+  const { preferredCurrency } = useSettingsStore.getState();
+  return preferredCurrency ?? 'USD';
+};
+
+const ensureCreditAccount = (
+  accounts: Record<string, CreditAccountState>,
+  accountId: string,
+  currency = getDefaultCurrency(),
+  policy?: Partial<CreditPolicy>
+): Record<string, CreditAccountState> => {
+  if (accounts[accountId]) return accounts;
+  return {
+    ...accounts,
+    [accountId]: buildCreditAccount(accountId, currency, policy),
   };
 };
 
@@ -150,39 +224,253 @@ const createSupportEvent = (
   };
 };
 
-// Debounced writes are provided by the shared debouncedAsyncStorageAdapter
-// (see src/utils/storage.ts). This removes the copy-pasted boilerplate.
+const applyCreditsAcrossOpenInvoices = async (
+  state: SubscriptionState,
+  accountId: string,
+  subscriptionId?: string
+): Promise<{ applications: CreditApplicationResult[]; account: CreditAccountState }> => {
+  const invoiceStore = useInvoiceStore.getState();
+  const account =
+    state.creditAccounts[accountId] ?? buildCreditAccount(accountId, getDefaultCurrency());
+  if (!subscriptionId) {
+    return {
+      applications: [],
+      account,
+    };
+  }
+  const openInvoices = invoiceStore.invoices
+    .filter((invoice) => invoice.subscriptionId === subscriptionId && isOpenInvoice(invoice.status))
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
-export type ProrationEffectiveType = 'immediate' | 'end_of_period' | 'custom_date';
+  let workingAccount = account;
+  const applications: CreditApplicationResult[] = [];
 
-export interface SubscriptionChange {
-  id: string;
-  subscriptionId: string;
-  fromPrice: number;
-  toPrice: number;
-  effectiveType: ProrationEffectiveType;
-  status: 'pending' | 'executed' | 'rejected';
-  proration: ProrationPreview;
-  createdAt: Date;
-  newPlanData: Partial<Subscription>;
-}
+  for (const invoice of openInvoices) {
+    if (workingAccount.balance <= 0) break;
 
-interface SubscriptionState {
+    const result = applyCreditToInvoice(workingAccount, {
+      invoiceId: invoice.id,
+      subscriptionId,
+      invoiceTotal: invoice.total,
+      currency: invoice.currency,
+      reference: `auto-apply:${invoice.invoiceNumber}`,
+      note: 'Auto-applied to open invoice',
+      expectedRevision: workingAccount.revision,
+    });
+
+    if (!result.application || result.appliedAmount <= 0) continue;
+
+    workingAccount = result.account;
+    applications.push(result);
+    await invoiceStore.updateInvoiceStatus(
+      invoice.id,
+      result.remainingDue > 0 ? InvoiceStatus.PARTIAL : InvoiceStatus.PAID
+    );
+  }
+
+  return {
+    applications,
+    account: workingAccount,
+  };
+};
+
+const serializeForStorage = (state: PersistedSubscriptionSlice): PersistedSubscriptionSlice => ({
+  subscriptions: state.subscriptions.map((sub) => ({
+    ...sub,
+    nextBillingDate: new Date(sub.nextBillingDate),
+    createdAt: new Date(sub.createdAt),
+    updatedAt: new Date(sub.updatedAt),
+  })),
+  creditAccounts: Object.fromEntries(
+    Object.entries(state.creditAccounts ?? {}).map(([accountId, account]) => [
+      accountId,
+      {
+        ...account,
+        nextExpirationAt: account.nextExpirationAt ? new Date(account.nextExpirationAt) : null,
+        lots: account.lots.map((lot) => ({
+          ...lot,
+          createdAt: new Date(lot.createdAt),
+          expiresAt: lot.expiresAt ? new Date(lot.expiresAt) : null,
+        })),
+        ledger: account.ledger.map((entry) => ({
+          ...entry,
+          createdAt: new Date(entry.createdAt),
+          expiresAt: entry.expiresAt ? new Date(entry.expiresAt) : null,
+        })),
+        applications: account.applications.map((entry) => ({
+          ...entry,
+          createdAt: new Date(entry.createdAt),
+        })),
+      },
+    ])
+  ) as Record<string, CreditAccountState>,
+  pauseHistory: (state.pauseHistory ?? []).map((record) => ({
+    ...record,
+    pausedAt: new Date(record.pausedAt),
+    scheduledResumeAt: new Date(record.scheduledResumeAt),
+    resumedAt: record.resumedAt ? new Date(record.resumedAt) : undefined,
+    plannedResumeDate: record.plannedResumeDate ? new Date(record.plannedResumeDate) : undefined,
+    resumeAt: record.resumeAt ? new Date(record.resumeAt) : undefined,
+  })),
+  lifecycleHistory: (state.lifecycleHistory ?? []).map((event) => ({
+    ...event,
+    occurredAt: new Date(event.occurredAt),
+  })),
+  crdtMetadata: state.crdtMetadata ?? {},
+});
+
+const migratePersistedState = (
+  persisted: unknown,
+  _version: number
+): PersistedSubscriptionSlice => {
+  if (!persisted || typeof persisted !== 'object') {
+    return {
+      subscriptions: [],
+      creditAccounts: {},
+      pauseHistory: [],
+      lifecycleHistory: [],
+      crdtMetadata: {},
+    };
+  }
+
+  const maybeState = persisted as Partial<PersistedSubscriptionSlice>;
+  const subscriptions = Array.isArray(maybeState.subscriptions)
+    ? maybeState.subscriptions.map((entry) => normalizeSubscription(entry as Partial<Subscription>))
+    : [];
+  const creditAccounts =
+    maybeState.creditAccounts && typeof maybeState.creditAccounts === 'object'
+      ? Object.entries(maybeState.creditAccounts as Record<string, CreditAccountState>).reduce<
+          Record<string, CreditAccountState>
+        >((acc, [accountId, account]) => {
+          acc[accountId] = normalizeCreditAccount({
+            ...account,
+            accountId,
+          });
+          return acc;
+        }, {})
+      : {};
+  const pauseHistory = Array.isArray(maybeState.pauseHistory)
+    ? maybeState.pauseHistory.map((entry) => ({
+        ...entry,
+        pausedAt: toValidDate(entry.pausedAt, new Date()),
+        scheduledResumeAt: toValidDate(entry.scheduledResumeAt, new Date()),
+        resumedAt: entry.resumedAt ? toValidDate(entry.resumedAt, new Date()) : undefined,
+        plannedResumeDate: entry.plannedResumeDate
+          ? toValidDate(entry.plannedResumeDate, new Date())
+          : undefined,
+        resumeAt: entry.resumeAt ? toValidDate(entry.resumeAt, new Date()) : undefined,
+      }))
+    : [];
+
+  const crdtMetadata =
+    maybeState.crdtMetadata && typeof maybeState.crdtMetadata === 'object'
+      ? maybeState.crdtMetadata
+      : {};
+
+  const lifecycleHistory = Array.isArray(maybeState.lifecycleHistory)
+    ? maybeState.lifecycleHistory.map((event) => ({
+        ...event,
+        occurredAt: toValidDate(event.occurredAt, new Date()),
+      }))
+    : [];
+
+  return { subscriptions, creditAccounts, pauseHistory, lifecycleHistory, crdtMetadata };
+};
+
+const pendingWrites = new Map<string, string>();
+let writeTimer: ReturnType<typeof setTimeout> | null = null;
+let writeQueue = Promise.resolve();
+
+const flushPendingWrites = async (): Promise<void> => {
+  if (pendingWrites.size === 0) return;
+
+  const writes = Array.from(pendingWrites.entries());
+  pendingWrites.clear();
+
+  writeQueue = writeQueue.then(async () => {
+    await Promise.all(writes.map(([key, value]) => AsyncStorage.setItem(key, value)));
+  });
+
+  try {
+    await writeQueue;
+  } catch (error) {
+    console.warn('Failed to persist subscriptions:', error);
+  }
+};
+
+const debouncedAsyncStorage: StateStorage = {
+  getItem: async (name) => {
+    if (pendingWrites.has(name)) return pendingWrites.get(name) ?? null;
+    await writeQueue;
+    return AsyncStorage.getItem(name);
+  },
+  setItem: async (name, value) => {
+    pendingWrites.set(name, value);
+    if (writeTimer) clearTimeout(writeTimer);
+    writeTimer = setTimeout(() => {
+      void flushPendingWrites();
+    }, WRITE_DEBOUNCE_MS);
+  },
+  removeItem: async (name) => {
+    pendingWrites.delete(name);
+    if (writeTimer && pendingWrites.size === 0) {
+      clearTimeout(writeTimer);
+      writeTimer = null;
+    }
+    await writeQueue;
+    await AsyncStorage.removeItem(name);
+  },
+};
+
+export interface SubscriptionState {
   subscriptions: Subscription[];
+  creditAccounts: Record<string, CreditAccountState>;
+  pauseHistory: PauseRecord[];
+  /** Timestamped record of plan/subscription state transitions. */
+  lifecycleHistory: SubscriptionLifecycleEvent[];
   stats: SubscriptionStats;
   isLoading: boolean;
   error: AppError | null;
   prorationPreview: ProrationPreview | null;
   creditMemos: Record<string, CreditMemo>;
-  planChanges: SubscriptionChange[];
+  
 
   // Actions
+  pauseSubscription: (
+    subscriptionOrId: string | Subscription,
+    pauseDays: number,
+    reason?: PauseReason | string,
+    limits?: PauseLimits,
+    note?: string
+  ) => PauseRecord;
+  resumeSubscription: (id: string, early?: boolean) => PauseRecord | null;
+  getPauseHistory: (subscriptionId?: string) => PauseRecord[];
+  getActivePause: (subscriptionId: string) => PauseRecord | undefined;
+  /** Record a timestamped lifecycle transition for a subscription. */
+  recordLifecycleEvent: (
+    subscriptionId: string,
+    type: SubscriptionLifecycleEventType,
+    details?: string
+  ) => SubscriptionLifecycleEvent;
+  /** Timestamped lifecycle events for a subscription (newest first). Omit the id for all events. */
+  getLifecycleHistory: (subscriptionId?: string) => SubscriptionLifecycleEvent[];
   addSubscription: (data: SubscriptionFormData) => Promise<void>;
+  addFromTemplate: (
+    callerId: string,
+    templateId: string,
+    overrides?: import('../types/planTemplate').TemplateOverrides,
+    extraData?: Partial<SubscriptionFormData>
+  ) => Promise<import('../types/planTemplate').ResolvedPlan>;
   updateSubscription: (id: string, data: Partial<Subscription>) => Promise<void>;
   deleteSubscription: (id: string) => Promise<void>;
   toggleSubscriptionStatus: (id: string) => Promise<void>;
   pauseSubscription: (id: string, opts?: { durationDays?: number; reason?: string; resumeAt?: Date }) => Promise<void>;
   resumeSubscription: (id: string) => Promise<void>;
+  reassignCategory: (fromCategoryId: string, toCategoryId: string) => Promise<void>;
+  previewPauseAdjustment: (
+    id: string,
+    resumeDate?: Date
+  ) => { adjustedNextBillingDate: Date; elapsedPauseDays: number; creditAmount: number };
   // new actions added
   previewPlanChange: (
     id: string,
@@ -197,60 +485,34 @@ interface SubscriptionState {
   applyCreditToSubscription: (id: string) => Promise<void>;
   /** Simulate or record a billing result (fires local notifications when enabled for this sub). */
   recordBillingOutcome: (id: string, outcome: 'success' | 'failed') => Promise<void>;
+  getCreditAccount: (accountId?: string) => CreditAccountState;
+  setCreditPolicy: (policy: Partial<CreditPolicy>, accountId?: string) => Promise<void>;
+  purchaseCredit: (input: CreditPurchaseInput, accountId?: string) => Promise<void>;
+  transferCredit: (
+    input: CreditTransferInput,
+    recipientAccountId: string,
+    accountId?: string
+  ) => Promise<void>;
+  applyCreditToInvoice: (
+    invoiceId: string,
+    subscriptionId: string,
+    accountId?: string
+  ) => Promise<CreditApplicationResult | null>;
+  expireCredits: (accountId?: string) => Promise<void>;
   fetchSubscriptions: () => Promise<void>;
   calculateStats: () => void;
-  queuePlanChange: (
-    id: string,
-    newPlanData: Partial<Subscription>,
-    effectiveDate: ProrationEffectiveType
-  ) => void;
-  approvePlanChange: (changeId: string) => Promise<void>;
-  rejectPlanChange: (changeId: string) => void;
-  getChangeHistory: (subscriptionId: string) => SubscriptionChange[];
+  syncStatus: SubscriptionSyncStatus;
+  crdtMetadata: Record<string, SubscriptionMetadata>;
+  syncWithServer: () => Promise<void>;
 }
-
-type PersistedSubscriptionSlice = Pick<SubscriptionState, 'subscriptions' | 'planChanges'>;
-
-const serializeForStorage = (state: PersistedSubscriptionSlice): PersistedSubscriptionSlice => ({
-  subscriptions: (state.subscriptions || []).map((sub) => ({
-    ...sub,
-    nextBillingDate: new Date(sub.nextBillingDate),
-    createdAt: new Date(sub.createdAt),
-    updatedAt: new Date(sub.updatedAt),
-  })),
-  planChanges: (state.planChanges || []).map((change) => ({
-    ...change,
-    createdAt: new Date(change.createdAt),
-  })),
-});
-
-const migratePersistedState = (
-  persisted: unknown,
-  _version: number
-): PersistedSubscriptionSlice => {
-  if (!persisted || typeof persisted !== 'object') {
-    return { subscriptions: [], planChanges: [] };
-  }
-
-  const maybeState = persisted as Partial<PersistedSubscriptionSlice>;
-  const subscriptions = Array.isArray(maybeState.subscriptions)
-    ? maybeState.subscriptions.map((entry) => normalizeSubscription(entry as Partial<Subscription>))
-    : [];
-
-  const planChanges = Array.isArray(maybeState.planChanges)
-    ? maybeState.planChanges.map((entry) => ({
-        ...entry,
-        createdAt: new Date(entry.createdAt),
-      }))
-    : [];
-
-  return { subscriptions, planChanges };
-};
 
 export const useSubscriptionStore = create<SubscriptionState>()(
   persist(
     (set, get) => ({
       subscriptions: dummySubscriptions,
+      creditAccounts: {},
+      pauseHistory: [],
+      lifecycleHistory: [],
       stats: {
         totalActive: 0,
         totalMonthlySpend: 0,
@@ -261,7 +523,165 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       error: null,
       prorationPreview: null,
       creditMemos: {},
-      planChanges: [],
+
+      reassignCategory: async (fromCategoryId: string, toCategoryId: string) => {
+  set({ isLoading: true, error: null });
+  try {
+    set((state) => ({
+      subscriptions: state.subscriptions.map((sub) =>
+        sub.category === fromCategoryId
+          ? { ...sub, category: toCategoryId, updatedAt: new Date() }
+          : sub
+      ),
+      isLoading: false,
+    }));
+
+    get().calculateStats();
+    await syncRenewalReminders(get().subscriptions);
+  } catch (error) {
+    const appError = errorHandler.handleError(error as Error, {
+      action: 'reassignCategory',
+      metadata: { fromCategoryId, toCategoryId },
+    });
+    set({ error: appError, isLoading: false });
+  }
+},
+      
+      syncStatus: 'idle' as SubscriptionSyncStatus,
+      crdtMetadata: {},
+
+      pauseSubscription: (
+        subscriptionOrId,
+        pauseDays,
+        reason = PauseReason.OTHER,
+        limits = DEFAULT_PAUSE_LIMITS,
+        note
+      ) => {
+        const subscription =
+          typeof subscriptionOrId === 'string'
+            ? get().subscriptions.find((sub) => sub.id === subscriptionOrId)
+            : subscriptionOrId;
+        if (!subscription) throw new Error('Subscription not found');
+
+        const validation = validatePauseRequest(
+          subscription.id,
+          pauseDays,
+          get().pauseHistory,
+          limits
+        ) as PauseValidationResult;
+        if (!validation.valid) {
+          throw new Error(validation.reason ?? 'Pause request validation failed.');
+        }
+
+        const creditAmount = calculatePauseCredit(subscription, pauseDays);
+        const now = new Date();
+        const scheduledResumeAt = new Date(now.getTime() + pauseDays * 24 * 60 * 60 * 1000);
+        const record: PauseRecord = {
+          id: generateUniqueId(),
+          subscriptionId: subscription.id,
+          state: PauseState.PAUSED,
+          reason: reason ?? PauseReason.OTHER,
+          note,
+          pausedAt: now,
+          scheduledResumeAt,
+          creditAmount,
+          currency: subscription.currency,
+          creditRemaining: creditAmount,
+          creditExpired: false,
+          creditExpiryDays: 90,
+          billingAdjustment: creditAmount,
+          plannedResumeDate: scheduledResumeAt,
+          status: 'active',
+        };
+
+        set((state) => ({
+          pauseHistory: [...state.pauseHistory, record],
+          subscriptions: state.subscriptions.map((sub) =>
+            sub.id === subscription.id ? { ...sub, isActive: false, updatedAt: now } : sub
+          ),
+        }));
+        get().calculateStats();
+        return record;
+      },
+
+      resumeSubscription: (id, early = false) => {
+        const activePause = get().pauseHistory.find(
+          (record) =>
+            record.subscriptionId === id &&
+            (record.state === PauseState.PAUSED || record.status === 'active')
+        );
+        if (!activePause) return null;
+
+        const resumed = resumePause(activePause, early);
+        const now = new Date();
+        const nextDays = Math.max(
+          1,
+          Math.ceil(
+            (new Date(activePause.scheduledResumeAt).getTime() -
+              new Date(activePause.pausedAt).getTime()) /
+              (1000 * 60 * 60 * 24)
+          )
+        );
+        const updatedRecord: PauseRecord = {
+          ...resumed,
+          resumedAt: now,
+          billingAdjustment: resumed.creditRemaining,
+          plannedResumeDate: activePause.scheduledResumeAt,
+          resumeAt: now,
+          status: 'resumed',
+          reason: activePause.reason,
+        };
+
+        set((state) => ({
+          pauseHistory: state.pauseHistory.map((record) =>
+            record.id === activePause.id ? updatedRecord : record
+          ),
+          subscriptions: state.subscriptions.map((sub) => {
+            if (sub.id !== id) return sub;
+            const shiftedNextBillingDate = new Date(
+              sub.nextBillingDate.getTime() + nextDays * 24 * 60 * 60 * 1000
+            );
+            return {
+              ...sub,
+              isActive: true,
+              nextBillingDate: shiftedNextBillingDate,
+              updatedAt: now,
+            };
+          }),
+        }));
+        get().calculateStats();
+        return updatedRecord;
+      },
+
+      getPauseHistory: (subscriptionId) => {
+        const history = get().pauseHistory;
+        if (!subscriptionId) return history;
+        return history.filter((record) => record.subscriptionId === subscriptionId);
+      },
+
+      getActivePause: (subscriptionId) =>
+        get().pauseHistory.find(
+          (record) =>
+            record.subscriptionId === subscriptionId &&
+            (record.state === PauseState.PAUSED || record.status === 'active')
+        ),
+
+      recordLifecycleEvent: (subscriptionId, type, details) => {
+        const event = createLifecycleEvent(subscriptionId, type, details);
+        set((state) => ({
+          lifecycleHistory: [...(state.lifecycleHistory ?? []), event],
+        }));
+        return event;
+      },
+
+      getLifecycleHistory: (subscriptionId) => {
+        const events = get().lifecycleHistory ?? [];
+        return sortLifecycleHistory(
+          subscriptionId
+            ? events.filter((event) => event.subscriptionId === subscriptionId)
+            : events
+        );
+      },
 
       previewPlanChange: (
         id: string,
@@ -290,21 +710,18 @@ export const useSubscriptionStore = create<SubscriptionState>()(
 
           const preview = previewProration(sub, newPlanData.price ?? sub.price, effectiveDate);
 
-          // Generate credit memo if downgrade
           const updatedCreditMemos = { ...get().creditMemos };
           if (preview.isCredit && preview.amount > 0) {
             const memo = generateCreditMemo(id, preview.amount, preview.description);
             updatedCreditMemos[id] = memo;
           }
 
-          // Update subscription
           const updates: Partial<Subscription> = {
             ...newPlanData,
             updatedAt: new Date(),
           };
 
           if (effectiveDate === 'immediate') {
-            // Reset billing cycle
             updates.nextBillingDate = advanceBillingDate(
               new Date(),
               newPlanData.billingCycle ?? sub.billingCycle
@@ -318,6 +735,11 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             isLoading: false,
           }));
 
+          get().recordLifecycleEvent(
+            id,
+            'plan_changed',
+            `${sub.price} ${sub.currency} → ${newPlanData.price ?? sub.price} ${sub.currency} (${effectiveDate})`
+          );
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
         } catch (error) {
@@ -343,66 +765,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           },
         }));
 
-        // Could trigger a reduced charge here
         console.log(`Applied credit: final charge ${finalCharge}`);
-      },
-
-      queuePlanChange: (
-        id: string,
-        newPlanData: Partial<Subscription>,
-        effectiveDate: ProrationEffectiveType
-      ) => {
-        const sub = get().subscriptions.find((s) => s.id === id);
-        if (!sub) throw new Error('Subscription not found');
-        const preview = previewProration(
-          sub,
-          newPlanData.price ?? sub.price,
-          effectiveDate === 'end_of_period' ? 'end_of_period' : 'immediate'
-        );
-        const change: SubscriptionChange = {
-          id: generateUniqueId(),
-          subscriptionId: id,
-          fromPrice: sub.price,
-          toPrice: newPlanData.price ?? sub.price,
-          effectiveType: effectiveDate,
-          status: 'pending',
-          proration: preview,
-          createdAt: new Date(),
-          newPlanData,
-        };
-        set((state) => ({
-          planChanges: [...(state.planChanges || []), change],
-        }));
-      },
-
-      approvePlanChange: async (changeId: string) => {
-        const change = (get().planChanges || []).find((c) => c.id === changeId);
-        if (!change) throw new Error('Change request not found');
-        if (change.status !== 'pending') throw new Error('Change request is not pending');
-
-        await get().executePlanChange(
-          change.subscriptionId,
-          change.newPlanData,
-          change.effectiveType === 'end_of_period' ? 'end_of_period' : 'immediate'
-        );
-
-        set((state) => ({
-          planChanges: (state.planChanges || []).map((c) =>
-            c.id === changeId ? { ...c, status: 'executed' } : c
-          ),
-        }));
-      },
-
-      rejectPlanChange: (changeId: string) => {
-        set((state) => ({
-          planChanges: (state.planChanges || []).map((c) =>
-            c.id === changeId ? { ...c, status: 'rejected' } : c
-          ),
-        }));
-      },
-
-      getChangeHistory: (subscriptionId: string) => {
-        return (get().planChanges || []).filter((c) => c.subscriptionId === subscriptionId);
       },
 
       addSubscription: async (data: SubscriptionFormData) => {
@@ -419,11 +782,19 @@ export const useSubscriptionStore = create<SubscriptionState>()(
 
           set((state) => ({
             subscriptions: [...state.subscriptions, newSubscription],
+            crdtMetadata: stampCrdtMetadata(state.crdtMetadata, newSubscription),
+            syncStatus: 'pending',
             isLoading: false,
           }));
 
+          get().recordLifecycleEvent(
+            newSubscription.id,
+            'created',
+            `${newSubscription.name} added`
+          );
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
+          await notifySubscriptionEvent(SUBSCRIPTION_EVENT.ADDED, newSubscription);
           await useCalendarStore.getState().syncSubscriptionToCalendars(newSubscription);
 
           // Gamification Triggers
@@ -447,19 +818,73 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         }
       },
 
+      addFromTemplate: async (callerId, templateId, overrides = {}, extraData = {}) => {
+        const { usePlanTemplateStore } = await import('./planTemplateStore');
+        const templateStore = usePlanTemplateStore.getState();
+
+        // Resolve template → concrete plan params
+        const resolved = templateStore.instantiate(callerId, templateId, overrides);
+
+        const formData: SubscriptionFormData = {
+          name: resolved.name,
+          description: resolved.description,
+          category: resolved.category,
+          price: resolved.price,
+          currency: resolved.currency,
+          billingCycle: resolved.billingCycle,
+          nextBillingDate: new Date(),
+          notificationsEnabled: true,
+          isCryptoEnabled: false,
+          ...extraData,
+        };
+
+        await get().addSubscription(formData);
+
+        // Record that a subscription was started against the template
+        templateStore.recordSubscription(templateId, resolved.price);
+
+        return resolved;
+      },
+
       updateSubscription: async (id: string, data: Partial<Subscription>) => {
         set({ isLoading: true, error: null });
         try {
-          set((state) => ({
-            subscriptions: state.subscriptions.map((sub) =>
+          const previous = get().subscriptions.find((sub) => sub.id === id);
+          set((state) => {
+            const next = state.subscriptions.map((sub) =>
               sub.id === id ? { ...sub, ...data, updatedAt: new Date() } : sub
-            ),
-            isLoading: false,
-          }));
+            );
+            const updated = next.find((sub) => sub.id === id);
+            return {
+              subscriptions: next,
+              crdtMetadata: updated
+                ? stampCrdtMetadata(state.crdtMetadata, updated, data)
+                : state.crdtMetadata,
+              syncStatus: 'pending' as SubscriptionSyncStatus,
+              isLoading: false,
+            };
+          });
 
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
           const updatedSubscription = get().subscriptions.find((sub) => sub.id === id);
+          if (
+            updatedSubscription &&
+            data.price !== undefined &&
+            previous &&
+            previous.price !== data.price
+          ) {
+            get().recordLifecycleEvent(
+              id,
+              'price_changed',
+              `${previous.price} ${updatedSubscription.currency} → ${data.price} ${updatedSubscription.currency}`
+            );
+            await notifySubscriptionEvent(SUBSCRIPTION_EVENT.PRICE_CHANGED, updatedSubscription, {
+              previousPrice: previous.price,
+            });
+          } else if (updatedSubscription) {
+            get().recordLifecycleEvent(id, 'updated');
+          }
           if (updatedSubscription) {
             await useCalendarStore.getState().syncSubscriptionToCalendars(updatedSubscription);
           }
@@ -493,11 +918,21 @@ export const useSubscriptionStore = create<SubscriptionState>()(
 
           set((state) => ({
             subscriptions: state.subscriptions.filter((sub) => sub.id !== id),
+            crdtMetadata: tombstoneCrdtMetadata(state.crdtMetadata, id),
+            syncStatus: 'pending',
             isLoading: false,
           }));
 
+          get().recordLifecycleEvent(
+            id,
+            'cancelled',
+            current ? `${current.name} removed` : undefined
+          );
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
+          if (current) {
+            await notifySubscriptionEvent(SUBSCRIPTION_EVENT.CANCELLED, current);
+          }
           await useCalendarStore.getState().removeSubscriptionFromCalendars(id);
         } catch (error) {
           const appError = errorHandler.handleError(error as Error, {
@@ -511,40 +946,119 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         }
       },
 
-      toggleSubscriptionStatus: async (id: string) => {
-        set({ isLoading: true, error: null });
-        try {
-          set((state) => ({
-            subscriptions: state.subscriptions.map((sub) =>
-              sub.id === id ? { ...sub, isActive: !sub.isActive, updatedAt: new Date() } : sub
-            ),
-            isLoading: false,
-          }));
+        toggleSubscriptionStatus: async (id: string) => {
+    const sub = get().subscriptions.find((s) => s.id === id);
+    if (!sub) return;
+    if ((sub as any).status === SubscriptionLifecycleStatus.PAUSED || sub.isPaused || !sub.isActive) {
+      await get().resumeSubscription(id);
+    } else {
+      await get().pauseSubscription(id);
+    }
+  },
 
-          get().calculateStats();
-          await syncRenewalReminders(get().subscriptions);
-          const updatedSubscription = get().subscriptions.find((sub) => sub.id === id);
-          if (updatedSubscription) {
-            await useCalendarStore.getState().syncSubscriptionToCalendars(updatedSubscription);
-          }
-        } catch (error) {
-          const appError = errorHandler.handleError(error as Error, {
-            action: 'toggleSubscriptionStatus',
-            subscriptionId: id,
-          });
-          set({
-            error: appError,
-            isLoading: false,
-          });
-        }
-      },
+  pauseSubscription: async (
+    id: string,
+    opts?: { durationDays?: number; reason?: string; resumeAt?: Date }
+  ) => {
+    set({ isLoading: true, error: null });
+    try {
+      const now = new Date();
+      const current = get().subscriptions.find((s) => s.id === id);
+      if (!current) throw new Error('Subscription not found');
+      const updatedSubscriptions = get().subscriptions.map((sub) =>
+        sub.id === id
+          ? ({
+              ...sub,
+              isActive: false,
+              isPaused: true,
+              status: SubscriptionLifecycleStatus.PAUSED,
+              pausedAt: now,
+              pausedUntil: opts?.resumeAt,
+              pauseDurationDays: opts?.durationDays,
+              pauseReason: opts?.reason,
+              pauseStateSnapshot: {
+                nextBillingDate: new Date(sub.nextBillingDate),
+                notificationsEnabled: sub.notificationsEnabled ?? true,
+                isActive: sub.isActive,
+                capturedAt: now,
+              },
+              updatedAt: now,
+            } as any)
+          : sub
+      );
+      const lifecycleHistory = appendLifecycleEvent(
+        get().lifecycleHistory,
+        id,
+        createLifecycleEvent(id, 'paused', {
+          description: `${current.name} paused`,
+          metadata: { source: 'pauseSubscription', reason: opts?.reason },
+        })
+      );
+      set({ subscriptions: updatedSubscriptions, lifecycleHistory, isLoading: false });
+      get().calculateStats();
+      await syncRenewalReminders(get().subscriptions);
+      const updated = get().subscriptions.find((s) => s.id === id);
+      if (updated) await useCalendarStore.getState().syncSubscriptionToCalendars(updated);
+    } catch (error) {
+      set({
+        error: errorHandler.handleError(error as Error, { action: 'pauseSubscription', subscriptionId: id }),
+        isLoading: false,
+      });
+    }
+  },
 
-      recordBillingOutcome: async (id: string, outcome: 'success' | 'failed') => {
+  resumeSubscription: async (id: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const now = new Date();
+      const current = get().subscriptions.find((s) => s.id === id);
+      if (!current) throw new Error('Subscription not found');
+      const updatedSubscriptions = get().subscriptions.map((sub) => {
+        if (sub.id !== id) return sub;
+        const snap = (sub as any).pauseStateSnapshot;
+        let nextBillingDate = snap?.nextBillingDate ? new Date(snap.nextBillingDate) : new Date(sub.nextBillingDate);
+        while (nextBillingDate.getTime() < now.getTime()) nextBillingDate = advanceBillingDate(nextBillingDate, sub.billingCycle);
+        return {
+          ...sub,
+          isActive: true,
+          isPaused: false,
+          status: SubscriptionLifecycleStatus.ACTIVE,
+          nextBillingDate,
+          notificationsEnabled: snap?.notificationsEnabled ?? sub.notificationsEnabled ?? true,
+          pausedAt: undefined,
+          pausedUntil: undefined,
+          pauseDurationDays: undefined,
+          pauseReason: undefined,
+          pauseStateSnapshot: undefined,
+          updatedAt: now,
+        } as any;
+      });
+      const lifecycleHistory = appendLifecycleEvent(
+        get().lifecycleHistory,
+        id,
+        createLifecycleEvent(id, 'resumed', { description: `${current.name} resumed`, metadata: { source: 'resumeSubscription' } })
+      );
+      set({ subscriptions: updatedSubscriptions, lifecycleHistory, isLoading: false });
+      get().calculateStats();
+      await syncRenewalReminders(get().subscriptions);
+      const updated = get().subscriptions.find((s) => s.id === id);
+      if (updated) await useCalendarStore.getState().syncSubscriptionToCalendars(updated);
+    } catch (error) {
+      set({
+        error: errorHandler.handleError(error as Error, { action: 'resumeSubscription', subscriptionId: id }),
+        isLoading: false,
+      });
+    }
+  },
+  recordBillingOutcome: async (id: string, outcome: 'success' | 'failed') => {
         const sub = get().subscriptions.find((s) => s.id === id);
         if (!sub) return;
+        const accountId = getDefaultAccountId();
 
         if (outcome === 'failed') {
-          const dunningEntries: Record<string, any> = {};
+          const dunningEntries = JSON.parse(
+            (await AsyncStorage.getItem('subtrackr-dunning-entries')) || '{}'
+          );
           const entry = dunningEntries[id];
           const attempt = (entry?.failedAttempts ?? 0) + 1;
 
@@ -554,6 +1068,8 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             currentStage:
               attempt <= 3 ? 'retry' : attempt <= 5 ? 'warn' : attempt <= 7 ? 'suspend' : 'cancel',
           };
+          await AsyncStorage.setItem('subtrackr-dunning-entries', JSON.stringify(dunningEntries));
+
           if (sub.notificationsEnabled !== false) {
             await presentChargeFailedNotification(sub);
             if (attempt <= 3) {
@@ -572,12 +1088,20 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         }
 
         if (outcome === 'success') {
-          if (sub.notificationsEnabled !== false) {
-            // recovery notification may be sent by dunning workflow in other stores
+          const hasDunningEntry = await AsyncStorage.getItem('subtrackr-dunning-entries');
+          if (hasDunningEntry) {
+            await AsyncStorage.removeItem('subtrackr-dunning-entries');
+            if (sub.notificationsEnabled !== false) {
+              await presentDunningRecoveryNotification(sub);
+            }
           }
           await presentChargeSuccessNotification(sub);
           const billingPeriod = buildBillingPeriod(sub);
-          const next = advanceBillingDate(new Date(sub.nextBillingDate), sub.billingCycle);
+          const next = calculateNextBillingDate(
+            new Date(sub.nextBillingDate),
+            sub.billingCycle,
+            sub.billingDayOfMonth
+          );
           const simulatedGas = 0.01 + Math.random() * 0.005; // Simulate 0.01 - 0.015 XLM gas
           set((state) => ({
             subscriptions: state.subscriptions.map((s) =>
@@ -601,7 +1125,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             await useCalendarStore.getState().syncSubscriptionToCalendars(updatedSubscription);
           }
 
-          await useInvoiceStore.getState().generateInvoiceFromSubscription(
+          const invoice = await useInvoiceStore.getState().generateInvoiceFromSubscription(
             {
               subscription: sub,
               period: billingPeriod,
@@ -611,6 +1135,13 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             },
             0
           );
+
+          const creditApplication = await get().applyCreditToInvoice(invoice.id, sub.id, accountId);
+          if (creditApplication?.remainingDue > 0) {
+            await useInvoiceStore.getState().updateInvoiceStatus(invoice.id, InvoiceStatus.PARTIAL);
+          } else if (creditApplication?.appliedAmount && creditApplication.appliedAmount > 0) {
+            await useInvoiceStore.getState().updateInvoiceStatus(invoice.id, InvoiceStatus.PAID);
+          }
         } else {
           useSupportStore
             .getState()
@@ -624,10 +1155,244 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         }
       },
 
+      getCreditAccount: (accountId) => {
+        const resolvedAccountId = accountId ?? getDefaultAccountId();
+        const accounts = get().creditAccounts;
+        return (
+          accounts[resolvedAccountId] ?? buildCreditAccount(resolvedAccountId, getDefaultCurrency())
+        );
+      },
+
+      setCreditPolicy: async (policy, accountId) => {
+        set({ isLoading: true, error: null });
+        try {
+          const resolvedAccountId = accountId ?? getDefaultAccountId();
+          set((state) => {
+            const accounts = ensureCreditAccount(state.creditAccounts, resolvedAccountId);
+            const current = accounts[resolvedAccountId];
+            return {
+              creditAccounts: {
+                ...accounts,
+                [resolvedAccountId]: {
+                  ...current,
+                  policy: {
+                    ...current.policy,
+                    ...policy,
+                  },
+                  revision: current.revision + 1,
+                },
+              },
+              isLoading: false,
+            };
+          });
+        } catch (error) {
+          set({
+            error: errorHandler.handleError(error as Error, {
+              action: 'setCreditPolicy',
+              metadata: { policy, accountId },
+            }),
+            isLoading: false,
+          });
+        }
+      },
+
+      purchaseCredit: async (input, accountId) => {
+        set({ isLoading: true, error: null });
+        try {
+          const resolvedAccountId = accountId ?? getDefaultAccountId();
+          set((state) => {
+            const accounts = ensureCreditAccount(state.creditAccounts, resolvedAccountId);
+            const current = accounts[resolvedAccountId];
+            const nextAccount = purchaseCredit(current, {
+              ...input,
+              currency: input.currency ?? current.currency,
+              expectedRevision: input.expectedRevision ?? current.revision,
+            });
+            return {
+              creditAccounts: {
+                ...accounts,
+                [resolvedAccountId]: nextAccount,
+              },
+              isLoading: false,
+            };
+          });
+
+          if (input.subscriptionId) {
+            const applied = await applyCreditsAcrossOpenInvoices(
+              get(),
+              resolvedAccountId,
+              input.subscriptionId
+            );
+            set((state) => ({
+              creditAccounts: {
+                ...state.creditAccounts,
+                [resolvedAccountId]: applied.account,
+              },
+            }));
+          }
+        } catch (error) {
+          set({
+            error: errorHandler.handleError(error as Error, {
+              action: 'purchaseCredit',
+              metadata: { input, accountId },
+            }),
+            isLoading: false,
+          });
+        }
+      },
+
+      transferCredit: async (input, recipientAccountId, accountId) => {
+        set({ isLoading: true, error: null });
+        try {
+          const sourceAccountId = accountId ?? getDefaultAccountId();
+          set((state) => {
+            const accounts = ensureCreditAccount(
+              ensureCreditAccount(state.creditAccounts, sourceAccountId),
+              recipientAccountId
+            );
+            const source = accounts[sourceAccountId];
+            const target = accounts[recipientAccountId];
+            const next = transferCredit(source, target, {
+              ...input,
+              currency: input.currency ?? source.currency,
+              expectedRevision: input.expectedRevision ?? source.revision,
+            });
+            return {
+              creditAccounts: {
+                ...accounts,
+                [sourceAccountId]: next.source,
+                [recipientAccountId]: next.target,
+              },
+              isLoading: false,
+            };
+          });
+        } catch (error) {
+          set({
+            error: errorHandler.handleError(error as Error, {
+              action: 'transferCredit',
+              metadata: { input, recipientAccountId, accountId },
+            }),
+            isLoading: false,
+          });
+        }
+      },
+
+      applyCreditToInvoice: async (invoiceId, subscriptionId, accountId) => {
+        const resolvedAccountId = accountId ?? getDefaultAccountId();
+        const invoices = useInvoiceStore.getState().invoices;
+        const invoice = invoices.find((entry) => entry.id === invoiceId);
+        if (!invoice) return null;
+
+        const state = get();
+        const accounts = ensureCreditAccount(state.creditAccounts, resolvedAccountId);
+        const current = accounts[resolvedAccountId];
+        const result = applyCreditToInvoice(current, {
+          invoiceId,
+          subscriptionId,
+          invoiceTotal: invoice.total,
+          currency: invoice.currency,
+          reference: `invoice:${invoice.invoiceNumber}`,
+          note: 'Manual or automatic credit application',
+          expectedRevision: current.revision,
+        });
+
+        if (!result.application || result.appliedAmount <= 0) return result;
+
+        set((currentState) => ({
+          creditAccounts: {
+            ...currentState.creditAccounts,
+            [resolvedAccountId]: result.account,
+          },
+        }));
+
+        await useInvoiceStore
+          .getState()
+          .updateInvoiceStatus(
+            invoice.id,
+            result.remainingDue > 0 ? InvoiceStatus.PARTIAL : InvoiceStatus.PAID
+          );
+
+        return result;
+      },
+
+      expireCredits: async (accountId) => {
+        set({ isLoading: true, error: null });
+        try {
+          const resolvedAccountId = accountId ?? getDefaultAccountId();
+          const state = get();
+          const accounts = ensureCreditAccount(state.creditAccounts, resolvedAccountId);
+          const current = accounts[resolvedAccountId];
+          const result = expireCredits(current);
+          set((currentState) => ({
+            creditAccounts: {
+              ...currentState.creditAccounts,
+              [resolvedAccountId]: result.account,
+            },
+            isLoading: false,
+          }));
+          if (result.notificationMessage) {
+            await presentLocalNotification({
+              title: 'Credits expired',
+              body: result.notificationMessage,
+              data: {
+                accountId: resolvedAccountId,
+                expiredAmount: result.expiredAmount,
+              },
+            });
+          }
+        } catch (error) {
+          set({
+            error: errorHandler.handleError(error as Error, {
+              action: 'expireCredits',
+              metadata: { accountId },
+            }),
+            isLoading: false,
+          });
+        }
+      },
+
+      syncWithServer: async () => {
+        if (!networkMonitor.isOnline()) {
+          set({ syncStatus: 'pending' });
+          return;
+        }
+
+        set({ syncStatus: 'syncing', error: null });
+        try {
+          const { subscriptions, crdtMetadata } = get();
+          const localState = {
+            subscriptions: Object.fromEntries(subscriptions.map((sub) => [sub.id, sub])),
+            metadata: crdtMetadata,
+          };
+          const merged = SubscriptionCRDT.merge(localState, localState);
+          const mergedList = Object.values(merged.subscriptions).map((sub) =>
+            normalizeSubscription(sub)
+          );
+
+          set({
+            subscriptions: mergedList.length > 0 ? mergedList : subscriptions,
+            crdtMetadata: merged.metadata,
+            syncStatus: 'idle',
+          });
+          get().calculateStats();
+        } catch (error) {
+          set({
+            syncStatus: 'error',
+            error: errorHandler.handleError(error as Error, {
+              action: 'syncWithServer',
+            }),
+          });
+          throw error;
+        }
+      },
+
       fetchSubscriptions: async () => {
         set({ isLoading: true, error: null });
         try {
           await new Promise((resolve) => setTimeout(resolve, 1000));
+          if (get().syncStatus === 'pending') {
+            await get().syncWithServer();
+          }
           set({ isLoading: false });
           get().calculateStats();
           await syncRenewalReminders(get().subscriptions);
@@ -670,11 +1435,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             preferredCurrency,
             rates
           );
-          if (sub.billingCycle === 'monthly') return total + priceInPreferred;
-          if (sub.billingCycle === 'yearly') return total + priceInPreferred / 12;
-          if (sub.billingCycle === 'weekly')
-            return total + priceInPreferred * BILLING_CONVERSIONS.WEEKS_PER_MONTH;
-          return total + priceInPreferred;
+          return total + monthlyEquivalent(priceInPreferred, sub.billingCycle);
         }, 0);
 
         const totalYearlySpend = activeSubs.reduce((total, sub) => {
@@ -684,12 +1445,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             preferredCurrency,
             rates
           );
-          if (sub.billingCycle === 'yearly') return total + priceInPreferred;
-          if (sub.billingCycle === 'monthly')
-            return total + priceInPreferred * BILLING_CONVERSIONS.MONTHS_PER_YEAR;
-          if (sub.billingCycle === 'weekly')
-            return total + priceInPreferred * BILLING_CONVERSIONS.WEEKS_PER_YEAR;
-          return total + priceInPreferred * BILLING_CONVERSIONS.MONTHS_PER_YEAR;
+          return total + yearlyEquivalent(priceInPreferred, sub.billingCycle);
         }, 0);
 
         const categoryBreakdown = activeSubs.reduce(
@@ -719,31 +1475,65 @@ export const useSubscriptionStore = create<SubscriptionState>()(
     {
       name: STORAGE_KEY,
       version: STORE_VERSION,
-      storage: createJSONStorage(() => debouncedAsyncStorageAdapter),
+      storage: createJSONStorage(() => debouncedAsyncStorage),
       partialize: (state) =>
-        serializeForStorage({ subscriptions: state.subscriptions, planChanges: state.planChanges }),
+        serializeForStorage({
+          subscriptions: state.subscriptions,
+          creditAccounts: state.creditAccounts,
+          pauseHistory: state.pauseHistory,
+          lifecycleHistory: state.lifecycleHistory,
+          crdtMetadata: state.crdtMetadata,
+        }),
       migrate: (persistedState, version) => migratePersistedState(persistedState, version),
       merge: (persistedState, currentState) => ({
         ...currentState,
         ...migratePersistedState(persistedState, STORE_VERSION),
       }),
-      onRehydrateStorage: () => (_state, error) => {
+      onRehydrateStorage: () => (state, error) => {
         if (error) {
-          console.warn('[subscriptionStore] Hydration error â€” resetting to defaults:', error);
           useSubscriptionStore.setState({
-            subscriptions: [],
-            planChanges: [],
+            error: errorHandler.createError(
+              new Error('Stored subscription data is corrupted. Loaded fallback data.'),
+              { action: 'rehydrateSubscriptions' },
+              true
+            ),
+            subscriptions: [...dummySubscriptions],
+            creditAccounts: {},
             isLoading: false,
-            error: null,
-            prorationPreview: null,
-            creditMemos: {},
           });
+          useSubscriptionStore.getState().calculateStats();
+          void syncRenewalReminders(useSubscriptionStore.getState().subscriptions);
+          return;
         }
+
+        const subscriptions = Array.isArray(state?.subscriptions)
+          ? state.subscriptions
+          : [...dummySubscriptions];
+        const creditAccounts =
+          state?.creditAccounts && typeof state.creditAccounts === 'object'
+            ? state.creditAccounts
+            : {};
+        const pauseHistory = Array.isArray(
+          (state as { pauseHistory?: PauseRecord[] } | undefined)?.pauseHistory
+        )
+          ? ((state as { pauseHistory?: PauseRecord[] }).pauseHistory ?? [])
+          : [];
+        useSubscriptionStore.setState({
+          subscriptions,
+          creditAccounts,
+          pauseHistory,
+          isLoading: false,
+          error: null,
+        });
+        useSubscriptionStore.getState().calculateStats();
+        void syncRenewalReminders(useSubscriptionStore.getState().subscriptions);
+        void useCalendarStore
+          .getState()
+          .syncSubscriptions(useSubscriptionStore.getState().subscriptions);
       },
     }
   )
 );
-
 
 
 
