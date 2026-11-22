@@ -31,6 +31,23 @@ All backend domain errors inherit from `DomainError`:
 - `BadGatewayError` (502 Bad Gateway)
 - `ServiceUnavailableError` (503 Service Unavailable)
 
+## Localized Error Catalog (`shared/errors/`)
+
+`shared/errors/` is a dependency-free registry usable from the app, the backend and tooling. `ERROR_CATALOG` defines the canonical code, HTTP status, retryability and Soroban contract discriminant for every error. `ERROR_MESSAGES` provides user-facing copy in `en`, `hi`, `ar`, `he` and `fa`; unsupported locales fall back to English.
+
+```typescript
+import { LocalizedError, errorCodeFromContract } from '../../shared/errors';
+
+errorCodeFromContract(16); // 'RATE_LIMITED'
+const error = new LocalizedError('MAX_PAUSE_DURATION_EXCEEDED', {
+  locale: 'ar-SA',
+  variables: { days: 30 },
+});
+error.userMessage; // localized, with {{days}} interpolated
+```
+
+`resolveErrorMessage(code, locale, variables)` is available when only the copy is needed. A test compares the catalog against the discriminants in `contracts/subscription/src/errors.rs` so the on-chain ABI and the client registry cannot drift silently.
+
 ## Standard API Error Response Payload
 All API error responses follow the standard JSON envelope defined in `backend/services/shared/apiResponse.ts`:
 ```json

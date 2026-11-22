@@ -107,4 +107,10 @@ npm run sdk:test:go
 
 ## Publication
 
-The `SDK Packages` GitHub Actions workflow validates all SDKs on pull requests that touch SDK or OpenAPI files. Tags matching `sdk-v*` publish the JavaScript SDK to npm using `NPM_TOKEN`.
+The `Automated SDK Build & Publish` workflow validates all SDKs on pushes to `main` that touch OpenAPI or SDK files. Tags matching `sdk-vX.Y.Z` run the auto-publisher, which validates the OpenAPI 3.1 document, regenerates endpoint metadata, writes `sdks/generated/publish-manifest.json`, and publishes the JavaScript SDK to npm using `NPM_TOKEN`.
+
+To inspect the plan without publishing:
+
+```bash
+npm run sdk:publish -- --version sdk-v1.2.3
+```

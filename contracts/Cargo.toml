@@ -15,6 +15,9 @@ members = [
     "access_control",
     "security",
     "recurring",
+    "libs/subtrackr-billing-math",
+    "libs/subtrackr-storage-core",
+    "libs/subtrackr-security-core",
 ]
 exclude = ["fuzz"]
 

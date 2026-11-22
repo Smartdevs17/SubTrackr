@@ -43,6 +43,26 @@ const root = process.cwd();
 const jsonPath = path.join(root, 'developer-portal/docs/openapi.json');
 const yamlPath = path.join(root, 'spec/openapi.yaml');
 
+export const OPENAPI_VERSION = '3.1.0';
+
+export interface OpenApi31Document {
+  openapi: string;
+  info: unknown;
+  paths: Record<string, unknown>;
+}
+
+export function isOpenApi31(spec: unknown): spec is OpenApi31Document {
+  if (!spec || typeof spec !== 'object') return false;
+  const value = spec as Record<string, unknown>;
+  return (
+    value.openapi === OPENAPI_VERSION &&
+    !!value.info &&
+    !!value.paths &&
+    typeof value.paths === 'object' &&
+    Object.keys(value.paths as object).length > 0
+  );
+}
+
 function schemaToJsonSchema(schema: z.ZodTypeAny): Record<string, unknown> {
   const jsonSchema = z.toJSONSchema(schema) as Record<string, unknown>;
   delete jsonSchema['$schema'];
@@ -797,6 +817,9 @@ export function generateOpenApiSpec(): Record<string, unknown> {
 
 export function generateSpecs(): { json: string; yaml: string } {
   const specObj = generateOpenApiSpec();
+  if (!isOpenApi31(specObj)) {
+    throw new Error('[openapi:generate] Generated document is not a valid OpenAPI 3.1 schema');
+  }
   const jsonContent = JSON.stringify(specObj, null, 2) + '\n';
   const yamlContent = YAML.stringify(specObj);
   return { json: jsonContent, yaml: yamlContent };
