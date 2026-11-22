@@ -343,3 +343,7 @@ export type {
 
 // ── DI Container ──────────────────────────────────────────────────────────────
 export { container, Container } from './container';
+
+// -- Merchant Module -----------------------------------------------------------
+export * from './merchant';
+

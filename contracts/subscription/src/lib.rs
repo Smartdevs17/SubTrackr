@@ -1,6 +1,7 @@
-#![no_std]
+﻿#![no_std]
 #![allow(clippy::too_many_arguments)]
 mod gas_optimization;
+mod group;
 mod gas_profiler;
 mod gas_storage;
 mod revenue;
@@ -136,7 +137,7 @@ fn storage_persistent_remove(env: &Env, storage: &Address, key: StorageKey) {
     );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Transient (temporary) storage helpers
 //
 // These helpers route through the storage contract's new `temporary_*` bridge
@@ -144,12 +145,12 @@ fn storage_persistent_remove(env: &Env, storage: &Address, key: StorageKey) {
 // which is cheaper than persistent storage and avoids unbounded instance
 // storage growth for short-lived state such as rate-limit timestamps.
 //
-// Soroban ledger close time ≈ 5 seconds, so:
-//   60 s  ≈  12 ledgers
-//   1 min ≈  12 ledgers
-//   1 h   ≈  720 ledgers
-//   1 d   ≈  17 280 ledgers
-// ─────────────────────────────────────────────────────────────────────────────
+// Soroban ledger close time â‰ˆ 5 seconds, so:
+//   60 s  â‰ˆ  12 ledgers
+//   1 min â‰ˆ  12 ledgers
+//   1 h   â‰ˆ  720 ledgers
+//   1 d   â‰ˆ  17 280 ledgers
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /// Convert a duration in seconds to an approximate ledger count.
 /// Uses 5 seconds per ledger as the Soroban mainnet target.
@@ -236,14 +237,14 @@ fn enforce_rate_limit(env: &Env, storage: &Address, caller: &Address, function_n
 
     let now = env.ledger().timestamp();
 
-    // ── Gas optimisation (Issue #395) ────────────────────────────────────────
+    // â”€â”€ Gas optimisation (Issue #395) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // Rate-limit timestamps only need to survive for `min_secs` seconds.
     // Using temporary storage (auto-expiring TTL) instead of instance storage:
-    //   • Avoids unbounded growth of instance storage with one entry per
+    //   â€¢ Avoids unbounded growth of instance storage with one entry per
     //     (caller, function) pair.
-    //   • Costs fewer ledger-entry rent fees because the entry expires
+    //   â€¢ Costs fewer ledger-entry rent fees because the entry expires
     //     automatically rather than persisting indefinitely.
-    //   • Reduces the instance storage footprint, which lowers the base fee
+    //   â€¢ Reduces the instance storage footprint, which lowers the base fee
     //     charged on every contract invocation.
     //
     // Migration note: existing LastCall entries in instance storage are
@@ -252,7 +253,7 @@ fn enforce_rate_limit(env: &Env, storage: &Address, caller: &Address, function_n
     // immediately after the upgrade.  This is acceptable because:
     //   a) the window is at most `min_secs` wide, and
     //   b) the rate-limit is re-enforced from the very next call onward.
-    // ─────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     let last_opt: Option<u64> = storage_temporary_get(
         env,
         storage,
@@ -384,16 +385,16 @@ fn resolve_charge_price(env: &Env, storage: &Address, plan: &Plan) -> i128 {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Implementation Contract
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[soroban_sdk::contract]
 pub struct SubTrackrSubscription;
 
 #[soroban_sdk::contractimpl]
 impl SubTrackrSubscription {
-    // ── Upgrade interface ──
+    // â”€â”€ Upgrade interface â”€â”€
 
     pub fn get_version(_env: Env, proxy: Address, _storage: Address) -> u32 {
         proxy.require_auth();
@@ -446,7 +447,7 @@ impl SubTrackrSubscription {
         panic!("Unsupported migration path");
     }
 
-    // ── Initialization ──
+    // â”€â”€ Initialization â”€â”€
 
     pub fn initialize(env: Env, proxy: Address, storage: Address, admin: Address) {
         proxy.require_auth();
@@ -486,7 +487,7 @@ impl SubTrackrSubscription {
         storage_instance_remove(&env, &storage, StorageKey::InvoiceContract);
     }
 
-    // ── Oracle Integration ──
+    // â”€â”€ Oracle Integration â”€â”€
 
     pub fn set_oracle_contract(env: Env, proxy: Address, storage: Address, oracle: Address) {
         proxy.require_auth();
@@ -615,7 +616,7 @@ impl SubTrackrSubscription {
         storage_instance_get(&env, &storage, StorageKey::TokenSymbol(token))
     }
 
-    // ── Rate Limiting Admin ──
+    // â”€â”€ Rate Limiting Admin â”€â”€
 
     pub fn set_rate_limit(
         env: Env,
@@ -642,7 +643,7 @@ impl SubTrackrSubscription {
         storage_instance_remove(&env, &storage, StorageKey::RateLimit(function));
     }
 
-    // ── Plan Limit Admin ──
+    // â”€â”€ Plan Limit Admin â”€â”€
 
     pub fn set_max_plans_per_merchant(env: Env, proxy: Address, storage: Address, new_limit: u32) {
         proxy.require_auth();
@@ -659,7 +660,7 @@ impl SubTrackrSubscription {
             .unwrap_or(MAX_PLANS_PER_MERCHANT)
     }
 
-    // ── Plan Management ──
+    // â”€â”€ Plan Management â”€â”€
 
     pub fn create_plan(
         env: Env,
@@ -741,7 +742,7 @@ impl SubTrackrSubscription {
         storage_persistent_set(&env, &storage, StorageKey::Plan(plan_id), plan);
     }
 
-    // ── Subscription Management ──
+    // â”€â”€ Subscription Management â”€â”€
 
     pub fn subscribe(
         env: Env,
@@ -979,7 +980,7 @@ impl SubTrackrSubscription {
         );
     }
 
-    // ── Payment Processing ──
+    // â”€â”€ Payment Processing â”€â”€
 
     pub fn charge_subscription(env: Env, proxy: Address, storage: Address, subscription_id: u64) {
         proxy.require_auth();
@@ -1173,7 +1174,7 @@ impl SubTrackrSubscription {
         );
     }
 
-    // ── Subscription Transfer ──
+    // â”€â”€ Subscription Transfer â”€â”€
 
     pub fn request_transfer(
         env: Env,
@@ -1293,7 +1294,7 @@ impl SubTrackrSubscription {
         );
     }
 
-    // ── Queries ──
+    // â”€â”€ Queries â”€â”€
 
     pub fn get_plan(env: Env, proxy: Address, storage: Address, plan_id: u64) -> Plan {
         proxy.require_auth();
@@ -1348,13 +1349,13 @@ impl SubTrackrSubscription {
     }
 }
 
-// ── Extended APIs (disabled by default) ──
+// â”€â”€ Extended APIs (disabled by default) â”€â”€
 //
 // These APIs depend on additional modules/types that are still evolving.
 // Enable with `--features extended` in the `subtrackr-subscription` crate.
 #[cfg(feature = "extended")]
 impl SubTrackrSubscription {
-    // ── Revenue Recognition API ──
+    // â”€â”€ Revenue Recognition API â”€â”€
 
     /// Set a revenue recognition rule for a plan (merchant only).
     pub fn set_revenue_rule(
@@ -1424,7 +1425,7 @@ impl SubTrackrSubscription {
         revenue::get_revenue_schedule(&env, &storage, subscription_id)
     }
 
-    // ── Quota & Usage API ──
+    // â”€â”€ Quota & Usage API â”€â”€
 
     pub fn set_plan_quotas(
         env: Env,
@@ -1499,7 +1500,7 @@ impl SubTrackrSubscription {
         usage::check_quota(&env, &storage, subscription_id, sub.plan_id, metric)
     }
 
-    // ── Payment Method API ──
+    // â”€â”€ Payment Method API â”€â”€
     // Added in storage version 6
 
     pub fn add_payment_method(
@@ -1852,3 +1853,4 @@ pub fn apply_credit_memo_to_charge(
 
     final_charge
 }
+

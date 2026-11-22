@@ -1,4 +1,4 @@
-export interface Subscription {
+﻿export interface Subscription {
   id: string;
   name: string;
   description?: string;
@@ -10,6 +10,12 @@ export interface Subscription {
   billingCycle: BillingCycle;
   nextBillingDate: Date;
   isActive: boolean;
+  status?: SubscriptionLifecycleStatus;
+  pausedAt?: Date;
+  pauseResumeAt?: Date;
+  pauseDurationDays?: number;
+  pauseReason?: string;
+  pauseStateSnapshot?: SubscriptionPauseSnapshot;
   /** When false, skip renewal reminders and charge alerts for this subscription */
   notificationsEnabled?: boolean;
   isCryptoEnabled: boolean;
@@ -48,6 +54,19 @@ export enum BillingCycle {
   YEARLY = 'yearly',
   WEEKLY = 'weekly',
   CUSTOM = 'custom',
+}
+
+export enum SubscriptionLifecycleStatus {
+  ACTIVE = 'active',
+  PAUSED = 'paused',
+  CANCELLED = 'cancelled',
+}
+
+export interface SubscriptionPauseSnapshot {
+  nextBillingDate: Date;
+  notificationsEnabled: boolean;
+  isActive: boolean;
+  capturedAt: Date;
 }
 
 export enum SubscriptionTier {
@@ -93,3 +112,4 @@ export interface SubscriptionStats {
   totalFiatMonthlySpend?: number;
   fiatCurrency?: string;
 }
+

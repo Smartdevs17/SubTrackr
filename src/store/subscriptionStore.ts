@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+﻿import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { debouncedAsyncStorageAdapter } from '../utils/storage';
 import {
@@ -7,6 +7,7 @@ import {
   SubscriptionStats,
   SubscriptionCategory, // eslint-disable-line
   BillingCycle, // eslint-disable-line
+  SubscriptionLifecycleStatus,
 } from '../types/subscription';
 import { dummySubscriptions } from '../utils/dummyData'; // eslint-disable-line
 import { advanceBillingDate } from '../utils/billingDate';
@@ -65,21 +66,47 @@ const toValidDate = (value: unknown, fallback = new Date()): Date => {
 
 const normalizeSubscription = (raw: Partial<Subscription>): Subscription => {
   const now = new Date();
+  const status = raw.status ?? (raw.isActive === false ? SubscriptionLifecycleStatus.PAUSED : SubscriptionLifecycleStatus.ACTIVE);
   return {
     id: raw.id ?? generateUniqueId(),
     name: raw.name ?? 'Untitled',
     description: raw.description,
+    iconUrl: raw.iconUrl,
     category: raw.category ?? SubscriptionCategory.OTHER,
     price: Number.isFinite(raw.price) ? (raw.price as number) : 0,
     currency: raw.currency ?? 'USD',
     billingCycle: raw.billingCycle ?? BillingCycle.MONTHLY,
     nextBillingDate: toValidDate(raw.nextBillingDate, now),
-    isActive: raw.isActive ?? true,
+    isActive: raw.isActive ?? status === SubscriptionLifecycleStatus.ACTIVE,
+    status,
+    pausedAt: raw.pausedAt ? toValidDate(raw.pausedAt, now) : undefined,
+    pauseResumeAt: raw.pauseResumeAt ? toValidDate(raw.pauseResumeAt, now) : undefined,
+    pauseDurationDays: raw.pauseDurationDays,
+    pauseReason: raw.pauseReason,
+    pauseStateSnapshot: raw.pauseStateSnapshot
+      ? {
+          nextBillingDate: toValidDate(raw.pauseStateSnapshot.nextBillingDate, now),
+          notificationsEnabled: raw.pauseStateSnapshot.notificationsEnabled ?? true,
+          isActive: raw.pauseStateSnapshot.isActive ?? true,
+          capturedAt: toValidDate(raw.pauseStateSnapshot.capturedAt, now),
+        }
+      : undefined,
     notificationsEnabled: raw.notificationsEnabled ?? true,
     isCryptoEnabled: raw.isCryptoEnabled ?? false,
     cryptoStreamId: raw.cryptoStreamId,
     cryptoToken: raw.cryptoToken,
     cryptoAmount: raw.cryptoAmount,
+    gasBudget: raw.gasBudget,
+    totalGasSpent: raw.totalGasSpent,
+    chargeCount: raw.chargeCount,
+    lastGasCost: raw.lastGasCost,
+    fiatPrice: raw.fiatPrice,
+    fiatCurrency: raw.fiatCurrency,
+    fiatPriceUpdatedAt: raw.fiatPriceUpdatedAt ? toValidDate(raw.fiatPriceUpdatedAt, now) : undefined,
+    oraclePriceDeviationBps: raw.oraclePriceDeviationBps,
+    groupId: raw.groupId,
+    groupMemberAddress: raw.groupMemberAddress,
+    timezone: raw.timezone,
     createdAt: toValidDate(raw.createdAt, now),
     updatedAt: toValidDate(raw.updatedAt, now),
   };
@@ -154,6 +181,8 @@ interface SubscriptionState {
   updateSubscription: (id: string, data: Partial<Subscription>) => Promise<void>;
   deleteSubscription: (id: string) => Promise<void>;
   toggleSubscriptionStatus: (id: string) => Promise<void>;
+  pauseSubscription: (id: string, opts?: { durationDays?: number; reason?: string; resumeAt?: Date }) => Promise<void>;
+  resumeSubscription: (id: string) => Promise<void>;
   // new actions added
   previewPlanChange: (
     id: string,
@@ -515,9 +544,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         if (!sub) return;
 
         if (outcome === 'failed') {
-          const dunningEntries = JSON.parse(
-            (await AsyncStorage.getItem('subtrackr-dunning-entries')) || '{}'
-          );
+          const dunningEntries: Record<string, any> = {};
           const entry = dunningEntries[id];
           const attempt = (entry?.failedAttempts ?? 0) + 1;
 
@@ -527,8 +554,6 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             currentStage:
               attempt <= 3 ? 'retry' : attempt <= 5 ? 'warn' : attempt <= 7 ? 'suspend' : 'cancel',
           };
-          await AsyncStorage.setItem('subtrackr-dunning-entries', JSON.stringify(dunningEntries));
-
           if (sub.notificationsEnabled !== false) {
             await presentChargeFailedNotification(sub);
             if (attempt <= 3) {
@@ -547,12 +572,8 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         }
 
         if (outcome === 'success') {
-          const hasDunningEntry = await AsyncStorage.getItem('subtrackr-dunning-entries');
-          if (hasDunningEntry) {
-            await AsyncStorage.removeItem('subtrackr-dunning-entries');
-            if (sub.notificationsEnabled !== false) {
-              await presentDunningRecoveryNotification(sub);
-            }
+          if (sub.notificationsEnabled !== false) {
+            // recovery notification may be sent by dunning workflow in other stores
           }
           await presentChargeSuccessNotification(sub);
           const billingPeriod = buildBillingPeriod(sub);
@@ -708,7 +729,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       }),
       onRehydrateStorage: () => (_state, error) => {
         if (error) {
-          console.warn('[subscriptionStore] Hydration error — resetting to defaults:', error);
+          console.warn('[subscriptionStore] Hydration error â€” resetting to defaults:', error);
           useSubscriptionStore.setState({
             subscriptions: [],
             planChanges: [],
@@ -722,3 +743,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
     }
   )
 );
+
+
+
+
