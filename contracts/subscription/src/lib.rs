@@ -8,6 +8,7 @@
 // grouped into a struct without changing the contract interface.
 #![allow(clippy::too_many_arguments)]
 mod cancellation;
+mod family;
 mod quota;
 mod revenue;
 mod trial;
@@ -82,6 +83,8 @@ enum FeatureStoreKey {
     CancelledAt(u64),
     /// subscription_id -> CancellationProof (#2027).
     CancellationProof(u64),
+    /// subscription_id -> FamilyGroup (#2031).
+    FamilyGroup(u64),
 }
 
 fn feature_get<V: TryFromVal<Env, Val>>(env: &Env, key: FeatureStoreKey) -> Option<V> {
@@ -1023,6 +1026,9 @@ impl SubTrackrSubscription {
             env.ledger().timestamp(),
         );
 
+        // A cancelled subscription no longer shares access (#2031).
+        family::clear(&env, subscription_id);
+
         // Anchor a verifiable proof of the cancellation in an event (#2027).
         cancellation::record(&env, subscription_id, sub.plan_id, &subscriber);
 
@@ -1035,6 +1041,87 @@ impl SubTrackrSubscription {
             plan.subscriber_count -= 1;
         }
         storage_persistent_set(&env, &storage, StorageKey::Plan(sub.plan_id), plan);
+    }
+
+    /// Create a family group on a subscription. Only the subscriber (the shared
+    /// paying wallet) can do this, and only while the subscription is live.
+    pub fn create_family_group(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscriber: Address,
+        subscription_id: u64,
+        max_seats: u32,
+    ) -> family::FamilyGroup {
+        proxy.require_auth();
+        subscriber.require_auth();
+        Self::assert_family_payer(&env, &storage, &subscriber, subscription_id);
+        family::create(&env, subscription_id, &subscriber, max_seats)
+    }
+
+    /// Add a member to the family group. Payer only.
+    pub fn add_family_member(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscriber: Address,
+        subscription_id: u64,
+        member: Address,
+    ) -> family::FamilyGroup {
+        proxy.require_auth();
+        subscriber.require_auth();
+        Self::assert_family_payer(&env, &storage, &subscriber, subscription_id);
+        family::add_member(&env, subscription_id, &member)
+    }
+
+    /// Remove a member from the family group. Payer only.
+    pub fn remove_family_member(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscriber: Address,
+        subscription_id: u64,
+        member: Address,
+    ) -> family::FamilyGroup {
+        proxy.require_auth();
+        subscriber.require_auth();
+        Self::assert_family_payer(&env, &storage, &subscriber, subscription_id);
+        family::remove_member(&env, subscription_id, &member)
+    }
+
+    /// A member leaves a family group. Needs only the member's own authorisation.
+    pub fn leave_family_group(
+        env: Env,
+        proxy: Address,
+        _storage: Address,
+        member: Address,
+        subscription_id: u64,
+    ) -> family::FamilyGroup {
+        proxy.require_auth();
+        member.require_auth();
+        family::remove_member(&env, subscription_id, &member)
+    }
+
+    pub fn get_family_group(
+        env: Env,
+        proxy: Address,
+        _storage: Address,
+        subscription_id: u64,
+    ) -> Option<family::FamilyGroup> {
+        proxy.require_auth();
+        family::get(&env, subscription_id)
+    }
+
+    /// True when `who` is the payer or a member of the subscription's family group.
+    pub fn has_family_access(
+        env: Env,
+        proxy: Address,
+        _storage: Address,
+        subscription_id: u64,
+        who: Address,
+    ) -> bool {
+        proxy.require_auth();
+        family::has_access(&env, subscription_id, &who)
     }
 
     /// Return the stored cancellation proof, if the subscription was cancelled.
@@ -2029,3 +2116,23 @@ impl SubTrackrSubscription {
     }
 }
 
+impl SubTrackrSubscription {
+    fn assert_family_payer(
+        env: &Env,
+        storage: &Address,
+        subscriber: &Address,
+        subscription_id: u64,
+    ) {
+        let sub: Subscription =
+            storage_persistent_get(env, storage, StorageKey::Subscription(subscription_id))
+                .expect("Subscription not found");
+        assert!(
+            sub.subscriber == *subscriber,
+            "Only the paying wallet can manage the family"
+        );
+        assert!(
+            sub.status == SubscriptionStatus::Active || sub.status == SubscriptionStatus::Paused,
+            "Subscription not active"
+        );
+    }
+}
