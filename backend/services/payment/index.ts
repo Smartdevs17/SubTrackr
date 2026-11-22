@@ -1,3 +1,24 @@
+// ── Multi-chain token payment strategy (Issue #2213) ──────────────────────────
+export {
+  ERC20TokenPaymentStrategy,
+  SorobanTokenPaymentStrategy,
+  TokenPaymentRouter,
+  TokenPaymentError,
+} from './domain/tokenPaymentStrategy';
+export type {
+  ITokenPaymentStrategy,
+  TokenPaymentRequest,
+  TokenPaymentResult,
+  TokenRefundRequest,
+  TokenRefundResult,
+  TokenBalanceQuery,
+  TokenBalanceResult,
+  EvmRpcClient,
+  SorobanClient,
+  ChainType,
+  TokenPaymentRouterOptions,
+} from './domain/tokenPaymentStrategy';
+
 export {
   MultiChainPaymentRoutingStrategy,
   PaymentRouter,
