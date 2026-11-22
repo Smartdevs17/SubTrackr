@@ -17,6 +17,8 @@ import { MeteringSlice } from './meteringSlice';
 import { PaymentSlice } from './paymentSlice';
 import { BatchSlice } from './batchSlice';
 import { AnalyticsSlice } from './analyticsSlice';
+import { BillingSlice } from './billingSlice';
+import { CalendarSlice } from './calendarSlice';
 
 /**
  * The full combined store state — every slice spread together.
@@ -33,7 +35,9 @@ export interface AppState
     MeteringSlice,
     PaymentSlice,
     BatchSlice,
-    AnalyticsSlice {}
+    AnalyticsSlice,
+    BillingSlice,
+    CalendarSlice {}
 
 /**
  * SliceCreator with full cross-slice access: the 4th generic is AppState so a
