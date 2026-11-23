@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { colors, spacing, typography, borderRadius } from '../utils/constants';
 import { sessionService, SessionRecord, SessionSettings } from '../services/auth/session';
+import { sensitiveActionGuard } from '../services/auth/sensitiveActionGuard';
 import { Card } from '../components/common/Card';
 
 const timeoutOptions = [5, 15, 30, 60, 120];
@@ -32,7 +33,11 @@ const SessionManagementScreen: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    void refresh();
+    const loadTimeout = setTimeout(() => {
+      void refresh();
+    }, 0);
+
+    return () => clearTimeout(loadTimeout);
   }, [refresh]);
 
   const activeSessions = useMemo(
@@ -57,8 +62,17 @@ const SessionManagementScreen: React.FC = () => {
         text: 'Revoke',
         style: 'destructive',
         onPress: async () => {
-          await sessionService.revokeSession(session.id);
-          await refresh();
+          try {
+            await sensitiveActionGuard.withBiometricGuard('revoke_session', async () => {
+              await sessionService.revokeSession(session.id);
+              await refresh();
+            });
+          } catch (error) {
+            Alert.alert(
+              'Authentication Required',
+              error instanceof Error ? error.message : 'Re-authentication failed'
+            );
+          }
         },
       },
     ]);
@@ -66,8 +80,17 @@ const SessionManagementScreen: React.FC = () => {
 
   const handleForceLogoutOthers = async () => {
     if (!currentSession) return;
-    await sessionService.revokeOtherSessions(currentSession.id);
-    await refresh();
+    try {
+      await sensitiveActionGuard.withBiometricGuard('revoke_other_sessions', async () => {
+        await sessionService.revokeOtherSessions(currentSession.id);
+        await refresh();
+      });
+    } catch (error) {
+      Alert.alert(
+        'Authentication Required',
+        error instanceof Error ? error.message : 'Re-authentication failed'
+      );
+    }
   };
 
   return (

@@ -25,7 +25,11 @@ export type SensitiveAction =
   | 'export_private_key'
   | 'confirm_payment'
   | 'delete_account'
-  | 'change_security_settings';
+  | 'change_security_settings'
+  | 'trust_device'
+  | 'revoke_trusted_device'
+  | 'revoke_session'
+  | 'revoke_other_sessions';
 
 export interface SensitiveActionPolicy {
   /** Actions that require a biometric step-up before executing. */
@@ -60,7 +64,16 @@ export class BiometricGateError extends Error {
 }
 
 export const DEFAULT_SENSITIVE_ACTION_POLICY: SensitiveActionPolicy = {
-  enforced: ['transfer_funds', 'export_private_key', 'confirm_payment', 'delete_account'],
+  enforced: [
+    'transfer_funds',
+    'export_private_key',
+    'confirm_payment',
+    'delete_account',
+    'trust_device',
+    'revoke_trusted_device',
+    'revoke_session',
+    'revoke_other_sessions',
+  ],
   onUnavailable: 'allow',
 };
 
@@ -126,7 +139,13 @@ class SensitiveActionGuard {
 
     const available = await biometricService.isAvailable();
     if (!available) {
-      const allowed = policy.onUnavailable === 'allow';
+      const failClosed = [
+        'trust_device',
+        'revoke_trusted_device',
+        'revoke_session',
+        'revoke_other_sessions',
+      ].includes(action);
+      const allowed = !failClosed && policy.onUnavailable === 'allow';
       return {
         allowed,
         code: 'unavailable',
