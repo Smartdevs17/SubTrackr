@@ -393,3 +393,19 @@ export interface IPlanTemplateService {
   recordSubscription(templateId: string, revenue?: number): Promise<TemplateAnalytics>;
   getLibraryAnalytics(filter?: TemplateFilter): Promise<TemplateLibraryAnalytics>;
 }
+
+// ── Multi-Provider Billing Strategy Architecture (Issue #2203) ───────────────
+export type {
+  BillingCategory,
+  BillingProviderId,
+  BillingProviderCapabilities,
+  BillingChargeRequest,
+  BillingChargeResult,
+  BillingRefundRequest,
+  BillingRefundResult,
+  ProviderValidationResult,
+  FeeEstimate,
+  BillingProviderStrategy,
+  MultiProviderAnalytics,
+} from './multiProviderBillingStrategy';
+

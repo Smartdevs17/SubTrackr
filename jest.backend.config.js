@@ -18,6 +18,7 @@ module.exports = {
     '**/shared/errors/__tests__/**/*.test.ts',
     '**/scripts/__tests__/**/*.test.ts',
     '**/src/services/__tests__/usageMeteringClient.test.ts',
+    '**/src/services/__tests__/multiProviderBillingClient.test.ts',
   ],
   transform: {
     '^.+\\.tsx?$': [
