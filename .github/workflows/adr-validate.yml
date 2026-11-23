@@ -1,0 +1,29 @@
+name: ADR Validation
+
+on:
+  pull_request:
+    paths:
+      - 'docs/adr/**'
+      - 'scripts/validate-adr.mjs'
+      - '.github/workflows/adr-validate.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'docs/adr/**'
+      - 'scripts/validate-adr.mjs'
+      - '.github/workflows/adr-validate.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate ADRs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Validate ADR structure and index
+        run: node scripts/validate-adr.mjs
