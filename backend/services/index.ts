@@ -30,6 +30,23 @@ export type {
 export { AuditService } from './auditService';
 export { CampaignService } from './campaignService';
 export { DunningService, dunningService } from './dunningService';
+
+// ── Administrator subscription console (#2199) ──────────────────────────────
+export {
+  SubscriptionConsoleService,
+  SubscriptionConsoleError,
+  InMemorySubscriptionConsoleStore,
+} from './admin/subscriptionConsole';
+export type {
+  ManagedSubscription,
+  ManagedSubscriptionStatus,
+  SubscriptionConsoleFilter,
+  SubscriptionConsolePage,
+  SubscriptionConsoleSummary,
+  AuditRecord,
+  BulkActionResult,
+} from './admin/subscriptionConsole';
+export { registerSubscriptionConsoleRoutes } from './admin/subscriptionConsoleRouter';
 export { ExportService, exportService } from './exportService';
 export { PricingService } from './pricingService';
 export { OracleMonitorService, oracleMonitorService } from './oracleMonitorService';
