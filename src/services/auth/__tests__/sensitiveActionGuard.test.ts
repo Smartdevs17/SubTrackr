@@ -124,6 +124,20 @@ describe('sensitiveActionGuard', () => {
       );
     });
 
+    it('blocks device-trust mutations even when the general fallback policy allows', async () => {
+      mockedAuth.isAvailable.mockResolvedValue(false);
+      await sensitiveActionGuard.savePolicy({ onUnavailable: 'allow' });
+
+      const fn = jest.fn();
+      const result = await sensitiveActionGuard.authorize('trust_device');
+
+      expect(result).toMatchObject({ allowed: false, code: 'unavailable', fellBack: true });
+      await expect(
+        sensitiveActionGuard.withBiometricGuard('revoke_trusted_device', fn)
+      ).rejects.toThrow(BiometricGateError);
+      expect(fn).not.toHaveBeenCalled();
+    });
+
     it('blocks the action when biometrics are unavailable and policy is fail-closed', async () => {
       mockedAuth.isAvailable.mockResolvedValue(false);
       await sensitiveActionGuard.savePolicy({ onUnavailable: 'block' });
@@ -144,7 +158,17 @@ describe('sensitiveActionGuard', () => {
       const policy = await sensitiveActionGuard.getPolicy();
       expect(policy).toEqual(DEFAULT_SENSITIVE_ACTION_POLICY);
     });
-
+    it('protects trusted-device and session mutation actions by default', async () => {
+      const policy = await sensitiveActionGuard.getPolicy();
+      expect(policy.enforced).toEqual(
+        expect.arrayContaining([
+          'trust_device',
+          'revoke_trusted_device',
+          'revoke_session',
+          'revoke_other_sessions',
+        ])
+      );
+    });
     it('recovers from corrupt stored policy', async () => {
       mockStore['@subtrackr/sensitive_action_policy'] = '{not json';
       const policy = await sensitiveActionGuard.getPolicy();
