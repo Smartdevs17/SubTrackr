@@ -28,6 +28,22 @@ export type {
   TaxRemittanceReportRequest,
 } from './taxTypes';
 export { DunningService, dunningService } from './dunningService';
+export {
+  NetworkRetryScheduler,
+  networkRetryScheduler,
+  isRetryableDecline,
+  normalizeCardNetwork,
+  toDunningFailureType,
+} from './networkRetryScheduler';
+export type {
+  CardNetwork,
+  NetworkDeclineCode,
+  NetworkInsights,
+  NetworkRetryInput,
+  NetworkRetryPlan,
+  RetryOutcomeInput,
+  RetryWindowCandidate,
+} from './networkRetryScheduler';
 export type { FailureType, RetryScheduleConfig, RetryAnalytics, RetryHistoryRecord } from './dunningService';
 export {
   calculateExactProration,
