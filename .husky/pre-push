@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# Husky pre-push guard: reject pushes that introduce console.log into app code.
+set -euo pipefail
+
+root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+cd "$root"
+
+guard="scripts/no-console.sh"
+[[ -f "$guard" ]] || exit 0
+
+# Explicit bypass is handled by the guard itself so behaviour stays consistent.
+if [[ "${NO_CONSOLE_SKIP:-0}" == "1" ]]; then
+  exec bash "$guard"
+fi
+
+# Collect the refs being pushed. pre-push feeds them on stdin:
+# <local ref> <local sha> <remote ref> <remote sha>
+ranges=()
+while read -r _local_ref local_sha _remote_ref remote_sha; do
+  [[ -z "${local_sha:-}" || "$local_sha" =~ ^0+$ ]] && continue
+  if [[ -z "${remote_sha:-}" || "$remote_sha" =~ ^0+$ ]]; then
+    ranges+=("$local_sha")
+  else
+    ranges+=("$remote_sha..$local_sha")
+  fi
+done
+
+# No parseable refs (manual invocation / unusual clients): scan everything.
+if (( ${#ranges[@]} == 0 )); then
+  exec bash "$guard"
+fi
+
+changed=()
+for range in "${ranges[@]}"; do
+  while IFS= read -r file; do
+    [[ -n "$file" ]] && changed+=("$file")
+  done < <(git diff --name-only --diff-filter=ACMR "$range" -- \
+    '*.js' '*.jsx' '*.ts' '*.tsx' '*.mjs' '*.cjs' 2>/dev/null || true)
+done
+
+if (( ${#changed[@]} == 0 )); then
+  exit 0
+fi
+
+# Only application code is guarded; tests and tooling may print freely.
+mapfile -t app_files < <(
+  printf '%s\n' "${changed[@]}" | grep -Ev \
+    '(^|/)(__tests__|__mocks__|node_modules|dist|build|coverage|scripts|e2e|reports)(/|$)|(\.test\.|\.spec\.)' \
+    || true
+)
+
+if (( ${#app_files[@]} == 0 )); then
+  exit 0
+fi
+
+exec bash "$guard" "${app_files[@]}"
