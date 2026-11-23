@@ -1,10 +1,31 @@
 export { MeteringService, meteringService } from './meteringService';
 export type { UsageMetric, UsageIngestResult, UsageIngestStatus } from './meteringService';
+export { UsageMeteringPipeline, createUsageMeteringPipeline } from './usageMeteringPipeline';
+export type {
+  UsageMetricKind,
+  PipelineUsageEvent,
+  PipelineEventDisposition,
+  PipelineIngestResult,
+  UsageMeteringPipelineConfig,
+  UsageRollupBucket,
+  DeadLetterUsageEvent,
+  LateUsageAdjustment,
+  PipelineThresholdAlertRecord,
+  ThresholdAlertListener,
+  RollupQueryWindowOrRange,
+  PeriodSettlementInput,
+  PeriodSettlementResult,
+  PipelineMetrics,
+} from './usageMeteringPipeline';
 export { TieredPricingCalculator, buildSimpleTiers } from './tieredPricingCalculator';
 export { handleUsageIngestion } from './usageIngestionApi';
 export type { UsageEventPayload, UsageIngestResponse } from './usageIngestionApi';
 export { UsageBillingCloseCron, usageBillingCloseCron } from './usageBillingCloseCron';
-export type { UsageBillingCloseReport, UsageBillingCloseEntry, MeterAccount } from './usageBillingCloseCron';
+export type {
+  UsageBillingCloseReport,
+  UsageBillingCloseEntry,
+  MeterAccount,
+} from './usageBillingCloseCron';
 export { AlignmentService, alignmentService } from './alignmentService';
 export type { AlignmentConfirmation } from './alignmentService';
 export { ConsolidationEngine, consolidationEngine } from './consolidationEngine';
@@ -28,7 +49,12 @@ export type {
   TaxRemittanceReportRequest,
 } from './taxTypes';
 export { DunningService, dunningService } from './dunningService';
-export type { FailureType, RetryScheduleConfig, RetryAnalytics, RetryHistoryRecord } from './dunningService';
+export type {
+  FailureType,
+  RetryScheduleConfig,
+  RetryAnalytics,
+  RetryHistoryRecord,
+} from './dunningService';
 export {
   calculateExactProration,
   calculateNetProration as calculateNetProrationAdjustment,
@@ -56,9 +82,7 @@ export type {
   StreamExportOptions,
   ReconciliationResult,
 } from './accountingExportService';
-export {
-  BackendPartnerService,
-} from './partnerService';
+export { BackendPartnerService } from './partnerService';
 export type { SplitConfiguration, PartnerPayoutSchedule } from '../../../src/types/partner';
 
 // Credit system — see creditService.ts for architectural notes.
@@ -87,6 +111,7 @@ export type {
 } from './creditTypes';
 export type {
   IMeteringService,
+  IUsageMeteringPipeline,
   IPricingService,
   ITaxService,
   IDunningService,
@@ -97,7 +122,12 @@ export type {
 export { BillingError, BillingErrorCode } from './errors';
 
 // Strategy Pattern Pricing exports (Issue #741)
-export { PricingStrategy, PricingContext as PricingStrategyContext, PricingResult, PricingAnalytics } from './pricingStrategy';
+export {
+  PricingStrategy,
+  PricingContext as PricingStrategyContext,
+  PricingResult,
+  PricingAnalytics,
+} from './pricingStrategy';
 export { FlatRateStrategy } from './flatRateStrategy';
 export { UsageBasedStrategy } from './usageBasedStrategy';
 export { TieredPricingStrategy } from './tieredStrategy';
