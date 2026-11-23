@@ -1,4 +1,4 @@
-﻿#![no_std]
+#![no_std]
 // TODO: migrate `env.events().publish(..)` to the `#[contractevent]` macro.
 // soroban-sdk 28 deprecated the imperative form; it is still functional and
 // still emits identical events, so the deprecation is allowed crate-wide
@@ -7,12 +7,14 @@
 // Contract methods take positional arguments by ABI; parameters cannot be
 // grouped into a struct without changing the contract interface.
 #![allow(clippy::too_many_arguments)]
+pub mod billing;
 mod cancellation;
 mod family;
 mod quota;
 mod revenue;
 mod trial;
 mod usage;
+
 use soroban_sdk::{token, Address, Bytes, BytesN, Env, IntoVal, String, TryFromVal, Val, Vec};
 use subtrackr_types::{
     ChargeCommitment, Interval, Invoice, MevAlert, MevProtectionConfig, Plan, StorageKey,

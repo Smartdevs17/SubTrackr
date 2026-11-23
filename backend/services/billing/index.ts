@@ -199,3 +199,32 @@ export type {
   EntityHierarchyNode,
   ConsolidatedBillingSummary,
 } from './entityBilling';
+
+// Multi-Provider Billing Strategy Architecture (Issue #2203)
+export {
+  BillingProviderRegistry,
+  billingProviderRegistry,
+  MultiProviderBillingEngine,
+  multiProviderBillingEngine,
+  StripeBillingStrategy,
+  PayPalBillingStrategy,
+  WireAchBillingStrategy,
+  StellarBillingStrategy,
+  EVMBillingStrategy,
+  validateStellarAddress,
+  validateEVMAddress,
+} from './multiProviderBillingStrategy';
+export type {
+  BillingCategory,
+  BillingProviderId,
+  BillingProviderCapabilities,
+  BillingChargeRequest,
+  BillingChargeResult,
+  BillingRefundRequest,
+  BillingRefundResult,
+  ProviderValidationResult,
+  FeeEstimate,
+  BillingProviderStrategy,
+  MultiProviderAnalytics,
+} from './multiProviderBillingStrategy';
+
