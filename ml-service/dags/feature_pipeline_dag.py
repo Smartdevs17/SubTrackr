@@ -20,8 +20,8 @@ default_args = {
 
 
 def extract_features(**context):
-    from ml_service.etl.extractors import EXTRACTORS
-    from ml_service.etl.config import ETLConfig
+    from etl.extractors import EXTRACTORS
+    from etl.config import ETLConfig
 
     config = ETLConfig()
     features = []
@@ -35,7 +35,7 @@ def extract_features(**context):
 
 
 def transform_features(**context):
-    from ml_service.etl.transformers import NormalizationTransformer, FeatureDerivationTransformer
+    from etl.transformers import NormalizationTransformer, FeatureDerivationTransformer
 
     features = context["ti"].xcom_pull(key="return_value", task_ids="extract")
     if not features:
@@ -53,7 +53,7 @@ def transform_features(**context):
 
 
 def load_features(**context):
-    from ml_service.etl.loaders import InMemoryFeatureStore
+    from etl.loaders import InMemoryFeatureStore
 
     features = context["ti"].xcom_pull(key="return_value", task_ids="transform")
     if not features:
