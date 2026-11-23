@@ -78,3 +78,11 @@ The billing worker calls `POST /v1/churn/renewal/preflight` through
 `backend/src/services/renewal.ts`. See **[churn/README.md](churn/README.md)**
 and **[docs/renewal-preflight.md](../docs/renewal-preflight.md)** for the full
 policy and integration contract.
+
+## Standalone feature ETL
+
+`etl/` is a dependency-free extract/transform/load package with its own CLI,
+packaging metadata, Airflow DAG and tests. Install it with `pip install -e .`
+and run `subtrackr-etl --input snapshot.json`. See
+**[docs/STANDALONE_FEATURE_ETL.md](../docs/STANDALONE_FEATURE_ETL.md)** for the
+module layout, configuration and run-report contract.

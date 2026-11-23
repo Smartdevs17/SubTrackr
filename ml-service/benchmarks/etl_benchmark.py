@@ -4,11 +4,11 @@ import json
 import time
 from typing import Dict, List
 
-from ml_service.etl.config import ETLConfig, FeatureStoreConfig, FeatureStoreType
-from ml_service.etl.extractors import SubscriptionExtractor, PaymentExtractor, ChurnSignalExtractor
-from ml_service.etl.transformers import NormalizationTransformer, AggregationTransformer
-from ml_service.etl.loaders import InMemoryFeatureStore
-from ml_service.etl.pipeline import ETLPipeline
+from etl.config import ETLConfig, FeatureStoreConfig, FeatureStoreType
+from etl.extractors import SubscriptionExtractor, PaymentExtractor, ChurnSignalExtractor
+from etl.transformers import NormalizationTransformer, AggregationTransformer
+from etl.loaders import InMemoryFeatureStore
+from etl.pipeline import ETLPipeline
 
 
 def generate_test_data(n_subscribers: int = 100) -> Dict[str, list]:
