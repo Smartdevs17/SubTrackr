@@ -22,6 +22,14 @@ import {
   type JwtValidationLogger,
   type JwtValidationMetrics,
 } from './jwt.ts';
+import {
+  createRouteRegistry,
+  type RouteMatch,
+  type RouteRegistry,
+  type RouteRegistryConfig,
+  type WebhookProvider,
+  type WebhookRoute,
+} from './providers/index.ts';
 
 // ?? Types ???????????????????????????????????????????????????????????????
 
@@ -65,6 +73,10 @@ export interface HandlerContext {
   claims: WebhookJwtValidationResult['claims'];
   matchedAudience?: string;
   normalizedOrigin?: string;
+  /** Provider that emitted the delivery (from `delivery.source`), when routed. */
+  provider?: WebhookProvider;
+  /** Declarative route that matched this delivery, when routed. */
+  matchedRoute?: RouteMatch;
 }
 
 export type WebhookHandler = (context: HandlerContext) => void | Promise<void>;
@@ -90,10 +102,17 @@ export interface DispatchResult {
 
 export interface DispatcherConfig {
   policy: WebhookJwtPolicy;
+  /** Legacy event-type handler map, used when no provider route matches. */
   handlers: Readonly<Record<string, WebhookHandler>>;
   hooks?: DispatcherHooks;
   /** Reject deliveries with no matching handler. Default true. */
   strictHandler?: boolean;
+  /** Declarative provider routes; compiled into a registry when provided. */
+  routes?: readonly WebhookRoute[];
+  /** A pre-built route registry (takes precedence over `routes`). */
+  routeRegistry?: RouteRegistry;
+  /** Duplicate policy / allow-list forwarded to `createRouteRegistry`. */
+  routeConfig?: RouteRegistryConfig;
 }
 
 // ?? Dispatcher factory ???????????????????????????????????????????????????
@@ -137,6 +156,15 @@ export function createWebhookDispatcher(config: DispatcherConfig) {
   });
   const handlers: Readonly<Record<string, WebhookHandler>> = { ...(config.handlers ?? {}) };
   const strictHandler = config.strictHandler ?? true;
+  const registry: RouteRegistry | undefined =
+    config.routeRegistry ??
+    (config.routes
+      ? createRouteRegistry(
+          { ...(config.routeConfig ?? {}), routes: config.routes },
+          config.hooks?.metrics,
+          config.hooks?.logger
+        )
+      : undefined);
 
   async function dispatch(token: string, delivery: WebhookDelivery): Promise<DispatchResult> {
     const metrics = config.hooks?.metrics;
@@ -170,8 +198,13 @@ export function createWebhookDispatcher(config: DispatcherConfig) {
         }
       }
 
-      // 3. Handler lookup.
-      const handler = handlers[delivery.type];
+      // 3. Declarative provider routing, then legacy event-type fallback.
+      const matchedRoute = registry?.match(delivery.source, delivery.type);
+      const routedHandler = matchedRoute?.route.handler as unknown as WebhookHandler | undefined;
+      const handler = routedHandler ?? handlers[delivery.type];
+      const handlerName = matchedRoute
+        ? matchedRoute.route.name ?? `${matchedRoute.provider}:${matchedRoute.route.eventType}`
+        : delivery.type;
       if (!handler) {
         if (!strictHandler) {
           metrics?.increment('webhook.dispatch.skipped', { type: delivery.type });
@@ -186,16 +219,29 @@ export function createWebhookDispatcher(config: DispatcherConfig) {
         return { dispatched: false, error: err };
       }
 
-      // 4. Invoke handler.
-      await handler({
+      // 4. Invoke handler with the original JWT context plus routing metadata.
+      const handlerContext: HandlerContext & { eventType: string } = {
         delivery,
         claims: jwt.claims,
         matchedAudience: jwt.matchedAudience,
         normalizedOrigin: jwt.normalizedOrigin,
+        provider: delivery.source,
+        matchedRoute,
+        eventType: delivery.type,
+      };
+      await handler(handlerContext);
+      metrics?.increment('webhook.dispatch.accepted', {
+        type: delivery.type,
+        provider: delivery.source,
+        handler: handlerName,
       });
-      metrics?.increment('webhook.dispatch.accepted', { type: delivery.type });
-      logger?.info('Webhook dispatched', { eventId: delivery.id, type: delivery.type });
-      return { dispatched: true, eventId: delivery.id, handler: delivery.type };
+      logger?.info('Webhook dispatched', {
+        eventId: delivery.id,
+        type: delivery.type,
+        provider: delivery.source,
+        handler: handlerName,
+      });
+      return { dispatched: true, eventId: delivery.id, handler: handlerName };
     } catch (err) {
       if (err instanceof DispatchError) {
         return { dispatched: false, error: err };
@@ -221,6 +267,13 @@ export function createWebhookDispatcher(config: DispatcherConfig) {
     handlerTypes(): string[] {
       return Object.keys(handlers);
     },
+    /** Register a provider route at runtime when a registry is configured. */
+    registerRoute(route: WebhookRoute): void {
+      if (!registry) throw new DispatchError('INVALID_CONFIG', 'No route registry configured');
+      registry.register(route);
+    },
+    /** The configured declarative registry, if any. */
+    routeRegistry: registry,
     policy: compiled,
   };
 }
@@ -232,4 +285,17 @@ export function dispatchWebhook(
   config: DispatcherConfig
 ): Promise<DispatchResult> {
   return createWebhookDispatcher(config).dispatch(token, delivery);
+}
+
+/**
+ * Build a dispatcher whose handler surface is entirely declarative: the JWT
+ * gate still runs, but routing is driven by the supplied provider routes.
+ */
+export function createDeclarativeDispatcher(
+  policy: WebhookJwtPolicy,
+  routes: readonly WebhookRoute[],
+  hooks?: DispatcherHooks,
+  routeConfig?: RouteRegistryConfig
+) {
+  return createWebhookDispatcher({ policy, handlers: {}, routes, hooks, routeConfig });
 }
