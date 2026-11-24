@@ -1,0 +1,35 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Pre-push hook: runs checks before pushing to remote
+# 1. No console.log/debug/info in app code
+# 2. TypeScript type check
+# 3. Lint
+
+echo "🔍 Running pre-push checks..."
+
+# Check for console.log/debug/info
+echo "  → Checking for console.log/debug/info..."
+./scripts/no-console.sh
+if [ $? -ne 0 ]; then
+    exit 1
+fi
+
+# TypeScript type check
+echo "  → Running TypeScript type check..."
+npm run typecheck --if-present
+if [ $? -ne 0 ]; then
+    echo "❌ TypeScript type check failed"
+    exit 1
+fi
+
+# Lint
+echo "  → Running lint..."
+npm run lint --if-present
+if [ $? -ne 0 ]; then
+    echo "❌ Lint failed"
+    exit 1
+fi
+
+echo "✅ All pre-push checks passed"
+exit 0

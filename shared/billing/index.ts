@@ -110,3 +110,50 @@ export interface IPaymentRouter {
   getGateway(name: string): IPaymentGateway;
   registerGateway(name: string, gateway: IPaymentGateway): void;
 }
+
+// ── Canonical provider-ID types (issue #2256) ──────────────────────────────────
+
+/** Stable billing provider names. */
+export type BillingProvider = 'stripe' | 'paypal' | 'paddle';
+
+/** Kind of entity a provider identifier refers to. */
+export type ProviderIdKind =
+  'customer' | 'subscription' | 'charge' | 'refund' | 'invoice' | 'payout';
+
+/**
+ * A provider-specific identifier, e.g. Stripe `cus_123`, PayPal `CUST-456`,
+ * Paddle `ctm_789`. Opaque to the canonical resolver; validation is per-provider.
+ */
+export type ProviderId = string;
+
+/**
+ * A stable, provider-neutral canonical identifier. Derived deterministically
+ * from (provider, kind, providerId) so the same input always yields the same
+ * canonical ID without a database lookup.
+ */
+export type CanonicalId = string & { readonly __canonicalIdBrand: unique symbol };
+
+/**
+ * Result of resolving a provider ID to its canonical form.
+ */
+export interface ProviderIdResolution {
+  /** The stable canonical ID. */
+  canonicalId: CanonicalId;
+  /** The provider that issued `providerId`. */
+  provider: BillingProvider;
+  /** The entity kind the ID refers to. */
+  kind: ProviderIdKind;
+  /** The original provider-specific identifier. */
+  providerId: ProviderId;
+}
+
+/**
+ * Registry entry mapping a canonical ID back to one or more provider-specific
+ * identifiers (needed for denormalisation / reverse lookups).
+ */
+export interface ProviderIdMapping {
+  canonicalId: CanonicalId;
+  provider: BillingProvider;
+  kind: ProviderIdKind;
+  providerId: ProviderId;
+}
