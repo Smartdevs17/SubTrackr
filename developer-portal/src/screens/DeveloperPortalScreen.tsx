@@ -14,7 +14,7 @@ import { ApiKeyPermission } from '../../../src/types/developerPortal';
 import { DashboardCard } from '../components/DashboardCard';
 import { QuickActionCard } from '../components/QuickActionCard';
 import { OnboardingProgress } from '../components/OnboardingProgress';
-import { UsageChart } from '../components/UsageChart';
+import { LazyUsageChart } from '../../components/LazyChart';
 import { RecentActivity } from '../components/RecentActivity';
 
 const DeveloperPortalScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
@@ -195,7 +195,7 @@ const DeveloperPortalScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
         {usageStats && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>API Usage Trends</Text>
-            <UsageChart
+            <LazyUsageChart
               data={usageStats.requestsByDay}
               period="30d"
               onPeriodChange={(period) => console.log('Period changed:', period)}
