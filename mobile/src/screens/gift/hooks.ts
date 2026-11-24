@@ -2,10 +2,10 @@
  * mobile/src/screens/gift/hooks.ts
  *
  * State machine hook for managing the gift-share flow, step transitions,
- * input validation, link sharing, and observability integration.
+ * input validation, link sharing, error retry, and observability integration.
  */
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Share } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import {
@@ -25,6 +25,7 @@ import type {
   GiftShareMetrics,
   GiftShareResult,
   GiftShareStep,
+  UseGiftShareFlowReturn,
 } from './types';
 
 export interface UseGiftShareFlowOptions {
@@ -41,11 +42,19 @@ export function useGiftShareFlow({
   onSendGift,
   metrics,
   logger,
-}: UseGiftShareFlowOptions = {}) {
-  const [selectedSubId, setSelectedSubId] = useState<string | null>(
-    initialSubscriptionId || (subscriptions[0]?.isGiftable !== false ? subscriptions[0]?.id : null)
-  );
+}: UseGiftShareFlowOptions = {}): UseGiftShareFlowReturn {
+  const initialSubId = useMemo(() => {
+    if (initialSubscriptionId) {
+      const match = subscriptions.find((s) => s.id === initialSubscriptionId);
+      if (match && validateGiftEligibility(match).isEligible) {
+        return match.id;
+      }
+    }
+    const firstEligible = subscriptions.find((s) => validateGiftEligibility(s).isEligible);
+    return firstEligible ? firstEligible.id : subscriptions[0]?.id || null;
+  }, [subscriptions, initialSubscriptionId]);
 
+  const [selectedSubId, setSelectedSubId] = useState<string | null>(initialSubId);
   const [step, setStep] = useState<GiftShareStep>('select');
   const [recipientInput, setRecipientInput] = useState('');
   const [deliveryMethod, setDeliveryMethod] = useState<GiftDeliveryMethod>('share_link');
@@ -56,6 +65,15 @@ export function useGiftShareFlow({
   const [error, setError] = useState<string | null>(null);
   const [giftResult, setGiftResult] = useState<GiftShareResult | null>(null);
   const [isCopied, setIsCopied] = useState(false);
+  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) {
+        clearTimeout(copyTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const selectedSubscription = useMemo(
     () => subscriptions.find((sub) => sub.id === selectedSubId) || null,
@@ -153,8 +171,8 @@ export function useGiftShareFlow({
       return;
     }
 
-    // Step 3: Confirm -> Processing -> Success / Error
-    if (step === 'confirm') {
+    // Step 3 / Error Retry: Confirm -> Processing -> Success / Error
+    if (step === 'confirm' || step === 'error') {
       if (!selectedSubscription) {
         setError('Missing subscription details.');
         return;
@@ -176,7 +194,6 @@ export function useGiftShareFlow({
         if (onSendGift) {
           result = await onSendGift(formState);
         } else {
-          // Default mock handler for demo / tests
           result = createMockGiftResult(formState, selectedSubscription);
         }
 
@@ -210,6 +227,18 @@ export function useGiftShareFlow({
     logger,
   ]);
 
+  const handleRetry = useCallback(async () => {
+    metrics?.onRetry?.();
+    logger?.info?.('Retrying gift share creation from error step');
+    await handleProceed();
+  }, [handleProceed, metrics, logger]);
+
+  const handleEditDetails = useCallback(() => {
+    setError(null);
+    transitionStep('recipient');
+    logger?.info?.('Editing gift details from error state');
+  }, [transitionStep, logger]);
+
   const handleBack = useCallback(() => {
     setError(null);
     if (step === 'recipient') {
@@ -228,7 +257,12 @@ export function useGiftShareFlow({
       setIsCopied(true);
       metrics?.onCopyLink?.(giftResult.giftId);
       logger?.info?.('Copied gift share URL to clipboard', { giftId: giftResult.giftId });
-      setTimeout(() => setIsCopied(false), 3000);
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+      copyTimeoutRef.current = setTimeout(() => setIsCopied(false), 3000);
+      const timer = copyTimeoutRef.current as unknown as { unref?: () => void } | null;
+      if (timer && typeof timer.unref === 'function') {
+        timer.unref();
+      }
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       logger?.warn?.('Clipboard copy failed', { error: errorMsg });
@@ -253,18 +287,23 @@ export function useGiftShareFlow({
   }, [giftResult, metrics, logger]);
 
   const handleReset = useCallback(() => {
-    setSelectedSubId(subscriptions[0]?.id || null);
+    setSelectedSubId(initialSubId);
     setRecipientInput('');
     setDeliveryMethod('share_link');
     setPersonalMessage('');
     setExpiresInDays(DEFAULT_EXPIRY_DAYS);
+    setAllowSenderRevoke(true);
     setError(null);
     setGiftResult(null);
     setIsCopied(false);
+    if (copyTimeoutRef.current) {
+      clearTimeout(copyTimeoutRef.current);
+      copyTimeoutRef.current = null;
+    }
     transitionStep('select');
     metrics?.onReset?.();
     logger?.info?.('Gift share state reset to default');
-  }, [subscriptions, transitionStep, metrics, logger]);
+  }, [initialSubId, transitionStep, metrics, logger]);
 
   return {
     step,
@@ -290,6 +329,8 @@ export function useGiftShareFlow({
     isCopied,
     handleSelectSubscription,
     handleProceed,
+    handleRetry,
+    handleEditDetails,
     handleBack,
     handleCopyLink,
     handleShareLink,

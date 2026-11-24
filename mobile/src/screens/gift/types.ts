@@ -64,6 +64,7 @@ export interface GiftShareMetrics {
   }) => void;
   onGiftShareSuccess?: (result: GiftShareResult) => void;
   onGiftShareFailure?: (error: string) => void;
+  onRetry?: () => void;
   onCopyLink?: (giftId: string) => void;
   onShareLink?: (giftId: string) => void;
   onReset?: () => void;
@@ -83,4 +84,36 @@ export interface GiftShareScreenProps {
   metrics?: GiftShareMetrics;
   logger?: GiftShareLogger;
   testID?: string;
+}
+
+export interface UseGiftShareFlowReturn {
+  step: GiftShareStep;
+  subscriptions: GiftableSubscription[];
+  selectedSubscription: GiftableSubscription | null;
+  selectedSubId: string | null;
+  recipientInput: string;
+  setRecipientInput: (val: string) => void;
+  deliveryMethod: GiftDeliveryMethod;
+  setDeliveryMethod: (val: GiftDeliveryMethod) => void;
+  personalMessage: string;
+  setPersonalMessage: (val: string) => void;
+  expiresInDays: number;
+  setExpiresInDays: (val: number) => void;
+  allowSenderRevoke: boolean;
+  setAllowSenderRevoke: (val: boolean) => void;
+  recipientValidation: { isValid: boolean; type?: RecipientType; error?: string };
+  messageValidation: { isValid: boolean; error?: string };
+  formState: GiftShareFormState;
+  error: string | null;
+  setError: (err: string | null) => void;
+  giftResult: GiftShareResult | null;
+  isCopied: boolean;
+  handleSelectSubscription: (subId: string) => void;
+  handleProceed: () => Promise<void>;
+  handleRetry: () => Promise<void>;
+  handleEditDetails: () => void;
+  handleBack: () => void;
+  handleCopyLink: () => Promise<void>;
+  handleShareLink: () => Promise<void>;
+  handleReset: () => void;
 }

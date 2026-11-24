@@ -11,7 +11,11 @@ import { useGiftShareFlow } from '../hooks';
 import { DEFAULT_SAMPLE_SUBSCRIPTIONS } from '../giftShareLogic';
 import type { GiftShareMetrics, GiftShareScreenProps } from '../types';
 
-// Mock react-native components and modules to prevent React Native native module execution in Node/Jest
+beforeAll(() => {
+  (global as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+});
+
+// Mock react-native components and modules to prevent native module execution in Jest
 jest.mock('react-native', () => {
   const ReactActual = jest.requireActual('react');
   return {
@@ -84,6 +88,7 @@ describe('GiftShareScreen', () => {
     onGiftShareStart: jest.fn(),
     onGiftShareSuccess: jest.fn(),
     onGiftShareFailure: jest.fn(),
+    onRetry: jest.fn(),
     onCopyLink: jest.fn(),
     onShareLink: jest.fn(),
     onReset: jest.fn(),
@@ -107,10 +112,14 @@ describe('GiftShareScreen', () => {
       logger,
     };
 
-    const screen = <GiftShareScreen {...props} />;
-    expect(screen).toBeDefined();
-    expect(screen.props.initialSubscriptionId).toBe('sub_netflix_4k');
-    expect(screen.props.subscriptions).toHaveLength(DEFAULT_SAMPLE_SUBSCRIPTIONS.length);
+    let tree: renderer.ReactTestRenderer | undefined;
+    act(() => {
+      tree = renderer.create(<GiftShareScreen {...props} />);
+    });
+
+    expect(tree).toBeDefined();
+    expect(metrics.onView).toHaveBeenCalledTimes(1);
+    expect(logger.info).toHaveBeenCalledWith('GiftShareScreen mounted');
   });
 
   it('supports custom onSendGift callback', () => {
@@ -128,18 +137,23 @@ describe('GiftShareScreen', () => {
       status: 'pending',
     });
 
-    const screen = (
-      <GiftShareScreen
-        subscriptions={DEFAULT_SAMPLE_SUBSCRIPTIONS}
-        onSendGift={onSendGift}
-        metrics={metrics}
-      />
-    );
+    let tree: renderer.ReactTestRenderer | undefined;
+    act(() => {
+      tree = renderer.create(
+        <GiftShareScreen
+          subscriptions={DEFAULT_SAMPLE_SUBSCRIPTIONS}
+          onSendGift={onSendGift}
+          metrics={metrics}
+          logger={logger}
+        />
+      );
+    });
 
-    expect(screen.props.onSendGift).toBe(onSendGift);
+    expect(tree).toBeDefined();
+    expect(metrics.onView).toHaveBeenCalled();
   });
 
-  describe('useGiftShareFlow state machine', () => {
+  describe('useGiftShareFlow state machine integration', () => {
     it('initializes with default subscription and step select', () => {
       let stepValue = '';
       function TestComponent() {
