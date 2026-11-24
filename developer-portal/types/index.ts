@@ -54,3 +54,31 @@ export type {
   ActivityLog,
   Alert,
 } from './developer';
+
+// ── Abuse report types (abuse.ts) ────────────────────────────────────────────
+export type {
+  AbuseCategory,
+  AbuseSeverity,
+  ReportSource,
+  AbuseReportStatus,
+  TriageLabel,
+  AbuseReport,
+  CreateAbuseReportRequest,
+  CreateAbuseReportResponse,
+  GetAbuseReportResponse,
+  ListAbuseReportsRequest,
+  ListAbuseReportsResponse,
+  UpdateAbuseReportRequest,
+  UpdateAbuseReportResponse,
+  RateLimitStatus,
+  AbuseReportMetricsSnapshot,
+  AbuseReportMetricsResponse,
+} from './abuse';
+
+export {
+  ABUSE_CATEGORY_LABELS,
+  ABUSE_SEVERITY_LABELS,
+  ABUSE_STATUS_LABELS,
+  REPORT_SOURCE_LABELS,
+  TRIAGE_LABEL_DISPLAY,
+} from './abuse';
