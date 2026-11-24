@@ -4,6 +4,7 @@ import {
   createAesGcmFieldEncryption,
   createCsvExportService,
   createInMemoryCsvExportStore,
+  csvLines,
   escapeCsvCell,
   formatCsvCell,
   rowsToCsv,
@@ -224,6 +225,64 @@ describe('createCsvExportService.download', () => {
     await expect(service.download('export-1')).rejects.toMatchObject({
       code: 'INVALID_ENCRYPTED_CELL',
     });
+  });
+});
+
+describe('streaming CSV generation (issue #2268)', () => {
+  const COLUMNS_PLAIN = [
+    { key: 'plan', header: 'Plan', pii: false },
+    { key: 'amount', header: 'Amount', pii: false },
+  ];
+  const ROWS_PLAIN = [
+    { plan: 'pro', amount: '1999' },
+    { plan: 'starter', amount: '' },
+  ];
+
+  it('yields the header and one chunk per row, matching rowsToCsv', () => {
+    const chunks = [...csvLines(COLUMNS_PLAIN, ROWS_PLAIN)];
+
+    expect(chunks).toHaveLength(3);
+    expect(chunks[0]).toBe('Plan,Amount\r\n');
+    expect(chunks[1]).toBe('pro,1999\r\n');
+    expect(chunks.join('')).toBe(rowsToCsv(COLUMNS_PLAIN, ROWS_PLAIN));
+  });
+
+  it('streams decrypted rows lazily and returns download metadata', async () => {
+    const { service } = makeService();
+    await service.create({ ownerId: 'user-1', columns: COLUMNS, rows: ROWS });
+
+    const iterator = service.stream('export-1');
+    const header = await iterator.next();
+    expect(header.done).toBe(false);
+    expect(header.value).toBe('Email,Full name,Plan,Amount\r\n');
+
+    const chunks: string[] = [];
+    let next = await iterator.next();
+    while (!next.done) {
+      chunks.push(next.value);
+      next = await iterator.next();
+    }
+
+    expect(chunks).toHaveLength(2);
+    expect(chunks[0]).toContain('alice@example.com');
+    expect(next.value.rowCount).toBe(2);
+    expect(next.value.filename).toBe('subtrackr-export.csv');
+    expect(header.value + chunks.join('')).toBe((await service.download('export-1')).content);
+  });
+
+  it('propagates decryption failures while streaming', async () => {
+    const { service, store } = makeService();
+    await service.create({ ownerId: 'user-1', columns: COLUMNS, rows: ROWS });
+    const stranger = createCsvExportService({
+      store,
+      encryption: createAesGcmFieldEncryption({ masterKey: Buffer.alloc(32, 9) }),
+    });
+
+    await expect(async () => {
+      for await (const _chunk of stranger.stream('export-1')) {
+        // drain the stream
+      }
+    }).rejects.toMatchObject({ code: 'UNKNOWN_KEY' });
   });
 });
 

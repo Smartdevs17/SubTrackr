@@ -150,12 +150,25 @@ export function formatCsvCell(value: CsvCellValue): string {
   return String(value);
 }
 
-export function rowsToCsv(columns: StoredCsvColumn[], rows: Array<Record<string, string>>): string {
-  const lines = [columns.map((column) => escapeCsvCell(column.header)).join(',')];
+/**
+ * Yield one CRLF-terminated CSV record at a time. Consumers that write to a
+ * socket or a file can keep only a single row in memory instead of one string
+ * per row plus a second joined copy of the whole export.
+ */
+export function* csvLines(
+  columns: StoredCsvColumn[],
+  rows: Iterable<Record<string, string>>
+): Generator<string> {
+  yield `${columns.map((column) => escapeCsvCell(column.header)).join(',')}\r\n`;
   for (const row of rows) {
-    lines.push(columns.map((column) => escapeCsvCell(formatCsvCell(row[column.key]))).join(','));
+    yield `${columns.map((column) => escapeCsvCell(formatCsvCell(row[column.key]))).join(',')}\r\n`;
   }
-  return `${lines.join('\r\n')}\r\n`;
+}
+
+export function rowsToCsv(columns: StoredCsvColumn[], rows: Array<Record<string, string>>): string {
+  let content = '';
+  for (const line of csvLines(columns, rows)) content += line;
+  return content;
 }
 
 export function safeCsvFilename(filename: string | undefined): string {
@@ -272,9 +285,19 @@ export interface CsvExportServiceOptions {
   defaultExpiresInMinutes?: number;
 }
 
+/** Metadata returned once a streamed download has been fully consumed. */
+export interface CsvStreamResult {
+  filename: string;
+  contentType: string;
+  rowCount: number;
+  downloadedAt: number;
+}
+
 export interface CsvExportService {
   create(request: CsvExportRequest): Promise<CsvExportSummary>;
   download(exportId: string): Promise<CsvDownloadResult>;
+  /** Decrypt and emit CSV records lazily, one row at a time. */
+  stream(exportId: string): AsyncGenerator<string, CsvStreamResult, void>;
   getSummary(exportId: string): Promise<CsvExportSummary>;
   remove(exportId: string): Promise<void>;
 }
@@ -357,6 +380,58 @@ export function createCsvExportService(options: CsvExportServiceOptions = {}): C
     metrics?.increment?.(`${METRIC_PREFIX}.${name}`, 1, tags);
   };
 
+  const validatedRecord = async (exportId: string): Promise<StoredCsvExport> => {
+    const record = await store.get(exportId);
+    if (!record) {
+      emit('not_found');
+      throw new CsvExportError('NOT_FOUND', 'Export not found');
+    }
+    if (now() > record.expiresAt) {
+      emit('expired');
+      await store.delete?.(exportId);
+      throw new CsvExportError('EXPIRED', 'Export has expired');
+    }
+    if (checksumFor(record.columns, record.rows) !== record.checksum) {
+      emit('integrity_failed');
+      throw new CsvExportError('INTEGRITY_ERROR', 'Export payload failed its checksum');
+    }
+    return record;
+  };
+
+  async function* streamCsv(exportId: string): AsyncGenerator<string, CsvStreamResult, void> {
+    const startedAt = now();
+    const record = await validatedRecord(exportId);
+    yield `${record.columns.map((column) => escapeCsvCell(column.header)).join(',')}\r\n`;
+    try {
+      for (const storedRow of record.rows) {
+        const cells: string[] = [];
+        for (const column of record.columns) {
+          const cell = storedRow[column.key] ?? '';
+          const plaintext =
+            column.pii && cell !== ''
+              ? await encryption.decrypt(parseEncryptedCell(cell))
+              : cell;
+          cells.push(escapeCsvCell(plaintext));
+        }
+        yield `${cells.join(',')}\r\n`;
+      }
+    } catch (error) {
+      log.error?.('CSV export decryption failed', { exportId });
+      emit('decryption_failed');
+      throw error;
+    }
+    const downloadedAt = now();
+    log.info?.('CSV export downloaded', { exportId, ownerId: record.ownerId });
+    emit('downloaded');
+    metrics?.timing?.(`${METRIC_PREFIX}.download`, Math.max(0, downloadedAt - startedAt));
+    return {
+      filename: record.filename,
+      contentType: 'text/csv; charset=utf-8',
+      rowCount: record.rowCount,
+      downloadedAt,
+    };
+  }
+
   return {
     async create(request: CsvExportRequest): Promise<CsvExportSummary> {
       const startedAt = now();
@@ -419,52 +494,27 @@ export function createCsvExportService(options: CsvExportServiceOptions = {}): C
     },
 
     async download(exportId: string): Promise<CsvDownloadResult> {
-      const startedAt = now();
-      const record = await store.get(exportId);
-      if (!record) {
-        emit('not_found');
-        throw new CsvExportError('NOT_FOUND', 'Export not found');
+      // Backwards-compatible buffered API: collects the same chunks a streaming
+      // caller would write straight to the response body.
+      const iterator = streamCsv(exportId);
+      let content = '';
+      let chunk = await iterator.next();
+      while (!chunk.done) {
+        content += chunk.value;
+        chunk = await iterator.next();
       }
-      if (now() > record.expiresAt) {
-        emit('expired');
-        await store.delete?.(exportId);
-        throw new CsvExportError('EXPIRED', 'Export has expired');
-      }
-      if (checksumFor(record.columns, record.rows) !== record.checksum) {
-        emit('integrity_failed');
-        throw new CsvExportError('INTEGRITY_ERROR', 'Export payload failed its checksum');
-      }
-
-      const plaintextRows: Array<Record<string, string>> = [];
-      try {
-        for (const storedRow of record.rows) {
-          const plaintextRow: Record<string, string> = {};
-          for (const column of record.columns) {
-            const cell = storedRow[column.key] ?? '';
-            plaintextRow[column.key] =
-              column.pii && cell !== '' ? await encryption.decrypt(parseEncryptedCell(cell)) : cell;
-          }
-          plaintextRows.push(plaintextRow);
-        }
-      } catch (error) {
-        log.error?.('CSV export decryption failed', { exportId });
-        emit('decryption_failed');
-        throw error;
-      }
-
-      const downloadedAt = now();
-      log.info?.('CSV export downloaded', { exportId, ownerId: record.ownerId });
-      emit('downloaded');
-      metrics?.timing?.(`${METRIC_PREFIX}.download`, Math.max(0, downloadedAt - startedAt));
+      const meta = chunk.value;
       return {
         exportId,
-        filename: record.filename,
-        contentType: 'text/csv; charset=utf-8',
-        content: rowsToCsv(record.columns, plaintextRows),
-        rowCount: record.rowCount,
-        downloadedAt,
+        filename: meta.filename,
+        contentType: meta.contentType,
+        content,
+        rowCount: meta.rowCount,
+        downloadedAt: meta.downloadedAt,
       };
     },
+
+    stream: streamCsv,
 
     async getSummary(exportId: string): Promise<CsvExportSummary> {
       const record = await store.get(exportId);
