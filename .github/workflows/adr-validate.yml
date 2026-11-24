@@ -1,0 +1,215 @@
+name: ADR Validation
+
+on:
+  pull_request:
+    paths:
+      - 'docs/adr/**'
+  push:
+    branches: [main]
+    paths:
+      - 'docs/adr/**'
+  schedule:
+    - cron: '0 0 * * 1'  # Weekly on Monday at 00:00 UTC
+
+jobs:
+  validate-adrs:
+    name: Validate ADRs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for numbering validation
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install ADR validator
+        run: npm ci @adr/madr-cli@latest
+
+      - name: Validate ADR structure with madr-cli
+        run: npx @adr/madr-cli validate docs/adr/
+
+      - name: Validate front-matter and index sync
+        run: |
+          #!/bin/bash
+          set -euo pipefail
+          
+          ADR_DIR="docs/adr"
+          INDEX_FILE="$ADR_DIR/README.md"
+          TEMPLATE_FILE="$ADR_DIR/template.md"
+          
+          echo "Checking template exists..."
+          if [[ ! -f "$TEMPLATE_FILE" ]]; then
+            echo "ERROR: Template file $TEMPLATE_FILE not found"
+            exit 1
+          fi
+          
+          echo "Checking index exists..."
+          if [[ ! -f "$INDEX_FILE" ]]; then
+            echo "ERROR: Index file $INDEX_FILE not found"
+            exit 1
+          fi
+          
+          # Find all ADR files (excluding template)
+          ADR_FILES=$(find "$ADR_DIR" -maxdepth 1 -name '*.md' ! -name 'template.md' ! -name 'README.md' | sort)
+          
+          if [[ -z "$ADR_FILES" ]]; then
+            echo "No ADR files found (except template and index) — skipping detailed validation"
+            exit 0
+          fi
+          
+          echo "Found ADR files:"
+          echo "$ADR_FILES"
+          
+          # Check each ADR file
+          VALID_STATUSES=("Proposed" "Accepted" "Rejected" "Superseded" "Deprecated")
+          SEEN_IDS=()
+          ERRORS=0
+          
+          while IFS= read -r file; do
+            echo "Validating $file..."
+            
+            # Check front-matter exists
+            if ! head -20 "$file" | grep -q '^---$'; then
+              echo "ERROR: $file missing front-matter (--- delimiter)"
+              ERRORS=$((ERRORS + 1))
+              continue
+            fi
+            
+            # Extract front-matter
+            FM=$(sed -n '/^---$/,/^---$/p' "$file" | sed '1d;$d')
+            
+            # Check required fields
+            for field in "status" "date" "deciders"; do
+              if ! echo "$FM" | grep -q "^$field:"; then
+                echo "ERROR: $file missing required front-matter field: $field"
+                ERRORS=$((ERRORS + 1))
+              fi
+            done
+            
+            # Validate status
+            STATUS=$(echo "$FM" | grep "^status:" | cut -d: -f2- | xargs)
+            if [[ -n "$STATUS" ]]; then
+              VALID=false
+              for s in "${VALID_STATUSES[@]}"; do
+                if [[ "$STATUS" == "$s" ]]; then
+                  VALID=true
+                  break
+                fi
+              done
+              if [[ "$VALID" == "false" ]]; then
+                echo "ERROR: $file invalid status '$STATUS' (must be one of: ${VALID_STATUSES[*]})"
+                ERRORS=$((ERRORS + 1))
+              fi
+            fi
+            
+            # Validate date format (YYYY-MM-DD)
+            DATE=$(echo "$FM" | grep "^date:" | cut -d: -f2- | xargs)
+            if [[ -n "$DATE" ]] && ! [[ "$DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+              echo "ERROR: $file invalid date format '$DATE' (must be YYYY-MM-DD)"
+              ERRORS=$((ERRORS + 1))
+            fi
+            
+            # Extract ID from filename
+            BASENAME=$(basename "$file" .md)
+            if [[ "$BASENAME" =~ ^([0-9]{4})- ]]; then
+              ID="${BASH_REMATCH[1]}"
+              if [[ " ${SEEN_IDS[*]} " =~ " $ID " ]]; then
+                echo "ERROR: Duplicate ADR ID: $ID"
+                ERRORS=$((ERRORS + 1))
+              fi
+              SEEN_IDS+=("$ID")
+            else
+              echo "ERROR: $file invalid filename format (must be NNNN-title.md)"
+              ERRORS=$((ERRORS + 1))
+            fi
+            
+          done <<< "$ADR_FILES"
+          
+          # Check for gaps in numbering
+          if [[ ${#SEEN_IDS[@]} -gt 0 ]]; then
+            IFS=$'\n' SORTED_IDS=($(sort <<<"${SEEN_IDS[*]}"))
+            FIRST=$(printf "%d" "${SORTED_IDS[0]}")
+            LAST=$(printf "%d" "${SORTED_IDS[-1]}")
+            EXPECTED_COUNT=$((LAST - FIRST + 1))
+            if [[ ${#SORTED_IDS[@]} -ne $EXPECTED_COUNT ]]; then
+              echo "WARNING: Gap in ADR numbering (found ${#SORTED_IDS[@]}, expected $EXPECTED_COUNT from $FIRST to $LAST)"
+            fi
+          fi
+          
+          # Validate index sync
+          echo "Checking index sync..."
+          INDEX_ROWS=$(grep '^| [0-9]' "$INDEX_FILE" | wc -l)
+          ADR_COUNT=$(echo "$ADR_FILES" | wc -l)
+          
+          if [[ "$INDEX_ROWS" -ne "$ADR_COUNT" ]]; then
+            echo "ERROR: Index row count ($INDEX_ROWS) != ADR file count ($ADR_COUNT)"
+            echo "Every ADR must have a row in docs/adr/README.md"
+            ERRORS=$((ERRORS + 1))
+          fi
+          
+          # Check each ADR ID appears in index
+          for ID in "${SEEN_IDS[@]}"; do
+            if ! grep -q "| $ID |" "$INDEX_FILE"; then
+              echo "ERROR: ADR $ID not found in index ($INDEX_FILE)"
+              ERRORS=$((ERRORS + 1))
+            fi
+          done
+          
+          if [[ $ERRORS -gt 0 ]]; then
+            echo "VALIDATION FAILED: $ERRORS error(s)"
+            exit 1
+          fi
+          
+          echo "All ADR validations passed!"
+
+  validate-template:
+    name: Validate Template
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check template exists
+        run: |
+          if [[ ! -f "docs/adr/template.md" ]]; then
+            echo "ERROR: docs/adr/template.md not found"
+            exit 1
+          fi
+          echo "Template found"
+
+      - name: Validate template structure
+        run: |
+          # Check required sections
+          REQUIRED_SECTIONS=(
+            "Context and Problem Statement"
+            "Decision Drivers"
+            "Considered Options"
+            "Decision Outcome"
+            "Consequences"
+            "Implementation Notes"
+            "Validation"
+            "References"
+            "Changelog"
+          )
+          
+          for section in "${REQUIRED_SECTIONS[@]}"; do
+            if ! grep -q "## $section" docs/adr/template.md; then
+              echo "ERROR: Template missing required section: $section"
+              exit 1
+            fi
+          done
+          
+          # Check front-matter fields documented
+          for field in "status" "date" "deciders" "technical-story"; do
+            if ! grep -q "$field" docs/adr/template.md; then
+              echo "ERROR: Template missing documentation for front-matter field: $field"
+              exit 1
+            fi
+          done
+          
+          echo "Template structure valid"
