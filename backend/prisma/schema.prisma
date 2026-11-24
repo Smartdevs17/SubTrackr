@@ -1,0 +1,60 @@
+// Invoice read model and covering indexes for the invoices list query (issue #2265).
+//
+// The running backend uses a raw `pg` pool whose migrations live in
+// `db/migrations/`; `prisma.config.js` still points at
+// `db/migrations/schema.prisma`. This schema is the focused Prisma description
+// of the `invoices` table's list surface: it pins the exact columns projected
+// by GET /invoices and the covering indexes that keep that endpoint an
+// index-only scan (no heap lookup for the projected columns, no sort node).
+
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Invoice {
+  id             String    @id @default(uuid())
+  invoiceNumber  String    @unique @map("invoice_number")
+  customerName   String    @map("customer_name")
+  customerEmail  String    @map("customer_email")
+  status         String
+  subtotal       Decimal
+  taxRate        Decimal   @map("tax_rate")
+  taxAmount      Decimal   @map("tax_amount")
+  taxRegion      String?   @map("tax_region")
+  taxType        String?   @map("tax_type")
+  isTaxExempt    Boolean   @default(false) @map("is_tax_exempt")
+  discount       Decimal   @default(0)
+  total          Decimal
+  currency       String
+  pdfBase64      String    @map("pdf_base64")
+  locale         String    @default("en-US")
+  branding       Json      @default("{}")
+  subscriptionId String?   @map("subscription_id")
+  notes          String?
+  invoiceDate    DateTime  @map("invoice_date")
+  dueDate        DateTime? @map("due_date")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  // Baseline single-column indexes are preserved verbatim; the covering
+  // indexes below are additive and do not replace them.
+  @@index([customerEmail], name: "idx_invoices_customer_email")
+  @@index([status], name: "idx_invoices_status")
+  @@index([createdAt], name: "idx_invoices_created_at")
+
+  // Covering indexes for GET /invoices. Each carries the full projection
+  // (invoice_number, customer_name, customer_email, status, total, currency,
+  // invoice_date, due_date) plus the ordered created_at key, so the list query
+  // is satisfied entirely from the index: equality on the leading filter,
+  // ORDER BY created_at DESC served by the key order, and no heap fetches.
+  // Unfiltered default page: ORDER BY created_at DESC with no WHERE.
+  @@index([created_at(sort: Desc), invoice_number, customer_name, customer_email, status, total, currency, invoice_date, due_date], name: "idx_invoices_list_recent_covering")
+  // customer_email filter (also covers the combined customer+status page).
+  @@index([customer_email, created_at(sort: Desc), invoice_number, customer_name, status, total, currency, invoice_date, due_date], name: "idx_invoices_list_customer_covering")
+  // status filter (also covers the combined customer+status page).
+  @@index([status, created_at(sort: Desc), invoice_number, customer_name, customer_email, total, currency, invoice_date, due_date], name: "idx_invoices_list_status_covering")
+}
