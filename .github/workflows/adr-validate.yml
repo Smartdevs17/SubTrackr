@@ -1,0 +1,67 @@
+name: ADR Validation
+
+# Validates Architecture Decision Records (ADRs) on every PR and push to main.
+# Checks:
+# 1. Naming convention: NNNN-title.md (4-digit number, kebab-case title)
+# 2. Required front matter fields present and valid
+# 3. Status values are from allowed enum
+# 4. Date format is YYYY-MM-DD
+# 5. Index.md table is consistent with actual ADR files
+# 6. No duplicate ADR numbers
+
+on:
+  pull_request:
+    paths:
+      - 'docs/adr/**'
+      - '.github/workflows/adr-validate.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'docs/adr/**'
+      - '.github/workflows/adr-validate.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-adrs:
+    name: Validate ADRs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run ADR validation script
+        run: node scripts/adr-validate.js
+
+  validate-index:
+    name: Validate ADR Index
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run index validation
+        run: node scripts/adr-index-validate.js
