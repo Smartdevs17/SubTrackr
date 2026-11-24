@@ -13,6 +13,11 @@
  *   4. plural key resolution with a documented fallback for Arabic.
  */
 
+// Issue #2259: one shared formatter for the whole product. The pipeline keeps
+// owning locale normalisation and bidi rules; the date math lives in the
+// package so the portal, mobile app and this pipeline cannot drift apart.
+import { formatDate as formatSharedDate } from '../../packages/i18n-dates';
+
 export type LocaleCode = 'en' | 'hi' | 'ar' | 'he' | 'fa';
 
 export type LocaleDirection = 'ltr' | 'rtl';
@@ -164,20 +169,17 @@ export function formatMoney(
   }
 }
 
-/** Localised date formatting. Invalid dates produce an empty string. */
+/**
+ * Localised date formatting. Invalid dates produce an empty string.
+ * Delegates to `packages/i18n-dates` (issue #2259) after normalising the
+ * locale, so every surface shares one formatter and one formatter cache.
+ */
 export function formatDate(
   value: Date | string | number,
   locale: string,
   options: Intl.DateTimeFormatOptions = {},
 ): string {
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-
-  try {
-    return new Intl.DateTimeFormat(getIntlTag(locale), options).format(date);
-  } catch {
-    return date.toISOString();
-  }
+  return formatSharedDate(value, getIntlTag(locale), options);
 }
 
 /**

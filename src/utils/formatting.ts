@@ -1,5 +1,10 @@
 import { SubscriptionCategory, BillingCycle } from '../types/subscription';
 import { TIME_CONSTANTS, CRYPTO_CONSTANTS, FORMATTING_CONSTANTS } from './constants/values';
+import {
+  DEFAULT_DATE_OPTIONS,
+  formatDate as formatLocalizedDate,
+  formatRelativeDay,
+} from '../../packages/i18n-dates';
 
 export const formatCurrency = (amount: number, currency: string = 'USD'): string => {
   return new Intl.NumberFormat('en-US', {
@@ -41,30 +46,16 @@ export const formatAddress = (
   return `${address.slice(0, start)}...${address.slice(-end)}`;
 };
 
-export const formatDate = (date: Date): string => {
-  return new Intl.DateTimeFormat('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  }).format(date);
-};
+/**
+ * Calendar date for the portal. Delegates to `packages/i18n-dates` so the
+ * portal and the mobile app share one implementation (issue #2259).
+ */
+export const formatDate = (date: Date, locale: string = 'en-US'): string =>
+  formatLocalizedDate(date, locale, DEFAULT_DATE_OPTIONS);
 
-export const formatRelativeDate = (date: Date): string => {
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const thatDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-
-  const diffInMs = today.getTime() - thatDay.getTime();
-  const diffInDays = Math.round(diffInMs / TIME_CONSTANTS.MS_PER_DAY);
-
-  if (diffInDays === 0) return 'Today';
-  if (diffInDays === 1) return 'Yesterday';
-  if (diffInDays === -1) return 'Tomorrow';
-  if (diffInDays > 0) return `${diffInDays} days ago`;
-  if (diffInDays < 0) return `In ${Math.abs(diffInDays)} days`;
-
-  return formatDate(date);
-};
+/** `Today`, `Yesterday`, `3 days ago`, `In 2 days`, then a calendar date. */
+export const formatRelativeDate = (date: Date, locale: string = 'en-US'): string =>
+  formatRelativeDay(date, { locale });
 
 export const formatCategory = (category: SubscriptionCategory): string => {
   return category.charAt(0).toUpperCase() + category.slice(1);
