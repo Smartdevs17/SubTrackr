@@ -9,6 +9,7 @@
 
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { formatMobileShortDate } from '../../lib/date';
 
 export type FundingLevel = 'ok' | 'warning' | 'urgent';
 
@@ -57,14 +58,6 @@ export function formatMinor(
   }
 }
 
-function formatDate(iso: string, locale: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return iso;
-  return new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(
-    date,
-  );
-}
-
 export const FundingReminderScreen: React.FC<FundingReminderScreenProps> = ({
   reminder,
   minorUnitDigits = 2,
@@ -90,7 +83,7 @@ export const FundingReminderScreen: React.FC<FundingReminderScreenProps> = ({
   }
 
   const urgent = reminder.level === 'urgent';
-  const due = reminder.shortfallDueAt ? formatDate(reminder.shortfallDueAt, locale) : '';
+  const due = reminder.shortfallDueAt ? formatMobileShortDate(reminder.shortfallDueAt, locale) : '';
   const topUp = money(reminder.recommendedTopUpMinor);
 
   return (
