@@ -2,8 +2,8 @@
  * mobile/src/screens/gift/GiftShareScreen.tsx
  *
  * Production-ready subscription gift-share screen for SubTrackr mobile.
- * Enables users to transfer/pass a subscription to another user via email
- * or Stellar public address with shareable link generation and telemetry.
+ * Enables users to transfer/pass an active subscription to another user via email
+ * or Stellar public address with shareable link generation, error retry, and telemetry.
  */
 
 import React, { useEffect } from 'react';
@@ -42,12 +42,16 @@ export const GiftShareScreen: React.FC<GiftShareScreenProps> = ({
     setPersonalMessage,
     expiresInDays,
     setExpiresInDays,
+    allowSenderRevoke,
+    setAllowSenderRevoke,
     recipientValidation,
     error,
     giftResult,
     isCopied,
     handleSelectSubscription,
     handleProceed,
+    handleRetry,
+    handleEditDetails,
     handleBack,
     handleCopyLink,
     handleShareLink,
@@ -72,7 +76,9 @@ export const GiftShareScreen: React.FC<GiftShareScreenProps> = ({
         <View style={styles.successBadge}>
           <Text style={styles.successCheck}>✓</Text>
         </View>
-        <Text style={styles.title}>Gift Share Ready!</Text>
+        <Text style={styles.title} accessibilityRole="header">
+          Gift Share Ready!
+        </Text>
         <Text style={styles.subtitle}>
           Your subscription to {giftResult.subscriptionName} can now be claimed by{' '}
           {giftResult.recipient}.
@@ -158,6 +164,59 @@ export const GiftShareScreen: React.FC<GiftShareScreenProps> = ({
     );
   }
 
+  // Dedicated Error State with Retry & Edit Support
+  if (step === 'error') {
+    return (
+      <View style={styles.centerContainer} testID="gift-share-error-view">
+        <View style={styles.errorBadge}>
+          <Text style={styles.errorBadgeIcon}>✕</Text>
+        </View>
+        <Text style={styles.title} accessibilityRole="header">
+          Gift Share Failed
+        </Text>
+        <Text style={styles.subtitle}>
+          We encountered an issue creating your subscription transfer link.
+        </Text>
+
+        <View style={styles.errorCard} testID="gift-error-card" accessibilityRole="alert">
+          <Text style={styles.errorCardLabel}>Error Details</Text>
+          <Text style={styles.errorCardText}>
+            {error || 'An unexpected failure occurred while creating your gift share ticket.'}
+          </Text>
+        </View>
+
+        <View style={styles.errorActionRow}>
+          <TouchableOpacity
+            style={[styles.primaryButton, styles.retryButton]}
+            onPress={handleRetry}
+            accessibilityRole="button"
+            accessibilityLabel="Retry sending gift"
+            testID="gift-retry-button">
+            <Text style={styles.primaryButtonText}>↻ Retry Send</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.editButton}
+            onPress={handleEditDetails}
+            accessibilityRole="button"
+            accessibilityLabel="Edit recipient details"
+            testID="gift-edit-button">
+            <Text style={styles.editButtonText}>Edit Details</Text>
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity
+          style={styles.doneButton}
+          onPress={onBack || handleReset}
+          accessibilityRole="button"
+          accessibilityLabel="Cancel gift share"
+          testID="gift-cancel-button">
+          <Text style={styles.doneButtonText}>Cancel</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   const isNextDisabled =
     (step === 'select' && !selectedSubscription) ||
     (step === 'recipient' && !recipientValidation.isValid);
@@ -223,7 +282,11 @@ export const GiftShareScreen: React.FC<GiftShareScreenProps> = ({
 
       {/* STEP 1: Select Subscription */}
       {step === 'select' && (
-        <View style={styles.stepSection} testID="step-select-subscription">
+        <View
+          style={styles.stepSection}
+          testID="step-select-subscription"
+          accessibilityRole="radiogroup"
+          accessibilityLabel="Select subscription to gift">
           <Text style={styles.sectionTitle}>1. Select Subscription</Text>
           <Text style={styles.sectionSubtitle}>
             Choose an active subscription to transfer or share.
@@ -353,13 +416,18 @@ export const GiftShareScreen: React.FC<GiftShareScreenProps> = ({
 
           {/* Expiry Options */}
           <Text style={styles.fieldLabel}>Claim Expiration Window</Text>
-          <View style={styles.expiryRow}>
+          <View
+            style={styles.expiryRow}
+            accessibilityRole="radiogroup"
+            accessibilityLabel="Claim expiration window">
             {[3, 7, 14, 30].map((days) => (
               <TouchableOpacity
                 key={days}
                 style={[styles.expiryChip, expiresInDays === days && styles.expiryChipActive]}
                 onPress={() => setExpiresInDays(days)}
-                accessibilityRole="button"
+                accessibilityRole="radio"
+                accessibilityState={{ selected: expiresInDays === days }}
+                accessibilityLabel={`${days} days expiration`}
                 testID={`expiry-chip-${days}`}>
                 <Text
                   style={[
@@ -371,6 +439,26 @@ export const GiftShareScreen: React.FC<GiftShareScreenProps> = ({
               </TouchableOpacity>
             ))}
           </View>
+
+          {/* Revocation Safeguard Toggle */}
+          <TouchableOpacity
+            style={styles.toggleCard}
+            onPress={() => setAllowSenderRevoke(!allowSenderRevoke)}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: allowSenderRevoke }}
+            accessibilityLabel="Allow sender revocation"
+            accessibilityHint="Allows you to cancel this gift if recipient does not claim it"
+            testID="allow-sender-revoke-toggle">
+            <View style={styles.toggleInfo}>
+              <Text style={styles.toggleTitle}>Allow Sender Revocation</Text>
+              <Text style={styles.toggleDescription}>
+                Retain ability to cancel this gift if unclaimed before expiration.
+              </Text>
+            </View>
+            <View style={[styles.switchTrack, allowSenderRevoke && styles.switchTrackActive]}>
+              <View style={[styles.switchThumb, allowSenderRevoke && styles.switchThumbActive]} />
+            </View>
+          </TouchableOpacity>
 
           {/* Personal Message */}
           <View style={styles.messageLabelRow}>
@@ -437,6 +525,12 @@ export const GiftShareScreen: React.FC<GiftShareScreenProps> = ({
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Valid For</Text>
               <Text style={styles.summaryValue}>{expiresInDays} Days</Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Revocation Policy</Text>
+              <Text style={styles.summaryValue}>
+                {allowSenderRevoke ? 'Revocable until claimed' : 'Non-revocable'}
+              </Text>
             </View>
             {personalMessage.length > 0 && (
               <View style={styles.messagePreviewBox}>
@@ -781,6 +875,53 @@ const styles = StyleSheet.create({
     color: '#38BDF8',
     fontWeight: '700',
   },
+  toggleCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#1E293B',
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 8,
+    padding: 12,
+    marginVertical: 10,
+    minHeight: 48,
+  },
+  toggleInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  toggleTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#F8FAFC',
+    marginBottom: 2,
+  },
+  toggleDescription: {
+    fontSize: 11,
+    color: '#94A3B8',
+    lineHeight: 16,
+  },
+  switchTrack: {
+    width: 44,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#334155',
+    padding: 2,
+    justifyContent: 'center',
+  },
+  switchTrackActive: {
+    backgroundColor: '#3B82F6',
+  },
+  switchThumb: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+  },
+  switchThumbActive: {
+    alignSelf: 'flex-end',
+  },
   messageLabelRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -877,6 +1018,69 @@ const styles = StyleSheet.create({
     fontSize: 32,
     color: '#10B981',
     fontWeight: '800',
+  },
+  errorBadge: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#7F1D1D',
+    borderWidth: 2,
+    borderColor: '#EF4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  errorBadgeIcon: {
+    fontSize: 28,
+    color: '#EF4444',
+    fontWeight: '800',
+  },
+  errorCard: {
+    backgroundColor: '#1E293B',
+    borderWidth: 1,
+    borderColor: '#EF4444',
+    borderRadius: 10,
+    padding: 16,
+    width: '100%',
+    marginVertical: 16,
+  },
+  errorCardLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#F87171',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 6,
+  },
+  errorCardText: {
+    fontSize: 13,
+    color: '#FCA5A5',
+    lineHeight: 20,
+  },
+  errorActionRow: {
+    flexDirection: 'row',
+    width: '100%',
+    marginBottom: 12,
+  },
+  retryButton: {
+    flex: 1,
+    backgroundColor: '#2563EB',
+    marginRight: 8,
+  },
+  editButton: {
+    flex: 1,
+    backgroundColor: '#334155',
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
+    marginLeft: 8,
+  },
+  editButtonText: {
+    color: '#F8FAFC',
+    fontSize: 14,
+    fontWeight: '600',
   },
   claimCodeCard: {
     backgroundColor: '#1E293B',

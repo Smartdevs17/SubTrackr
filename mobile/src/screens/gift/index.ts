@@ -6,6 +6,7 @@
 
 export { GiftShareScreen } from './GiftShareScreen';
 export { useGiftShareFlow } from './hooks';
+export type { UseGiftShareFlowOptions } from './hooks';
 export {
   BASE_CLAIM_URL,
   DEFAULT_EXPIRY_DAYS,
@@ -35,4 +36,5 @@ export type {
   GiftableSubscription,
   RecipientType,
   SubscriptionStatus,
+  UseGiftShareFlowReturn,
 } from './types';
