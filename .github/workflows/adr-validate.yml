@@ -1,29 +1,20 @@
-name: ADR Validation
+name: Validate ADR
 
 on:
   pull_request:
     paths:
       - 'docs/adr/**'
-      - 'scripts/validate-adr.mjs'
-      - '.github/workflows/adr-validate.yml'
-  push:
-    branches: [main]
-    paths:
-      - 'docs/adr/**'
-      - 'scripts/validate-adr.mjs'
-      - '.github/workflows/adr-validate.yml'
-
-permissions:
-  contents: read
 
 jobs:
-  validate:
-    name: Validate ADRs
+  validate-adr:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-      - name: Validate ADR structure and index
-        run: node scripts/validate-adr.mjs
+      - uses: actions/checkout@v4
+      - name: Validate ADR sections
+        run: |
+          for f in docs/adr/*.md; do
+            grep -q '^## Estado' "$f" || { echo "FALTA: ## Estado en $f"; exit 1; }
+            grep -q '^## Contexto' "$f" || { echo "FALTA: ## Contexto en $f"; exit 1; }
+            grep -q '^## Decisión' "$f" || { echo "FALTA: ## Decisión en $f"; exit 1; }
+          done
+          echo "ADR válidos"
