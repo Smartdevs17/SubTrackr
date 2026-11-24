@@ -145,6 +145,55 @@ export function prefetchModule(name: string, importFn: () => Promise<unknown>) {
 }
 export { prefetchedModules };
 
+// ─── Route-level dynamic stack loading (issue #2212) ─────────────────────────
+//
+// Unlike lazyScreen (which lazy-loads individual screen components), lazyStack
+// lazy-loads an entire navigator stack. This keeps the initial JS bundle lean:
+// only the HomeTab stack loads at startup; every other stack is fetched on
+// first navigation to its tab, or prefetched after the first frame.
+//
+// Usage:
+//   const SettingsStack = lazyStack(
+//     () => import('./modules/SettingsStack').then(m => ({ default: m.SettingsStack })),
+//     { displayName: 'LazyStack(Settings)' }
+//   );
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function lazyStack<T extends React.ComponentType<any>>(
+  importFn: () => Promise<{ default: T } | Record<string, T>>,
+  options: { displayName?: string; exportName?: string } = {}
+) {
+  const resolvedImport = (): Promise<{ default: T }> =>
+    importFn().then((mod) => {
+      if ('default' in mod && mod.default) {
+        return mod as { default: T };
+      }
+      if (options.exportName && options.exportName in mod) {
+        return { default: (mod as Record<string, T>)[options.exportName] };
+      }
+      const first = Object.values(mod).find(
+        (v): v is T => typeof v === 'function' || (typeof v === 'object' && v !== null)
+      );
+      if (first) return { default: first };
+      throw new Error('[lazyStack] Module has no usable component export');
+    });
+
+  const LazyStackComponent = lazyWithRetry(resolvedImport as () => Promise<{ default: T }>);
+
+  const WrappedStack = (props: React.ComponentPropsWithRef<T>) => (
+    <LazyErrorBoundary>
+      <React.Suspense fallback={<SuspenseLoadingFallback />}>
+        <LazyStackComponent {...props} />
+      </React.Suspense>
+    </LazyErrorBoundary>
+  );
+
+  WrappedStack.displayName =
+    options.displayName ?? `lazyStack(${importFn.toString().replace(/\s+/g, ' ')})`;
+
+  return WrappedStack;
+}
+
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
