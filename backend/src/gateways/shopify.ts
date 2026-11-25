@@ -13,12 +13,24 @@
  *   3. Exposes an Express middleware (`shopifyWebhookMiddleware`) that
  *      requires the raw body buffer (use `express.raw()` on the route).
  *
+ * The second half of the module is the Shopify App Subscription billing
+ * adapter (`createShopifyBillingAdapter`) with idempotent retries.
+ *
  * References:
  *   https://shopify.dev/docs/apps/build/webhooks/secure/validate-webhooks
  */
 
 import crypto from 'crypto';
 import type { Request, Response, NextFunction } from 'express';
+import {
+  BillingAdapterError,
+  noopBillingTelemetry,
+  withIdempotentRetry,
+  type BillingMoney,
+  type BillingOperation,
+  type BillingTelemetry,
+  type RetryPolicy,
+} from './billingAdapter';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -206,4 +218,225 @@ function getHeader(
   const val = headers[name.toLowerCase()];
   if (Array.isArray(val)) return val[0];
   return val;
+}
+
+// ── Billing adapter (Shopify App Subscriptions, Admin GraphQL API) ────────────
+//
+// Shopify's appSubscriptionCreate has no server-side idempotency header, so
+// idempotency is enforced here: one in-flight/settled result per caller key,
+// shared across concurrent callers and across retries. Throttling (HTTP 429,
+// THROTTLED GraphQL errors) and 5xx are retried with backoff using the same key.
+
+/** Narrow GraphQL transport. Inject the Admin API client. */
+export interface ShopifyGraphqlTransport {
+  query(
+    query: string,
+    variables: Record<string, unknown>,
+  ): Promise<{ status: number; body: Record<string, unknown> }>;
+}
+
+export type ShopifyInterval = 'EVERY_30_DAYS' | 'ANNUAL';
+
+export interface ShopifyCreateSubscriptionRequest {
+  idempotencyKey: string;
+  name: string;
+  returnUrl: string;
+  /** Integer minor units; converted to the decimal string Shopify expects. */
+  price: BillingMoney;
+  interval?: ShopifyInterval;
+  trialDays?: number;
+  /** Creates a test charge that is never billed. */
+  test?: boolean;
+}
+
+export interface ShopifySubscriptionResult {
+  subscriptionId: string;
+  status: string;
+  /** Merchant must open this URL to approve the charge. Absent on cancel/fetch. */
+  confirmationUrl?: string;
+}
+
+export interface ShopifyBillingAdapter {
+  createSubscription(request: ShopifyCreateSubscriptionRequest): Promise<ShopifySubscriptionResult>;
+  cancelSubscription(request: { idempotencyKey: string; subscriptionId: string }): Promise<ShopifySubscriptionResult>;
+  fetchSubscription(subscriptionId: string): Promise<ShopifySubscriptionResult>;
+}
+
+export interface ShopifyBillingAdapterOptions {
+  transport: ShopifyGraphqlTransport;
+  telemetry?: BillingTelemetry;
+  retry?: RetryPolicy;
+  now?: () => number;
+}
+
+const CREATE_MUTATION = `mutation($name: String!, $returnUrl: URL!, $trialDays: Int, $test: Boolean, $lineItems: [AppSubscriptionLineItemInput!]!) {
+  appSubscriptionCreate(name: $name, returnUrl: $returnUrl, trialDays: $trialDays, test: $test, lineItems: $lineItems) {
+    appSubscription { id status }
+    confirmationUrl
+    userErrors { field message }
+  }
+}`;
+const CANCEL_MUTATION = `mutation($id: ID!) {
+  appSubscriptionCancel(id: $id) {
+    appSubscription { id status }
+    userErrors { field message }
+  }
+}`;
+const FETCH_QUERY = `query($id: ID!) { node(id: $id) { ... on AppSubscription { id status } } }`;
+
+/** Integer minor units → "19.99" without floating-point arithmetic. */
+export function minorToDecimalString(amountMinor: number): string {
+  const whole = Math.trunc(amountMinor / 100);
+  const cents = String(amountMinor % 100).padStart(2, '0');
+  return `${whole}.${cents}`;
+}
+
+export function createShopifyBillingAdapter(options: ShopifyBillingAdapterOptions): ShopifyBillingAdapter {
+  const telemetry = options.telemetry ?? noopBillingTelemetry;
+  const now = options.now ?? (() => Date.now());
+  const settled = new Map<string, Promise<unknown>>();
+
+  const reject = (code: 'INVALID_REQUEST' | 'INVALID_RESPONSE', message: string) =>
+    new BillingAdapterError(code, 'shopify', message);
+
+  const run = async (
+    query: string,
+    variables: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> =>
+    withIdempotentRetry(async () => {
+      let response: { status: number; body: Record<string, unknown> };
+      try {
+        response = await options.transport.query(query, variables);
+      } catch (error) {
+        throw new BillingAdapterError('PROVIDER_UNAVAILABLE', 'shopify', 'Shopify transport failed', true, error);
+      }
+      const errors = response.body?.errors as Array<{ message?: string; extensions?: { code?: string } }> | undefined;
+      const throttled = response.status === 429 || errors?.some((e) => e.extensions?.code === 'THROTTLED');
+      if (throttled) throw new BillingAdapterError('RATE_LIMITED', 'shopify', 'Shopify throttled the request', true);
+      if (response.status >= 500) {
+        throw new BillingAdapterError('PROVIDER_UNAVAILABLE', 'shopify', `Shopify returned ${response.status}`, true);
+      }
+      if (response.status < 200 || response.status >= 300 || (errors && errors.length > 0)) {
+        throw new BillingAdapterError(
+          'PROVIDER_REJECTED',
+          'shopify',
+          errors?.[0]?.message ?? `Shopify returned ${response.status}`,
+        );
+      }
+      return (response.body.data ?? {}) as Record<string, unknown>;
+    }, options.retry);
+
+  const observe = async <T>(operation: BillingOperation, fn: () => Promise<T>): Promise<T> => {
+    const started = now();
+    try {
+      const result = await fn();
+      telemetry.record({ operation, provider: 'shopify', outcome: 'success', durationMs: now() - started });
+      return result;
+    } catch (error) {
+      telemetry.record({
+        operation,
+        provider: 'shopify',
+        outcome: 'failure',
+        durationMs: now() - started,
+        errorCode: error instanceof BillingAdapterError ? error.code : 'UNKNOWN',
+      });
+      throw error;
+    }
+  };
+
+  /** Run `fn` at most once per key; concurrent and later callers share the result. */
+  const once = <T>(scope: string, key: string, fn: () => Promise<T>): Promise<T> => {
+    if (typeof key !== 'string' || key.trim() === '') {
+      return Promise.reject(reject('INVALID_REQUEST', 'idempotencyKey is required'));
+    }
+    const id = `${scope}:${key}`;
+    const existing = settled.get(id);
+    if (existing) return existing as Promise<T>;
+    const promise = fn().catch((error) => {
+      settled.delete(id); // failures are not cached: the caller may retry the same key
+      throw error;
+    });
+    settled.set(id, promise);
+    return promise;
+  };
+
+  const parse = (node: unknown, confirmationUrl?: unknown): ShopifySubscriptionResult => {
+    const sub = node as { id?: unknown; status?: unknown } | null;
+    if (!sub || typeof sub.id !== 'string' || typeof sub.status !== 'string') {
+      throw reject('INVALID_RESPONSE', 'Shopify response is missing the app subscription');
+    }
+    return {
+      subscriptionId: sub.id,
+      status: sub.status,
+      ...(typeof confirmationUrl === 'string' ? { confirmationUrl } : {}),
+    };
+  };
+
+  const userErrors = (payload: Record<string, unknown> | undefined): void => {
+    const list = payload?.userErrors as Array<{ message?: string }> | undefined;
+    if (list && list.length > 0) {
+      throw new BillingAdapterError(
+        'PROVIDER_REJECTED',
+        'shopify',
+        list.map((e) => e.message ?? 'Unknown error').join('; '),
+      );
+    }
+  };
+
+  return {
+    createSubscription: (request) =>
+      once('create', request.idempotencyKey, () =>
+        observe('charge', async () => {
+          if (!request.name || !request.returnUrl) {
+            throw reject('INVALID_REQUEST', 'name and returnUrl are required');
+          }
+          if (!Number.isSafeInteger(request.price.amountMinor) || request.price.amountMinor <= 0) {
+            throw reject('INVALID_REQUEST', 'price.amountMinor must be a positive integer');
+          }
+          if (!/^[A-Z]{3}$/.test(request.price.currency)) {
+            throw reject('INVALID_REQUEST', 'price.currency must be a three-letter upper-case ISO code');
+          }
+          const data = await run(CREATE_MUTATION, {
+            name: request.name,
+            returnUrl: request.returnUrl,
+            trialDays: request.trialDays,
+            test: request.test ?? false,
+            lineItems: [
+              {
+                plan: {
+                  appRecurringPricingDetails: {
+                    interval: request.interval ?? 'EVERY_30_DAYS',
+                    price: {
+                      amount: minorToDecimalString(request.price.amountMinor),
+                      currencyCode: request.price.currency,
+                    },
+                  },
+                },
+              },
+            ],
+          });
+          const payload = data.appSubscriptionCreate as Record<string, unknown> | undefined;
+          userErrors(payload);
+          return parse(payload?.appSubscription, payload?.confirmationUrl);
+        }),
+      ),
+
+    cancelSubscription: (request) =>
+      once('cancel', `${request.idempotencyKey}:${request.subscriptionId}`, () =>
+        observe('cancel', async () => {
+          if (!request.subscriptionId) throw reject('INVALID_REQUEST', 'subscriptionId is required');
+          const data = await run(CANCEL_MUTATION, { id: request.subscriptionId });
+          const payload = data.appSubscriptionCancel as Record<string, unknown> | undefined;
+          userErrors(payload);
+          return parse(payload?.appSubscription);
+        }),
+      ),
+
+    fetchSubscription: (subscriptionId) =>
+      observe('fetch', async () => {
+        if (!subscriptionId) throw reject('INVALID_REQUEST', 'subscriptionId is required');
+        const data = await run(FETCH_QUERY, { id: subscriptionId });
+        return parse(data.node);
+      }),
+  };
 }
