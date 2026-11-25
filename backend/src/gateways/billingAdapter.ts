@@ -22,7 +22,10 @@
 
 export type BillingProvider = 'stripe' | 'paypal' | 'paddle';
 
-export type BillingOperation = 'charge' | 'refund' | 'fetch';
+/** Providers that have a gateway module, including those outside the charge/refund registry. */
+export type GatewayProvider = BillingProvider | 'shopify' | 'circle';
+
+export type BillingOperation = 'charge' | 'refund' | 'fetch' | 'cancel';
 
 export interface BillingMoney {
   /** Integer minor units (cents, paise, …). Never a float. */
@@ -83,7 +86,7 @@ export type BillingErrorCode =
 export class BillingAdapterError extends Error {
   constructor(
     public readonly code: BillingErrorCode,
-    public readonly provider: BillingProvider,
+    public readonly provider: GatewayProvider,
     message: string,
     public readonly retryable = false,
     public readonly cause?: unknown,
@@ -112,7 +115,7 @@ export interface BillingTransportResponse {
 
 export interface BillingTelemetryEvent {
   operation: BillingOperation;
-  provider: BillingProvider;
+  provider: GatewayProvider;
   outcome: 'success' | 'failure';
   durationMs: number;
   errorCode?: BillingErrorCode;
@@ -649,4 +652,43 @@ export function createBillingAdapter(
 /** All providers with a registered adapter — useful for health dashboards. */
 export function listBillingAdapters(): BillingProvider[] {
   return Object.keys(PROTOCOLS) as BillingProvider[];
+}
+
+// ── Shared retry helper ───────────────────────────────────────────────────────
+
+export interface RetryPolicy {
+  /** Total attempts including the first. Defaults to 3. */
+  maxAttempts?: number;
+  /** Delay before the second attempt; doubles each retry. Defaults to 200 ms. */
+  baseDelayMs?: number;
+  /** Injectable sleep, so tests never wait on real timers. */
+  sleep?: (ms: number) => Promise<void>;
+  /** Called before each retry (for logs/metrics). */
+  onRetry?: (info: { attempt: number; delayMs: number; error: BillingAdapterError }) => void;
+}
+
+/**
+ * Run `fn`, retrying only `BillingAdapterError`s flagged `retryable`.
+ * Callers must pass the SAME idempotency key on every attempt, which is why
+ * the key is fixed by the caller and never regenerated here.
+ */
+export async function withIdempotentRetry<T>(
+  fn: (attempt: number) => Promise<T>,
+  policy: RetryPolicy = {},
+): Promise<T> {
+  const maxAttempts = Math.max(1, policy.maxAttempts ?? 3);
+  const baseDelayMs = policy.baseDelayMs ?? 200;
+  const sleep = policy.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fn(attempt);
+    } catch (error) {
+      if (!(error instanceof BillingAdapterError) || !error.retryable || attempt >= maxAttempts) {
+        throw error;
+      }
+      const delayMs = baseDelayMs * 2 ** (attempt - 1);
+      policy.onRetry?.({ attempt, delayMs, error });
+      await sleep(delayMs);
+    }
+  }
 }
