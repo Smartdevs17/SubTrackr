@@ -124,7 +124,7 @@ export async function createRedisPubSubAdapter(): Promise<IORedisPubSubAdapter> 
   const subscriber = new Redis(options);
 
   try {
-    await Promise.all([publisher.ping?.(), subscriber.ping?.()]);
+    await Promise.all([publisher.ping(), subscriber.ping()]);
   } catch (error) {
     await Promise.allSettled([publisher.quit(), subscriber.quit()]);
     throw error;
