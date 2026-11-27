@@ -9,7 +9,7 @@ export interface StoredEvent extends SubscriptionEvent {
 }
 
 /** In-memory adapter for unit tests and single-process development. */
-export class MockRedisPubSubAdapter implements RedisPubSubAdapter {
+export class MockRedisPubSubAdapter implements PubSubAdapter {
   private handlers: Map<string, ((channel: string, message: string) => void)[]> = new Map();
 
   async publish(channel: string, message: string): Promise<void> {
