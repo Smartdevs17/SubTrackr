@@ -18,7 +18,12 @@
  * a dead server.
  */
 
-import { CircuitBreaker, type CircuitBreakerOptions, CircuitOpenError } from './circuitBreaker';
+import {
+  CircuitBreaker,
+  type CircuitBreakerOptions,
+  CircuitOpenError,
+  type CircuitState,
+} from './circuitBreaker';
 import { withRetry, type RetryOptions, RetryableError } from './retry';
 
 export interface ResilienceOptions {
@@ -44,7 +49,7 @@ export interface ResilienceResult<T> {
  */
 export async function withResilience<T>(
   action: (attempt: number) => Promise<T>,
-  options: ResilienceOptions = {},
+  options: ResilienceOptions = {}
 ): Promise<ResilienceResult<T>> {
   const breaker = new CircuitBreaker(options.circuitBreaker ?? { name: 'sdk' });
   return withResilienceAndBreaker(action, breaker, options);
@@ -57,7 +62,7 @@ export async function withResilience<T>(
 export async function withResilienceAndBreaker<T>(
   action: (attempt: number) => Promise<T>,
   breaker: CircuitBreaker,
-  options: ResilienceOptions = {},
+  options: ResilienceOptions = {}
 ): Promise<ResilienceResult<T>> {
   const retryOpts: RetryOptions = {
     maxAttempts: 3,
