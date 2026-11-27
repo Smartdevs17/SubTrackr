@@ -7,6 +7,7 @@ class FakeRedisClient implements RedisPubSubClient {
   readonly unsubscriptions: string[] = [];
   quitCalls = 0;
 
+  async ping(): Promise<string> { return 'PONG'; }
   async publish(channel: string, message: string): Promise<number> {
     this.published.push({ channel, message });
     return 1;
