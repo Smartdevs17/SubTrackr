@@ -84,15 +84,15 @@ export class IORedisPubSubAdapter implements RedisPubSubAdapter {
   async close(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
-    await Promise.all([...this.pendingSubscriptions.values()]);
+    await Promise.allSettled([...this.pendingSubscriptions.values()]);
     this.subscriber.removeListener('message', this.onMessage);
 
     const channels = [...this.subscribedChannels];
-    await Promise.all(channels.map((channel) => this.subscriber.unsubscribe(channel)));
+    await Promise.allSettled(channels.map((channel) => this.subscriber.unsubscribe(channel)));
     this.handlers.clear();
     this.subscribedChannels.clear();
 
-    await Promise.all([this.publisher.quit(), this.subscriber.quit()]);
+    await Promise.allSettled([this.publisher.quit(), this.subscriber.quit()]);
   }
 
   private assertOpen(): void {
