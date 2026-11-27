@@ -27,7 +27,7 @@ const event = {
 function connection(clientId: string, send: jest.Mock): Parameters<EventDrivenWsServer['registerConnection']>[0] {
   return {
     clientId,
-    user: { id: 'user-1' } as AuthUser,
+    user: { id: 'user-1' } as unknown as AuthUser,
     lastPing: Date.now(),
     isAlive: true,
     filter: { userId: 'user-1' },
