@@ -85,6 +85,8 @@ class SubTrackrClient:
         self.token = token
         self.api_version = api_version
         self.warn_on_deprecation = warn_on_deprecation
+        # One pooled HTTP session for every call; replaceable in tests.
+        self.session = requests.Session()
 
     # ── Headers ──────────────────────────────────────────────────────────────
 
@@ -112,21 +114,40 @@ class SubTrackrClient:
 
     # ── Current REST methods ──────────────────────────────────────────────────
 
-    def list_subscriptions(self) -> List[Dict[str, Any]]:
-        """List all subscriptions (current, preferred method)."""
-        response = requests.get(
-            f"{self.base_url}/subscriptions", headers=self._headers()
+    def _request(
+        self, method: str, path: str, json: Optional[Dict[str, Any]] = None
+    ) -> Any:
+        response = self.session.request(
+            method, f"{self.base_url}{path}", headers=self._headers(), json=json
         )
         raise_for_response(response)
-        return response.json()  # type: ignore[no-any-return]
+        return response.json()
+
+    def list_subscriptions(self) -> List[Dict[str, Any]]:
+        """List all subscriptions (current, preferred method)."""
+        return self._request("GET", "/subscriptions")  # type: ignore[no-any-return]
 
     def create_subscription(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Create a new subscription."""
-        response = requests.post(
-            f"{self.base_url}/subscriptions", json=payload, headers=self._headers()
+        return self._request("POST", "/subscriptions", json=payload)  # type: ignore[no-any-return]
+
+    # ── Contract methods ──────────────────────────────────────────────────────
+
+    def create_plan(
+        self, merchant: str, name: str, price: int, token: str, interval: str
+    ) -> int:
+        """Create a billing plan and return its id (same payload as the JS SDK's createPlan)."""
+        return self._request(  # type: ignore[no-any-return]
+            "POST",
+            "/create_plan",
+            json={
+                "merchant": merchant,
+                "name": name,
+                "price": price,
+                "token": token,
+                "interval": interval,
+            },
         )
-        raise_for_response(response)
-        return response.json()  # type: ignore[no-any-return]
 
     # ── Deprecated aliases ────────────────────────────────────────────────────
 
