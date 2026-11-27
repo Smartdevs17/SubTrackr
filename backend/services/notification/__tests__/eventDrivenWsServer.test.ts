@@ -1,9 +1,10 @@
-import { EventDrivenWsServer, MockRedisPubSubAdapter, StoredEvent } from '../eventDrivenWsServer';
+import { EventDrivenWsServer, MockRedisPubSubAdapter } from '../eventDrivenWsServer';
 import type { RedisPubSubAdapter } from '../redisPubSubAdapter';
 import type { AuthUser } from '../../shared/authStrategies';
 
 class SharedPubSub implements RedisPubSubAdapter {
   private static handlers = new Map<string, Set<(channel: string, message: string) => void>>();
+  static reset(): void { SharedPubSub.handlers.clear(); }
   async publish(channel: string, message: string): Promise<void> {
     for (const handler of SharedPubSub.handlers.get(channel) ?? []) handler(channel, message);
   }
@@ -36,7 +37,7 @@ function connection(clientId: string, send: jest.Mock): Parameters<EventDrivenWs
 }
 
 describe('EventDrivenWsServer Redis Pub/Sub integration', () => {
-  afterEach(() => SharedPubSub['handlers'].clear());
+  afterEach(() => SharedPubSub.reset());
 
   it('delivers an event published by one server to connections on another server', async () => {
     const publisher = new EventDrivenWsServer(new SharedPubSub());
