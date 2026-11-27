@@ -53,6 +53,18 @@ describe('SDK publish plan', () => {
     ]);
   });
 
+  it('accepts pre-release tags in the format sdks/scripts/release.mjs uses', () => {
+    expect(publisher.buildPublishPlan(spec, 'sdk-v2.1.0-rc.1').version).toBe('2.1.0-rc.1');
+    expect(() => publisher.buildPublishPlan(spec, 'sdk-v2.1.0-dev.1')).toThrow(
+      'Invalid version tag'
+    );
+  });
+
+  it('targets the /v2 Go module path', () => {
+    const plan = publisher.buildPublishPlan(spec, 'sdk-v2.0.0', ['go']);
+    expect(plan.targets[0].package).toBe('github.com/Smartdevs17/SubTrackr/sdks/go/v2');
+  });
+
   it('rejects invalid tags and unknown targets', () => {
     expect(() => publisher.buildPublishPlan(spec, 'v1.2.3')).toThrow('Invalid version tag');
     expect(() => publisher.buildPublishPlan(spec, 'sdk-v1.2.3', [])).toThrow('No SDK targets');

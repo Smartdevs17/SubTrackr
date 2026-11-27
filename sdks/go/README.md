@@ -5,7 +5,7 @@ The official Go SDK for the SubTrackr API.
 ## Installation
 
 ```bash
-go get github.com/subtrackr/subtrackr-go
+go get github.com/Smartdevs17/SubTrackr/sdks/go/v2
 ```
 
 ## Quick Start
@@ -21,7 +21,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/subtrackr/subtrackr-go"
+	subtrackr "github.com/Smartdevs17/SubTrackr/sdks/go/v2"
 )
 
 func main() {

@@ -14,12 +14,15 @@ const TARGETS = {
   javascript: { package: '@subtrackr/sdk', registry: 'npm' },
   python: { package: 'subtrackr-sdk', registry: 'pypi' },
   go: {
-    package: 'github.com/Smartdevs17/SubTrackr/sdks/go',
+    // Go semantic import versioning: the module path carries /vN from v2 on
+    // (see sdks/go/go.mod and sdks/scripts/lib/release.mjs).
+    package: 'github.com/Smartdevs17/SubTrackr/sdks/go/v2',
     registry: 'proxy.golang.org',
   },
 };
 
-const TAG_PATTERN = /^sdk-v(\d+\.\d+\.\d+)$/;
+// Matches the versions sdks/scripts/release.mjs accepts, pre-releases included.
+const TAG_PATTERN = /^sdk-v(\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\.\d+)?)$/;
 
 function assertOpenApi31(spec) {
   if (!spec || typeof spec !== 'object') {
@@ -37,7 +40,9 @@ function buildPublishPlan(spec, tag, languages = Object.keys(TARGETS)) {
   assertOpenApi31(spec);
   const match = TAG_PATTERN.exec(tag || '');
   if (!match) {
-    throw new Error(`[sdk:publish] Invalid version tag "${tag}". Expected sdk-vX.Y.Z`);
+    throw new Error(
+      `[sdk:publish] Invalid version tag "${tag}". Expected sdk-vX.Y.Z or sdk-vX.Y.Z-(alpha|beta|rc).N`
+    );
   }
   if (!languages.length) {
     throw new Error('[sdk:publish] No SDK targets selected');
