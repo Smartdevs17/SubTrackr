@@ -1,7 +1,8 @@
 import { EventEmitter } from 'events';
 import { SubscriptionEvent, EventFilter } from './websocket';
-import { AuthUser } from '../shared/authStrategies';
-import type { RedisPubSubAdapter } from './redisPubSubAdapter';
+import type { AuthUser } from '../shared/authStrategies';
+import type { RedisPubSubAdapter as PubSubAdapter } from './redisPubSubAdapter';
+export type { RedisPubSubAdapter } from './redisPubSubAdapter';
 
 export interface StoredEvent extends SubscriptionEvent {
   sequenceId: number;
@@ -38,10 +39,10 @@ export class EventDrivenWsServer extends EventEmitter {
   private eventStore: StoredEvent[] = [];
   private sequenceCounter = 0;
   private heartbeatInterval?: NodeJS.Timeout;
-  private readonly pubSub: RedisPubSubAdapter;
+  private readonly pubSub: PubSubAdapter;
   readonly ready: Promise<void>;
 
-  constructor(pubSubAdapter?: RedisPubSubAdapter) {
+  constructor(pubSubAdapter?: PubSubAdapter) {
     super();
     this.pubSub = pubSubAdapter || new MockRedisPubSubAdapter();
     this.ready = this.setupPubSub();
@@ -140,8 +141,11 @@ export class EventDrivenWsServer extends EventEmitter {
   async shutdown(): Promise<void> {
     this.stopHeartbeat();
     for (const clientId of [...this.connections.keys()]) this.removeConnection(clientId);
-    await this.ready;
-    await this.pubSub.close?.();
+    try {
+      await this.ready;
+    } finally {
+      await this.pubSub.close?.();
+    }
   }
 
   private matchesFilter(event: SubscriptionEvent, filter: EventFilter, userId: string): boolean {
