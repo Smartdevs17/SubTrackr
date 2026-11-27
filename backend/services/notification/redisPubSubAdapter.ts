@@ -1,11 +1,11 @@
 /**
  * Redis Pub/Sub adapter for cross-process WebSocket event delivery.
  *
- * A dedicated publisher and subscriber connection are required because Redis
- * switches a subscribed connection into Pub/Sub mode. The adapter deliberately
- * accepts structural client interfaces so callers can reuse their Redis
- * connection configuration without coupling this module to a Redis package.
+ * Redis requires dedicated connections for publishing and subscribing. The
+ * structural client interface keeps this adapter independent of a Redis
+ * package and makes its lifecycle easy to test.
  */
+import { loadRedisConfig } from '../../config/redis';
 
 export interface RedisPubSubClient {
   publish(channel: string, message: string): Promise<number>;
@@ -83,6 +83,7 @@ export class IORedisPubSubAdapter implements RedisPubSubAdapter {
   async close(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
+    await Promise.all([...this.pendingSubscriptions.values()]);
     this.subscriber.removeListener('message', this.onMessage);
 
     const channels = [...this.subscribedChannels];
@@ -96,4 +97,37 @@ export class IORedisPubSubAdapter implements RedisPubSubAdapter {
   private assertOpen(): void {
     if (this.closed) throw new Error('Redis Pub/Sub adapter is closed');
   }
+}
+
+/**
+ * Creates independent publisher/subscriber connections from the shared Redis
+ * environment configuration. Both connections are owned by the returned adapter.
+ */
+export async function createRedisPubSubAdapter(): Promise<IORedisPubSubAdapter> {
+  const config = loadRedisConfig();
+  const ioredisModule = (await import('ioredis')) as {
+    default: new (options: Record<string, unknown>) => RedisPubSubClient;
+  };
+  const Redis = ioredisModule.default;
+  const options = {
+    host: config.host,
+    port: config.port,
+    password: config.password,
+    db: config.db,
+    connectTimeout: config.connectTimeoutMs,
+    maxRetriesPerRequest: 1,
+    lazyConnect: true,
+  };
+
+  const publisher = new Redis(options);
+  const subscriber = new Redis(options);
+
+  try {
+    await Promise.all([publisher.ping?.(), subscriber.ping?.()]);
+  } catch (error) {
+    await Promise.allSettled([publisher.quit(), subscriber.quit()]);
+    throw error;
+  }
+
+  return new IORedisPubSubAdapter(publisher, subscriber);
 }
