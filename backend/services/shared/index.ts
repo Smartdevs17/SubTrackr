@@ -263,5 +263,30 @@ export {
 } from './outboundRequest';
 export type { OutboundRequestOptions, OutboundRequestInit } from './outboundRequest';
 
+// ── Pluggable authentication gateway ──────────────────────────────────────────
+export {
+  CompositeAuthStrategyManager,
+  JwtAuthStrategy,
+  ApiKeyAuthStrategy,
+  WalletAuthStrategy,
+  OAuthSessionAuthStrategy,
+  createUnifiedAuthMiddleware,
+  createRequireRoleMiddleware,
+  createRequireStrategyMiddleware,
+} from './authStrategies';
+export type { AuthUser, IAuthStrategy } from './authStrategies';
+export {
+  Web3AuthStrategy,
+  createWeb3AuthVerifier,
+  createAuthGateway,
+  createAuthGatewayMiddleware,
+} from './authGateway';
+export type {
+  Web3AuthClaims,
+  Web3AuthVerifier,
+  Web3AuthVerifierOptions,
+  AuthGatewayOptions,
+} from './authGateway';
+
 
 

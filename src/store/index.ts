@@ -28,6 +28,9 @@ export { useThemeStore } from '../theme/themeStore';
 export { usePlanComparisonStore } from './planComparisonStore';
 export { useResellerStore } from './resellerStore';
 export { useForecastingStore } from './forecastingStore';
+// Billing + calendar — now slices on useAppStore (Issue #2045)
+export { useAppStore as useBillingStore } from './slices';
+export { useAppStore as useCalendarStore } from './slices';
 
 // Context + Hooks pattern exports (Issue #742)
 export {

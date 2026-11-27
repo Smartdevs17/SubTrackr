@@ -2,9 +2,23 @@ import {
   AggregationFunction,
   AggregationWindow,
   AGGREGATION_WINDOW_MS,
+  QuotaMetric,
   UsageAlertLevel,
   UsageThresholdAlert,
 } from '../../../src/types/usage';
+import {
+  PeriodSettlementInput,
+  PeriodSettlementResult,
+  PipelineEventDisposition,
+  PipelineIngestResult,
+  PipelineMetrics,
+  PipelineUsageEvent,
+  RollupQueryWindowOrRange,
+  UsageMeteringPipeline,
+  UsageMeteringPipelineConfig,
+  UsageMetricKind,
+  UsageRollupBucket,
+} from './usageMeteringPipeline';
 
 /** Maximum tolerated difference between client-reported and server-received event time. */
 const MAX_CLOCK_SKEW_MS = 5 * 60 * 1000; // 5 minutes
@@ -20,11 +34,13 @@ function nextAutoSequence(): number {
 
 export interface UsageMetric {
   userId: string;
-  metricType: 'api' | 'compute' | 'storage';
+  metricType: UsageMetricKind;
   amount: number;
   timestamp: Date;
   /** Caller-supplied dedup key. Required for batch ingestion. */
   idempotencyKey?: string;
+  /** Optional dimensional metadata for stream rollup slicing. */
+  dimensions?: Record<string, string>;
 }
 
 export interface UsageAlert {
@@ -53,13 +69,16 @@ interface StoredUsageEvent {
   clockSkewDetected: boolean;
 }
 
-export type UsageIngestStatus = 'accepted' | 'duplicate' | 'rejected';
+export type UsageIngestStatus = PipelineEventDisposition;
 
 export interface UsageIngestResult {
   idempotencyKey: string;
   status: UsageIngestStatus;
   reason?: string;
   clockSkewDetected?: boolean;
+  bucketStartMs?: number;
+  watermarkMs?: number;
+  lateEvent?: boolean;
 }
 
 function meterKey(userId: string, metricType: string): string {
@@ -109,10 +128,28 @@ export class MeteringService {
   private limits = new Map<string, number>();
   private usageHistory: UsageHistoryEntry[] = [];
   private alerts: UsageAlert[] = [];
+  private readonly pipeline: UsageMeteringPipeline;
+
+  constructor(pipelineOrConfig?: UsageMeteringPipeline | UsageMeteringPipelineConfig) {
+    if (pipelineOrConfig instanceof UsageMeteringPipeline) {
+      this.pipeline = pipelineOrConfig;
+    } else {
+      this.pipeline = new UsageMeteringPipeline({
+        flushIntervalMs: 0,
+        ...pipelineOrConfig,
+      });
+    }
+  }
+
+  /** Returns the underlying high-throughput UsageMeteringPipeline engine. */
+  getPipeline(): UsageMeteringPipeline {
+    return this.pipeline;
+  }
 
   /** Configure the quota limit used for threshold alerts on a given user+metric. */
   setLimit(userId: string, metricType: string, limit: number): void {
     this.limits.set(meterKey(userId, metricType), limit);
+    this.pipeline.setQuotaLimit(userId, metricType, limit);
   }
 
   async recordUsage(metric: UsageMetric): Promise<UsageIngestResult> {
@@ -127,6 +164,9 @@ export class MeteringService {
     const results: UsageIngestResult[] = [];
     for (const metric of metrics) {
       results.push(await this.recordOne(metric));
+    }
+    if (this.pipeline.getMetrics().pendingQueueDepth > 0) {
+      this.pipeline.flush();
     }
     return results;
   }
@@ -143,11 +183,31 @@ export class MeteringService {
 
     const cached = this.seenIdempotencyKeys.get(idempotencyKey);
     if (cached) {
+      this.pipeline.enqueue({
+        subscriptionId: metric.userId,
+        metricType: metric.metricType,
+        amount: metric.amount,
+        timestamp: metric.timestamp,
+        idempotencyKey,
+        dimensions: metric.dimensions,
+      });
       return { ...cached, status: 'duplicate' };
     }
 
     if (!Number.isFinite(metric.amount) || metric.amount < 0) {
-      return { idempotencyKey, status: 'rejected', reason: 'amount must be a non-negative finite number' };
+      this.pipeline.enqueue({
+        subscriptionId: metric.userId,
+        metricType: metric.metricType,
+        amount: metric.amount,
+        timestamp: metric.timestamp,
+        idempotencyKey,
+        dimensions: metric.dimensions,
+      });
+      return {
+        idempotencyKey,
+        status: 'rejected',
+        reason: 'amount must be a non-negative finite number',
+      };
     }
 
     const receivedAt = Date.now();
@@ -155,9 +215,38 @@ export class MeteringService {
     const clockSkewDetected = Math.abs(receivedAt - eventTime) > MAX_CLOCK_SKEW_MS;
     const normalizedEventTime = eventTime > receivedAt ? receivedAt : eventTime;
 
+    const pipelineResult = this.pipeline.enqueue({
+      subscriptionId: metric.userId,
+      metricType: metric.metricType,
+      amount: metric.amount,
+      timestamp: metric.timestamp,
+      idempotencyKey,
+      dimensions: metric.dimensions,
+    });
+
+    if (
+      pipelineResult.status === 'dropped_late' ||
+      pipelineResult.status === 'backpressure_rejected'
+    ) {
+      return {
+        idempotencyKey,
+        status: pipelineResult.status,
+        reason: pipelineResult.reason,
+        clockSkewDetected: pipelineResult.clockSkewDetected ?? clockSkewDetected,
+        watermarkMs: pipelineResult.watermarkMs,
+        lateEvent: pipelineResult.lateEvent,
+      };
+    }
+
     const key = meterKey(metric.userId, metric.metricType);
     const list = this.events.get(key) ?? [];
-    list.push({ idempotencyKey, amount: metric.amount, eventTime: normalizedEventTime, receivedAt, clockSkewDetected });
+    list.push({
+      idempotencyKey,
+      amount: metric.amount,
+      eventTime: normalizedEventTime,
+      receivedAt,
+      clockSkewDetected,
+    });
     this.events.set(key, list);
 
     this.usageHistory.push({
@@ -167,14 +256,123 @@ export class MeteringService {
       timestamp: metric.timestamp,
     });
 
-    const result: UsageIngestResult = { idempotencyKey, status: 'accepted', clockSkewDetected };
+    const result: UsageIngestResult = {
+      idempotencyKey,
+      status: 'accepted',
+      clockSkewDetected,
+      bucketStartMs: pipelineResult.bucketStartMs,
+      watermarkMs: pipelineResult.watermarkMs,
+      lateEvent: pipelineResult.lateEvent,
+    };
     this.seenIdempotencyKeys.set(idempotencyKey, result);
 
     await this.checkThresholds(metric.userId, metric.metricType);
     return result;
   }
 
-  aggregate(userId: string, metricType: string, window: AggregationWindow, fn: AggregationFunction = AggregationFunction.SUM, now: number = Date.now()): number {
+  /**
+   * Enqueues a usage event into the sub-second micro-batching pipeline while
+   * synchronizing accepted events with MeteringService history.
+   */
+  enqueueUsage(event: PipelineUsageEvent): PipelineIngestResult {
+    const res = this.pipeline.enqueue(event);
+    if (res.status === 'accepted' || res.status === 'late_accepted') {
+      const ts =
+        event.timestamp instanceof Date
+          ? event.timestamp
+          : new Date(
+              typeof event.timestamp === 'number' ? event.timestamp : Date.parse(event.timestamp)
+            );
+      const receivedAt = Date.now();
+      const eventTime = ts.getTime();
+      const normalizedEventTime = eventTime > receivedAt ? receivedAt : eventTime;
+      const key = meterKey(res.subscriptionId, res.metricType);
+      const list = this.events.get(key) ?? [];
+      list.push({
+        idempotencyKey: res.idempotencyKey,
+        amount: event.amount,
+        eventTime: normalizedEventTime,
+        receivedAt,
+        clockSkewDetected: Boolean(res.clockSkewDetected),
+      });
+      this.events.set(key, list);
+      this.usageHistory.push({
+        subscriptionId: res.subscriptionId,
+        metric: res.metricType,
+        value: event.amount,
+        timestamp: ts,
+      });
+      this.seenIdempotencyKeys.set(res.idempotencyKey, {
+        idempotencyKey: res.idempotencyKey,
+        status: res.status,
+        clockSkewDetected: res.clockSkewDetected,
+        bucketStartMs: res.bucketStartMs,
+        watermarkMs: res.watermarkMs,
+        lateEvent: res.lateEvent,
+      });
+    }
+    return res;
+  }
+
+  /**
+   * Enqueues a batch of events into the sub-second micro-batching pipeline.
+   */
+  enqueueUsageBatch(events: PipelineUsageEvent[]): PipelineIngestResult[] {
+    return events.map((event) => this.enqueueUsage(event));
+  }
+
+  /**
+   * Flushes any pending micro-batch events in the underlying pipeline.
+   */
+  flushPipeline(): number {
+    return this.pipeline.flush();
+  }
+
+  /**
+   * Queries pre-aggregated tumbling/sliding window rollups from the pipeline.
+   */
+  queryRollup(
+    subscriptionId: string,
+    metricType: string,
+    windowOrRange: RollupQueryWindowOrRange = AggregationWindow.MONTHLY,
+    fn: AggregationFunction = AggregationFunction.SUM,
+    referenceNowMs?: number
+  ): number {
+    return this.pipeline.queryRollup(subscriptionId, metricType, windowOrRange, fn, referenceNowMs);
+  }
+
+  /**
+   * Returns tumbling rollup buckets for a stream from the pipeline.
+   */
+  getRollupBuckets(
+    subscriptionId: string,
+    metricType: string,
+    range?: { start?: Date | number; end?: Date | number }
+  ): UsageRollupBucket[] {
+    return this.pipeline.getRollupBuckets(subscriptionId, metricType, range);
+  }
+
+  /**
+   * Settles a subscription billing period via the pipeline and `rateUsage()`.
+   */
+  settlePeriod(input: PeriodSettlementInput): PeriodSettlementResult {
+    return this.pipeline.settlePeriod(input);
+  }
+
+  /**
+   * Returns live telemetry metrics from the underlying usage metering pipeline.
+   */
+  getPipelineMetrics(): PipelineMetrics {
+    return this.pipeline.getMetrics();
+  }
+
+  aggregate(
+    userId: string,
+    metricType: string,
+    window: AggregationWindow,
+    fn: AggregationFunction = AggregationFunction.SUM,
+    now: number = Date.now()
+  ): number {
     const windowMs = AGGREGATION_WINDOW_MS[window];
     const cutoff = now - windowMs;
     const values = (this.events.get(meterKey(userId, metricType)) ?? [])
@@ -182,16 +380,32 @@ export class MeteringService {
       .map((e) => e.amount);
     if (values.length === 0) return 0;
     switch (fn) {
-      case AggregationFunction.SUM: return values.reduce((a, b) => a + b, 0);
-      case AggregationFunction.MAX: return Math.max(...values);
-      case AggregationFunction.AVERAGE: return values.reduce((a, b) => a + b, 0) / values.length;
-      case AggregationFunction.PERCENTILE_95: return percentile([...values].sort((a, b) => a - b), 95);
-      case AggregationFunction.PERCENTILE_99: return percentile([...values].sort((a, b) => a - b), 99);
-      default: return values.reduce((a, b) => a + b, 0);
+      case AggregationFunction.SUM:
+        return values.reduce((a, b) => a + b, 0);
+      case AggregationFunction.MAX:
+        return Math.max(...values);
+      case AggregationFunction.AVERAGE:
+        return values.reduce((a, b) => a + b, 0) / values.length;
+      case AggregationFunction.PERCENTILE_95:
+        return percentile(
+          [...values].sort((a, b) => a - b),
+          95
+        );
+      case AggregationFunction.PERCENTILE_99:
+        return percentile(
+          [...values].sort((a, b) => a - b),
+          99
+        );
+      default:
+        return values.reduce((a, b) => a + b, 0);
     }
   }
 
-  getCurrentPeriodConsumption(userId: string, metricType: string, window: AggregationWindow = AggregationWindow.MONTHLY): number {
+  getCurrentPeriodConsumption(
+    userId: string,
+    metricType: string,
+    window: AggregationWindow = AggregationWindow.MONTHLY
+  ): number {
     return this.aggregate(userId, metricType, window, AggregationFunction.SUM);
   }
 
@@ -205,22 +419,44 @@ export class MeteringService {
       if (ratio >= HARD_THRESHOLD_RATIO) {
         const alert: UsageAlert = {
           id: `alert_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
-          subscriptionId: userId, metric: mt, threshold: limit, currentUsage: usage,
+          subscriptionId: userId,
+          metric: mt,
+          threshold: limit,
+          currentUsage: usage,
           message: `Usage for ${mt} has reached ${Math.round(ratio * 100)}% of limit`,
-          createdAt: new Date(), acknowledged: false,
+          createdAt: new Date(),
+          acknowledged: false,
         };
         this.alerts.push(alert);
-        return { level: UsageAlertLevel.HARD, metric: mt as any, subscriptionId: userId, usage, limit, ratio };
+        return {
+          level: UsageAlertLevel.HARD,
+          metric: mt as QuotaMetric,
+          subscriptionId: userId,
+          usage,
+          limit,
+          ratio,
+        };
       }
       if (ratio >= SOFT_THRESHOLD_RATIO) {
         const alert: UsageAlert = {
           id: `alert_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
-          subscriptionId: userId, metric: mt, threshold: limit, currentUsage: usage,
+          subscriptionId: userId,
+          metric: mt,
+          threshold: limit,
+          currentUsage: usage,
           message: `Usage for ${mt} has reached ${Math.round(ratio * 100)}% of limit`,
-          createdAt: new Date(), acknowledged: false,
+          createdAt: new Date(),
+          acknowledged: false,
         };
         this.alerts.push(alert);
-        return { level: UsageAlertLevel.SOFT, metric: mt as any, subscriptionId: userId, usage, limit, ratio };
+        return {
+          level: UsageAlertLevel.SOFT,
+          metric: mt as QuotaMetric,
+          subscriptionId: userId,
+          usage,
+          limit,
+          ratio,
+        };
       }
     }
     return null;
@@ -239,15 +475,16 @@ export class MeteringService {
 
   resetPeriod(userId: string, metricType: string): void {
     this.events.delete(meterKey(userId, metricType));
+    this.pipeline.resetStreamPeriod(userId, metricType);
   }
 
   /**
- * Sums recorded usage per metric for a subscription.
- *
- * An optional window is essential: without one this returns the entire
- * lifetime total, which callers then label as a single billing period.
- */
-getUsageByMetric(subscriptionId: string, from?: Date, to?: Date): Record<string, number> {
+   * Sums recorded usage per metric for a subscription.
+   *
+   * An optional window is essential: without one this returns the entire
+   * lifetime total, which callers then label as a single billing period.
+   */
+  getUsageByMetric(subscriptionId: string, from?: Date, to?: Date): Record<string, number> {
     const fromMs = from instanceof Date ? from.getTime() : undefined;
     const toMs = to instanceof Date ? to.getTime() : undefined;
     const usage: Record<string, number> = {};
@@ -273,13 +510,24 @@ getUsageByMetric(subscriptionId: string, from?: Date, to?: Date): Record<string,
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
 
-    const currentHistory = this.usageHistory.filter((h) => h.subscriptionId === subscriptionId && h.timestamp >= thirtyDaysAgo);
-    const previousHistory = this.usageHistory.filter((h) => h.subscriptionId === subscriptionId && h.timestamp >= sixtyDaysAgo && h.timestamp < thirtyDaysAgo);
+    const currentHistory = this.usageHistory.filter(
+      (h) => h.subscriptionId === subscriptionId && h.timestamp >= thirtyDaysAgo
+    );
+    const previousHistory = this.usageHistory.filter(
+      (h) =>
+        h.subscriptionId === subscriptionId &&
+        h.timestamp >= sixtyDaysAgo &&
+        h.timestamp < thirtyDaysAgo
+    );
 
     const currentByMetric: Record<string, number> = {};
     const previousByMetric: Record<string, number> = {};
-    for (const entry of currentHistory) currentByMetric[entry.metric] = (currentByMetric[entry.metric] || 0) + entry.value;
-    for (const entry of previousHistory) previousByMetric[entry.metric] = (previousByMetric[entry.metric] || 0) + entry.value;
+    for (const entry of currentHistory) {
+      currentByMetric[entry.metric] = (currentByMetric[entry.metric] || 0) + entry.value;
+    }
+    for (const entry of previousHistory) {
+      previousByMetric[entry.metric] = (previousByMetric[entry.metric] || 0) + entry.value;
+    }
 
     const allMetrics = new Set([...Object.keys(currentByMetric), ...Object.keys(previousByMetric)]);
     const trends: UsageTrend[] = [];
@@ -291,7 +539,13 @@ getUsageByMetric(subscriptionId: string, from?: Date, to?: Date): Record<string,
       if (changePercent > 5) trend = 'increasing';
       else if (changePercent < -5) trend = 'decreasing';
       else trend = 'stable';
-      trends.push({ metric, currentPeriod: current, previousPeriod: previous, changePercent: Math.round(changePercent * 100) / 100, trend });
+      trends.push({
+        metric,
+        currentPeriod: current,
+        previousPeriod: previous,
+        changePercent: Math.round(changePercent * 100) / 100,
+        trend,
+      });
     }
     return trends;
   }
@@ -299,6 +553,7 @@ getUsageByMetric(subscriptionId: string, from?: Date, to?: Date): Record<string,
   acknowledgeAlert(alertId: string): void {
     const alert = this.alerts.find((a) => a.id === alertId);
     if (alert) alert.acknowledged = true;
+    this.pipeline.acknowledgeAlert(alertId);
   }
 
   getActiveAlerts(subscriptionId?: string): UsageAlert[] {
@@ -308,20 +563,35 @@ getUsageByMetric(subscriptionId: string, from?: Date, to?: Date): Record<string,
   }
 
   getAnalytics(subscriptionId?: string): UsageAnalytics {
-    let history = subscriptionId ? this.usageHistory.filter((h) => h.subscriptionId === subscriptionId) : this.usageHistory;
+    const history = subscriptionId
+      ? this.usageHistory.filter((h) => h.subscriptionId === subscriptionId)
+      : this.usageHistory;
     const totalUsage = history.reduce((sum, h) => sum + h.value, 0);
     const usageByMetric: Record<string, number> = {};
     const usageBySubscription: Record<string, number> = {};
     for (const entry of history) {
       usageByMetric[entry.metric] = (usageByMetric[entry.metric] || 0) + entry.value;
-      usageBySubscription[entry.subscriptionId] = (usageBySubscription[entry.subscriptionId] || 0) + entry.value;
+      usageBySubscription[entry.subscriptionId] =
+        (usageBySubscription[entry.subscriptionId] || 0) + entry.value;
     }
     const trends = subscriptionId ? this.getUsageTrends(subscriptionId) : [];
     const activeAlerts = this.getActiveAlerts(subscriptionId);
-    return { totalUsage, usageByMetric, usageBySubscription, usageHistory: history, trends, alertsCount: activeAlerts.length, alerts: activeAlerts };
+    return {
+      totalUsage,
+      usageByMetric,
+      usageBySubscription,
+      usageHistory: history,
+      trends,
+      alertsCount: activeAlerts.length,
+      alerts: activeAlerts,
+    };
   }
 
-  calculateUsageBilling(subscriptionId: string, unitPrice: number, currency: string): UsageBillingIntegration {
+  calculateUsageBilling(
+    subscriptionId: string,
+    unitPrice: number,
+    currency: string
+  ): UsageBillingIntegration {
     const now = new Date();
     const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
     // `new Date(y, m + 1, 0)` is midnight *starting* the last day, which

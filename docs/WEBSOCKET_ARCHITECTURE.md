@@ -1,58 +1,56 @@
 # SubTrackr Event-Driven WebSocket Architecture
 
 ## Overview
-SubTrackr's real-time messaging system uses an event-driven architecture decoupled from HTTP transports via Redis Pub/Sub, connection pooling, and sequence-based event replay.
+
+The real-time messaging layer separates event production from WebSocket connections. The default event adapter is in-memory for local development and tests. Multi-process deployments can use Redis Pub/Sub to fan events out to every backend instance.
 
 ## Core Components
 
 1. **`WebSocketServer` (`backend/services/notification/websocket.ts`)**
    - Uses an injectable `SubscriptionEventBus` to decouple producers from socket transports.
-   - Keeps the legacy `broadcast(event)` API by publishing onto the event bus.
-   - Supports local in-memory delivery by default and can be backed by Redis in production adapters.
+   - Preserves the `broadcast(event)` API and local in-memory delivery.
+   - Supports batching, backpressure, heartbeat checks, and delivery metrics.
 
 2. **`EventDrivenWsServer` (`backend/services/notification/eventDrivenWsServer.ts`)**
-   - Redis Pub/Sub compatible server for sequence-based replay and horizontal fan-out.
-   - Manages connection presence, client filter matching, and event dispatch.
+   - Manages local socket connections, filters, presence, event sequencing, and replay.
+   - Subscribes to the shared `subtrackr_ws_events` channel before accepting published events.
+   - Exposes `ready` so startup can wait for the Redis subscription to be active.
+   - `shutdown()` stops heartbeats, removes local connections, and closes its Pub/Sub adapter.
 
-3. **Connection Pooling & Active Heartbeat**
-   - Server runs a periodic ping/pong audit across connected client pools.
-   - Stale/unresponsive sockets are automatically disconnected (`Heartbeat timeout`).
+3. **Redis Pub/Sub adapter (`backend/services/notification/redisPubSubAdapter.ts`)**
+   - `IORedisPubSubAdapter` uses separate publisher and subscriber connections, as Redis subscriber connections cannot be used for normal commands.
+   - A single Redis subscription fans messages out to local handlers registered for that channel.
+   - `createRedisPubSubAdapter()` creates and health-checks both connections using the shared `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, and `REDIS_DB` configuration.
+   - The adapter owns both connections and closes them during shutdown.
 
-4. **Event Replay Store**
-   - Every published event receives a monotonically increasing `sequenceId`.
-   - Reconnecting clients supply `lastSequenceId` via `replayEventsSince()`, receiving all missed events in exact chronological sequence.
+## Production setup
 
-5. **Client SDK Client (`src/services/WebSocketClient.ts`)**
-   - Manages automatic reconnection with exponential backoff and transparent state recovery.
-
-6. **Load Testing Harness (`scripts/load-test-websocket.js`)**
-   - Benchmark script testing connection scale up to 10,000+ virtual client sockets.
-
-## Event Bus Usage
+Create one adapter per backend process and inject it into the event-driven server:
 
 ```ts
-import {
-  InMemorySubscriptionEventBus,
-  WebSocketServer,
-} from '../backend/services/notification/websocket';
+import { EventDrivenWsServer } from '../backend/services/notification/eventDrivenWsServer';
+import { createRedisPubSubAdapter } from '../backend/services/notification/redisPubSubAdapter';
 
-const eventBus = new InMemorySubscriptionEventBus();
-const wsServer = new WebSocketServer({ batchIntervalMs: 50 }, eventBus);
+const pubSub = await createRedisPubSubAdapter();
+const wsServer = new EventDrivenWsServer(pubSub);
 
-wsServer.connect('client-1', 'user-1', (event) => socket.send(JSON.stringify(event)));
-eventBus.publish({
-  type: 'subscription.renewed',
-  subscriptionId: 'sub_1',
-  userId: 'user-1',
-  payload: { amount: 10 },
-  timestamp: Date.now(),
-});
+// Do not accept socket connections until the shared channel is subscribed.
+await wsServer.ready;
+
+// During graceful process shutdown:
+await wsServer.shutdown();
 ```
 
-The default `batchIntervalMs` is `0` to preserve immediate delivery for
-existing callers. Production deployments can set a non-zero interval to batch
-bursty events while retaining backpressure limits through `maxQueueSize`.
+All backend instances must use the same Redis deployment, database, and channel. Each instance receives published events and dispatches them only to its own matching local connections. Redis Pub/Sub is at-most-once delivery: events published while a subscriber is disconnected are not buffered by Redis. Use the event store/replay mechanism when durable recovery is required.
+
+For local development and isolated unit tests, omit the adapter or inject `MockRedisPubSubAdapter` to avoid a Redis dependency.
+
+## Event replay
+
+Each event published through an `EventDrivenWsServer` receives a monotonically increasing sequence identifier and is retained in a bounded in-process replay buffer. A reconnecting client can pass its last seen sequence to `replayEventsSince()`. This buffer is local to the server process; it is not a durable, cluster-wide event log.
 
 ## Tests
 
 - `backend/services/notification/__tests__/websocket.test.ts`
+- `backend/services/notification/__tests__/redisPubSubAdapter.test.ts`
+- `backend/services/notification/__tests__/eventDrivenWsServer.test.ts`

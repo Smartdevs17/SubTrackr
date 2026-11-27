@@ -1,3 +1,23 @@
+import {
+  LoyaltyRewardsLedger,
+  LOYALTY_REWARDS,
+  LOYALTY_TIERS,
+  getLoyaltyReward,
+  resolveLoyaltyTier,
+  type LoyaltyBalance,
+  type LoyaltyMutationResult,
+  type LoyaltyTierId,
+} from './loyaltyRewards';
+
+export {
+  LOYALTY_REWARDS,
+  LOYALTY_TIERS,
+  LoyaltyRewardsLedger,
+  getLoyaltyReward,
+  resolveLoyaltyTier,
+} from './loyaltyRewards';
+export type { LoyaltyBalance, LoyaltyMutationResult, LoyaltyTierId } from './loyaltyRewards';
+
 export interface LoyaltyPointsRule {
   id: string;
   name: string;
@@ -111,6 +131,7 @@ const DEFAULT_POINTS_RULES: LoyaltyPointsRule[] = [
 
 export class LoyaltyService {
   private pointsRules: LoyaltyPointsRule[] = [...DEFAULT_POINTS_RULES];
+  private readonly ledger = new LoyaltyRewardsLedger();
   private notifications: LoyaltyNotification[] = [];
   private pointsHistory: Array<{
     subscriberId: string;
@@ -199,6 +220,86 @@ export class LoyaltyService {
     return { points: bestPoints, ruleId: bestRule.id };
   }
 
+  // ── Rewards ledger ──────────────────────────────────────────────────────
+
+  getBalance(subscriberId: string): LoyaltyBalance {
+    return this.ledger.getBalance(subscriberId);
+  }
+
+  getTier(subscriberId: string): LoyaltyTierId {
+    return this.ledger.getBalance(subscriberId).tier;
+  }
+
+  getRewards(): typeof LOYALTY_REWARDS {
+    return LOYALTY_REWARDS;
+  }
+
+  getTiers(): typeof LOYALTY_TIERS {
+    return LOYALTY_TIERS;
+  }
+
+  awardPoints(
+    subscriberId: string,
+    trigger: LoyaltyPointsRule['trigger'],
+    context: { chargeAmount?: number; tenureDays?: number; usageUnits?: number } = {}
+  ): LoyaltyMutationResult {
+    const calculated = this.calculatePoints(trigger, context);
+    if (!calculated) {
+      return {
+        accepted: false,
+        balance: this.getBalance(subscriberId),
+        previousTier: this.getTier(subscriberId),
+        tierChanged: false,
+        error: 'No loyalty rule matched this event',
+      };
+    }
+
+    const result = this.ledger.award(subscriberId, calculated.points, calculated.ruleId);
+    if (!result.accepted) return result;
+
+    this.recordPointsEvent(subscriberId, result.event!.points, 'earn', calculated.ruleId);
+    this.createNotification(
+      'points_earned',
+      subscriberId,
+      'Loyalty points earned',
+      `You earned ${result.event!.points} points from ${calculated.ruleId}.`,
+      { ruleId: calculated.ruleId, balance: result.balance.points }
+    );
+    if (result.tierChanged) {
+      this.createNotification(
+        'tier_upgraded',
+        subscriberId,
+        `You reached ${result.balance.tier}`,
+        `Your new tier unlocks ${LOYALTY_TIERS.find((tier) => tier.id === result.balance.tier)?.benefits.join(', ')}.`,
+        { tier: result.balance.tier }
+      );
+    }
+    return result;
+  }
+
+  redeemReward(subscriberId: string, rewardId: string): LoyaltyMutationResult {
+    const result = this.ledger.redeem(subscriberId, rewardId);
+    if (!result.accepted) return result;
+
+    this.recordPointsEvent(subscriberId, result.event!.points, 'redeem', rewardId);
+    this.createNotification(
+      'reward_available',
+      subscriberId,
+      'Reward redeemed',
+      `${getLoyaltyReward(rewardId)?.name ?? rewardId} is ready to use.`,
+      { rewardId, remainingPoints: result.balance.points }
+    );
+    return result;
+  }
+
+  expirePoints(subscriberId: string, points: number, reason = 'points_expired'): LoyaltyMutationResult {
+    const result = this.ledger.expire(subscriberId, points, reason);
+    if (!result.accepted) return result;
+
+    this.recordPointsEvent(subscriberId, result.event!.points, 'expire', reason);
+    return result;
+  }
+
   // ── Points History Tracking ─────────────────────────────────────────────
 
   recordPointsEvent(
@@ -231,7 +332,14 @@ export class LoyaltyService {
       points: number;
       lifetimePoints: number;
       tier: string;
-    }>
+    }> = this.ledger
+      .getAllBalances()
+      .map((balance) => ({
+        subscriberId: balance.subscriberId,
+        points: balance.points,
+        lifetimePoints: balance.lifetimePoints,
+        tier: balance.tier,
+      }))
   ): LoyaltyAnalyticsData {
     const totalPointsEarned = this.pointsHistory
       .filter((h) => h.type === 'earn')
@@ -255,9 +363,19 @@ export class LoyaltyService {
       tierBreakdown[subscriber.tier] = (tierBreakdown[subscriber.tier] ?? 0) + 1;
     }
 
-    const uniqueEarners = new Set(
-      this.pointsHistory.filter((h) => h.type === 'earn').map((h) => h.subscriberId)
-    ).size;
+    const redemptionCounts = new Map<string, number>();
+    for (const entry of this.pointsHistory) {
+      if (entry.type === 'redeem') {
+        redemptionCounts.set(entry.trigger, (redemptionCounts.get(entry.trigger) ?? 0) + 1);
+      }
+    }
+    const topRewards = Array.from(redemptionCounts.entries())
+      .map(([rewardId, redemptionCount]) => ({
+        rewardId,
+        rewardName: getLoyaltyReward(rewardId)?.name ?? rewardId,
+        redemptionCount,
+      }))
+      .sort((a, b) => b.redemptionCount - a.redemptionCount);
 
     const pointsTrend: LoyaltyAnalyticsData['pointsTrend'] = [];
     const now = Date.now();
@@ -283,14 +401,16 @@ export class LoyaltyService {
       activePointsBalance,
       totalMembers: allSubscribers.length,
       tierBreakdown,
-      topRewards: [],
+      topRewards,
       pointsTrend,
       averagePointsPerMember: allSubscribers.length > 0
         ? activePointsBalance / allSubscribers.length
         : 0,
       redemptionRate: totalPointsEarned > 0 ? totalPointsRedeemed / totalPointsEarned : 0,
       churnImpact: {
-        membersWithRedemptions: 0,
+        membersWithRedemptions: this.ledger
+          .getAllBalances()
+          .filter((balance) => balance.redeemedPoints > 0).length,
         averageRetentionDays: 0,
         churnRate: 0,
       },

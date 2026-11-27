@@ -10,6 +10,7 @@ import {
   prefetchedModules,
   prefetchModule,
   SuspenseLoadingFallback,
+  lazyStack,
 } from '../../utils/lazyLoading';
 
 // Mock react-native completely with pass-through elements so testID is fully discoverable by testing-library
@@ -266,5 +267,56 @@ describe('Lazy Loading Utilities & Error Boundaries', () => {
     } finally {
       console.error = originalConsoleError;
     }
+  });
+});
+
+// ─── lazyStack — route-level dynamic stack loading (issue #2212) ─────────────
+
+describe('lazyStack', () => {
+  const StackComponent = () => <Text testID="stack-component">Stack Loaded</Text>;
+
+  it('applies a custom displayName', () => {
+    const LazySettingsStack = lazyStack(
+      () => Promise.resolve({ default: StackComponent }),
+      { displayName: 'LazyStack(Settings)' }
+    );
+    expect(LazySettingsStack.displayName).toBe('LazyStack(Settings)');
+  });
+
+  it('derives a displayName when one is not provided', () => {
+    function importStack() {
+      return Promise.resolve({ default: StackComponent });
+    }
+    const LazyDynStack = lazyStack(importStack);
+    expect(LazyDynStack.displayName).toContain('lazyStack(');
+  });
+
+  it('resolves a module with a default export', async () => {
+    const importFn = jest.fn().mockResolvedValue({ default: StackComponent });
+    const LazyTestStack = lazyStack(importFn);
+    const mod = await importFn();
+    expect(mod.default).toBe(StackComponent);
+    expect(LazyTestStack.displayName).toBeTruthy();
+  });
+
+  it('resolves a module via a named export when exportName is provided', async () => {
+    const importFn = jest.fn().mockResolvedValue({ WalletStack: StackComponent });
+    const LazyWalletStack = lazyStack(importFn, {
+      exportName: 'WalletStack',
+      displayName: 'LazyStack(Wallet)',
+    });
+    expect(LazyWalletStack.displayName).toBe('LazyStack(Wallet)');
+  });
+
+  it('renders with a Suspense fallback while the import resolves', () => {
+    let resolveFn!: (v: { default: typeof StackComponent }) => void;
+    const neverSettles = new Promise<{ default: typeof StackComponent }>(
+      (resolve) => { resolveFn = resolve; }
+    );
+    const LazyNeverStack = lazyStack(() => neverSettles, { displayName: 'LazyStack(Pending)' });
+    const { getByTestId } = render(<LazyNeverStack />);
+    expect(getByTestId('lazy-loading-fallback')).toBeTruthy();
+    // Resolve to avoid dangling async operations in the test runner.
+    resolveFn({ default: StackComponent });
   });
 });

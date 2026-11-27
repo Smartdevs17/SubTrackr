@@ -216,8 +216,8 @@ describe('DeveloperLifecycleService', () => {
   describe('getApiKeys()', () => {
     it('lists keys for a developer', async () => {
       const dev = await svc.registerDeveloper('list-keys@example.com', 'Eve');
-      await svc.createApiKey(dev.id, 'Key A', 'test', []);
-      await svc.createApiKey(dev.id, 'Key B', 'test', []);
+      await svc.createApiKey(dev.id, 'Key A', 'test', ['subscriptions:read']);
+      await svc.createApiKey(dev.id, 'Key B', 'test', ['subscriptions:read']);
       const keys = await svc.getApiKeys(dev.id);
       expect(keys.length).toBeGreaterThanOrEqual(2);
     });
@@ -226,7 +226,7 @@ describe('DeveloperLifecycleService', () => {
   describe('revokeApiKey()', () => {
     it('revokes an existing API key', async () => {
       const dev = await svc.registerDeveloper('revoke@example.com', 'Frank');
-      const key = await svc.createApiKey(dev.id, 'Temp Key', 'test', []);
+      const key = await svc.createApiKey(dev.id, 'Temp Key', 'test', ['subscriptions:read']);
       const revoked = await svc.revokeApiKey(dev.id, key!.id);
       expect(revoked).toBe(true);
     });

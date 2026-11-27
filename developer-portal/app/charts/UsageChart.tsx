@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
 
-interface UsageChartProps {
+export interface UsageChartProps {
   data: Record<string, number>;
   period: string;
   onPeriodChange: (period: string) => void;

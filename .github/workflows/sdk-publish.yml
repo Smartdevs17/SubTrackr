@@ -1,6 +1,7 @@
 name: SDK Publish
 
 # Builds, verifies and publishes the JavaScript, Python and Go SDKs together.
+# The OpenAPI 3.1 check and publish manifest come from scripts/publish-sdks.js.
 #
 # - Pull requests, pushes to main and manual runs are dry runs: every SDK is
 #   tested and packaged, nothing is published.
@@ -16,10 +17,16 @@ on:
     tags: ['sdk-v*']
     paths:
       - 'sdks/**'
+      - 'developer-portal/docs/openapi.json'
+      - 'scripts/publish-sdks.js'
+      - 'scripts/generate-sdks.js'
       - '.github/workflows/sdk-publish.yml'
   pull_request:
     paths:
       - 'sdks/**'
+      - 'developer-portal/docs/openapi.json'
+      - 'scripts/publish-sdks.js'
+      - 'scripts/generate-sdks.js'
       - '.github/workflows/sdk-publish.yml'
   workflow_dispatch:
 
@@ -56,6 +63,19 @@ jobs:
       - name: Plan
         id: plan
         run: node sdks/scripts/release.mjs plan
+      # OpenAPI 3.1 validation and publish manifest (scripts/publish-sdks.js, #2217).
+      # Always a dry run here: the publish-* jobs below do the registry uploads.
+      - name: Validate OpenAPI spec and write publish manifest
+        env:
+          VERSION: ${{ steps.plan.outputs.version }}
+        run: |
+          node scripts/generate-sdks.js
+          node scripts/publish-sdks.js --version "sdk-v$VERSION"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdk-publish-manifest
+          path: sdks/generated/publish-manifest.json
+          if-no-files-found: error
       - name: Check registries
         id: registry
         if: steps.plan.outputs.publish == 'true'

@@ -10,9 +10,14 @@
 import { BillingCycle } from './subscription';
 
 export type ProrationPolicy = 'exact_day' | 'calendar_month' | 'immediate_charge' | 'next_invoice';
+export type ProrationPrecision = 'day' | 'hour';
 
 export type ProrationMode =
-  'upgrade' | 'downgrade' | 'cancellation' | 'addon_change' | 'billing_cycle_change';
+  | 'upgrade'
+  | 'downgrade'
+  | 'cancellation'
+  | 'addon_change'
+  | 'billing_cycle_change';
 
 export interface ProrationConfig {
   policy: ProrationPolicy;
@@ -68,6 +73,8 @@ export interface ProrationCalculationRequest {
   cycleEndDate: number | string;
   effectiveDate?: number | string;
   mode?: ProrationMode;
+  /** Granularity used in the explanation and breakdown (amounts always use exact timestamps). */
+  precision?: ProrationPrecision;
   config?: Partial<ProrationConfig>;
 }
 

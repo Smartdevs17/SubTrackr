@@ -1,5 +1,22 @@
 import { UsageMetric, UsageIngestResult } from './meteringService';
-import { AggregationFunction, AggregationWindow, UsageThresholdAlert } from '../../../src/types/usage';
+import {
+  DeadLetterUsageEvent,
+  LateUsageAdjustment,
+  PeriodSettlementInput,
+  PeriodSettlementResult,
+  PipelineIngestResult,
+  PipelineMetrics,
+  PipelineThresholdAlertRecord,
+  PipelineUsageEvent,
+  RollupQueryWindowOrRange,
+  ThresholdAlertListener,
+  UsageRollupBucket,
+} from './usageMeteringPipeline';
+import {
+  AggregationFunction,
+  AggregationWindow,
+  UsageThresholdAlert,
+} from '../../../src/types/usage';
 import { PriceRecommendation, ABTestScenario, PricingContext } from './pricingService';
 import type {
   PlanTemplate,
@@ -26,7 +43,7 @@ import {
   DunningAnalytics,
   FailureReason,
   DunningCommunicationTemplate,
-  RetryStrategy
+  RetryStrategy,
 } from '../../../src/types/dunning';
 import {
   TransactionRecord,
@@ -70,7 +87,10 @@ export interface IMeteringService {
   checkThresholds(userId: string, metricType: string): Promise<UsageThresholdAlert | null>;
   calculateOverage(userId: string, metricType?: string): Promise<number>;
   getUsageByMetric(subscriptionId: string): Record<string, number>;
-  getUsageHistory(subscriptionId?: string, metric?: string): Array<{
+  getUsageHistory(
+    subscriptionId?: string,
+    metric?: string
+  ): Array<{
     subscriptionId: string;
     metric: string;
     value: number;
@@ -112,10 +132,65 @@ export interface IMeteringService {
       acknowledged: boolean;
     }>;
   };
+  enqueueUsage?(event: PipelineUsageEvent): PipelineIngestResult;
+  enqueueUsageBatch?(events: PipelineUsageEvent[]): PipelineIngestResult[];
+  flushPipeline?(): number;
+  queryRollup?(
+    subscriptionId: string,
+    metricType: string,
+    windowOrRange?: RollupQueryWindowOrRange,
+    fn?: AggregationFunction,
+    referenceNowMs?: number
+  ): number;
+  getRollupBuckets?(
+    subscriptionId: string,
+    metricType: string,
+    range?: { start?: Date | number; end?: Date | number }
+  ): UsageRollupBucket[];
+  settlePeriod?(input: PeriodSettlementInput): PeriodSettlementResult;
+  getPipelineMetrics?(): PipelineMetrics;
+}
+
+export interface IUsageMeteringPipeline {
+  start(): void;
+  stop(): void;
+  enqueue(event: PipelineUsageEvent): PipelineIngestResult;
+  enqueueBatch(events: PipelineUsageEvent[]): PipelineIngestResult[];
+  ingest(event: PipelineUsageEvent): PipelineIngestResult;
+  ingestBatch(events: PipelineUsageEvent[]): PipelineIngestResult[];
+  flush(): number;
+  queryRollup(
+    subscriptionId: string,
+    metricType: string,
+    windowOrRange?: RollupQueryWindowOrRange,
+    fn?: AggregationFunction,
+    referenceNowMs?: number
+  ): number;
+  getRollupBuckets(
+    subscriptionId: string,
+    metricType: string,
+    range?: { start?: Date | number; end?: Date | number }
+  ): UsageRollupBucket[];
+  setQuotaLimit(subscriptionId: string, metricType: string, limit: number): void;
+  getQuotaLimit(subscriptionId: string, metricType: string): number | undefined;
+  checkThresholds(subscriptionId: string, metricType?: string): UsageThresholdAlert | null;
+  onThresholdAlert(listener: ThresholdAlertListener): () => void;
+  getAlerts(subscriptionId?: string, includeAcknowledged?: boolean): PipelineThresholdAlertRecord[];
+  acknowledgeAlert(alertId: string): boolean;
+  settlePeriod(input: PeriodSettlementInput): PeriodSettlementResult;
+  getWatermark(subscriptionId: string, metricType: string): number | null;
+  getDeadLetterQueue(subscriptionId?: string, metricType?: string): DeadLetterUsageEvent[];
+  getLateAdjustments(subscriptionId?: string, metricType?: string): LateUsageAdjustment[];
+  resetStreamPeriod(subscriptionId: string, metricType?: string): void;
+  getMetrics(): PipelineMetrics;
+  reset(): void;
 }
 
 export interface IPricingService {
-  calculateOptimalPrice(subscriptionId: string, context: PricingContext): Promise<PriceRecommendation>;
+  calculateOptimalPrice(
+    subscriptionId: string,
+    context: PricingContext
+  ): Promise<PriceRecommendation>;
   getPriceRecommendations(planId: string): Promise<ABTestScenario[]>;
   getCompetitorPrices(market: string): Promise<Record<string, number[]>>;
 }
@@ -128,7 +203,11 @@ export interface ITaxService {
 
 export interface IDunningService {
   configurePlan(planId: string, config: Partial<DunningConfiguration>): DunningConfiguration;
-  configureABTest(planId: string, enabled: boolean, variants: Array<{ id: string; weight: number; strategy: RetryStrategy }>): void;
+  configureABTest(
+    planId: string,
+    enabled: boolean,
+    variants: Array<{ id: string; weight: number; strategy: RetryStrategy }>
+  ): void;
   getConfiguration(planId: string): DunningConfiguration | undefined;
   getStrategy(planId: string, failureReason: FailureReason, abTestVariant?: string): RetryStrategy;
   startDunning(
@@ -184,14 +263,20 @@ export interface IDunningService {
 }
 
 export interface IAccountingExportService {
-  streamExport(records: TransactionRecord[], options: StreamExportOptions): { totalRecords: number; checksum: string };
+  streamExport(
+    records: TransactionRecord[],
+    options: StreamExportOptions
+  ): { totalRecords: number; checksum: string };
   reconcile(
     exported: TransactionRecord[],
     expected: Array<{ id: string; amount: number; transactionType: TransactionType }>
   ): ReconciliationResult;
   createExportSchedule(input: ExportScheduleInput): ExportSchedule;
   getExportSchedules(merchantId?: string): ExportSchedule[];
-  updateExportSchedule(id: string, patch: Partial<Omit<ExportSchedule, 'id' | 'createdAt'>>): ExportSchedule | null;
+  updateExportSchedule(
+    id: string,
+    patch: Partial<Omit<ExportSchedule, 'id' | 'createdAt'>>
+  ): ExportSchedule | null;
   deleteExportSchedule(id: string): boolean;
   toggleExportSchedule(id: string, enabled: boolean): ExportSchedule | null;
   runDueExports(
@@ -209,7 +294,10 @@ export interface IPartnerService {
     transactionId: string;
     grossAmount: number;
   }): SplitExecution;
-  shouldSchedulePayout(config: SplitConfiguration, lastPayoutDate: Date | null): {
+  shouldSchedulePayout(
+    config: SplitConfiguration,
+    lastPayoutDate: Date | null
+  ): {
     shouldProcess: boolean;
     nextScheduledDate: Date;
     reason: string;
@@ -228,12 +316,27 @@ export interface IGroupBillingService {
   markInvoicePaid(invoiceId: string, groupId: string): any | null;
   getGroupInvoices(groupId: string): any[];
   calculateGroupAnalytics(group: any): any;
-  recordAdminAction(groupId: string, action: string, actorAddress: string, targetAddress?: string, metadata?: Record<string, unknown>): any;
+  recordAdminAction(
+    groupId: string,
+    action: string,
+    actorAddress: string,
+    targetAddress?: string,
+    metadata?: Record<string, unknown>
+  ): any;
   getAdminActions(groupId: string, limit?: number): any[];
-  canPerformAction(group: any, actorAddress: string, action: string): { allowed: boolean; reason?: string };
+  canPerformAction(
+    group: any,
+    actorAddress: string,
+    action: string
+  ): { allowed: boolean; reason?: string };
   customizeGroupPlan(groupId: string, customization: any): any;
   getGroupPlanCustomization(groupId: string): any | undefined;
-  overrideMemberBalance(group: any, memberAddress: string, newBalance: number, actorAddress: string): any | null;
+  overrideMemberBalance(
+    group: any,
+    memberAddress: string,
+    newBalance: number,
+    actorAddress: string
+  ): any | null;
 }
 
 export interface ILoyaltyService {
@@ -242,10 +345,21 @@ export interface ILoyaltyService {
   removePointsRule(id: string): void;
   getPointsRules(trigger?: string): any[];
   calculatePoints(trigger: string, context?: any): { points: number; ruleId: string } | null;
-  recordPointsEvent(subscriberId: string, points: number, type: 'earn' | 'redeem' | 'expire', trigger: string): void;
+  recordPointsEvent(
+    subscriberId: string,
+    points: number,
+    type: 'earn' | 'redeem' | 'expire',
+    trigger: string
+  ): void;
   getPointsHistory(subscriberId: string, limit?: number): any[];
   getLoyaltyAnalytics(allSubscribers: any[]): any;
-  createNotification(type: string, subscriberId: string, title: string, body: string, data?: Record<string, unknown>): any;
+  createNotification(
+    type: string,
+    subscriberId: string,
+    title: string,
+    body: string,
+    data?: Record<string, unknown>
+  ): any;
   getNotifications(subscriberId: string, unreadOnly?: boolean): any[];
   markNotificationRead(notificationId: string): void;
   markAllNotificationsRead(subscriberId: string): void;
@@ -279,3 +393,19 @@ export interface IPlanTemplateService {
   recordSubscription(templateId: string, revenue?: number): Promise<TemplateAnalytics>;
   getLibraryAnalytics(filter?: TemplateFilter): Promise<TemplateLibraryAnalytics>;
 }
+
+// ── Multi-Provider Billing Strategy Architecture (Issue #2203) ───────────────
+export type {
+  BillingCategory,
+  BillingProviderId,
+  BillingProviderCapabilities,
+  BillingChargeRequest,
+  BillingChargeResult,
+  BillingRefundRequest,
+  BillingRefundResult,
+  ProviderValidationResult,
+  FeeEstimate,
+  BillingProviderStrategy,
+  MultiProviderAnalytics,
+} from './multiProviderBillingStrategy';
+

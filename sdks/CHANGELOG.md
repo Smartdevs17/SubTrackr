@@ -13,5 +13,10 @@ First release published to the package registries.
 - Python: `subtrackr-sdk` on PyPI.
 - Go: `github.com/Smartdevs17/SubTrackr/sdks/go/v2`. The module path takes the
   `/v2` suffix that Go requires for major version 2.
+- Python: restored `create_plan()` (same payload as the JavaScript SDK's
+  `createPlan`), which had been lost in a client refactor. Every call now goes
+  through one pooled `requests.Session`.
+- JavaScript: includes the circuit breaker and resilience layer; fixed a
+  missing `CircuitState` import that stopped the package from compiling.
 - Requests carry `X-SDK-Version` / `X-API-Version`. Deprecation policy:
   [docs/deprecation-policy.md](docs/deprecation-policy.md).

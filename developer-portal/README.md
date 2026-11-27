@@ -85,9 +85,10 @@ A comprehensive developer portal for SubTrackr with API key management, interact
 ## Security Features
 
 ### 🔒 API Key Security
-- Keys shown only once after creation
-- Secure storage with masked display
-- Permission-based access control (Read, Write, Delete, Admin)
+- Keys shown only once after creation; only a SHA-256 hash is stored
+- Cryptographically random secrets with masked display
+- Scoped permissions (`resource:read` / `resource:write`) limited by tier
+- Optional IPv4 / CIDR allowlist per key
 - Rate limiting to prevent abuse
 - Expiration dates for temporary access
 - Revocation and rotation capabilities
@@ -224,6 +225,53 @@ The `withAction` wrapper in `actions/observability.ts` wires three signals:
 - **Traces**: The backend logger uses `AsyncLocalStorage` for correlation ID
   propagation, so all log lines inside an action carry the request's
   correlation ID automatically.
+
+### API Key Issuance and Scopes
+
+`services/apiKeyIssuanceService.ts` issues keys, and `utils/apiKeyScopes.ts`
+holds the rules. `developerPortalService.createApiKey` / `revokeApiKey` /
+`getApiKeys` and `createApiKeyAction` all go through them.
+
+- **Secrets:** each key is 32 random bytes from `crypto`, prefixed `sk_test_`
+  or `sk_live_`. Only a SHA-256 hash is stored. The plaintext comes back once,
+  in `createApiKeyAction`'s `data.key`. Every listing shows a masked key, such
+  as `sk_live_abcd…wxyz`.
+- **Scopes:** `resource:action`, using the `ApiPermission` values. A `write`
+  scope implies `read` on the same resource, and stored scopes include the
+  implied ones.
+- **Tier policy:**
+
+  | Tier | Scopes | Active keys | Max lifetime (default) |
+  |---|---|---|---|
+  | free | all `:read`, `subscriptions:write`, `webhooks:write`, `sandbox:manage` | 3 | 90 days |
+  | pro | all except `users:write` | 10 | 365 days |
+  | enterprise | all | 50 | 365 days |
+
+  Production keys need an `active` (verified) account and can't hold
+  `sandbox:manage`.
+- **IP allowlist:** an optional `ipAllowlist` of IPv4 addresses or CIDR
+  ranges, stored on `ApiKey.ipWhitelist`.
+- **Errors from `createApiKeyAction`:**
+
+  | Problem | Error code |
+  |---|---|
+  | Plan or account doesn't allow the request | `forbidden` |
+  | Active-key limit reached | `conflict` |
+  | Malformed IP allowlist | `validation_error` |
+
+  `fieldErrors` names each problem, with paths `permissions`, `type`,
+  `expiresInDays` and `ipAllowlist`.
+- **Request-time check:** an API gateway calls
+  `apiKeyIssuanceService.authorize(secret, requiredScope, ip)` and gets either
+  `{ allowed: true, developerId, apiKey }` or `{ allowed: false, reason }`.
+  The reason is one of `invalid_key`, `revoked`, `expired`,
+  `insufficient_scope` or `ip_not_allowed`. Usage is recorded on success.
+- **Observability:** logs record `apiKey.issued`,
+  `apiKey.issuance_rejected`, `apiKey.revoked` and
+  `apiKey.authorization_denied` (secrets are never logged). Two Prometheus
+  counters are registered with the default exporter:
+  `developer_portal_api_keys_issued_total` / `_rejected_total` and
+  `developer_portal_api_key_authorizations_total{result,reason}`.
 
 ### Data Models
 - `Developer` - Developer account with onboarding status, API keys, usage, billing

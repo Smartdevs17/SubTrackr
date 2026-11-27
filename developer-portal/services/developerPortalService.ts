@@ -11,6 +11,7 @@ import {
   Alert,
 } from '../types/developer';
 import { sandboxService } from '../../sandbox/services/sandboxService';
+import { apiKeyIssuanceService } from './apiKeyIssuanceService';
 
 /**
  * Developer lifecycle service — registration, onboarding, API keys, usage
@@ -146,56 +147,54 @@ export class DeveloperLifecycleService {
     return updatedDeveloper;
   }
 
+  /**
+   * Issues a scoped API key through `apiKeyIssuanceService`.
+   *
+   * Returns null for an unknown developer and throws `ApiKeyIssuanceError`
+   * when the request breaks the tier policy. The returned object carries the
+   * plaintext secret in `key`; this is the only time it is available. The
+   * stored record (and every later listing) holds a masked key.
+   */
   async createApiKey(
     developerId: string,
     name: string,
     type: 'test' | 'production',
-    permissions: ApiPermission[]
+    permissions: ApiPermission[],
+    options: { expiresInDays?: number; ipAllowlist?: string[] } = {}
   ): Promise<ApiKey | null> {
     const developer = this.developers.get(developerId);
     if (!developer) return null;
 
-    const apiKey: ApiKey = {
-      id: this.generateApiKeyId(),
-      key: this.generateApiKey(type),
+    const { apiKey, secret } = apiKeyIssuanceService.issue(developer, {
       name,
       type,
-      permissions,
+      scopes: permissions,
       rateLimit: this.getDefaultRateLimit(developer.tier),
-      usageCount: 0,
-      status: 'active',
-      createdAt: new Date(),
-      expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
-    };
+      ...options,
+    });
 
+    // Same record object as the issuance store, so status changes stay in sync.
     developer.apiKeys.push(apiKey);
     developer.updatedAt = new Date();
     this.developers.set(developerId, developer);
 
     await this.logActivity(developerId, 'apikey.created', 'apikey', apiKey.id);
-    return apiKey;
+    return { ...apiKey, key: secret };
   }
 
   async revokeApiKey(developerId: string, apiKeyId: string): Promise<boolean> {
     const developer = this.developers.get(developerId);
     if (!developer) return false;
+    if (!apiKeyIssuanceService.revoke(developerId, apiKeyId)) return false;
 
-    const apiKey = developer.apiKeys.find((key) => key.id === apiKeyId);
-    if (!apiKey) return false;
-
-    apiKey.status = 'revoked';
-    apiKey.revokedAt = new Date();
     developer.updatedAt = new Date();
-    this.developers.set(developerId, developer);
-
     await this.logActivity(developerId, 'apikey.revoked', 'apikey', apiKeyId);
     return true;
   }
 
   async getApiKeys(developerId: string): Promise<ApiKey[]> {
-    const developer = this.developers.get(developerId);
-    if (!developer) return [];
-    return developer.apiKeys;
+    if (!this.developers.has(developerId)) return [];
+    return apiKeyIssuanceService.list(developerId);
   }
 
   async trackUsage(
@@ -305,15 +304,6 @@ export class DeveloperLifecycleService {
 
   private generateDeveloperId(): string {
     return `dev_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  }
-
-  private generateApiKeyId(): string {
-    return `key_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  }
-
-  private generateApiKey(type: string): string {
-    const prefix = type === 'test' ? 'sk_test_' : 'sk_live_';
-    return prefix + Math.random().toString(36).substr(2, 24);
   }
 
   private generateDocId(): string {

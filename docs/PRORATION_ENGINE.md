@@ -62,3 +62,51 @@ const result = ProrationEngine.calculateMidCycleProration({
 console.log(result.description);
 // Output: Prorated charge of $12.50 for mid-cycle plan upgrade (15 days remaining)
 ```
+
+## Exact day/hour precision (issue #2193)
+
+`backend/services/billing/prorationEngine.ts` is the canonical calculator. Amounts are
+derived from the exact number of milliseconds remaining in the billing period — no
+rounding up to whole days — so a change made 36 hours before renewal is billed for
+exactly 36 hours, not two days. `backend/billing/domain/ProrationService` delegates to
+the same engine, so HTTP previews and internal calculations cannot drift.
+
+Input additions to `ProrationCalculationRequest`:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `precision` | `'day' \| 'hour'` | Granularity shown in the breakdown/explanation. Amounts always use exact timestamps. |
+
+Result additions to `ProrationCalculationResult`:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `cycleTotalHours` | `number` | Exact cycle length in hours, rounded to cents |
+| `hoursUsed` / `hoursRemaining` | `number` | Exact elapsed/remaining hours |
+| `daysUsedExact` / `daysRemainingExact` | `number` | Fractional days (no ceiling) |
+
+Business rules:
+
+1. `unusedCredit = oldPrice * remainingMs / cycleMs`.
+2. `newCharge = min(newPrice, newPrice * remainingMs / newCycleMs)`, where `newCycleMs`
+   is 7/30/365 days for weekly/monthly/yearly-and-annual plans. `ANNUAL` is mapped to
+   365 days in both the backend engine and the frontend calculator.
+3. `net = newCharge - unusedCredit`; negative values are credits. Tax is computed on
+   the unrounded net and money is rounded once, to cents.
+4. Effective dates outside the cycle are clamped to its boundaries.
+5. `calculateNetProration(request, changes)` aggregates sequential plan changes without
+   rounding intermediate results.
+
+The HTTP layer is unchanged:
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `POST` | `/subscriptions/:id/proration/preview` | Preview an exact proration |
+| `POST` | `/subscriptions/:id/proration/apply` | Store a preview record |
+| `PATCH` | `/subscriptions/:id/proration/:recordId/confirm` | Apply a stored record |
+| `DELETE` | `/subscriptions/:id/proration/:recordId` | Cancel a stored record |
+| `GET` | `/subscriptions/:id/proration/history` | List records |
+| `GET` | `/proration/analytics` | Aggregated analytics |
+
+Tests: `backend/services/billing/__tests__/prorationEngine.test.ts` covers hour
+precision, annual cycles, clamping, credits, aggregation and validation.

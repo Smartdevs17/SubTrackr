@@ -234,6 +234,7 @@ ${c.bold('Commands:')}
     pause <id>         Pause a subscription
     resume <id>        Resume a paused subscription
     charge <id>        Manually trigger a charge cycle
+    import <file.csv>  Bulk-import from CSV (--dry-run to preview)
 
   ${c.cyan('plans')}         Manage subscription plans
     list               List available plans
@@ -817,6 +818,225 @@ async function cmdWebhookDelete(args, cfg) {
   ok(`Webhook ${c.cyan(id)} deleted.`);
 }
 
+// ── Bulk import ───────────────────────────────────────────────────────────────
+// CSV columns: name, price, currency, billing_cycle (required);
+//              next_billing_date, category (optional). Rules mirror
+//              backend/src/services/import.ts, which is the authoritative validator.
+
+const IMPORT_REQUIRED = ['name', 'price', 'currency', 'billing_cycle'];
+const IMPORT_CYCLES = ['weekly', 'monthly', 'quarterly', 'yearly'];
+const IMPORT_MAX_ROWS = 1000;
+
+function parseCsv(text) {
+  const rows = [];
+  let row = [];
+  let field = '';
+  let inQuotes = false;
+  const src = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (src[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else inQuotes = false;
+      } else field += ch;
+    } else if (ch === '"' && field === '') inQuotes = true;
+    else if (ch === ',') {
+      row.push(field);
+      field = '';
+    } else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && src[i + 1] === '\n') i++;
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = '';
+    } else field += ch;
+  }
+  if (inQuotes) throw new Error('Unterminated quoted field in CSV');
+  if (field !== '' || row.length > 0) {
+    row.push(field);
+    rows.push(row);
+  }
+  return rows;
+}
+
+function importRowErrors(rec) {
+  const errors = [];
+  if (!(rec.name || '').trim()) errors.push('name is required');
+  if (!/^\d+(\.\d{1,2})?$/.test((rec.price || '').trim()) || Number(rec.price) <= 0) {
+    errors.push('price must be a positive number with at most 2 decimals');
+  }
+  if (!/^[A-Za-z]{3}$/.test((rec.currency || '').trim()))
+    errors.push('currency must be a 3-letter code');
+  if (!IMPORT_CYCLES.includes((rec.billing_cycle || '').trim().toLowerCase())) {
+    errors.push(`billing_cycle must be one of ${IMPORT_CYCLES.join(', ')}`);
+  }
+  const next = (rec.next_billing_date || '').trim();
+  if (next && !(/^\d{4}-\d{2}-\d{2}$/.test(next) && !isNaN(Date.parse(next)))) {
+    errors.push('next_billing_date must be YYYY-MM-DD');
+  }
+  return errors;
+}
+
+function importKey(rec) {
+  return [
+    (rec.name || '').trim().replace(/\s+/g, ' ').toLowerCase(),
+    (rec.currency || '').trim().toUpperCase(),
+    (rec.billing_cycle || '').trim().toLowerCase(),
+  ].join('|');
+}
+
+async function cmdSubImport(args, cfg) {
+  requireAuth(cfg);
+  // `--dry-run file.csv` makes the arg parser treat the file as the flag's value.
+  const dryRunOpt = args.options['dry-run'];
+  const file = args._[0] || dryRunOpt;
+  if (!file) {
+    fail('Usage: subtrackr subscriptions import <file.csv> [--dry-run]');
+    process.exit(1);
+  }
+  let text;
+  try {
+    text = fs.readFileSync(file, 'utf8');
+  } catch (e) {
+    fail(`Cannot read ${file}: ${e.message}`);
+    process.exit(1);
+  }
+
+  let table;
+  try {
+    table = parseCsv(text)
+      .map((cells, i) => ({ cells, line: i + 1 }))
+      .filter((r) => r.cells.some((x) => x.trim() !== ''));
+  } catch (e) {
+    fail(e.message);
+    process.exit(1);
+  }
+  if (table.length === 0) {
+    fail('The file is empty.');
+    process.exit(1);
+  }
+  const header = table[0].cells.map((h) => h.trim().toLowerCase());
+  const missing = IMPORT_REQUIRED.filter((col) => !header.includes(col));
+  if (missing.length) {
+    fail(`Missing required column(s): ${missing.join(', ')}`);
+    process.exit(1);
+  }
+  const dataRows = table.slice(1);
+  if (dataRows.length > IMPORT_MAX_ROWS) {
+    fail(`Import is limited to ${IMPORT_MAX_ROWS} rows (got ${dataRows.length}).`);
+    process.exit(1);
+  }
+
+  const dryRun = Boolean(args.flags['dry-run']) || dryRunOpt !== undefined;
+  const existingRes = await apiRequest(cfg.baseUrl, '/v1/subscriptions', 'GET', null, cfg.apiKey);
+  if (existingRes.status !== 200) {
+    fail(`API error ${existingRes.status}: ${JSON.stringify(existingRes.body)}`);
+    process.exit(1);
+  }
+  const existing = Array.isArray(existingRes.body)
+    ? existingRes.body
+    : existingRes.body && existingRes.body.data
+      ? existingRes.body.data
+      : [];
+  const seen = new Map();
+  for (const e of existing) {
+    seen.set(
+      importKey({ name: e.name, currency: e.currency, billing_cycle: e.billing_cycle }),
+      'existing'
+    );
+  }
+
+  const results = [];
+  for (const { cells, line } of dataRows) {
+    const rec = {};
+    header.forEach((h, i) => (rec[h] = cells[i] || ''));
+    const errors = importRowErrors(rec);
+    if (errors.length) {
+      results.push({ line, name: rec.name, status: 'error', errors });
+      continue;
+    }
+    const key = importKey(rec);
+    if (seen.has(key)) {
+      const orig = seen.get(key);
+      results.push({
+        line,
+        name: rec.name,
+        status: 'duplicate',
+        errors: [],
+        duplicateOf: orig === 'existing' ? 'existing subscription' : `line ${orig}`,
+      });
+      continue;
+    }
+    seen.set(key, line);
+    if (dryRun) {
+      results.push({ line, name: rec.name, status: 'would_create', errors: [] });
+      continue;
+    }
+    const body = {
+      name: rec.name.trim(),
+      price: parseFloat(rec.price),
+      currency: rec.currency.trim().toUpperCase(),
+      billing_cycle: rec.billing_cycle.trim().toLowerCase(),
+      ...(rec.next_billing_date && rec.next_billing_date.trim()
+        ? { next_billing_date: rec.next_billing_date.trim() }
+        : {}),
+      ...(rec.category && rec.category.trim() ? { category: rec.category.trim() } : {}),
+    };
+    try {
+      const res = await apiRequest(cfg.baseUrl, '/v1/subscriptions', 'POST', body, cfg.apiKey);
+      if (res.status === 200 || res.status === 201) {
+        results.push({
+          line,
+          name: rec.name,
+          status: 'created',
+          id: res.body && res.body.id,
+          errors: [],
+        });
+      } else {
+        seen.delete(key);
+        results.push({
+          line,
+          name: rec.name,
+          status: 'error',
+          errors: [`API error ${res.status}: ${JSON.stringify(res.body)}`],
+        });
+      }
+    } catch (e) {
+      seen.delete(key);
+      results.push({ line, name: rec.name, status: 'error', errors: [e.message] });
+    }
+  }
+
+  const summary = {
+    total: results.length,
+    created: results.filter((r) => r.status === 'created' || r.status === 'would_create').length,
+    duplicates: results.filter((r) => r.status === 'duplicate').length,
+    failed: results.filter((r) => r.status === 'error').length,
+    dryRun,
+    rows: results,
+  };
+
+  const format = args.options['format'] || args.options['f'];
+  if (format === 'json') {
+    printOutput(summary, 'json');
+  } else {
+    for (const r of results) {
+      if (r.status === 'error')
+        warn(`line ${r.line} (${r.name || 'unnamed'}): ${r.errors.join('; ')}`);
+      else if (r.status === 'duplicate')
+        info(`line ${r.line} (${r.name}): duplicate of ${r.duplicateOf}, skipped`);
+    }
+    const verb = dryRun ? 'Would create' : 'Created';
+    ok(
+      `${verb} ${summary.created}, skipped ${summary.duplicates} duplicate(s), ${summary.failed} failed (of ${summary.total}).`
+    );
+  }
+  if (summary.failed > 0) process.exitCode = 1;
+}
+
 // ── Sub-command dispatcher ────────────────────────────────────────────────────
 
 async function dispatchSubscriptions(subArgs, cfg) {
@@ -838,6 +1058,8 @@ async function dispatchSubscriptions(subArgs, cfg) {
       return cmdSubResume(args, cfg);
     case 'charge':
       return cmdSubCharge(args, cfg);
+    case 'import':
+      return cmdSubImport(args, cfg);
     default:
       console.log(`${c.bold('subtrackr subscriptions')} — manage subscriptions\n`);
       console.log('  list                        List all subscriptions');
@@ -862,6 +1084,12 @@ async function dispatchSubscriptions(subArgs, cfg) {
       console.log('  pause <id>                  Pause a subscription');
       console.log('  resume <id>                 Resume a paused subscription');
       console.log('  charge <id>                 Manually trigger a charge cycle');
+      console.log('');
+      console.log('  import <file.csv>           Bulk-import subscriptions from CSV');
+      console.log('    --dry-run                   Validate and detect duplicates only');
+      console.log(
+        '    columns: name, price, currency, billing_cycle [, next_billing_date, category]'
+      );
       console.log('');
       console.log(`${c.dim('Global: --format json | --api-key <k> | --base-url <u>')}`);
       console.log('');

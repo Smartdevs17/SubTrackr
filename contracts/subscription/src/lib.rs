@@ -7,17 +7,21 @@
 // Contract methods take positional arguments by ABI; parameters cannot be
 // grouped into a struct without changing the contract interface.
 #![allow(clippy::too_many_arguments)]
+pub mod billing;
+mod cancellation;
+mod family;
 mod quota;
 mod revenue;
 mod trial;
 mod usage;
+
 use soroban_sdk::{token, Address, Bytes, BytesN, Env, IntoVal, String, TryFromVal, Val, Vec};
 use subtrackr_types::{
     ChargeCommitment, Interval, Invoice, MevAlert, MevProtectionConfig, Plan, StorageKey,
     Subscription, SubscriptionStatus, TimeRange,
 };
 
-// ── Feature types (defined locally to avoid StorageKey enum growth) ──
+// â”€â”€ Feature types (defined locally to avoid StorageKey enum growth) â”€â”€
 
 /// A discount coupon created by a merchant.
 #[soroban_sdk::contracttype]
@@ -79,6 +83,10 @@ enum FeatureStoreKey {
     ReactivationConfig,
     /// subscription_id -> cancellation timestamp (for reactivation window).
     CancelledAt(u64),
+    /// subscription_id -> CancellationProof (#2027).
+    CancellationProof(u64),
+    /// subscription_id -> FamilyGroup (#2031).
+    FamilyGroup(u64),
 }
 
 fn feature_get<V: TryFromVal<Env, Val>>(env: &Env, key: FeatureStoreKey) -> Option<V> {
@@ -569,16 +577,16 @@ fn charge_subscription_guarded(
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Implementation Contract
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[soroban_sdk::contract]
 pub struct SubTrackrSubscription;
 
 #[soroban_sdk::contractimpl]
 impl SubTrackrSubscription {
-    // ── Upgrade interface ──
+    // â”€â”€ Upgrade interface â”€â”€
 
     pub fn get_version(_env: Env, proxy: Address, _storage: Address) -> u32 {
         proxy.require_auth();
@@ -631,7 +639,7 @@ impl SubTrackrSubscription {
         panic!("Unsupported migration path");
     }
 
-    // ── Initialization ──
+    // â”€â”€ Initialization â”€â”€
 
     pub fn initialize(env: Env, proxy: Address, storage: Address, admin: Address) {
         proxy.require_auth();
@@ -657,7 +665,7 @@ impl SubTrackrSubscription {
         storage_instance_remove(&env, &storage, StorageKey::InvoiceContract);
     }
 
-    // ── Rate Limiting Admin ──
+    // â”€â”€ Rate Limiting Admin â”€â”€
 
     pub fn set_rate_limit(
         env: Env,
@@ -823,7 +831,7 @@ impl SubTrackrSubscription {
         );
     }
 
-    // ── Plan Management ──
+    // â”€â”€ Plan Management â”€â”€
 
     pub fn create_plan(
         env: Env,
@@ -897,7 +905,7 @@ impl SubTrackrSubscription {
         storage_persistent_set(&env, &storage, StorageKey::Plan(plan_id), plan);
     }
 
-    // ── Subscription Management ──
+    // â”€â”€ Subscription Management â”€â”€
 
     pub fn subscribe(
         env: Env,
@@ -1020,6 +1028,12 @@ impl SubTrackrSubscription {
             env.ledger().timestamp(),
         );
 
+        // A cancelled subscription no longer shares access (#2031).
+        family::clear(&env, subscription_id);
+
+        // Anchor a verifiable proof of the cancellation in an event (#2027).
+        cancellation::record(&env, subscription_id, sub.plan_id, &subscriber);
+
         // Remove index
         remove_user_plan_index(&env, &storage, &subscriber, sub.plan_id);
 
@@ -1029,6 +1043,110 @@ impl SubTrackrSubscription {
             plan.subscriber_count -= 1;
         }
         storage_persistent_set(&env, &storage, StorageKey::Plan(sub.plan_id), plan);
+    }
+
+    /// Create a family group on a subscription. Only the subscriber (the shared
+    /// paying wallet) can do this, and only while the subscription is live.
+    pub fn create_family_group(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscriber: Address,
+        subscription_id: u64,
+        max_seats: u32,
+    ) -> family::FamilyGroup {
+        proxy.require_auth();
+        subscriber.require_auth();
+        Self::assert_family_payer(&env, &storage, &subscriber, subscription_id);
+        family::create(&env, subscription_id, &subscriber, max_seats)
+    }
+
+    /// Add a member to the family group. Payer only.
+    pub fn add_family_member(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscriber: Address,
+        subscription_id: u64,
+        member: Address,
+    ) -> family::FamilyGroup {
+        proxy.require_auth();
+        subscriber.require_auth();
+        Self::assert_family_payer(&env, &storage, &subscriber, subscription_id);
+        family::add_member(&env, subscription_id, &member)
+    }
+
+    /// Remove a member from the family group. Payer only.
+    pub fn remove_family_member(
+        env: Env,
+        proxy: Address,
+        storage: Address,
+        subscriber: Address,
+        subscription_id: u64,
+        member: Address,
+    ) -> family::FamilyGroup {
+        proxy.require_auth();
+        subscriber.require_auth();
+        Self::assert_family_payer(&env, &storage, &subscriber, subscription_id);
+        family::remove_member(&env, subscription_id, &member)
+    }
+
+    /// A member leaves a family group. Needs only the member's own authorisation.
+    pub fn leave_family_group(
+        env: Env,
+        proxy: Address,
+        _storage: Address,
+        member: Address,
+        subscription_id: u64,
+    ) -> family::FamilyGroup {
+        proxy.require_auth();
+        member.require_auth();
+        family::remove_member(&env, subscription_id, &member)
+    }
+
+    pub fn get_family_group(
+        env: Env,
+        proxy: Address,
+        _storage: Address,
+        subscription_id: u64,
+    ) -> Option<family::FamilyGroup> {
+        proxy.require_auth();
+        family::get(&env, subscription_id)
+    }
+
+    /// True when `who` is the payer or a member of the subscription's family group.
+    pub fn has_family_access(
+        env: Env,
+        proxy: Address,
+        _storage: Address,
+        subscription_id: u64,
+        who: Address,
+    ) -> bool {
+        proxy.require_auth();
+        family::has_access(&env, subscription_id, &who)
+    }
+
+    /// Return the stored cancellation proof, if the subscription was cancelled.
+    pub fn get_cancellation_proof(
+        env: Env,
+        proxy: Address,
+        _storage: Address,
+        subscription_id: u64,
+    ) -> Option<cancellation::CancellationProof> {
+        proxy.require_auth();
+        cancellation::get(&env, subscription_id)
+    }
+
+    /// Check a claimed digest against the stored proof for a subscription.
+    pub fn verify_cancellation_proof(
+        env: Env,
+        proxy: Address,
+        _storage: Address,
+        subscription_id: u64,
+        digest: BytesN<32>,
+    ) -> bool {
+        proxy.require_auth();
+        cancellation::verify(&env, subscription_id, &digest)
     }
 
     pub fn pause_subscription(
@@ -1142,7 +1260,7 @@ impl SubTrackrSubscription {
         );
     }
 
-    // ── Payment Processing ──
+    // â”€â”€ Payment Processing â”€â”€
 
     pub fn charge_subscription(env: Env, proxy: Address, storage: Address, subscription_id: u64) {
         proxy.require_auth();
@@ -1243,7 +1361,7 @@ impl SubTrackrSubscription {
         );
     }
 
-    // ── Subscription Transfer ──
+    // â”€â”€ Subscription Transfer â”€â”€
 
     pub fn request_transfer(
         env: Env,
@@ -1363,7 +1481,7 @@ impl SubTrackrSubscription {
         );
     }
 
-    // ── Queries ──
+    // â”€â”€ Queries â”€â”€
 
     pub fn get_plan(env: Env, proxy: Address, storage: Address, plan_id: u64) -> Plan {
         proxy.require_auth();
@@ -1445,7 +1563,7 @@ impl SubTrackrSubscription {
         storage_instance_get(&env, &storage, StorageKey::MevAlertCount).unwrap_or(0)
     }
 
-    // ── Revenue Recognition API ──
+    // â”€â”€ Revenue Recognition API â”€â”€
 
     /// Set a revenue recognition rule for a plan (merchant only).
     pub fn set_revenue_rule(
@@ -1515,7 +1633,7 @@ impl SubTrackrSubscription {
         revenue::get_revenue_schedule(&env, &storage, subscription_id)
     }
 
-    // ── Quota & Usage API ──
+    // â”€â”€ Quota & Usage API â”€â”€
 
     pub fn set_plan_quotas(
         env: Env,
@@ -1590,7 +1708,7 @@ impl SubTrackrSubscription {
         usage::check_quota(&env, &storage, subscription_id, sub.plan_id, metric)
     }
 
-    // ── Seat-based plan quantities (#1724) ──
+    // â”€â”€ Seat-based plan quantities (#1724) â”€â”€
 
     /// Set the number of seats (quantity) for a subscription. The quantity
     /// multiplies the plan price on every charge. Mid-cycle changes do not
@@ -1645,7 +1763,7 @@ impl SubTrackrSubscription {
         feature_get(&env, FeatureStoreKey::Quantity(subscription_id)).unwrap_or(1)
     }
 
-    // ── Coupons & promo codes (#1725) ──
+    // â”€â”€ Coupons & promo codes (#1725) â”€â”€
 
     /// Create a discount coupon. `discount_bps` is in basis points (10_000 =
     /// 100 %). `expires_at` of 0 means the coupon never expires.
@@ -1791,7 +1909,7 @@ impl SubTrackrSubscription {
         );
     }
 
-    // ── Scheduled plan changes at cycle end (#1726) ──
+    // â”€â”€ Scheduled plan changes at cycle end (#1726) â”€â”€
 
     /// Schedule a plan upgrade/downgrade that takes effect at the next
     /// billing cycle boundary (i.e. after the next successful charge).
@@ -1889,7 +2007,7 @@ impl SubTrackrSubscription {
         feature_get(&env, FeatureStoreKey::PendingPlanChange(subscription_id))
     }
 
-    // ── Subscription reactivation window (#1727) ──
+    // â”€â”€ Subscription reactivation window (#1727) â”€â”€
 
     /// Configure how long after cancellation a subscriber may reactivate.
     /// Admin-only.
@@ -1996,6 +2114,27 @@ impl SubTrackrSubscription {
                 subscriber,
             ),
             (subscription_id, sub.plan_id, now),
+        );
+    }
+}
+
+impl SubTrackrSubscription {
+    fn assert_family_payer(
+        env: &Env,
+        storage: &Address,
+        subscriber: &Address,
+        subscription_id: u64,
+    ) {
+        let sub: Subscription =
+            storage_persistent_get(env, storage, StorageKey::Subscription(subscription_id))
+                .expect("Subscription not found");
+        assert!(
+            sub.subscriber == *subscriber,
+            "Only the paying wallet can manage the family"
+        );
+        assert!(
+            sub.status == SubscriptionStatus::Active || sub.status == SubscriptionStatus::Paused,
+            "Subscription not active"
         );
     }
 }

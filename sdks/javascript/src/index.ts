@@ -39,6 +39,12 @@ export type {
 export { withRetry, RetryableError, isRetryableStatus, parseRetryAfterMs } from './retry';
 export type { RetryOptions, RetryResult } from './retry';
 
+// ── Circuit breaker & resilience (Issue #2216) ────────────────────────────────
+export { CircuitBreaker, CircuitOpenError } from './circuitBreaker';
+export type { CircuitBreakerOptions, CircuitState } from './circuitBreaker';
+export { withResilience, withResilienceAndBreaker } from './resilience';
+export type { ResilienceOptions, ResilienceResult } from './resilience';
+
 // ── Versioning & deprecation ─────────────────────────────────────────────────
 export {
   SDK_VERSION,

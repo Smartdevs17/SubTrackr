@@ -13,9 +13,11 @@ Welcome to the SubTrackr SDK documentation. SubTrackr provides official SDKs in 
 ## JavaScript / TypeScript
 
 ### Installation
+
 You can build the JS SDK into your project or install it as a package `npm install @subtrackr/sdk`.
 
 ### Basic Usage
+
 ```typescript
 import { SubTrackrClient } from '@subtrackr/sdk';
 
@@ -36,16 +38,18 @@ run();
 ## Python
 
 ### Installation
+
 ```bash
 pip install subtrackr-sdk
 ```
 
 ### Basic Usage
+
 ```python
 from subtrackr import SubTrackrClient
 
 client = SubTrackrClient(
-    api_key="sk_test_12345", 
+    api_key="sk_test_12345",
     environment="sandbox"
 )
 
@@ -59,11 +63,13 @@ for sub in subs:
 ## Go
 
 ### Installation
+
 ```bash
 go get github.com/Smartdevs17/SubTrackr/sdks/go/v2
 ```
 
 ### Basic Usage
+
 ```go
 package main
 
@@ -86,6 +92,7 @@ func main() {
 	fmt.Println(subs)
 }
 ```
+
 # SubTrackr SDKs
 
 Official SDKs are available for JavaScript/TypeScript, Python, and Go. The SDK contract method surface is generated from `docs/openapi.yaml`; run:
@@ -110,10 +117,19 @@ npm run sdk:test:go
 All three SDKs share one version (`sdks/VERSION`) and are released together
 by the `SDK Publish` workflow (`.github/workflows/sdk-publish.yml`):
 
-- Pull requests that touch `sdks/**` run a dry run: every SDK is tested and
-  packaged, and nothing is published.
+- Pull requests that touch `sdks/**` run a dry run. The workflow validates the
+  OpenAPI 3.1 document, regenerates endpoint metadata and writes
+  `sdks/generated/publish-manifest.json` (`scripts/publish-sdks.js`), then
+  tests and packages every SDK. Nothing is published.
 - Pushing a tag `sdk-vX.Y.Z` that matches `sdks/VERSION` publishes to npm,
   PyPI and the Go module proxy, and only if all three SDKs pass.
+
+To check the spec and see the publish manifest locally without publishing:
+
+```bash
+npm run sdk:generate
+npm run sdk:publish -- --version sdk-v2.0.0
+```
 
 See [releasing.md](releasing.md) for the runbook and the one-time registry
 setup.

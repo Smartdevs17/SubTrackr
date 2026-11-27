@@ -30,6 +30,25 @@ export interface IAuthStrategy {
    - Tier: Basic rate limiting
    - Supports cryptographic signature validation for Web3 and Stellar accounts.
 
+4. **Web3Auth Strategy (`Web3AuthStrategy`)**
+   - Header: `X-Web3Auth-Token: <id-token>` (or `X-Web3Auth-ID-Token`)
+   - Tier: Premium rate limiting
+   - Verifies the ID token claims (`sub`, `exp`, `iss`, `aud`) and exposes the first linked wallet in `user.metadata.address`.
+
+## Auth Gateway
+
+`createAuthGateway()` registers JWT, API key and Web3Auth strategies in priority order. Pass a custom `web3authVerifier` to replace claim verification with signature/JWKS verification, `strategies` to add more strategies, or `includeDefaults: false` to start empty.
+
+```typescript
+import { createAuthGatewayMiddleware } from './backend/services/shared';
+
+app.use('/api', createAuthGatewayMiddleware({
+  web3auth: { issuer: 'https://issuer.example.com', audience: 'subtrackr' },
+}));
+```
+
+The middleware attaches the resolved `AuthUser` to `req.user` and the matched strategy name to `req.authStrategy`.
+
 ## Fallback & Multi-Strategy Chaining
 The `CompositeAuthStrategyManager` evaluates incoming requests sequentially against registered strategies.
 If a strategy validates the request, authentication succeeds immediately. If a strategy returns `null`, the manager attempts the next strategy in line. If all strategies fail, an `UnauthorizedError` (HTTP 401) is thrown.

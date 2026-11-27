@@ -1,4 +1,3 @@
-feat/issues-394-405-414-386
 // ── Connection pool (#414) ────────────────────────────────────────────────────
 export { ConnectionPool, getPool, stellarPool } from './connectionPool';
 export type { PoolConfig, PoolMetrics } from './connectionPool';
@@ -28,10 +27,26 @@ export type {
   PaginationMeta,
 } from './apiResponse';
 
-main
 export { AuditService } from './auditService';
 export { CampaignService } from './campaignService';
 export { DunningService, dunningService } from './dunningService';
+
+// ── Administrator subscription console (#2199) ──────────────────────────────
+export {
+  SubscriptionConsoleService,
+  SubscriptionConsoleError,
+  InMemorySubscriptionConsoleStore,
+} from './admin/subscriptionConsole';
+export type {
+  ManagedSubscription,
+  ManagedSubscriptionStatus,
+  SubscriptionConsoleFilter,
+  SubscriptionConsolePage,
+  SubscriptionConsoleSummary,
+  AuditRecord,
+  BulkActionResult,
+} from './admin/subscriptionConsole';
+export { registerSubscriptionConsoleRoutes } from './admin/subscriptionConsoleRouter';
 export { ExportService, exportService } from './exportService';
 export { PricingService } from './pricingService';
 export { OracleMonitorService, oracleMonitorService } from './oracleMonitorService';
@@ -92,6 +107,7 @@ export type {
   SupportTicketContext,
   SupportTicketRecord,
 } from './supportAutomation';
+export {
   SubscriptionEventStore,
   subscriptionEventStore,
 } from './subscriptionEventStore';
@@ -172,3 +188,7 @@ export type {
   UnauthorizedAccessEvent,
   AccessCheckOptions,
 } from './accessControl';
+
+// -- Merchant Module -----------------------------------------------------------
+export * from './merchant';
+

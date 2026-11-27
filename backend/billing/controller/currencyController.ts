@@ -6,6 +6,7 @@
 
 import type { Request, Response } from 'express';
 import { ok, fail, type ApiResponse } from '../../services/shared/apiResponse';
+import { fxConversionService } from '../../src/fx';
 import {
   CurrencyConversionService,
   currencyConversionService as defaultService,
@@ -148,24 +149,33 @@ export class CurrencyController {
   /** POST /currency/rates/refresh */
   async refreshRates(req: Request, res: Response): Promise<void> {
     const requestId = requestIdFrom(req);
-    const body = req.body as { fetcher?: string };
-
-    // In production, this would call an external API.
-    // For now, we re-seed from fallback rates.
     try {
-      const count = await this.service.refreshRates(async (base) => {
-        // Simulate an API response — in production this would be a real fetch
-        const rates: Record<string, number> = {};
-        for (const r of this.service.getAllRates()) {
-          if (r.base === base && r.source === 'fallback') {
-            rates[r.quote] = r.rate;
-          }
-        }
-        return rates;
-      });
-      send(res, ok({ refreshed: count }, requestId));
+      const snapshot = await fxConversionService.getSnapshot(this.service.getBaseCurrency());
+      if (snapshot.stale) {
+        send(res, ok({
+          refreshed: 0,
+          snapshotDate: snapshot.snapshotDate,
+          source: snapshot.source,
+          stale: true,
+        }, requestId));
+        return;
+      }
+
+      const fetchedAt = Date.now();
+      let refreshed = 0;
+      for (const [quote, rate] of Object.entries(snapshot.rates)) {
+        this.service.setRate(snapshot.baseCurrency, quote, rate, fetchedAt, snapshot.source);
+        refreshed++;
+      }
+      send(res, ok({
+        refreshed,
+        snapshotDate: snapshot.snapshotDate,
+        source: snapshot.source,
+        stale: snapshot.stale,
+      }, requestId));
     } catch (err) {
-      send(res, fail('RATE_REFRESH_ERROR', (err as Error).message, requestId));
+      const message = err instanceof Error ? err.message : 'Unable to refresh exchange rates';
+      send(res, fail('RATE_REFRESH_ERROR', message, requestId));
     }
   }
 

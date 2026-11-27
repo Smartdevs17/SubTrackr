@@ -49,6 +49,14 @@ export function getRemainingDays(subscription: Subscription): number {
 }
 
 /**
+ * Calculate the exact fractional hours remaining in the current billing period.
+ */
+export function getRemainingHours(subscription: Subscription, now: Date = new Date()): number {
+  const nextBilling = new Date(subscription.nextBillingDate).getTime();
+  return Math.max(0, (nextBilling - now.getTime()) / (1000 * 60 * 60));
+}
+
+/**
  * Resolve the effective proration date for a plan change.
  *
  * If a specific date is provided, only immediate changes that happen before the
@@ -332,14 +340,15 @@ export function calculateHourlyProration(
 ): ProrationPreview {
   const periodDays = getPeriodDays(currentSubscription.billingCycle);
   const periodHours = periodDays * 24;
-  const remainingDays =
-    effectiveDate === 'end_of_period' ? 0 : getRemainingDays(currentSubscription);
-  const remainingHours = remainingDays * 24;
+  const exactRemainingHours =
+    effectiveDate === 'end_of_period' ? 0 : getRemainingHours(currentSubscription);
+  const remainingHours = Math.round(exactRemainingHours * 100) / 100;
+  const remainingDays = Math.ceil(exactRemainingHours / 24);
 
   const rawAmount =
     effectiveDate === 'end_of_period'
       ? 0
-      : ((newPrice - currentSubscription.price) * remainingHours) / periodHours;
+      : ((newPrice - currentSubscription.price) * exactRemainingHours) / periodHours;
 
   const amount = Math.round(Math.abs(rawAmount) * 100) / 100;
   const isCredit = rawAmount < 0;
