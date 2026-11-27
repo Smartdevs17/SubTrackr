@@ -9,6 +9,7 @@ import { loadRedisConfig } from '../../config/redis';
 
 export interface RedisPubSubClient {
   publish(channel: string, message: string): Promise<number>;
+  ping(): Promise<string>;
   subscribe(channel: string): Promise<number>;
   unsubscribe(channel: string): Promise<number>;
   on(event: 'message', listener: (channel: string, message: string) => void): unknown;
